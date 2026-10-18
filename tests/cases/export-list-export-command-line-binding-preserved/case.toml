@@ -1,0 +1,11 @@
+id = "export-list-export-command-line-binding-preserved"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=cli"]
+description = "Original export/unexport name-list binding creation, preservation and child-environment observation."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d3c636c693e7c636c697c7265637572736976657c636f6d6d616e64206c696e650a6368696c642d583d3c636c693e7c70726573656e740a"
+stderr_hex = ""

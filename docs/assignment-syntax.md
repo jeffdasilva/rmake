@@ -53,9 +53,10 @@ those later paths are observable and covered independently.
 ## Remaining boundaries and provenance
 
 Target-specific and other colon-rule syntax, generic command-line binding replay,
-export-name-list materialization, and actual shell assignments remain separate
-compatibility work. Passing token fixtures does not imply complete support for
-those features or all `define` and directive combinations.
+and actual shell assignments remain separate compatibility work. The
+[export-binding notes](export-bindings.md) describe name-list materialization and
+its remaining environment boundaries. Passing token fixtures does not imply
+complete support for these features or all `define` and directive combinations.
 
 The scanner and tests were independently authored from original executable probes
 and observed GNU 4.4.1 behavior. No GNU implementation source or upstream tests

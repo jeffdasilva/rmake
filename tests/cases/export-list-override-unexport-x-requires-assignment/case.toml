@@ -1,0 +1,11 @@
+id = "export-list-override-unexport-x-requires-assignment"
+requirement = "variables.export-bindings"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "An override unexport modifier chain without an assignment is a missing-separator error. Current candidate accepts this name-list form."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

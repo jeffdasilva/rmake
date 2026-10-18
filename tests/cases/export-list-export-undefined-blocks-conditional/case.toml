@@ -1,0 +1,11 @@
+id = "export-list-export-undefined-blocks-conditional"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export/unexport name-list binding creation, preservation and child-environment observation."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6265666f72653d3c3e7c7c73696d706c657c66696c650a61667465723d3c3e7c7c73696d706c657c66696c650a6368696c642d583d3c3e7c70726573656e740a"
+stderr_hex = ""

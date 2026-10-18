@@ -1,0 +1,14 @@
+id = "export-list-unexport-environment-binding-preserved"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export/unexport name-list binding creation, preservation and child-environment observation."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[environment]
+"X" = "env"
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d3c656e763e7c656e767c7265637572736976657c656e7669726f6e6d656e740a6368696c642d583d3c3e7c0a"
+stderr_hex = ""

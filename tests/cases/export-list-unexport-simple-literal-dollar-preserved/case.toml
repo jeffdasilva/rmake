@@ -1,0 +1,11 @@
+id = "export-list-unexport-simple-literal-dollar-preserved"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export/unexport name-list binding creation, preservation and child-environment observation."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d3c24284b293e7c24284b297c73696d706c657c66696c650a6368696c642d583d3c3e7c0a"
+stderr_hex = ""

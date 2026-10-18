@@ -600,3 +600,30 @@ graph, and 4.315/4.287 ms for 5,000 assignments. Median paired after/before rati
 were 0.984, 0.989 and 1.005. These unisolated wall-time observations show no material
 change on the three early workloads; they do not establish a general speedup,
 GNU performance parity or completion of the performance milestone.
+
+## Export and unexport name-list bindings — 2026-10-18
+
+Name-list directives now create absent variables as empty simple bindings with
+file origin before applying export policy. Existing bindings retain their value,
+flavor, origin and source context. Names are expanded once for the list and kept
+literal during insertion. This fixes conditional-assignment suppression,
+immediate append effects, and empty-versus-unset child environment behavior.
+The [export-binding notes](export-bindings.md) document the remaining boundaries.
+
+Twenty-eight new original fixtures add 21 required matches and seven pending
+cases; the earlier export-fallback regression is promoted. The corpus contains
+812 fixtures: 724 required exact matches and 88 explicit pending requirements,
+with no failures or unexpected passes. Full `make ci` passed with 255 Rust tests,
+183 tooling tests, all generated/stateful/diagnostic gates and self-host flows.
+
+An independent campaign passes all 131 distinct inputs against authored GNU
+expectations and candidate byte streams, status and complete filesystem checks.
+It includes existing-origin/source preservation, append effects and real child
+captures for literal `=` names. Those child captures match using the existing
+process launcher; no environment serialization change was necessary.
+
+Pending cases retain policy lifetime after `undefine`, empty expanded-list
+toggles, vertical-tab token splitting and modifier grammar. Other export-effect
+ordering gaps remain in the earlier corpus. No GNU implementation source or
+upstream tests were consulted for this slice. No performance or complete-export
+compatibility claim is made.
