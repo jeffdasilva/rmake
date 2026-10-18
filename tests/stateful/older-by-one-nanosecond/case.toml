@@ -1,0 +1,22 @@
+id = "older-by-one-nanosecond"
+description = "A prerequisite exactly one nanosecond older leaves the target untouched."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = [{ "op" = "write", "path" = "source", "content" = "source\n", "mtime_ns" = 1600000000000000000 }, { "op" = "write", "path" = "out", "content" = "out\n", "mtime_ns" = 1600000000000000001 }]
+
+[[steps]]
+name = "one-ns-older"
+args = ["-rR", "--no-print-directory"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+unchanged = ["out", "source"]
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "equalized"
+args = ["-rR", "--no-print-directory"]
+actions = [{ "op" = "utime", "path" = "source", "mtime_ns" = 1600000000000000001 }]
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+unchanged = ["out", "source"]
+exact_mtime = {  }
+mtime_order = []

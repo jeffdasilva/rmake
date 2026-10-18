@@ -3,11 +3,16 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-selfhost test check ci bench clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
+BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
+SEED ?= 44101
+GENERATED_CASES ?= 200
+EXPRESSIONS ?= 32
+START_INDEX ?= 0
 CARGO = $(PYTHON) tools/rust.py cargo
 
 help:
@@ -24,12 +29,16 @@ help:
 		'  test-tools      Test the independent tooling' \
 		'  test-oracle     Validate fixtures against two oracle executions' \
 		'  test-diff       Compare rmake against the oracle; report pending cases' \
+		'  test-generated  Compare seeded pure-expansion programs' \
+		'  test-stateful   Compare incremental builds and timestamp boundaries' \
 		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  bench           Record original GNU oracle workload baselines' \
+		'  bench-compare   Compare release rmake and GNU with paired timings' \
 		'  check / ci      Run all current development gates' \
 		'  clean           Remove Cargo build output' \
 		'' \
-		'Overrides: PYTHON, ORACLE, CANDIDATE. GNU compatibility is incomplete.'
+		'Overrides: PYTHON, ORACLE, CANDIDATE, SEED, GENERATED_CASES, EXPRESSIONS.' \
+		'GNU compatibility is incomplete.'
 
 bootstrap: bootstrap-rust bootstrap-oracle
 
@@ -78,14 +87,25 @@ test-diff: build oracle-verify
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 
-test: test-unit test-tools test-oracle test-diff
+test-generated: build oracle-verify
+	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
+	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-check: check-core test-oracle test-diff
+test-stateful: build oracle-verify
+	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --self-test
+	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
+
+test: test-unit test-tools test-oracle test-diff test-generated test-stateful
+
+check: check-core test-oracle test-diff test-generated test-stateful
 
 ci: check test-selfhost
 
 bench: oracle-verify
 	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)"
+
+bench-compare: release oracle-verify
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)"
 
 clean:
 	+$(CARGO) clean

@@ -1,0 +1,31 @@
+id = "order-only-timestamp-change"
+description = "Changing only an order-only prerequisite never rebuilds an existing target."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = [{ "op" = "write", "path" = "source", "content" = "source\n", "mtime_ns" = 1600000000000000000 }, { "op" = "write", "path" = "out", "content" = "out\n", "mtime_ns" = 1600000000000000002 }, { "op" = "write", "path" = "stamp", "content" = "stamp\n", "mtime_ns" = 1600000000000000000 }]
+
+[[steps]]
+name = "initial-noop"
+args = ["-rR", "--no-print-directory"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+unchanged = ["out"]
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "newer-order-only"
+args = ["-rR", "--no-print-directory"]
+actions = [{ "op" = "utime", "path" = "stamp", "mtime_ns" = 1600000000000000003 }]
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+unchanged = ["out", "source", "stamp"]
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "changed-order-only"
+args = ["-rR", "--no-print-directory"]
+actions = [{ "op" = "write", "path" = "stamp", "content" = "new stamp\n", "mtime_ns" = 1600000000000000004 }]
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+unchanged = ["out", "source", "stamp"]
+exact_mtime = {  }
+mtime_order = []

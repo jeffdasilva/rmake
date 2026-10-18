@@ -1,0 +1,31 @@
+id = "deleted-output-rebuild"
+description = "Deleting a previously built output forces the next invocation to recreate it."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = [{ "op" = "write", "path" = "source", "content" = "source\n", "mtime_ns" = 1600000000000000000 }]
+
+[[steps]]
+name = "first-build"
+args = ["-rR", "--no-print-directory"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "build\n", "stderr" = "" }
+unchanged = []
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "deleted-output"
+args = ["-rR", "--no-print-directory"]
+actions = [{ "op" = "remove", "path" = "out" }]
+expected = { "exit_code" = 0, "stdout" = "build\n", "stderr" = "" }
+unchanged = []
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "recreated-noop"
+args = ["-rR", "--no-print-directory"]
+actions = [{ "op" = "utime", "path" = "out", "mtime_ns" = 1600000000000000001 }]
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+unchanged = ["out"]
+exact_mtime = {  }
+mtime_order = []

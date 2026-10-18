@@ -1,0 +1,22 @@
+id = "question-empty-phony"
+description = "Question mode on phony targets with bare or explicit empty recipes reports no work."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = []
+
+[[steps]]
+name = "empty-recipe"
+args = ["-rR", "--no-print-directory", "-q", "all"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "", "stderr" = "" }
+unchanged = ["Makefile"]
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "bare-rule"
+args = ["-rR", "--no-print-directory", "-q", "bare"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "", "stderr" = "" }
+unchanged = ["Makefile"]
+exact_mtime = {  }
+mtime_order = []

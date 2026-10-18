@@ -31,8 +31,9 @@ tiny/no-op/expansion workload baselines, including startup wall time.
 M0 is not fully complete. The current harness runs trusted, reviewed fixtures with
 process-group/time/output bounds; it is **not a filesystem or network sandbox**.
 Do not run untrusted Makefiles through it. Full namespace/container isolation,
-immutable runtime images, timestamp comparison, stateful fixture steps, PTYs and
-process-event assertions remain to be implemented. The current benchmarks report
+immutable runtime images, comprehensive timestamp observations, PTYs and
+process-event assertions remain open. The later stateful gate below adds a
+bounded set of multi-step and relational timestamp tests. Current benchmarks report
 wall time only, not the full CPU/memory/I/O profile in the design.
 
 The core semantics milestones M1-M9 are not complete. The corpus and requirement
@@ -92,3 +93,30 @@ effects are rejected. Makefile changes to execution flags and forced commands
 under touch mode are rejected until their semantics are implemented. Resource
 bounds and explicit unsupported errors are development limitations, not approved
 exceptions to the final compatibility contract.
+
+## Generated and stateful test gates — 2026-10-18
+
+`make test-generated` adds independent, seeded programs covering assignment
+timing, nested names, substitution, lazy functions and byte-valued words. Its
+default gate runs 200 programs with 6,400 labeled expression observations, both
+oracle-versus-oracle and oracle-versus-candidate. Each program includes original
+expected anchors. Campaign reports retain generator/source identity, seed and
+index range, program digest and binary/profile identities; mismatches retain the
+exact Makefile and raw results. Larger runs use the same bounded CLI.
+
+`make test-stateful` adds 15 scenarios with 37 invocations per engine and
+preserves each workspace across a sequence of invocations,
+with deterministic input mutations and nanosecond timestamp anchors. It compares
+exact outputs/status/files plus declared timestamp relations and unchanged-file
+checks. Wall-clock timestamps are retained as evidence but not compared as
+arbitrary absolute values between sequential executions. Transient writes restored
+before observation, directory times, atime/ctime and process events remain outside
+this gate. The trusted-fixture security limitation still applies.
+
+`make bench-compare` records alternating paired wall-time samples with identical
+paths, arguments, environment and exact output. The first local release-build
+measurements were about 0.53/0.48 ms (rmake/GNU) for tiny no-op, 25.96/11.92 ms for
+10,000 explicit no-op nodes, and 4.24/3.00 ms for 5,000 immediate assignments.
+The current slice is slower on these three workloads. These are preliminary warm
+OS-cache observations on one host, without CPU isolation or confidence intervals;
+they guide later profiling and do not satisfy the performance milestone.
