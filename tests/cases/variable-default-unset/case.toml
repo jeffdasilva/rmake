@@ -1,0 +1,11 @@
+id = "variable-default-unset"
+requirement = "variables.precedence"
+candidate = "pending"
+description = "variable default unset"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "fallback\n"

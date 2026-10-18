@@ -1,0 +1,11 @@
+id = "rule-pattern-specificity"
+requirement = "rules.implicit"
+candidate = "pending"
+description = "rule pattern specificity"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "specific\n"

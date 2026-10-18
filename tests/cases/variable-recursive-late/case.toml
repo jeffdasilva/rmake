@@ -1,0 +1,11 @@
+id = "variable-recursive-late"
+requirement = "variables.flavors"
+candidate = "pending"
+description = "variable recursive late"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "late\n"

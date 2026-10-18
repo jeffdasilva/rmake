@@ -3,6 +3,10 @@
 
 # Rust build output. Keep Cargo.lock tracked when the application is initialized.
 /target/
+/.tools/
+/artifacts/
+__pycache__/
+*.pyc
 
 # Editor and operating-system artifacts.
 *.swp

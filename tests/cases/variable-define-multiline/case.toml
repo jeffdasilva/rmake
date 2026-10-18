@@ -1,0 +1,11 @@
+id = "variable-define-multiline"
+requirement = "variables.expansion"
+candidate = "pending"
+description = "variable define multiline"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first|second\n"

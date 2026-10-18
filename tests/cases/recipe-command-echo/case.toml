@@ -1,0 +1,11 @@
+id = "recipe-command-echo"
+requirement = "recipes.output"
+candidate = "pending"
+description = "recipe command echo"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "printf '%s\\n' shown\nshown\n"

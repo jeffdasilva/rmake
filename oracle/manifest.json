@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "version": "4.4.1",
+  "archive": {
+    "url": "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz",
+    "sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+    "root": "make-4.4.1",
+    "max_download_bytes": 16777216,
+    "checksum_provenance": {
+      "publisher": "Bazel",
+      "url": "https://bazel.googlesource.com/bazel/+/16bd26ba5ab7078c8da3c28d4b93f6daf345c9a5/MODULE.bazel.lock",
+      "document_sha256": "ff6d73212a9dd6e4360bab95d729a0309d4be899d29c0fd9a96b611e120a0281",
+      "entry": "gnumake_src.attributes.sha256",
+      "verified_on": "2026-10-18"
+    }
+  },
+  "configure_args": ["--without-guile", "--enable-nls", "--disable-dependency-tracking"],
+  "cflags": "-O2 -g0",
+  "required_features": ["archives", "check-symlink", "else-if", "extra-prereqs", "grouped-target", "jobserver", "jobserver-fifo", "load", "notintermediate", "oneshell", "order-only", "output-sync", "second-expansion", "shell-export", "shortest-stem", "target-specific", "undefine"],
+  "forbidden_features": ["guile"],
+  "profile_scope": "Local Linux host build, Guile disabled, NLS enabled, LC_ALL=C observations. This is not yet an immutable container or a Guile-enabled/locale conformance profile."
+}

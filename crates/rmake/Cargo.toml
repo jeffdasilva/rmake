@@ -1,0 +1,15 @@
+[package]
+name = "rmake"
+description = "A Linux Rust reimplementation of GNU Make"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+rmake-core = { path = "../rmake-core" }
+
+[lints]
+workspace = true

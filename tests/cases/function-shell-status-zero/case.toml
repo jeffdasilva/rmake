@@ -1,0 +1,11 @@
+id = "function-shell-status-zero"
+requirement = "functions.shell"
+candidate = "pending"
+description = "function shell status zero"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "0\n"

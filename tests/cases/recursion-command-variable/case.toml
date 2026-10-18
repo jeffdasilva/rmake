@@ -1,0 +1,11 @@
+id = "recursion-command-variable"
+requirement = "recursion.environment"
+candidate = "pending"
+description = "recursion command variable"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "TOKEN=command"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "command|command line\n"

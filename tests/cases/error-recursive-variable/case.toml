@@ -1,0 +1,11 @@
+id = "error-recursive-variable"
+requirement = "errors.expansion"
+candidate = "pending"
+description = "error recursive variable"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

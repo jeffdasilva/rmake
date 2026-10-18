@@ -7,8 +7,11 @@ Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 
 ## Status
 
-This repository contains project scaffolding and a proposed implementation plan.
-There are no Rust source files, Cargo package, or executable yet.
+Implementation has started with the Rust workspace, pinned reference tooling,
+an independent differential harness, 148 original fixtures, and GitHub CI.
+The executable currently supports help/version only; Makefile evaluation is not
+implemented. See [implementation progress](docs/progress.md) for completed work
+and remaining gates.
 
 The target is a Linux-only Rust reimplementation of GNU Make 4.4.1, with extensive
 side-by-side testing. GNU Make's source may be used as a reference under its GPL
@@ -36,10 +39,16 @@ Clone the repository and view the available scaffolding command:
 git clone https://github.com/jeffdasilva/rmake.git
 cd rmake
 make help
+make bootstrap
+make check
 ```
 
-The current Makefile requires GNU Make. Rust build, test, formatting, and lint
-commands will be added when the Cargo project is initialized.
+Bootstrap requires Linux x86-64, Python 3.11+, a C toolchain, GNU Make, and network
+access to the pinned GNU/Rust downloads. Tools are installed inside the ignored
+`.tools/` directory; no system packages or shell profiles are changed. The current
+fixture runner is for trusted project fixtures only, not untrusted Makefiles.
+Use `make build`, `make test`, `make fmt-check`, `make lint`, and `make bench` for
+individual flows. The build binary is `target/debug/rmake`.
 
 ## Repository layout
 
@@ -51,6 +60,10 @@ commands will be added when the Cargo project is initialized.
 | `.gitignore` | Ignore Rust build output and local editor/OS artifacts |
 | `.editorconfig` | Consistent whitespace and line endings |
 | `docs/` | Proposed architecture, compatibility contract, test strategy, and roadmap |
+| `crates/` | Rust command-line program and compatibility core |
+| `tools/` | Toolchain/oracle bootstrap, independent conformance and benchmarks |
+| `tests/` | Original fixture corpus and requirement inventory |
+| `oracle/` | Pinned GNU Make source and profile configuration |
 
 ## License
 

@@ -1,0 +1,11 @@
+id = "function-addsuffix"
+requirement = "functions.paths"
+candidate = "pending"
+description = "function addsuffix"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "red.done blue.done\n"
