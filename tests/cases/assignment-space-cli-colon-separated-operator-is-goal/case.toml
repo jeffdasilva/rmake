@@ -1,0 +1,11 @@
+id = "assignment-space-cli-colon-separated-operator-is-goal"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X: =value"]
+description = "Original exact-byte assignment whitespace, name retention, and stored-value observation."
+provenance = "Independently authored expectations checked with pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027583a203d76616c7565272e202053746f702e0a"

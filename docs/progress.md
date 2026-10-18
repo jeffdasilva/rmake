@@ -516,3 +516,28 @@ after/before ratios were 1.001, 1.000 and 0.983 over 31 alternating trials after
 three warm-ups. Outputs matched. This unisolated wall-clock check found no
 greater-than-5% median paired regression in these three early workloads; it is
 not evidence of meeting the broader GNU performance target or the M8 gate.
+
+## Assignment whitespace boundaries — 2026-10-18
+
+Assignment parsing now skips all six C whitespace bytes at the beginning of raw
+names and values, including vertical tab. Only space and tab are trimmed from
+the end of a raw variable name; other whitespace there belongs to the name.
+Whitespace introduced by expanding a name remains literal. The change is local
+to assignments and preserves reader continuation rules and directive parsing.
+
+Thirty new original fixtures cover the supported operators, CLI/file boundaries,
+exact raw and expanded names, RHS whitespace, continuation behavior and non-ASCII
+negative controls. Twenty-five are required; five retain broader internal-name
+and separated-colon grammar gaps. Promoting the previous vertical-tab regression
+brings the corpus to 730: 648 required exact matches and 82 pending requirements.
+Full `make ci`, including self-host flows and the diagnostic matrix, passed with
+244 Rust tests and 183 tooling tests. Oracle expectations, candidate comparisons
+and the requirement ledger all agree; no unexpected passes remain.
+
+An independent frozen investigation covers 576 matrix cells representing 564
+unique source/argv inputs. The fix corrects 64 cells; the remaining 41 mismatches
+belong to the explicitly identified broader grammar gaps. All 68 supported
+independently authored semantic anchors pass, including 24 expanded-name and
+15 continuation observations. These exploratory totals are separate from the
+permanent curated corpus and are not presented as full conformance. No GNU
+implementation source or upstream tests were consulted for this slice.

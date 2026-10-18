@@ -539,3 +539,15 @@ fn makefile_list_appends_raw_metadata_and_preserves_recursive_flavor() {
     assert_eq!(output.stdout, b"[Makefile]:[simple]\n");
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn command_line_assignment_whitespace_preserves_literal_names_and_rhs_tail() {
+    let project = Project::new(b"$(info [$(value X)]:[$(value Y\x0b)]:[$(value Y)])\nall:;@true\n");
+    let output = project.run(&[
+        OsStr::new("\x0bX:=\x0bvalue\x0b"),
+        OsStr::new("Y\x0b=literal"),
+    ]);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert_eq!(output.stdout, b"[value\x0b]:[literal]:[]\n");
+    assert!(output.stderr.is_empty());
+}

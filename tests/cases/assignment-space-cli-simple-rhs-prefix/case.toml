@@ -1,0 +1,11 @@
+id = "assignment-space-cli-simple-rhs-prefix"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X:= \t\r\n\u000b\fvalue\u000b\f\rend \t\u000b\f"]
+description = "Original exact-byte assignment whitespace, name retention, and stored-value observation."
+provenance = "Independently authored expectations checked with pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "583d3c76616c75650b0c0d656e6420090b0c3e7c73696d706c657c636f6d6d616e64206c696e650a"
+stderr_hex = ""

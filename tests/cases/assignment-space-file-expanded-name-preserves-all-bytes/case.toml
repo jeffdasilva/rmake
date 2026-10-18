@@ -1,0 +1,11 @@
+id = "assignment-space-file-expanded-name-preserves-all-bytes"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte assignment whitespace, name retention, and stored-value observation."
+provenance = "Independently authored expectations checked with pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "65786163743d3c73746f7265643e7c7265637572736976657c66696c650a583d3c3e7c756e646566696e65647c756e646566696e65640a"
+stderr_hex = ""
