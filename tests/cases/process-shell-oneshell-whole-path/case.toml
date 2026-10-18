@@ -1,0 +1,10 @@
+id = "process-shell-oneshell-whole-path"
+requirement = "process.invocation"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently authored custom-SHELL boundary fixture and expected argv; verified with pinned GNU Make 4.4.1 black-box execution; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c2e2f6361707475726520244e414d453e0a3c2d633e0a3c7072696e746620626f64793e0a"
+stderr_hex = ""

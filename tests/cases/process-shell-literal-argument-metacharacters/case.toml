@@ -1,0 +1,10 @@
+id = "process-shell-literal-argument-metacharacters"
+requirement = "process.invocation"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently authored custom-SHELL boundary fixture and expected argv; verified with pinned GNU Make 4.4.1 black-box execution; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c2e2f636170747572653e0a3c244e414d453e0a3c3b3e0a3c606d61726b6572603e0a3c3e3e0a3c6f75747075743e0a3c2d633e0a3c7072696e746620626f64793e0a"
+stderr_hex = ""

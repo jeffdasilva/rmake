@@ -349,3 +349,30 @@ metadata clone. Exact outputs agreed. These unisolated wall-clock measurements
 do not include CPU/memory profiles, but the observed regression remains open for
 allocation/layout work. Required location fidelity is retained; this does not
 satisfy the planned performance gate or establish an advantage over GNU.
+
+## Literal shell configuration arguments — 2026-10-18
+
+Ordinary recipe preparation now protects the observed metacharacters originating
+in `SHELL` before configuration parsing. Literal executable names and arguments
+no longer accidentally undergo shell substitution. Existing quoting/backslash
+interactions, interpreted `.SHELLFLAGS`, assignment/builtin fallbacks, ENOEXEC
+handling and the separate `.ONESHELL` whole-path behavior remain covered.
+
+Fourteen new required fixtures and the previously pending literal-dollar
+regression match GNU. Four additional pending fixtures preserve known LF and
+empty-shell gaps. The curated corpus now contains 515 oracle-validated cases:
+443 required exact matches and 72 pending requirements. Full `make ci`, including
+self-host flows, passed with 206 Rust tests and 164 tooling tests.
+
+An independent 144-case matrix matched exact argv, streams, status and filesystem
+state: 128 ordinary recipes, 16 one-shell cases, and equal PATH/explicit-path
+coverage. Filenames combine punctuation, whitespace and non-UTF-8 bytes; checks
+assert that accidental command-substitution marker files are absent. A broader
+320-probe review matched 291 observations, with 26 remaining known configuration
+gaps and three oracle-instability observations recorded separately. Two minimal
+GNU allocator-abort reproductions were rechecked and retained as research data.
+They are not passing conformance cases or permanent scope exceptions.
+
+[Shell configuration notes](shell-configuration.md) document the verified
+boundaries, original provenance and remaining work. No GNU implementation source
+or upstream tests were consulted for this slice.
