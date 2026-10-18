@@ -1,0 +1,10 @@
+id = "silent-global-long-option-flags"
+requirement = "recipes.output"
+candidate = "required"
+args = ["--no-print-directory", "--no-print-directory"]
+provenance = "Original fixture for independently probed GNU Make 4.4.1 long-option serialization after lifecycle reference study; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout = "< --no-print-directory>|< --no-print-directory>|< --no-print-directory>\n"
+stderr = ""

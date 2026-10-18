@@ -24,8 +24,9 @@ obligations. See the [GNU FAQ on translation](https://www.gnu.org/licenses/gpl-f
 The primary conformance corpus remains original. Any later upstream-derived tests
 must be separately identified and attributed; they supplement rather than replace
 independent coverage. The reference executable remains a test tool, not a runtime
-fallback. No GNU implementation code or upstream tests have been incorporated at
-this planning stage.
+fallback. No GNU implementation code or upstream tests have been incorporated.
+The [ordinary recipe lifecycle notes](forced-touch.md) record the source sections
+consulted for that independently written implementation and its later fixtures.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

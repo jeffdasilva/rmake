@@ -1,0 +1,10 @@
+id = "silent-target-dry-touch"
+requirement = "recipes.output"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-nt", "plain", "forced"]
+provenance = "Original fixture from independent GNU Make 4.4.1 oracle probes after lifecycle reference study; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout = "touch plain\ntrue\ntouch forced\ntouch forced\n"
+stderr = ""

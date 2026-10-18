@@ -1,0 +1,22 @@
+id = "lifecycle-query-continuation-restored"
+description = "Query continuation removes a target even when the preceding child restores its original mtime."
+provenance = "Original rmake scenario and expectations; authored after source-informed behavior notes, without copying upstream tests or implementation text."
+initial = [{ "op" = "write", "path" = "source", "content" = "source\n", "mtime_ns" = 1600000000000000010 }, { "op" = "write", "path" = "out", "content" = "payload\n", "mtime_ns" = 1600000000000000000 }, { "op" = "write", "path" = "stamp", "content" = "stamp\n", "mtime_ns" = 1600000000000000000 }]
+
+[[steps]]
+name = "query-restored-continuation"
+args = ["-rR", "--no-print-directory", "-qt", "out"]
+actions = []
+expected = { "exit_code" = 1, "stdout" = "", "stderr" = "make: *** Deleting file 'out'\n" }
+unchanged = ["source", "stamp"]
+exact_mtime = {  }
+mtime_order = []
+
+[[steps]]
+name = "verify-deletion"
+args = ["-rR", "--no-print-directory", "verify"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "verified\n", "stderr" = "" }
+unchanged = ["source", "stamp"]
+exact_mtime = {  }
+mtime_order = []

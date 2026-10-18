@@ -1,0 +1,10 @@
+id = "silent-global-ignored-launch"
+requirement = "recipes.output"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original fixture from independent GNU Make 4.4.1 oracle probes after lifecycle reference study; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout = "survived\n"
+stderr = "make: rmake-silent-no-such-executable: No such file or directory\n"

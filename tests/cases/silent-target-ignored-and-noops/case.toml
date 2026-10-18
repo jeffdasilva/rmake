@@ -1,0 +1,10 @@
+id = "silent-target-ignored-and-noops"
+requirement = "recipes.output"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "ignored", "empty", "noop"]
+provenance = "Original fixture from independent GNU Make 4.4.1 oracle probes after lifecycle reference study; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout = "survived\nmake: Nothing to be done for 'empty'.\nmake: 'noop' is up to date.\n"
+stderr = "make: [Makefile:3: ignored] Error 1 (ignored)\n"

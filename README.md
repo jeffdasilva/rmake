@@ -56,7 +56,9 @@ individual flows. The build binary is `target/debug/rmake`.
 observations by default. Increase the campaign with `SEED`, `GENERATED_CASES` and
 `EXPRESSIONS`; `START_INDEX` replays a recorded program. `make test-graphs` runs
 100 seeded explicit dependency graphs, with `GRAPH_SEED`, `GRAPH_CASES` and
-`GRAPH_NODES` controls. `make test-stateful` compares multi-step builds and
+`GRAPH_NODES` controls. `make test-modes` checks 512 ordinary/one-shell combinations
+of dry-run, query, touch, ignore-error and silent modes; `MODE_CASE` selects a
+recorded case for replay. `make test-stateful` compares multi-step builds and
 nanosecond timestamp boundaries. These are CI gates.
 Their reports and failure reproductions are written under `artifacts/`.
 
@@ -71,8 +73,9 @@ The serial engine can drive the repository's `build` and `check-core` targets:
 target/debug/rmake -rR --no-print-directory build check-core
 ```
 
-`make test-selfhost` exercises those same leaf flows without recursively invoking
-the full CI target. Simple commands use GNU's direct-execution path; commands
+`make test-selfhost` exercises those leaf flows and a selected mode-matrix replay
+without recursively invoking the full CI target. Simple commands use GNU's
+direct-execution path; commands
 requiring shell interpretation retain the selected shell and flags. Full process,
 signal and diagnostic compatibility remains under development.
 

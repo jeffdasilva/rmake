@@ -1,17 +1,22 @@
 # Original compatibility fixtures
 
-This corpus starts with **200 independently authored cases** across
-**37 requirement families**. It is an initial behavioral sample, not a
-complete GNU Make 4.4.1 specification or a claim that rmake implements these cases.
-The serial slice requires **152 exact matches**; 48 cases remain explicitly
-pending. Promotion to `required` needs an implementation and a successful
+This growing corpus contains independently authored cases grouped in
+[the requirement ledger](requirements.toml). The [progress record](../docs/progress.md)
+reports dated counts and implemented slices. This is a behavioral sample, not a
+complete GNU Make 4.4.1 specification or a claim that rmake implements every case.
+Unimplemented requirements remain explicitly pending.
+Promotion to `required` needs an implementation and a successful
 comparison against the pinned reference. A passing sample does not mark its whole
 requirement family complete.
 
-No GNU Make implementation files, upstream tests, or manual example programs were
-used to create these fixtures. Requirement links identify public behavioral
-specifications. Fixture names, examples, inputs and expected results were written
-for this repository. License: GPL-3.0-or-later, matching the project.
+Fixture names, programs, inputs and expectations were written for this repository;
+no upstream tests or manual example programs were copied. Earlier fixtures were
+authored from documentation and executable experiments without implementation
+source inspection. Later fixtures can follow source-informed behavioral research;
+their manifests identify that provenance, with precise reference records such as
+the [ordinary recipe lifecycle notes](../docs/forced-touch.md). Do not describe
+source-informed work as clean-room inference. Requirement links identify public
+behavioral specifications. License: GPL-3.0-or-later, matching the project.
 
 ## Layout and manifest
 

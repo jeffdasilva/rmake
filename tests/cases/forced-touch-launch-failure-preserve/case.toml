@@ -1,0 +1,10 @@
+id = "forced-touch-launch-failure-preserve"
+requirement = "serial.forced-touch"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "-t"]
+provenance = "Original fixture from independent Linux oracle probes following GNU Make 4.4.1 source-reference study; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: rmake-review-no-such-executable: No such file or directory\nmake: *** [Makefile:4: all] Error 127\n"

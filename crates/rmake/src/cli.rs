@@ -21,6 +21,7 @@ pub struct Options {
     pub environment_override: bool,
     pub no_rules: bool,
     pub no_variables: bool,
+    pub no_print_directory: bool,
     pub help: bool,
     pub version: bool,
 }
@@ -135,7 +136,9 @@ impl Options {
                     *flag = true;
                 } else {
                     match name {
-                        b"--no-print-directory" if value.is_none() => {}
+                        b"--no-print-directory" if value.is_none() => {
+                            result.no_print_directory = true
+                        }
                         b"--file" | b"--makefile" | b"--directory" => {
                             let value = value
                                 .or_else(|| {
@@ -261,6 +264,9 @@ impl Options {
                 flags.push(flag);
             }
         }
+        if self.no_print_directory {
+            flags.extend_from_slice(b" --no-print-directory");
+        }
         flags
     }
 }
@@ -329,5 +335,19 @@ mod tests {
         assert_eq!(options.goals, [b"all".to_vec()]);
         assert!(Options::with_environment([], Some("--jobserver-auth=3,4".into()), None).is_err());
         assert!(Options::with_environment([], Some("r -- -n".into()), None).is_err());
+    }
+
+    #[test]
+    fn no_print_directory_survives_makeflags_with_gnu_spacing() {
+        let options = parse(&["--no-print-directory", "--no-print-directory"]).unwrap();
+        assert_eq!(options.flags(), b" --no-print-directory");
+        let inherited = Options::with_environment(
+            [],
+            Some(OsString::from_vec(b"rR --no-print-directory".to_vec())),
+            None,
+        )
+        .unwrap();
+        assert!(inherited.no_print_directory);
+        assert_eq!(inherited.flags(), b"rR --no-print-directory");
     }
 }

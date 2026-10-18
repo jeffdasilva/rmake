@@ -5,6 +5,7 @@
 //! No persistent cache and no delegation to GNU Make are involved.
 
 use crate::cli::Options;
+use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
 use rmake_core::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -355,7 +356,7 @@ impl Engine {
             } else if !outcome.failed
                 && (!outcome.ran || already_done)
                 && !self.options.question
-                && !self.options.silent
+                && !self.globally_silent()
             {
                 let has_recipe = self
                     .database
@@ -388,6 +389,17 @@ impl Engine {
                     .iter()
                     .any(|dependency| dependency.name == target)
         })
+    }
+
+    /// An empty .SILENT affects global diagnostics and touch messages, but does
+    /// not add -s to MAKEFLAGS or propagate that option to recursive children.
+    fn globally_silent(&self) -> bool {
+        self.options.silent
+            || self
+                .database
+                .rules
+                .get(b".SILENT".as_slice())
+                .is_some_and(|rule| rule.dependencies.is_empty())
     }
 
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
@@ -529,23 +541,11 @@ impl Engine {
                     }
                 }
                 if !outcome.failed {
-                    let (ran, failed, question_outdated) =
-                        self.execute(target, recipes, &variables, phony);
-                    outcome.ran |= ran;
-                    outcome.failed |= failed;
-                    outcome.question_outdated |= question_outdated;
-                    if (failed || question_outdated)
-                        && self
-                            .database
-                            .rules
-                            .contains_key(b".DELETE_ON_ERROR".as_slice())
-                        && !self.special(b".PRECIOUS", target, false)
-                        && !phony
-                        && modified(target).is_some_and(|now| Some(now) != before)
-                        && fs::remove_file(os(target)).is_ok()
-                    {
-                        self.stderr(&[b"*** Deleting file '".as_slice(), target, b"'"].concat());
-                    }
+                    let execution = self.execute(target, recipes, &variables, phony);
+                    outcome.ran |= execution.ran;
+                    outcome.failed |= execution.status == Status::Failure;
+                    outcome.question_outdated |= execution.status == Status::Question;
+                    self.cleanup_target(target, before, phony, execution.cleanup);
                 }
             }
             outcome.time = if phony { None } else { modified(target) };
@@ -561,12 +561,12 @@ impl Engine {
         recipes: &[Recipe],
         variables: &VariableStore,
         phony: bool,
-    ) -> (bool, bool, bool) {
+    ) -> Execution {
         let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
         let combined;
         let (recipes, has_commands, recursive) = if one_shell {
             let Some(first) = recipes.first() else {
-                return (false, false, false);
+                return Execution::success(false);
             };
             let script =
                 crate::oneshell::collect(recipes.iter().map(|recipe| recipe.bytes.as_slice()));
@@ -590,37 +590,31 @@ impl Engine {
             });
             (recipes, has_commands, recursive)
         };
+        let mut flow = Flow::new(
+            recipes
+                .iter()
+                .map(|recipe| {
+                    has_force_prefix(&recipe.bytes)
+                        || recipe
+                            .bytes
+                            .windows(7)
+                            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
+                })
+                .collect(),
+        );
         if self.options.touch && !recursive {
-            if phony {
-                return (false, false, false);
-            }
-            if !self.options.silent {
-                self.stdout(&[b"touch ".as_slice(), target].concat());
-            }
-            if self.options.dry_run {
-                return (true, false, false);
-            }
-            let result = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(false)
-                .open(os(target))
-                .and_then(|file| file.set_times(FileTimes::new().set_modified(SystemTime::now())));
-            if let Err(err) = result {
-                self.stderr(format!("touch: {err}").as_bytes());
-                return (true, true, false);
-            }
-            return (true, false, false);
+            return if phony {
+                Execution::success(false)
+            } else {
+                self.touch_target(target)
+            };
         }
         if !has_commands {
-            return (false, false, false);
-        }
-        if self.options.touch && recursive && !one_shell {
-            self.fatal(
-                None,
-                b"rmake: forced commands with touch mode are not implemented yet",
-            );
-            return (false, true, false);
+            return if self.options.touch && !phony && flow.has_ordinary() {
+                self.touch_target(target)
+            } else {
+                Execution::success(false)
+            };
         }
         let mut expanded = Vec::new();
         for recipe in recipes {
@@ -628,17 +622,17 @@ impl Engine {
                 Ok(bytes) => expanded.push((bytes, recipe)),
                 Err(err) => {
                     self.fatal(Some(&recipe.location), err.to_string().as_bytes());
-                    return (false, true, false);
+                    return Execution::failure(false, Cleanup::None);
                 }
             }
         }
         let mut ran = false;
-        for (bytes, recipe) in expanded {
+        for (index, (bytes, recipe)) in expanded.into_iter().enumerate() {
             if bytes.is_empty() {
                 continue;
             }
             let mut command = trim_leading(&bytes);
-            let mut quiet = self.options.silent || self.special(b".SILENT", target, true);
+            let mut quiet = self.globally_silent() || self.special(b".SILENT", target, false);
             let mut ignore = self.options.ignore_errors || self.special(b".IGNORE", target, true);
             let mut force = recipe
                 .bytes
@@ -653,15 +647,16 @@ impl Engine {
                 }
                 command = trim_leading(&command[1..]);
             }
+            flow.visit(index, force);
             // GNU expands configuration before a dry-run/query decision, after
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
-            // expansion does not. Touch mode above skips both kinds of expansion.
+            // expansion does not. Only the unforced touch shortcut skips expansion.
             let shell = match variables.expand(b"$(SHELL)") {
                 Ok(shell) => shell,
                 Err(err) => {
                     self.fatal(Some(&recipe.location), err.to_string().as_bytes());
-                    return (ran, true, false);
+                    return Execution::failure(ran, Cleanup::None);
                 }
             };
             let shell = if shell.is_empty() {
@@ -673,7 +668,7 @@ impl Engine {
                 Ok(flags) => flags,
                 Err(err) => {
                     self.fatal(Some(&recipe.location), err.to_string().as_bytes());
-                    return (ran, true, false);
+                    return Execution::failure(ran, Cleanup::None);
                 }
             };
             let ifs = if variables.get(b"IFS").is_some() {
@@ -681,7 +676,7 @@ impl Engine {
                     Ok(value) => Some(value),
                     Err(err) => {
                         self.fatal(Some(&recipe.location), err.to_string().as_bytes());
-                        return (ran, true, false);
+                        return Execution::failure(ran, Cleanup::None);
                     }
                 }
             } else {
@@ -697,7 +692,10 @@ impl Engine {
             }
             if self.options.question && !force {
                 self.would_build = true;
-                return (ran, false, true);
+                return Execution::question(ran, flow.continuation_cleanup());
+            }
+            if self.options.touch && !force {
+                continue;
             }
             if self.options.dry_run || !quiet {
                 self.stdout(command);
@@ -714,19 +712,22 @@ impl Engine {
                             Some(&recipe.location),
                             b"rmake: shell syntax in .ONESHELL .SHELLFLAGS is not implemented yet",
                         );
-                        return (ran, true, false);
+                        return Execution::failure(ran, Cleanup::None);
                     }
                     Err(crate::oneshell::PrepareError::QuotedMultilineDirect) => {
                         self.fatal(
                             Some(&recipe.location),
                             b"rmake: .ONESHELL direct commands with quoted newlines are not implemented yet",
                         );
-                        return (ran, true, false);
+                        return Execution::failure(ran, Cleanup::None);
                     }
                 }
             } else {
                 crate::process::prepare(command, shell, &flags, ifs.as_deref())
             };
+            if crate::recipe_flow::optimized_noop(&invocation) {
+                continue;
+            }
             let (program, arguments) = match invocation {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
@@ -771,7 +772,7 @@ impl Engine {
                         }
                         Err(err) => {
                             self.fatal(Some(&recipe.location), err.to_string().as_bytes());
-                            return (ran, true, false);
+                            return Execution::failure(ran, Cleanup::None);
                         }
                     }
                 } else {
@@ -795,6 +796,13 @@ impl Engine {
             child.env("MAKELEVEL", level.saturating_add(1).to_string());
             let _ = io::stdout().flush();
             let result = launch_status(&program, &child);
+            let launched = result.is_ok();
+            flow.attempted(launched);
+            let failure_cleanup = if launched {
+                Cleanup::ChangedOnError
+            } else {
+                Cleanup::None
+            };
             let error = match result {
                 Ok(status) if status.success() => None,
                 // Recursive make uses exit 1 to report an out-of-date build in
@@ -802,7 +810,7 @@ impl Engine {
                 // command; ignored errors retain their ordinary handling.
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
                     self.would_build = true;
-                    return (ran, false, true);
+                    return Execution::question(ran, failure_cleanup);
                 }
                 Ok(status) => Some(status.code().map_or_else(
                     || format!("Signal {}", status.signal().unwrap_or(0)),
@@ -820,7 +828,7 @@ impl Engine {
                 }
             };
             if let Some(error) = error {
-                if !ignore || !self.options.silent {
+                if !ignore || !self.globally_silent() {
                     let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                     message.push(b'[');
                     message.extend_from_slice(&recipe.location.file);
@@ -832,12 +840,127 @@ impl Engine {
                     self.stderr(&message);
                 }
                 if !ignore {
-                    return (ran, true, false);
+                    return Execution::failure(ran, failure_cleanup);
                 }
             }
         }
-        (ran, false, false)
+        if !self.options.touch || phony || !flow.has_ordinary() {
+            return Execution::success(ran);
+        }
+        let passes = if one_shell {
+            1
+        } else {
+            flow.completion_passes()
+        };
+        for pass in 0..passes {
+            let mut touched = self.touch_target(target);
+            ran |= touched.ran;
+            if touched.status == Status::Failure {
+                // Only dispatch completion can fail before a continuation owner
+                // performs cleanup. The owner's final completion has no such step.
+                if pass == 0 && passes > 1 {
+                    touched.cleanup = flow.continuation_cleanup();
+                }
+                touched.ran |= ran;
+                return touched;
+            }
+        }
+        Execution::success(ran)
     }
+
+    fn touch_target(&self, target: &[u8]) -> Execution {
+        if !self.globally_silent() {
+            self.stdout(&[b"touch ".as_slice(), target].concat());
+        }
+        if self.options.dry_run {
+            return Execution::success(true);
+        }
+        let file = match OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(os(target))
+        {
+            Ok(file) => file,
+            Err(error) => {
+                self.stderr(
+                    &[
+                        b"touch: open: ".as_slice(),
+                        target,
+                        b": ",
+                        os_error(&error).as_bytes(),
+                    ]
+                    .concat(),
+                );
+                return Execution::failure(true, Cleanup::None);
+            }
+        };
+        if let Err(error) = file.set_times(FileTimes::new().set_modified(SystemTime::now())) {
+            self.stderr(
+                &[
+                    b"touch: ".as_slice(),
+                    target,
+                    b": ",
+                    os_error(&error).as_bytes(),
+                ]
+                .concat(),
+            );
+            return Execution::failure(true, Cleanup::None);
+        }
+        Execution::success(true)
+    }
+
+    fn cleanup_target(
+        &self,
+        target: &[u8],
+        before: Option<SystemTime>,
+        phony: bool,
+        cleanup: Cleanup,
+    ) {
+        if cleanup == Cleanup::None || phony || self.special(b".PRECIOUS", target, false) {
+            return;
+        }
+        if cleanup == Cleanup::ChangedOnError
+            && !self
+                .database
+                .rules
+                .contains_key(b".DELETE_ON_ERROR".as_slice())
+        {
+            return;
+        }
+        let Ok(metadata) = fs::metadata(os(target)) else {
+            return;
+        };
+        if !metadata.is_file() {
+            return;
+        }
+        if cleanup == Cleanup::ChangedOnError && metadata.modified().ok() == before {
+            return;
+        }
+        self.stderr(&[b"*** Deleting file '".as_slice(), target, b"'"].concat());
+        if let Err(error) = fs::remove_file(os(target))
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            self.stderr(
+                &[
+                    b"unlink: ".as_slice(),
+                    target,
+                    b": ",
+                    os_error(&error).as_bytes(),
+                ]
+                .concat(),
+            );
+        }
+    }
+}
+
+fn os_error(error: &io::Error) -> String {
+    let text = error.to_string();
+    let suffix = error
+        .raw_os_error()
+        .map(|code| format!(" (os error {code})"))
+        .unwrap_or_default();
+    text.strip_suffix(&suffix).unwrap_or(&text).to_owned()
 }
 
 fn trim_leading(bytes: &[u8]) -> &[u8] {
