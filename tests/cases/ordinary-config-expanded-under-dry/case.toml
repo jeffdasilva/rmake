@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "ordinary-config-expanded-under-dry"
 requirement = "recipes.oneshell"
-candidate = "pending"
+candidate = "required"
 description = "Configuration expansion occurs before unforced dry mode skips process execution."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "-n"]

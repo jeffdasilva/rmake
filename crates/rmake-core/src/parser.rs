@@ -7,6 +7,7 @@
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
 use crate::diagnostic::Diagnostic;
+pub use crate::diagnostic::Location;
 use crate::reader::{Reader, strip_comment};
 use crate::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{HashMap, HashSet};
@@ -14,12 +15,6 @@ use std::collections::{HashMap, HashSet};
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
 /// This metadata does not install implicit rules or suffix-rule conversions.
 pub const DEFAULT_SUFFIXES: &[u8] = b".out .a .ln .o .c .cc .C .cpp .p .f .F .m .r .y .l .ym .yl .s .S .mod .sym .def .h .info .dvi .tex .texinfo .texi .txinfo .w .ch .web .sh .elc .el";
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Location {
-    pub file: Vec<u8>,
-    pub line: usize,
-}
 
 #[derive(Clone, Debug)]
 pub struct Recipe {
@@ -270,7 +265,7 @@ struct Conditional {
 impl Database {
     fn expand(&self, bytes: &[u8], location: &Location) -> Result<Vec<u8>, ParseError> {
         self.variables.expand(bytes).map_err(|err| ParseError {
-            location: location.clone(),
+            location: err.location().unwrap_or(location).clone(),
             message: err.diagnostic(),
         })
     }
@@ -280,6 +275,7 @@ impl Database {
         spec: AssignmentSpec<'_>,
         origin: Origin,
         location: &Location,
+        evaluation_location: &Location,
     ) -> Result<Vec<u8>, ParseError> {
         let name = self.expand(spec.name, location)?;
         if name.is_empty() {
@@ -289,9 +285,9 @@ impl Database {
             });
         }
         self.variables
-            .define(&name, spec.value, spec.kind, origin)
+            .define_at(&name, spec.value, spec.kind, origin, location)
             .map_err(|err| ParseError {
-                location: location.clone(),
+                location: err.location().unwrap_or(evaluation_location).clone(),
                 message: err.diagnostic(),
             })?;
         Ok(name)
@@ -541,6 +537,10 @@ impl Database {
                         },
                         Origin::File,
                         &location,
+                        &Location {
+                            file: file.to_vec(),
+                            line: last_line,
+                        },
                     )?;
                     current.clear();
                 }
@@ -579,7 +579,7 @@ impl Database {
                 continue;
             }
             if let Some(spec) = assignment(text) {
-                let name = self.define(spec, origin, &location)?;
+                let name = self.define(spec, origin, &location, &location)?;
                 if let Some(export) = export {
                     self.set_export(name, export);
                 }
@@ -1061,6 +1061,77 @@ mod tests {
                 b"non-numeric first argument to 'intcmp' function: '\xff'"
             );
         }
+    }
+
+    #[test]
+    fn define_header_binding_and_immediate_rhs_have_distinct_locations() {
+        for (input, expected) in [
+            (
+                b"# gap\ndefine V :=\n$(intcmp bad,0)\nendef\n".as_slice(),
+                4,
+            ),
+            (b"# gap\ndefine $(intcmp bad,0)\nvalue\nendef\n", 2),
+            (
+                b"NAME = $(intcmp bad,0)\ndefine $(NAME) :=\nvalue\nendef\n",
+                1,
+            ),
+            (
+                b"INNER = $(intcmp bad,0)\ndefine V :=\n$(INNER)\nendef\n",
+                1,
+            ),
+        ] {
+            let error = Database::default().read(input, b"define.mk").unwrap_err();
+            assert_eq!(
+                error.location,
+                Location {
+                    file: b"define.mk".to_vec(),
+                    line: expected
+                }
+            );
+        }
+        let mut database = Database::default();
+        database
+            .read(
+                b"# gap\ndefine V\nfirst\n$(intcmp bad,0)\nendef\n",
+                b"define.mk",
+            )
+            .unwrap();
+        assert_eq!(
+            database
+                .variables
+                .expand_variable(b"V")
+                .unwrap_err()
+                .location(),
+            Some(&Location {
+                file: b"define.mk".to_vec(),
+                line: 2
+            })
+        );
+    }
+
+    #[test]
+    fn appended_bindings_use_the_new_file_without_rewriting_prior_snapshots() {
+        let mut database = Database::default();
+        database
+            .read(b"# gap\nV = $(intcmp bad,0)\n", b"first\xff.mk")
+            .unwrap();
+        let snapshot = database.variables.clone();
+        database.read(b"V += suffix\n", b"second\xfe.mk").unwrap();
+        let error = database.variables.expand_variable(b"V").unwrap_err();
+        assert_eq!(
+            error.location(),
+            Some(&Location {
+                file: b"second\xfe.mk".to_vec(),
+                line: 1
+            })
+        );
+        assert_eq!(
+            snapshot.expand_variable(b"V").unwrap_err().location(),
+            Some(&Location {
+                file: b"first\xff.mk".to_vec(),
+                line: 2
+            })
+        );
     }
 
     #[test]

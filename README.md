@@ -14,6 +14,8 @@ This is an experimental subset, **not yet a GNU Make replacement**. Includes,
 implicit rules, expansion effects, parallel jobs and many compatibility details
 remain unimplemented. See [implementation progress](docs/progress.md) for exact
 scope, required fixtures and open milestone gates.
+Expansion errors retain definition locations and raw bytes; the current behavior
+and remaining context gaps are documented in [diagnostic notes](docs/diagnostics.md).
 
 The target is a Linux-only Rust reimplementation of GNU Make 4.4.1, with extensive
 side-by-side testing. GNU Make's source may be used as a reference under its GPL

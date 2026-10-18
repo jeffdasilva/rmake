@@ -10,8 +10,9 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, Location};
 
 const MAX_DEPTH: usize = 128;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
@@ -62,6 +63,7 @@ pub struct Variable {
     value: Vec<u8>,
     flavor: Flavor,
     origin: Origin,
+    definition: Option<Arc<Location>>,
 }
 
 impl Variable {
@@ -76,10 +78,18 @@ impl Variable {
     pub fn origin(&self) -> Origin {
         self.origin
     }
+
+    pub fn definition(&self) -> Option<&Location> {
+        self.definition.as_deref()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpandError {
+    Located {
+        location: Arc<Location>,
+        error: Box<ExpandError>,
+    },
     Unsupported(Vec<u8>),
     UnterminatedReference,
     RecursiveVariable(Vec<u8>),
@@ -102,8 +112,33 @@ pub enum ExpandError {
 }
 
 impl ExpandError {
+    pub fn location(&self) -> Option<&Location> {
+        match self {
+            Self::Located { location, .. } => Some(location),
+            _ => None,
+        }
+    }
+
+    fn at(self, location: Option<&Arc<Location>>) -> Self {
+        match location {
+            Some(location) if self.location().is_none() => Self::Located {
+                location: Arc::clone(location),
+                error: Box::new(self),
+            },
+            _ => self,
+        }
+    }
+
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
+            Self::Located { error, .. } => error.diagnostic(),
+            Self::RecursiveVariable(name) => [
+                b"Recursive variable '".as_slice(),
+                name,
+                b"' references itself (eventually)",
+            ]
+            .concat()
+            .into(),
             Self::InvalidInteger {
                 second,
                 value,
@@ -137,6 +172,7 @@ impl ExpandError {
 impl fmt::Display for ExpandError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Located { error, .. } => error.fmt(output),
             Self::Unsupported(name) => write!(
                 output,
                 "unsupported expansion feature '{}'",
@@ -145,7 +181,7 @@ impl fmt::Display for ExpandError {
             Self::UnterminatedReference => output.write_str("unterminated variable reference"),
             Self::RecursiveVariable(name) => write!(
                 output,
-                "recursive variable '{}' references itself (eventually)",
+                "Recursive variable '{}' references itself (eventually)",
                 String::from_utf8_lossy(name)
             ),
             Self::EmptyVariableName => output.write_str("empty variable name"),
@@ -207,6 +243,30 @@ impl VariableStore {
         assignment: Assignment,
         origin: Origin,
     ) -> Result<(), ExpandError> {
+        self.define_with_location(name, value, assignment, origin, None)
+    }
+
+    /// Define a file binding, keeping its source separate from the caller's
+    /// immediate evaluation context (notably a multiline define's endef).
+    pub fn define_at(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+        origin: Origin,
+        location: &Location,
+    ) -> Result<(), ExpandError> {
+        self.define_with_location(name, value, assignment, origin, Some(location))
+    }
+
+    fn define_with_location(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+        origin: Origin,
+        definition: Option<&Location>,
+    ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
@@ -228,12 +288,13 @@ impl VariableStore {
                 return Ok(());
             }
         }
-        let variable = match assignment {
+        let mut variable = match assignment {
             Assignment::Shell => return Err(ExpandError::Unsupported(b"!=".to_vec())),
             Assignment::Simple => Variable {
                 value: self.expand(value)?,
                 flavor: Flavor::Simple,
                 origin,
+                definition: None,
             },
             Assignment::ImmediateRecursive => {
                 let expanded = self.expand(value)?;
@@ -248,6 +309,7 @@ impl VariableStore {
                     value: escaped,
                     flavor: Flavor::Recursive,
                     origin,
+                    definition: None,
                 }
             }
             Assignment::Append => {
@@ -256,6 +318,11 @@ impl VariableStore {
                         Flavor::Recursive => value.to_vec(),
                         Flavor::Simple => self.expand(value)?,
                     };
+                    // Empty appends do not replace the binding, its origin,
+                    // or its definition location, even with override.
+                    if extra.is_empty() {
+                        return Ok(());
+                    }
                     let mut combined = old.value.clone();
                     if !combined.is_empty() && !extra.is_empty() {
                         push(&mut combined, b" ")?;
@@ -265,12 +332,14 @@ impl VariableStore {
                         value: combined,
                         flavor: old.flavor,
                         origin,
+                        definition: None,
                     }
                 } else {
                     Variable {
                         value: value.to_vec(),
                         flavor: Flavor::Recursive,
                         origin,
+                        definition: None,
                     }
                 }
             }
@@ -278,11 +347,13 @@ impl VariableStore {
                 value: value.to_vec(),
                 flavor: Flavor::Recursive,
                 origin,
+                definition: None,
             },
         };
         if variable.value.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
+        variable.definition = definition.cloned().map(Arc::new);
         self.variables.insert(name.to_vec(), variable);
         Ok(())
     }
@@ -311,19 +382,29 @@ impl VariableStore {
                 value: value.to_vec(),
                 flavor: Flavor::Simple,
                 origin,
+                definition: None,
             },
         );
         Ok(())
     }
 
     pub fn expand(&self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.expansion().expand(input)
+    }
+
+    /// Expand a named binding without encoding its arbitrary bytes as a
+    /// variable-reference expression. Recursive bindings retain provenance.
+    pub fn expand_variable(&self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.expansion().variable(name)
+    }
+
+    fn expansion(&self) -> Expansion<'_> {
         Expansion {
             store: self,
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
         }
-        .expand(input)
     }
 }
 
@@ -384,19 +465,23 @@ impl Expansion<'_> {
     }
 
     fn variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        let Some(variable) = self.lookup(name).cloned() else {
+        let Some(variable) = self.lookup(name) else {
             return Ok(Vec::new());
         };
         if variable.flavor == Flavor::Simple {
-            return Ok(variable.value);
+            // Already-expanded values need no temporary definition context.
+            return Ok(variable.value.clone());
         }
+        let variable = variable.clone();
         if self.active.iter().any(|active| active == name) {
-            return Err(ExpandError::RecursiveVariable(name.to_vec()));
+            return Err(
+                ExpandError::RecursiveVariable(name.to_vec()).at(variable.definition.as_ref())
+            );
         }
         self.active.push(name.to_vec());
         let result = self.expand(&variable.value);
         self.active.pop();
-        result
+        result.map_err(|error| error.at(variable.definition.as_ref()))
     }
 
     fn reference(&mut self, body: &[u8], delimiter: u8) -> Result<Vec<u8>, ExpandError> {
@@ -599,7 +684,7 @@ impl Expansion<'_> {
             self.expand(&variable.value)
         };
         self.bindings.pop();
-        result
+        result.map_err(|error| error.at(variable.definition.as_ref()))
     }
 
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
@@ -752,6 +837,7 @@ fn local(value: Vec<u8>) -> Variable {
         value,
         flavor: Flavor::Simple,
         origin: Origin::Automatic,
+        definition: None,
     }
 }
 
@@ -1159,6 +1245,213 @@ mod tests {
 
     fn expand(input: &[u8]) -> Vec<u8> {
         VariableStore::new().expand(input).unwrap()
+    }
+
+    fn source(line: usize) -> Location {
+        Location {
+            file: b"source.mk".to_vec(),
+            line,
+        }
+    }
+
+    #[test]
+    fn nested_variable_and_call_errors_keep_the_innermost_definition() {
+        let mut store = VariableStore::new();
+        store
+            .define_at(
+                b"INNER",
+                b"$(intcmp bad,0)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(2),
+            )
+            .unwrap();
+        store
+            .define_at(
+                b"OUTER",
+                b"$(call INNER)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(7),
+            )
+            .unwrap();
+        for input in [b"$(OUTER)".as_slice(), b"$(call OUTER)"] {
+            assert_eq!(
+                store.expand(input).unwrap_err().location(),
+                Some(&source(2))
+            );
+        }
+        store
+            .define_at(
+                b"INNER",
+                b"ok",
+                Assignment::Recursive,
+                Origin::File,
+                &source(3),
+            )
+            .unwrap();
+        store
+            .define_at(
+                b"OUTER",
+                b"$(call INNER)$(intcmp bad,0)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(8),
+            )
+            .unwrap();
+        assert_eq!(
+            store.expand(b"$(OUTER)").unwrap_err().location(),
+            Some(&source(8))
+        );
+    }
+
+    #[test]
+    fn bindings_without_sources_inherit_the_surrounding_expansion_context() {
+        let mut store = VariableStore::new();
+        store
+            .define(
+                b"CLI",
+                b"$(intcmp bad,0)",
+                Assignment::Recursive,
+                Origin::CommandLine,
+            )
+            .unwrap();
+        assert_eq!(store.expand_variable(b"CLI").unwrap_err().location(), None);
+        store
+            .define_at(
+                b"OUTER",
+                b"$(CLI)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(4),
+            )
+            .unwrap();
+        assert_eq!(
+            store.expand_variable(b"OUTER").unwrap_err().location(),
+            Some(&source(4))
+        );
+        store
+            .define_literal(b"OUTER", b"literal", Origin::Automatic)
+            .unwrap();
+        assert_eq!(store.get(b"OUTER").unwrap().definition(), None);
+    }
+
+    #[test]
+    fn definition_metadata_changes_only_when_the_binding_changes() {
+        let mut store = VariableStore::new();
+        store
+            .define_at(
+                b"V",
+                b"$(intcmp bad,0)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(1),
+            )
+            .unwrap();
+        let cloned = store.clone();
+        assert!(Arc::ptr_eq(
+            store.get(b"V").unwrap().definition.as_ref().unwrap(),
+            cloned.get(b"V").unwrap().definition.as_ref().unwrap()
+        ));
+        store
+            .define_at(b"V", b"", Assignment::Append, Origin::Override, &source(2))
+            .unwrap();
+        assert_eq!(store.get(b"V").unwrap().origin(), Origin::File);
+        store
+            .define_at(
+                b"V",
+                b"ignored",
+                Assignment::Conditional,
+                Origin::File,
+                &source(3),
+            )
+            .unwrap();
+        assert_eq!(store.get(b"V").unwrap().definition(), Some(&source(1)));
+        store
+            .define_at(
+                b"V",
+                b"$(EMPTY)",
+                Assignment::Append,
+                Origin::File,
+                &source(4),
+            )
+            .unwrap();
+        assert_eq!(
+            store.expand_variable(b"V").unwrap_err().location(),
+            Some(&source(4))
+        );
+        store
+            .define_at(b"S", b"text", Assignment::Simple, Origin::File, &source(5))
+            .unwrap();
+        store
+            .define_at(
+                b"S",
+                b"$(EMPTY)",
+                Assignment::Append,
+                Origin::Override,
+                &source(6),
+            )
+            .unwrap();
+        assert_eq!(store.get(b"S").unwrap().origin(), Origin::File);
+        assert_eq!(store.get(b"S").unwrap().definition(), Some(&source(5)));
+    }
+
+    #[test]
+    fn call_argument_errors_precede_the_callee_definition_context() {
+        let mut store = VariableStore::new();
+        store
+            .define_at(
+                b"CHECK",
+                b"$(intcmp $(1),0)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(2),
+            )
+            .unwrap();
+        assert_eq!(
+            store
+                .expand(b"$(call CHECK,$(intcmp bad,0))")
+                .unwrap_err()
+                .location(),
+            None
+        );
+        assert_eq!(
+            store.expand(b"$(call CHECK,bad)").unwrap_err().location(),
+            Some(&source(2))
+        );
+    }
+
+    #[test]
+    fn cycle_diagnostic_uses_reentered_binding_source_and_raw_name_bytes() {
+        let mut store = VariableStore::new();
+        store
+            .define_at(
+                b"\xff",
+                b"$(OTHER)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(2),
+            )
+            .unwrap();
+        store
+            .define_at(
+                b"OTHER",
+                b"$(\xff)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(3),
+            )
+            .unwrap();
+        let error = store.expand_variable(b"\xff").unwrap_err();
+        assert_eq!(error.location(), Some(&source(2)));
+        assert_eq!(
+            error.diagnostic().as_bytes(),
+            b"Recursive variable '\xff' references itself (eventually)"
+        );
+        assert_eq!(
+            store.expand_variable(b"OTHER").unwrap_err().location(),
+            Some(&source(3))
+        );
     }
 
     #[test]

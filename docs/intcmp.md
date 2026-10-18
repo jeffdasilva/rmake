@@ -60,9 +60,9 @@ contexts. Generated programs independently predict outputs for bounded random
 operands and expression shapes. Exact oracle comparison remains required for
 streams, status and filesystem observations. These tests do not establish
 completeness of unrelated functions, expansion effects or diagnostic locations.
-In particular, a recursive user macro's failing expansion still reports the
-recipe location instead of its definition location; an exact-byte pending
-fixture records that mismatch.
+The recursive user-macro location regression is now required coverage after the
+[source-location implementation](diagnostics.md). Later expansion features will
+need their own location and interaction tests.
 
 `make test-intcmp` runs 200 programs with 32 expressions each against both the
 oracle's independent expected results and the candidate. `INTCMP_SEED`,

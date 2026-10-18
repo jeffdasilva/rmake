@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "oneshell-config-expanded-under-query"
 requirement = "recipes.oneshell"
-candidate = "pending"
+candidate = "required"
 description = "Configuration expansion occurs before unforced query mode skips process execution."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "-q"]

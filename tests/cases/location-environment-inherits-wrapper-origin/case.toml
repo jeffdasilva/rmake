@@ -1,0 +1,13 @@
+id = "location-environment-inherits-wrapper-origin"
+requirement = "diagnostics.variable-locations"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently authored variable-location fixture; expected source context derived from fresh black-box GNU Make 4.4.1 probes; no upstream source or tests copied."
+
+[environment]
+"FROM_ENV" = "$(intcmp not-an-integer,0)"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a206e6f6e2d6e756d6572696320666972737420617267756d656e7420746f2027696e74636d70272066756e6374696f6e3a20276e6f742d616e2d696e7465676572272e202053746f702e0a"

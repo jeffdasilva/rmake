@@ -38,7 +38,10 @@ class CorpusTests(unittest.TestCase):
                 with self.subTest(case=path.name):
                     case = conformance.load_case(path)
                     self.assertIn("exit_code", case.expected)
-                    self.assertIn("stdout", case.expected)
+                    self.assertEqual(
+                        len({"stdout", "stdout_hex"}.intersection(case.expected)), 1,
+                        "exactly one independent stdout expectation is required",
+                    )
 
 
 if __name__ == "__main__":
