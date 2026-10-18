@@ -1,0 +1,11 @@
+id = "assignment-space-file-literal-name-control-suffixes"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte assignment whitespace, name retention, and stored-value observation."
+provenance = "Independently authored expectations checked with pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "76743d3c76616c75652d76743e7c7265637572736976657c66696c650a66663d3c76616c75652d66663e7c7265637572736976657c66696c650a63723d3c76616c75652d63723e7c7265637572736976657c66696c650a583d3c3e7c756e646566696e65647c756e646566696e65640a"
+stderr_hex = ""

@@ -1,6 +1,6 @@
 id = "variable-cli-leading-vertical-tab"
 requirement = "variables.flavors"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "X=\u000bvalue"]
 description = "GNU strips a vertical-tab byte immediately after a command-line assignment operator; the candidate retains it. This is a generic assignment lexer gap, independent of MAKELEVEL conversion."
 provenance = "Original independently asserted generic command-line assignment fixture, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."

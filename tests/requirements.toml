@@ -319,7 +319,7 @@ id = "variables.flavors"
 title = "Variable flavors and definition semantics"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 9
+candidate_required = 10
 reference = "https://www.gnu.org/software/make/manual/html_node/Flavors.html"
 fixture_count = 10
 cases = ["variable-recursive-late", "variable-simple-early", "variable-double-colon-simple", "variable-append-recursive", "variable-append-simple", "variable-append-undefined", "variable-undefined-origin", "variable-flavor-pair", "variable-define-simple", "variable-cli-leading-vertical-tab"]
@@ -480,3 +480,13 @@ candidate_status = "pending"
 reference = "https://www.gnu.org/software/make/manual/html_node/Overriding.html"
 fixture_count = 4
 cases = ["cli-replay-conditional-imported-literal-dollar", "cli-replay-conditional-imported-recursive", "cli-replay-override-undefine-recursive", "cli-replay-override-undefine-simple"]
+
+[[requirements]]
+id = "variables.assignment-whitespace"
+title = "Assignment lexical whitespace and literal name/value bytes"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 25
+reference = "https://www.gnu.org/software/make/manual/html_node/Setting.html"
+fixture_count = 30
+cases = ["assignment-space-cli-append-undefined-rhs-prefix", "assignment-space-cli-colon-separated-operator-is-goal", "assignment-space-cli-conditional-rhs-prefix", "assignment-space-cli-double-simple-rhs-prefix", "assignment-space-cli-expanded-name-preserves-all-bytes", "assignment-space-cli-immediate-recursive-rhs-prefix", "assignment-space-cli-internal-space-name-is-goal", "assignment-space-cli-internal-tab-name-is-goal", "assignment-space-cli-literal-name-control-suffixes", "assignment-space-cli-name-leading-all-c-whitespace", "assignment-space-cli-name-space-tab-termination", "assignment-space-cli-quotes-and-trailing-value-bytes", "assignment-space-cli-recursive-rhs-prefix", "assignment-space-cli-simple-rhs-prefix", "assignment-space-continuation-keeps-control-whitespace", "assignment-space-file-append-undefined-rhs-prefix", "assignment-space-file-colon-separated-empty-target-variable", "assignment-space-file-conditional-rhs-prefix", "assignment-space-file-double-simple-rhs-prefix", "assignment-space-file-expanded-name-preserves-all-bytes", "assignment-space-file-immediate-recursive-rhs-prefix", "assignment-space-file-internal-space-name-not-assignment", "assignment-space-file-internal-tab-name-not-assignment", "assignment-space-file-literal-name-control-suffixes", "assignment-space-file-name-leading-control-whitespace", "assignment-space-file-name-space-tab-termination", "assignment-space-file-quotes-and-trailing-value-bytes", "assignment-space-file-recursive-rhs-prefix", "assignment-space-file-simple-rhs-prefix", "assignment-space-non-ascii-bytes-are-not-whitespace"]

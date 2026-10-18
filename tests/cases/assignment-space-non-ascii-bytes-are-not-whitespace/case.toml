@@ -1,0 +1,11 @@
+id = "assignment-space-non-ascii-bytes-are-not-whitespace"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte assignment whitespace, name retention, and stored-value observation."
+provenance = "Independently authored expectations checked with pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6338353d3c8576616c7565853e7c7265637572736976657c66696c650a6361303d3ca076616c7565a03e7c7265637572736976657c66696c650a757466382d6e6273703d3cc2a076616c7565c2a03e7c7265637572736976657c66696c650a"
+stderr_hex = ""

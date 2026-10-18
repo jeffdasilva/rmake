@@ -220,6 +220,16 @@ pub struct AssignmentSpec<'a> {
     pub kind: Assignment,
 }
 
+// Assignment syntax uses C whitespace at the start of names/values, but only
+// space and tab at the end of raw names. Other trailing bytes name the variable.
+// This deliberately does not alter directive or physical-line whitespace rules.
+fn assignment_start(bytes: &[u8]) -> &[u8] {
+    &bytes[bytes
+        .iter()
+        .position(|byte| !(byte.is_ascii_whitespace() || *byte == 0x0b))
+        .unwrap_or(bytes.len())..]
+}
+
 /// Parse an assignment without expanding either side. The caller chooses the
 /// origin and expands the name; the variable store controls RHS timing.
 pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
@@ -240,9 +250,14 @@ pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
     if separator(&bytes[..end], b':').is_some() {
         return None;
     }
+    let name = assignment_start(&bytes[..end]);
+    let name_end = name
+        .iter()
+        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
+        .map_or(0, |index| index + 1);
     Some(AssignmentSpec {
-        name: trim(&bytes[..end]),
-        value: trim_start(&bytes[equal + 1..]),
+        name: &name[..name_end],
+        value: assignment_start(&bytes[equal + 1..]),
         kind,
     })
 }
@@ -912,6 +927,81 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn assignment_starts_skip_c_whitespace_but_trailing_name_only_skips_blanks() {
+        for operator in [b"=".as_slice(), b":=", b"::=", b":::=", b"+=", b"?="] {
+            for byte in b" \t\n\x0b\x0c\r" {
+                let input = [
+                    &[*byte],
+                    b"X",
+                    &[*byte],
+                    operator,
+                    &[*byte],
+                    b"value",
+                    &[*byte],
+                ]
+                .concat();
+                let spec = assignment(&input).unwrap();
+                let name = if matches!(byte, b' ' | b'\t') {
+                    b"X".to_vec()
+                } else {
+                    vec![b'X', *byte]
+                };
+                assert_eq!(spec.name, name, "operator {operator:?}, byte {byte}");
+                assert_eq!(spec.value, [b"value".as_slice(), &[*byte]].concat());
+            }
+        }
+        assert_eq!(assignment(b"X+ =value").unwrap().name, b"X+");
+        assert_eq!(assignment(b"X+\x0b=value").unwrap().name, b"X+\x0b");
+        assert_eq!(
+            assignment(b"X+ =value").unwrap().kind,
+            Assignment::Recursive
+        );
+        assert_eq!(assignment(b"X='\x0bvalue'").unwrap().value, b"'\x0bvalue'");
+        assert!(assignment(b" \t\x0b\x0c\r=value").unwrap().name.is_empty());
+        let error = Database::default()
+            .read(b"\x0b \t=value\n", b"m")
+            .unwrap_err();
+        assert_eq!(error.message.as_bytes(), b"empty variable name");
+    }
+
+    #[test]
+    fn assignment_name_whitespace_from_expansion_remains_literal() {
+        for name in [
+            b" X".as_slice(),
+            b"X ",
+            b"\tX",
+            b"X\t",
+            b"\x0bX",
+            b"X\x0b",
+            b"\x0cX",
+            b"X\r",
+        ] {
+            let mut db = Database::default();
+            db.variables
+                .define_literal(b"NAME", name, Origin::File)
+                .unwrap();
+            db.read(b"$(NAME) := exact\n", b"m").unwrap();
+            assert_eq!(db.variables.get(name).unwrap().raw_value(), b"exact");
+            assert!(db.variables.get(b"X").is_none());
+        }
+    }
+
+    #[test]
+    fn assignment_whitespace_does_not_change_reader_continuation_blanks() {
+        let mut db = Database::default();
+        db.read(
+            b"\x0bX = \x0bvalue\x0b\nY = a\x0b\\
+\tb\nZ\x0c := keep\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(db.variables.get(b"X").unwrap().raw_value(), b"value\x0b");
+        assert_eq!(db.variables.get(b"Y").unwrap().raw_value(), b"a\x0b b");
+        assert_eq!(db.variables.get(b"Z\x0c").unwrap().raw_value(), b"keep");
+        assert!(db.variables.get(b"Z").is_none());
     }
 
     #[test]
