@@ -13,6 +13,8 @@ pub enum Status {
     Success,
     Question,
     Failure,
+    /// Expansion or another invocation-wide error; keep-going cannot recover.
+    Fatal,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,6 +48,14 @@ impl Execution {
             ran,
             status: Status::Failure,
             cleanup,
+        }
+    }
+
+    pub fn fatal(ran: bool) -> Self {
+        Self {
+            ran,
+            status: Status::Fatal,
+            cleanup: Cleanup::None,
         }
     }
 

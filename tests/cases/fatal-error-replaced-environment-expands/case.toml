@@ -1,0 +1,13 @@
+id = "fatal-error-replaced-environment-expands"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently asserted export/MAKELEVEL boundary fixture, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[environment]
+"IMPORTED" = "original"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a207265706c616365642e202053746f702e0a"

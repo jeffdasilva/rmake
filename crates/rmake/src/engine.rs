@@ -78,8 +78,17 @@ struct Outcome {
     time: Option<SystemTime>,
     ran: bool,
     failed: bool,
+    fatal: bool,
     question_outdated: bool,
     blocked: bool,
+}
+
+fn automatic_export_name(name: &[u8]) -> bool {
+    name.first()
+        .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
+        && name
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
 }
 
 pub struct Engine {
@@ -168,7 +177,9 @@ impl Engine {
                 .variables
                 .define(&name, spec.value, spec.kind, Origin::CommandLine)
                 .map_err(|e| e.diagnostic())?;
-            inherited_exports.insert(name);
+            if automatic_export_name(&name) {
+                inherited_exports.insert(name);
+            }
         }
         database.variables.remove(b"GNUMAKEFLAGS");
         database
@@ -217,7 +228,10 @@ impl Engine {
     }
 
     fn expansion_error(&self, fallback: Option<&Location>, error: &ExpandError) {
-        self.fatal(error.location().or(fallback), error.diagnostic().as_bytes());
+        self.fatal(
+            error.diagnostic_location(fallback),
+            error.diagnostic().as_bytes(),
+        );
     }
 
     pub fn run(mut self) -> u8 {
@@ -353,7 +367,7 @@ impl Engine {
             let already_done = self.done.contains_key(&goal);
             let outcome = self.build(&goal, None, 0);
             failed |= outcome.failed;
-            if outcome.failed && !self.options.keep_going {
+            if outcome.fatal || (outcome.failed && !self.options.keep_going) {
                 break;
             }
             if outcome.failed
@@ -426,6 +440,7 @@ impl Engine {
             self.fatal(None, b"rmake: dependency nesting limit exceeded");
             return Outcome {
                 failed: true,
+                fatal: true,
                 ..Outcome::default()
             };
         }
@@ -505,9 +520,12 @@ impl Engine {
             let child = self.build(dependency, Some(target), depth + 1);
             outcome.ran |= child.ran;
             outcome.failed |= child.failed;
+            outcome.fatal |= child.fatal;
             outcome.blocked |= child.failed;
             outcome.question_outdated |= child.question_outdated;
-            if (child.failed || child.question_outdated) && !self.options.keep_going {
+            if child.fatal
+                || ((child.failed || child.question_outdated) && !self.options.keep_going)
+            {
                 break;
             }
             if !order_only
@@ -553,13 +571,15 @@ impl Engine {
                     if let Err(err) = variables.define_literal(name, &value, Origin::Automatic) {
                         self.expansion_error(None, &err);
                         outcome.failed = true;
+                        outcome.fatal = true;
                         break;
                     }
                 }
                 if !outcome.failed {
                     let execution = self.execute(target, recipes, &variables, phony);
                     outcome.ran |= execution.ran;
-                    outcome.failed |= execution.status == Status::Failure;
+                    outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
+                    outcome.fatal |= execution.status == Status::Fatal;
                     outcome.question_outdated |= execution.status == Status::Question;
                     self.cleanup_target(target, before, phony, execution.cleanup);
                 }
@@ -638,7 +658,7 @@ impl Engine {
                 Ok(bytes) => expanded.push((bytes, recipe)),
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::failure(false, Cleanup::None);
+                    return Execution::fatal(false);
                 }
             }
         }
@@ -672,7 +692,7 @@ impl Engine {
                 Ok(shell) => shell,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::failure(ran, Cleanup::None);
+                    return Execution::fatal(ran);
                 }
             };
             let shell = if shell.is_empty() {
@@ -689,7 +709,7 @@ impl Engine {
                 Ok(flags) => flags,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::failure(ran, Cleanup::None);
+                    return Execution::fatal(ran);
                 }
             };
             let ifs = if variables.get(b"IFS").is_some() {
@@ -697,7 +717,7 @@ impl Engine {
                     Ok(value) => Some(value),
                     Err(err) => {
                         self.expansion_error(Some(&recipe.location), &err);
-                        return Execution::failure(ran, Cleanup::None);
+                        return Execution::fatal(ran);
                     }
                 }
             } else {
@@ -770,7 +790,7 @@ impl Engine {
                 for (name, variable) in variables.definitions() {
                     if name != b"SHELL"
                         && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                        && name.iter().all(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                        && automatic_export_name(name)
                     {
                         exports.insert(name.to_vec());
                     }
@@ -781,14 +801,23 @@ impl Engine {
                     child.env_remove(os(name));
                     continue;
                 }
-                if variables.get(name).is_some() {
+                if let Some(variable) = variables.get(name) {
+                    // Imported environment values are recursive when referenced
+                    // by make syntax, but are passed back to children verbatim.
+                    if matches!(
+                        variable.origin(),
+                        Origin::Environment | Origin::EnvironmentOverride
+                    ) {
+                        child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
+                        continue;
+                    }
                     match variables.expand_variable(name) {
                         Ok(value) => {
                             child.env(os(name), OsString::from_vec(value));
                         }
                         Err(err) => {
-                            self.expansion_error(Some(&recipe.location), &err);
-                            return Execution::failure(ran, Cleanup::None);
+                            self.expansion_error(variable.definition(), &err);
+                            return Execution::fatal(ran);
                         }
                     }
                 } else {

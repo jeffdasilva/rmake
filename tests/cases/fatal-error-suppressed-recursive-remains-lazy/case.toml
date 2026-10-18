@@ -1,0 +1,11 @@
+id = "fatal-error-suppressed-recursive-remains-lazy"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "VALUE=winning"]
+description = "Original fatal error expansion regression."
+provenance = "Original independently authored error-function fixture and message/file expectations, checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "77696e6e696e670a"
+stderr_hex = ""

@@ -376,3 +376,38 @@ They are not passing conformance cases or permanent scope exceptions.
 [Shell configuration notes](shell-configuration.md) document the verified
 boundaries, original provenance and remaining work. No GNU implementation source
 or upstream tests were consulted for this slice.
+
+## Explicit errors and fatal expansion — 2026-10-18
+
+The `error` function now preserves GNU's message bytes, direct/call argument
+distinctions, evaluation timing and caller-location rules. Fatal expansion
+results stop later prerequisites and top-level goals even under `-k` or `-i`;
+ordinary failed processes retain their separate keep-going and ignore behavior.
+Completed prerequisite files survive, and no child-failure cleanup is invented
+for an expansion error.
+
+Imported environment values are exported raw, while file and command-line
+bindings expand at their required point. Automatic command-line and export-all
+selection now requires an initial ASCII letter or underscore and subsequent
+ASCII letters, digits or underscores. Explicit exports and inherited environment
+membership still allow other names. This prevents premature expansion of values
+that GNU would not export.
+
+Fifty-one new required fixtures and one promoted historical error case bring the
+curated corpus to 569 cases: 495 required exact matches and 74 pending
+requirements. Three new pending cases preserve special `MAKELEVEL` mismatches.
+All oracle expectations and self-comparisons pass. Full `make ci`, including
+self-host flows, passed with 215 Rust tests and 164 tooling tests.
+
+An independent campaign passed 348 distinct programs across 29 families: 300
+fatal outcomes and 48 successful lazy cases, including 116 one-shell programs.
+It asserts status, exact streams, source locations and complete filesystem state,
+including preservation of earlier prerequisites and absence of later side
+effects. Separate probes verified export-name boundaries and fatal runtime modes.
+The implementation and tests used original oracle observations and public
+documentation; no GNU implementation source or upstream tests were consulted.
+
+[Fatal-error notes](fatal-errors.md) describe these boundaries. Special
+`MAKELEVEL` initialization and child-depth behavior remain recorded pending
+requirements. Other expansion effects and the later compatibility milestones
+remain open; this slice does not establish full GNU compatibility or a speedup.

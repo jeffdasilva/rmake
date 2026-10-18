@@ -1,0 +1,11 @@
+id = "fatal-error-cli-invalid-explicit-export"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "FAIL-NAME=$(error name-fatal)", "anchor", "bad", "after"]
+description = "Automatic versus explicit export eligibility; anchor must remain absent; forbidden must remain absent."
+provenance = "Original independently asserted export-name boundary regression, checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a206e616d652d666174616c2e202053746f702e0a"

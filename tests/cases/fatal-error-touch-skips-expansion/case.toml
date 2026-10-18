@@ -1,0 +1,11 @@
+id = "fatal-error-touch-skips-expansion"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-t"]
+description = "Original fatal error expansion regression. Expected preserved/created files: all. Expected absent files: forbidden."
+provenance = "Original independently authored error-function fixture and message/file expectations, checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820616c6c0a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "fatal-error-keep-going-quiet-still-fatal"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-k", "-q"]
+description = "Original fatal error expansion regression. Expected absent files: forbidden, all, bad, after."
+provenance = "Original independently authored error-function fixture and message/file expectations, checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a202a2a2a2073746f702e202053746f702e0a"

@@ -10,7 +10,7 @@ id = "errors.expansion"
 title = "Expansion failures"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 2
+candidate_required = 3
 reference = "https://www.gnu.org/software/make/manual/html_node/Make-Control-Functions.html"
 fixture_count = 3
 cases = ["error-explicit-function", "error-recursive-variable", "error-invalid-word-index"]
@@ -440,3 +440,22 @@ candidate_required = 45
 reference = "https://www.gnu.org/software/make/manual/html_node/Errors.html"
 fixture_count = 45
 cases = ["location-append-empty-keeps-old-value", "location-append-expanded-empty-moves-old-value", "location-append-nonempty-moves-old-value", "location-append-simple-immediate", "location-append-undefined-origin", "location-byte-filename-definition-origin", "location-call-argument-inner-definition", "location-call-body-definition", "location-call-eager-argument", "location-cli-immediate-no-file-origin", "location-cli-inherits-wrapper-origin", "location-completed-expansion-restores-parser-origin", "location-computed-name-definition-origin", "location-conditional-definition-origin", "location-conditional-ignored-keeps-origin", "location-conditional-new-origin", "location-continued-recursive-start", "location-define-multiline-header", "location-define-simple-end", "location-environment-inherits-recipe-origin", "location-environment-inherits-wrapper-origin", "location-environment-override-keeps-unlocated", "location-export-definition-origin", "location-ifs-definition-origin", "location-ignored-append-cli-keeps-unlocated", "location-immediate-recursive-stays-literal", "location-nested-inner-definition", "location-nested-success-restores-outer", "location-override-replacement-origin", "location-prerequisite-definition-origin", "location-rawbytes-cross-file-origin", "location-recursive-immediate", "location-recursive-recipe", "location-recursive-replacement-origin", "location-shell-definition-origin", "location-shellflags-use-recipe-origin", "location-simple-value-stays-literal", "location-space-colon-filename-origin", "location-suppressed-recursive-cli-inherits", "location-suppressed-simple-still-expands", "location-default-goal-raw-origin", "location-default-goal-nested-call-origin", "location-default-goal-simple-literal", "location-shellflags-simple-raw-origin", "location-shellflags-simple-nested-origin"]
+
+[[requirements]]
+id = "functions.error"
+title = "Explicit fatal expansion errors, caller contexts and global stopping"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 51
+reference = "https://www.gnu.org/software/make/manual/html_node/Make-Control-Functions.html"
+fixture_count = 51
+cases = ["fatal-error-bare-variable-and-call-zero", "fatal-error-builtin-overrides-named-variable", "fatal-error-call-body-caller-location", "fatal-error-call-eager-argument-location", "fatal-error-call-empty-argument", "fatal-error-call-first-argument-only", "fatal-error-call-if-eager-error", "fatal-error-call-literal-dollar-message", "fatal-error-call-surplus-eager-error", "fatal-error-cli-immediate-no-file-location", "fatal-error-cli-recursive-inherits-location", "fatal-error-complete-recipe-expansion-before-launch", "fatal-error-default-goal-nested-origin", "fatal-error-direct-commas-whitespace", "fatal-error-direct-empty", "fatal-error-environment-inherits-location", "fatal-error-existing-target-not-deleted", "fatal-error-export-before-launch", "fatal-error-ifs-recipe-location", "fatal-error-ignore-prefix-and-option-do-not-ignore", "fatal-error-keep-going-goals-stops-later", "fatal-error-keep-going-prerequisites-stops-later", "fatal-error-keep-going-quiet-still-fatal", "fatal-error-lazy-branches-unreached", "fatal-error-multiline-byte-message", "fatal-error-n-recipe-error", "fatal-error-nested-export-caller-location", "fatal-error-nested-invalid-operand-first", "fatal-error-oneshell-whole-script-before-launch", "fatal-error-q-forced-error", "fatal-error-q-recipe-error", "fatal-error-recursive-caller-location", "fatal-error-shell-recipe-under-dry", "fatal-error-shellflags-recipe-location", "fatal-error-simple-assignment-immediate", "fatal-error-simple-value-error-text-stays-literal", "fatal-error-suppressed-recursive-remains-lazy", "fatal-error-suppressed-simple-still-errors", "fatal-error-touch-forced-error", "fatal-error-touch-skips-expansion", "fatal-error-cli-export-no-file-location", "fatal-error-environment-exported-raw", "fatal-error-environment-override-exported-raw", "fatal-error-environment-reexported-raw", "fatal-error-export-alias-expands-import", "fatal-error-replaced-environment-expands", "fatal-error-cli-digit-leading-not-automatic", "fatal-error-cli-hyphen-not-automatic", "fatal-error-cli-invalid-explicit-export", "fatal-error-cli-valid-name-automatic", "fatal-error-export-all-digit-leading-not-automatic"]
+
+[[requirements]]
+id = "recursion.makelevel"
+title = "Invocation recursion depth and MAKELEVEL variable independence"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
+fixture_count = 3
+cases = ["makelevel-cli-recursive-value-does-not-change-depth", "makelevel-environment-recursive-value-depth", "makelevel-file-value-does-not-change-child-depth"]

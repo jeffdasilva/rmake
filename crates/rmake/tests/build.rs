@@ -155,6 +155,128 @@ fn delete_on_error_removes_changed_output_but_preserves_precious() {
 }
 
 #[test]
+fn fatal_expansion_stops_prerequisites_and_goals_even_when_keeping_or_ignoring_errors() {
+    for function in [b"$(error fatal)".as_slice(), b"$(intcmp bad,0)"] {
+        let source = [
+            b".DELETE_ON_ERROR:\n.PHONY: all before bad after goal\nall: before bad after\nbefore:\n\t@printf retained > before\nbad:\n\t-@".as_slice(),
+            function,
+            b"\nafter:\n\t@touch forbidden\ngoal:\n\t@touch forbidden\n",
+        ].concat();
+        let project = Project::new(&source);
+        project.file("bad", b"preserved", 1000, 123);
+        let before = fs::metadata(project.0.join("bad"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        let output = project.run(&[OsStr::new("-ki"), OsStr::new("all"), OsStr::new("goal")]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.starts_with(b"Makefile:7: *** "));
+        assert_eq!(
+            output.stderr.iter().filter(|byte| **byte == b'\n').count(),
+            1
+        );
+        assert_eq!(fs::read(project.0.join("before")).unwrap(), b"retained");
+        assert_eq!(fs::read(project.0.join("bad")).unwrap(), b"preserved");
+        assert_eq!(
+            fs::metadata(project.0.join("bad"))
+                .unwrap()
+                .modified()
+                .unwrap(),
+            before
+        );
+        assert!(!project.0.join("forbidden").exists());
+    }
+}
+
+#[test]
+fn error_function_recipe_context_differs_from_export_binding_context() {
+    for (source, line) in [
+        (
+            b"FAIL = $(error raw\xff)\nall:\n\t@$(call FAIL)\n".as_slice(),
+            3,
+        ),
+        (
+            b"FAIL = $(error raw\xff)\nexport SENT = $(FAIL)\nall:\n\t@touch forbidden\n",
+            2,
+        ),
+    ] {
+        let project = Project::new(source);
+        let output = project.run(&[]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert_eq!(
+            output.stderr,
+            [
+                format!("Makefile:{line}: *** ").as_bytes(),
+                b"raw\xff.  Stop.\n"
+            ]
+            .concat()
+        );
+        assert!(!project.0.join("forbidden").exists());
+    }
+}
+
+#[test]
+fn environment_exports_are_raw_but_references_to_them_still_expand() {
+    let project = Project::new(b"unexport VALUE\nexport VALUE\nall:\n\t@printf '%s' \"$$VALUE\"\n");
+    let output = project
+        .command()
+        .env("VALUE", "$(error fatal)")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout, b"$(error fatal)");
+    let project = Project::new(b"export ALIAS = $(VALUE)\nall:\n\t@touch forbidden\n");
+    let output = project
+        .command()
+        .env("VALUE", "$(error fatal)")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.stderr, b"Makefile:1: *** fatal.  Stop.\n");
+    assert!(!project.0.join("forbidden").exists());
+}
+
+#[test]
+fn automatic_export_names_do_not_expand_ineligible_values_before_they_are_used() {
+    for name in [b"FAIL-NAME".as_slice(), b"1X", b"\xff"] {
+        for policy in [b"".as_slice(), b"export ", b"inherited"] {
+            let mut source = Vec::new();
+            if policy == b"export " {
+                source.extend_from_slice(&[policy, name, b"\n"].concat());
+            }
+            source.extend_from_slice(b"all: anchor\n\t@$(");
+            source.extend_from_slice(name);
+            source.extend_from_slice(b")\nanchor:\n\t@printf anchor > anchor\n");
+            let project = Project::new(&source);
+            let mut command = project.command();
+            command.arg(OsString::from_vec([name, b"=$(error fatal)"].concat()));
+            if policy == b"inherited" {
+                command.env(OsString::from_vec(name.to_vec()), "old");
+            }
+            let output = command.output().unwrap();
+            assert_eq!(output.status.code(), Some(2));
+            assert_eq!(project.0.join("anchor").exists(), policy.is_empty());
+            assert_eq!(
+                output.stderr,
+                if policy.is_empty() {
+                    b"Makefile:2: *** fatal.  Stop.\n".as_slice()
+                } else {
+                    b"rmake: *** fatal.  Stop.\n".as_slice()
+                }
+            );
+        }
+    }
+    let project = Project::new(b"export\n1X = $(error unused)\nall:\n\t@printf anchor\n");
+    let output = project.run(&[]);
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"anchor");
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
 fn enoexec_fallback_preserves_the_path_entry_that_was_actually_executable() {
     let project = Project::new(b"export PATH := first:second:/usr/bin:/bin\nall:\n\t@plain\n");
     for (directory, contents, mode) in [
