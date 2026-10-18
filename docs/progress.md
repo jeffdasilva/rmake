@@ -139,3 +139,19 @@ An additional independent 200-case command-quoting campaign matched the oracle.
 The larger seeded pure-expansion campaign also passed 1,000 programs containing
 128,000 observations (seed 20261018). These observations extend coverage without
 changing the open compatibility or performance gates.
+
+## Automatic-variable metadata and scope evidence — 2026-10-18
+
+The engine installs GNU's 14 recursive automatic D/F variables before reading
+Makefiles, preserving their exact raw expressions, origin and precedence even
+under `-R`. Ordinary explicit recipes also receive the empty `%` automatic
+variable. Tests cover parse-time metadata, later recipe values, repeated lists,
+path edge cases, byte-valued names and failed attempts to override the built-ins.
+The variable core now evaluates immediate right-hand sides before discarding a
+lower-priority definition; conditional assignments still skip their unused RHS.
+
+The curated corpus has 236 cases: 165 required matches and 71 pending cases.
+The additions include 13 required automatic-variable fixtures, one pending
+explicit-suffix stem fixture, and 22 pending target-scope fixtures. The
+[scope design notes](target-scopes.md) record observed assignment and inheritance
+requirements for a future layered implementation; scope support is not claimed.

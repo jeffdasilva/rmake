@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-command-line-precedence"
+requirement = "scope.target-specific"
+candidate = "pending"
+description = "Command-line variables outrank ordinary explicit target assignments and keep their origin and flavor."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "X=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=cli/command line/recursive\nparent=cli/command line/recursive\n"
+stderr = ""

@@ -360,3 +360,22 @@ candidate_required = 30
 reference = "https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html"
 fixture_count = 30
 cases = ["process-direct-quoted-arguments", "process-direct-missing", "process-direct-missing-single-quoted", "process-shell-missing-double-quoted", "process-direct-missing-ignored", "process-shell-missing-env-prefix", "process-shell-builtin-cd", "process-shell-builtin-export", "process-shell-builtin-exit", "process-builtin-names-direct", "process-shell-builtin-test", "process-shellflags-ec-direct", "process-shellflags-ce-shell", "process-shellflags-noexec", "process-custom-bash-missing", "process-custom-shell-wrapper", "process-ifs-empty-direct", "process-ifs-permuted-direct", "process-ifs-custom-shell", "process-environment-prefix", "process-single-quoted-dollar", "process-backslash-metacharacters", "process-glob-and-redirection", "process-pipeline", "process-double-quoted-substitution", "process-enoexec-slash", "process-enoexec-path", "process-enoexec-shellflags-ec", "process-permission-denied", "process-enoexec-custom-shell"]
+
+[[requirements]]
+id = "scope.target-specific"
+title = "Explicit target variable scope and assignment timing"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html"
+fixture_count = 22
+cases = ["scope-append-global-recursive", "scope-append-global-simple", "scope-append-inherited", "scope-append-local-simple", "scope-child-replaces-inherited", "scope-command-line-precedence", "scope-conditional-defined-empty", "scope-conditional-ignores-inherited", "scope-environment-override-flag", "scope-environment-override-no-global", "scope-environment-precedence", "scope-inherited-prerequisite-chain", "scope-override-command-line", "scope-override-environment", "scope-private-exposes-ancestor", "scope-private-target-value", "scope-recursive-automatic-context", "scope-recursive-simple-timing", "scope-shared-command-goal-order", "scope-shared-first-parent", "scope-simple-literal-dollar", "scope-simple-local-context"]
+
+[[requirements]]
+id = "automatic.derivatives"
+title = "Automatic variable directory and filename forms"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 13
+reference = "https://www.gnu.org/software/make/manual/html_node/Automatic-Variables.html"
+fixture_count = 14
+cases = ["automatic-df-base-file-context", "automatic-df-base-override-context", "automatic-df-command-line-ignored", "automatic-df-empty-prerequisites", "automatic-df-explicit-suffix-stem", "automatic-df-file-assignments-ignored", "automatic-df-nested-target-path", "automatic-df-order-only-remain-ordinary", "automatic-df-override-assignments-ignored", "automatic-df-parse-metadata", "automatic-df-prerequisite-lists", "automatic-df-recipe-metadata", "automatic-df-target-basename", "automatic-df-undefine-ignored"]

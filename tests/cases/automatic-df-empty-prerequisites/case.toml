@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-empty-prerequisites"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "Empty prerequisite, archive-member and stem variables produce empty D/F values rather than dot."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first=<>/<>\nunique=<>/<>\nrepeated=<>/<>\nnewer=<>/<>\nmember=<>/<>/<>\nstem=<>/<>/<>\n"
+stderr = ""

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-base-file-context"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "A global base variable affects recursive D/F during parsing, while recipe automatic values replace the base; simple snapshots stay captured."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parse=parse/input/file\nrecipe=dir/output/automatic\ncaptured=parse\ndeferred=dir\n"
+stderr = ""

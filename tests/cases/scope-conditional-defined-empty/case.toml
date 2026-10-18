@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-conditional-defined-empty"
+requirement = "scope.target-specific"
+candidate = "pending"
+description = "Target conditional assignment preserves defined empty/global values and assigns an undefined name."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=<global>/<>/<assigned>\nparent=<global>/<>/<assigned>\n"
+stderr = ""

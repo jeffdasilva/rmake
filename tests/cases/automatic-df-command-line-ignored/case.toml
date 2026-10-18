@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-command-line-ignored"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "Command-line D/F definitions are ignored, while a command-line base value affects parse expansion before recipe context replaces it."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "@=parse/input", "@D=authored", "@F=authored"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parse=parse/input/command line\ndirectory=dir/automatic/recursive\nfilename=output/automatic/recursive\n"
+stderr = ""

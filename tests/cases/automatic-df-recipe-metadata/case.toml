@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-recipe-metadata"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "Recipe base variables are simple automatic values while D/F remain recursive automatic formulas with exact raw values."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "recipe @:automatic:simple:[dir/out]:[dir/out]\nrecipe %:automatic:simple:[]:[]\nrecipe <:automatic:simple:[a]:[a]\nrecipe ?:automatic:simple:[a p/b p/c]:[a p/b p/c]\nrecipe ^:automatic:simple:[a p/b p/c]:[a p/b p/c]\nrecipe +:automatic:simple:[a p/b a p/c]:[a p/b a p/c]\nrecipe *:automatic:simple:[]:[]\nrecipe |:automatic:simple:[order]:[order]\nrecipe @D:automatic:recursive:[$(patsubst %/,%,$(dir $@))]:[dir]\nrecipe @F:automatic:recursive:[$(notdir $@)]:[out]\nrecipe %D:automatic:recursive:[$(patsubst %/,%,$(dir $%))]:[]\nrecipe %F:automatic:recursive:[$(notdir $%)]:[]\nrecipe <D:automatic:recursive:[$(patsubst %/,%,$(dir $<))]:[.]\nrecipe <F:automatic:recursive:[$(notdir $<)]:[a]\nrecipe ?D:automatic:recursive:[$(patsubst %/,%,$(dir $?))]:[. p p]\nrecipe ?F:automatic:recursive:[$(notdir $?)]:[a b c]\nrecipe ^D:automatic:recursive:[$(patsubst %/,%,$(dir $^))]:[. p p]\nrecipe ^F:automatic:recursive:[$(notdir $^)]:[a b c]\nrecipe +D:automatic:recursive:[$(patsubst %/,%,$(dir $+))]:[. p . p]\nrecipe +F:automatic:recursive:[$(notdir $+)]:[a b a c]\nrecipe *D:automatic:recursive:[$(patsubst %/,%,$(dir $*))]:[]\nrecipe *F:automatic:recursive:[$(notdir $*)]:[]\nrecipe |D:undefined:undefined:[]:[]\nrecipe |F:undefined:undefined:[]:[]\n"
+stderr = ""

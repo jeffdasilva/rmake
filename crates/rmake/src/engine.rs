@@ -6,7 +6,7 @@
 
 use crate::cli::Options;
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
-use rmake_core::variables::{Assignment, Origin, VariableStore};
+use rmake_core::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
@@ -43,6 +43,32 @@ fn unique(items: &[Vec<u8>]) -> Vec<Vec<u8>> {
 
 fn modified(name: &[u8]) -> Option<SystemTime> {
     fs::metadata(os(name)).and_then(|m| m.modified()).ok()
+}
+
+/// GNU exposes these recursive definitions even while reading makefiles and
+/// with -R. Their automatic origin also protects them from override/undefine.
+/// Keep the formulas, rather than precomputing paths: origin/flavor/value and
+/// references to user-defined base variables during parsing are observable.
+fn define_automatic_variants(variables: &mut VariableStore) -> Result<(), ExpandError> {
+    for base in b"@<^+?*%" {
+        for (suffix, prefix, ending) in [
+            (
+                b'D',
+                b"$(patsubst %/,%,$(dir $".as_slice(),
+                b"))".as_slice(),
+            ),
+            (b'F', b"$(notdir $".as_slice(), b")".as_slice()),
+        ] {
+            let value = [prefix, &[*base], ending].concat();
+            variables.define(
+                &[*base, suffix],
+                &value,
+                Assignment::Recursive,
+                Origin::Automatic,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Default)]
@@ -89,6 +115,7 @@ impl Engine {
                 .map_err(|e| e.to_string())?;
             inherited_exports.insert(name.to_vec());
         }
+        define_automatic_variants(&mut database.variables).map_err(|error| error.to_string())?;
         for (name, value) in [
             (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
             (b".SHELLFLAGS", b"-c"),
@@ -475,6 +502,7 @@ impl Engine {
                     (b"?", joined(&newer)),
                     (b"|", joined(&order)),
                     (b"*", Vec::new()),
+                    (b"%", Vec::new()),
                 ];
                 for (name, value) in autos {
                     if let Err(err) = variables.define_literal(name, &value, Origin::Automatic) {
@@ -813,4 +841,192 @@ fn launch_status(program: &[u8], template: &Command) -> io::Result<std::process:
         }
     }
     Err(denied.unwrap_or(missing))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmake_core::variables::Flavor;
+
+    fn automatic_store() -> VariableStore {
+        let mut variables = VariableStore::new();
+        define_automatic_variants(&mut variables).unwrap();
+        variables
+    }
+
+    #[test]
+    fn automatic_variants_have_observable_recursive_definitions() {
+        let variables = automatic_store();
+        for base in b"@<^+?*%" {
+            for suffix in b"DF" {
+                let name = [*base, *suffix];
+                let variable = variables.get(&name).unwrap();
+                assert_eq!(variable.origin(), Origin::Automatic);
+                assert_eq!(variable.flavor(), Flavor::Recursive);
+                let expected = if *suffix == b'D' {
+                    [b"$(patsubst %/,%,$(dir $".as_slice(), &[*base], b"))"].concat()
+                } else {
+                    [b"$(notdir $".as_slice(), &[*base], b")"].concat()
+                };
+                assert_eq!(variable.raw_value(), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn variants_exist_before_base_values_and_order_only_has_no_variants() {
+        let variables = automatic_store();
+        assert_eq!(variables.definitions().count(), 14);
+        for base in b"@<^+?*%|" {
+            assert!(variables.get(&[*base]).is_none());
+        }
+        assert!(variables.get(b"|D").is_none());
+        assert!(variables.get(b"|F").is_none());
+        assert_eq!(
+            variables
+                .expand(b"$(@D)$(@F)$(<D)$(<F)$(^D)$(^F)$(+D)$(+F)$(?D)$(?F)$(*D)$(*F)$(%D)$(%F)")
+                .unwrap(),
+            b""
+        );
+    }
+
+    #[test]
+    fn variants_replace_inherited_definitions_and_ignore_lower_origins() {
+        for origin in [
+            Origin::Default,
+            Origin::Environment,
+            Origin::File,
+            Origin::EnvironmentOverride,
+            Origin::CommandLine,
+            Origin::Override,
+        ] {
+            let mut variables = VariableStore::new();
+            variables
+                .define_literal(b"@D", b"inherited", origin)
+                .unwrap();
+            define_automatic_variants(&mut variables).unwrap();
+            for assignment in [
+                Assignment::Recursive,
+                Assignment::Simple,
+                Assignment::Append,
+                Assignment::Conditional,
+            ] {
+                variables
+                    .define(b"@D", b"replacement", assignment, origin)
+                    .unwrap();
+                assert_eq!(
+                    variables.get(b"@D").unwrap().raw_value(),
+                    b"$(patsubst %/,%,$(dir $@))"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn parsing_cannot_override_or_undefine_automatic_variants() {
+        let mut database = Database {
+            variables: automatic_store(),
+            ..Database::default()
+        };
+        database
+            .read(
+                b"@D = ignored\n@F := ignored\noverride <D = ignored\noverride <F += ignored\nundefine ^D\noverride undefine ^F\n",
+                b"Makefile",
+            )
+            .unwrap();
+        assert_eq!(database.variables.definitions().count(), 14);
+        for name in [b"@D", b"@F", b"<D", b"<F", b"^D", b"^F"] {
+            let variable = database.variables.get(name).unwrap();
+            assert_eq!(variable.origin(), Origin::Automatic);
+            assert_eq!(variable.flavor(), Flavor::Recursive);
+            assert!(
+                !variable
+                    .raw_value()
+                    .windows(7)
+                    .any(|part| part == b"ignored")
+            );
+        }
+    }
+
+    #[test]
+    fn user_base_value_is_visible_during_parsing_then_recipe_value_wins() {
+        let mut database = Database {
+            variables: automatic_store(),
+            ..Database::default()
+        };
+        database
+            .read(
+                b"override @ := before/file\nPARSE := $(@D)|$(@F)\n",
+                b"Makefile",
+            )
+            .unwrap();
+        database
+            .variables
+            .define_literal(b"@", b"after/target", Origin::Automatic)
+            .unwrap();
+        assert_eq!(
+            database.variables.expand(b"$(PARSE)|$(@D)|$(@F)").unwrap(),
+            b"before|file|after|target"
+        );
+    }
+
+    #[test]
+    fn variants_use_make_path_functions_without_path_normalization() {
+        let mut variables = automatic_store();
+        for (base, directory, file) in [
+            (b"bare".as_slice(), b".".as_slice(), b"bare".as_slice()),
+            (b"dir/file", b"dir", b"file"),
+            (b"dir//file", b"dir/", b"file"),
+            (b"./file", b".", b"file"),
+            (b"/file", b"", b"file"),
+            (b"/", b"", b""),
+            (b"dir/", b"dir", b""),
+            (b"one$two/file", b"one$two", b"file"),
+            (b"dir\xff/file\xfe", b"dir\xff", b"file\xfe"),
+        ] {
+            variables
+                .define_literal(b"@", base, Origin::Automatic)
+                .unwrap();
+            assert_eq!(variables.expand(b"$(@D)").unwrap(), directory);
+            assert_eq!(variables.expand(b"$(@F)").unwrap(), file);
+        }
+    }
+
+    #[test]
+    fn list_variants_preserve_repetition_and_function_word_semantics() {
+        let mut variables = automatic_store();
+        for base in b"@<^+?*%" {
+            variables
+                .define_literal(
+                    &[*base],
+                    b" bare  dir/one\tdir/two bare ",
+                    Origin::Automatic,
+                )
+                .unwrap();
+            let directory = [b"$(".as_slice(), &[*base], b"D)"].concat();
+            let file = [b"$(".as_slice(), &[*base], b"F)"].concat();
+            assert_eq!(variables.expand(&directory).unwrap(), b". dir dir .");
+            assert_eq!(variables.expand(&file).unwrap(), b"bare one two bare");
+        }
+    }
+
+    #[test]
+    fn engine_installs_variants_even_when_builtin_variables_disabled() {
+        for no_variables in [false, true] {
+            let engine = Engine::new(
+                Options {
+                    no_variables,
+                    assignments: vec![b"@D=ignored".to_vec()],
+                    ..Options::default()
+                },
+                b"rmake".to_vec(),
+                OsStr::new("rmake"),
+            )
+            .unwrap();
+            let variable = engine.database.variables.get(b"@D").unwrap();
+            assert_eq!(variable.origin(), Origin::Automatic);
+            assert_eq!(variable.flavor(), Flavor::Recursive);
+            assert_eq!(variable.raw_value(), b"$(patsubst %/,%,$(dir $@))");
+        }
+    }
 }

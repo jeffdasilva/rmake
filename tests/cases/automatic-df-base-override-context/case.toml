@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-base-override-context"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "A global override base value can affect parsing but does not outrank automatic recipe context."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parse=parse/forced/override\nrecipe=dir/output/dir/output/automatic\n"
+stderr = ""

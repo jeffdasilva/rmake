@@ -147,8 +147,8 @@ impl VariableStore {
             .map(|(name, value)| (name.as_slice(), value))
     }
 
-    /// Define an already-expanded name. A lower-precedence definition is ignored
-    /// before evaluating its RHS, including effectful or otherwise invalid RHSs.
+    /// Define an already-expanded name. Conditional assignment skips an existing
+    /// definition, but immediate RHS evaluation precedes origin precedence checks.
     pub fn define(
         &mut self,
         name: &[u8],
@@ -159,10 +159,23 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        if let Some(old) = self.get(name)
-            && (assignment == Assignment::Conditional || old.origin > origin)
-        {
-            return Ok(());
+        if let Some(old) = self.get(name) {
+            if assignment == Assignment::Conditional {
+                return Ok(());
+            }
+            if old.origin > origin {
+                // GNU evaluates immediate assignments even when their result is
+                // discarded. An append is immediate only for a simple binding
+                // already present in this store; recursive appends stay deferred.
+                if matches!(
+                    assignment,
+                    Assignment::Simple | Assignment::ImmediateRecursive
+                ) || (assignment == Assignment::Append && old.flavor == Flavor::Simple)
+                {
+                    self.expand(value)?;
+                }
+                return Ok(());
+            }
         }
         let variable = match assignment {
             Assignment::Shell => return Err(ExpandError::Unsupported(b"!=".to_vec())),
@@ -1083,7 +1096,7 @@ mod tests {
     }
 
     #[test]
-    fn precedence_blocks_rhs_evaluation_and_preserves_origin() {
+    fn precedence_preserves_origin_and_skips_deferred_rhs_evaluation() {
         let mut store = VariableStore::new();
         store
             .define(b"X", b"command", Assignment::Recursive, Origin::CommandLine)
@@ -1092,7 +1105,7 @@ mod tests {
             .define(
                 b"X",
                 b"$(shell forbidden)",
-                Assignment::Simple,
+                Assignment::Recursive,
                 Origin::File,
             )
             .unwrap();
@@ -1107,6 +1120,84 @@ mod tests {
             store.expand(b"$(X):$(origin X)").unwrap(),
             b"forced:override"
         );
+    }
+
+    #[test]
+    fn losing_immediate_assignments_still_expand_rhs_without_replacing_value() {
+        // Oracle: BROKEN=$(BROKEN); X:=$(BROKEN) (or :::=) fails even with
+        // X=chosen on the command line, or a preceding override definition.
+        for origin in [Origin::CommandLine, Origin::Override] {
+            for assignment in [Assignment::Simple, Assignment::ImmediateRecursive] {
+                let mut store = VariableStore::new();
+                define(&mut store, b"BROKEN", b"$(BROKEN)", Assignment::Recursive);
+                store
+                    .define(b"X", b"chosen", Assignment::Recursive, origin)
+                    .unwrap();
+                assert_eq!(
+                    store.define(b"X", b"$(BROKEN)", assignment, Origin::File),
+                    Err(ExpandError::RecursiveVariable(b"BROKEN".to_vec()))
+                );
+                assert_eq!(store.get(b"X").unwrap().raw_value(), b"chosen");
+                assert_eq!(store.get(b"X").unwrap().origin(), origin);
+                assert_eq!(
+                    store.define(b"X", b"$(unterminated", assignment, Origin::File),
+                    Err(ExpandError::UnterminatedReference)
+                );
+                store
+                    .define(b"X", b"$(subst x,y,x)", assignment, Origin::File)
+                    .unwrap();
+                assert_eq!(store.expand(b"$(X)").unwrap(), b"chosen");
+            }
+        }
+    }
+
+    #[test]
+    fn losing_append_evaluates_only_when_existing_binding_is_simple() {
+        // Oracle: X+=$(BROKEN) fails with command-line X:=chosen, but stays
+        // unevaluated with X=chosen. Existing flavor controls append timing.
+        for (existing, evaluates) in [
+            (Assignment::Simple, true),
+            (Assignment::Recursive, false),
+            (Assignment::ImmediateRecursive, false),
+        ] {
+            let mut store = VariableStore::new();
+            define(&mut store, b"BROKEN", b"$(BROKEN)", Assignment::Recursive);
+            store
+                .define(b"X", b"chosen", existing, Origin::CommandLine)
+                .unwrap();
+            let result = store.define(b"X", b"$(BROKEN)", Assignment::Append, Origin::File);
+            if evaluates {
+                assert_eq!(
+                    result,
+                    Err(ExpandError::RecursiveVariable(b"BROKEN".to_vec()))
+                );
+            } else {
+                result.unwrap();
+            }
+            assert_eq!(store.expand(b"$(X)").unwrap(), b"chosen");
+            assert_eq!(store.get(b"X").unwrap().origin(), Origin::CommandLine);
+        }
+    }
+
+    #[test]
+    fn conditional_assignment_skips_rhs_for_any_existing_flavor_or_origin() {
+        for origin in [Origin::File, Origin::CommandLine, Origin::Override] {
+            for existing in [Assignment::Simple, Assignment::Recursive] {
+                let mut store = VariableStore::new();
+                define(&mut store, b"BROKEN", b"$(BROKEN)", Assignment::Recursive);
+                store.define(b"X", b"", existing, origin).unwrap();
+                store
+                    .define(
+                        b"X",
+                        b"$(BROKEN)",
+                        Assignment::Conditional,
+                        Origin::Override,
+                    )
+                    .unwrap();
+                assert_eq!(store.expand(b"$(X)").unwrap(), b"");
+                assert_eq!(store.get(b"X").unwrap().origin(), origin);
+            }
+        }
     }
 
     #[test]
