@@ -1,0 +1,11 @@
+id = "diagnostic-export-other-variable-order"
+requirement = "variables.environment"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "5a0a590a580a7a3a783a790a"
+stderr_hex = "4d616b6566696c653a313a205a0a4d616b6566696c653a333a20590a4d616b6566696c653a323a20580a"

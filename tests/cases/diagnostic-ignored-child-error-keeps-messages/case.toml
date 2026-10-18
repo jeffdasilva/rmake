@@ -1,0 +1,11 @@
+id = "diagnostic-ignored-child-error-keeps-messages"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a636f6e74696e7565640a"
+stderr_hex = "4d616b6566696c653a323a2066697273740a6d616b653a205b4d616b6566696c653a323a20616c6c5d204572726f722031202869676e6f726564290a"

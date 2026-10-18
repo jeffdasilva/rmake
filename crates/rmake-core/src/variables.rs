@@ -5,14 +5,14 @@
 //!
 //! `define` receives an already-expanded variable name and an RHS whose assignment
 //! syntax whitespace has been removed by the reader. Expansion never interprets
-//! UTF-8. Effects and filesystem-dependent functions are explicit errors until an
-//! effect interface is implemented; an unknown variable still expands to empty.
+//! UTF-8. Output effects use an explicit callback; filesystem-dependent functions
+//! remain explicit errors. An unknown variable still expands to empty.
 
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::diagnostic::{Diagnostic, Location};
+use crate::diagnostic::{Diagnostic, ExpansionContext, Location, Output};
 
 const MAX_DEPTH: usize = 128;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
@@ -92,6 +92,12 @@ pub enum ExpandError {
     },
     Unsupported(Vec<u8>),
     UserError(Vec<u8>),
+    /// A user error inside a recursive binding keeps the first entered binding
+    /// context. An explicit absent location must survive diagnostic unwinding.
+    ContextualUserError {
+        message: Vec<u8>,
+        location: Option<Arc<Location>>,
+    },
     UnterminatedReference,
     RecursiveVariable(Vec<u8>),
     EmptyVariableName,
@@ -116,13 +122,15 @@ impl ExpandError {
     pub fn location(&self) -> Option<&Location> {
         match self {
             Self::Located { location, .. } => Some(location),
+            Self::ContextualUserError { location, .. } => location.as_deref(),
             _ => None,
         }
     }
 
     /// The error function uses the active parse/recipe/export context, while
     /// expansion diagnostics such as intcmp retain the innermost definition.
-    /// Without an active context, both use the available definition location.
+    /// Without a caller, user errors retain their first binding context (even
+    /// an unlocated CLI/environment binding); validation errors use the innermost definition.
     pub fn diagnostic_location<'a>(
         &'a self,
         context: Option<&'a Location>,
@@ -136,13 +144,16 @@ impl ExpandError {
 
     fn is_user_error(&self) -> bool {
         match self {
-            Self::UserError(_) => true,
+            Self::UserError(_) | Self::ContextualUserError { .. } => true,
             Self::Located { error, .. } => error.is_user_error(),
             _ => false,
         }
     }
 
     fn at(self, location: Option<&Arc<Location>>) -> Self {
+        if matches!(self, Self::ContextualUserError { .. }) {
+            return self;
+        }
         match location {
             Some(location) if self.location().is_none() => Self::Located {
                 location: Arc::clone(location),
@@ -155,7 +166,9 @@ impl ExpandError {
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
             Self::Located { error, .. } => error.diagnostic(),
-            Self::UserError(message) => message.clone().into(),
+            Self::UserError(message) | Self::ContextualUserError { message, .. } => {
+                message.clone().into()
+            }
             Self::RecursiveVariable(name) => [
                 b"Recursive variable '".as_slice(),
                 name,
@@ -197,7 +210,9 @@ impl fmt::Display for ExpandError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Located { error, .. } => error.fmt(output),
-            Self::UserError(message) => output.write_str(&String::from_utf8_lossy(message)),
+            Self::UserError(message) | Self::ContextualUserError { message, .. } => {
+                output.write_str(&String::from_utf8_lossy(message))
+            }
             Self::Unsupported(name) => write!(
                 output,
                 "unsupported expansion feature '{}'",
@@ -261,6 +276,7 @@ impl VariableStore {
 
     /// Define an already-expanded name. Conditional assignment skips an existing
     /// definition, but immediate RHS evaluation precedes origin precedence checks.
+    /// This pure convenience form rejects output; runtime callers use define_with.
     pub fn define(
         &mut self,
         name: &[u8],
@@ -268,7 +284,14 @@ impl VariableStore {
         assignment: Assignment,
         origin: Origin,
     ) -> Result<(), ExpandError> {
-        self.define_with_location(name, value, assignment, origin, None)
+        self.define_with(
+            name,
+            value,
+            assignment,
+            origin,
+            None,
+            ExpansionContext::pure(),
+        )
     }
 
     /// Define a file binding, keeping its source separate from the caller's
@@ -281,16 +304,25 @@ impl VariableStore {
         origin: Origin,
         location: &Location,
     ) -> Result<(), ExpandError> {
-        self.define_with_location(name, value, assignment, origin, Some(location))
+        self.define_with(
+            name,
+            value,
+            assignment,
+            origin,
+            Some(location),
+            ExpansionContext::pure(),
+        )
     }
 
-    fn define_with_location(
+    /// Define with explicit definition provenance and immediate evaluation effects.
+    pub fn define_with(
         &mut self,
         name: &[u8],
         value: &[u8],
         assignment: Assignment,
         origin: Origin,
         definition: Option<&Location>,
+        mut context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
@@ -308,7 +340,7 @@ impl VariableStore {
                     Assignment::Simple | Assignment::ImmediateRecursive
                 ) || (assignment == Assignment::Append && old.flavor == Flavor::Simple)
                 {
-                    self.expand(value)?;
+                    self.expand_with(value, context.reborrow())?;
                 }
                 return Ok(());
             }
@@ -316,13 +348,13 @@ impl VariableStore {
         let mut variable = match assignment {
             Assignment::Shell => return Err(ExpandError::Unsupported(b"!=".to_vec())),
             Assignment::Simple => Variable {
-                value: self.expand(value)?,
+                value: self.expand_with(value, context.reborrow())?,
                 flavor: Flavor::Simple,
                 origin,
                 definition: None,
             },
             Assignment::ImmediateRecursive => {
-                let expanded = self.expand(value)?;
+                let expanded = self.expand_with(value, context.reborrow())?;
                 let mut escaped = Vec::new();
                 for byte in expanded {
                     push(&mut escaped, &[byte])?;
@@ -341,7 +373,7 @@ impl VariableStore {
                 if let Some(old) = self.get(name) {
                     let extra = match old.flavor {
                         Flavor::Recursive => value.to_vec(),
-                        Flavor::Simple => self.expand(value)?,
+                        Flavor::Simple => self.expand_with(value, context.reborrow())?,
                     };
                     // Empty appends do not replace the binding, its origin,
                     // or its definition location, even with override.
@@ -413,34 +445,105 @@ impl VariableStore {
         Ok(())
     }
 
+    /// Append already-expanded metadata bytes, keeping the previous flavor.
+    /// Unlike ordinary +=, a simple binding must not evaluate these bytes again.
+    pub fn append_literal_at(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        origin: Origin,
+        location: &Location,
+    ) -> Result<(), ExpandError> {
+        if name.is_empty() {
+            return Err(ExpandError::EmptyVariableName);
+        }
+        if self.get(name).is_some_and(|old| old.origin > origin) {
+            return Ok(());
+        }
+        let (mut combined, flavor) = self.get(name).map_or_else(
+            || (Vec::new(), Flavor::Simple),
+            |old| (old.value.clone(), old.flavor),
+        );
+        if !combined.is_empty() {
+            push(&mut combined, b" ")?;
+        }
+        push(&mut combined, value)?;
+        self.variables.insert(
+            name.to_vec(),
+            Variable {
+                value: combined,
+                flavor,
+                origin,
+                definition: Some(Arc::new(location.clone())),
+            },
+        );
+        Ok(())
+    }
+
+    /// Evaluate in a pure/test context, rejecting output functions.
+    /// Runtime callers must use `expand_with` to preserve observable emissions.
     pub fn expand(&self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        self.expansion().expand(input)
+        self.expand_with(input, ExpansionContext::pure())
     }
 
-    /// Expand a named binding without encoding its arbitrary bytes as a
-    /// variable-reference expression. Recursive bindings retain provenance.
+    pub fn expand_with(
+        &self,
+        input: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.expansion(context).expand(input)
+    }
+
+    /// Pure/test convenience wrapper that rejects output functions.
     pub fn expand_variable(&self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        self.expansion().variable(name)
+        self.expand_variable_with(name, ExpansionContext::pure())
     }
 
-    fn expansion(&self) -> Expansion<'_> {
+    /// Expand a named binding with provenance, without encoding arbitrary name
+    /// bytes as a variable-reference expression.
+    pub fn expand_variable_with(
+        &self,
+        name: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.expansion(context).variable(name)
+    }
+
+    fn expansion<'a, 'b>(&'a self, context: ExpansionContext<'b>) -> Expansion<'a, 'b> {
         Expansion {
             store: self,
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
+            context,
+            binding_context: None,
         }
     }
 }
 
-struct Expansion<'a> {
+struct Expansion<'a, 'b> {
     store: &'a VariableStore,
     bindings: Vec<BTreeMap<Vec<u8>, Variable>>,
     active: Vec<Vec<u8>>,
     depth: usize,
+    context: ExpansionContext<'b>,
+    // Outer None means no binding entered; Some(None) means an unlocated one.
+    binding_context: Option<Option<Arc<Location>>>,
 }
 
-impl Expansion<'_> {
+impl Expansion<'_, '_> {
+    fn expand_binding(&mut self, variable: &Variable) -> Result<Vec<u8>, ExpandError> {
+        let entered = self.binding_context.is_none();
+        if entered {
+            self.binding_context = Some(variable.definition.clone());
+        }
+        let result = self.expand(&variable.value);
+        if entered {
+            self.binding_context = None;
+        }
+        result.map_err(|error| error.at(variable.definition.as_ref()))
+    }
+
     fn lookup(&self, name: &[u8]) -> Option<&Variable> {
         self.bindings
             .iter()
@@ -504,9 +607,9 @@ impl Expansion<'_> {
             );
         }
         self.active.push(name.to_vec());
-        let result = self.expand(&variable.value);
+        let result = self.expand_binding(&variable);
         self.active.pop();
-        result.map_err(|error| error.at(variable.definition.as_ref()))
+        result
     }
 
     fn reference(&mut self, body: &[u8], delimiter: u8) -> Result<Vec<u8>, ExpandError> {
@@ -638,8 +741,9 @@ impl Expansion<'_> {
                 result
             }
             b"call" => self.call(args),
-            b"shell" | b"eval" | b"file" | b"info" | b"warning" | b"wildcard" | b"realpath"
-            | b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
+            b"shell" | b"eval" | b"file" | b"wildcard" | b"realpath" | b"guile" => {
+                Err(ExpandError::Unsupported(name.to_vec()))
+            }
             _ => {
                 let expanded = args
                     .iter()
@@ -706,7 +810,7 @@ impl Expansion<'_> {
         let result = if variable.flavor == Flavor::Simple {
             Ok(variable.value)
         } else {
-            self.expand(&variable.value)
+            self.expand_binding(&variable)
         };
         self.bindings.pop();
         result.map_err(|error| error.at(variable.definition.as_ref()))
@@ -717,8 +821,35 @@ impl Expansion<'_> {
         match name {
             b"error" => args.first().map_or_else(
                 || Ok(Vec::new()),
-                |message| Err(ExpandError::UserError(message.clone())),
+                |message| {
+                    Err(match &self.binding_context {
+                        Some(location) => ExpandError::ContextualUserError {
+                            message: message.clone(),
+                            location: location.clone(),
+                        },
+                        None => ExpandError::UserError(message.clone()),
+                    })
+                },
             ),
+            b"info" | b"warning" => {
+                if let Some(message) = args.first() {
+                    let output = if name == b"info" {
+                        Output::Info(message)
+                    } else {
+                        Output::Warning {
+                            location: self.context.location.or(self
+                                .binding_context
+                                .as_ref()
+                                .and_then(|location| location.as_deref())),
+                            message,
+                        }
+                    };
+                    if !self.context.emit(output) {
+                        return Err(ExpandError::Unsupported(name.to_vec()));
+                    }
+                }
+                Ok(Vec::new())
+            }
             b"strip" => join_words(words(first)),
             b"subst" => substitute(first, &args[1], &args[2]),
             b"patsubst" => pattern_substitute(first, &args[1], &args[2]),
@@ -1036,11 +1167,11 @@ fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
         | b"join" => Some((2, Some(2))),
         b"if" => Some((2, Some(3))),
         b"intcmp" => Some((2, Some(5))),
-        b"error" => Some((0, Some(1))),
+        b"error" | b"info" | b"warning" => Some((0, Some(1))),
         b"or" | b"and" | b"call" => Some((1, None)),
         b"strip" | b"sort" | b"words" | b"firstword" | b"lastword" | b"dir" | b"notdir"
         | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"realpath"
-        | b"wildcard" | b"shell" | b"eval" | b"info" | b"warning" | b"guile" => Some((1, Some(1))),
+        | b"wildcard" | b"shell" | b"eval" | b"guile" => Some((1, Some(1))),
         b"file" => Some((1, Some(2))),
         _ => None,
     }
@@ -2275,11 +2406,227 @@ mod tests {
         assert_eq!(error.diagnostic_location(Some(&caller)), Some(&definition));
     }
 
+    fn capture_output(output: Output<'_>, captured: &mut Vec<(bool, Option<Location>, Vec<u8>)>) {
+        match output {
+            Output::Info(message) => captured.push((false, None, message.to_vec())),
+            Output::Warning { location, message } => {
+                captured.push((true, location.cloned(), message.to_vec()))
+            }
+        }
+    }
+
     #[test]
-    fn known_effects_are_explicitly_unsupported() {
-        for name in [
-            "shell", "eval", "file", "info", "warning", "wildcard", "realpath", "guile",
+    fn output_is_synchronous_and_retained_before_later_fatal_expansion() {
+        let store = VariableStore::default();
+        let mut captured = Vec::new();
+        let result = store.expand_with(
+            b"$(info first$(warning nested))$(call info,second,$(info extra))$(error fatal)$(info absent)",
+            ExpansionContext::new(None, &mut |output| capture_output(output, &mut captured)),
+        );
+        assert_eq!(result, Err(ExpandError::UserError(b"fatal".to_vec())));
+        assert_eq!(
+            captured,
+            vec![
+                (true, None, b"nested".to_vec()),
+                (false, None, b"first".to_vec()),
+                (false, None, b"extra".to_vec()),
+                (false, None, b"second".to_vec())
+            ]
+        );
+    }
+
+    #[test]
+    fn output_arity_literal_bytes_and_lazy_branches_match_control_functions() {
+        let mut store = VariableStore::default();
+        define(&mut store, b"info", b"named", Assignment::Recursive);
+        let mut captured = Vec::new();
+        let result = store.expand_with(
+            b"$(info)|$(call info)$(call warning)$(call info,)$(warning )$(info a,b,\xff)$(call warning,$$(error literal))$(if yes,ok,$(info absent))",
+            ExpansionContext::new(None, &mut |output| capture_output(output, &mut captured)),
+        ).unwrap();
+        assert_eq!(result, b"named|ok");
+        assert_eq!(
+            captured,
+            vec![
+                (false, None, Vec::new()),
+                (true, None, Vec::new()),
+                (false, None, b"a,b,\xff".to_vec()),
+                (true, None, b"$(error literal)".to_vec())
+            ]
+        );
+    }
+
+    #[test]
+    fn warnings_use_caller_or_first_binding_context_and_restore_nested_context() {
+        let mut store = VariableStore::default();
+        let outer = Location {
+            file: b"outer".to_vec(),
+            line: 2,
+        };
+        let inner = Location {
+            file: b"inner\xff".to_vec(),
+            line: 4,
+        };
+        let caller = Location {
+            file: b"recipe".to_vec(),
+            line: 9,
+        };
+        store
+            .define_at(
+                b"OUTER",
+                b"$(warning before)$(call INNER)$(warning after)",
+                Assignment::Recursive,
+                Origin::File,
+                &outer,
+            )
+            .unwrap();
+        store
+            .define_at(
+                b"INNER",
+                b"$(warning inner)",
+                Assignment::Recursive,
+                Origin::File,
+                &inner,
+            )
+            .unwrap();
+        for (context, expected) in [
+            (None, vec![outer; 3]),
+            (Some(&caller), vec![caller.clone(); 3]),
         ] {
+            let mut captured = Vec::new();
+            store
+                .expand_variable_with(
+                    b"OUTER",
+                    ExpansionContext::new(context, &mut |output| {
+                        capture_output(output, &mut captured)
+                    }),
+                )
+                .unwrap();
+            assert_eq!(
+                captured
+                    .into_iter()
+                    .map(|(_, location, _)| location.unwrap())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn first_unlocated_binding_locks_warning_and_user_error_but_not_validation_location() {
+        let mut store = VariableStore::default();
+        let inner = source(1);
+        store
+            .define(
+                b"OUTER",
+                b"$(INNER)",
+                Assignment::Recursive,
+                Origin::CommandLine,
+            )
+            .unwrap();
+        for (body, validation) in [
+            (b"$(warning first)$(error fatal)".as_slice(), false),
+            (b"$(warning first)$(intcmp bad,0)", true),
+        ] {
+            store
+                .define_at(b"INNER", body, Assignment::Recursive, Origin::File, &inner)
+                .unwrap();
+            let mut captured = Vec::new();
+            let error = store
+                .expand_with(
+                    b"$(call OUTER)",
+                    ExpansionContext::new(None, &mut |output| {
+                        capture_output(output, &mut captured)
+                    }),
+                )
+                .unwrap_err();
+            assert_eq!(captured, vec![(true, None, b"first".to_vec())]);
+            assert_eq!(
+                error.diagnostic_location(None),
+                if validation { Some(&inner) } else { None }
+            );
+        }
+        store
+            .define_at(
+                b"INNER",
+                b"$(warning separate)",
+                Assignment::Recursive,
+                Origin::File,
+                &inner,
+            )
+            .unwrap();
+        let mut captured = Vec::new();
+        store
+            .expand_with(
+                b"$(OUTER)$(INNER)",
+                ExpansionContext::new(None, &mut |output| capture_output(output, &mut captured)),
+            )
+            .unwrap();
+        assert_eq!(
+            captured,
+            vec![
+                (true, None, b"separate".to_vec()),
+                (true, Some(inner), b"separate".to_vec())
+            ]
+        );
+    }
+
+    #[test]
+    fn literal_metadata_append_keeps_flavor_and_bytes_without_running_rhs() {
+        let mut store = VariableStore::default();
+        for assignment in [Assignment::Recursive, Assignment::Simple] {
+            store.remove(b"LIST");
+            let raw = if assignment == Assignment::Simple {
+                b"$$(warning untouched)old".as_slice()
+            } else {
+                b"$(warning untouched)old"
+            };
+            store
+                .define(b"LIST", raw, assignment, Origin::File)
+                .unwrap();
+            let flavor = store.get(b"LIST").unwrap().flavor();
+            store
+                .append_literal_at(b"LIST", b"$(literal)\xff", Origin::File, &source(1))
+                .unwrap();
+            let variable = store.get(b"LIST").unwrap();
+            assert_eq!(
+                variable.raw_value(),
+                b"$(warning untouched)old $(literal)\xff"
+            );
+            assert_eq!(variable.flavor(), flavor);
+            assert_eq!(variable.definition(), Some(&source(1)));
+        }
+        store
+            .define_literal(b"LIST", b"cli", Origin::CommandLine)
+            .unwrap();
+        store
+            .append_literal_at(b"LIST", b"ignored", Origin::File, &source(9))
+            .unwrap();
+        assert_eq!(store.get(b"LIST").unwrap().raw_value(), b"cli");
+        assert_eq!(store.get(b"LIST").unwrap().definition(), None);
+    }
+
+    #[test]
+    fn pure_wrappers_reject_observable_output_but_skip_unselected_branches() {
+        let mut store = VariableStore::default();
+        assert_eq!(
+            store.expand(b"$(info x)"),
+            Err(ExpandError::Unsupported(b"info".to_vec()))
+        );
+        assert_eq!(
+            store.expand(b"$(if yes,ok,$(warning skipped))").unwrap(),
+            b"ok"
+        );
+        assert_eq!(store.expand(b"$(call warning)").unwrap(), b"");
+        assert_eq!(
+            store.define(b"X", b"$(warning x)", Assignment::Simple, Origin::File),
+            Err(ExpandError::Unsupported(b"warning".to_vec()))
+        );
+    }
+
+    #[test]
+    fn unimplemented_effects_are_explicitly_unsupported() {
+        for name in ["shell", "eval", "file", "wildcard", "realpath", "guile"] {
             let input = format!("$({name} value)");
             assert_eq!(
                 VariableStore::new().expand(input.as_bytes()),

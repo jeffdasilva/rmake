@@ -1,0 +1,11 @@
+id = "diagnostic-call-if-eager-output"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "7468656e0a656c73650a410a"
+stderr_hex = ""

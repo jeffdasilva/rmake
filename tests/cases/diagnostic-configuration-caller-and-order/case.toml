@@ -1,0 +1,11 @@
+id = "diagnostic-configuration-caller-and-order"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "626f64790a7368656c6c0a666c6167730a6966730a6368696c640a"
+stderr_hex = "4d616b6566696c653a353a207368656c6c0a4d616b6566696c653a353a20666c6167730a4d616b6566696c653a353a206966730a"

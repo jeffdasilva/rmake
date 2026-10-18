@@ -15,8 +15,9 @@ implicit rules, expansion effects, parallel jobs and many compatibility details
 remain unimplemented. See [implementation progress](docs/progress.md) for exact
 scope, required fixtures and open milestone gates.
 Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
-locations. The [`error` function and fatal aborts](docs/fatal-errors.md) and
-remaining context gaps are documented in [diagnostic notes](docs/diagnostics.md).
+locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
+[`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
+gaps are documented in [diagnostic notes](docs/diagnostics.md).
 
 The target is a Linux-only Rust reimplementation of GNU Make 4.4.1, with extensive
 side-by-side testing. GNU Make's source may be used as a reference under its GPL
@@ -67,6 +68,9 @@ nanosecond timestamp boundaries. These are CI gates.
 comparison results, including GNU 4.4.1's observed negative-number ordering.
 Use `INTCMP_SEED`, `INTCMP_CASES`, `INTCMP_EXPRESSIONS`, and `START_INDEX` to
 scale or replay that campaign. See [integer comparison notes](docs/intcmp.md).
+`make test-diagnostics` checks 206 fixed output-function scenarios with independent
+stream, status and filesystem expectations, including merged output ordering.
+`DIAGNOSTIC_CASE` replays one recorded cell. This is also part of `make ci`.
 Their reports and failure reproductions are written under `artifacts/`.
 
 `make bench-compare` builds release rmake and records alternating paired timings
@@ -80,7 +84,7 @@ The serial engine can drive the repository's `build` and `check-core` targets:
 target/debug/rmake -rR --no-print-directory build check-core
 ```
 
-`make test-selfhost` exercises those leaf flows and a selected mode-matrix replay
+`make test-selfhost` exercises those leaf flows and selected mode/diagnostic replays
 without recursively invoking the full CI target. Simple commands use GNU's
 direct-execution path; commands
 requiring shell interpretation retain the selected shell and flags. Full process,

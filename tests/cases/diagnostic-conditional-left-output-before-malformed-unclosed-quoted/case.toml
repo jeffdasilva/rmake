@@ -1,0 +1,11 @@
+id = "diagnostic-conditional-left-output-before-malformed-unclosed-quoted"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original diagnostic review regression for source fallback, ordered effects, or non-evaluation of literal stored metadata."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a206c6566740a4d616b6566696c653a313a202a2a2a20696e76616c69642073796e74617820696e20636f6e646974696f6e616c2e202053746f702e0a"

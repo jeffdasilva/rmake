@@ -1,0 +1,11 @@
+id = "diagnostic-makefile-list-append-preserves-recursive-raw-value"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-f", "Makefile", "-f", "second.mk"]
+description = "Original diagnostic review regression for source fallback, ordered effects, or non-evaluation of literal stored metadata."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7261773d3c24287761726e696e6720756e6578706563746564296f6c64207365636f6e642e6d6b3e20666c61766f723d3c7265637572736976653e206f726967696e3d3c66696c653e0a"
+stderr_hex = ""

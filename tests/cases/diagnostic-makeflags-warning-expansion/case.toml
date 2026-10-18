@@ -1,0 +1,11 @@
+id = "diagnostic-makeflags-warning-expansion"
+requirement = "recursion.environment"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a20666c6167730a"

@@ -1,0 +1,11 @@
+id = "diagnostic-conditional-warning-between-operands"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original diagnostic review regression for source fallback, ordered effects, or non-evaluation of literal stored metadata."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a206c6566740a4d616b6566696c653a313a2065787472616e656f7573207465787420616674657220276966657127206469726563746976650a4d616b6566696c653a313a2072696768740a4d616b6566696c653a323a2065787472616e656f757320746578742061667465722027656e64696627206469726563746976650a"

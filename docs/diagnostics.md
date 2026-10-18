@@ -44,8 +44,10 @@ variable cycle reports the definition of the binding being re-entered.
 Explicit `$(error text)` instead uses the calling parser or recipe location,
 including through recursive variables and user `call` bodies. An exported
 variable's expansion supplies the outer exported binding's definition as that
-caller context. Default-goal evaluation has no parser or recipe caller, so its
-explicit error retains the innermost definition location when one exists. These
+caller context. Default-goal evaluation has no parser or recipe caller: its first
+entered recursive binding establishes the explicit-error context through nested
+references, including an explicitly absent location for command-line/environment
+bindings. Numeric validation errors still use their innermost definition. These
 rules are selected by the structured error kind, not by parsing message text.
 
 ## Runtime expansion boundaries
@@ -67,6 +69,14 @@ This avoids leaking mutable diagnostic state between successful
 expansions and keeps the parser and runtime on the same error representation.
 Makefile paths, variable names and invalid integer operands remain byte strings;
 lossy display formatting must not be used for compatibility output.
+
+[`info` and `warning`](diagnostic-functions.md) use an explicit output context.
+Warning locations use the active caller while allowing expansion to continue.
+Without a caller, the first entered recursive binding remains the warning
+context through nested references, just as for explicit `error`. A binding
+without a file location anchors a locationless diagnostic. Parser warnings emit
+in sequence with user messages, and completed
+output survives a later expansion failure.
 
 ## Coverage and remaining work
 

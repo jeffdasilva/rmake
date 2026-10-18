@@ -1,6 +1,6 @@
 id = "function-warning-continues"
 requirement = "functions.diagnostics"
-candidate = "pending"
+candidate = "required"
 description = "function warning continues"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]
@@ -9,3 +9,4 @@ timeout_seconds = 5
 [expected]
 exit_code = 0
 stdout = "continued\n"
+stderr_hex = "4d616b6566696c653a343a206f726967696e616c2d666978747572652d7761726e696e670a"

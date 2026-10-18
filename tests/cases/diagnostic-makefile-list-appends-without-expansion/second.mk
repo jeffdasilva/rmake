@@ -1,0 +1,2 @@
+all:
+	@printf 'ok\n'

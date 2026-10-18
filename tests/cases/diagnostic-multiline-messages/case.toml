@@ -1,0 +1,11 @@
+id = "diagnostic-multiline-messages"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e640a636f6e74696e7565640a"
+stderr_hex = "4d616b6566696c653a363a2066697273740a7365636f6e640a"

@@ -1,0 +1,11 @@
+id = "diagnostic-raw-target-override-and-user-warning"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "6e65770a"
+stderr_hex = "4d616b6566696c653a333a2061646a6163656e740a4d616b6566696c653a353a207761726e696e673a206f766572726964696e672072656369706520666f7220746172676574202774ff270a4d616b6566696c653a323a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f7220746172676574202774ff270a"

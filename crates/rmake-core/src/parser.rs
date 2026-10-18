@@ -6,8 +6,8 @@
 //! This module has no filesystem or process access. Recipes remain unexpanded
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
-use crate::diagnostic::Diagnostic;
 pub use crate::diagnostic::Location;
+use crate::diagnostic::{Diagnostic, ExpansionContext, Output};
 use crate::reader::{Reader, strip_comment};
 use crate::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{HashMap, HashSet};
@@ -94,7 +94,7 @@ pub struct Database {
     pub exports: HashSet<Vec<u8>>,
     pub unexports: HashSet<Vec<u8>>,
     pub export_all: bool,
-    pub warnings: Vec<(Location, String)>,
+    pub warnings: Vec<(Location, Diagnostic)>,
 }
 
 impl Database {
@@ -262,12 +262,32 @@ struct Conditional {
     otherwise: bool,
 }
 
+fn record_warning(
+    warnings: &mut Vec<(Location, Diagnostic)>,
+    context: &mut ExpansionContext<'_>,
+    location: Location,
+    message: Diagnostic,
+) {
+    context.emit(Output::Warning {
+        location: Some(&location),
+        message: message.as_bytes(),
+    });
+    warnings.push((location, message));
+}
+
 impl Database {
-    fn expand(&self, bytes: &[u8], location: &Location) -> Result<Vec<u8>, ParseError> {
-        self.variables.expand(bytes).map_err(|err| ParseError {
-            location: err.diagnostic_location(Some(location)).unwrap().clone(),
-            message: err.diagnostic(),
-        })
+    fn expand(
+        &self,
+        bytes: &[u8],
+        location: &Location,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ParseError> {
+        self.variables
+            .expand_with(bytes, context.at(Some(location)))
+            .map_err(|err| ParseError {
+                location: err.diagnostic_location(Some(location)).unwrap().clone(),
+                message: err.diagnostic(),
+            })
     }
 
     fn define(
@@ -276,8 +296,9 @@ impl Database {
         origin: Origin,
         location: &Location,
         evaluation_location: &Location,
+        context: &mut ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ParseError> {
-        let name = self.expand(spec.name, location)?;
+        let name = self.expand(spec.name, location, context)?;
         if name.is_empty() {
             return Err(ParseError {
                 location: location.clone(),
@@ -285,7 +306,14 @@ impl Database {
             });
         }
         self.variables
-            .define_at(&name, spec.value, spec.kind, origin, location)
+            .define_with(
+                &name,
+                spec.value,
+                spec.kind,
+                origin,
+                Some(location),
+                context.at(Some(evaluation_location)),
+            )
             .map_err(|err| ParseError {
                 location: err
                     .diagnostic_location(Some(evaluation_location))
@@ -296,10 +324,15 @@ impl Database {
         Ok(name)
     }
 
-    fn condition(&mut self, bytes: &[u8], location: &Location) -> Result<Option<bool>, ParseError> {
+    fn condition(
+        &mut self,
+        bytes: &[u8],
+        location: &Location,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<Option<bool>, ParseError> {
         for (keyword, negate) in [(b"ifdef".as_slice(), false), (b"ifndef", true)] {
             if let Some(name) = directive(bytes, keyword) {
-                let name = self.expand(name, location)?;
+                let name = self.expand(name, location, context)?;
                 if words(&name).count() > 1 {
                     return Err(ParseError {
                         location: location.clone(),
@@ -326,8 +359,33 @@ impl Database {
                     // expand first: commas created by expansion are data.
                     let mut depth = 1usize;
                     let mut comma = None;
-                    let mut closing = None;
                     for (index, byte) in args.iter().copied().enumerate().skip(1) {
+                        match byte {
+                            b'(' => depth += 1,
+                            b')' => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            b',' if depth == 1 => {
+                                comma = Some(index);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    let comma = comma.ok_or_else(invalid)?;
+                    // GNU evaluates the complete left operand before it checks
+                    // that the right operand has a closing delimiter.
+                    let left = &args[1..comma];
+                    let left_end = left
+                        .iter()
+                        .rposition(|b| !b.is_ascii_whitespace())
+                        .map_or(0, |i| i + 1);
+                    let left = self.expand(&left[..left_end], location, context)?;
+                    let mut closing = None;
+                    for (index, byte) in args.iter().copied().enumerate().skip(comma + 1) {
                         match byte {
                             b'(' => depth += 1,
                             b')' => {
@@ -337,23 +395,13 @@ impl Database {
                                     break;
                                 }
                             }
-                            b',' if depth == 1 && comma.is_none() => comma = Some(index),
                             _ => {}
                         }
                     }
                     let closing = closing.ok_or_else(invalid)?;
-                    let comma = comma.filter(|index| *index < closing).ok_or_else(invalid)?;
-                    let inner = &args[1..closing];
-                    let comma = comma - 1;
-                    // Parenthesized conditionals strip trailing blanks on the
-                    // left and leading blanks on the right before expansion.
-                    let left_end = inner[..comma]
-                        .iter()
-                        .rposition(|b| !b.is_ascii_whitespace())
-                        .map_or(0, |i| i + 1);
                     (
-                        &inner[..left_end],
-                        trim_start(&inner[comma + 1..]),
+                        left,
+                        trim_start(&args[comma + 1..closing]),
                         &args[closing + 1..],
                     )
                 } else {
@@ -366,6 +414,7 @@ impl Database {
                         .position(|b| *b == quote)
                         .ok_or_else(invalid)?
                         + 1;
+                    let left = self.expand(&args[1..end], location, context)?;
                     let rest = trim_start(&args[end + 1..]);
                     let quote2 = *rest.first().ok_or_else(invalid)?;
                     if quote2 != b'\'' && quote2 != b'"' {
@@ -376,26 +425,40 @@ impl Database {
                         .position(|b| *b == quote2)
                         .ok_or_else(invalid)?
                         + 1;
-                    (&args[1..end], &rest[1..end2], &rest[end2 + 1..])
+                    (left, &rest[1..end2], &rest[end2 + 1..])
                 };
                 if !trim(extra).is_empty() {
-                    self.warnings.push((
+                    record_warning(
+                        &mut self.warnings,
+                        context,
                         location.clone(),
                         format!(
                             "extraneous text after '{}' directive",
                             String::from_utf8_lossy(keyword)
-                        ),
-                    ));
+                        )
+                        .into(),
+                    );
                 }
                 return Ok(Some(
-                    (self.expand(left, location)? == self.expand(right, location)?) ^ negate,
+                    (left == self.expand(right, location, context)?) ^ negate,
                 ));
             }
         }
         Ok(None)
     }
 
+    /// Pure/test reader: output functions require an explicit receiver.
     pub fn read(&mut self, bytes: &[u8], file: &[u8]) -> Result<(), ParseError> {
+        self.read_with(bytes, file, ExpansionContext::pure())
+    }
+
+    pub fn read_with(
+        &mut self,
+        bytes: &[u8],
+        file: &[u8],
+        mut context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let context = &mut context;
         let mut reader = Reader::new(bytes);
         let mut current = Vec::<Vec<u8>>::new();
         // Keep declaration boundaries until its first recipe is seen: GNU
@@ -430,6 +493,7 @@ impl Database {
                             prefix,
                         },
                         &mut recipe_started,
+                        context,
                     );
                 }
                 continue;
@@ -443,7 +507,7 @@ impl Database {
             }
             let keyword = words(text).next().unwrap_or_default();
             if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"].contains(&keyword) {
-                let yes = active && self.condition(text, &location)?.unwrap_or(false);
+                let yes = active && self.condition(text, &location, context)?.unwrap_or(false);
                 conditions.push(Conditional {
                     parent: active,
                     active: yes,
@@ -472,12 +536,14 @@ impl Database {
                 } else if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"]
                     .contains(&words(rest).next().unwrap_or_default())
                 {
-                    eligible && self.condition(rest, &location)?.unwrap_or(false)
+                    eligible && self.condition(rest, &location, context)?.unwrap_or(false)
                 } else {
-                    self.warnings.push((
+                    record_warning(
+                        &mut self.warnings,
+                        context,
                         location.clone(),
                         "extraneous text after 'else' directive".into(),
-                    ));
+                    );
                     top.otherwise = true;
                     eligible
                 };
@@ -492,10 +558,12 @@ impl Database {
                     });
                 }
                 if !rest.is_empty() {
-                    self.warnings.push((
+                    record_warning(
+                        &mut self.warnings,
+                        context,
                         location.clone(),
                         "extraneous text after 'endif' directive".into(),
-                    ));
+                    );
                 }
                 continue;
             }
@@ -544,6 +612,7 @@ impl Database {
                             file: file.to_vec(),
                             line: last_line,
                         },
+                        context,
                     )?;
                     current.clear();
                 }
@@ -570,7 +639,7 @@ impl Database {
                 }
             }
             if let Some(rest) = directive(text, b"undefine") {
-                let name = self.expand(rest, &location)?;
+                let name = self.expand(rest, &location, context)?;
                 if self
                     .variables
                     .get(trim(&name))
@@ -582,7 +651,7 @@ impl Database {
                 continue;
             }
             if let Some(spec) = assignment(text) {
-                let name = self.define(spec, origin, &location, &location)?;
+                let name = self.define(spec, origin, &location, &location, context)?;
                 if let Some(export) = export {
                     self.set_export(name, export);
                 }
@@ -590,7 +659,7 @@ impl Database {
                 continue;
             }
             if let Some(export) = export {
-                let names = self.expand(text, &location)?;
+                let names = self.expand(text, &location, context)?;
                 if trim(&names).is_empty() {
                     self.export_all = export;
                 }
@@ -627,7 +696,7 @@ impl Database {
             let inline = separator(&line.bytes, b';')
                 .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
             let rule_text = inline.map_or(text.to_vec(), |i| strip_comment(&line.bytes[..i]));
-            let expanded_line = self.expand(&rule_text, &location)?;
+            let expanded_line = self.expand(&rule_text, &location, context)?;
             // A semicolon produced by immediate expansion is also an inline
             // recipe separator. Its text has already undergone that expansion.
             let expanded_inline = if inline.is_none() {
@@ -690,7 +759,7 @@ impl Database {
                 })
             {
                 self.variables
-                    .define(b".DEFAULT_GOAL", target, Assignment::Simple, Origin::File)
+                    .define_literal(b".DEFAULT_GOAL", target, Origin::File)
                     .map_err(|err| ParseError {
                         location: location.clone(),
                         message: err.diagnostic(),
@@ -706,13 +775,18 @@ impl Database {
                     rule.dependencies.clear();
                 }
                 if current_offsets.contains_key(target) {
-                    self.warnings.push((
+                    record_warning(
+                        &mut self.warnings,
+                        context,
                         location.clone(),
-                        format!(
-                            "target '{}' given more than once in the same rule",
-                            String::from_utf8_lossy(target)
-                        ),
-                    ));
+                        [
+                            b"target '".as_slice(),
+                            target,
+                            b"' given more than once in the same rule",
+                        ]
+                        .concat()
+                        .into(),
+                    );
                 } else {
                     current_offsets.insert(target.clone(), rule.dependencies.len());
                 }
@@ -740,6 +814,7 @@ impl Database {
                         prefix,
                     },
                     &mut recipe_started,
+                    context,
                 );
             }
         }
@@ -771,6 +846,7 @@ impl Database {
         offsets: &HashMap<Vec<u8>, usize>,
         recipe: Recipe,
         started: &mut bool,
+        context: &mut ExpansionContext<'_>,
     ) {
         let mut seen = HashSet::new();
         for target in targets {
@@ -785,20 +861,30 @@ impl Database {
                 let count = rule.dependencies.len() - offsets[target];
                 rule.dependencies.rotate_right(count);
                 if let Some(previous) = &rule.recipe_location {
-                    self.warnings.push((
+                    record_warning(
+                        &mut self.warnings,
+                        context,
                         recipe.location.clone(),
-                        format!(
-                            "warning: overriding recipe for target '{}'",
-                            String::from_utf8_lossy(target)
-                        ),
-                    ));
-                    self.warnings.push((
+                        [
+                            b"warning: overriding recipe for target '".as_slice(),
+                            target,
+                            b"'",
+                        ]
+                        .concat()
+                        .into(),
+                    );
+                    record_warning(
+                        &mut self.warnings,
+                        context,
                         previous.clone(),
-                        format!(
-                            "warning: ignoring old recipe for target '{}'",
-                            String::from_utf8_lossy(target)
-                        ),
-                    ));
+                        [
+                            b"warning: ignoring old recipe for target '".as_slice(),
+                            target,
+                            b"'",
+                        ]
+                        .concat()
+                        .into(),
+                    );
                 }
                 rule.recipes = Some(Vec::new());
                 rule.recipe_location = Some(recipe.location.clone());
@@ -826,6 +912,134 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn conditional_extra_text_warning_occurs_after_left_expansion_before_right() {
+        for quoted in [false, true] {
+            let args = if quoted {
+                b"\"$(warning left)\" \"$(warning right)\"".as_slice()
+            } else {
+                b"($(warning left),$(warning right))"
+            };
+            let mut db = Database::default();
+            let mut messages = Vec::new();
+            let input = [b"ifeq ".as_slice(), args, b" trailing\nendif\n"].concat();
+            db.read_with(
+                &input,
+                b"m",
+                ExpansionContext::new(None, &mut |output| {
+                    if let Output::Warning { message, .. } = output {
+                        messages.push(message.to_vec());
+                    }
+                }),
+            )
+            .unwrap();
+            assert_eq!(
+                messages,
+                vec![
+                    b"left".to_vec(),
+                    b"extraneous text after 'ifeq' directive".to_vec(),
+                    b"right".to_vec()
+                ]
+            );
+        }
+        let mut db = Database::default();
+        let mut emitted = false;
+        assert!(
+            db.read_with(
+                b"ifeq ($(error left),) trailing\nendif\n",
+                b"m",
+                ExpansionContext::new(None, &mut |_| emitted = true)
+            )
+            .is_err()
+        );
+        assert!(!emitted);
+    }
+
+    #[test]
+    fn conditional_left_effects_precede_malformed_right_operand_errors() {
+        for input in [
+            b"ifeq ($(warning left),missing\n".as_slice(),
+            b"ifeq \"$(warning left)\" \"missing\n",
+            b"ifeq \"$(warning left)\" missing\n",
+        ] {
+            let mut db = Database::default();
+            let mut messages = Vec::new();
+            let error = db
+                .read_with(
+                    input,
+                    b"m",
+                    ExpansionContext::new(None, &mut |output| {
+                        if let Output::Warning { message, .. } = output {
+                            messages.push(message.to_vec());
+                        }
+                    }),
+                )
+                .unwrap_err();
+            assert_eq!(error.message.as_bytes(), b"invalid syntax in conditional");
+            assert_eq!(messages, vec![b"left".to_vec()]);
+        }
+    }
+
+    #[test]
+    fn selected_default_goal_preserves_already_expanded_literal_dollars() {
+        let mut db = Database::default();
+        db.read(b"X = $(error must-not-expand)\n$$(X): ;\n", b"m")
+            .unwrap();
+        let goal = db.variables.get(b".DEFAULT_GOAL").unwrap();
+        assert_eq!(goal.flavor(), crate::variables::Flavor::Simple);
+        assert_eq!(goal.raw_value(), b"$(X)");
+        assert!(db.rules.contains_key(b"$(X)".as_slice()));
+    }
+
+    #[test]
+    fn parser_emits_raw_warnings_in_order_even_when_a_later_line_fails() {
+        let mut db = Database::default();
+        let mut events = Vec::new();
+        let error = db
+            .read_with(
+                b"t\xff: ; old\n$(warning between)\nt\xff: ; new\n$(info retained)$(error stop)\n",
+                b"file\xfe",
+                ExpansionContext::new(None, &mut |output| match output {
+                    Output::Info(message) => events.push((0, message.to_vec())),
+                    Output::Warning { location, message } => {
+                        events.push((location.unwrap().line, message.to_vec()))
+                    }
+                }),
+            )
+            .unwrap_err();
+        assert_eq!(error.location.line, 4);
+        assert_eq!(
+            events,
+            vec![
+                (2, b"between".to_vec()),
+                (3, b"warning: overriding recipe for target 't\xff'".to_vec()),
+                (
+                    1,
+                    b"warning: ignoring old recipe for target 't\xff'".to_vec()
+                ),
+                (0, b"retained".to_vec())
+            ]
+        );
+        assert_eq!(db.warnings.len(), 2);
+    }
+
+    #[test]
+    fn immediate_define_output_uses_endef_and_ignored_simple_assignment_still_emits() {
+        let mut db = Database::default();
+        db.variables
+            .define_literal(b"X", b"cli", Origin::CommandLine)
+            .unwrap();
+        let mut events = Vec::new();
+        db.read_with(b"define V :=\n$(warning body)\nendef\nX := $(warning discarded)\nX ?= $(warning absent)\nall: ;\n", b"m", ExpansionContext::new(None, &mut |output| {
+            if let Output::Warning { location, message } = output { events.push((location.unwrap().line, message.to_vec())); }
+        })).unwrap();
+        assert_eq!(
+            events,
+            vec![(3, b"body".to_vec()), (4, b"discarded".to_vec())]
+        );
+        assert_eq!(db.variables.get(b"X").unwrap().raw_value(), b"cli");
     }
 
     #[test]
@@ -1237,8 +1451,8 @@ mod tests {
         assert_eq!(rule.recipes.as_ref().unwrap().len(), 1);
         assert_eq!(db.warnings.len(), 1);
         assert_eq!(
-            db.warnings[0].1,
-            "target 'all' given more than once in the same rule"
+            db.warnings[0].1.as_bytes(),
+            b"target 'all' given more than once in the same rule"
         );
     }
 
@@ -1293,12 +1507,12 @@ mod tests {
         assert_eq!(
             db.warnings
                 .iter()
-                .map(|(_, text)| text.as_str())
+                .map(|(_, text)| text.as_bytes())
                 .collect::<Vec<_>>(),
             [
-                "extraneous text after 'ifeq' directive",
-                "extraneous text after 'else' directive",
-                "extraneous text after 'endif' directive",
+                b"extraneous text after 'ifeq' directive".as_slice(),
+                b"extraneous text after 'else' directive",
+                b"extraneous text after 'endif' directive",
             ]
         );
     }

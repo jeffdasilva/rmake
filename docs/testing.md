@@ -1,7 +1,12 @@
 # Differential testing strategy
 
-Status: proposed design. Fixtures, runners, benchmarks and CI are not implemented
-yet. The primary corpus consists of independently authored Makefiles and helpers.
+Status: implementation underway. Curated, generated, mode-matrix and stateful
+runners, early benchmarks and GitHub CI are implemented. The
+[progress record](progress.md) lists current coverage and open gates; the broader
+profile, isolation, stress and release-scale requirements below remain the design
+target. Current runners execute trusted fixtures in disposable directories with
+bounded processes and output; they are not a filesystem or network sandbox.
+The primary corpus consists of independently authored Makefiles and helpers.
 GNU source may inform implementation and case design under the
 [source-reference policy](compatibility.md#source-reference-and-provenance).
 Any upstream-derived supplemental cases require their own provenance and notices.
@@ -206,6 +211,15 @@ oracle must satisfy those predictions before candidate comparison. Original
 curated errors complement the generated valid-input campaign, including raw-byte
 diagnostics asserted through `stdout_hex`/`stderr_hex`. Reports preserve the
 source, seed, index, process bounds and exact observations for replay.
+
+The current `make test-diagnostics` gate checks 206 independently authored
+`info`/`warning` scenarios, including raw bytes, argument evaluation, caller
+locations, modes, exports, output before fatal errors and merged-stream order.
+Every cell has its own expected streams, status and complete filesystem snapshot;
+agreement between two wrong engines cannot pass these expectations. Reports and
+failure inputs support `DIAGNOSTIC_CASE` replay. The matrix has no pending
+classification; the curated corpus separately retains observed export-order and
+make-flag evaluation gaps that are outside its supported scope.
 
 Known missing features may be tracked during development, but reports must show
 their count and requirement IDs. CI must fail new differences and unexpected

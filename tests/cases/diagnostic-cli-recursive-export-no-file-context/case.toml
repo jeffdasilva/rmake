@@ -1,0 +1,14 @@
+id = "diagnostic-cli-recursive-export-no-file-context"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=$(info cli)$(warning cli)value"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[environment]
+"MAKELEVEL" = "7"
+
+[expected]
+exit_code = 0
+stdout_hex = "636c690a6368696c643d3c76616c75653e0a"
+stderr_hex = "6d616b655b375d3a20636c690a"

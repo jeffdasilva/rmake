@@ -480,3 +480,62 @@ fn enoexec_fallback_preserves_the_path_entry_that_was_actually_executable() {
         }
     );
 }
+
+#[test]
+fn output_functions_survive_fatal_recipe_expansion_without_launching_any_recipe() {
+    let project = Project::new(b"all:\n\t@touch forbidden\n\t@$(info retained\xff)$(warning before)$(error stop)\nlater:\n\t@touch later\n");
+    let output = project.run(&[OsStr::new("-ki"), OsStr::new("all"), OsStr::new("later")]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.stdout, b"retained\xff\n");
+    assert_eq!(
+        output.stderr,
+        b"Makefile:3: before\nMakefile:3: *** stop.  Stop.\n"
+    );
+    assert!(!project.0.join("forbidden").exists());
+    assert!(!project.0.join("later").exists());
+}
+
+#[test]
+fn runtime_output_uses_body_config_export_order_and_distinct_locations() {
+    let project = Project::new(b"F = $(warning exported)\nexport SENT = $(F)\nSHELL = $(info shell)/bin/sh\n.SHELLFLAGS = $(info flags)-c\nIFS = $(info ifs) \nall:\n\t@$(info body)printf child\n");
+    let output = project.run(&[]);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert_eq!(output.stdout, b"body\nshell\nflags\nifs\nchild");
+    assert_eq!(output.stderr, b"Makefile:2: exported\n");
+    let output = project.run(&[OsStr::new("-q")]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"body\nshell\nflags\nifs\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn makefile_list_appends_raw_metadata_and_preserves_recursive_flavor() {
+    let project = Project::new(b"MAKEFILE_LIST = $(warning untouched)old\n");
+    fs::write(
+        project.0.join("second.mk"),
+        b"$(info [$(value MAKEFILE_LIST)]:[$(flavor MAKEFILE_LIST)])\nall:;@true\n",
+    )
+    .unwrap();
+    let output = project.run(&[
+        OsStr::new("-f"),
+        OsStr::new("Makefile"),
+        OsStr::new("-f"),
+        OsStr::new("second.mk"),
+    ]);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert_eq!(
+        output.stdout,
+        b"[$(warning untouched)old second.mk]:[recursive]\n"
+    );
+    assert!(output.stderr.is_empty());
+    let project =
+        Project::new(b"$(info [$(value MAKEFILE_LIST)]:[$(flavor MAKEFILE_LIST)])\nall:;@true\n");
+    let output = project
+        .command()
+        .env("MAKEFILE_LIST", "$(warning imported)old")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert_eq!(output.stdout, b"[Makefile]:[simple]\n");
+    assert!(output.stderr.is_empty());
+}

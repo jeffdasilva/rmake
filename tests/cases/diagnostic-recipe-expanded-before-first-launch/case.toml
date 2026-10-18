@@ -1,0 +1,11 @@
+id = "diagnostic-recipe-expanded-before-first-launch"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "657870616e6465642d7365636f6e640a66697273740a7365636f6e640a"
+stderr_hex = "4d616b6566696c653a333a20657870616e6465642d7365636f6e640a"

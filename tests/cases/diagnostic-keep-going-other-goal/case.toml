@@ -1,0 +1,11 @@
+id = "diagnostic-keep-going-other-goal"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-k", "bad", "good"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 2
+stdout_hex = "6261640a636f6e74696e7565640a"
+stderr_hex = "4d616b6566696c653a323a206261640a6d616b653a202a2a2a205b4d616b6566696c653a323a206261645d204572726f7220310a"
