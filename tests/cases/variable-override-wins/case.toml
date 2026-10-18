@@ -1,6 +1,6 @@
 id = "variable-override-wins"
 requirement = "variables.precedence"
-candidate = "pending"
+candidate = "required"
 description = "variable override wins"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory", "RESULT=command"]

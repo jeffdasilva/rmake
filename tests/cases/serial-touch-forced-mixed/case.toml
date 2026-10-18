@@ -1,0 +1,11 @@
+id = "serial-touch-forced-mixed"
+requirement = "serial.runtime"
+candidate = "pending"
+description = "touch forced mixed"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "forced\ntouch all\ntouch all\n"

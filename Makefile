@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test check ci bench clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-selfhost test check ci bench clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -24,6 +24,7 @@ help:
 		'  test-tools      Test the independent tooling' \
 		'  test-oracle     Validate fixtures against two oracle executions' \
 		'  test-diff       Compare rmake against the oracle; report pending cases' \
+		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  bench           Record original GNU oracle workload baselines' \
 		'  check / ci      Run all current development gates' \
 		'  clean           Remove Cargo build output' \
@@ -74,11 +75,14 @@ test-oracle: oracle-verify
 test-diff: build oracle-verify
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
+test-selfhost: build
+	+"$(CANDIDATE)" -rR --no-print-directory build check-core
+
 test: test-unit test-tools test-oracle test-diff
 
 check: check-core test-oracle test-diff
 
-ci: check
+ci: check test-selfhost
 
 bench: oracle-verify
 	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)"

@@ -1,0 +1,11 @@
+id = "serial-query-stops-later-prerequisite"
+requirement = "serial.runtime"
+candidate = "required"
+description = "query stops later prerequisite"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = ""

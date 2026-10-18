@@ -1,0 +1,11 @@
+id = "serial-empty-recipe"
+requirement = "serial.runtime"
+candidate = "required"
+description = "empty recipe"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "make: 'all' is up to date.\n"

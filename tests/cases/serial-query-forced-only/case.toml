@@ -1,0 +1,11 @@
+id = "serial-query-forced-only"
+requirement = "serial.runtime"
+candidate = "required"
+description = "query forced only"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "forced\n"

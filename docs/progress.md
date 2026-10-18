@@ -3,9 +3,9 @@
 ## M0 foundation
 
 The Rust workspace now builds with pinned Rust 1.90.0 and GPL-3.0-or-later
-package metadata. The initial executable supports its own help/version output
-and fails explicitly for unimplemented Makefile evaluation. It never delegates
-execution to GNU Make.
+package metadata. The first executable supported its own help/version output;
+the serial slice below connects the core language implementation. The runtime
+never delegates execution to GNU Make.
 
 The independent Python standard-library harness compares two executables using
 the same disposable workspace and invocation alias, reset between runs. It checks
@@ -59,4 +59,36 @@ recipes, and records explicit normal/order-only prerequisites and exports. Origi
 unit tests and focused GNU 4.4.1 probes cover these modules. This slice is not a
 claim that all M1 behavior is complete: effects, includes, target/pattern scopes,
 full diagnostics and several rule forms remain open. Connecting these modules to
-serial filesystem/process execution is the next separately reviewable slice.
+serial filesystem/process execution is covered by the next slice below.
+
+## M2 serial execution slice — 2026-10-18
+
+The executable now resolves explicit rules and default/requested goals, walks
+normal/order-only dependencies once per invocation, compares nanosecond mtimes,
+expands automatic variables and runs recipes serially. It implements basic recipe
+echo/ignore/force prefixes, phony targets, silence/error special targets,
+delete-on-error with precious-file protection, and a subset of CLI flags.
+Environment and command-line assignments keep their precedence. Inherited dry-run
+and query flags are honored; unsupported scheduling flags fail explicitly.
+
+The supported serial subset can run the repository's `build` and `check-core`
+leaf targets under rmake. `make test-selfhost` exercises this path. Filesystem
+regression tests cover equal/one-nanosecond timestamps, unchanged output on no-op,
+order-only dependencies, byte-valued names and arguments, deletion on failure,
+and dry-run/query behavior that must not accidentally execute a command.
+
+The original corpus now contains 170 fixtures in 36 requirement families. All
+170 pass oracle-versus-oracle validation; 122 are required exact candidate matches
+and 48 remain explicitly pending. Independent generated probes also found byte
+sorting and empty-pattern/empty-stem substitution discrepancies; the fixes have
+dedicated regression tests. Family coverage remains partial even when all of its
+current samples pass.
+
+This does not complete M2 or M3. Recipes currently go through a shell, so GNU's
+direct-exec path and its failure diagnostics remain open. There is no signal
+cleanup implementation, jobserver, include/restart handling, built-in rule
+database, implicit search, target/pattern scopes or persistent cache. Expansion
+effects are rejected. Makefile changes to execution flags and forced commands
+under touch mode are rejected until their semantics are implemented. Resource
+bounds and explicit unsupported errors are development limitations, not approved
+exceptions to the final compatibility contract.

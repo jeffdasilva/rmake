@@ -1,0 +1,11 @@
+id = "serial-duplicate-prerequisites"
+requirement = "serial.runtime"
+candidate = "required"
+description = "duplicate prerequisites"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first second|first second first\n"

@@ -1,6 +1,6 @@
 id = "conditional-ifeq-match"
 requirement = "syntax.conditionals"
-candidate = "pending"
+candidate = "required"
 description = "conditional ifeq match"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

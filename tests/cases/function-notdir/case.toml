@@ -1,6 +1,6 @@
 id = "function-notdir"
 requirement = "functions.paths"
-candidate = "pending"
+candidate = "required"
 description = "function notdir"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

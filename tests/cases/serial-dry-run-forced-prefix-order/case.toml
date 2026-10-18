@@ -1,0 +1,11 @@
+id = "serial-dry-run-forced-prefix-order"
+requirement = "serial.runtime"
+candidate = "required"
+description = "dry run forced prefix order"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "printf '%s\\n' forced\nforced\nprintf normal > forbidden\n"

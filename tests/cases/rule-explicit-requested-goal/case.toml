@@ -1,6 +1,6 @@
 id = "rule-explicit-requested-goal"
 requirement = "rules.explicit"
-candidate = "pending"
+candidate = "required"
 description = "rule explicit requested goal"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory", "second"]

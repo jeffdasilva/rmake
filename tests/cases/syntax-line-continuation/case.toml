@@ -1,6 +1,6 @@
 id = "syntax-line-continuation"
 requirement = "syntax.reader"
-candidate = "pending"
+candidate = "required"
 description = "syntax line continuation"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

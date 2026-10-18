@@ -1,6 +1,6 @@
 id = "recursion-exported-variable"
 requirement = "recursion.environment"
-candidate = "pending"
+candidate = "required"
 description = "recursion exported variable"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

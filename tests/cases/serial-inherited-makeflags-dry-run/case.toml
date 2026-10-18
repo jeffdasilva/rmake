@@ -1,0 +1,14 @@
+id = "serial-inherited-makeflags-dry-run"
+requirement = "serial.runtime"
+candidate = "required"
+description = "inherited makeflags dry run"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFLAGS = "n"
+
+[expected]
+exit_code = 0
+stdout = "printf forbidden > forbidden\n"

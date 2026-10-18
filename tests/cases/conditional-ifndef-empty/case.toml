@@ -1,6 +1,6 @@
 id = "conditional-ifndef-empty"
 requirement = "syntax.conditionals"
-candidate = "pending"
+candidate = "required"
 description = "conditional ifndef empty"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

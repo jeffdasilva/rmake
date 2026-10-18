@@ -515,7 +515,14 @@ impl Expansion<'_> {
             }
             b"sort" => {
                 let mut list: Vec<_> = words(first).collect();
-                list.sort_unstable();
+                // The pinned Linux GNU 4.4.1 profile compares the first byte
+                // as a signed char, then the remaining string as unsigned
+                // bytes. This observable ordering is not ordinary byte sort.
+                list.sort_unstable_by(|left, right| {
+                    (left[0] as i8)
+                        .cmp(&(right[0] as i8))
+                        .then_with(|| left.cmp(right))
+                });
                 list.dedup();
                 join_words(list)
             }
@@ -880,6 +887,13 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
     let pattern = Pattern::new(from);
     let replacement = Pattern::new(to);
     let mut output = Vec::new();
+    if pattern.bytes.is_empty() {
+        push(&mut output, text)?;
+        if text.last().is_none_or(u8::is_ascii_whitespace) {
+            push(&mut output, &replacement.bytes)?;
+        }
+        return Ok(output);
+    }
     if pattern.wildcard.is_none() {
         let mut previous = 0;
         for (start, end) in word_spans(text) {
@@ -901,8 +915,10 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
             let value = pattern
                 .matches(word)
                 .map_or_else(|| Ok(word.to_vec()), |stem| replacement.replace(stem))?;
-            // Empty substitutions remove a word, including its separator.
-            if value.is_empty() {
+            // An explicitly empty replacement removes its matched word.
+            // A '%' replacement with an empty stem still contributes a word
+            // position, which preserves the separator around that empty value.
+            if pattern.matches(word).is_some() && replacement.bytes.is_empty() {
                 continue;
             }
             if !first {
@@ -1182,8 +1198,31 @@ mod tests {
 
     #[test]
     fn pure_functions_do_not_decode_utf8() {
-        assert_eq!(expand(b"$(sort \xff \x80 a \xff)"), b"a \x80 \xff");
+        assert_eq!(expand(b"$(sort \xff \x80 a \xff)"), b"\x80 \xff a");
         assert_eq!(expand(b"$(subst \xff,z,\x80\xff)"), b"\x80z");
+    }
+
+    #[test]
+    fn sort_uses_signed_first_byte_but_unsigned_remaining_bytes() {
+        assert_eq!(expand(b"$(sort a\xff aA a\x80)"), b"aA a\x80 a\xff");
+        assert_eq!(expand(b"$(sort \xffa \x80b a)"), b"\x80b \xffa a");
+        assert_eq!(
+            expand(b"$(sort \xff\xff \xffa \xff\x80)"),
+            b"\xffa \xff\x80 \xff\xff"
+        );
+    }
+
+    #[test]
+    fn empty_patsubst_pattern_appends_unquoted_replacement() {
+        assert_eq!(expand(b"$(patsubst ,x, a )"), b" a x");
+        assert_eq!(expand(br"$(patsubst ,a\%b, a )"), b" a a%b");
+        assert_eq!(expand(br"$(patsubst ,a\\%b, a )"), br" a a\%b");
+        assert_eq!(expand(b"$(patsubst ,%, a )"), b" a %");
+        assert_eq!(expand(b"$(patsubst ,x,)"), b"x");
+        assert_eq!(expand(b"$(patsubst ,x,a)"), b"a");
+        assert_eq!(expand(b"$(patsubst ,x, a)"), b" a");
+        assert_eq!(expand(b"$(patsubst ,x,a )"), b"a x");
+        assert_eq!(expand(b"$(patsubst ,x,  )"), b"  x");
     }
 
     #[test]
@@ -1223,6 +1262,14 @@ mod tests {
         );
         assert_eq!(expand(b"$(patsubst a,b,  a\tb  )"), b"  b\tb  ");
         assert_eq!(expand(b"$(patsubst %.c,,a.c other b.c)"), b"other");
+    }
+
+    #[test]
+    fn percent_replacement_with_empty_stem_keeps_word_positions() {
+        assert_eq!(expand(b"$(patsubst a%,%,a other a)"), b" other ");
+        assert_eq!(expand(b"$(patsubst a%,,a other a)"), b"other");
+        assert_eq!(expand(b"$(patsubst a%,%,a a)"), b" ");
+        assert_eq!(expand(b"$(patsubst a%,,a a)"), b"");
     }
 
     #[test]
