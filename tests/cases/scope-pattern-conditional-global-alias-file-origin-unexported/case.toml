@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-conditional-global-alias-file-origin-unexported"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A conditional pattern alias disables inherited environment export for a global binding replaced by a file assignment."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+X = "env"
+
+[expected]
+exit_code = 0
+stdout = "file/unset\n"
+stderr = ""

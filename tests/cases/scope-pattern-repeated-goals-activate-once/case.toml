@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-repeated-goals-activate-once"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A repeated requested target initializes pattern effects and executes its recipe only once."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "a.t", "a.t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "activate\nrecipe=base tail\nmake: 'a.t' is up to date.\n"
+stderr = ""

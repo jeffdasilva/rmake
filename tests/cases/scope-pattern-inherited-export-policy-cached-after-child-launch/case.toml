@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-inherited-export-policy-cached-after-child-launch"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A prior child launch retains inherited export policy after deferred pattern privacy mutates the global binding."
+provenance = "Independently minimized from original seeded pattern-scope testing against GNU Make 4.4.1; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "anchor\n<parent>/<parent>\n"
+stderr = ""

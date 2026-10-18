@@ -211,8 +211,10 @@ Each node records expansion, raw value, origin, flavor and the actual child
 environment. Comparisons retain exact output, status and filesystem checks plus
 independent graph anchors; they do not predict GNU's scope resolution internally.
 `GRAPH_SEED`, `GRAPH_CASES`, `GRAPH_NODES` and `START_INDEX` control replay, and
-failure metadata retains the `--scopes` flag. Pattern declarations and effectful
-functions are outside this generator's current scope.
+failure metadata retains the `--scopes` flag. `make test-pattern-scopes` adds
+ordered matching pattern declarations to the same graphs and runs a separate
+100-program CI campaign; `--patterns` is retained for exact replay. Effectful
+functions remain outside these generators' current scope.
 
 The current `make test-intcmp` gate executes 6,400 integer expressions across
 200 seeded programs. An independent Python integer model predicts normalization,

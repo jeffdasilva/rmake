@@ -1,8 +1,8 @@
 # Target-variable scope design notes
 
 Status: explicit target-specific assignments are implemented with layered bindings,
-inheritance, privacy and export policies. Pattern-specific scopes remain
-unsupported and have a separate pending fixture family. These notes record GNU
+inheritance, privacy and export policies. Pattern-specific scopes use a separate
+implemented [activation model](pattern-scopes.md). These notes record GNU
 Make 4.4.1 observations from the pinned oracle on 2026-10-18; the
 [progress record](progress.md) records the verified corpus and remaining gates.
 
@@ -86,13 +86,13 @@ An unspecified child policy can inherit an ancestor policy even when a child
 binding supplies the value. These distinctions are observable in real child
 environments, not only through make variable expansion.
 
-## Pattern scopes: next implementation
+## Pattern scopes: separate activation model
 
-The pending pattern fixtures expose a separate activation model. Preserve each
+The pattern fixtures establish a separate activation model. Preserve each
 declaration in order instead of merging matching patterns into static target
 maps. Computed names and simple RHS values use global context while reading;
 conditional assignment and appending resolve when the target is activated.
 Patterns with shorter stems are more specific; equal-specificity definitions
 retain declaration order. A deferred append to a simple pattern binding expands
 its suffix in the target activation context while retaining simple flavor.
-This behavior is not implemented by the explicit target scope API alone.
+This behavior is implemented separately from the explicit target scope API.

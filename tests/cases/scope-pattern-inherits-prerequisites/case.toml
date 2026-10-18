@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-pattern-inherits-prerequisites"
 requirement = "scope.pattern-specific"
-candidate = "pending"
+candidate = "required"
 description = "Pattern-specific bindings are inherited by nonmatching prerequisites."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

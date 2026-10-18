@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-pattern-override-command-line"
 requirement = "scope.pattern-specific"
-candidate = "pending"
+candidate = "required"
 description = "An override pattern-specific assignment outranks a command-line binding."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "X=cli"]

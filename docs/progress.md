@@ -686,3 +686,39 @@ includes/restarts, complete rules and parallel execution remain later milestones
 The [scope notes](target-scopes.md) describe the implemented model and the next
 activation boundary. This slice used original code and oracle probes; no GNU
 implementation source or upstream tests were incorporated.
+
+## Pattern-variable activation and environment policy — 2026-10-18
+
+Pattern declarations now retain their ordered assignment semantics and activate
+lazily in each target's first-parent context. Matching uses full target names,
+escaped percent characters, nonempty stems, specificity and declaration order.
+Immediate values, deferred appends/conditionals, command-line snapshots and
+private/export policy follow the observed GNU Make 4.4.1 boundaries. Generated
+target colons preserve the unexpanded assignment RHS and its effects.
+
+Environment preparation distinguishes private pattern selection from reference
+expansion, reconstructs inherited appends, and remembers resolved export policy
+on the selected binding. A conditional alias that resets an imported global's
+policy reevaluates export eligibility from the selected value's origin.
+Up-to-date, missing, empty-recipe and touch-skipped targets avoid deferred effects.
+
+Fifty-six original fixtures were added. The corpus contains 956 cases: 897
+required exact matches and 59 observed pending mismatches, with no failures or
+unexpected passes. Full `make ci` passed with 315 Rust tests, 186 tooling tests,
+all existing generated/stateful/diagnostic gates and self-host flows. The new
+`make test-pattern-scopes` gate runs 100 mixed-scope dependency graphs in CI.
+An extended 1,000-graph campaign passed; its append regressions and independent
+export-policy review findings are preserved as focused fixtures.
+
+A paired release comparison against preceding implementation commit `daedf53`
+used 31 alternating trials after three warmups, identical paths, environment,
+arguments and output. Before/after medians were 0.533/0.554 ms for tiny no-op,
+23.270/21.829 ms for 10,000 explicit targets, and 4.292/4.058 ms for 5,000
+assignments. Median paired after/before ratios were 1.024, 0.932 and 0.947.
+These unisolated early workloads do not establish a general speedup or GNU
+performance parity. Persistent caching remains absent.
+
+The [pattern-scope notes](pattern-scopes.md) describe the implementation and GNU
+source references consulted. Rust code and fixtures are independently authored;
+no GNU code or upstream tests were copied or translated. This completes the
+recorded variable-scope slice, not M3 or full GNU Make compatibility.

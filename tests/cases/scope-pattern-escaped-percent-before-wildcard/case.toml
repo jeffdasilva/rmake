@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-escaped-percent-before-wildcard"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "An escaped percent remains literal before the first unescaped pattern wildcard."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "a%b-red.t=<match>/<fallback>\naxb-red.t=<>/<fallback>\n"
+stderr = ""

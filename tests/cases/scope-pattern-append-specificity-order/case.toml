@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-pattern-append-specificity-order"
 requirement = "scope.pattern-specific"
-candidate = "pending"
+candidate = "required"
 description = "Pattern append layers combine from broadest to most specific then explicit."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

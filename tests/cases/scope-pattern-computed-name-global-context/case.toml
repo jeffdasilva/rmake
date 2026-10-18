@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-pattern-computed-name-global-context"
 requirement = "scope.pattern-specific"
-candidate = "pending"
+candidate = "required"
 description = "Pattern assignment names expand globally rather than seeing earlier pattern-specific bindings."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

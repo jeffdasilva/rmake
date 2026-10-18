@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-pattern-append-simple-initializes-each-target"
 requirement = "scope.pattern-specific"
-candidate = "pending"
+candidate = "required"
 description = "An append after a simple pattern assignment initializes once per matching target in final global context."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

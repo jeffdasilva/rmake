@@ -163,6 +163,8 @@ pub struct Engine {
     inherited_exports: HashSet<Vec<u8>>,
     done: HashMap<Vec<u8>, Outcome>,
     visiting: HashSet<Vec<u8>>,
+    scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
+    target_contexts: HashMap<Vec<u8>, VariableStore>,
     would_build: bool,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
@@ -295,6 +297,8 @@ impl Engine {
             inherited_exports,
             done: HashMap::new(),
             visiting: HashSet::new(),
+            scope_parents: HashMap::new(),
+            target_contexts: HashMap::new(),
             would_build: false,
             initial_flags,
             initial_gnu_flags: Vec::new(),
@@ -482,10 +486,9 @@ impl Engine {
             self.options.goals.clone()
         };
         let mut failed = false;
-        let global_variables = self.database.variables.clone();
         for goal in goals {
             let already_done = self.done.contains_key(&goal);
-            let outcome = self.build(&goal, None, 0, &global_variables);
+            let outcome = self.build(&goal, None, 0);
             failed |= outcome.failed;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
                 break;
@@ -552,13 +555,7 @@ impl Engine {
                 .is_some_and(|rule| rule.dependencies.is_empty())
     }
 
-    fn build(
-        &mut self,
-        target: &[u8],
-        parent: Option<&[u8]>,
-        depth: usize,
-        inherited: &VariableStore,
-    ) -> Outcome {
+    fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
         if let Some(outcome) = self.done.get(target) {
             return *outcome;
         }
@@ -604,10 +601,12 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         };
-        // Keep each ancestor layer until lookup: private bindings are skipped
-        // on descent, and a local += must still expand the outer value using
-        // this target's context. Completed prerequisites keep their first owner.
-        let variables = self.database.variables_for_target(target, inherited);
+        // Scope activation is lazy: an up-to-date or empty-recipe target must
+        // not evaluate deferred pattern assignments. Record first ownership so
+        // a descendant's recipe can later initialize the ancestor contexts.
+        self.scope_parents
+            .entry(target.to_vec())
+            .or_insert_with(|| parent.map(Vec::from));
         self.visiting.insert(target.to_vec());
         let canonical = rule.canonical_dependencies();
         let normal: Vec<_> = canonical
@@ -647,7 +646,7 @@ impl Engine {
                 dropped.insert(dependency.clone());
                 continue;
             }
-            let child = self.build(dependency, Some(target), depth + 1, &variables);
+            let child = self.build(dependency, Some(target), depth + 1);
             outcome.ran |= child.ran;
             outcome.failed |= child.failed;
             outcome.fatal |= child.fatal;
@@ -671,7 +670,6 @@ impl Engine {
         }
         if stale && !outcome.failed && !outcome.question_outdated {
             if let Some(recipes) = &rule.recipes {
-                let mut variables = variables;
                 let normal: Vec<_> = normal
                     .iter()
                     .filter(|name| !dropped.contains(*name))
@@ -697,22 +695,12 @@ impl Engine {
                     (b"*", self.database.explicit_stem(target).to_vec()),
                     (b"%", Vec::new()),
                 ];
-                for (name, value) in autos {
-                    if let Err(err) = variables.define_literal(name, &value, Origin::Automatic) {
-                        self.expansion_error(None, &err);
-                        outcome.failed = true;
-                        outcome.fatal = true;
-                        break;
-                    }
-                }
-                if !outcome.failed {
-                    let execution = self.execute(target, recipes, &variables, phony);
-                    outcome.ran |= execution.ran;
-                    outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
-                    outcome.fatal |= execution.status == Status::Fatal;
-                    outcome.question_outdated |= execution.status == Status::Question;
-                    self.cleanup_target(target, before, phony, execution.cleanup);
-                }
+                let execution = self.execute(target, recipes, &autos, phony);
+                outcome.ran |= execution.ran;
+                outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
+                outcome.fatal |= execution.status == Status::Fatal;
+                outcome.question_outdated |= execution.status == Status::Question;
+                self.cleanup_target(target, before, phony, execution.cleanup);
             }
             outcome.time = if phony { None } else { modified(target) };
         }
@@ -721,11 +709,36 @@ impl Engine {
         outcome
     }
 
+    /// Initialize each target once, from its first parent outwards. Pattern
+    /// conditionals can mutate globals, so cached contexts refresh that layer
+    /// before reuse without replaying deferred assignment effects.
+    fn target_variables(&mut self, target: &[u8]) -> Result<VariableStore, ExpandError> {
+        if let Some(variables) = self.target_contexts.get(target) {
+            let mut variables = variables.clone();
+            variables.refresh_globals(&self.database.variables);
+            return Ok(variables);
+        }
+        let parent = self.scope_parents.get(target).cloned().flatten();
+        let inherited = if let Some(parent) = parent {
+            self.target_variables(&parent)?
+        } else {
+            self.database.variables.clone()
+        };
+        let variables = self.database.variables_for_target_with(
+            target,
+            &inherited,
+            ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+        )?;
+        self.target_contexts
+            .insert(target.to_vec(), variables.clone());
+        Ok(variables)
+    }
+
     fn execute(
         &mut self,
         target: &[u8],
         recipes: &[Recipe],
-        variables: &VariableStore,
+        automatic: &[(&[u8], Vec<u8>)],
         phony: bool,
     ) -> Execution {
         let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
@@ -782,6 +795,20 @@ impl Engine {
                 Execution::success(false)
             };
         }
+        let mut variables = match self.target_variables(target) {
+            Ok(variables) => variables,
+            Err(error) => {
+                self.expansion_error(None, &error);
+                return Execution::fatal(false);
+            }
+        };
+        for (name, value) in automatic {
+            if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
+                self.expansion_error(None, &error);
+                return Execution::fatal(false);
+            }
+        }
+        let variables = &variables;
         let mut expanded = Vec::new();
         for recipe in recipes {
             match self.expand(variables, &recipe.bytes, Some(&recipe.location)) {
@@ -901,6 +928,9 @@ impl Engine {
             };
             let mut child = Command::new(os(&program));
             child.args(arguments.iter().map(|arg| os(arg)));
+            // Environment selection skips private pattern bindings, but inner
+            // references still expand using the complete target context.
+            let environment_variables = variables.for_environment();
             let mut exports: BTreeSet<Vec<u8>> = self
                 .inherited_exports
                 .iter()
@@ -913,8 +943,8 @@ impl Engine {
                     .database
                     .rules
                     .contains_key(b".EXPORT_ALL_VARIABLES".as_slice());
-            for (name, variable) in variables.definitions() {
-                if variables.export_policy(name).is_some()
+            for (name, variable) in environment_variables.definitions() {
+                if environment_variables.resolve_export_policy(name).is_some()
                     || (export_all
                         && name != b"SHELL"
                         && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
@@ -924,30 +954,60 @@ impl Engine {
                 }
             }
             for name in &exports {
-                if !variables.export_policy(name).unwrap_or_else(|| {
-                    if self
-                        .database
-                        .variables
-                        .get(name)
-                        .is_some_and(|variable| variable.is_private())
-                    {
-                        // A suppressed private conditional can mark the
-                        // global binding private. Its export policy is then
-                        // hidden too; export-all still applies independently
-                        // to an unrelated visible target binding.
-                        export_all
-                            && automatic_export_name(name)
-                            && variables.get(name).is_some_and(|variable| {
-                                !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                            })
-                    } else {
-                        !self.database.unexports.contains(name)
-                    }
-                }) {
+                if !environment_variables
+                    .resolve_export_policy(name)
+                    .unwrap_or_else(|| {
+                        if self
+                            .database
+                            .variables
+                            .get(name)
+                            .is_some_and(|variable| variable.export_default_reset())
+                        {
+                            // A pattern conditional can explicitly reset an
+                            // imported name's policy. Re-evaluate default
+                            // eligibility from the selected binding instead
+                            // of retaining the startup name-list decision.
+                            return automatic_export_name(name)
+                                && environment_variables.get(name).is_some_and(|variable| {
+                                    !matches!(
+                                        variable.origin(),
+                                        Origin::Default | Origin::Automatic
+                                    ) && (export_all
+                                        || matches!(
+                                            variable.origin(),
+                                            Origin::Environment
+                                                | Origin::EnvironmentOverride
+                                                | Origin::CommandLine
+                                        ))
+                                });
+                        }
+                        if self
+                            .database
+                            .variables
+                            .get(name)
+                            .is_some_and(|variable| variable.is_private())
+                        {
+                            // A suppressed private conditional can mark the
+                            // global binding private. Its export policy is then
+                            // hidden too; export-all still applies independently
+                            // to an unrelated visible target binding.
+                            export_all
+                                && automatic_export_name(name)
+                                && environment_variables.get(name).is_some_and(|variable| {
+                                    !matches!(
+                                        variable.origin(),
+                                        Origin::Default | Origin::Automatic
+                                    )
+                                })
+                        } else {
+                            !self.database.unexports.contains(name)
+                        }
+                    })
+                {
                     child.env_remove(os(name));
                     continue;
                 }
-                if let Some(variable) = variables.get(name) {
+                if let Some(variable) = environment_variables.get(name) {
                     // Imported environment values are recursive when referenced
                     // by make syntax, but are passed back to children verbatim.
                     if matches!(
@@ -957,7 +1017,7 @@ impl Engine {
                         child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
                         continue;
                     }
-                    match variables.expand_variable_with(
+                    match variables.expand_environment_variable_with(
                         name,
                         ExpansionContext::new(variable.definition(), &mut |event| {
                             emit_output(&self.program, event)
@@ -975,8 +1035,8 @@ impl Engine {
                     child.env_remove(os(name));
                 }
             }
-            if !variables
-                .export_policy(b"MAKEFLAGS")
+            if !environment_variables
+                .resolve_export_policy(b"MAKEFLAGS")
                 .unwrap_or_else(|| !self.database.unexports.contains(b"MAKEFLAGS".as_slice()))
             {
                 child.env_remove("MAKEFLAGS");

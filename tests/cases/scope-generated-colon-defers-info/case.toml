@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-generated-colon-defers-info"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A generated target colon prevents unused recursive target assignment effects from running during parsing."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

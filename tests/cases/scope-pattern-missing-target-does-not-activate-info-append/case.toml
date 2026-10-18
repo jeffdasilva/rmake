@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-missing-target-does-not-activate-info-append"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "An unbuildable target does not activate a matching deferred pattern append with output effects."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing.t', needed by 'all'.  Stop.\n"
