@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-foreach-first-vt-delimited-name"
+requirement = "functions.control"
+candidate = "required"
+description = "foreach binds only the first token of a variable name containing vertical-tab whitespace."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"N" = "x\u000by"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c5b5d2f5b6f6e655d2f5b5d205b5d2f5b74776f5d2f5b5d3e0a"
+stderr_hex = ""

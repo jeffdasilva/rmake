@@ -1,0 +1,18 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-all-c-whitespace-join"
+requirement = "functions.paths"
+candidate = "required"
+description = "join splits both word lists at C whitespace and retains unmatched trailing words."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"L" = "\u000ba\tb\nc\f"
+"R" = "\u000b1\r2\f3\u000b4\t"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c613120623220633320343e0a"
+stderr_hex = ""

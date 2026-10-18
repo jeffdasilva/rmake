@@ -1108,13 +1108,24 @@ impl Expansion<'_, '_> {
         // GNU consumes a C string at each expansion boundary. A NUL returned
         // by a file read does not skip later effects in this same expansion;
         // truncate only after evaluating all remaining source text.
-        let input = input.split(|byte| *byte == 0).next().unwrap_or_default();
+        let input = if input.contains(&0) {
+            &input[..input
+                .iter()
+                .position(|byte| *byte == 0)
+                .expect("contains NUL")]
+        } else {
+            input
+        };
         if self.depth >= MAX_DEPTH || input.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
         self.depth += 1;
         let result = self.expand_inner(input).map(|mut result| {
-            if let Some(nul) = result.iter().position(|byte| *byte == 0) {
+            if result.contains(&0) {
+                let nul = result
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .expect("contains NUL");
                 result.truncate(nul);
             }
             result
@@ -1295,7 +1306,7 @@ impl Expansion<'_, '_> {
             }
             b"or" => {
                 for arg in args {
-                    let value = self.expand(arg)?;
+                    let value = self.expand(trim(arg))?;
                     if !value.is_empty() {
                         return Ok(value);
                     }
@@ -1305,7 +1316,7 @@ impl Expansion<'_, '_> {
             b"and" => {
                 let mut last = Vec::new();
                 for arg in args {
-                    last = self.expand(arg)?;
+                    last = self.expand(trim(arg))?;
                     if last.is_empty() {
                         break;
                     }
@@ -1314,7 +1325,7 @@ impl Expansion<'_, '_> {
             }
             b"foreach" => {
                 let variable = self.expand(args[0])?;
-                let variable = trim(&variable).to_vec();
+                let variable = words(&variable).next().unwrap_or_default().to_vec();
                 let list = self.expand(args[1])?;
                 let mut output = Vec::new();
                 for (index, word) in words(&list).enumerate() {
@@ -1333,13 +1344,13 @@ impl Expansion<'_, '_> {
                 let names = self.expand(args[0])?;
                 let values = self.expand(args[1])?;
                 let names: Vec<_> = words(&names).collect();
-                let values: Vec<_> = words(&values).collect();
+                let value_spans = word_spans(&values);
                 let mut bindings = BTreeMap::new();
                 for (index, name) in names.iter().enumerate() {
-                    let value = if index + 1 == names.len() {
-                        join_words(values.get(index..).unwrap_or_default().iter().copied())?
-                    } else {
-                        values.get(index).copied().unwrap_or_default().to_vec()
+                    let value = match value_spans.get(index) {
+                        Some((start, _)) if index + 1 == names.len() => values[*start..].to_vec(),
+                        Some((start, end)) => values[*start..*end].to_vec(),
+                        None => Vec::new(),
                     };
                     bindings.insert(name.to_vec(), local(value));
                 }
@@ -1464,7 +1475,7 @@ impl Expansion<'_, '_> {
                         ));
                     }
                 };
-                let path = filesystem_words(&first[offset..])
+                let path = words(&first[offset..])
                     .next()
                     .ok_or_else(|| ExpandError::FileError(b"file: missing filename".to_vec()))?;
                 if read {
@@ -1486,7 +1497,7 @@ impl Expansion<'_, '_> {
             }
             b"realpath" => {
                 let mut result = Vec::new();
-                for path in filesystem_words(first) {
+                for path in words(first) {
                     let canonical = self.filesystem(name, FilesystemEffect::Realpath(path))?;
                     if !canonical.is_empty() {
                         if !result.is_empty() {
@@ -1773,7 +1784,7 @@ fn trim_function_start(mut value: &[u8]) -> &[u8] {
 }
 
 fn trim_start(mut value: &[u8]) -> &[u8] {
-    while value.first().is_some_and(u8::is_ascii_whitespace) {
+    while value.first().is_some_and(gnu_whitespace) {
         value = &value[1..];
     }
     value
@@ -1781,33 +1792,26 @@ fn trim_start(mut value: &[u8]) -> &[u8] {
 
 fn trim(value: &[u8]) -> &[u8] {
     let mut value = trim_start(value);
-    while value.last().is_some_and(u8::is_ascii_whitespace) {
+    while value.last().is_some_and(gnu_whitespace) {
         value = &value[..value.len() - 1];
     }
     value
 }
 
-// Filesystem function tokens use all C-locale whitespace, including VT.
-fn filesystem_words(value: &[u8]) -> impl Iterator<Item = &[u8]> {
-    value.split(gnu_whitespace).filter(|word| !word.is_empty())
-}
-
 fn words(value: &[u8]) -> impl Iterator<Item = &[u8]> {
-    value
-        .split(u8::is_ascii_whitespace)
-        .filter(|word| !word.is_empty())
+    value.split(gnu_whitespace).filter(|word| !word.is_empty())
 }
 
 fn word_spans(value: &[u8]) -> Vec<(usize, usize)> {
     let mut result = Vec::new();
     let mut position = 0;
     while position < value.len() {
-        if value[position].is_ascii_whitespace() {
+        if gnu_whitespace(&value[position]) {
             position += 1;
             continue;
         }
         let start = position;
-        while position < value.len() && !value[position].is_ascii_whitespace() {
+        while position < value.len() && !gnu_whitespace(&value[position]) {
             position += 1;
         }
         result.push((start, position));
@@ -2020,7 +2024,7 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
     let mut output = Vec::new();
     if pattern.bytes.is_empty() {
         push(&mut output, text)?;
-        if text.last().is_none_or(u8::is_ascii_whitespace) {
+        if text.last().is_none_or(gnu_whitespace) {
             push(&mut output, &replacement.bytes)?;
         }
         return Ok(output);
@@ -2851,6 +2855,119 @@ mod tests {
                 Err(ExpandError::InvalidArguments { .. })
             ));
         }
+    }
+
+    #[test]
+    fn word_functions_share_c_whitespace_without_splitting_other_bytes() {
+        for separator in b" \t\n\r\x0b\x0c" {
+            let list = [
+                b"b.c".as_slice(),
+                &[*separator],
+                b"a.h",
+                &[*separator],
+                b"b.c",
+            ]
+            .concat();
+            for (function, expected) in [
+                (b"strip".as_slice(), b"b.c a.h b.c".as_slice()),
+                (b"sort", b"a.h b.c"),
+                (b"words", b"3"),
+                (b"firstword", b"b.c"),
+                (b"lastword", b"b.c"),
+                (b"suffix", b".c .h .c"),
+                (b"basename", b"b a b"),
+                (b"notdir", b"b.c a.h b.c"),
+                (b"dir", b"./ ./ ./"),
+            ] {
+                let expression = [b"$(".as_slice(), function, b" ", &list, b")"].concat();
+                assert_eq!(expand(&expression), expected, "{function:?}, {separator}");
+            }
+        }
+        assert_eq!(expand(b"$(words a\x1cb\x85c\xa0d)"), b"1");
+        assert_eq!(expand(b"$(strip a\x1cb\x85c\xa0d)"), b"a\x1cb\x85c\xa0d");
+        assert_eq!(expand(b"$(word \x0b2\x0b,a\x0bb\x0bc)"), b"b");
+        assert_eq!(expand(b"$(join a\x0bb,c\x0bd)"), b"ac bd");
+        assert_eq!(expand(b"$(filter a\x0bb,a\x0bc\x0bb)"), b"a b");
+        assert_eq!(expand(b"$(filter-out a\x0bb,a\x0bc\x0bb)"), b"c");
+        assert_eq!(expand(b"$(addprefix p,a\x0bb)"), b"pa pb");
+        assert_eq!(expand(b"$(addsuffix s,a\x0bb)"), b"as bs");
+    }
+
+    #[test]
+    fn word_selection_preserves_interior_bytes_and_string_functions_stay_literal() {
+        assert_eq!(expand(b"$(wordlist 2,3,a\x0bb\r\nc\x0cd)"), b"b\r\nc");
+        assert_eq!(expand(b"$(patsubst a,z,\x0ba\r\nb\x0c)"), b"\x0bz\r\nb\x0c");
+        assert_eq!(expand(b"$(patsubst %,z%,\x0ba\r\nb\x0c)"), b"za zb");
+        assert_eq!(expand(b"$(patsubst ,z,a\x0b)"), b"a\x0bz");
+        assert_eq!(expand(b"$(subst a,z,\x0ba\r\nb\x0c)"), b"\x0bz\r\nb\x0c");
+        assert_eq!(expand(b"$(findstring a\x0bb,x a\x0bb y)"), b"a\x0bb");
+        let mut store = VariableStore::new();
+        store.set_working_directory(b"/project");
+        define(&mut store, b"a", b"value", Assignment::Recursive);
+        assert_eq!(
+            store.expand(b"$(abspath a\x0bb)").unwrap(),
+            b"/project/a /project/b"
+        );
+        assert_eq!(
+            store
+                .expand(b"$(origin a\x0b):$(flavor a\x0b):$(value a\x0b)")
+                .unwrap(),
+            b"undefined:undefined:"
+        );
+    }
+
+    #[test]
+    fn lazy_conditions_trim_source_whitespace_but_retain_expanded_whitespace() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"W", b" \t\x0b\r\n\x0c ", Assignment::Simple);
+        for (expression, expected) in [
+            (
+                b"$(if \x0b$(MISSING)\x0b,yes,no)".as_slice(),
+                b"no".as_slice(),
+            ),
+            (b"$(if $(W),yes,no)", b"yes"),
+            (b"$(or \x0b, \tselected\x0b ,$(shell never))", b"selected"),
+            (b"$(and yes,\x0b,$(shell never))", b""),
+            (b"$(and yes, \tselected\x0b )", b"selected"),
+            (b"$(or $(W),$(shell never))", b" \t\x0b\r\n\x0c "),
+            (b"$(and yes,$(W))", b" \t\x0b\r\n\x0c "),
+            (b"$(call or,$(W),fallback)", b"fallback"),
+        ] {
+            assert_eq!(store.expand(expression).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn foreach_binds_the_first_expanded_name_token_and_restores_it() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"x", b"outer", Assignment::Recursive);
+        define(
+            &mut store,
+            b"NAME",
+            b"\x0bx \tignored\x0c",
+            Assignment::Simple,
+        );
+        assert_eq!(
+            store
+                .expand(b"$(foreach $(NAME),a\x0bb,[$(x):$(origin x):$(flavor x)])|$(x)")
+                .unwrap(),
+            b"[a:automatic:simple] [b:automatic:simple]|outer"
+        );
+    }
+
+    #[test]
+    fn let_retains_the_exact_last_remainder_and_handles_missing_values_safely() {
+        assert_eq!(
+            expand(b"$(let a\x0bb,\tfirst\x0bsecond\r\nthird\x0c,[$(a)][$(b)])"),
+            b"[first][second\r\nthird\x0c]"
+        );
+        assert_eq!(
+            expand(b"$(let a,\x0bfirst\tsecond \r,[$(a)])"),
+            b"[first\tsecond \r]"
+        );
+        assert_eq!(expand(b"$(let ,ignored,body)"), b"body");
+        // GNU 4.4.1 crashes on this shortage of words; retain a safe empty binding.
+        assert_eq!(expand(b"$(let a b, \t\x0b,[$(a)][$(b)])"), b"[][]");
     }
 
     #[test]

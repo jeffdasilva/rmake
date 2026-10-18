@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-literal-vt-if-trims-edges"
+requirement = "functions.control"
+candidate = "required"
+description = "if trims raw vertical-tab edges around a nonempty condition."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c7468656e3e0a"
+stderr_hex = ""

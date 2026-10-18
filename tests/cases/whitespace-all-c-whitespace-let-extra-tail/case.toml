@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-all-c-whitespace-let-extra-tail"
+requirement = "functions.control"
+candidate = "required"
+description = "The final let binding keeps exact whitespace between all remaining values."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"VALUES" = "one\u000btwo\rthree\f four\u000bfive"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c5b6f6e655d2f5b74776f0d74687265650c20666f75720b666976655d3e0a"
+stderr_hex = ""

@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-let-one-name-trims-leading-preserves-tail"
+requirement = "functions.control"
+candidate = "required"
+description = "A single let name receives the original value remainder after leading whitespace is skipped."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"V" = " \u000bone\ttwo\u000bthree \f\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c5b6f6e650974776f0b7468726565200c0b5d3e0a"
+stderr_hex = ""

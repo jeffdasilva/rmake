@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-non-ascii-and-control-bytes-remain-in-words"
+requirement = "functions.words"
+candidate = "required"
+description = "C-locale word splitting preserves file-separator, next-line, nonbreaking-space and Unicode em-space bytes within tokens."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "636f756e743d3c353e206e6f726d616c697a65643d3c611c62206385642065a0662067c2a0682069e280836a3e0a"
+stderr_hex = ""

@@ -1,0 +1,18 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-word-indices-all-six-trim"
+requirement = "functions.words"
+candidate = "required"
+description = "word and wordlist accept all six C-whitespace bytes around expanded integer bounds."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = " \t\n\u000b\f\r2 \t\n\u000b\f\r"
+"J" = " \t\n\u000b\f\r3 \t\n\u000b\f\r"
+
+[expected]
+exit_code = 0
+stdout_hex = "776f72643d3c623e20776f72646c6973743d3c6220633e0a"
+stderr_hex = ""

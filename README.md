@@ -81,6 +81,8 @@ stream, status and filesystem expectations, including merged output ordering.
 `DIAGNOSTIC_CASE` replays one recorded cell. This is also part of `make ci`.
 `make test-filesystem` checks eleven Linux/glibc I/O fault scenarios, including
 partial reads and close failures; `FILESYSTEM_CASE` selects one for replay.
+`make test-whitespace` checks pure-function whitespace, local bindings and effect
+ordering; `WHITESPACE_CASE` selects one case.
 Their reports and failure reproductions are written under `artifacts/`.
 
 `make bench-compare` builds release rmake and records alternating paired timings

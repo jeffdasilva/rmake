@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-pattern-substitution-reference-vt"
+requirement = "variables.expansion"
+candidate = "required"
+description = "Pattern substitution references split C-whitespace-delimited words and normalize separators."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = "a.c\u000bb.c\rc.c\td.rs"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c612e6f20622e6f20632e6f20642e72733e0a"
+stderr_hex = ""
