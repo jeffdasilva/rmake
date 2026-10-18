@@ -1,6 +1,7 @@
 # GNU Make 4.4.1 compatibility contract
 
-Status: proposed design, 2026-10-18. No implementation or conformance claim yet.
+Compatibility target established 2026-10-18. Implementation is partial; the
+[progress record](progress.md) identifies verified slices and open requirements.
 
 rmake will reimplement GNU Make 4.4.1 behavior in Rust on Linux. Compatibility
 comes before performance or new features. The reference is the pinned executable's

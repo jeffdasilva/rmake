@@ -357,7 +357,7 @@ id = "process.invocation"
 title = "Linux direct execution and shell command boundaries"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 45
+candidate_required = 47
 reference = "https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html"
 fixture_count = 49
 cases = ["process-direct-quoted-arguments", "process-direct-missing", "process-direct-missing-single-quoted", "process-shell-missing-double-quoted", "process-direct-missing-ignored", "process-shell-missing-env-prefix", "process-shell-builtin-cd", "process-shell-builtin-export", "process-shell-builtin-exit", "process-builtin-names-direct", "process-shell-builtin-test", "process-shellflags-ec-direct", "process-shellflags-ce-shell", "process-shellflags-noexec", "process-custom-bash-missing", "process-custom-shell-wrapper", "process-ifs-empty-direct", "process-ifs-permuted-direct", "process-ifs-custom-shell", "process-environment-prefix", "process-single-quoted-dollar", "process-backslash-metacharacters", "process-glob-and-redirection", "process-pipeline", "process-double-quoted-substitution", "process-enoexec-slash", "process-enoexec-path", "process-enoexec-shellflags-ec", "process-permission-denied", "process-enoexec-custom-shell", "process-simple-shell-literal-dollar", "process-shell-denied-literal-program", "process-shell-double-quotes-literal", "process-shell-enoexec-literal-program", "process-shell-escaped-space-program", "process-shell-forced-dry-literal", "process-shell-forced-query-literal", "process-shell-forced-touch-literal", "process-shell-literal-argument-metacharacters", "process-shell-literal-metachar-program", "process-shell-literal-shell-interpreted-flags", "process-shell-missing-literal-program", "process-shell-oneshell-whole-path", "process-shell-single-quoted-space-program", "process-shell-single-quotes-protect-added-slashes", "process-shell-empty-oneshell", "process-shell-empty-ordinary", "process-shell-literal-newline-quoted-flags", "process-shell-literal-newline-simple-flags"]
@@ -459,3 +459,13 @@ candidate_status = "pending"
 reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
 fixture_count = 3
 cases = ["makelevel-cli-recursive-value-does-not-change-depth", "makelevel-environment-recursive-value-depth", "makelevel-file-value-does-not-change-child-depth"]
+
+[[requirements]]
+id = "process.empty-shell"
+title = "Empty and undefined SHELL execution and literal recipe programs"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 35
+reference = "https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html"
+fixture_count = 37
+cases = ["empty-shell-colon-skips-export-preparation", "empty-shell-colon-trailing-space-not-noop", "empty-shell-dry-skips-launch", "empty-shell-explicit-flags-program-argv", "empty-shell-explicit-flags-shell-executes", "empty-shell-forced-n-launches", "empty-shell-forced-q-launches", "empty-shell-forced-t-launches", "empty-shell-ignored-failure-continues", "empty-shell-keep-going-later-goal", "empty-shell-oneshell-dry-keeps-internal-prefixes", "empty-shell-oneshell-explicit-flags-still-empty", "empty-shell-oneshell-recursive-empty", "empty-shell-oneshell-undefined", "empty-shell-oneshell-undefined-flags", "empty-shell-query-skips-launch", "empty-shell-recursive-empty-default-flags", "empty-shell-touch-skips-launch", "empty-shell-undefined-default-flags", "empty-shell-undefined-flags-whole-missing-program", "empty-shell-whitespace-only-shell-literal-program", "empty-shell-whole-backslash-program", "empty-shell-whole-byte-program", "empty-shell-whole-quotes-program", "empty-shell-whole-space-program", "empty-shell-assignment-digit-leading-literal-file", "empty-shell-assignment-direct-failure-keeps-created-target", "empty-shell-assignment-export-prepared-before-no-output", "empty-shell-assignment-invalid-missing-shell-diagnostic", "empty-shell-assignment-metacharacters-stay-literal", "empty-shell-assignment-oneshell-retains-empty-program", "empty-shell-assignment-shell-failure-deletes-created-target", "empty-shell-assignment-slash-prefix-literal-file", "empty-shell-assignment-valid-name-skips-same-file", "empty-shell-assignment-whole-multiple-values-skips-same-file", "empty-shell-expanded-newline-invalid-assignment-first-command", "empty-shell-expanded-newline-valid-assignment-then-command"]

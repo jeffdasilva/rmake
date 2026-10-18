@@ -1,0 +1,11 @@
+id = "empty-shell-assignment-shell-failure-deletes-created-target"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "The writer creates all containing created; a failed shell child deletes it under .DELETE_ON_ERROR."
+provenance = "Original independent empty-configuration launch/cleanup pair, with target-preservation expectations checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "2f62696e2f73683a20313a202e2f6d697373696e673d696e76616c69643a206e6f7420666f756e640a6d616b653a202a2a2a205b4d616b6566696c653a363a20616c6c5d204572726f72203132370a6d616b653a202a2a2a2044656c6574696e672066696c652027616c6c270a"

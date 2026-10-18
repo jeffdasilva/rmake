@@ -1,0 +1,11 @@
+id = "empty-shell-assignment-invalid-missing-shell-diagnostic"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Assignment body is one protected shell word; forbidden must remain absent; invoked must remain absent."
+provenance = "Original independent empty-configuration assignment boundary and file-sentinel expectations, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "2f62696e2f73683a20313a20412d423d433a206e6f7420666f756e640a6d616b653a202a2a2a205b4d616b6566696c653a353a20616c6c5d204572726f72203132370a"

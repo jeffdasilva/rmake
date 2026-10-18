@@ -1,0 +1,11 @@
+id = "empty-shell-explicit-flags-shell-executes"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Empty SHELL invocation boundary. Expected file contents: marker=b'kept'."
+provenance = "Original independently authored empty-shell fixture and argv/stream/file expectations, checked against pinned GNU Make 4.4.1 black-box execution; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

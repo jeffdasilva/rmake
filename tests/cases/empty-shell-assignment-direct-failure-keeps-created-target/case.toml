@@ -1,0 +1,11 @@
+id = "empty-shell-assignment-direct-failure-keeps-created-target"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "The writer creates all containing created; a direct launch failure preserves it despite .DELETE_ON_ERROR."
+provenance = "Original independent empty-configuration launch/cleanup pair, with target-preservation expectations checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202e2f6d697373696e672d696e76616c69643a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a363a20616c6c5d204572726f72203132370a"
