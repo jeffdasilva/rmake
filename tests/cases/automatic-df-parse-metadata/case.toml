@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-parse-metadata"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "D/F definitions exist before recipes even with -rR; base variables and order-only derivatives do not."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parse @:undefined:undefined:[]\nparse %:undefined:undefined:[]\nparse <:undefined:undefined:[]\nparse ?:undefined:undefined:[]\nparse ^:undefined:undefined:[]\nparse +:undefined:undefined:[]\nparse *:undefined:undefined:[]\nparse |:undefined:undefined:[]\nparse @D:automatic:recursive:[$(patsubst %/,%,$(dir $@))]\nparse @F:automatic:recursive:[$(notdir $@)]\nparse %D:automatic:recursive:[$(patsubst %/,%,$(dir $%))]\nparse %F:automatic:recursive:[$(notdir $%)]\nparse <D:automatic:recursive:[$(patsubst %/,%,$(dir $<))]\nparse <F:automatic:recursive:[$(notdir $<)]\nparse ?D:automatic:recursive:[$(patsubst %/,%,$(dir $?))]\nparse ?F:automatic:recursive:[$(notdir $?)]\nparse ^D:automatic:recursive:[$(patsubst %/,%,$(dir $^))]\nparse ^F:automatic:recursive:[$(notdir $^)]\nparse +D:automatic:recursive:[$(patsubst %/,%,$(dir $+))]\nparse +F:automatic:recursive:[$(notdir $+)]\nparse *D:automatic:recursive:[$(patsubst %/,%,$(dir $*))]\nparse *F:automatic:recursive:[$(notdir $*)]\nparse |D:undefined:undefined:[]\nparse |F:undefined:undefined:[]\n"
+stderr = ""

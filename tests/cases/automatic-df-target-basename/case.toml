@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "automatic-df-target-basename"
+requirement = "automatic.derivatives"
+candidate = "required"
+description = "A target without a slash has directory dot and the complete target name as filename."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target=<output>\ndirectory=<.>\nfilename=<output>\n"
+stderr = ""

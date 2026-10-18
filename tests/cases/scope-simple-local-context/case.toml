@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-simple-local-context"
+requirement = "scope.target-specific"
+candidate = "pending"
+description = "An immediately expanded target RHS sees an already defined value on the same target, without changing global state."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target=local/local\nother=global/\n"
+stderr = ""
