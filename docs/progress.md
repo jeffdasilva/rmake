@@ -541,3 +541,32 @@ independently authored semantic anchors pass, including 24 expanded-name and
 15 continuation observations. These exploratory totals are separate from the
 permanent curated corpus and are not presented as full conformance. No GNU
 implementation source or upstream tests were consulted for this slice.
+
+## Assignment-name recognition — 2026-10-18
+
+The assignment parser now distinguishes literal name separators from blanks
+inside make references. Raw internal spaces/tabs reject assignment syntax;
+quotes and backslashes do not protect them. CLI arguments then become goals,
+while file lines follow the normal rule/directive path, preserving its expansion
+effects. Computed names may still contain any expansion-produced whitespace.
+
+The scanner preserves one-byte references before removing trailing syntax
+blanks. In particular, `X$ =value` defines `X`; the final space belongs to `$ `,
+so the preceding whitespace slice's trimming rule needs this token boundary.
+Balanced references retain their internal blanks without allocating name copies.
+This small parsing change makes no measured performance claim.
+
+Twenty-eight new original fixtures contain 23 required matches and five pending
+boundaries. Four historical raw-blank regressions are promoted. The corpus now
+contains 758 cases: 675 required exact matches and 83 pending requirements.
+Full `make ci` passed with 247 Rust tests, 183 tooling tests, all generated and
+stateful comparisons, the diagnostic matrix and top-level self-host flows.
+Short-reference operator selection, backslash before an assignment delimiter,
+export-list empty bindings, CLI replay, and colon-rule diagnostics remain visible
+pending cases, not supported behavior.
+
+An independent campaign of 112 distinct inputs passes authored GNU expectations
+and exact candidate output, status and complete filesystem comparisons. It covers
+literal and computed names, short references, modifiers and rejected-name effect
+timing; its explicitly excluded boundaries are retained in the curated corpus.
+No GNU implementation source or upstream tests were consulted for this slice.

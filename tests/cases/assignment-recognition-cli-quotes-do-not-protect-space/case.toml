@@ -1,0 +1,11 @@
+id = "assignment-recognition-cli-quotes-do-not-protect-space"
+requirement = "variables.assignment-recognition"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "'X Y'=value"]
+description = "Original raw-blank assignment classification and expanded-name preservation regression."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202727582059273d76616c7565272e202053746f702e0a"

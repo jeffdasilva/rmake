@@ -1,0 +1,11 @@
+id = "assignment-recognition-cli-short-blank-reference-before-operator"
+requirement = "variables.assignment-recognition"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "A$ +=value", "B$ :=value"]
+description = "Raw blank classification must preserve reference boundaries before operator and rule parsing."
+provenance = "Independently authored exact expectations checked with GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "413d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a423d3c76616c75653e7c73696d706c657c636f6d6d616e64206c696e650a"
+stderr_hex = ""

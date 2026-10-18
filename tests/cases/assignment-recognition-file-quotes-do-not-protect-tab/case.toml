@@ -1,0 +1,11 @@
+id = "assignment-recognition-file-quotes-do-not-protect-tab"
+requirement = "variables.assignment-recognition"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original raw-blank assignment classification and expanded-name preservation regression."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

@@ -1,0 +1,11 @@
+id = "assignment-recognition-cli-terminal-short-reference-consumes-blank"
+requirement = "variables.assignment-recognition"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X$ =value", "Y$\t=value"]
+description = "Original raw-blank assignment classification and expanded-name preservation regression."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "73706163653d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a7461623d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a"
+stderr_hex = ""

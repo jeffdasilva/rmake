@@ -1,0 +1,15 @@
+id = "assignment-recognition-file-computed-reference-blanks-preserved"
+requirement = "variables.assignment-recognition"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original raw-blank assignment classification and expanded-name preservation regression."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[environment]
+"N" = "C_D"
+"M" = "I J"
+
+[expected]
+exit_code = 0
+stdout_hex = "63617365303d3c6f6e653e7c7265637572736976657c66696c650a63617365313d3c74776f3e7c7265637572736976657c66696c650a63617365323d3c74687265653e7c7265637572736976657c66696c650a63617365333d3c666f75723e7c7265637572736976657c66696c650a63617365343d3c666976653e7c7265637572736976657c66696c650a63617365353d3c7369783e7c7265637572736976657c66696c650a"
+stderr_hex = ""
