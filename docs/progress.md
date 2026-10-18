@@ -794,3 +794,32 @@ and 4.396/4.181 ms for 5,000 assignments. Median paired after/before ratios were
 0.990, 1.006 and 0.955. The assignment workload improved about 4.5% in this
 unisolated run; this is not a general speed or GNU parity claim. Persistent
 caching and the broader compatibility/performance milestones remain incomplete.
+
+## Word and wordlist numeric validation — 2026-10-18
+
+`word` and `wordlist` now accept the pinned profile's signed 64-bit decimal
+grammar, including signs, leading zeroes and all C whitespace. Bounds and
+numeric-prefix overflow preserve GNU's validation precedence, exact raw-byte
+diagnostics and definition locations. `wordlist` accepts negative zero as an
+empty ending range. Supplied arguments expand before numeric or argument-count
+validation, preserving earlier output and file effects when a later error
+aborts expansion. The [word index notes](word-indices.md) describe the boundary
+and GNU source references consulted; all code and tests are independently authored.
+
+Forty-eight original fixtures were added and six prior numeric diagnostics were
+promoted. The curated corpus contains 1,135 cases: 1,081 required exact matches
+and 54 observed pending mismatches, with no failures or unexpected passes.
+Full `make ci` passed with 338 Rust tests, 226 tooling tests and all prior gates.
+The new `make test-word-index` adds 220 independently anchored byte, status,
+source-context and filesystem scenarios to CI; a selected effect-before-error
+case also runs through rmake's top-level Makefile. A separate authored campaign
+validated 807 inputs against both engines.
+
+A comparison against preceding implementation commit `4d535f4` used 31
+alternating release pairs after three warmups, identical paths, environment,
+arguments and output. Before/after medians were 0.675/0.683 ms for tiny no-op,
+20.752/21.811 ms for 10,000 explicit targets and 4.686/4.772 ms for 5,000
+assignments. Median paired after/before ratios were 1.003, 1.012 and 1.020.
+These unisolated early workloads establish neither a speedup nor GNU performance
+parity. Broader argument-count behavior, dynamic semantics and later milestones
+remain incomplete.

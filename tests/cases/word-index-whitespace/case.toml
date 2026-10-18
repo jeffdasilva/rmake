@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-whitespace"
+requirement = "functions.words"
+candidate = "required"
+description = "word treats all six C-whitespace bytes as an empty expanded index."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = " \t\n\u000b\f\r "
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e3a20656d7074792076616c75652e202053746f702e0a"

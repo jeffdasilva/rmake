@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -20,6 +20,7 @@ MODE_CASE ?=
 DIAGNOSTIC_CASE ?=
 FILESYSTEM_CASE ?=
 WHITESPACE_CASE ?=
+WORD_INDEX_CASE ?=
 INTCMP_SEED ?= 441011
 INTCMP_CASES ?= 200
 INTCMP_EXPRESSIONS ?= 32
@@ -45,6 +46,7 @@ help:
 		'  test-pattern-scopes Compare mixed pattern and explicit variable scopes' \
 		'  test-filesystem  Compare Linux filesystem effects under injected faults' \
 		'  test-whitespace  Compare pure-function whitespace and effect ordering' \
+		'  test-word-index  Compare word and wordlist numeric boundaries and errors' \
 		'  test-modes      Compare 512 ordinary/one-shell execution mode combinations' \
 		'  test-intcmp     Compare seeded arbitrary-length integer expressions' \
 		'  test-diagnostics Compare diagnostic output and expansion ordering' \
@@ -61,6 +63,7 @@ help:
 		'Diagnostic replay: DIAGNOSTIC_CASE=<case ID>.' \
 		'Filesystem fault replay: FILESYSTEM_CASE=<case ID>.' \
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
+		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'
 
@@ -114,6 +117,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIAGNOSTIC_CASE=message-204-child-output-order test-diagnostics
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FILESYSTEM_CASE=close-eio-write test-filesystem
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WHITESPACE_CASE=let-final-remainder-0b test-whitespace
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WORD_INDEX_CASE=effect-wordlist-all-before-validation test-word-index
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -155,9 +159,13 @@ test-whitespace: build oracle-verify
 	$(PYTHON) tools/whitespace_matrix.py --oracle "$(ORACLE)" --self-test $(if $(WHITESPACE_CASE),--case "$(WHITESPACE_CASE)")
 	$(PYTHON) tools/whitespace_matrix.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(WHITESPACE_CASE),--case "$(WHITESPACE_CASE)")
 
-test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-modes test-intcmp test-diagnostics test-stateful
+test-word-index: build oracle-verify
+	$(PYTHON) tools/word_index_matrix.py --oracle "$(ORACLE)" --self-test $(if $(WORD_INDEX_CASE),--case "$(WORD_INDEX_CASE)")
+	$(PYTHON) tools/word_index_matrix.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(WORD_INDEX_CASE),--case "$(WORD_INDEX_CASE)")
 
-check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-modes test-intcmp test-diagnostics test-stateful
+test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-modes test-intcmp test-diagnostics test-stateful
+
+check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-modes test-intcmp test-diagnostics test-stateful
 
 ci: check test-selfhost
 

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "whitespace-wordlist-index-85"
 requirement = "functions.words"
-candidate = "pending"
-description = "Non-whitespace byte 0x85 is rejected in a numeric word index; exact raw-byte diagnostics remain pending."
+candidate = "required"
+description = "Non-whitespace byte 0x85 is rejected in a numeric word index and preserved verbatim in its diagnostic."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]
 timeout_seconds = 5

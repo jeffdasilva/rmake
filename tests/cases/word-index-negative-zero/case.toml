@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-negative-zero"
+requirement = "functions.words"
+candidate = "required"
+description = "word parses signed zero before requiring an index greater than zero."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "-0"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a20666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e206d7573742062652067726561746572207468616e20302e202053746f702e0a"

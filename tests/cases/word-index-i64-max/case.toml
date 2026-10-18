@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-i64-max"
+requirement = "functions.words"
+candidate = "required"
+description = "word accepts the signed 64-bit maximum and returns empty beyond the available words."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "9223372036854775807"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c3e0a"
+stderr_hex = ""

@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-i64-max-plus-one"
+requirement = "functions.words"
+candidate = "required"
+description = "word reports signed 64-bit positive overflow with the original numeric text."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "9223372036854775808"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e3a20273932323333373230333638353437373538303827206f7574206f662072616e67652e202053746f702e0a"
