@@ -1,0 +1,11 @@
+id = "export-list-undefine-removes-export-metadata"
+requirement = "variables.export-bindings"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "Undefining a binding discards its explicit export policy; a later File-origin binding is not implicitly exported. Current candidate retains the export flag."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d3c6c617465723e7c6c617465727c7265637572736976657c66696c650a6368696c642d583d3c3e7c0a"
+stderr_hex = ""

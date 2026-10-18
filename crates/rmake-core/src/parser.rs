@@ -713,6 +713,17 @@ impl Database {
                     self.export_all = export;
                 }
                 for name in words(&names) {
+                    // A name-list declaration creates missing empty simple
+                    // bindings. Existing bindings retain all their metadata.
+                    // These names were already expanded with the whole list.
+                    if self.variables.get(name).is_none() {
+                        self.variables
+                            .define_at(name, b"", Assignment::Simple, Origin::File, &location)
+                            .map_err(|error| ParseError {
+                                location: location.clone(),
+                                message: error.diagnostic(),
+                            })?;
+                    }
                     self.set_export(name.to_vec(), export);
                 }
                 current.clear();
@@ -961,6 +972,85 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn export_and_unexport_lists_materialize_empty_simple_file_bindings() {
+        for directive in [b"export".as_slice(), b"unexport"] {
+            let mut db = Database::default();
+            let input = [directive, b" X X Y\nX ?= $(error must-not-expand)\n"].concat();
+            db.read(&input, b"m").unwrap();
+            for name in [b"X".as_slice(), b"Y"] {
+                let value = db.variables.get(name).unwrap();
+                assert_eq!(value.raw_value(), b"");
+                assert_eq!(value.flavor(), crate::variables::Flavor::Simple);
+                assert_eq!(value.origin(), Origin::File);
+                assert_eq!(db.exports.contains(name), directive == b"export");
+                assert_eq!(db.unexports.contains(name), directive == b"unexport");
+            }
+            let mut messages = Vec::new();
+            db.read_with(
+                b"X += $(warning immediate)added\n",
+                b"m",
+                ExpansionContext::new(None, &mut |output| {
+                    if let Output::Warning { message, .. } = output {
+                        messages.push(message.to_vec());
+                    }
+                }),
+            )
+            .unwrap();
+            assert_eq!(messages, vec![b"immediate".to_vec()]);
+            assert_eq!(db.variables.get(b"X").unwrap().raw_value(), b"added");
+        }
+    }
+
+    #[test]
+    fn export_name_lists_leave_existing_binding_and_definition_unchanged() {
+        for origin in [
+            Origin::Default,
+            Origin::Environment,
+            Origin::File,
+            Origin::EnvironmentOverride,
+            Origin::CommandLine,
+            Origin::Override,
+            Origin::Automatic,
+        ] {
+            for assignment in [Assignment::Simple, Assignment::Recursive] {
+                let mut db = Database::default();
+                db.variables
+                    .define_at(
+                        b"X",
+                        b"original",
+                        assignment,
+                        origin,
+                        &Location {
+                            file: b"old".to_vec(),
+                            line: 7,
+                        },
+                    )
+                    .unwrap();
+                let original = db.variables.get(b"X").unwrap().clone();
+                db.read(b"export X\nunexport X\nexport X\n", b"new")
+                    .unwrap();
+                assert_eq!(db.variables.get(b"X"), Some(&original));
+                assert!(db.exports.contains(b"X".as_slice()));
+            }
+        }
+    }
+
+    #[test]
+    fn export_list_names_are_expanded_once_and_equals_names_remain_metadata() {
+        let mut db = Database::default();
+        db.read(
+            b"X = $(error must-not-rescan)\nN := $$(X) Y=value\nexport $(N)\n",
+            b"m",
+        )
+        .unwrap();
+        for name in [b"$(X)".as_slice(), b"Y=value"] {
+            assert_eq!(db.variables.get(name).unwrap().raw_value(), b"");
+            assert!(db.exports.contains(name));
+        }
+        assert!(db.variables.get(b"Y").is_none());
     }
 
     #[test]

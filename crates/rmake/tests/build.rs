@@ -586,3 +586,18 @@ fn consumed_shell_operator_and_literal_backslash_delimiter_do_not_execute_rhs() 
         b"rmake: *** No rule to make target 'X#Y=value'.  Stop.\n"
     );
 }
+
+#[test]
+fn export_list_missing_binding_reaches_child_empty_and_unexport_remains_unset() {
+    for (directive, presence) in [(b"export".as_slice(), b"x".as_slice()), (b"unexport", b"")] {
+        let source = [directive, b" X\nX ?= $(error must-not-evaluate)\n$(info [$(value X)]:[$(flavor X)]:[$(origin X)])\nall:;@printf '[%s]:[%s]\\n' \"$$X\" \"$${X+x}\"\n"].concat();
+        let project = Project::new(&source);
+        let output = project.run(&[]);
+        assert!(output.status.success(), "{:?}", output.stderr);
+        assert_eq!(
+            output.stdout,
+            [b"[]:[simple]:[file]\n[]:[".as_slice(), presence, b"]\n"].concat()
+        );
+        assert!(output.stderr.is_empty());
+    }
+}

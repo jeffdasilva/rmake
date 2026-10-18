@@ -1,0 +1,11 @@
+id = "export-list-unexport-undefined-append-fatal-is-parse-time"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export/unexport name-list binding creation, preservation and child-environment observation."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a206e6f772e202053746f702e0a"

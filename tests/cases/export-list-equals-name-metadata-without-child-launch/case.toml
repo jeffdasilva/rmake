@@ -1,0 +1,11 @@
+id = "export-list-equals-name-metadata-without-child-launch"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export/unexport name-list binding creation, preservation and child-environment observation."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "583d3c3e7c7c73696d706c657c66696c650a657175616c3d3c3e7c7c73696d706c657c66696c650a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

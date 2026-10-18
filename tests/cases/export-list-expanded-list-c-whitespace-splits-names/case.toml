@@ -1,0 +1,14 @@
+id = "export-list-expanded-list-c-whitespace-splits-names"
+requirement = "variables.export-bindings"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "GNU splits expanded export lists on all six C whitespace bytes; current candidate does not split vertical tab, leaving Y and Z undefined."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[environment]
+"NAMES" = "X\tY\u000bZ\fQ\rR\nS"
+
+[expected]
+exit_code = 0
+stdout_hex = "583d3c3e7c7c73696d706c657c66696c650a593d3c3e7c7c73696d706c657c66696c650a5a3d3c3e7c7c73696d706c657c66696c650a513d3c3e7c7c73696d706c657c66696c650a523d3c3e7c7c73696d706c657c66696c650a533d3c3e7c7c73696d706c657c66696c650a6368696c642d583d3c3e7c70726573656e740a6368696c642d593d3c3e7c70726573656e740a6368696c642d5a3d3c3e7c70726573656e740a6368696c642d513d3c3e7c70726573656e740a6368696c642d523d3c3e7c70726573656e740a6368696c642d533d3c3e7c70726573656e740a"
+stderr_hex = ""
