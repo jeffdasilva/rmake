@@ -6,6 +6,7 @@
 
 use crate::cli::Options;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
+use rmake_core::diagnostic::Diagnostic;
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
 use rmake_core::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -94,9 +95,10 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(options: Options, program: Vec<u8>, invocation: &OsStr) -> Result<Self, String> {
+    pub fn new(options: Options, program: Vec<u8>, invocation: &OsStr) -> Result<Self, Diagnostic> {
         for dir in &options.directories {
-            std::env::set_current_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+            std::env::set_current_dir(dir)
+                .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
         }
         let mut database = Database::default();
         let mut inherited_exports = HashSet::new();
@@ -113,13 +115,13 @@ impl Engine {
             database
                 .variables
                 .define(name, value.as_bytes(), Assignment::Recursive, origin)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.diagnostic())?;
             inherited_exports.insert(name.to_vec());
         }
         database
             .initialize_suffixes(!options.no_rules)
-            .map_err(|error| error.to_string())?;
-        define_automatic_variants(&mut database.variables).map_err(|error| error.to_string())?;
+            .map_err(|error| error.diagnostic())?;
+        define_automatic_variants(&mut database.variables).map_err(|error| error.diagnostic())?;
         for (name, value) in [
             (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
             (b".SHELLFLAGS", b"-c"),
@@ -130,17 +132,17 @@ impl Engine {
             database
                 .variables
                 .define_literal(name, value, Origin::Default)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.diagnostic())?;
         }
-        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+        let cwd = std::env::current_dir().map_err(|e| Diagnostic::from(e.to_string()))?;
         database
             .variables
             .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.diagnostic())?;
         database
             .variables
             .define_literal(b"MAKECMDGOALS", &joined(&options.goals), Origin::Default)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.diagnostic())?;
         database
             .variables
             .set_working_directory(cwd.as_os_str().as_bytes());
@@ -148,11 +150,11 @@ impl Engine {
         database
             .variables
             .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.diagnostic())?;
         database
             .variables
             .define_literal(b"MAKELEVEL", b"0", Origin::Default)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.diagnostic())?;
         for arg in &options.assignments {
             let spec = assignment(arg).expect("CLI identified assignment");
             if [b"MAKEFLAGS".as_slice(), b"GNUMAKEFLAGS"].contains(&trim(spec.name)) {
@@ -161,18 +163,18 @@ impl Engine {
             let name = database
                 .variables
                 .expand(spec.name)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.diagnostic())?;
             database
                 .variables
                 .define(&name, spec.value, spec.kind, Origin::CommandLine)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.diagnostic())?;
             inherited_exports.insert(name);
         }
         database.variables.remove(b"GNUMAKEFLAGS");
         database
             .variables
             .define_literal(b"GNUMAKEFLAGS", b"", Origin::Override)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.diagnostic())?;
         let initial_flags = options.flags();
         Ok(Self {
             options,
@@ -252,7 +254,7 @@ impl Engine {
                     .variables
                     .define_literal(b"MAKEFILE_LIST", &list, Origin::File)
             {
-                self.fatal(None, err.to_string().as_bytes());
+                self.fatal(None, err.diagnostic().as_bytes());
                 return 2;
             }
             if let Err(err) = self.database.read(&bytes, file.as_os_str().as_bytes()) {
@@ -325,7 +327,7 @@ impl Engine {
                     return 2;
                 }
                 Err(err) => {
-                    self.fatal(None, err.to_string().as_bytes());
+                    self.fatal(None, err.diagnostic().as_bytes());
                     return 2;
                 }
             }
@@ -535,7 +537,7 @@ impl Engine {
                 ];
                 for (name, value) in autos {
                     if let Err(err) = variables.define_literal(name, &value, Origin::Automatic) {
-                        self.fatal(None, err.to_string().as_bytes());
+                        self.fatal(None, err.diagnostic().as_bytes());
                         outcome.failed = true;
                         break;
                     }
@@ -621,7 +623,7 @@ impl Engine {
             match variables.expand(&recipe.bytes) {
                 Ok(bytes) => expanded.push((bytes, recipe)),
                 Err(err) => {
-                    self.fatal(Some(&recipe.location), err.to_string().as_bytes());
+                    self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
                     return Execution::failure(false, Cleanup::None);
                 }
             }
@@ -655,7 +657,7 @@ impl Engine {
             let shell = match variables.expand(b"$(SHELL)") {
                 Ok(shell) => shell,
                 Err(err) => {
-                    self.fatal(Some(&recipe.location), err.to_string().as_bytes());
+                    self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
                     return Execution::failure(ran, Cleanup::None);
                 }
             };
@@ -667,7 +669,7 @@ impl Engine {
             let flags = match variables.expand(b"$(.SHELLFLAGS)") {
                 Ok(flags) => flags,
                 Err(err) => {
-                    self.fatal(Some(&recipe.location), err.to_string().as_bytes());
+                    self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
                     return Execution::failure(ran, Cleanup::None);
                 }
             };
@@ -675,7 +677,7 @@ impl Engine {
                 match variables.expand(b"$(IFS)") {
                     Ok(value) => Some(value),
                     Err(err) => {
-                        self.fatal(Some(&recipe.location), err.to_string().as_bytes());
+                        self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
                         return Execution::failure(ran, Cleanup::None);
                     }
                 }
@@ -771,7 +773,7 @@ impl Engine {
                             child.env(os(name), OsString::from_vec(value));
                         }
                         Err(err) => {
-                            self.fatal(Some(&recipe.location), err.to_string().as_bytes());
+                            self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
                             return Execution::failure(ran, Cleanup::None);
                         }
                     }

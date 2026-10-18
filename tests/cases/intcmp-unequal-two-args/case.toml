@@ -1,0 +1,9 @@
+id = "intcmp-unequal-two-args"
+requirement = "functions.intcmp"
+candidate = "required"
+provenance = "Original fixture with independent expected result; GNU Make 4.4.1 manual and pinned oracle, no upstream tests or implementation code copied."
+
+[expected]
+exit_code = 0
+stdout = "[]\n"
+stderr = ""

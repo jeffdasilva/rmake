@@ -4,6 +4,7 @@
 #[cfg(not(target_os = "linux"))]
 compile_error!("rmake currently supports Linux only");
 
+use std::io::{self, Write};
 use std::process::ExitCode;
 
 mod cli;
@@ -55,10 +56,11 @@ fn main() -> ExitCode {
     match engine::Engine::new(options, program.clone(), &invocation) {
         Ok(engine) => ExitCode::from(engine.run()),
         Err(message) => {
-            eprintln!(
-                "{}: *** {message}.  Stop.",
-                String::from_utf8_lossy(&program)
-            );
+            let mut stderr = io::stderr().lock();
+            let _ = stderr.write_all(&program);
+            let _ = stderr.write_all(b": *** ");
+            let _ = stderr.write_all(message.as_bytes());
+            let _ = stderr.write_all(b".  Stop.\n");
             ExitCode::from(2)
         }
     }

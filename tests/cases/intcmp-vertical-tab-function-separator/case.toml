@@ -1,0 +1,10 @@
+id = "intcmp-vertical-tab-function-separator"
+requirement = "functions.intcmp"
+candidate = "required"
+provenance = "Original independent black-box probes; no GNU implementation source or test code consulted for these cases."
+description = "Vertical-tab function dispatch, first-token call names, expanded leading whitespace, and nested automatic-argument restoration."
+
+[expected]
+exit_code = 0
+stdout = "[1]\n[L]\n[L]\n[[user:plain]]\n[[ user:expanded]]\n[[user:vertical]]\n[before[outer:outer-value][ inner:inner-value]after[outer:outer-value]]\n[file/recursive/global-zero/global-one]\n"
+stderr_hex = ""

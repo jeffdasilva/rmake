@@ -1,0 +1,10 @@
+id = "intcmp-nested-call-diagnostic-location"
+requirement = "functions.intcmp"
+candidate = "pending"
+provenance = "Original independent black-box review probe; no GNU implementation source or test code consulted."
+description = "Recursive user-call expansion must report the macro definition location; currently pending source-location metadata."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a206e6f6e2d6e756d6572696320666972737420617267756d656e7420746f2027696e74636d70272066756e6374696f6e3a2027ff272e202053746f702e0a"

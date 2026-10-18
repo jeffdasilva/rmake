@@ -6,6 +6,7 @@
 //! This module has no filesystem or process access. Recipes remain unexpanded
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
+use crate::diagnostic::Diagnostic;
 use crate::reader::{Reader, strip_comment};
 use crate::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{HashMap, HashSet};
@@ -74,7 +75,7 @@ impl Rule {
 #[derive(Debug)]
 pub struct ParseError {
     pub location: Location,
-    pub message: String,
+    pub message: Diagnostic,
 }
 
 impl std::fmt::Display for ParseError {
@@ -270,7 +271,7 @@ impl Database {
     fn expand(&self, bytes: &[u8], location: &Location) -> Result<Vec<u8>, ParseError> {
         self.variables.expand(bytes).map_err(|err| ParseError {
             location: location.clone(),
-            message: err.to_string(),
+            message: err.diagnostic(),
         })
     }
 
@@ -291,7 +292,7 @@ impl Database {
             .define(&name, spec.value, spec.kind, origin)
             .map_err(|err| ParseError {
                 location: location.clone(),
-                message: err.to_string(),
+                message: err.diagnostic(),
             })?;
         Ok(name)
     }
@@ -610,7 +611,8 @@ impl Database {
                     message: format!(
                         "rmake: unsupported directive '{}'",
                         String::from_utf8_lossy(keyword)
-                    ),
+                    )
+                    .into(),
                 });
             }
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
@@ -688,7 +690,7 @@ impl Database {
                     .define(b".DEFAULT_GOAL", target, Assignment::Simple, Origin::File)
                     .map_err(|err| ParseError {
                         location: location.clone(),
-                        message: err.to_string(),
+                        message: err.diagnostic(),
                     })?;
             }
             current_offsets.clear();
@@ -1039,8 +1041,26 @@ mod tests {
             db.read(b"target: NAME = value\n", b"m")
                 .unwrap_err()
                 .message
+                .to_string()
                 .contains("unsupported")
         );
+    }
+
+    #[test]
+    fn expansion_diagnostics_preserve_invalid_operand_bytes_and_location() {
+        for input in [
+            b"X := $(intcmp \xff,0)\n".as_slice(),
+            b"$(intcmp \xff,0):\n",
+            b"$(intcmp \xff,0) = value\n",
+        ] {
+            let error = Database::default().read(input, b"bytes.mk").unwrap_err();
+            assert_eq!(error.location.file, b"bytes.mk");
+            assert_eq!(error.location.line, 1);
+            assert_eq!(
+                error.message.as_bytes(),
+                b"non-numeric first argument to 'intcmp' function: '\xff'"
+            );
+        }
     }
 
     #[test]
@@ -1144,8 +1164,9 @@ mod tests {
         assert_eq!(
             db.read(b"ifdef two names\nendif\n", b"m")
                 .unwrap_err()
-                .message,
-            "invalid syntax in conditional"
+                .message
+                .as_bytes(),
+            b"invalid syntax in conditional"
         );
     }
 
@@ -1238,7 +1259,7 @@ mod tests {
             (b"ifeq (a,a)\nall: ;\n", 3, "missing 'endif'"),
         ] {
             let error = Database::default().read(input, b"fixture.mk").unwrap_err();
-            assert_eq!(error.message, message);
+            assert_eq!(error.message.as_bytes(), message.as_bytes());
             assert_eq!(
                 error.location,
                 Location {

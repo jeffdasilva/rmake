@@ -60,6 +60,10 @@ observations by default. Increase the campaign with `SEED`, `GENERATED_CASES` an
 of dry-run, query, touch, ignore-error and silent modes; `MODE_CASE` selects a
 recorded case for replay. `make test-stateful` compares multi-step builds and
 nanosecond timestamp boundaries. These are CI gates.
+`make test-intcmp` checks 200 programs with 6,400 independently predicted integer
+comparison results, including GNU 4.4.1's observed negative-number ordering.
+Use `INTCMP_SEED`, `INTCMP_CASES`, `INTCMP_EXPRESSIONS`, and `START_INDEX` to
+scale or replay that campaign. See [integer comparison notes](docs/intcmp.md).
 Their reports and failure reproductions are written under `artifacts/`.
 
 `make bench-compare` builds release rmake and records alternating paired timings

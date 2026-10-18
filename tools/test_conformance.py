@@ -42,6 +42,30 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(case.expected["stdout"], "ok\n")
         self.assertEqual(case.candidate, "pending")
 
+    def test_hex_expectations_preserve_json_safe_strings(self):
+        self.write('[expected]\nstdout_hex = "00fF80"\nstderr_hex = ""\n')
+        case = runner.load_case(self.case)
+        self.assertEqual(case.expected, {"stdout_hex": "00fF80", "stderr_hex": ""})
+        self.assertEqual(json.loads(json.dumps(case.expected)), case.expected)
+        observed = runner.Observation(b"\x00\xff\x80", b"", 0, None, {})
+        self.assertEqual(runner.expectation_errors(case, observed), [])
+
+    def test_hex_expectations_reject_non_ascii_odd_and_whitespace_values(self):
+        for value in ("0", "abc", "gg", "ff ff", "ff\n", "０１", "é0", "0x00", 0, True, []):
+            with self.subTest(value=value):
+                self.write('[expected]\nstderr_hex = ' + json.dumps(value) + '\n')
+                with self.assertRaises(runner.HarnessError):
+                    runner.load_case(self.case)
+
+    def test_text_and_hex_expectations_for_same_stream_are_exclusive(self):
+        for stream in ("stdout", "stderr"):
+            with self.subTest(stream=stream):
+                self.write(f'[expected]\n{stream} = ""\n{stream}_hex = ""\n')
+                with self.assertRaisesRegex(runner.HarnessError, "mutually exclusive"):
+                    runner.load_case(self.case)
+        self.write('[expected]\nstdout = "ok"\nstderr_hex = "ff"\n')
+        runner.load_case(self.case)
+
     def test_unknown_fields_and_invalid_values(self):
         for extra in ('typo = true\n', 'timeout_seconds = 0\n', 'timeout_seconds = true\n',
                       'timeout_seconds = nan\n', 'args = "all"\n', 'args = [1]\n',
@@ -155,6 +179,16 @@ class ObservationTests(unittest.TestCase):
         self.assertNotIn("MAKEFLAGS", environment)
         self.assertNotIn("SECRET_TOKEN", environment)
         self.assertEqual(environment["LC_ALL"], "C")
+
+    def test_hex_expected_bytes_detect_utf8_replacement_and_missing_nul(self):
+        case = runner.Case(self.root, "case", "requirement", "required", (), 1, {},
+                           {"stdout_hex": "00", "stderr_hex": "ff0a", "exit_code": 2})
+        correct = runner.Observation(b"\x00", b"\xff\n", 2, None, {})
+        self.assertEqual(runner.expectation_errors(case, correct), [])
+        changed = runner.Observation(b"", "�\n".encode(), 2, None, {})
+        self.assertEqual(runner.expectation_errors(case, changed),
+                         ["oracle disagrees with expected.stdout_hex",
+                          "oracle disagrees with expected.stderr_hex"])
 
     def test_expected_bytes_and_status_checked_independently(self):
         case = runner.Case(self.root, "case", "requirement", "pending", (), 1, {},

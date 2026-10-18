@@ -1,0 +1,9 @@
+id = "intcmp-one-argument"
+requirement = "functions.intcmp"
+candidate = "required"
+provenance = "Original fixture with independent expected result; GNU Make 4.4.1 manual and pinned oracle, no upstream tests or implementation code copied."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:1: *** insufficient number of arguments (1) to function 'intcmp'.  Stop.\n"

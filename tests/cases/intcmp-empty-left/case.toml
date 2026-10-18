@@ -1,0 +1,9 @@
+id = "intcmp-empty-left"
+requirement = "functions.intcmp"
+candidate = "required"
+provenance = "Original fixture with independent expected result; GNU Make 4.4.1 manual and pinned oracle, no upstream tests or implementation code copied."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:1: *** non-numeric first argument to 'intcmp' function: empty value.  Stop.\n"

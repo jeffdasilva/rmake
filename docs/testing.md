@@ -199,6 +199,14 @@ retains exact failure reproductions. `MODE_CASE` replays a recorded cell. The
 matrix has no pending classification. It complements the curated corpus and the
 separate stateful timestamp gate; it does not cover every option interaction.
 
+The current `make test-intcmp` gate executes 6,400 integer expressions across
+200 seeded programs. An independent Python integer model predicts normalization,
+branch selection and GNU 4.4.1's observed negative-number ordering quirk. The
+oracle must satisfy those predictions before candidate comparison. Original
+curated errors complement the generated valid-input campaign, including raw-byte
+diagnostics asserted through `stdout_hex`/`stderr_hex`. Reports preserve the
+source, seed, index, process bounds and exact observations for replay.
+
 Known missing features may be tracked during development, but reports must show
 their count and requirement IDs. CI must fail new differences and unexpected
 passes. Release conformance cannot pass with those missing features waived away.

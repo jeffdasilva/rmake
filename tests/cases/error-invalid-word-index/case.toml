@@ -1,6 +1,6 @@
 id = "error-invalid-word-index"
 requirement = "errors.expansion"
-candidate = "pending"
+candidate = "required"
 description = "error invalid word index"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]
@@ -9,3 +9,4 @@ timeout_seconds = 5
 [expected]
 exit_code = 2
 stdout = ""
+stderr = "Makefile:4: *** first argument to 'word' function must be greater than 0.  Stop.\n"
