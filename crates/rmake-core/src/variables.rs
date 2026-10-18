@@ -11,6 +11,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use crate::diagnostic::Diagnostic;
+
 const MAX_DEPTH: usize = 128;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
@@ -86,7 +88,50 @@ pub enum ExpandError {
         function: Vec<u8>,
         message: &'static str,
     },
+    InvalidInteger {
+        second: bool,
+        value: Vec<u8>,
+        empty: bool,
+    },
+    InsufficientArguments {
+        function: Vec<u8>,
+        count: usize,
+    },
+    WordIndexZero,
     ExpansionLimit,
+}
+
+impl ExpandError {
+    pub fn diagnostic(&self) -> Diagnostic {
+        match self {
+            Self::InvalidInteger {
+                second,
+                value,
+                empty,
+            } => {
+                let mut message = b"non-numeric ".to_vec();
+                message.extend_from_slice(if *second { b"second" } else { b"first" });
+                message.extend_from_slice(b" argument to 'intcmp' function: ");
+                if *empty {
+                    message.extend_from_slice(b"empty value");
+                } else {
+                    message.push(b'\'');
+                    message.extend_from_slice(value);
+                    message.push(b'\'');
+                }
+                message.into()
+            }
+            Self::InsufficientArguments { function, count } => {
+                let mut message =
+                    format!("insufficient number of arguments ({count}) to function '")
+                        .into_bytes();
+                message.extend_from_slice(function);
+                message.push(b'\'');
+                message.into()
+            }
+            _ => self.to_string().into(),
+        }
+    }
 }
 
 impl fmt::Display for ExpandError {
@@ -110,6 +155,12 @@ impl fmt::Display for ExpandError {
                 String::from_utf8_lossy(function)
             ),
             Self::ExpansionLimit => output.write_str("variable expansion resource limit exceeded"),
+            Self::WordIndexZero => {
+                output.write_str("first argument to 'word' function must be greater than 0")
+            }
+            Self::InvalidInteger { .. } | Self::InsufficientArguments { .. } => {
+                write!(output, "{}", self.diagnostic())
+            }
         }
     }
 }
@@ -349,13 +400,13 @@ impl Expansion<'_> {
     }
 
     fn reference(&mut self, body: &[u8], delimiter: u8) -> Result<Vec<u8>, ExpandError> {
-        if let Some(end) = body.iter().position(|byte| byte.is_ascii_whitespace()) {
+        if let Some(end) = body.iter().position(gnu_whitespace) {
             let name = &body[..end];
             if let Some((minimum, maximum)) = arity(name) {
-                let argument_text = trim_start(&body[end..]);
+                let argument_text = trim_function_start(&body[end..]);
                 let args = split_args(argument_text, delimiter, maximum)?;
                 if args.len() < minimum {
-                    return Err(invalid(name, "too few arguments"));
+                    return Err(too_few_arguments(name, args.len()));
                 }
                 return self.function(name, &args);
             }
@@ -382,6 +433,39 @@ impl Expansion<'_> {
 
     fn function(&mut self, name: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, ExpandError> {
         match name {
+            b"intcmp" => {
+                // Both expansions precede either numeric validation.
+                let left = self.expand(args[0])?;
+                let right = self.expand(args[1])?;
+                let left = Decimal::parse(&left, false)?;
+                let right = Decimal::parse(&right, true)?;
+                let ordering = left.compare(&right);
+                if args.len() == 2 {
+                    return if ordering == std::cmp::Ordering::Equal {
+                        let mut result = Vec::new();
+                        if left.negative {
+                            push(&mut result, b"-")?;
+                        }
+                        push(&mut result, left.digits)?;
+                        Ok(result)
+                    } else {
+                        Ok(Vec::new())
+                    };
+                }
+                let index = match ordering {
+                    std::cmp::Ordering::Less => 2,
+                    std::cmp::Ordering::Equal => 3,
+                    std::cmp::Ordering::Greater => {
+                        if args.len() == 5 {
+                            4
+                        } else {
+                            3
+                        }
+                    }
+                };
+                args.get(index)
+                    .map_or_else(|| Ok(Vec::new()), |body| self.expand(body))
+            }
             b"if" => {
                 let condition = self.expand(trim(args[0]))?;
                 let index = if condition.is_empty() { 2 } else { 1 };
@@ -461,11 +545,14 @@ impl Expansion<'_> {
             .iter()
             .map(|arg| self.expand(arg))
             .collect::<Result<Vec<_>, _>>()?;
-        let name = trim(&expanded[0]);
+        // GNU takes the first whitespace-delimited word as the function or
+        // variable name, even when a longer variable name is defined.
+        let name_text = trim_function_start(&expanded[0]);
+        let name = name_text.split(gnu_whitespace).next().unwrap_or_default();
         if let Some((minimum, maximum)) = arity(name) {
             let mut values = expanded[1..].to_vec();
             if values.len() < minimum {
-                return Err(invalid(name, "too few arguments"));
+                return Err(too_few_arguments(name, values.len()));
             }
             if let Some(maximum) = maximum {
                 values.truncate(maximum);
@@ -473,7 +560,10 @@ impl Expansion<'_> {
             // Builtins normally receive either eager values or raw arguments.
             // `call` itself is eager, but lazy builtins must still perform their
             // own evaluation (notably foreach/let bodies with escaped dollars).
-            if matches!(name, b"if" | b"or" | b"and" | b"foreach" | b"let" | b"call") {
+            if matches!(
+                name,
+                b"if" | b"or" | b"and" | b"intcmp" | b"foreach" | b"let" | b"call"
+            ) {
                 let refs: Vec<&[u8]> = values.iter().map(Vec::as_slice).collect();
                 return self.function(name, &refs);
             }
@@ -491,8 +581,16 @@ impl Expansion<'_> {
                 }
             }
         }
+        // Parameter zero retains leading whitespace from the expanded name,
+        // but GNU terminates it at the end of the lookup token.
+        let zero_end = expanded[0].len() - name_text.len() + name.len();
         for (index, value) in expanded.iter().enumerate() {
-            bindings.insert(index.to_string().into_bytes(), local(value.clone()));
+            let value = if index == 0 {
+                &value[..zero_end]
+            } else {
+                value
+            };
+            bindings.insert(index.to_string().into_bytes(), local(value.to_vec()));
         }
         self.bindings.push(bindings);
         let result = if variable.flavor == Flavor::Simple {
@@ -543,7 +641,7 @@ impl Expansion<'_> {
             b"word" => {
                 let index = number(first, name)?;
                 if index == 0 {
-                    return Err(invalid(name, "word index must be greater than zero"));
+                    return Err(ExpandError::WordIndexZero);
                 }
                 Ok(words(&args[1]).nth(index - 1).unwrap_or_default().to_vec())
             }
@@ -664,12 +762,89 @@ fn invalid(function: &[u8], message: &'static str) -> ExpandError {
     }
 }
 
+fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
+    if function == b"intcmp" {
+        ExpandError::InsufficientArguments {
+            function: function.to_vec(),
+            count,
+        }
+    } else {
+        invalid(function, "too few arguments")
+    }
+}
+
+struct Decimal<'a> {
+    negative: bool,
+    digits: &'a [u8],
+}
+
+impl<'a> Decimal<'a> {
+    fn parse(original: &'a [u8], second: bool) -> Result<Self, ExpandError> {
+        // GNU's numeric whitespace also includes VT, unlike Rust's ASCII
+        // whitespace predicate. Keep this local to the numeric grammar.
+        let start = original
+            .iter()
+            .position(|byte| !gnu_whitespace(byte))
+            .unwrap_or(original.len());
+        let end = original
+            .iter()
+            .rposition(|byte| !gnu_whitespace(byte))
+            .map_or(start, |index| index + 1);
+        let value = &original[start..end];
+        let (negative, digits) = match value.first() {
+            Some(b'-') => (true, &value[1..]),
+            Some(b'+') => (false, &value[1..]),
+            _ => (false, value),
+        };
+        if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+            return Err(ExpandError::InvalidInteger {
+                second,
+                value: original.to_vec(),
+                empty: value.is_empty(),
+            });
+        }
+        let nonzero = digits.iter().position(|byte| *byte != b'0');
+        Ok(match nonzero {
+            Some(start) => Self {
+                negative,
+                digits: &digits[start..],
+            },
+            None => Self {
+                negative: false,
+                digits: b"0",
+            },
+        })
+    }
+
+    fn compare(&self, other: &Self) -> std::cmp::Ordering {
+        // Pinned GNU Make 4.4.1 compares magnitudes in the same direction for
+        // two negative operands: -19 compares greater than -7. Preserve this
+        // observed quirk rather than applying mathematical signed ordering.
+        other
+            .negative
+            .cmp(&self.negative)
+            .then_with(|| self.digits.len().cmp(&other.digits.len()))
+            .then_with(|| self.digits.cmp(other.digits))
+    }
+}
+
 fn push(output: &mut Vec<u8>, value: &[u8]) -> Result<(), ExpandError> {
     if output.len().saturating_add(value.len()) > MAX_OUTPUT {
         return Err(ExpandError::ExpansionLimit);
     }
     output.extend_from_slice(value);
     Ok(())
+}
+
+fn gnu_whitespace(byte: &u8) -> bool {
+    byte.is_ascii_whitespace() || *byte == 0x0b
+}
+
+fn trim_function_start(mut value: &[u8]) -> &[u8] {
+    while value.first().is_some_and(gnu_whitespace) {
+        value = &value[1..];
+    }
+    value
 }
 
 fn trim_start(mut value: &[u8]) -> &[u8] {
@@ -745,6 +920,7 @@ fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
         b"findstring" | b"filter" | b"filter-out" | b"word" | b"addprefix" | b"addsuffix"
         | b"join" => Some((2, Some(2))),
         b"if" => Some((2, Some(3))),
+        b"intcmp" => Some((2, Some(5))),
         b"or" | b"and" | b"call" => Some((1, None)),
         b"strip" | b"sort" | b"words" | b"firstword" | b"lastword" | b"dir" | b"notdir"
         | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"realpath"
@@ -983,6 +1159,190 @@ mod tests {
 
     fn expand(input: &[u8]) -> Vec<u8> {
         VariableStore::new().expand(input).unwrap()
+    }
+
+    #[test]
+    fn intcmp_defaults_normalize_numbers_and_distinguish_empty_branches() {
+        for (input, expected) in [
+            (b"$(intcmp +0003,003)".as_slice(), b"3".as_slice()),
+            (b"$(intcmp -0003,-003)", b"-3"),
+            (b"$(intcmp -000,+0)", b"0"),
+            (b"$(intcmp 1,2)", b""),
+            (b"$(intcmp 3,3,)", b""),
+            (b"$(intcmp 1,2, L ,E,G)", b" L "),
+            (b"$(intcmp 2,2,L,E,G)", b"E"),
+            (b"$(intcmp 3,2,L,E)", b"E"),
+            (b"$(intcmp 3,2,L,E,)", b""),
+            (b"$(intcmp 3,2,L)", b""),
+            (b"$(intcmp 3,2,L,E,G,extra)", b"G,extra"),
+        ] {
+            assert_eq!(expand(input), expected, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn intcmp_preserves_gnu_441_negative_magnitude_ordering() {
+        for (input, expected) in [
+            (b"$(intcmp -19,-7,L,E,G)".as_slice(), b"G".as_slice()),
+            (b"$(intcmp -7,-19,L,E,G)", b"L"),
+            (b"$(intcmp -9,-8,L,E,G)", b"G"),
+            (b"$(intcmp -1,0,L,E,G)", b"L"),
+            (b"$(intcmp -0,-1,L,E,G)", b"G"),
+            (b"$(intcmp -0001,-1,L,E,G)", b"E"),
+        ] {
+            assert_eq!(expand(input), expected, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn intcmp_accepts_numbers_beyond_machine_integer_limits() {
+        let digits = vec![b'9'; 10_000];
+        let expression = [b"$(intcmp +000".as_slice(), &digits, b",", &digits, b")"].concat();
+        assert_eq!(expand(&expression), digits);
+        let expression = [b"$(intcmp ".as_slice(), &digits, b",1", &digits, b",L,E,G)"].concat();
+        assert_eq!(expand(&expression), b"L");
+    }
+
+    #[test]
+    fn intcmp_numeric_whitespace_includes_vertical_tabs_but_not_non_ascii() {
+        let mut store = VariableStore::new();
+        for byte in [b' ', b'\t', b'\n', b'\r', 0x0b, 0x0c] {
+            store
+                .define_literal(b"N", &[byte, b'+', b'0', b'7', byte], Origin::File)
+                .unwrap();
+            assert_eq!(store.expand(b"$(intcmp $(N),7)").unwrap(), b"7");
+        }
+        for value in [b"\xff ".as_slice(), b" + ", b"1 2", b"0x10", b"\xc2\xa01"] {
+            store.define_literal(b"N", value, Origin::File).unwrap();
+            let error = store.expand(b"$(intcmp 1,$(N))").unwrap_err();
+            assert_eq!(
+                error.diagnostic().as_bytes(),
+                [
+                    b"non-numeric second argument to 'intcmp' function: '".as_slice(),
+                    value,
+                    b"'"
+                ]
+                .concat()
+            );
+        }
+        let error = store.expand(b"$(intcmp \x0b\x0c,0)").unwrap_err();
+        assert_eq!(
+            error.diagnostic().as_bytes(),
+            b"non-numeric first argument to 'intcmp' function: empty value"
+        );
+    }
+
+    #[test]
+    fn intcmp_expands_both_operands_before_validation_and_only_selected_branch() {
+        let store = VariableStore::new();
+        assert_eq!(
+            store.expand(b"$(intcmp bad,$(shell unused),L,E,G)"),
+            Err(ExpandError::Unsupported(b"shell".to_vec()))
+        );
+        assert_eq!(
+            store
+                .expand(b"$(intcmp 1,1,$(shell unused),equal,$(shell unused))")
+                .unwrap(),
+            b"equal"
+        );
+        assert_eq!(
+            store.expand(b"$(intcmp 1,2,$(shell selected),E,G)"),
+            Err(ExpandError::Unsupported(b"shell".to_vec()))
+        );
+        let error = store
+            .expand(b"$(intcmp lhs,rhs,$(shell unused))")
+            .unwrap_err();
+        assert_eq!(
+            error.diagnostic().as_bytes(),
+            b"non-numeric first argument to 'intcmp' function: 'lhs'"
+        );
+    }
+
+    #[test]
+    fn call_intcmp_is_eager_then_reexpands_operands_and_selected_branch() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"N", b"3", Assignment::Recursive);
+        define(&mut store, b"VALUE", b"selected", Assignment::Recursive);
+        define(&mut store, b"intcmp", b"shadow", Assignment::Recursive);
+        assert_eq!(store.expand(b"$(intcmp)").unwrap(), b"shadow");
+        assert_eq!(
+            store
+                .expand(b"$(call intcmp,$$(N),3,$$(shell unused),$$(VALUE),$$(shell unused),extra)")
+                .unwrap(),
+            b"selected"
+        );
+        assert_eq!(
+            store.expand(b"$(call intcmp,1,1,L,E,G,$(shell extra))"),
+            Err(ExpandError::Unsupported(b"shell".to_vec()))
+        );
+        assert_eq!(
+            store.expand(b"$(call intcmp,1,1,$(shell unselected),E,G)"),
+            Err(ExpandError::Unsupported(b"shell".to_vec()))
+        );
+    }
+
+    #[test]
+    fn intcmp_arity_errors_include_the_actual_count_before_direct_expansion() {
+        let store = VariableStore::new();
+        for (input, count) in [
+            (b"$(intcmp )".as_slice(), 1),
+            (b"$(intcmp $(shell unused))", 1),
+            (b"$(call intcmp)", 0),
+            (b"$(call intcmp,1)", 1),
+        ] {
+            assert_eq!(
+                store.expand(input),
+                Err(ExpandError::InsufficientArguments {
+                    function: b"intcmp".to_vec(),
+                    count
+                })
+            );
+        }
+        assert_eq!(
+            store.expand(b"$(call intcmp,$(shell first))"),
+            Err(ExpandError::Unsupported(b"shell".to_vec()))
+        );
+    }
+
+    #[test]
+    fn function_names_use_gnu_whitespace_and_call_uses_the_first_word() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"user", b"short", Assignment::Recursive);
+        define(&mut store, b"user name", b"long", Assignment::Recursive);
+        for input in [
+            b"$(intcmp\x0b1,2,L,E,G)".as_slice(),
+            b"$(call\x0bintcmp,1,2,L,E,G)",
+            b"$(call \x0bintcmp\x0bignored,1,2,L,E,G)",
+            b"$(call intcmp ignored,1,2,L,E,G)",
+        ] {
+            assert_eq!(store.expand(input).unwrap(), b"L", "{input:?}");
+        }
+        assert_eq!(store.expand(b"$(call user name)").unwrap(), b"short");
+        assert_eq!(store.expand(b"$(call user\x0bname)").unwrap(), b"short");
+        define(&mut store, b"user", b"[$(0)]/$(1)", Assignment::Recursive);
+        store
+            .define_literal(b"NAME", b" \x0buser ignored", Origin::File)
+            .unwrap();
+        assert_eq!(
+            store.expand(b"$(call $(NAME),a)").unwrap(),
+            b"[ \x0buser]/a"
+        );
+    }
+
+    #[test]
+    fn parsed_zero_word_index_has_gnu_diagnostic() {
+        for input in [b"$(word 0,x)".as_slice(), b"$(word +00,x)"] {
+            let error = VariableStore::new().expand(input).unwrap_err();
+            assert_eq!(error, ExpandError::WordIndexZero);
+            assert_eq!(
+                error.diagnostic().as_bytes(),
+                b"first argument to 'word' function must be greater than 0"
+            );
+        }
+        assert!(matches!(
+            VariableStore::new().expand(b"$(word -1,x)"),
+            Err(ExpandError::InvalidArguments { .. })
+        ));
     }
 
     #[test]
@@ -1333,7 +1693,6 @@ mod tests {
     fn invalid_arity_and_indices_are_errors() {
         for input in [
             b"$(subst a,b)".as_slice(),
-            b"$(word 0,a)",
             b"$(word x,a)",
             b"$(wordlist 0,1,a)",
             b"$(word -1,a)",

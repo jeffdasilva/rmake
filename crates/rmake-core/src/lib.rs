@@ -8,6 +8,7 @@
 
 pub const COMPATIBILITY_VERSION: &str = "4.4.1";
 
+pub mod diagnostic;
 pub mod parser;
 pub mod reader;
 pub mod variables;

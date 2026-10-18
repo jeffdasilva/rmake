@@ -276,3 +276,35 @@ full diagnostic compatibility and persistent caching remain open. The lifecycle
 code and later fixtures are independently written but source-informed; consulted
 GNU files/functions and archive hashes are recorded in
 [the provenance notes](forced-touch.md#reference-provenance).
+
+## Integer comparison and byte diagnostics — 2026-10-18
+
+`intcmp` now accepts arbitrary-length decimal operands within the expansion
+budget, normalizes signed zero and leading zeroes, and follows GNU's branch
+defaults and expansion order. Two negative operands preserve the pinned release's
+observed magnitude-ordering quirk. Direct calls remain lazy in result branches;
+`call` eagerly expands every supplied parameter before builtin dispatch. Function
+separators include vertical tabs, and user-call parameter zero follows GNU's
+name truncation and expanded leading-whitespace behavior.
+
+Invalid integer diagnostics preserve original operand bytes through the core,
+parser and runtime. The fixture format now supports exact hexadecimal stream
+expectations, with validation rejecting conflicting or malformed encodings. A
+related zero-index `word` diagnostic now matches the oracle and promotes its
+existing pending fixture.
+
+Fifty-eight new original cases include 57 required matches and one pending
+recursive-macro diagnostic-location regression. The curated corpus contains 451
+cases: 377 required matches and 74 pending requirements. The Rust suite has 195
+tests; the independent tooling suite has 164. An independent review matched 113
+additional call-name, whitespace, nesting and eager-error probes. Of 184 separate
+integer boundary/context probes, 181 match; the three remaining observations
+share the recorded macro-definition location gap.
+
+`make test-intcmp` adds a required CI gate with 200 programs and 6,400 expressions.
+Its independent Python numeric model is checked against GNU before differential
+comparison, and reports retain exact source, invocation, seed and observations.
+An expanded local campaign passed 1,000 programs with 64,000 expressions per
+engine using seed 20261018. These bounded campaigns do not establish complete
+function or diagnostic compatibility. Implementation and fixture provenance and
+the remaining location limitation are recorded in [the integer notes](intcmp.md).

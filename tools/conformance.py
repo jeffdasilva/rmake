@@ -144,7 +144,8 @@ def load_case(path: Path) -> Case:
                 or not isinstance(value, str) or "\0" in value):
             raise HarnessError(f"invalid or reserved environment entry {key}: {manifest}")
     expected = data.get("expected", {})
-    if not isinstance(expected, dict) or set(expected) - {"exit_code", "stdout", "stderr"}:
+    if not isinstance(expected, dict) or set(expected) - {
+            "exit_code", "stdout", "stderr", "stdout_hex", "stderr_hex"}:
         raise HarnessError(f"invalid expected table: {manifest}")
     for key, value in expected.items():
         if key == "exit_code":
@@ -152,6 +153,11 @@ def load_case(path: Path) -> Case:
                 raise HarnessError(f"invalid expected exit_code: {manifest}")
         elif not isinstance(value, str):
             raise HarnessError(f"expected {key} must be a string: {manifest}")
+        elif key.endswith("_hex") and not re.fullmatch(r"(?:[0-9A-Fa-f]{2})*", value):
+            raise HarnessError(f"expected {key} must contain even-length ASCII hexadecimal: {manifest}")
+    for stream in ("stdout", "stderr"):
+        if stream in expected and stream + "_hex" in expected:
+            raise HarnessError(f"expected {stream} and {stream}_hex are mutually exclusive: {manifest}")
     output = data.get("output", "separate")
     if output not in ("separate", "merged"):
         raise HarnessError(f"output must be separate or merged: {manifest}")
@@ -408,9 +414,13 @@ def expectation_errors(case: Case, observation: Observation) -> list[str]:
     if observation.leftover_processes:
         errors.append("oracle left background processes")
     for name, expected in case.expected.items():
-        actual = observation.returncode if name == "exit_code" else getattr(observation, name)
-        if name != "exit_code":
-            expected = expected.encode("utf-8")
+        if name.endswith("_hex"):
+            actual = getattr(observation, name[:-4])
+            expected = bytes.fromhex(expected)
+        else:
+            actual = observation.returncode if name == "exit_code" else getattr(observation, name)
+            if name != "exit_code":
+                expected = expected.encode("utf-8")
         if actual != expected:
             errors.append(f"oracle disagrees with expected.{name}")
     return errors

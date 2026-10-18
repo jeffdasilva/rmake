@@ -1,0 +1,10 @@
+id = "intcmp-recipe-error"
+requirement = "functions.intcmp"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original GNU Make4.4.1 oracle diagnostic probe, independently asserted byte-for-byte; no upstream code/tests copied."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** non-numeric second argument to 'intcmp' function: 'broken'.  Stop.\n"

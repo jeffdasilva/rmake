@@ -1,0 +1,10 @@
+id = "intcmp-command-line-error"
+requirement = "functions.intcmp"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "RESULT:=$(intcmp broken,0)"]
+provenance = "Original GNU Make4.4.1 oracle diagnostic probe, independently asserted byte-for-byte; no upstream code/tests copied."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** non-numeric first argument to 'intcmp' function: 'broken'.  Stop.\n"

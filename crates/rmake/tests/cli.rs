@@ -4,6 +4,25 @@
 use std::process::Command;
 
 #[test]
+fn immediate_command_line_expansion_errors_preserve_invalid_bytes() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rmake"))
+        .env_clear()
+        .arg("-rR")
+        .arg(OsString::from_vec(b"X:=$(intcmp 1,\xff)".to_vec()))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"rmake: *** non-numeric second argument to 'intcmp' function: '\xff'.  Stop.\n"
+    );
+}
+
+#[test]
 fn version_identifies_product_and_incomplete_compatibility() {
     let output = Command::new(env!("CARGO_BIN_EXE_rmake"))
         .arg("--version")

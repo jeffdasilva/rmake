@@ -9,7 +9,8 @@ inventory_complete = false
 id = "errors.expansion"
 title = "Expansion failures"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 1
 reference = "https://www.gnu.org/software/make/manual/html_node/Make-Control-Functions.html"
 fixture_count = 3
 cases = ["error-explicit-function", "error-recursive-variable", "error-invalid-word-index"]
@@ -419,3 +420,13 @@ candidate_required = 30
 reference = "https://www.gnu.org/software/make/manual/html_node/Suffix-Rules.html"
 fixture_count = 30
 cases = ["suffix-arbitrary-suffix-bytes", "suffix-automatic-beats-command-line", "suffix-clear-explicit-empty", "suffix-clear-keeps-recipe", "suffix-clear-readd", "suffix-clear-replaces-recipe", "suffix-default", "suffix-default-clear-removes-exclusion", "suffix-default-excludes-combined-names", "suffix-default-excludes-order-only-name", "suffix-default-same-declaration-prior-list", "suffix-disabled-combined", "suffix-disabled-r", "suffix-disabled-variables", "suffix-empty-expansion-clear", "suffix-explicit-custom-target", "suffix-explicit-default-target", "suffix-explicit-disabled-target", "suffix-final-list-earlier-target", "suffix-first-long-match", "suffix-first-match-append", "suffix-full-path-empty-and-phony", "suffix-metadata-independent-variable", "suffix-metadata-no-default-goal", "suffix-non-utf8-stem", "suffix-order-only-append", "suffix-parse-time-expansion", "suffix-recipe-block-prepend", "suffix-suffix-name-is-not-rule", "suffix-variable-independent"]
+
+[[requirements]]
+id = "functions.intcmp"
+title = "Integer comparison values, lazy branches, call expansion and byte diagnostics"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 57
+reference = "https://www.gnu.org/software/make/manual/html_node/Conditional-Functions.html"
+fixture_count = 58
+cases = ["intcmp-all-ascii-whitespace", "intcmp-base-ten-leading-zero", "intcmp-branch-spaces", "intcmp-builtin-overrides-variable", "intcmp-call-delayed-branches", "intcmp-call-delayed-operands", "intcmp-call-eager-extra-error", "intcmp-call-eager-unselected-error", "intcmp-call-extra-arguments-ignored", "intcmp-call-normalization", "intcmp-canonical-negative", "intcmp-canonical-positive", "intcmp-command-line-error", "intcmp-empty-left", "intcmp-empty-right", "intcmp-empty-third-removes-default-number", "intcmp-equal-default-empty", "intcmp-equal-lazy", "intcmp-equal-positive", "intcmp-expanded-operands", "intcmp-extra-commas-in-last-branch", "intcmp-greater-defaults-equal", "intcmp-greater-explicit-empty", "intcmp-greater-lazy", "intcmp-greater-positive", "intcmp-greater-than-u64", "intcmp-greater-two-args", "intcmp-huge-equal-normalization", "intcmp-huge-negative", "intcmp-internal-whitespace", "intcmp-invalid-left-before-invalid-right", "intcmp-leading-zero-length", "intcmp-less-lazy", "intcmp-less-only-branch", "intcmp-less-positive", "intcmp-negative-equal-length-order", "intcmp-negative-magnitude-order", "intcmp-negative-magnitude-reverse", "intcmp-nested-call-diagnostic-location", "intcmp-nested-comparison", "intcmp-nonutf8-left", "intcmp-nonutf8-right", "intcmp-not-exponent", "intcmp-not-fraction", "intcmp-not-hexadecimal", "intcmp-not-underscore", "intcmp-one-argument", "intcmp-operand-multiline", "intcmp-operand-whitespace", "intcmp-operands-expand-before-validation", "intcmp-opposite-signs", "intcmp-recipe-error", "intcmp-selected-branch-error", "intcmp-sign-without-number", "intcmp-signed-zero", "intcmp-unequal-two-args", "intcmp-vertical-tab-function-separator", "intcmp-whitespace-empty-left"]

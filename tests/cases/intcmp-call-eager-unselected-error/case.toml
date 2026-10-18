@@ -1,0 +1,9 @@
+id = "intcmp-call-eager-unselected-error"
+requirement = "functions.intcmp"
+candidate = "required"
+provenance = "Original fixture with independent expected result; GNU Make 4.4.1 manual and pinned oracle, no upstream tests or implementation code copied."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:1: *** first argument to 'word' function must be greater than 0.  Stop.\n"

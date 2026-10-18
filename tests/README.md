@@ -36,8 +36,13 @@ The initial manifest records:
 - Optional `[environment]` entries for explicit input variables.
 - `[expected]`: an independently specified `exit_code` and exact UTF-8 `stdout`.
   `stderr` can be asserted when appropriate; otherwise differential comparison
-  still checks its exact bytes. Failure cases deliberately require GNU's failure
-  status and do not invent diagnostic formatting.
+  still checks its exact bytes. Use `stdout_hex` or `stderr_hex` for raw bytes,
+  including invalid UTF-8 and NUL; for example, `stderr_hex = "ff0a"` asserts
+  byte 255 followed by a newline. Hex values must contain only an even number of
+  ASCII hexadecimal digits (either case); the empty string asserts empty output.
+  Each stream accepts either text or hex, never both. Manifests retain the hex
+  strings and the runner decodes them only for byte comparison. Failure cases
+  deliberately require GNU's failure status and do not invent diagnostic formatting.
 
 Each fixture has one invocation in the initial harness. Cases use `/bin/sh`
 behavior and ordinary Linux tools such as `printf`, `cat`, and `test`. Outputs do
