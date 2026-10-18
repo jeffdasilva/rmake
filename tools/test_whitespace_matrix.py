@@ -6,6 +6,7 @@ import ast
 from collections import Counter
 import contextlib
 import dataclasses
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -50,15 +51,64 @@ class WhitespaceMatrixTests(unittest.TestCase):
             ast.parse(path.read_text(), feature_version=(3, 11))
 
     def test_inventory_covers_six_c_separators_and_three_negative_controls(self):
-        self.assertEqual(len(self.cells), 297)
-        self.assertEqual(len(self.by_id), 297)
-        self.assertEqual(Counter(cell.separator for cell in self.cells),
+        self.assertEqual(len(self.cells), 321)
+        self.assertEqual(len(self.by_id), 321)
+        original = self.cells[:297]
+        self.assertEqual(Counter(cell.separator for cell in original),
                          {separator: 33 for separator in matrix.SEPARATORS})
-        self.assertEqual({cell.family for cell in self.cells}, {cell.family for cell in self.cells[:33]})
-        self.assertTrue(all(len(cell.makefile) < 512 for cell in self.cells))
+        self.assertEqual({cell.family for cell in original}, {cell.family for cell in self.cells[:33]})
+        self.assertEqual(Counter(cell.family for cell in self.cells[297:]),
+                         {'span-wordlist': 10, 'span-let': 8, 'span-patsubst': 6})
+        self.assertTrue(all(len(cell.makefile) < 512 for cell in original))
+        self.assertTrue(all(len(cell.makefile) < 65536 for cell in self.cells))
         self.assertTrue(all(len(cell.stdout) + len(cell.stderr) < 512 for cell in self.cells))
         self.assertEqual(self.cells, matrix.inventory())
         self.assertEqual(sum(cell.error is not None for cell in self.cells), 3)
+
+    def test_original_297_programs_remain_unchanged_in_version_two(self):
+        self.assertEqual(matrix.VERSION, 2)
+        self.assertEqual(hashlib.sha256(b''.join(cell.makefile for cell in self.cells[:297])).hexdigest(),
+                         'f1f2983431ca1573632bb25875975f8954ebf9a53ebe9017b1e82e1906e56395')
+
+    def test_span_wordlist_boundaries_preserve_delimiters_and_eager_tail_effects(self):
+        values = {'prefix': b'first\v\vsecond', 'middle': b'second\r\nthird',
+                  'tail': b'third\f fourth', 'empty': b'', 'whitespace-only': b'',
+                  'large-prefix': b'w0000\r\nw0001\r\nw0002',
+                  'large-middle': b'w2047\r\nw2048\r\nw2049',
+                  'large-tail': b'w4093\r\nw4094\r\nw4095', 'large-outside': b''}
+        for name, value in values.items():
+            with self.subTest(name=name):
+                self.assertEqual(self.by_id['span-wordlist-' + name].value, value)
+        eager = self.by_id['span-wordlist-prefix-eager-tail']
+        self.assertEqual(eager.stdout, b'tail-read\n[first]\n')
+        self.assertEqual(matrix.expected(eager).filesystem['work/tail.marker'],
+                         matrix.regular_file(b'tail\n'))
+        self.assertIn(b'\r$(EMPTY)\n', self.by_id['span-wordlist-middle'].expression)
+
+    def test_span_let_remainders_duplicate_bindings_restoration_and_effect_order(self):
+        self.assertEqual(self.by_id['span-let-mixed-remainder'].value, b'[first][second][third\f fourth  ]')
+        self.assertEqual(self.by_id['span-let-duplicate-binding'].value, b'[second\tthird  ]')
+        self.assertEqual(self.by_id['span-let-restores-binding'].value, b'inner|outer|undefined')
+        self.assertEqual(self.by_id['span-let-simple-remainder'].value, b'simple:first second  :first second  ')
+        self.assertEqual(self.by_id['span-let-large-remainder'].value,
+                         b'w0001\r\nw0002\r\nw0003|4095|w4095')
+        eager = self.by_id['span-let-eager-order']
+        self.assertEqual(eager.stdout, b'names\nvalues\nbody\n[[first][second]]\n')
+        for name in ('names', 'values', 'body'):
+            self.assertEqual(matrix.expected(eager).filesystem['work/' + name + '.marker'],
+                             matrix.regular_file(name.encode() + b'\n'))
+        self.assertEqual(self.by_id['span-let-zero-names-eager'].stdout, b'values\nbody\n[done]\n')
+
+    def test_span_literal_patsubst_preserves_delimiters_and_negative_controls(self):
+        self.assertEqual(self.by_id['span-patsubst-literal-delimiters'].value,
+                         b' \tDOG\vDOG\r\nbob\fDOG  ')
+        self.assertEqual(self.by_id['span-patsubst-literal-controls'].value,
+                         b' \tcatfish\vcat\x1ccat\x85cat\xa0cat\r\n')
+        self.assertEqual(self.by_id['span-patsubst-literal-delete'].value, b' \t\v\r\nbob\f  ')
+        self.assertEqual(self.by_id['span-patsubst-literal-replacement-delimiters'].value,
+                         b' A\tB\vA\tB ')
+        self.assertEqual(self.by_id['span-patsubst-literal-percent'].value, b' R\vcat\fR ')
+        self.assertEqual(self.by_id['span-patsubst-literal-large'].value, b'replacement|4096|w4095')
 
     def test_wordlist_and_let_retain_delimiters_without_normalizing(self):
         for separator in matrix.SEPARATORS[:6]:
@@ -119,7 +169,7 @@ class WhitespaceMatrixTests(unittest.TestCase):
         self.assertEqual(roots[0], roots[1])
         self.assertIn('passed=1, failed=0, unexecuted=0', output)
         self.assertEqual(report['identities'], self.identities)
-        self.assertEqual(report['inventory_cells'], 297)
+        self.assertEqual(report['inventory_cells'], 321)
         self.assertEqual(len(report['workload_sha256']), 64)
         self.assertEqual(report['cases'][0]['expected_stdout_hex'], self.cells[0].stdout.hex())
         self.assertTrue(any('crashes' in item and 'never counted as a pass' in item
@@ -174,7 +224,7 @@ class WhitespaceMatrixTests(unittest.TestCase):
                  self.assertRaises(conformance.HarnessError):
                 matrix.run_campaign(cells, Path('/oracle'), Path('/candidate'), self.artifacts, {}, [])
             execute.assert_not_called()
-        for arguments in (['--case', 'missing'], ['--max-failures', '0'], ['--max-failures', '298']):
+        for arguments in (['--case', 'missing'], ['--max-failures', '0'], ['--max-failures', '322']):
             with mock.patch.object(matrix.oracle, 'verify') as verify, \
                  contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(matrix.main(['--self-test', *arguments]), 2)

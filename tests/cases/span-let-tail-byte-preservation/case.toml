@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-let-tail-byte-preservation"
+requirement = "functions.control"
+candidate = "required"
+description = "let preserves raw bytes and every separator in its final binding after names and values are expanded."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d65730a76616c7565730a626f64790a3c5b616c7068615d2f5b627261766fff0a0d0c0b636861726c6965c2a0696e7369646509200c0d5d3e0a"
+stderr_hex = ""

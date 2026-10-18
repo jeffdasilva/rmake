@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-patsubst-literal-escaped-percent-control-bytes"
+requirement = "functions.text"
+candidate = "required"
+description = "An escaped percent makes patsubst a literal whole-word match while raw control bytes remain within words."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c0b6e657725096125621c6f746865720a612562ff0d0c6e6577250b3e0a"
+stderr_hex = ""

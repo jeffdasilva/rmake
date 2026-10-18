@@ -33,6 +33,30 @@ def workloads():
     ).encode()
 
 
+def span_workloads():
+    """Fixed large-list costs, including early exits and required full scans."""
+    prelude = b"TEXT := " + b"one  two\t" * 100000 + b"\n"
+    expressions = (
+        ("wordlist-prefix", b"$(wordlist 1,1,$(TEXT))"),
+        ("wordlist-middle", b"$(wordlist 100000,100002,$(TEXT))"),
+        ("wordlist-full", b"$(wordlist 1,9223372036854775807,$(TEXT))"),
+        ("wordlist-outside", b"$(wordlist 9223372036854775807,9223372036854775807,$(TEXT))"),
+        ("let-remainder", b"$(let first rest,$(TEXT),$(lastword $(value rest)))"),
+        ("patsubst-literal", b"$(patsubst one,replaced,$(TEXT))"),
+    )
+    for name, expression in expressions:
+        yield name, (prelude + b"OUT := " + expression + b"\n"
+                     b"$(info [$(words $(OUT))|$(firstword $(OUT))|$(lastword $(OUT))])\n"
+                     b"all: ;\n")
+
+
+def selected_workloads(suite):
+    if suite in ("core", "all"):
+        yield from workloads()
+    if suite in ("word-spans", "all"):
+        yield from span_workloads()
+
+
 def paired_order(iteration, candidate):
     engines = ["oracle", "candidate"] if candidate else ["oracle"]
     return engines if iteration % 2 == 0 else list(reversed(engines))
@@ -48,6 +72,7 @@ def main():
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--repeat", type=int, default=15)
+    parser.add_argument("--suite", choices=("core", "word-spans", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
@@ -62,20 +87,21 @@ def main():
         executables["candidate"] = Path(identities["candidate"]["path"])
     report = {
         "schema": 2,
+        "suite": args.suite,
         "identities": identities,
         "platform": platform.platform(),
         "tool": "wall time including startup; two warmups per engine; OS page cache warm",
         "method": "alternating engine order; same path, environment, arguments and exact output",
         "limitations": ["no CPU pinning or isolation", "no CPU/RSS/I/O measurements",
                         "no confidence intervals or performance acceptance thresholds",
-                        "three early workloads, not a representative full-compatibility benchmark"],
+                        "selected early workloads, not a representative full-compatibility benchmark"],
         "workloads": [],
     }
     with tempfile.TemporaryDirectory(prefix="rmake-bench-") as directory:
         path = Path(directory)
         env = {"PATH": "/usr/bin:/bin", "LC_ALL": "C", "TZ": "UTC", "HOME": directory}
         alias = path / "make"
-        for name, source in workloads():
+        for name, source in selected_workloads(args.suite):
             (path / "Makefile").write_bytes(source)
             samples = {label: [] for label in executables}
             expected = None

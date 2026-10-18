@@ -40,3 +40,24 @@ This implementation and its fixtures were independently written from original
 oracle probes. No GNU implementation source or upstream tests were incorporated
 for this slice. The common no-NUL expansion path uses safe slice membership
 checks before locating a NUL, preserving the file-function consumer boundaries.
+
+## Streaming word positions
+
+`wordlist`, `let` and literal-pattern `patsubst` consume word positions from a
+safe iterator instead of allocating a vector containing every position.
+`wordlist` stops scanning positions at its requested ending word; `let` scans
+only the positions needed for its bindings and preserves the final raw tail.
+Literal `patsubst` still scans the full input while retaining every untouched
+separator. Temporary position storage is constant size; expanded arguments,
+bindings and output still have their existing allocations and resource limits.
+
+All argument expansion, side effects and validation happen at the same stages
+as before. Ending the position scan early does not suppress expansion in the
+unselected portion of an argument. No observation or persistent cache is involved.
+Curated regressions and the whitespace matrix cover all three consumers, exact
+raw-byte boundaries and eager effects; larger original probes exercise long lists.
+
+`make bench-compare BENCH_SUITE=word-spans` compares six fixed workloads with the
+verified GNU oracle. Prefix, middle, full and out-of-range selections expose
+different scanning costs, with `let` and literal `patsubst` measured separately.
+These workloads support focused measurements, not a general performance claim.

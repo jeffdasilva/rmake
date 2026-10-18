@@ -823,3 +823,46 @@ assignments. Median paired after/before ratios were 1.003, 1.012 and 1.020.
 These unisolated early workloads establish neither a speedup nor GNU performance
 parity. Broader argument-count behavior, dynamic semantics and later milestones
 remain incomplete.
+
+## Streaming word positions — 2026-10-18
+
+`wordlist`, `let` and literal-pattern `patsubst` now consume positions from a
+safe iterator instead of collecting every word's offsets. Selected ranges and
+local bindings scan only the positions they need; literal replacement still
+scans the full list. Argument expansion, effects, numeric validation, exact
+separators, binding lifetimes and output limits remain unchanged. Temporary
+position storage is constant size, without introducing any cache or unsafe code.
+The [function notes](function-whitespace.md#streaming-word-positions) describe
+the allocation boundary and the Makefile benchmark flow.
+
+Eleven original fixtures were added. The curated corpus contains 1,146 cases:
+1,092 required exact matches and 54 observed pending mismatches, with no failures
+or unexpected passes. Full `make ci` passed with 338 Rust tests, 231 tooling tests
+and all existing gates. Whitespace matrix v2 adds 24 independently anchored cases
+for 321 total, preserving all 297 previous programs unchanged. Independent review
+also matched 225 range probes, including a 1.87 MB input, and 6,400 nested
+expressions. The known GNU `let` crash remains explicitly pending.
+
+The new `BENCH_SUITE=word-spans` contains six fixed 200,000-word workloads; the
+original three `core` workloads remain unchanged. Both GNU Make and rmake drove
+`bench-compare` through the top-level Makefile with exact matching observations.
+A comparison against preceding implementation commit `0ee93e1` used 31
+alternating release pairs after three warmups and identical paths, environment,
+arguments and output:
+
+| Workload | Before median (ms) | After median (ms) | Median paired after/before |
+| --- | ---: | ---: | ---: |
+| Wordlist prefix | 4.567 | 3.545 | 0.774 |
+| Wordlist middle | 4.529 | 3.704 | 0.817 |
+| Wordlist full range | 5.866 | 5.724 | 0.966 |
+| Wordlist out of range | 4.584 | 3.933 | 0.859 |
+| Let final remainder | 5.203 | 4.271 | 0.818 |
+| Literal patsubst | 8.064 | 7.382 | 0.902 |
+
+The core tiny/no-op graph/assignment workloads had median paired ratios of
+0.989, 1.000 and 0.988. A separate four-million-word prefix case used GNU `time`
+for seven alternating pairs after two warmups: median peak resident memory fell
+from 97,404 KiB to 33,700 KiB. These are unisolated workload-specific measurements,
+not general performance guarantees. rmake remained slower than GNU Make in all
+six new workloads. Persistent caching and the wider compatibility/performance
+milestones remain incomplete.

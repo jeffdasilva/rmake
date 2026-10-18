@@ -9,6 +9,7 @@ PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
+BENCH_SUITE ?= core
 SEED ?= 44101
 GENERATED_CASES ?= 200
 EXPRESSIONS ?= 32
@@ -64,6 +65,7 @@ help:
 		'Filesystem fault replay: FILESYSTEM_CASE=<case ID>.' \
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
+		'Benchmark suite: BENCH_SUITE=core|word-spans|all.' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'
 
@@ -170,10 +172,10 @@ check: check-core test-oracle test-diff test-generated test-graphs test-scopes t
 ci: check test-selfhost
 
 bench: oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)"
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" --suite "$(BENCH_SUITE)"
 
 clean:
 	+$(CARGO) clean

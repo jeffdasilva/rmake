@@ -22,7 +22,7 @@ import tempfile
 import conformance
 import oracle
 
-VERSION = 1
+VERSION = 2
 SEPARATORS = (b' ', b'\t', b'\n', b'\r', b'\v', b'\f', b'\x1c', b'\x85', b'\xa0')
 C_WHITESPACE = b' \t\n\r\v\f'
 PROTECTED = b'Original byte-whitespace campaign anchor.\n'
@@ -155,6 +155,87 @@ def inventory() -> tuple[Cell, ...]:
         add('and-fatal-effects', function(b'and', ws, b'$(file >visited.txt,yes)$(error visited)'),
             created=() if split else (('visited.txt', b'yes\n'),),
             error=None if split else b'visited')
+    return tuple(cases) + span_cases()
+
+
+def span_cases() -> tuple[Cell, ...]:
+    """Fixed range and byte-boundary cases for all three span consumers."""
+    cases = []
+
+    def add(name, family, expression, value, emitted=b'', created=()):
+        # Literal CRLF is normalized while reading Makefiles. Keep CR and LF
+        # apart in source so the empty reference recreates both value bytes.
+        expression = expression.replace(b'\r\n', b'\r$(EMPTY)\n')
+        cases.append(Cell('span-' + name, 'span-' + family, b'\t', expression,
+                          value, emitted, tuple(created)))
+
+    maximum = b'9223372036854775807'
+    mixed = b' \tfirst\v\vsecond\r\nthird\f fourth  '
+    large = b'\t ' + b'\r\n'.join(f'w{index:04d}'.encode() for index in range(4096)) + b'\f'
+    ranges = (
+        ('prefix', b'1', b'2', mixed, b'first\v\vsecond'),
+        ('middle', b'2', b'3', mixed, b'second\r\nthird'),
+        ('tail', b'3', maximum, mixed, b'third\f fourth'),
+        ('empty', b'1', maximum, b'', b''),
+        ('whitespace-only', b'1', b'1', b' \t\n\r\v\f', b''),
+        ('large-prefix', b'1', b'3', large, b'w0000\r\nw0001\r\nw0002'),
+        ('large-middle', b'2048', b'2050', large, b'w2047\r\nw2048\r\nw2049'),
+        ('large-tail', b'4094', maximum, large, b'w4093\r\nw4094\r\nw4095'),
+        ('large-outside', maximum, maximum, large, b''),
+    )
+    for name, start, end, text, result in ranges:
+        add('wordlist-' + name, 'wordlist', function(b'wordlist', start, end, text), result)
+    add('wordlist-prefix-eager-tail', 'wordlist',
+        function(b'wordlist', b'1', b'1', b'first ' + large
+                 + b'$(file >tail.marker,tail)$(info tail-read)'),
+        b'first', b'tail-read\n', (('tail.marker', b'tail\n'),))
+
+    add('let-mixed-remainder', 'let',
+        function(b'let', b'x y rest', mixed, b'[$(x)][$(y)][$(rest)]'),
+        b'[first][second][third\f fourth  ]')
+    add('let-duplicate-binding', 'let',
+        function(b'let', b'x x', b'first second\tthird  ', b'[$(x)]'),
+        b'[second\tthird  ]')
+    add('let-restores-binding', 'let',
+        function(b'let', b'x', b'outer', b'$(let x,inner,$(x))|$(x)') + b'|$(origin x)',
+        b'inner|outer|undefined')
+    add('let-simple-remainder', 'let',
+        function(b'let', b'x', b'first second  ', b'$(flavor x):$(value x):$(x)'),
+        b'simple:first second  :first second  ')
+    add('let-eager-values', 'let',
+        function(b'let', b'x y', b'$(file >values.marker,values)first second third$(info values)',
+                 b'[$(x)][$(y)]'), b'[first][second third]', b'values\n',
+        (('values.marker', b'values\n'),))
+    add('let-eager-order', 'let',
+        function(b'let', b'$(file >names.marker,names)$(info names)x y',
+                 b'$(file >values.marker,values)$(info values)first second',
+                 b'$(file >body.marker,body)$(info body)[$(x)][$(y)]'),
+        b'[first][second]', b'names\nvalues\nbody\n',
+        (('names.marker', b'names\n'), ('values.marker', b'values\n'), ('body.marker', b'body\n')))
+    add('let-zero-names-eager', 'let',
+        function(b'let', b'$(EMPTY)', b'$(file >values.marker,values)$(info values)nonempty',
+                 b'$(file >body.marker,body)$(info body)done'),
+        b'done', b'values\nbody\n', (('values.marker', b'values\n'), ('body.marker', b'body\n')))
+    add('let-large-remainder', 'let',
+        function(b'let', b'head rest', large,
+                 b'$(wordlist 1,3,$(rest))|$(words $(rest))|$(lastword $(rest))'),
+        b'w0001\r\nw0002\r\nw0003|4095|w4095')
+
+    literal = b' \tcat\vcat\r\nbob\fcat  '
+    add('patsubst-literal-delimiters', 'patsubst', function(b'patsubst', b'cat', b'DOG', literal),
+        b' \tDOG\vDOG\r\nbob\fDOG  ')
+    negative = b' \tcatfish\vcat\x1ccat\x85cat\xa0cat\r\n'
+    add('patsubst-literal-controls', 'patsubst', function(b'patsubst', b'cat', b'DOG', negative), negative)
+    add('patsubst-literal-delete', 'patsubst', function(b'patsubst', b'cat', b'', literal),
+        b' \t\v\r\nbob\f  ')
+    add('patsubst-literal-replacement-delimiters', 'patsubst',
+        function(b'patsubst', b'cat', b'A\tB', b' cat\vcat '), b' A\tB\vA\tB ')
+    add('patsubst-literal-percent', 'patsubst',
+        function(b'patsubst', b'c\\%t', b'R', b' c%t\vcat\fc%t '), b' R\vcat\fR ')
+    add('patsubst-literal-large', 'patsubst',
+        function(b'let', b'result', function(b'patsubst', b'w0000', b'replacement', large),
+                 b'$(firstword $(result))|$(words $(result))|$(lastword $(result))'),
+        b'replacement|4096|w4095')
     return tuple(cases)
 
 

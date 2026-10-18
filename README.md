@@ -92,6 +92,9 @@ Their reports and failure reproductions are written under `artifacts/`.
 against the verified oracle, checking exact output before reporting times. These
 early workloads are measurement tools, not evidence of complete compatibility or
 a general speed advantage.
+Use `BENCH_SUITE=word-spans` for six large-list workloads covering selected ranges,
+full scans, `let` remainders and literal `patsubst`; `BENCH_SUITE=all` includes both
+suites. The default `core` suite retains the original three workloads.
 
 The serial engine can drive the repository's `build` and `check-core` targets:
 
