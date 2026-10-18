@@ -24,11 +24,44 @@ pub struct Recipe {
 
 #[derive(Clone, Debug, Default)]
 pub struct Rule {
-    pub prerequisites: Vec<Vec<u8>>,
-    pub order_only: Vec<Vec<u8>>,
+    /// Ordered occurrences, including duplicates and each declaration's original
+    /// normal/order-only classification. Splitting these into two lists loses
+    /// traversal order when multiple rule declarations are merged.
+    pub dependencies: Vec<Dependency>,
     /// None means no recipe; Some(empty) is an explicit empty recipe.
     pub recipes: Option<Vec<Recipe>>,
     pub recipe_location: Option<Location>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Dependency {
+    pub name: Vec<u8>,
+    pub order_only: bool,
+}
+
+impl Rule {
+    pub fn normal_prerequisites(&self) -> impl Iterator<Item = &[u8]> {
+        self.dependencies
+            .iter()
+            .filter(|dependency| !dependency.order_only)
+            .map(|dependency| dependency.name.as_slice())
+    }
+
+    /// Automatic variables ^, ? and | use first-occurrence order, with any
+    /// normal occurrence promoting the name from order-only to normal. The raw
+    /// occurrences remain available for <, + and repeated circular diagnostics.
+    pub fn canonical_dependencies(&self) -> Vec<Dependency> {
+        let normal: HashSet<_> = self.normal_prerequisites().collect();
+        let mut seen = HashSet::new();
+        self.dependencies
+            .iter()
+            .filter(|dependency| seen.insert(dependency.name.as_slice()))
+            .map(|dependency| Dependency {
+                name: dependency.name.clone(),
+                order_only: !normal.contains(dependency.name.as_slice()),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug)]
@@ -303,7 +336,7 @@ impl Database {
         let mut current = Vec::<Vec<u8>>::new();
         // Keep declaration boundaries until its first recipe is seen: GNU
         // places that declaration's prerequisites before earlier declarations.
-        let mut current_offsets = HashMap::<Vec<u8>, (usize, usize)>::new();
+        let mut current_offsets = HashMap::<Vec<u8>, usize>::new();
         let mut recipe_started = false;
         let mut conditions = Vec::<Conditional>::new();
         let mut last_line = 0;
@@ -585,13 +618,17 @@ impl Database {
                         ),
                     ));
                 } else {
-                    current_offsets.insert(
-                        target.clone(),
-                        (rule.prerequisites.len(), rule.order_only.len()),
-                    );
+                    current_offsets.insert(target.clone(), rule.dependencies.len());
                 }
-                rule.prerequisites.extend(words(normal).map(Vec::from));
-                rule.order_only.extend(words(order).map(Vec::from));
+                rule.dependencies
+                    .extend([(normal, false), (order, true)].into_iter().flat_map(
+                        |(names, order_only)| {
+                            words(names).map(move |name| Dependency {
+                                name: name.to_vec(),
+                                order_only,
+                            })
+                        },
+                    ));
                 if (!target.starts_with(b".") || target.contains(&b'/'))
                     && self
                         .variables
@@ -644,7 +681,7 @@ impl Database {
     fn add_recipe(
         &mut self,
         targets: &[Vec<u8>],
-        offsets: &HashMap<Vec<u8>, (usize, usize)>,
+        offsets: &HashMap<Vec<u8>, usize>,
         recipe: Recipe,
         started: &mut bool,
     ) {
@@ -658,11 +695,8 @@ impl Database {
                 .get_mut(target)
                 .expect("current targets were inserted");
             if !*started {
-                let (normal_start, order_start) = offsets[target];
-                let normal_count = rule.prerequisites.len() - normal_start;
-                let order_count = rule.order_only.len() - order_start;
-                rule.prerequisites.rotate_right(normal_count);
-                rule.order_only.rotate_right(order_count);
+                let count = rule.dependencies.len() - offsets[target];
+                rule.dependencies.rotate_right(count);
                 if let Some(previous) = &rule.recipe_location {
                     self.warnings.push((
                         recipe.location.clone(),
@@ -695,15 +729,24 @@ impl Database {
 mod tests {
     use super::*;
 
+    fn normals(rule: &Rule) -> Vec<Vec<u8>> {
+        rule.normal_prerequisites().map(Vec::from).collect()
+    }
+
+    fn orders(rule: &Rule) -> Vec<Vec<u8>> {
+        rule.dependencies
+            .iter()
+            .filter(|d| d.order_only)
+            .map(|d| d.name.clone())
+            .collect()
+    }
+
     #[test]
     fn immediate_prerequisites_and_deferred_recipes() {
         let mut db = Database::default();
         db.read(b"X=early\nall: $(X)\n\t@echo $(X)\nX=late\n", b"Makefile")
             .unwrap();
-        assert_eq!(
-            db.rules[b"all".as_slice()].prerequisites,
-            [b"early".to_vec()]
-        );
+        assert_eq!(normals(&db.rules[b"all".as_slice()]), [b"early".to_vec()]);
         let recipe = &db.rules[b"all".as_slice()].recipes.as_ref().unwrap()[0];
         assert_eq!(recipe.location.line, 3);
         assert_eq!(db.variables.expand(&recipe.bytes).unwrap(), b"@echo late");
@@ -757,10 +800,7 @@ mod tests {
         let mut db = Database::default();
         db.read(b".RECIPEPREFIX=>\n\xff: \xfe\n>@echo \xfd\n", b"m")
             .unwrap();
-        assert_eq!(
-            db.rules[b"\xff".as_slice()].prerequisites,
-            [b"\xfe".to_vec()]
-        );
+        assert_eq!(normals(&db.rules[b"\xff".as_slice()]), [b"\xfe".to_vec()]);
         assert_eq!(
             db.rules[b"\xff".as_slice()].recipes.as_ref().unwrap()[0].bytes,
             b"@echo \xfd"
@@ -776,12 +816,9 @@ mod tests {
         )
         .unwrap();
         let rule = &db.rules[b"all".as_slice()];
+        assert_eq!(normals(rule), [b"c", b"a", b"a", b"b", b"d"].map(Vec::from));
         assert_eq!(
-            rule.prerequisites,
-            [b"c", b"a", b"a", b"b", b"d"].map(Vec::from)
-        );
-        assert_eq!(
-            rule.order_only,
+            orders(rule),
             [b"new".to_vec(), b"old".to_vec(), b"later".to_vec()]
         );
         assert_eq!(rule.recipes.as_ref().unwrap().len(), 2);
@@ -794,7 +831,7 @@ mod tests {
         db.read(b"all: old\n\t@echo old\nall: new\n\t@echo new\n", b"m")
             .unwrap();
         let rule = &db.rules[b"all".as_slice()];
-        assert_eq!(rule.prerequisites, [b"new".to_vec(), b"old".to_vec()]);
+        assert_eq!(normals(rule), [b"new".to_vec(), b"old".to_vec()]);
         assert_eq!(rule.recipes.as_ref().unwrap()[0].bytes, b"@echo new");
         assert_eq!(db.warnings.len(), 2);
         assert_eq!(db.warnings[0].0.line, 4);
@@ -806,7 +843,7 @@ mod tests {
         let mut db = Database::default();
         db.read(b"all all: child\n\t@echo once\n", b"m").unwrap();
         let rule = &db.rules[b"all".as_slice()];
-        assert_eq!(rule.prerequisites, [b"child".to_vec(), b"child".to_vec()]);
+        assert_eq!(normals(rule), [b"child".to_vec(), b"child".to_vec()]);
         assert_eq!(rule.recipes.as_ref().unwrap().len(), 1);
         assert_eq!(db.warnings.len(), 1);
         assert_eq!(
@@ -888,7 +925,7 @@ mod tests {
         let mut db = Database::default();
         db.read(b"SEP=;\nall: $(SEP) @echo [$@]\n", b"m").unwrap();
         let rule = &db.rules[b"all".as_slice()];
-        assert!(rule.prerequisites.is_empty());
+        assert!(rule.dependencies.is_empty());
         assert_eq!(rule.recipes.as_ref().unwrap()[0].bytes, b" @echo []");
     }
 
@@ -940,5 +977,145 @@ mod tests {
                 }
             );
         }
+    }
+
+    fn dependency_pairs(dependencies: &[Dependency]) -> Vec<(&[u8], bool)> {
+        dependencies
+            .iter()
+            .map(|dependency| (dependency.name.as_slice(), dependency.order_only))
+            .collect()
+    }
+
+    #[test]
+    fn recipe_moves_its_complete_dependency_block_before_earlier_declarations() {
+        let mut db = Database::default();
+        db.read(
+            b"all: a | x\nall: b | y\n\t@echo first\n\t@echo second\nall: c | z\n",
+            b"m",
+        )
+        .unwrap();
+        let rule = &db.rules[b"all".as_slice()];
+        // Oracle traversal is b,y,a,x,c,z. Splitting normal/order-only lists
+        // changes this order, and rotating again for the second recipe does too.
+        assert_eq!(
+            dependency_pairs(&rule.dependencies),
+            vec![
+                (b"b".as_slice(), false),
+                (b"y", true),
+                (b"a", false),
+                (b"x", true),
+                (b"c", false),
+                (b"z", true),
+            ]
+        );
+        assert_eq!(rule.recipes.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn empty_recipe_with_only_order_only_dependencies_still_prepends_its_block() {
+        let mut db = Database::default();
+        db.read(b"all: a | x\nall: | y ;\nall: b | z\n", b"m")
+            .unwrap();
+        let rule = &db.rules[b"all".as_slice()];
+        assert_eq!(
+            dependency_pairs(&rule.dependencies),
+            vec![
+                (b"y".as_slice(), true),
+                (b"a", false),
+                (b"x", true),
+                (b"b", false),
+                (b"z", true),
+            ]
+        );
+        assert_eq!(normals(rule), [b"a", b"b"].map(Vec::from));
+        assert!(rule.recipes.as_ref().unwrap()[0].bytes.is_empty());
+    }
+
+    #[test]
+    fn canonical_promotion_does_not_rewrite_raw_first_or_repeated_prerequisites() {
+        let mut db = Database::default();
+        db.read(b"all: | x x z ; @echo all\nall: b x x | y\n", b"m")
+            .unwrap();
+        let rule = &db.rules[b"all".as_slice()];
+        let raw = rule.dependencies.clone();
+        let canonical = rule.canonical_dependencies();
+        assert_eq!(
+            dependency_pairs(&canonical),
+            vec![
+                (b"x".as_slice(), false),
+                (b"z", true),
+                (b"b", false),
+                (b"y", true),
+            ]
+        );
+        // GNU gives $< = b and $+ = b x x, but $^/$? = x b and $| = z y.
+        assert_eq!(rule.normal_prerequisites().next(), Some(b"b".as_slice()));
+        assert_eq!(normals(rule), [b"b", b"x", b"x"].map(Vec::from));
+        assert_eq!(orders(rule), [b"x", b"x", b"z", b"y"].map(Vec::from));
+        assert_eq!(rule.dependencies, raw);
+        assert_eq!(rule.canonical_dependencies(), canonical);
+    }
+
+    #[test]
+    fn multiple_targets_rotate_against_their_own_prior_dependency_blocks() {
+        let mut db = Database::default();
+        db.read(
+            b"left: a | x\nright: b | y\nleft right: c | z\n\t@echo shared\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(
+            dependency_pairs(&db.rules[b"left".as_slice()].dependencies),
+            vec![
+                (b"c".as_slice(), false),
+                (b"z", true),
+                (b"a", false),
+                (b"x", true)
+            ]
+        );
+        assert_eq!(
+            dependency_pairs(&db.rules[b"right".as_slice()].dependencies),
+            vec![
+                (b"c".as_slice(), false),
+                (b"z", true),
+                (b"b", false),
+                (b"y", true)
+            ]
+        );
+    }
+
+    #[test]
+    fn repeated_targets_preserve_repeated_whole_blocks_for_raw_observations() {
+        let mut db = Database::default();
+        db.read(b"all all: a | x\n\t@echo once\nall: b | y\n", b"m")
+            .unwrap();
+        let rule = &db.rules[b"all".as_slice()];
+        assert_eq!(
+            dependency_pairs(&rule.dependencies),
+            vec![
+                (b"a".as_slice(), false),
+                (b"x", true),
+                (b"a", false),
+                (b"x", true),
+                (b"b", false),
+                (b"y", true),
+            ]
+        );
+        assert_eq!(normals(rule), [b"a", b"a", b"b"].map(Vec::from));
+        assert_eq!(rule.canonical_dependencies().len(), 4);
+        assert_eq!(rule.recipes.as_ref().unwrap().len(), 1);
+        assert_eq!(db.warnings.len(), 1);
+    }
+
+    #[test]
+    fn merged_dependency_views_preserve_non_utf8_names() {
+        let mut db = Database::default();
+        db.read(b"all: | \xff ;\nall: \xfe \xff\n", b"m").unwrap();
+        let rule = &db.rules[b"all".as_slice()];
+        assert_eq!(normals(rule), [b"\xfe".to_vec(), b"\xff".to_vec()]);
+        assert_eq!(
+            dependency_pairs(&rule.canonical_dependencies()),
+            vec![(b"\xff".as_slice(), false), (b"\xfe", false)]
+        );
     }
 }

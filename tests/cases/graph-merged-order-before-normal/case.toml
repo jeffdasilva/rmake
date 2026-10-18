@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-merged-order-before-normal"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "A later normal declaration does not move ahead of order-only prerequisites from an earlier declaration."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "visit=a\nvisit=b\nauto=all|first=b|plus=b|unique=b|newer=b|order=a\n"
+stderr = ""

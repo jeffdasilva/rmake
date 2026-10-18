@@ -379,3 +379,13 @@ candidate_required = 13
 reference = "https://www.gnu.org/software/make/manual/html_node/Automatic-Variables.html"
 fixture_count = 14
 cases = ["automatic-df-base-file-context", "automatic-df-base-override-context", "automatic-df-command-line-ignored", "automatic-df-empty-prerequisites", "automatic-df-explicit-suffix-stem", "automatic-df-file-assignments-ignored", "automatic-df-nested-target-path", "automatic-df-order-only-remain-ordinary", "automatic-df-override-assignments-ignored", "automatic-df-parse-metadata", "automatic-df-prerequisite-lists", "automatic-df-recipe-metadata", "automatic-df-target-basename", "automatic-df-undefine-ignored"]
+
+[[requirements]]
+id = "graph.merged-prerequisites"
+title = "Merged normal and order-only prerequisite occurrences"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 17
+reference = "https://www.gnu.org/software/make/manual/html_node/Multiple-Rules.html"
+fixture_count = 17
+cases = ["graph-merged-empty-recipe-prepends", "graph-merged-multiple-targets", "graph-merged-normal-before-order", "graph-merged-order-before-normal", "graph-merged-order-only-deduplicated", "graph-merged-promoted-position", "graph-merged-promotion-across-prepend", "graph-merged-recipe-block-prepends", "graph-merged-recipe-order-only-prepends", "graph-merged-repeated-normal-occurrences", "graph-merged-repeated-self-cycle", "graph-merged-single-declaration", "graph-repeated-missing-goal", "graph-repeated-missing-prerequisite", "graph-special-ignore-order-only", "graph-special-phony-order-only", "graph-special-silent-order-only"]

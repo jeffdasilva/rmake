@@ -62,3 +62,11 @@ and side effects; do not broaden normalization to hide a failure. The separate
 timestamp inputs. Use that interface instead of uncontrolled sleeps in single-step
 cases. `make test-generated` also provides a reproducible pure-expansion campaign;
 its case count is separate from this curated inventory.
+
+`make test-graphs` generates independent, bounded explicit dependency graphs.
+It exercises merged rule declarations, normal/order-only role collisions,
+duplicate prerequisites, phony nodes and observable recipe order. It compares
+exact streams, status and output files, with original marker/file expectations;
+it does not calculate GNU's traversal order using the candidate's algorithm.
+The seed, case index and exact failed program are retained for replay. This is a
+fresh-build graph campaign; incremental timestamps remain in `test-stateful`.

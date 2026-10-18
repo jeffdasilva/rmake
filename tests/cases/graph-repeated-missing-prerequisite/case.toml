@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-repeated-missing-prerequisite"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "Keep-going traversal reports a repeated missing prerequisite once and does not run the dependent recipe."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-k"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'all'.\nmake: Target 'all' not remade because of errors.\n"

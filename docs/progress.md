@@ -155,3 +155,26 @@ The additions include 13 required automatic-variable fixtures, one pending
 explicit-suffix stem fixture, and 22 pending target-scope fixtures. The
 [scope design notes](target-scopes.md) record observed assignment and inheritance
 requirements for a future layered implementation; scope support is not claimed.
+
+## Merged prerequisite ordering and generated graphs — 2026-10-18
+
+An independent 200-graph campaign exposed ordering errors when separate rule
+declarations mixed normal and order-only prerequisites. Rules now retain their
+complete ordered occurrence stream. A recipe-bearing declaration moves its whole
+dependency block forward. Traversal preserves that order; normal occurrences
+promote a previously order-only name without moving it. `$<` and `$+` retain the
+original normal occurrences, while `$^`, `$?` and `$|` use the canonical roles and
+order. Repeated cycles retain repeated diagnostics; missing-target failures are
+memoized. Special targets also recognize names written after the order-only bar.
+
+All 200 discovery graphs and 19 independent focused review probes now match the
+oracle. Six parser regressions and 17 original required fixtures cover the fix.
+The curated corpus has 253 cases, with 182 required matches and 71 pending cases.
+`make test-graphs` adds a permanent CI gate: 100 generated graphs by default,
+each with eight nodes, original trace/file anchors and strict differential
+comparison. It retains seed/index/source identity and full failure evidence.
+Its 23 tooling tests include deliberately altered outputs and failure handling.
+This campaign covers fresh explicit acyclic builds; stateful and cyclic behavior
+remain covered separately, and full graph-language compatibility is unfinished.
+An expanded campaign also passed 500 graphs with 16 nodes each (seed 20261018),
+both oracle-versus-oracle and oracle-versus-candidate.

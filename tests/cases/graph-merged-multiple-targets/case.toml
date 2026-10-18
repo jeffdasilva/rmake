@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-merged-multiple-targets"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "A recipe declaration naming multiple targets prepends its block independently to each target and shared prerequisites still run once."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "visit=x\nvisit=y\nvisit=a\nvisit=b\nauto=left|first=x|plus=x a|unique=x a|newer=x a|order=y b\nvisit=c\nvisit=d\nauto=right|first=x|plus=x c|unique=x c|newer=x c|order=y d\n"
+stderr = ""
