@@ -1,0 +1,13 @@
+id = "fatal-error-environment-exported-raw"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently asserted export/MAKELEVEL boundary fixture, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[environment]
+"IMPORTED" = "$(error dormant)"
+
+[expected]
+exit_code = 0
+stdout_hex = "24286572726f7220646f726d616e74290a"
+stderr_hex = ""

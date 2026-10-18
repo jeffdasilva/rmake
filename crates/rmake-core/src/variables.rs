@@ -91,6 +91,7 @@ pub enum ExpandError {
         error: Box<ExpandError>,
     },
     Unsupported(Vec<u8>),
+    UserError(Vec<u8>),
     UnterminatedReference,
     RecursiveVariable(Vec<u8>),
     EmptyVariableName,
@@ -119,6 +120,28 @@ impl ExpandError {
         }
     }
 
+    /// The error function uses the active parse/recipe/export context, while
+    /// expansion diagnostics such as intcmp retain the innermost definition.
+    /// Without an active context, both use the available definition location.
+    pub fn diagnostic_location<'a>(
+        &'a self,
+        context: Option<&'a Location>,
+    ) -> Option<&'a Location> {
+        if self.is_user_error() {
+            context.or(self.location())
+        } else {
+            self.location().or(context)
+        }
+    }
+
+    fn is_user_error(&self) -> bool {
+        match self {
+            Self::UserError(_) => true,
+            Self::Located { error, .. } => error.is_user_error(),
+            _ => false,
+        }
+    }
+
     fn at(self, location: Option<&Arc<Location>>) -> Self {
         match location {
             Some(location) if self.location().is_none() => Self::Located {
@@ -132,6 +155,7 @@ impl ExpandError {
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
             Self::Located { error, .. } => error.diagnostic(),
+            Self::UserError(message) => message.clone().into(),
             Self::RecursiveVariable(name) => [
                 b"Recursive variable '".as_slice(),
                 name,
@@ -173,6 +197,7 @@ impl fmt::Display for ExpandError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Located { error, .. } => error.fmt(output),
+            Self::UserError(message) => output.write_str(&String::from_utf8_lossy(message)),
             Self::Unsupported(name) => write!(
                 output,
                 "unsupported expansion feature '{}'",
@@ -613,8 +638,8 @@ impl Expansion<'_> {
                 result
             }
             b"call" => self.call(args),
-            b"shell" | b"eval" | b"file" | b"info" | b"warning" | b"error" | b"wildcard"
-            | b"realpath" | b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
+            b"shell" | b"eval" | b"file" | b"info" | b"warning" | b"wildcard" | b"realpath"
+            | b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
             _ => {
                 let expanded = args
                     .iter()
@@ -690,6 +715,10 @@ impl Expansion<'_> {
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
+            b"error" => args.first().map_or_else(
+                || Ok(Vec::new()),
+                |message| Err(ExpandError::UserError(message.clone())),
+            ),
             b"strip" => join_words(words(first)),
             b"subst" => substitute(first, &args[1], &args[2]),
             b"patsubst" => pattern_substitute(first, &args[1], &args[2]),
@@ -1007,12 +1036,11 @@ fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
         | b"join" => Some((2, Some(2))),
         b"if" => Some((2, Some(3))),
         b"intcmp" => Some((2, Some(5))),
+        b"error" => Some((0, Some(1))),
         b"or" | b"and" | b"call" => Some((1, None)),
         b"strip" | b"sort" | b"words" | b"firstword" | b"lastword" | b"dir" | b"notdir"
         | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"realpath"
-        | b"wildcard" | b"shell" | b"eval" | b"info" | b"warning" | b"error" | b"guile" => {
-            Some((1, Some(1)))
-        }
+        | b"wildcard" | b"shell" | b"eval" | b"info" | b"warning" | b"guile" => Some((1, Some(1))),
         b"file" => Some((1, Some(2))),
         _ => None,
     }
@@ -2164,9 +2192,93 @@ mod tests {
     }
 
     #[test]
+    fn error_distinguishes_empty_invocation_from_variable_and_zero_argument_call() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"error", b"variable", Assignment::Recursive);
+        assert_eq!(store.expand(b"$(error)").unwrap(), b"variable");
+        assert_eq!(store.expand(b"$(call error)").unwrap(), b"");
+        for input in [b"$(error )".as_slice(), b"$(call error,)"] {
+            assert_eq!(store.expand(input), Err(ExpandError::UserError(Vec::new())));
+        }
+    }
+
+    #[test]
+    fn error_message_preserves_bytes_commas_whitespace_and_literal_call_dollars() {
+        let store = VariableStore::new();
+        for (input, message) in [
+            (
+                b"$(error   raw\xff,bytes  )".as_slice(),
+                b"raw\xff,bytes  ".as_slice(),
+            ),
+            (b"$(call error, $$(VALUE) ,ignored)", b" $(VALUE) "),
+            (b"$(error line\nnext)", b"line\nnext"),
+        ] {
+            let error = store.expand(input).unwrap_err();
+            assert_eq!(error.diagnostic().as_bytes(), message);
+        }
+    }
+
+    #[test]
+    fn error_obeys_lazy_branches_and_eager_call_arguments() {
+        let store = VariableStore::new();
+        assert_eq!(
+            store
+                .expand(
+                    b"$(if ,$(error unused),ok):$(or yes,$(error unused)):$(and ,$(error unused))"
+                )
+                .unwrap(),
+            b"ok:yes:"
+        );
+        assert_eq!(
+            store.expand(b"$(call error,outer,$(error inner))"),
+            Err(ExpandError::UserError(b"inner".to_vec()))
+        );
+        assert_eq!(
+            store.expand(b"$(call if,,ok,$(error eager))"),
+            Err(ExpandError::UserError(b"eager".to_vec()))
+        );
+        assert_eq!(
+            store.expand(b"$(error $(word 0,anything))"),
+            Err(ExpandError::WordIndexZero)
+        );
+    }
+
+    #[test]
+    fn user_errors_prefer_active_context_without_changing_numeric_error_provenance() {
+        let mut store = VariableStore::new();
+        let definition = source(2);
+        let caller = source(8);
+        store
+            .define_at(
+                b"FAIL",
+                b"$(error fatal)",
+                Assignment::Recursive,
+                Origin::File,
+                &definition,
+            )
+            .unwrap();
+        for input in [b"$(FAIL)".as_slice(), b"$(call FAIL)"] {
+            let error = store.expand(input).unwrap_err();
+            assert_eq!(error.diagnostic_location(Some(&caller)), Some(&caller));
+            assert_eq!(error.diagnostic_location(None), Some(&definition));
+        }
+        store
+            .define_at(
+                b"FAIL",
+                b"$(error $(intcmp bad,0))",
+                Assignment::Recursive,
+                Origin::File,
+                &definition,
+            )
+            .unwrap();
+        let error = store.expand(b"$(FAIL)").unwrap_err();
+        assert_eq!(error.diagnostic_location(Some(&caller)), Some(&definition));
+    }
+
+    #[test]
     fn known_effects_are_explicitly_unsupported() {
         for name in [
-            "shell", "eval", "file", "info", "warning", "error", "wildcard", "realpath", "guile",
+            "shell", "eval", "file", "info", "warning", "wildcard", "realpath", "guile",
         ] {
             let input = format!("$({name} value)");
             assert_eq!(

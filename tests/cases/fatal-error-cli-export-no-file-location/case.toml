@@ -1,0 +1,10 @@
+id = "fatal-error-cli-export-no-file-location"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "IMPORTED=$(error command-export)"]
+provenance = "Original independently asserted export/MAKELEVEL boundary fixture, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20636f6d6d616e642d6578706f72742e202053746f702e0a"

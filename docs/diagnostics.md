@@ -1,8 +1,9 @@
 # Expansion diagnostic locations
 
 Compatibility diagnostics carry both byte-preserving messages and an optional
-source location. The source location belongs to the expansion that fails, rather
-than necessarily the recipe or parser statement that requested the value.
+source location. GNU distinguishes expansion validation errors from the explicit
+`error` function: their messages can refer to different source locations even
+when they originate in the same recursive variable.
 Original probes against the pinned GNU Make 4.4.1 profile establish the rules
 below. This document describes the implemented variable-expansion slice, not a
 complete specification of GNU's diagnostics.
@@ -13,7 +14,7 @@ source and upstream test code were not consulted for this slice.
 
 ## Definition and evaluation locations
 
-A recursive variable's failing body uses that binding's definition location.
+A recursive variable's expansion validation failure uses that binding's definition location.
 Nested variable references and user `call` bodies use the innermost failing
 definition. Successful nested expansions restore the enclosing context; a later
 failure in the enclosing body must not inherit a completed child's location.
@@ -40,10 +41,19 @@ Expansion of the definition's name uses the header context. Ordinary continued
 assignments and recipes retain the logical line's starting location. A detected
 variable cycle reports the definition of the binding being re-entered.
 
+Explicit `$(error text)` instead uses the calling parser or recipe location,
+including through recursive variables and user `call` bodies. An exported
+variable's expansion supplies the outer exported binding's definition as that
+caller context. Default-goal evaluation has no parser or recipe caller, so its
+explicit error retains the innermost definition location when one exists. These
+rules are selected by the structured error kind, not by parsing message text.
+
 ## Runtime expansion boundaries
 
 Most named runtime values, including `SHELL`, `IFS` and exported recursive
-variables, use the normal variable-definition context. GNU's raw-body expansion
+variables, use the normal variable-definition context for validation failures.
+Explicit errors in `SHELL` and `IFS` use the recipe's location; exports use the
+outer exported binding's location as described above. GNU's raw-body expansion
 paths are distinct: `.SHELLFLAGS` expands its stored text without entering its
 own definition context, including when its flavor is simple. A recursive
 `.DEFAULT_GOAL` also expands its stored body without entering its own definition
@@ -51,8 +61,9 @@ context. Nested variable references within those bodies still establish their
 own locations. Tests preserve these boundaries separately.
 
 The core retains shared definition locations and attaches the innermost location
-to structured expansion errors. Callers provide a fallback only when an error
-has no location. This avoids leaking mutable diagnostic state between successful
+to structured expansion errors. Callers supply the evaluation context; the error
+kind determines whether that context takes precedence or acts as a fallback.
+This avoids leaking mutable diagnostic state between successful
 expansions and keeps the parser and runtime on the same error representation.
 Makefile paths, variable names and invalid integer operands remain byte strings;
 lossy display formatting must not be used for compatibility output.

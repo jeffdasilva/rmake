@@ -265,7 +265,7 @@ struct Conditional {
 impl Database {
     fn expand(&self, bytes: &[u8], location: &Location) -> Result<Vec<u8>, ParseError> {
         self.variables.expand(bytes).map_err(|err| ParseError {
-            location: err.location().unwrap_or(location).clone(),
+            location: err.diagnostic_location(Some(location)).unwrap().clone(),
             message: err.diagnostic(),
         })
     }
@@ -287,7 +287,10 @@ impl Database {
         self.variables
             .define_at(&name, spec.value, spec.kind, origin, location)
             .map_err(|err| ParseError {
-                location: err.location().unwrap_or(evaluation_location).clone(),
+                location: err
+                    .diagnostic_location(Some(evaluation_location))
+                    .unwrap()
+                    .clone(),
                 message: err.diagnostic(),
             })?;
         Ok(name)
@@ -1044,6 +1047,32 @@ mod tests {
                 .to_string()
                 .contains("unsupported")
         );
+    }
+
+    #[test]
+    fn error_function_uses_immediate_parse_context_including_define_endef() {
+        for (input, line) in [
+            (
+                b"FAIL = $(error raw\xff)\n# gap\nRESULT := $(FAIL)\n".as_slice(),
+                3,
+            ),
+            (
+                b"FAIL = $(error raw\xff)\ndefine RESULT :=\n$(FAIL)\nendef\n",
+                4,
+            ),
+        ] {
+            let error = Database::default()
+                .read(input, b"input\xfe.mk")
+                .unwrap_err();
+            assert_eq!(
+                error.location,
+                Location {
+                    file: b"input\xfe.mk".to_vec(),
+                    line
+                }
+            );
+            assert_eq!(error.message.as_bytes(), b"raw\xff");
+        }
     }
 
     #[test]

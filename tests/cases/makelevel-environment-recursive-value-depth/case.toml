@@ -1,0 +1,13 @@
+id = "makelevel-environment-recursive-value-depth"
+requirement = "recursion.makelevel"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently asserted export/MAKELEVEL boundary fixture, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "$(intcmp 3,3)"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653d30206368696c643d310a"
+stderr_hex = ""

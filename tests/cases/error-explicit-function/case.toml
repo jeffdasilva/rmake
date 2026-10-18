@@ -1,6 +1,6 @@
 id = "error-explicit-function"
 requirement = "errors.expansion"
-candidate = "pending"
+candidate = "required"
 description = "error explicit function"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]
@@ -9,3 +9,4 @@ timeout_seconds = 5
 [expected]
 exit_code = 2
 stdout = ""
+stderr = "Makefile:4: *** deliberate-original-fixture.  Stop.\n"

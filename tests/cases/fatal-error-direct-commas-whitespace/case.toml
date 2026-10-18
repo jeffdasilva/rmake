@@ -1,0 +1,11 @@
+id = "fatal-error-direct-commas-whitespace"
+requirement = "functions.error"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original fatal error expansion regression."
+provenance = "Original independently authored error-function fixture and message/file expectations, checked against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a2066697273742c7365636f6e640920202e202053746f702e0a"
