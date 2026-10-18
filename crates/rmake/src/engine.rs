@@ -6,7 +6,7 @@
 
 use crate::cli::Options;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
-use rmake_core::diagnostic::Diagnostic;
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -129,6 +129,32 @@ fn startup_makelevel(value: &[u8]) -> u32 {
     magnitude as u32
 }
 
+/// The only I/O boundary for parser and expansion output. Flush each message
+/// before subsequent diagnostics or child execution can write either stream.
+fn emit_output(program: &[u8], output: Output<'_>) {
+    match output {
+        Output::Info(message) => {
+            let mut out = io::stdout().lock();
+            let _ = out.write_all(message);
+            let _ = out.write_all(b"\n");
+            let _ = out.flush();
+        }
+        Output::Warning { location, message } => {
+            let mut out = io::stderr().lock();
+            if let Some(location) = location {
+                let _ = out.write_all(&location.file);
+                let _ = write!(out, ":{}: ", location.line);
+            } else {
+                let _ = out.write_all(program);
+                let _ = out.write_all(b": ");
+            }
+            let _ = out.write_all(message);
+            let _ = out.write_all(b"\n");
+            let _ = out.flush();
+        }
+    }
+}
+
 pub struct Engine {
     options: Options,
     database: Database,
@@ -199,6 +225,7 @@ impl Engine {
             .variables
             .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
             .map_err(|e| e.diagnostic())?;
+        let mut output = |event: Output<'_>| emit_output(&program, event);
         for arg in &options.assignments {
             let spec = assignment(arg).expect("CLI identified assignment");
             if [b"MAKEFLAGS".as_slice(), b"GNUMAKEFLAGS"].contains(&trim(spec.name)) {
@@ -206,11 +233,18 @@ impl Engine {
             }
             let name = database
                 .variables
-                .expand(spec.name)
+                .expand_with(spec.name, ExpansionContext::new(None, &mut output))
                 .map_err(|e| e.diagnostic())?;
             database
                 .variables
-                .define(&name, spec.value, spec.kind, Origin::CommandLine)
+                .define_with(
+                    &name,
+                    spec.value,
+                    spec.kind,
+                    Origin::CommandLine,
+                    None,
+                    ExpansionContext::new(None, &mut output),
+                )
                 .map_err(|e| e.diagnostic())?;
             if automatic_export_name(&name) {
                 inherited_exports.insert(name);
@@ -262,6 +296,18 @@ impl Engine {
         })
     }
 
+    fn expand(
+        &self,
+        variables: &VariableStore,
+        bytes: &[u8],
+        location: Option<&Location>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        variables.expand_with(
+            bytes,
+            ExpansionContext::new(location, &mut |event| emit_output(&self.program, event)),
+        )
+    }
+
     fn stderr(&self, body: &[u8]) {
         let mut out = io::stderr().lock();
         let _ = out.write_all(&self.program);
@@ -306,6 +352,16 @@ impl Engine {
             files.push(file.into());
         }
         let found_makefile = !files.is_empty();
+        // GNU initializes this metadata after command-line assignment expansion.
+        // Higher-priority CLI/-e bindings remain intact and reject file appends.
+        if let Err(error) =
+            self.database
+                .variables
+                .define_literal(b"MAKEFILE_LIST", b"", Origin::File)
+        {
+            self.expansion_error(None, &error);
+            return 2;
+        }
         for file in &files {
             let mut bytes = Vec::new();
             let read = if file == Path::new("-") {
@@ -320,24 +376,23 @@ impl Engine {
                 self.fatal(None, format!("{}: {err}", file.display()).as_bytes());
                 return 2;
             }
-            let mut list = self
-                .database
-                .variables
-                .expand(b"$(MAKEFILE_LIST)")
-                .unwrap_or_default();
-            if !list.is_empty() {
-                list.push(b' ');
-            }
-            list.extend_from_slice(file.as_os_str().as_bytes());
-            if let Err(err) =
-                self.database
-                    .variables
-                    .define_literal(b"MAKEFILE_LIST", &list, Origin::File)
-            {
+            if let Err(err) = self.database.variables.append_literal_at(
+                b"MAKEFILE_LIST",
+                file.as_os_str().as_bytes(),
+                Origin::File,
+                &Location {
+                    file: file.as_os_str().as_bytes().to_vec(),
+                    line: 1,
+                },
+            ) {
                 self.expansion_error(None, &err);
                 return 2;
             }
-            if let Err(err) = self.database.read(&bytes, file.as_os_str().as_bytes()) {
+            if let Err(err) = self.database.read_with(
+                &bytes,
+                file.as_os_str().as_bytes(),
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+            ) {
                 self.fatal(Some(&err.location), err.message.as_bytes());
                 return 2;
             }
@@ -346,11 +401,11 @@ impl Engine {
             (b"MAKEFLAGS".as_slice(), &self.initial_flags),
             (b"GNUMAKEFLAGS", &self.initial_gnu_flags),
         ] {
-            match self
-                .database
-                .variables
-                .expand(&[b"$(".as_slice(), name, b")"].concat())
-            {
+            match self.expand(
+                &self.database.variables,
+                &[b"$(".as_slice(), name, b")"].concat(),
+                None,
+            ) {
                 Ok(current) if &current == initial => {}
                 _ => {
                     self.fatal(
@@ -360,11 +415,6 @@ impl Engine {
                     return 2;
                 }
             }
-        }
-        for (location, message) in &self.database.warnings {
-            let mut out = io::stderr().lock();
-            let _ = out.write_all(&location.file);
-            let _ = writeln!(out, ":{}: {message}", location.line);
         }
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
@@ -393,7 +443,9 @@ impl Engine {
                 || Ok(Vec::new()),
                 |variable| match variable.flavor() {
                     Flavor::Simple => Ok(variable.raw_value().to_vec()),
-                    Flavor::Recursive => self.database.variables.expand(variable.raw_value()),
+                    Flavor::Recursive => {
+                        self.expand(&self.database.variables, variable.raw_value(), None)
+                    }
                 },
             );
             match goal {
@@ -716,7 +768,7 @@ impl Engine {
         }
         let mut expanded = Vec::new();
         for recipe in recipes {
-            match variables.expand(&recipe.bytes) {
+            match self.expand(variables, &recipe.bytes, Some(&recipe.location)) {
                 Ok(bytes) => expanded.push((bytes, recipe)),
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
@@ -750,7 +802,7 @@ impl Engine {
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
             // expansion does not. Only the unforced touch shortcut skips expansion.
-            let shell = match variables.expand(b"$(SHELL)") {
+            let shell = match self.expand(variables, b"$(SHELL)", Some(&recipe.location)) {
                 Ok(shell) => shell,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
@@ -763,7 +815,7 @@ impl Engine {
             let flag_text = variables
                 .get(b".SHELLFLAGS")
                 .map_or(b"".as_slice(), |variable| variable.raw_value());
-            let flags = match variables.expand(flag_text) {
+            let flags = match self.expand(variables, flag_text, Some(&recipe.location)) {
                 Ok(flags) => flags,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
@@ -771,7 +823,7 @@ impl Engine {
                 }
             };
             let ifs = if variables.get(b"IFS").is_some() {
-                match variables.expand(b"$(IFS)") {
+                match self.expand(variables, b"$(IFS)", Some(&recipe.location)) {
                     Ok(value) => Some(value),
                     Err(err) => {
                         self.expansion_error(Some(&recipe.location), &err);
@@ -869,7 +921,12 @@ impl Engine {
                         child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
                         continue;
                     }
-                    match variables.expand_variable(name) {
+                    match variables.expand_variable_with(
+                        name,
+                        ExpansionContext::new(variable.definition(), &mut |event| {
+                            emit_output(&self.program, event)
+                        }),
+                    ) {
                         Ok(value) => {
                             child.env(os(name), OsString::from_vec(value));
                         }

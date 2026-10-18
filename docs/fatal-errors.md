@@ -54,8 +54,9 @@ fatality alone does not determine whether a stored error is evaluated.
 Original fixtures and independent generated probes cover message bytes, argument
 timing, source contexts, modes and suppression of later filesystem side effects.
 Existing tests continue to check ordinary child failures, ignored errors and
-keep-going behavior separately. The broader implementation still lacks `info`,
-`warning`, other expansion effects, includes and scoped variables. Later work
+keep-going behavior separately. Later work implements
+[`info` and `warning`](diagnostic-functions.md); other expansion effects, includes
+and scoped variables remain incomplete. Later work
 implements the [MAKELEVEL startup snapshot and child depth](makelevel.md), while
 the general command-line replay phase remains pending. This slice is not a full
 compatibility claim.

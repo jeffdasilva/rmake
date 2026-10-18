@@ -1,0 +1,14 @@
+id = "diagnostic-environment-import-exported-raw"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[environment]
+"IMPORTED" = "$(info dormant)$(warning dormant)value"
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d3c2428696e666f20646f726d616e742924287761726e696e6720646f726d616e742976616c75653e0a"
+stderr_hex = ""

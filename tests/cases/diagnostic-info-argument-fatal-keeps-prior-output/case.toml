@@ -1,0 +1,11 @@
+id = "diagnostic-info-argument-fatal-keeps-prior-output"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 2
+stdout_hex = "6265666f72650a"
+stderr_hex = "4d616b6566696c653a323a206265666f72650a4d616b6566696c653a333a202a2a2a20696e6e65722e202053746f702e0a"

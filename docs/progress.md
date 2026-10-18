@@ -481,3 +481,38 @@ and fixtures are independently authored from original executable probes and
 public documentation; no GNU implementation source or upstream tests were
 consulted for this slice. Removing per-child expansion of the current variable
 avoids incorrect effects, but is not a measured performance claim.
+
+## Informational output and warnings — 2026-10-18
+
+`info` and `warning` now emit byte-preserving output at their actual expansion
+points. An explicit, synchronous output context keeps the core independent of
+process I/O; pure convenience APIs reject emissions rather than silently losing
+them. Parser warnings emit in order and survive subsequent fatal errors.
+
+Independent review also corrected first-binding contexts for warnings and
+explicit errors, conditional operand/diagnostic staging, literal default-goal
+selection, and `MAKEFILE_LIST` initialization and raw appends. Numeric validation
+errors retain their distinct innermost-definition behavior. The
+[diagnostic-function notes](diagnostic-functions.md) record these boundaries.
+
+Fifty new required fixtures, four new pending cases and two promoted historical
+fixtures bring the corpus to 700: 622 required exact matches and 78 pending
+requirements. Multiple-export traversal order and make-flag effect timing remain
+explicit gaps. Full `make ci` passed with 240 Rust tests, 183 tooling tests, all
+curated oracle expectations, existing generated/stateful gates and self-host
+flows. No failures or unexpected passes were hidden by the pending classification.
+
+The permanent `make test-diagnostics` gate adds 206 distinct original scenarios
+across 14 families, each with independent byte-output, status and filesystem
+expectations. It checks merged streams as well as separate capture, and supports
+exact case replay with retained failure evidence. Nineteen tooling tests verify
+mutation detection, resource failures, replay and report integrity. A selected
+diagnostic replay also runs through the candidate's top-level Makefile.
+
+A paired release comparison against exact preceding commit `44c646b` measured
+before/after medians of 0.716/0.700 ms for tiny no-op, 31.207/31.483 ms for the
+10,000-node graph, and 4.400/4.306 ms for 5,000 assignments. Median paired
+after/before ratios were 1.001, 1.000 and 0.983 over 31 alternating trials after
+three warm-ups. Outputs matched. This unisolated wall-clock check found no
+greater-than-5% median paired regression in these three early workloads; it is
+not evidence of meeting the broader GNU performance target or the M8 gate.

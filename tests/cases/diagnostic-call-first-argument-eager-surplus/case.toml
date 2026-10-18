@@ -1,0 +1,11 @@
+id = "diagnostic-call-first-argument-eager-surplus"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "737572706c75730a2020666972737420200a636f6e74696e7565640a"
+stderr_hex = "4d616b6566696c653a323a20737572706c75730a4d616b6566696c653a323a202020666972737420200a"

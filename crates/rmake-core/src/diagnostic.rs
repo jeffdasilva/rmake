@@ -11,6 +11,64 @@ pub struct Location {
     pub line: usize,
 }
 
+/// An output emitted synchronously while reading or expanding make syntax.
+/// The receiver controls I/O; byte slices remain valid for this callback only.
+#[derive(Clone, Copy, Debug)]
+pub enum Output<'a> {
+    Info(&'a [u8]),
+    Warning {
+        location: Option<&'a Location>,
+        message: &'a [u8],
+    },
+}
+
+/// Explicit caller context and output receiver. This is never stored in or
+/// shared by cloned variable stores; each evaluation chooses its own receiver.
+pub struct ExpansionContext<'a> {
+    pub location: Option<&'a Location>,
+    output: Option<&'a mut dyn FnMut(Output<'_>)>,
+}
+
+impl<'a> ExpansionContext<'a> {
+    pub fn new(location: Option<&'a Location>, output: &'a mut dyn FnMut(Output<'_>)) -> Self {
+        Self {
+            location,
+            output: Some(output),
+        }
+    }
+
+    /// Pure evaluation rejects output functions instead of silently losing them.
+    pub fn pure() -> Self {
+        Self {
+            location: None,
+            output: None,
+        }
+    }
+
+    pub fn emit(&mut self, output: Output<'_>) -> bool {
+        if let Some(receiver) = &mut self.output {
+            receiver(output);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn at<'b>(&'b mut self, location: Option<&'b Location>) -> ExpansionContext<'b> {
+        ExpansionContext {
+            location,
+            output: match &mut self.output {
+                Some(output) => Some(&mut **output),
+                None => None,
+            },
+        }
+    }
+
+    pub fn reborrow(&mut self) -> ExpansionContext<'_> {
+        self.at(self.location)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Diagnostic {
     Text(String),

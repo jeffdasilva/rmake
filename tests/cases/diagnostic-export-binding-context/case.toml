@@ -1,0 +1,11 @@
+id = "diagnostic-export-binding-context"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "6578706f72740a6368696c643d3c76616c75653e0a"
+stderr_hex = "4d616b6566696c653a323a206578706f72740a"

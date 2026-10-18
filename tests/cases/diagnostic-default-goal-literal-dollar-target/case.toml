@@ -1,0 +1,11 @@
+id = "diagnostic-default-goal-literal-dollar-target"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original diagnostic review regression for source fallback, ordered effects, or non-evaluation of literal stored metadata."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6b0a"
+stderr_hex = ""

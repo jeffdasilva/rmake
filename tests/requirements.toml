@@ -68,10 +68,11 @@ cases = ["function-if-true-lazy", "function-if-false-lazy", "function-and-short-
 id = "functions.diagnostics"
 title = "Expansion-time information and warnings"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 52
 reference = "https://www.gnu.org/software/make/manual/html_node/Make-Control-Functions.html"
-fixture_count = 2
-cases = ["function-info-read-order", "function-warning-continues"]
+fixture_count = 52
+cases = ["diagnostic-call-first-argument-eager-surplus", "diagnostic-call-if-eager-output", "diagnostic-call-literal-dollar-no-reexpansion", "diagnostic-cli-immediate-prefix-before-depth", "diagnostic-cli-recursive-export-no-file-context", "diagnostic-conditional-left-output-before-malformed-parenthesized", "diagnostic-conditional-left-output-before-malformed-unclosed-quoted", "diagnostic-conditional-left-output-before-malformed-unquoted-second", "diagnostic-conditional-warning-between-operands", "diagnostic-configuration-caller-and-order", "diagnostic-default-goal-direct-no-file-context", "diagnostic-default-goal-first-located-warning-context", "diagnostic-default-goal-inner-definition-context", "diagnostic-default-goal-literal-dollar-target", "diagnostic-default-goal-unlocated-cli-outer-warning-context", "diagnostic-default-goal-user-call-warning-context", "diagnostic-default-goal-warning-then-inner-fatal-context", "diagnostic-default-goal-warning-then-inner-pure-error-context", "diagnostic-define-warning-recipe-caller-context", "diagnostic-direct-whitespace-and-commas", "diagnostic-earlier-goal-retained-before-fatal", "diagnostic-environment-import-exported-raw", "diagnostic-environment-reference-recipe-context", "diagnostic-export-binding-context", "diagnostic-foreach-message-order", "diagnostic-ignored-child-error-keeps-messages", "diagnostic-info-argument-fatal-keeps-prior-output", "diagnostic-info-empty-direct-call-and-variable", "diagnostic-keep-going-other-goal", "diagnostic-lazy-unselected-branches", "diagnostic-makefile-list-append-preserves-recursive-raw-value", "diagnostic-makefile-list-appends-without-expansion", "diagnostic-merged-stream-output-order", "diagnostic-messages-retained-before-parse-fatal", "diagnostic-mode-dry-expands", "diagnostic-mode-query-expands", "diagnostic-mode-silent-keeps-messages", "diagnostic-mode-touch-forced-expands", "diagnostic-mode-touch-skips-expansion", "diagnostic-multiline-messages", "diagnostic-nested-call-warning-caller", "diagnostic-raw-byte-messages", "diagnostic-raw-target-override-and-user-warning", "diagnostic-recipe-expanded-before-first-launch", "diagnostic-recipe-messages-before-fatal-no-child", "diagnostic-recursive-warning-parse-caller", "diagnostic-recursive-warning-recipe-caller", "diagnostic-suppressed-immediate-assignment-still-emits", "diagnostic-warning-argument-fatal-keeps-prior-output", "diagnostic-warning-empty-direct-call-and-variable", "function-info-read-order", "function-warning-continues"]
 
 [[requirements]]
 id = "functions.eval"
@@ -222,8 +223,8 @@ status = "fixture-ready"
 candidate_status = "partial"
 candidate_required = 3
 reference = "https://www.gnu.org/software/make/manual/html_node/Recursion.html"
-fixture_count = 4
-cases = ["recursion-makelevel", "recursion-exported-variable", "recursion-command-variable", "recursion-child-override"]
+fixture_count = 6
+cases = ["diagnostic-gnumakeflags-warning-expansion", "diagnostic-makeflags-warning-expansion", "recursion-child-override", "recursion-command-variable", "recursion-exported-variable", "recursion-makelevel"]
 
 [[requirements]]
 id = "rules.automatic"
@@ -300,8 +301,8 @@ status = "fixture-ready"
 candidate_status = "partial"
 candidate_required = 3
 reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
-fixture_count = 3
-cases = ["variable-export", "variable-unexport", "variable-export-simple"]
+fixture_count = 5
+cases = ["diagnostic-export-multiple-variable-order", "diagnostic-export-other-variable-order", "variable-export", "variable-export-simple", "variable-unexport"]
 
 [[requirements]]
 id = "variables.expansion"

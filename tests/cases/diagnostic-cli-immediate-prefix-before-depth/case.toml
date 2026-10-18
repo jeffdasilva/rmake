@@ -1,0 +1,14 @@
+id = "diagnostic-cli-immediate-prefix-before-depth"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X:=$(info cli)$(warning cli)"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[environment]
+"MAKELEVEL" = "7"
+
+[expected]
+exit_code = 0
+stdout_hex = "636c690a636f6e74696e7565640a"
+stderr_hex = "6d616b653a20636c690a"

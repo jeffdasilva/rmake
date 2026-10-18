@@ -1,0 +1,11 @@
+id = "diagnostic-warning-empty-direct-call-and-variable"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b73746f7265645d5b5d5b5d5b5d0a"
+stderr_hex = "4d616b6566696c653a343a200a4d616b6566696c653a353a200a"

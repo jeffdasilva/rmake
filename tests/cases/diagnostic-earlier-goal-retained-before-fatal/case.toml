@@ -1,0 +1,11 @@
+id = "diagnostic-earlier-goal-retained-before-fatal"
+requirement = "functions.diagnostics"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-k", "first", "bad", "later"]
+description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
+provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."
+
+[expected]
+exit_code = 2
+stdout_hex = "72657461696e65640a"
+stderr_hex = "4d616b6566696c653a343a2072657461696e65640a4d616b6566696c653a343a202a2a2a2073746f702e202053746f702e0a"
