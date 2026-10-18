@@ -1,0 +1,11 @@
+id = "makelevel-cli-conditional-recursive-raw-depth"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "MAKELEVEL?=$(intcmp 5,5)"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c353e203c2428696e74636d7020352c35293e203c636f6d6d616e64206c696e653e203c7265637572736976653e0a3c353e203c2428696e74636d7020352c35293e203c636f6d6d616e64206c696e653e203c7265637572736976653e0a6368696c643d3c313e0a"
+stderr_hex = ""

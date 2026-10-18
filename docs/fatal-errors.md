@@ -55,7 +55,7 @@ Original fixtures and independent generated probes cover message bytes, argument
 timing, source contexts, modes and suppression of later filesystem side effects.
 Existing tests continue to check ordinary child failures, ignored errors and
 keep-going behavior separately. The broader implementation still lacks `info`,
-`warning`, other expansion effects, includes and scoped variables. GNU's special
-`MAKELEVEL` initialization/export behavior also remains incomplete; recorded
-pending cases preserve those mismatches. This slice is not a full compatibility
-claim.
+`warning`, other expansion effects, includes and scoped variables. Later work
+implements the [MAKELEVEL startup snapshot and child depth](makelevel.md), while
+the general command-line replay phase remains pending. This slice is not a full
+compatibility claim.

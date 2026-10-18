@@ -1,6 +1,6 @@
 id = "makelevel-cli-recursive-value-does-not-change-depth"
 requirement = "recursion.makelevel"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "MAKELEVEL=$(intcmp 3,3)"]
 provenance = "Original independently asserted export/MAKELEVEL boundary fixture, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
 

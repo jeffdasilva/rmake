@@ -1,0 +1,11 @@
+id = "makelevel-cli-simple-expanded-before-snapshot"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "MAKELEVEL:=$(intcmp 3,3)"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c333e203c333e203c636f6d6d616e64206c696e653e203c73696d706c653e0a3c333e203c333e203c636f6d6d616e64206c696e653e203c73696d706c653e0a6368696c643d3c343e0a"
+stderr_hex = ""

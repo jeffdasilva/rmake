@@ -1,0 +1,14 @@
+id = "cli-replay-conditional-imported-recursive"
+requirement = "variables.command-line-replay"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "X?=ignored"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"X" = "$(intcmp 3,3)"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c333e203c2428696e74636d7020332c33293e203c656e7669726f6e6d656e743e203c7265637572736976653e0a3c2428696e74636d7020332c33293e203c242428696e74636d7020332c33293e203c656e7669726f6e6d656e743e203c7265637572736976653e0a"
+stderr_hex = ""

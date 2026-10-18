@@ -1,0 +1,14 @@
+id = "cli-replay-conditional-imported-literal-dollar"
+requirement = "variables.command-line-replay"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "X?=ignored"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"X" = "$$token"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c24746f6b656e3e203c2424746f6b656e3e203c656e7669726f6e6d656e743e203c7265637572736976653e0a3c2424746f6b656e3e203c24242424746f6b656e3e203c656e7669726f6e6d656e743e203c7265637572736976653e0a"
+stderr_hex = ""

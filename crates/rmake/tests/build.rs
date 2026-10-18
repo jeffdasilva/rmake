@@ -372,6 +372,89 @@ fn empty_shell_assignment_words_do_not_evaluate_values_as_commands() {
 }
 
 #[test]
+fn makelevel_startup_normalizes_imports_and_preserves_cli_flavor() {
+    let source = b"SNAP := $(value MAKELEVEL)|$(origin MAKELEVEL)|$(flavor MAKELEVEL)\nall:\n\t@printf '%s|%s\\n' '$(SNAP)' \"$$MAKELEVEL\"\n";
+    for (environment, assignment, expected) in [
+        (None, None, b"0|environment|simple|1\n".as_slice()),
+        (Some("007"), None, b"7|environment|simple|8\n"),
+        (Some(" -1"), None, b"4294967295|environment|simple|0\n"),
+        (None, Some("MAKELEVEL?=5"), b"5|command line|recursive|6\n"),
+        (None, Some("MAKELEVEL+=2"), b"2|command line|recursive|3\n"),
+        (
+            None,
+            Some("MAKELEVEL=$(intcmp 3,3)"),
+            b"$(intcmp 3,3)|command line|recursive|1\n",
+        ),
+        (
+            None,
+            Some("MAKELEVEL:=$(intcmp 3,3)"),
+            b"3|command line|simple|4\n",
+        ),
+    ] {
+        let project = Project::new(source);
+        let mut command = project.command();
+        if let Some(value) = environment {
+            command.env("MAKELEVEL", value);
+        }
+        if let Some(value) = assignment {
+            command.arg(value);
+        }
+        let output = command.output().unwrap();
+        assert!(output.status.success(), "{:?}", output.stderr);
+        assert_eq!(output.stdout, expected);
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
+fn makelevel_child_depth_ignores_file_override_and_unexport_but_keeps_export_effects() {
+    let source = b"override MAKELEVEL = 19\nunexport MAKELEVEL\nall:\n\t@printf '%s|%s\\n' '$(MAKELEVEL)' \"$$MAKELEVEL\"\n";
+    let project = Project::new(source);
+    let output = project.command().env("MAKELEVEL", "7").output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"19|8\n");
+    assert!(output.stderr.is_empty());
+    for imported in [false, true] {
+        let project =
+            Project::new(b"MAKELEVEL = $(error exported)\nall:\n\t@printf '%s' \"$$MAKELEVEL\"\n");
+        let mut command = project.command();
+        if imported {
+            command.env("MAKELEVEL", "7");
+        }
+        let output = command.output().unwrap();
+        if imported {
+            assert_eq!(output.status.code(), Some(2));
+            assert!(output.stdout.is_empty());
+            assert_eq!(output.stderr, b"Makefile:1: *** exported.  Stop.\n");
+        } else {
+            assert!(output.status.success());
+            assert_eq!(output.stdout, b"1");
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn makelevel_runtime_prefix_uses_snapshot_but_cli_immediate_errors_are_unprefixed() {
+    let project = Project::new(b"override MAKELEVEL = 99\nall:\n\t@false\n");
+    let output = project.command().env("MAKELEVEL", "7").output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.stderr, b"rmake[7]: *** [Makefile:3: all] Error 1\n");
+    let output = project
+        .command()
+        .env("MAKELEVEL", "7")
+        .args(["MAKELEVEL=9", "X:=$(error cli)"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.stderr, b"rmake: *** cli.  Stop.\n");
+    let project = Project::new(b"all: ;\n");
+    let output = project.command().env("MAKELEVEL", "7").output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"rmake[7]: 'all' is up to date.\n");
+}
+
+#[test]
 fn enoexec_fallback_preserves_the_path_entry_that_was_actually_executable() {
     let project = Project::new(b"export PATH := first:second:/usr/bin:/bin\nall:\n\t@plain\n");
     for (directory, contents, mode) in [

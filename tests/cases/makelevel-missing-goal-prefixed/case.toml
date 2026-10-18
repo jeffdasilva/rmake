@@ -1,0 +1,14 @@
+id = "makelevel-missing-goal-prefixed"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "missing"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "7"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b655b375d3a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276d697373696e67272e202053746f702e0a"

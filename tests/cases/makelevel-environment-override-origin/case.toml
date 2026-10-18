@@ -1,0 +1,14 @@
+id = "makelevel-environment-override-origin"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-e"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "007"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c373e203c373e203c656e7669726f6e6d656e74206f766572726964653e203c73696d706c653e0a3c373e203c373e203c656e7669726f6e6d656e74206f766572726964653e203c73696d706c653e0a6368696c643d3c383e0a"
+stderr_hex = ""

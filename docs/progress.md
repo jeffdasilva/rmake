@@ -450,3 +450,34 @@ for 5,000 assignments (15 measured samples per engine after two warm-ups).
 Exact outputs agreed. These are unisolated wall-clock measurements, not CPU or
 memory profiles: the substantial graph/expansion performance gap remains open,
 and neither this slice nor earlier diagnostic work satisfies the M8 speed gate.
+
+## MAKELEVEL startup snapshot — 2026-10-18
+
+Invocation depth is now read from the winning raw startup binding after
+command-line assignments and before Makefile parsing. Imported/default values
+are normalized with GNU's observed origin and flavor. File assignments can
+change the visible variable without changing the depth sent to children.
+Ordinary export expansion retains its effects before the special numeric child
+override, which uses wrapping 32-bit addition. Runtime diagnostic prefixes use
+the snapshot; command-line immediate failures retain their earlier plain name.
+
+Thirty-five new required fixtures and three promoted historical regressions
+bring the corpus to 646 cases: 570 required exact matches and 76 pending
+requirements. Four new pending cases preserve generic command-line replay
+behavior, and another preserves a generic leading-vertical-tab assignment lexer
+gap. All curated oracle expectations and oracle self-comparisons pass. Full
+`make ci`, including self-host flows, passed with 226 Rust tests and 164 tooling
+tests.
+
+An independent campaign matched 242 distinct inputs across 13 scenario families,
+checking raw output, exit status and filesystem contents/modes. It covers numeric
+conversion, command-line operators, immutable depth, precedence, export effects,
+diagnostic timing and recursive children. The generic command-line replay and
+vertical-tab lexer gaps remain separate pending requirements.
+
+The [invocation-depth notes](makelevel.md) document conversion, evaluation and
+export ordering, runtime prefixes and remaining recursion work. The implementation
+and fixtures are independently authored from original executable probes and
+public documentation; no GNU implementation source or upstream tests were
+consulted for this slice. Removing per-child expansion of the current variable
+avoids incorrect effects, but is not a measured performance claim.

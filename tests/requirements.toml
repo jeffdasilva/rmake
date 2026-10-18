@@ -320,8 +320,8 @@ status = "fixture-ready"
 candidate_status = "partial"
 candidate_required = 9
 reference = "https://www.gnu.org/software/make/manual/html_node/Flavors.html"
-fixture_count = 9
-cases = ["variable-recursive-late", "variable-simple-early", "variable-double-colon-simple", "variable-append-recursive", "variable-append-simple", "variable-append-undefined", "variable-undefined-origin", "variable-flavor-pair", "variable-define-simple"]
+fixture_count = 10
+cases = ["variable-recursive-late", "variable-simple-early", "variable-double-colon-simple", "variable-append-recursive", "variable-append-simple", "variable-append-undefined", "variable-undefined-origin", "variable-flavor-pair", "variable-define-simple", "variable-cli-leading-vertical-tab"]
 
 [[requirements]]
 id = "variables.precedence"
@@ -455,10 +455,11 @@ cases = ["fatal-error-bare-variable-and-call-zero", "fatal-error-builtin-overrid
 id = "recursion.makelevel"
 title = "Invocation recursion depth and MAKELEVEL variable independence"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 38
 reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
-fixture_count = 3
-cases = ["makelevel-cli-recursive-value-does-not-change-depth", "makelevel-environment-recursive-value-depth", "makelevel-file-value-does-not-change-child-depth"]
+fixture_count = 38
+cases = ["makelevel-cli-append-imported-raw-before-snapshot", "makelevel-cli-conditional-absent-before-default", "makelevel-cli-conditional-recursive-raw-depth", "makelevel-cli-immediate-error-before-earlier-cli-prefix", "makelevel-cli-immediate-error-before-imported-prefix", "makelevel-cli-recursive-value-does-not-change-depth", "makelevel-cli-simple-expanded-before-snapshot", "makelevel-cli-simple-then-append-before-snapshot", "makelevel-default-origin-flavor", "makelevel-empty-target-summary-prefixed", "makelevel-environment-canonical-decimal", "makelevel-environment-override-origin", "makelevel-environment-recursive-value-depth", "makelevel-explicit-export-fatal-evaluated", "makelevel-export-all-selects-fatal", "makelevel-file-fatal-unexported-skipped", "makelevel-file-override-keeps-cli-depth", "makelevel-file-undefine-keeps-imported-depth", "makelevel-file-value-does-not-change-child-depth", "makelevel-ignored-error-prefixed", "makelevel-inherited-export-fatal-evaluated", "makelevel-missing-goal-prefixed", "makelevel-parse-fatal-retains-file-prefix", "makelevel-recursive-child-wraps-depth", "makelevel-runtime-error-prefixed", "makelevel-startup-ascii-whitespace-plus", "makelevel-startup-empty", "makelevel-startup-literal-negative", "makelevel-startup-negative-overflow", "makelevel-startup-space-negative", "makelevel-startup-space-negative-last64", "makelevel-startup-trailing-bytes", "makelevel-startup-unsigned32-last", "makelevel-startup-unsigned32-wrap", "makelevel-startup-unsigned64-last", "makelevel-startup-unsigned64-overflow", "makelevel-startup-without-digits", "makelevel-unexport-skips-fatal-keeps-child-depth"]
 
 [[requirements]]
 id = "process.empty-shell"
@@ -469,3 +470,12 @@ candidate_required = 35
 reference = "https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html"
 fixture_count = 37
 cases = ["empty-shell-colon-skips-export-preparation", "empty-shell-colon-trailing-space-not-noop", "empty-shell-dry-skips-launch", "empty-shell-explicit-flags-program-argv", "empty-shell-explicit-flags-shell-executes", "empty-shell-forced-n-launches", "empty-shell-forced-q-launches", "empty-shell-forced-t-launches", "empty-shell-ignored-failure-continues", "empty-shell-keep-going-later-goal", "empty-shell-oneshell-dry-keeps-internal-prefixes", "empty-shell-oneshell-explicit-flags-still-empty", "empty-shell-oneshell-recursive-empty", "empty-shell-oneshell-undefined", "empty-shell-oneshell-undefined-flags", "empty-shell-query-skips-launch", "empty-shell-recursive-empty-default-flags", "empty-shell-touch-skips-launch", "empty-shell-undefined-default-flags", "empty-shell-undefined-flags-whole-missing-program", "empty-shell-whitespace-only-shell-literal-program", "empty-shell-whole-backslash-program", "empty-shell-whole-byte-program", "empty-shell-whole-quotes-program", "empty-shell-whole-space-program", "empty-shell-assignment-digit-leading-literal-file", "empty-shell-assignment-direct-failure-keeps-created-target", "empty-shell-assignment-export-prepared-before-no-output", "empty-shell-assignment-invalid-missing-shell-diagnostic", "empty-shell-assignment-metacharacters-stay-literal", "empty-shell-assignment-oneshell-retains-empty-program", "empty-shell-assignment-shell-failure-deletes-created-target", "empty-shell-assignment-slash-prefix-literal-file", "empty-shell-assignment-valid-name-skips-same-file", "empty-shell-assignment-whole-multiple-values-skips-same-file", "empty-shell-expanded-newline-invalid-assignment-first-command", "empty-shell-expanded-newline-valid-assignment-then-command"]
+
+[[requirements]]
+id = "variables.command-line-replay"
+title = "Generic command-line binding replay after Makefile parsing"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Overriding.html"
+fixture_count = 4
+cases = ["cli-replay-conditional-imported-literal-dollar", "cli-replay-conditional-imported-recursive", "cli-replay-override-undefine-recursive", "cli-replay-override-undefine-simple"]
