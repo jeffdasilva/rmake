@@ -4,9 +4,10 @@
 //! Prepare Linux recipe invocations without executing them.
 //!
 //! The direct-execution boundaries below were established with original black-box
-//! probes of GNU Make 4.4.1. No GNU implementation source was consulted. In
-//! particular, GNU's list of commands requiring a shell differs from the list of
-//! commands a particular shell implements as built-ins.
+//! probes of GNU Make 4.4.1. Later source-reference findings are recorded in
+//! docs/shell-configuration.md; no GNU implementation code is copied here.
+//! GNU's list of commands requiring a shell differs from the list of commands
+//! a particular shell implements as built-ins.
 
 /// Arguments exclude argv[0]. All values retain their original Unix bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,7 +30,6 @@ pub enum Invocation {
 /// `/bin/sh` with the attempted program and its prepared arguments, without
 /// adding `.SHELLFLAGS` again.
 pub fn prepare(command: &[u8], shell: &[u8], flags: &[u8], ifs: Option<&[u8]>) -> Invocation {
-    let shell = if shell.is_empty() { b"/bin/sh" } else { shell };
     if shell == b"/bin/sh"
         && matches!(flags, b"-c" | b"-ec")
         && ifs.is_none_or(|value| {
@@ -214,16 +214,43 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     }
     configuration.push(b' ');
     configuration.extend_from_slice(flags);
-    if let Some(mut words) = split_words(&configuration, Mode::Configuration)
-        && !words.is_empty()
-        && !requires_shell(&words[0])
-    {
-        let program = words.remove(0);
-        words.push(command.to_vec());
-        return Invocation::Shell {
-            program,
-            args: words,
-        };
+    if let Some(mut words) = split_words(&configuration, Mode::Configuration) {
+        if words.is_empty() {
+            // With no configured program or flags, the recipe is one literal
+            // word. An '=' requires a shell to recognize assignment syntax;
+            // quote other bytes so values cannot become commands or redirects.
+            // Invalid assignment names still execute that same literal word.
+            return if command.contains(&b'=') {
+                let mut quoted = Vec::new();
+                for &byte in command {
+                    if byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'=') {
+                        quoted.push(byte);
+                    } else {
+                        single_quote(&[byte], &mut quoted);
+                    }
+                }
+                Invocation::Shell {
+                    program: b"/bin/sh".to_vec(),
+                    args: vec![b"-c".to_vec(), quoted],
+                }
+            } else if requires_shell(command) {
+                // Preparing exact builtins normally retains the optimized ':'.
+                prepare(command, b"/bin/sh", b"-c", None)
+            } else {
+                Invocation::Shell {
+                    program: command.to_vec(),
+                    args: Vec::new(),
+                }
+            };
+        }
+        if !requires_shell(&words[0]) {
+            let program = words.remove(0);
+            words.push(command.to_vec());
+            return Invocation::Shell {
+                program,
+                args: words,
+            };
+        }
     }
 
     // Flags retain shell syntax; assignments, builtins, and existing backslash
@@ -488,8 +515,50 @@ mod tests {
     }
 
     #[test]
-    fn empty_shell_uses_default() {
-        assert_eq!(prepare(b"tool", b"", b"-c", None), direct(b"tool", &[]));
+    fn empty_shell_uses_the_first_flag_as_program() {
+        for flags in [b"-c".as_slice(), b"-ec", b"./wrapper"] {
+            assert_eq!(
+                prepare(b"tool argument", b"", flags, None),
+                Invocation::Shell {
+                    program: flags.to_vec(),
+                    args: vec![b"tool argument".to_vec()]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn empty_configuration_keeps_the_whole_recipe_as_a_literal_program() {
+        for command in [
+            b"./tool with spaces".as_slice(),
+            b"./tool;$NAME`literal`'\"\\\xff",
+            b"cd .",
+            b": ",
+        ] {
+            for shell in [b"".as_slice(), b" \t"] {
+                assert_eq!(
+                    prepare(command, shell, b"", None),
+                    Invocation::Shell {
+                        program: command.to_vec(),
+                        args: vec![]
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn empty_configuration_exact_builtins_retain_default_shell_dispatch() {
+        for command in [b":".as_slice(), b"cd", b"exit"] {
+            assert_eq!(prepare(command, b"", b"", None), shell(command));
+        }
+        assert_eq!(
+            prepare(b"body", b"", b"''", None),
+            Invocation::Shell {
+                program: vec![],
+                args: vec![b"body".to_vec()]
+            }
+        );
     }
 
     #[test]

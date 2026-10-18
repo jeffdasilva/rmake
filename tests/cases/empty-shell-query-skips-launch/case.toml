@@ -1,0 +1,11 @@
+id = "empty-shell-query-skips-launch"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q"]
+description = "Empty SHELL invocation boundary. Expected absent files: forbidden, all."
+provenance = "Original independently authored empty-shell fixture and argv/stream/file expectations, checked against pinned GNU Make 4.4.1 black-box execution; no upstream source or tests copied."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

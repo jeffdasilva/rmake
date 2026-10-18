@@ -1,0 +1,11 @@
+id = "empty-shell-assignment-slash-prefix-literal-file"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Assignment body is one protected shell word; forbidden must remain absent; invoked must contain kept."
+provenance = "Original independent empty-configuration assignment boundary and file-sentinel expectations, verified against pinned GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6c69746572616c2d636f6e74726f6c0a"
+stderr_hex = ""

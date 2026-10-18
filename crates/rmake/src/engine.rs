@@ -695,11 +695,7 @@ impl Engine {
                     return Execution::fatal(ran);
                 }
             };
-            let shell = if shell.is_empty() {
-                b"/bin/sh".as_slice()
-            } else {
-                &shell
-            };
+            let shell = shell.as_slice();
             // GNU rescans the raw flag text even for a simple binding and
             // attributes direct errors to the recipe, not .SHELLFLAGS itself.
             let flag_text = variables

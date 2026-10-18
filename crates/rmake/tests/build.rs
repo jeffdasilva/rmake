@@ -277,6 +277,101 @@ fn automatic_export_names_do_not_expand_ineligible_values_before_they_are_used()
 }
 
 #[test]
+fn empty_shell_and_flags_execute_a_literal_recipe_filename() {
+    let project =
+        Project::new(b"SHELL :=\n.SHELLFLAGS :=\nall:\n\t@./tool words;touch forbidden\n");
+    let helper = project.0.join("tool words;touch forbidden");
+    fs::write(&helper, b"#!/bin/sh\nprintf 'literal:%s' \"$#\"\n").unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+    let output = project.run(&[]);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout, b"literal:0");
+    assert!(!project.0.join("forbidden").exists());
+}
+
+#[test]
+fn empty_shell_colon_noop_skips_exports_but_oneshell_keeps_empty_program() {
+    let project =
+        Project::new(b"SHELL :=\n.SHELLFLAGS :=\nexport BAD = $(error unused)\nall:\n\t@:\n");
+    let output = project.run(&[]);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+    let project =
+        Project::new(b".ONESHELL:\nundefine SHELL\nall:\n\t@printf first\n\t@printf second\n");
+    let output = project.run(&[]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"rmake: : Permission denied\nrmake: *** [Makefile:4: all] Error 127\n"
+    );
+    let output = project.run(&[OsStr::new("-n")]);
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout, b"printf first\n@printf second\n");
+}
+
+#[test]
+fn empty_shell_assignment_words_do_not_evaluate_values_as_commands() {
+    for (body, assignment) in [
+        (b"A=B".as_slice(), true),
+        (b"A=B;touch forbidden", true),
+        (b"A=`touch forbidden`", true),
+        (b"1=B", false),
+        (b"./A=B", false),
+        (b"A\\=B", false),
+    ] {
+        for export in [false, true] {
+            let source = [
+                b"SHELL :=\n.SHELLFLAGS :=\nexport PATH := .:/usr/bin:/bin\n".as_slice(),
+                if export {
+                    b"export BAD = $(error export-block)\n"
+                } else {
+                    b""
+                },
+                b"all:\n\t@",
+                body,
+                b"\n",
+            ]
+            .concat();
+            let project = Project::new(&source);
+            let name = body.strip_prefix(b"./").unwrap_or(body);
+            let helper = project.0.join(OsString::from_vec(name.to_vec()));
+            fs::write(&helper, b"#!/bin/sh\nprintf literal\n").unwrap();
+            fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+            let output = project.run(&[]);
+            assert_eq!(output.status.code(), Some(if export { 2 } else { 0 }));
+            assert_eq!(
+                output.stdout,
+                if assignment || export {
+                    b"".as_slice()
+                } else {
+                    b"literal"
+                }
+            );
+            assert_eq!(
+                output.stderr,
+                if export {
+                    b"Makefile:4: *** export-block.  Stop.\n".as_slice()
+                } else {
+                    b""
+                }
+            );
+            assert!(!project.0.join("forbidden").exists());
+        }
+    }
+    let project = Project::new(b"SHELL :=\n.SHELLFLAGS :=\nall:\n\t@./missing=name\n");
+    let output = project.run(&[]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        output.stderr,
+        b"/bin/sh: 1: ./missing=name: not found\nrmake: *** [Makefile:4: all] Error 127\n"
+    );
+}
+
+#[test]
 fn enoexec_fallback_preserves_the_path_entry_that_was_actually_executable() {
     let project = Project::new(b"export PATH := first:second:/usr/bin:/bin\nall:\n\t@plain\n");
     for (directory, contents, mode) in [

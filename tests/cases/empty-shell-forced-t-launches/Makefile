@@ -1,0 +1,3 @@
+SHELL :=
+all:
+	+@touch forbidden

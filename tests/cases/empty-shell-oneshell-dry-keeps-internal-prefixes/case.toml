@@ -1,0 +1,11 @@
+id = "empty-shell-oneshell-dry-keeps-internal-prefixes"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+description = "Empty SHELL invocation boundary."
+provenance = "Original independently authored empty-shell fixture and argv/stream/file expectations, checked against pinned GNU Make 4.4.1 black-box execution; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e74662066697273740a407072696e7466207365636f6e640a2d7072696e74662074686972640a2b7072696e746620666f757274680a"
+stderr_hex = ""

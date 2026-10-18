@@ -411,3 +411,42 @@ documentation; no GNU implementation source or upstream tests were consulted.
 `MAKELEVEL` initialization and child-depth behavior remain recorded pending
 requirements. Other expansion effects and the later compatibility milestones
 remain open; this slice does not establish full GNU compatibility or a speedup.
+
+## Empty shell values and assignment routing — 2026-10-18
+
+An empty or undefined `SHELL` now remains empty during recipe preparation. In
+ordinary recipes the first flag can become the program; with no configuration
+words, the complete recipe becomes a literal executable name. Exact builtins,
+the optimized colon, and equals-containing words retain GNU's distinct shell
+paths. Assignments preserve metacharacters as data, while invalid assignment
+names retain shell-generated diagnostics. `.ONESHELL` preserves its empty program
+and internal prefixes. Tests distinguish shell-child failure cleanup from direct
+launch failure, including a target created by an earlier recipe line.
+
+Thirty-five new required fixtures and two promoted regressions bring the curated
+corpus to 606 cases: 532 required exact matches and 74 pending requirements. Two
+new pending fixtures retain the observed ordinary expanded-newline splitting
+gap. All independent oracle expectations and oracle self-comparisons pass.
+Full `make ci`, including self-host flows, passed with 221 Rust tests and 164
+tooling tests.
+
+An independent campaign matched 296 distinct fixture inputs, covering 288
+distinct program/argument texts plus different executable-presence and permission
+states. It checks exact argv, status, streams and filesystem results across
+ordinary and one-shell modes, three empty-value forms, three flag forms and
+twelve option combinations. Assignment collision tests and forbidden-file checks
+ensure values cannot accidentally become shell commands or redirections.
+
+Original probes discovered the assignment boundary. A subsequent review of the
+verified GNU 4.4.1 `src/job.c` confirmed its cause; the source reference and file
+digest are recorded in [shell configuration notes](shell-configuration.md).
+The Rust implementation and fixtures are original, with no upstream code or test
+text copied or translated. Literal-newline and complex-flag gaps remain explicit
+open requirements.
+
+A fresh paired release comparison measured GNU/rmake medians of 0.501/0.501 ms
+for tiny no-op, 11.219/29.707 ms for the 10,000-node graph, and 2.685/4.208 ms
+for 5,000 assignments (15 measured samples per engine after two warm-ups).
+Exact outputs agreed. These are unisolated wall-clock measurements, not CPU or
+memory profiles: the substantial graph/expansion performance gap remains open,
+and neither this slice nor earlier diagnostic work satisfies the M8 speed gate.

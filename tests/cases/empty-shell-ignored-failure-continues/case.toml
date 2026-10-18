@@ -1,0 +1,11 @@
+id = "empty-shell-ignored-failure-continues"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Empty SHELL invocation boundary."
+provenance = "Original independently authored empty-shell fixture and argv/stream/file expectations, checked against pinned GNU Make 4.4.1 black-box execution; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c2e2f636170747572653e0a"
+stderr_hex = "6d616b653a202e2f6d697373696e6720776f7264733a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a205b4d616b6566696c653a343a20616c6c5d204572726f7220313237202869676e6f726564290a"

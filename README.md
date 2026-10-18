@@ -85,8 +85,8 @@ without recursively invoking the full CI target. Simple commands use GNU's
 direct-execution path; commands
 requiring shell interpretation retain the selected shell and flags. Full process,
 signal and diagnostic compatibility remains under development.
-See [shell configuration notes](docs/shell-configuration.md) for literal argument
-handling and the remaining newline/empty-shell boundaries.
+See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
+empty-shell behavior and the remaining newline/complex-flag boundaries.
 
 ## Repository layout
 

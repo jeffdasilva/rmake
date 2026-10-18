@@ -1,0 +1,11 @@
+id = "empty-shell-oneshell-recursive-empty"
+requirement = "process.empty-shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Empty SHELL invocation boundary."
+provenance = "Original independently authored empty-shell fixture and argv/stream/file expectations, checked against pinned GNU Make 4.4.1 black-box execution; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a203a205065726d697373696f6e2064656e6965640a6d616b653a202a2a2a205b4d616b6566696c653a343a20616c6c5d204572726f72203132370a"

@@ -80,7 +80,6 @@ pub fn prefixes(mut input: &[u8]) -> (&[u8], Prefixes) {
 /// modifiers. The prefix belongs to the recipe when parsed, not the final value
 /// of .RECIPEPREFIX. Call before echo, including dry-run; do not call twice.
 pub fn transform(command: &[u8], shell: &[u8], recipe_prefix: u8) -> Vec<u8> {
-    let shell = if shell.is_empty() { b"/bin/sh" } else { shell };
     internal_prefixes(command, recipe_prefix, bourne_compatible(shell))
 }
 
@@ -95,7 +94,6 @@ pub fn prepare(
     flags: &[u8],
     ifs: Option<&[u8]>,
 ) -> Result<Invocation, PrepareError> {
-    let shell = if shell.is_empty() { b"/bin/sh" } else { shell };
     if let direct @ Invocation::Direct { .. } = prepare_ordinary(command, shell, flags, ifs) {
         if has_quoted_newline(command) {
             return Err(PrepareError::QuotedMultilineDirect);
@@ -190,6 +188,27 @@ mod tests {
         let echo = transform(command, executable, prefix);
         let invocation = prepare(&echo, executable, b"-c", None).unwrap();
         Prepared { echo, invocation }
+    }
+
+    #[test]
+    fn empty_shell_keeps_internal_modifiers_and_remains_the_executable() {
+        let command = b"first\n\t@second\n-+third";
+        let transformed = transform(command, b"", b'\t');
+        assert_eq!(transformed, b"first\n@second\n-+third");
+        for flags in [b"".as_slice(), b"-c", b"./wrapper"] {
+            let mut args = Vec::new();
+            if !flags.is_empty() {
+                args.push(flags.to_vec());
+            }
+            args.push(transformed.clone());
+            assert_eq!(
+                prepare(&transformed, b"", flags, None).unwrap(),
+                Invocation::Shell {
+                    program: vec![],
+                    args
+                }
+            );
+        }
     }
 
     #[test]
