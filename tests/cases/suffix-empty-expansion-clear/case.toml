@@ -1,0 +1,11 @@
+id = "suffix-empty-expansion-clear"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "An immediately expanded empty dependency list clears prior suffix metadata."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.x>|<>|<>|<>\n"
+stderr = ""

@@ -7,8 +7,12 @@
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
 use crate::reader::{Reader, strip_comment};
-use crate::variables::{Assignment, Origin, VariableStore};
+use crate::variables::{Assignment, ExpandError, Origin, VariableStore};
 use std::collections::{HashMap, HashSet};
+
+/// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
+/// This metadata does not install implicit rules or suffix-rule conversions.
+pub const DEFAULT_SUFFIXES: &[u8] = b".out .a .ln .o .c .cc .C .cpp .p .f .F .m .r .y .l .ym .yl .s .S .mod .sym .def .h .info .dvi .tex .texinfo .texi .txinfo .w .ch .web .sh .elc .el";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Location {
@@ -95,6 +99,63 @@ pub struct Database {
     pub unexports: HashSet<Vec<u8>>,
     pub export_all: bool,
     pub warnings: Vec<(Location, String)>,
+}
+
+impl Database {
+    /// Initialize suffix metadata before reading user Makefiles. SUFFIXES is an
+    /// independent default variable, defined even when builtin rules are off.
+    /// Existing higher-priority variables and explicit rules are preserved.
+    pub fn initialize_suffixes(&mut self, builtin_rules: bool) -> Result<(), ExpandError> {
+        let suffixes = if builtin_rules { DEFAULT_SUFFIXES } else { b"" };
+        self.variables
+            .define_literal(b"SUFFIXES", suffixes, Origin::Default)?;
+        if builtin_rules {
+            self.rules
+                .entry(b".SUFFIXES".to_vec())
+                .or_insert_with(|| Rule {
+                    dependencies: words(suffixes)
+                        .map(|name| Dependency {
+                            name: name.to_vec(),
+                            order_only: false,
+                        })
+                        .collect(),
+                    ..Rule::default()
+                });
+        }
+        Ok(())
+    }
+
+    /// Explicit targets use the first matching suffix in the final raw list.
+    /// Matching preserves the complete target path and arbitrary filename bytes;
+    /// order-only suffix entries participate just like normal entries.
+    pub fn explicit_stem<'a>(&self, target: &'a [u8]) -> &'a [u8] {
+        self.rules
+            .get(b".SUFFIXES".as_slice())
+            .and_then(|rule| {
+                rule.dependencies
+                    .iter()
+                    .find_map(|dependency| target.strip_suffix(dependency.name.as_slice()))
+            })
+            .unwrap_or_default()
+    }
+
+    /// Default-goal selection skips single- and double-suffix rule names using
+    /// the suffix metadata already present when the declaration is read. This
+    /// recognition does not convert the declaration into an implicit rule.
+    fn is_suffix_rule_name(&self, target: &[u8]) -> bool {
+        self.rules.get(b".SUFFIXES".as_slice()).is_some_and(|rule| {
+            rule.dependencies.iter().any(|suffix| {
+                target == suffix.name
+                    || target
+                        .strip_prefix(suffix.name.as_slice())
+                        .is_some_and(|remaining| {
+                            rule.dependencies
+                                .iter()
+                                .any(|other| remaining == other.name)
+                        })
+            })
+        })
+    }
 }
 
 pub fn trim(bytes: &[u8]) -> &[u8] {
@@ -610,9 +671,35 @@ impl Database {
             let prereqs = &expanded[colon + 1..];
             let (normal, order) = separator(prereqs, b'|')
                 .map_or((prereqs, &b""[..]), |i| (&prereqs[..i], &prereqs[i + 1..]));
+            let empty_dependencies =
+                words(normal).next().is_none() && words(order).next().is_none();
+            // Check the complete declaration before merging any target: a
+            // .SUFFIXES target on this same line has not changed the list yet.
+            if self
+                .variables
+                .get(b".DEFAULT_GOAL")
+                .is_none_or(|v| v.raw_value().is_empty())
+                && let Some(target) = current.iter().find(|target| {
+                    (!target.starts_with(b".") || target.contains(&b'/'))
+                        && !self.is_suffix_rule_name(target)
+                })
+            {
+                self.variables
+                    .define(b".DEFAULT_GOAL", target, Assignment::Simple, Origin::File)
+                    .map_err(|err| ParseError {
+                        location: location.clone(),
+                        message: err.to_string(),
+                    })?;
+            }
             current_offsets.clear();
             for target in &current {
                 let rule = self.rules.entry(target.clone()).or_default();
+                if target == b".SUFFIXES" && empty_dependencies {
+                    // Clearing suffix metadata retains its recipe and location.
+                    // Record offsets only after clearing, including repeated
+                    // target names in the same declaration.
+                    rule.dependencies.clear();
+                }
                 if current_offsets.contains_key(target) {
                     self.warnings.push((
                         location.clone(),
@@ -633,19 +720,6 @@ impl Database {
                             })
                         },
                     ));
-                if (!target.starts_with(b".") || target.contains(&b'/'))
-                    && self
-                        .variables
-                        .get(b".DEFAULT_GOAL")
-                        .is_none_or(|v| v.raw_value().is_empty())
-                {
-                    self.variables
-                        .define(b".DEFAULT_GOAL", target, Assignment::Simple, Origin::File)
-                        .map_err(|err| ParseError {
-                            location: location.clone(),
-                            message: err.to_string(),
-                        })?;
-                }
             }
             recipe_started = false;
             let recipe = inline
@@ -747,6 +821,172 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn initial_suffix_metadata_has_no_goal_or_synthetic_suffix_rules() {
+        for enabled in [false, true] {
+            let mut db = Database::default();
+            db.initialize_suffixes(enabled).unwrap();
+            let suffixes = db.variables.get(b"SUFFIXES").unwrap();
+            assert_eq!(suffixes.origin(), Origin::Default);
+            assert_eq!(suffixes.flavor(), crate::variables::Flavor::Simple);
+            assert_eq!(
+                suffixes.raw_value(),
+                if enabled { DEFAULT_SUFFIXES } else { b"" }
+            );
+            assert!(db.variables.get(b".DEFAULT_GOAL").is_none());
+            assert_eq!(db.rules.len(), usize::from(enabled));
+            assert_eq!(
+                db.explicit_stem(b"item.o"),
+                if enabled { b"item".as_slice() } else { b"" }
+            );
+            if enabled {
+                let rule = &db.rules[b".SUFFIXES".as_slice()];
+                assert_eq!(
+                    normals(rule),
+                    words(DEFAULT_SUFFIXES).map(Vec::from).collect::<Vec<_>>()
+                );
+                assert!(rule.recipes.is_none());
+                assert!(rule.recipe_location.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn suffix_variable_priority_and_value_are_independent_of_metadata() {
+        let mut db = Database::default();
+        db.variables
+            .define(
+                b"SUFFIXES",
+                b".env",
+                Assignment::Recursive,
+                Origin::Environment,
+            )
+            .unwrap();
+        db.initialize_suffixes(true).unwrap();
+        assert_eq!(db.explicit_stem(b"item.o"), b"item");
+        assert_eq!(db.explicit_stem(b"item.env"), b"");
+        db.read(b".SUFFIXES:\n.SUFFIXES: .custom\n", b"m").unwrap();
+        assert_eq!(db.explicit_stem(b"item.custom"), b"item");
+        let variable = db.variables.get(b"SUFFIXES").unwrap();
+        assert_eq!(variable.raw_value(), b".env");
+        assert_eq!(variable.origin(), Origin::Environment);
+        assert_eq!(variable.flavor(), crate::variables::Flavor::Recursive);
+    }
+
+    #[test]
+    fn empty_suffix_declarations_clear_only_dependencies() {
+        for declaration in [
+            b".SUFFIXES:".as_slice(),
+            b".SUFFIXES: $(EMPTY)",
+            b".SUFFIXES: |",
+        ] {
+            let mut db = Database::default();
+            db.read(b".SUFFIXES: .x | .y ; retained\nordinary: prior\n", b"m")
+                .unwrap();
+            db.read(declaration, b"later").unwrap();
+            db.read(b"ordinary:\n", b"later").unwrap();
+            let rule = &db.rules[b".SUFFIXES".as_slice()];
+            assert!(rule.dependencies.is_empty());
+            assert_eq!(rule.recipes.as_ref().unwrap()[0].bytes, b" retained");
+            assert_eq!(
+                rule.recipe_location,
+                Some(Location {
+                    file: b"m".to_vec(),
+                    line: 1
+                })
+            );
+            assert_eq!(
+                normals(&db.rules[b"ordinary".as_slice()]),
+                [b"prior".to_vec()]
+            );
+            assert!(db.warnings.is_empty());
+        }
+    }
+
+    #[test]
+    fn repeated_clearing_suffix_target_keeps_recipe_offsets_valid() {
+        let mut db = Database::default();
+        db.read(b".SUFFIXES: .x ; old\n.SUFFIXES .SUFFIXES: ; new\n", b"m")
+            .unwrap();
+        let rule = &db.rules[b".SUFFIXES".as_slice()];
+        assert!(rule.dependencies.is_empty());
+        assert_eq!(rule.recipes.as_ref().unwrap()[0].bytes, b" new");
+        assert_eq!(rule.recipe_location.as_ref().unwrap().line, 2);
+        assert_eq!(db.warnings.len(), 3);
+    }
+
+    #[test]
+    fn suffix_order_only_entries_append_and_recipe_blocks_prepend() {
+        let mut db = Database::default();
+        db.read(b".SUFFIXES: .x\n.SUFFIXES: | .a.x .y\n", b"m")
+            .unwrap();
+        assert_eq!(db.explicit_stem(b"item.a.x"), b"item.a");
+        assert_eq!(db.explicit_stem(b"item.y"), b"item");
+        db.read(b".SUFFIXES: .a.x | .z ;\n", b"m").unwrap();
+        assert_eq!(db.explicit_stem(b"item.a.x"), b"item");
+        assert_eq!(db.explicit_stem(b"item.z"), b"item");
+        assert_eq!(
+            db.rules[b".SUFFIXES".as_slice()]
+                .dependencies
+                .iter()
+                .map(|d| d.name.as_slice())
+                .collect::<Vec<_>>(),
+            [b".a.x".as_slice(), b".z", b".x", b".a.x", b".y"]
+        );
+    }
+
+    #[test]
+    fn explicit_stems_use_final_metadata_and_preserve_filename_bytes() {
+        let mut db = Database::default();
+        db.read(b"dir/item.o: ;\n.PHONY: dir/item.o\nX = .o\n.SUFFIXES: $(X) .\xfe /special x\nX = .later\n", b"m").unwrap();
+        for (target, stem) in [
+            (b"dir/item.o".as_slice(), b"dir/item".as_slice()),
+            (b".o", b""),
+            (b"dir/.o", b"dir/"),
+            (b"dir/item\xff.\xfe", b"dir/item\xff"),
+            (b"dir/special", b"dir"),
+            (b"item.x", b"item."),
+            (b"item.later", b""),
+        ] {
+            assert_eq!(db.explicit_stem(target), stem);
+        }
+    }
+
+    #[test]
+    fn default_goal_skips_current_single_and_double_suffix_names() {
+        let mut db = Database::default();
+        db.read(
+            b".SUFFIXES: x | y dir/z\nx: ;\nxy: ;\nxx: ;\ndir/z: ;\nordinary: ;\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(
+            db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(),
+            b"ordinary"
+        );
+        db.read(b".DEFAULT_GOAL :=\n.SUFFIXES:\nx: ;\n", b"later")
+            .unwrap();
+        assert_eq!(db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(), b"x");
+    }
+
+    #[test]
+    fn default_goal_uses_suffix_metadata_before_the_current_declaration() {
+        for program in [
+            b".SUFFIXES x: x ;\n".as_slice(),
+            b"x: ;\n.SUFFIXES: x\n",
+            b".SUFFIXES: x y\nzxy: ;\n",
+        ] {
+            let mut db = Database::default();
+            db.read(program, b"m").unwrap();
+            let expected = if program.starts_with(b".SUFFIXES: x y") {
+                b"zxy".as_slice()
+            } else {
+                b"x"
+            };
+            assert_eq!(db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(), expected);
+        }
     }
 
     #[test]

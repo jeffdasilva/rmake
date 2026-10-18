@@ -1,0 +1,11 @@
+id = "suffix-metadata-independent-variable"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Changing suffix rule metadata does not mutate the initial SUFFIXES variable snapshot."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = ".out .a .ln .o .c .cc .C .cpp .p .f .F .m .r .y .l .ym .yl .s .S .mod .sym .def .h .info .dvi .tex .texinfo .texi .txinfo .w .ch .web .sh .elc .el\n.out .a .ln .o .c .cc .C .cpp .p .f .F .m .r .y .l .ym .yl .s .S .mod .sym .def .h .info .dvi .tex .texinfo .texi .txinfo .w .ch .web .sh .elc .el\n"
+stderr = ""

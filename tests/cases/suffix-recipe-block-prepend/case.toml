@@ -1,0 +1,11 @@
+id = "suffix-recipe-block-prepend"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "A recipe-bearing suffix declaration prepends its entire normal/order-only dependency block."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.a.x>|<item>|<.>|<item>\n<item.y>|<item>|<.>|<item>\n"
+stderr = ""

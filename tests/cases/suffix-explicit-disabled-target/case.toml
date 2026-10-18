@@ -1,0 +1,11 @@
+id = "suffix-explicit-disabled-target"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Disabling builtin rules removes the undeclared default .SUFFIXES node."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", ".SUFFIXES"]
+timeout_seconds = 5
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target '.SUFFIXES'.  Stop.\n"

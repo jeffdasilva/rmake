@@ -1,0 +1,11 @@
+id = "suffix-metadata-no-default-goal"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Suffix metadata never selects the default goal even when it contains a recipe."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No targets.  Stop.\n"

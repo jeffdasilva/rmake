@@ -1,0 +1,11 @@
+id = "suffix-clear-explicit-empty"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Clearing retains an existing empty suffix metadata node."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", ".SUFFIXES"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for '.SUFFIXES'.\n"
+stderr = ""

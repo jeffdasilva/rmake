@@ -1,0 +1,11 @@
+id = "suffix-arbitrary-suffix-bytes"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "A suffix need not start with a dot and may contain slash bytes."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<itemx>|<item>|<.>|<item>\n<item.x>|<item.>|<.>|<item.>\n<dir/item.o>|<dir>|<.>|<dir>\n"
+stderr = ""

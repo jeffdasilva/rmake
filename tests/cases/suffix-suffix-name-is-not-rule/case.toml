@@ -1,0 +1,11 @@
+id = "suffix-suffix-name-is-not-rule"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Mentioning a suffix does not declare that name as a target with a no-op rule."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target '.x', needed by 'all'.  Stop.\n"

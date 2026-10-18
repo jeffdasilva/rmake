@@ -115,6 +115,9 @@ impl Engine {
                 .map_err(|e| e.to_string())?;
             inherited_exports.insert(name.to_vec());
         }
+        database
+            .initialize_suffixes(!options.no_rules)
+            .map_err(|error| error.to_string())?;
         define_automatic_variants(&mut database.variables).map_err(|error| error.to_string())?;
         for (name, value) in [
             (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
@@ -515,7 +518,7 @@ impl Engine {
                     (b"+", joined(&repeated)),
                     (b"?", joined(unique(&newer))),
                     (b"|", joined(&order)),
-                    (b"*", Vec::new()),
+                    (b"*", self.database.explicit_stem(target).to_vec()),
                     (b"%", Vec::new()),
                 ];
                 for (name, value) in autos {

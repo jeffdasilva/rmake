@@ -204,3 +204,35 @@ on execution; exact oracle fixtures preserve these open requirements. Some
 variable-definition diagnostic locations also remain pending. Ordinary mixed
 forced recipes with touch mode, signal cleanup, parallel execution and the
 previously recorded dynamic-language features remain unfinished.
+
+## Explicit suffix metadata and stems — 2026-10-18
+
+Explicit rules now compute `$*` from the first matching entry in the final
+`.SUFFIXES` list, preserving path and non-UTF-8 bytes. The default suffix list and
+the independent default `SUFFIXES` variable follow the pinned Linux profile,
+including `-r`/`-R`. Empty suffix declarations clear dependencies while retaining
+recipes; ordering, order-only entries, expansion timing and recipe-block merging
+are covered. Default-goal selection excludes single/double suffix-rule names
+using the list present before the current declaration is merged.
+
+Thirty new required suffix fixtures and the previously pending explicit-stem
+fixture match GNU. Two independent generated campaigns also matched: 100 suffix
+ordering programs (seed 44110) and 200 default-goal programs (seed 44111). Eight
+focused Rust regressions bring the Rust suite to 178 tests. This implements
+suffix metadata for explicit rules; implicit search and suffix-rule conversion
+remain unfinished.
+
+The curated corpus now contains 368 cases: 275 required matches and 93 pending
+requirements. Twenty original forced-touch fixtures preserve three matching
+behaviors and seventeen open mismatches. The [forced-touch notes](forced-touch.md)
+record their file-state expectations and the subsequent source-informed lifecycle
+investigation. Those pending cases are not compatibility passes, and the ordinary
+forced-touch execution guard remains until the transition model is implemented.
+
+The paired release benchmark was refreshed on the same development host, with
+two warm-ups and fifteen alternating samples per engine. Median GNU/rmake times
+were 0.508/0.522 ms for the tiny no-op, 11.834/30.864 ms for the 10,000-node no-op,
+and 2.653/3.840 ms for 5,000 assignments. The large-graph slowdown remains an open
+performance issue. These unisolated wall-clock samples do not establish a
+statistically controlled regression or speed advantage; no persistent cache is
+enabled, and compatibility gates still precede acceleration work.

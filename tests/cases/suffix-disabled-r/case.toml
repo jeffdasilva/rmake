@@ -1,0 +1,11 @@
+id = "suffix-disabled-r"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Default suffix list and SUFFIXES default/simple snapshot respect builtin-rule flags."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-r", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.o>|<>|<>|<>\n<item.yl>|<>|<>|<>\n<item.lm>|<>|<>|<>\n<>|default|simple\n"
+stderr = ""

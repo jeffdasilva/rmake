@@ -1,0 +1,11 @@
+id = "suffix-explicit-default-target"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Explicitly building default .SUFFIXES traverses its default dependencies normally."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["--no-print-directory", ".SUFFIXES"]
+timeout_seconds = 5
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target '.out', needed by '.SUFFIXES'.  Stop.\n"

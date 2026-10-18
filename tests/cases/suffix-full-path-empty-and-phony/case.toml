@@ -1,0 +1,11 @@
+id = "suffix-full-path-empty-and-phony"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Explicit and phony stems preserve paths and allow a suffix equal to the whole filename."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.o>|<item>|<.>|<item>\n<dir/item.o>|<dir/item>|<dir>|<item>\n<.o>|<>|<>|<>\n<dir/.o>|<dir/>|<dir>|<>\n"
+stderr = ""

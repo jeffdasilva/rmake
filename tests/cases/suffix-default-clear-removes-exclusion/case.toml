@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Original rmake differential fixture.
+id = "suffix-default-clear-removes-exclusion"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Clearing suffix metadata before a target declaration removes its default-goal exclusion."
+provenance = "Independently authored from GNU Make 4.4.1 black-box observations; no upstream test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "chosen-x\n"
+stderr = ""
