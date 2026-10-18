@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-intermediate-failure-default"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Default -c shell execution reports the final command status and can continue after an intermediate failure."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "after\n"
+stderr = ""

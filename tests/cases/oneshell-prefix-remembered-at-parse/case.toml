@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-prefix-remembered-at-parse"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Internal extra-prefix stripping uses the prefix active when the recipe was parsed, even after that variable changes."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "argc=2\narg=<-c>\narg=<first\n@second>\n"
+stderr = ""

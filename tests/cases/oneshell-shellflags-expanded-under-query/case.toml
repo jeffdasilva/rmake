@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-shellflags-expanded-under-query"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "The shell flags expression is expanded before query mode skips invocation."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:7: *** unterminated variable reference.  Stop.\n"

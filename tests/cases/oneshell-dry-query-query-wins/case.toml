@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-dry-query-query-wins"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Combined dry-run and query returns out-of-date without command echo or execution."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-n", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

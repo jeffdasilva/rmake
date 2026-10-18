@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-query-internal-make-reference"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "A direct MAKE reference anywhere in the raw recipe marks the combined script recursive, even inside a comment."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "forced\n"
+stderr = ""

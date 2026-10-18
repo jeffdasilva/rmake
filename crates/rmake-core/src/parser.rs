@@ -20,6 +20,9 @@ pub struct Location {
 pub struct Recipe {
     pub bytes: Vec<u8>,
     pub location: Location,
+    /// Remember the prefix used to read this recipe; .ONESHELL needs it after
+    /// expansion even if a later assignment changes .RECIPEPREFIX.
+    pub prefix: u8,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -363,6 +366,7 @@ impl Database {
                         Recipe {
                             bytes: line.bytes[1..].to_vec(),
                             location,
+                            prefix,
                         },
                         &mut recipe_started,
                     );
@@ -651,7 +655,11 @@ impl Database {
                 self.add_recipe(
                     &current,
                     &current_offsets,
-                    Recipe { bytes, location },
+                    Recipe {
+                        bytes,
+                        location,
+                        prefix,
+                    },
                     &mut recipe_started,
                 );
             }
@@ -804,6 +812,28 @@ mod tests {
         assert_eq!(
             db.rules[b"\xff".as_slice()].recipes.as_ref().unwrap()[0].bytes,
             b"@echo \xfd"
+        );
+        assert_eq!(
+            db.rules[b"\xff".as_slice()].recipes.as_ref().unwrap()[0].prefix,
+            b'>'
+        );
+    }
+
+    #[test]
+    fn recipe_prefix_metadata_survives_later_changes_and_inline_recipes() {
+        let mut db = Database::default();
+        db.read(
+            b".RECIPEPREFIX := >\nfirst: ; @inline\n>>@second\n.RECIPEPREFIX := !\nsecond:\n!@third\n",
+            b"Makefile",
+        ).unwrap();
+        let first = db.rules[b"first".as_slice()].recipes.as_ref().unwrap();
+        assert_eq!(first.len(), 2);
+        assert!(first.iter().all(|recipe| recipe.prefix == b'>'));
+        assert_eq!(first[0].bytes, b" @inline");
+        assert_eq!(first[1].bytes, b">@second");
+        assert_eq!(
+            db.rules[b"second".as_slice()].recipes.as_ref().unwrap()[0].prefix,
+            b'!'
         );
     }
 

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-quoted-direct-tail-replay"
+requirement = "recipes.oneshell"
+candidate = "pending"
+description = "A direct-eligible multiline quoted command reproduces the pinned oracle tail-execution diagnostics."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "first\nmiddle\nlast\n"
+stderr = "/bin/sh: 1: middle: not found\n/bin/sh: 2: Syntax error: Unterminated quoted string\nmake: *** [Makefile:6: all] Error 2\n"

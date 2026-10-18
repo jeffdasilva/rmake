@@ -283,8 +283,7 @@ impl Engine {
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
         for name in [
-            b".ONESHELL".as_slice(),
-            b".SECONDEXPANSION",
+            b".SECONDEXPANSION".as_slice(),
             b".POSIX",
             b".WAIT",
             b".NOTPARALLEL",
@@ -337,7 +336,11 @@ impl Engine {
             if outcome.failed && !self.options.keep_going {
                 break;
             }
-            if outcome.failed && self.options.keep_going && outcome.blocked {
+            if outcome.failed
+                && self.options.keep_going
+                && outcome.blocked
+                && !self.options.question
+            {
                 self.stderr(
                     &[
                         b"Target '".as_slice(),
@@ -528,7 +531,7 @@ impl Engine {
                     outcome.ran |= ran;
                     outcome.failed |= failed;
                     outcome.question_outdated |= question_outdated;
-                    if failed
+                    if (failed || question_outdated)
                         && self
                             .database
                             .rules
@@ -556,24 +559,43 @@ impl Engine {
         variables: &VariableStore,
         phony: bool,
     ) -> (bool, bool, bool) {
-        let recursive = recipes.iter().any(|recipe| {
-            has_force_prefix(&recipe.bytes)
-                || recipe.bytes.windows(7).any(|s| s == b"$(MAKE)")
-                || recipe.bytes.windows(7).any(|s| s == b"${MAKE}")
-        });
-        if self.options.touch && !self.options.dry_run && !self.options.question && recursive {
-            self.fatal(
-                None,
-                b"rmake: forced commands with touch mode are not implemented yet",
-            );
-            return (false, true, false);
-        }
-        if self.options.touch && !self.options.dry_run && !self.options.question && !recursive {
+        let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
+        let combined;
+        let (recipes, has_commands, recursive) = if one_shell {
+            let Some(first) = recipes.first() else {
+                return (false, false, false);
+            };
+            let script =
+                crate::oneshell::collect(recipes.iter().map(|recipe| recipe.bytes.as_slice()));
+            combined = [Recipe {
+                bytes: script.bytes,
+                location: first.location.clone(),
+                prefix: first.prefix,
+            }];
+            (combined.as_slice(), script.has_commands, script.recursive)
+        } else {
+            let has_commands = recipes.iter().any(|recipe| {
+                recipe
+                    .bytes
+                    .iter()
+                    .any(|byte| !matches!(byte, b' ' | b'\t' | b'\n' | b'@' | b'-' | b'+'))
+            });
+            let recursive = recipes.iter().any(|recipe| {
+                has_force_prefix(&recipe.bytes)
+                    || recipe.bytes.windows(7).any(|s| s == b"$(MAKE)")
+                    || recipe.bytes.windows(7).any(|s| s == b"${MAKE}")
+            });
+            (recipes, has_commands, recursive)
+        };
+        if self.options.touch && !recursive {
             if phony {
                 return (false, false, false);
             }
             if !self.options.silent {
                 self.stdout(&[b"touch ".as_slice(), target].concat());
+            }
+            if self.options.dry_run {
+                return (true, false, false);
             }
             let result = OpenOptions::new()
                 .create(true)
@@ -587,6 +609,16 @@ impl Engine {
             }
             return (true, false, false);
         }
+        if !has_commands {
+            return (false, false, false);
+        }
+        if self.options.touch && recursive && !one_shell {
+            self.fatal(
+                None,
+                b"rmake: forced commands with touch mode are not implemented yet",
+            );
+            return (false, true, false);
+        }
         let mut expanded = Vec::new();
         for recipe in recipes {
             match variables.expand(&recipe.bytes) {
@@ -599,6 +631,9 @@ impl Engine {
         }
         let mut ran = false;
         for (bytes, recipe) in expanded {
+            if bytes.is_empty() {
+                continue;
+            }
             let mut command = trim_leading(&bytes);
             let mut quiet = self.options.silent || self.special(b".SILENT", target, true);
             let mut ignore = self.options.ignore_errors || self.special(b".IGNORE", target, true);
@@ -615,23 +650,10 @@ impl Engine {
                 }
                 command = trim_leading(&command[1..]);
             }
-            if command.is_empty() {
-                continue;
-            }
-            if self.options.question && !force {
-                self.would_build = true;
-                return (ran, false, true);
-            }
-            if self.options.touch && !self.options.dry_run && !force {
-                continue;
-            }
-            if self.options.dry_run || !quiet {
-                self.stdout(command);
-            }
-            ran = true;
-            if self.options.dry_run && !force {
-                continue;
-            }
+            // GNU expands configuration before a dry-run/query decision, after
+            // all recipe bodies have expanded. A nonempty expansion consisting
+            // only of blanks/modifiers still reaches configuration; a zero-byte
+            // expansion does not. Touch mode above skips both kinds of expansion.
             let shell = match variables.expand(b"$(SHELL)") {
                 Ok(shell) => shell,
                 Err(err) => {
@@ -662,11 +684,50 @@ impl Engine {
             } else {
                 None
             };
-            let (program, arguments) =
-                match crate::process::prepare(command, shell, &flags, ifs.as_deref()) {
-                    crate::process::Invocation::Direct { program, args } => (program, args),
-                    crate::process::Invocation::Shell { program, args } => (program, args),
-                };
+            if command.is_empty() {
+                continue;
+            }
+            let transformed;
+            if one_shell {
+                transformed = crate::oneshell::transform(command, shell, recipe.prefix);
+                command = &transformed;
+            }
+            if self.options.question && !force {
+                self.would_build = true;
+                return (ran, false, true);
+            }
+            if self.options.dry_run || !quiet {
+                self.stdout(command);
+            }
+            ran = true;
+            if self.options.dry_run && !force {
+                continue;
+            }
+            let invocation = if one_shell {
+                match crate::oneshell::prepare(command, shell, &flags, ifs.as_deref()) {
+                    Ok(invocation) => invocation,
+                    Err(crate::oneshell::PrepareError::ShellFlagSyntax) => {
+                        self.fatal(
+                            Some(&recipe.location),
+                            b"rmake: shell syntax in .ONESHELL .SHELLFLAGS is not implemented yet",
+                        );
+                        return (ran, true, false);
+                    }
+                    Err(crate::oneshell::PrepareError::QuotedMultilineDirect) => {
+                        self.fatal(
+                            Some(&recipe.location),
+                            b"rmake: .ONESHELL direct commands with quoted newlines are not implemented yet",
+                        );
+                        return (ran, true, false);
+                    }
+                }
+            } else {
+                crate::process::prepare(command, shell, &flags, ifs.as_deref())
+            };
+            let (program, arguments) = match invocation {
+                crate::process::Invocation::Direct { program, args }
+                | crate::process::Invocation::Shell { program, args } => (program, args),
+            };
             let mut child = Command::new(os(&program));
             child.args(arguments.iter().map(|arg| os(arg)));
             let mut exports: BTreeSet<Vec<u8>> = self
@@ -733,6 +794,13 @@ impl Engine {
             let result = launch_status(&program, &child);
             let error = match result {
                 Ok(status) if status.success() => None,
+                // Recursive make uses exit 1 to report an out-of-date build in
+                // query mode. GNU applies that convention to every forced
+                // command; ignored errors retain their ordinary handling.
+                Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
+                    self.would_build = true;
+                    return (ran, false, true);
+                }
                 Ok(status) => Some(status.code().map_or_else(
                     || format!("Signal {}", status.signal().unwrap_or(0)),
                     |code| format!("Error {code}"),

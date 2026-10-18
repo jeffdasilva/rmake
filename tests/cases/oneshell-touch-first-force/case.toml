@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-touch-first-force"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "A first-line plus modifier runs the complete script in touch mode without touching the target."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first\nsecond\n"
+stderr = ""

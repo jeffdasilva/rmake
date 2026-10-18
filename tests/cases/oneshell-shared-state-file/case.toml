@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-shared-state-file"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "All recipe lines share one shell and generated file content matches the shared shell variable."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "retained\n"
+stderr = ""

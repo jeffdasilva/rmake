@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-modifier-only-internal-plus-dry-touch"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Raw modifier-only recipes preserve dry-touch behavior with internal-plus modifiers."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-n", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "touch all\n"
+stderr = ""

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-custom-shell-flags-argv"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Custom shell flags use single-quote and backslash grouping and the combined script is one final argument."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "argc=4\narg=<one>\narg=<two words>\narg=<a b>\narg=<first\n@-+second>\n"
+stderr = ""
