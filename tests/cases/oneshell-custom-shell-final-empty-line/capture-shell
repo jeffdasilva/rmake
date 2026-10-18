@@ -1,0 +1,8 @@
+#!/bin/sh
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+printf 'argc=%s\n' "$#"
+for argument do
+    printf 'arg=<%s>\n' "$argument"
+done

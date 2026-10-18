@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-query-forced-exit-two"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "oneshell query forced exit two"
+provenance = "Independently authored from black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** [Makefile:6: all] Error 2\n"

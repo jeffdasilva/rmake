@@ -178,3 +178,29 @@ This campaign covers fresh explicit acyclic builds; stateful and cyclic behavior
 remain covered separately, and full graph-language compatibility is unfinished.
 An expanded campaign also passed 500 graphs with 16 nodes each (seed 20261018),
 both oracle-versus-oracle and oracle-versus-candidate.
+
+## One-shell execution and mode timing — 2026-10-18
+
+`.ONESHELL` now joins and expands a rule's recipe as one script, retains its
+parse-time recipe prefix, and handles GNU's internal prefix stripping for
+recognized Bourne shells. Custom shells receive literal executable names with
+GNU's script-prefix handling. First-line modifiers control the combined command;
+direct `MAKE` references force it as GNU does. Failure locations identify the
+first recipe line, and supported forced one-shell commands work with touch mode.
+
+Ordinary and one-shell commands now expand shell configuration before dry-run
+and query decisions. Tests distinguish truly empty expansions from nonempty
+text that reduces to blanks/modifiers. Combined `-nt` echoes a touch without
+writing, while `-qt` performs the touch. Raw empty/modifier-only recipes have
+separate timing coverage. Forced exit code 1 under query mode reports an outdated
+build, with the distinct ignore-error and delete-on-error behavior preserved.
+Query/keep-going mode suppresses the final blocked-target summary as GNU does.
+The curated suite has 318 cases: 241 required matches and 77 pending cases,
+including 65 new one-shell/configuration/mode fixtures.
+
+This remains a bounded execution slice. GNU's quoted-newline direct-command
+tail replay and complex one-shell `.SHELLFLAGS` syntax are explicitly unsupported
+on execution; exact oracle fixtures preserve these open requirements. Some
+variable-definition diagnostic locations also remain pending. Ordinary mixed
+forced recipes with touch mode, signal cleanup, parallel execution and the
+previously recorded dynamic-language features remain unfinished.

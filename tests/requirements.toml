@@ -209,7 +209,7 @@ id = "recipes.shell"
 title = "Shell lifetime and oneshell behavior"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 1
+candidate_required = 2
 reference = "https://www.gnu.org/software/make/manual/html_node/Execution.html"
 fixture_count = 2
 cases = ["recipe-oneshell-state", "recipe-independent-shells"]
@@ -389,3 +389,13 @@ candidate_required = 17
 reference = "https://www.gnu.org/software/make/manual/html_node/Multiple-Rules.html"
 fixture_count = 17
 cases = ["graph-merged-empty-recipe-prepends", "graph-merged-multiple-targets", "graph-merged-normal-before-order", "graph-merged-order-before-normal", "graph-merged-order-only-deduplicated", "graph-merged-promoted-position", "graph-merged-promotion-across-prepend", "graph-merged-recipe-block-prepends", "graph-merged-recipe-order-only-prepends", "graph-merged-repeated-normal-occurrences", "graph-merged-repeated-self-cycle", "graph-merged-single-declaration", "graph-repeated-missing-goal", "graph-repeated-missing-prerequisite", "graph-special-ignore-order-only", "graph-special-phony-order-only", "graph-special-silent-order-only"]
+
+[[requirements]]
+id = "recipes.oneshell"
+title = "One-shell execution, script transformation and configuration timing"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 58
+reference = "https://www.gnu.org/software/make/manual/html_node/One-Shell.html"
+fixture_count = 65
+cases = ["oneshell-comment-first-failure-location", "oneshell-config-expanded-under-dry", "oneshell-config-expanded-under-query", "oneshell-continuation-preserves-modifier", "oneshell-custom-shell-final-empty-line", "oneshell-custom-shell-flags-argv", "oneshell-dry-query-query-wins", "oneshell-dry-run-first-force", "oneshell-dry-run-internal-plus", "oneshell-dry-run-unforced", "oneshell-dry-touch-no-file", "oneshell-empty-first-line-echo", "oneshell-enabled-after-recipe", "oneshell-errexit-first-location", "oneshell-errexit-ignore-option", "oneshell-first-ignore-applies-whole", "oneshell-first-silent-applies-whole", "oneshell-heredoc-internal-modifiers", "oneshell-intermediate-failure-default", "oneshell-internal-ignore-not-global", "oneshell-internal-silent-not-global", "oneshell-prefix-remembered-at-parse", "oneshell-query-first-force", "oneshell-query-indirect-make-not-force", "oneshell-query-internal-make-reference", "oneshell-query-touch-creates-file", "oneshell-query-unforced", "oneshell-quoted-direct-tail-replay", "oneshell-quoted-internal-modifiers", "oneshell-shared-state-file", "oneshell-shellflags-expanded-under-dry", "oneshell-shellflags-expanded-under-query", "oneshell-touch-first-force", "oneshell-touch-internal-plus", "oneshell-touch-skips-body-expansion", "ordinary-config-expanded-under-dry", "ordinary-config-expanded-under-query", "ordinary-dry-touch-configuration-skipped", "ordinary-query-touch-configuration-skipped", "ordinary-shellflags-expanded-under-dry", "ordinary-shellflags-expanded-under-query", "oneshell-custom-shell-quoted-flags", "oneshell-modifier-only-first-plus-dry-touch", "oneshell-modifier-only-first-plus-touch", "oneshell-modifier-only-internal-plus-dry-touch", "oneshell-modifier-only-internal-plus-touch", "oneshell-modifier-only-plain-dry-touch", "oneshell-modifier-only-plain-touch", "oneshell-expanded-empty-configuration", "oneshell-expanded-modifier-configuration", "oneshell-expanded-space-configuration", "ordinary-expanded-empty-configuration", "ordinary-expanded-modifier-configuration", "ordinary-expanded-space-configuration", "oneshell-query-exit-one-delete-on-error", "oneshell-query-forced-exit-one", "oneshell-query-forced-exit-two", "oneshell-query-ignore-option-exit-one", "oneshell-query-ignore-option-exit-two", "oneshell-query-ignored-prefix-exit-one", "oneshell-query-keep-going-exit-one", "oneshell-query-keep-going-exit-two", "ordinary-modifier-only-internal-plus-touch", "ordinary-modifier-only-plain-touch", "ordinary-query-forced-exit-one"]

@@ -8,6 +8,7 @@ use std::process::ExitCode;
 
 mod cli;
 mod engine;
+mod oneshell;
 mod process;
 
 fn main() -> ExitCode {

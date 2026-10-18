@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-query-indirect-make-not-force"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "An indirect variable derived from MAKE does not make the raw combined recipe recursive."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

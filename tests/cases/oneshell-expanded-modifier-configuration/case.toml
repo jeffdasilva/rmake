@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-expanded-modifier-configuration"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "A nonempty expanded body still expands shell configuration even when modifier stripping leaves no command."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:8: *** unterminated variable reference.  Stop.\n"

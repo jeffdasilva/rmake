@@ -1,6 +1,6 @@
 id = "recipe-oneshell-state"
 requirement = "recipes.shell"
-candidate = "pending"
+candidate = "required"
 description = "recipe oneshell state"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

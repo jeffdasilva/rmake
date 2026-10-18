@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-config-expanded-under-query"
+requirement = "recipes.oneshell"
+candidate = "pending"
+description = "Configuration expansion occurs before unforced query mode skips process execution."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:5: *** Recursive variable 'LOOP' references itself (eventually).  Stop.\n"

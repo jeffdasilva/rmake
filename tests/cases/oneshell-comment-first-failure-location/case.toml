@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "oneshell-comment-first-failure-location"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "A failure after a first comment still reports the first stored recipe source line."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** [Makefile:6: all] Error 9\n"
