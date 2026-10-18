@@ -230,74 +230,70 @@ fn assignment_start(bytes: &[u8]) -> &[u8] {
         .unwrap_or(bytes.len())..]
 }
 
-// Only literal syntax blanks disqualify an assignment name. Quotes and
-// backslashes are ordinary name bytes; make references can contain blanks or
-// produce them later. Even a short reference consumes its following blank byte.
-fn assignment_name_end(name: &[u8]) -> Option<usize> {
+/// Parse an assignment without expanding either side. The caller chooses the
+/// origin and expands the name; the variable store controls RHS timing.
+///
+/// Make references consume complete name tokens before operator recognition.
+/// Quotes and backslashes are literal; only top-level SP/TAB separate the raw
+/// name from its operator. This lexer is separate from rule-separator escaping.
+pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
+    let bytes = assignment_start(bytes);
     let mut cursor = 0;
-    let mut end = 0;
+    let mut name_end = 0;
     let mut trailing = false;
-    while cursor < name.len() {
-        if matches!(name[cursor], b' ' | b'\t') {
+    while cursor < bytes.len() {
+        let rest = &bytes[cursor..];
+        let operator = match rest {
+            [b'=', ..] => Some((1, Assignment::Recursive)),
+            [b'+', b'=', ..] => Some((2, Assignment::Append)),
+            [b'?', b'=', ..] => Some((2, Assignment::Conditional)),
+            [b'!', b'=', ..] => Some((2, Assignment::Shell)),
+            [b':', b'=', ..] => Some((2, Assignment::Simple)),
+            [b':', b':', b'=', ..] => Some((3, Assignment::Simple)),
+            [b':', b':', b':', b'=', ..] => Some((4, Assignment::ImmediateRecursive)),
+            _ => None,
+        };
+        if let Some((length, kind)) = operator {
+            return Some(AssignmentSpec {
+                name: &bytes[..name_end],
+                value: assignment_start(&rest[length..]),
+                kind,
+            });
+        }
+        if matches!(bytes[cursor], b' ' | b'\t') {
             trailing = true;
             cursor += 1;
             continue;
         }
-        if trailing {
+        if trailing || matches!(bytes[cursor], b':' | b'#') {
             return None;
         }
-        match name[cursor] {
-            b'$' if cursor + 1 < name.len() => {
-                let open = name[cursor + 1];
+        match bytes[cursor] {
+            b'$' if cursor + 1 < bytes.len() => {
+                let open = bytes[cursor + 1];
                 cursor += 2;
                 if matches!(open, b'(' | b'{') {
                     let close = if open == b'(' { b')' } else { b'}' };
                     let mut depth = 1usize;
-                    while cursor < name.len() && depth != 0 {
-                        if name[cursor] == open {
+                    while cursor < bytes.len() && depth != 0 {
+                        if bytes[cursor] == open {
                             depth += 1;
                         }
-                        if name[cursor] == close {
+                        if bytes[cursor] == close {
                             depth -= 1;
                         }
                         cursor += 1;
+                    }
+                    if depth != 0 {
+                        return None;
                     }
                 }
             }
             _ => cursor += 1,
         }
-        end = cursor;
+        name_end = cursor;
     }
-    Some(end)
-}
-
-/// Parse an assignment without expanding either side. The caller chooses the
-/// origin and expands the name; the variable store controls RHS timing.
-pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
-    let equal = separator(bytes, b'=')?;
-    let (end, kind) = if bytes[..equal].ends_with(b":::") {
-        (equal - 3, Assignment::ImmediateRecursive)
-    } else if bytes[..equal].ends_with(b"::") {
-        (equal - 2, Assignment::Simple)
-    } else {
-        match equal.checked_sub(1).map(|i| bytes[i]) {
-            Some(b':') => (equal - 1, Assignment::Simple),
-            Some(b'+') => (equal - 1, Assignment::Append),
-            Some(b'?') => (equal - 1, Assignment::Conditional),
-            Some(b'!') => (equal - 1, Assignment::Shell),
-            _ => (equal, Assignment::Recursive),
-        }
-    };
-    if separator(&bytes[..end], b':').is_some() {
-        return None;
-    }
-    let name = assignment_start(&bytes[..end]);
-    let name = &name[..assignment_name_end(name)?];
-    Some(AssignmentSpec {
-        name,
-        value: assignment_start(&bytes[equal + 1..]),
-        kind,
-    })
+    None
 }
 
 fn directive<'a>(bytes: &'a [u8], keyword: &[u8]) -> Option<&'a [u8]> {
@@ -965,6 +961,107 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn assignment_operators_only_start_at_unconsumed_name_tokens() {
+        for (input, name, kind) in [
+            (
+                b"X$+=value".as_slice(),
+                b"X$+".as_slice(),
+                Assignment::Recursive,
+            ),
+            (b"X$?=value", b"X$?", Assignment::Recursive),
+            (b"X$!=value", b"X$!", Assignment::Recursive),
+            (b"X$:=value", b"X$:", Assignment::Recursive),
+            (b"X$::=value", b"X$:", Assignment::Simple),
+            (b"X$:::=value", b"X$:", Assignment::Simple),
+            (b"X$::::=value", b"X$:", Assignment::ImmediateRecursive),
+            (b"X$ +=value", b"X$ ", Assignment::Append),
+            (b"X$ :=value", b"X$ ", Assignment::Simple),
+        ] {
+            let spec = assignment(input).unwrap();
+            assert_eq!(
+                (spec.name, spec.kind, spec.value),
+                (name, kind, b"value".as_slice())
+            );
+        }
+        assert_eq!(assignment(b"X!=value").unwrap().kind, Assignment::Shell);
+        assert_eq!(assignment(b"X$#Y=value").unwrap().name, b"X$#Y");
+        assert_eq!(
+            assignment(b"X$(subst z,Z,#)Y=value").unwrap().name,
+            b"X$(subst z,Z,#)Y"
+        );
+        assert_eq!(assignment(b"X;Y=value").unwrap().name, b"X;Y");
+    }
+
+    #[test]
+    fn assignment_delimiters_ignore_backslash_and_quote_shell_conventions() {
+        for (input, name, value, kind) in [
+            (
+                b"X\\=Y=value".as_slice(),
+                b"X\\".as_slice(),
+                b"Y=value".as_slice(),
+                Assignment::Recursive,
+            ),
+            (b"X\\:=value", b"X\\", b"value", Assignment::Simple),
+            (b"'X=Y'=value", b"'X", b"Y'=value", Assignment::Recursive),
+            (
+                b"\\$(subst =, ,A=B)=value",
+                b"\\$(subst =, ,A=B)",
+                b"value",
+                Assignment::Recursive,
+            ),
+            (
+                b"${N:=Y}=value",
+                b"${N:=Y}",
+                b"value",
+                Assignment::Recursive,
+            ),
+        ] {
+            let spec = assignment(input).unwrap();
+            assert_eq!((spec.name, spec.value, spec.kind), (name, value, kind));
+        }
+        for input in [
+            b"X: =value".as_slice(),
+            b"target: X=value",
+            b"X::::=value",
+            b"$(missing=value",
+            b"${missing=value",
+            b"X#Y=value",
+            b"X\\#Y=value",
+        ] {
+            assert!(assignment(input).is_none(), "{input:?}");
+        }
+    }
+
+    #[test]
+    fn consumed_shell_operator_is_deferred_data_and_true_shell_assignment_stays_unsupported() {
+        let mut db = Database::default();
+        db.read(
+            b"X$! = $(error deferred)\nY$:=recursive\nZ$::=simple\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(
+            db.variables.get(b"X").unwrap().raw_value(),
+            b"$(error deferred)"
+        );
+        assert_eq!(
+            db.variables.get(b"Y").unwrap().flavor(),
+            crate::variables::Flavor::Recursive
+        );
+        assert_eq!(
+            db.variables.get(b"Z").unwrap().flavor(),
+            crate::variables::Flavor::Simple
+        );
+        let error = Database::default()
+            .read(b"X!=must-not-run\n", b"m")
+            .unwrap_err();
+        assert_eq!(
+            error.message.as_bytes(),
+            b"unsupported expansion feature '!='"
+        );
     }
 
     #[test]

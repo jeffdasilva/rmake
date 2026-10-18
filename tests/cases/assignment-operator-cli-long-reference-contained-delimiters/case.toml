@@ -1,0 +1,11 @@
+id = "assignment-operator-cli-long-reference-contained-delimiters"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "$(subst =,_,A=B)=value", "${subst :,_,C:D}:=value", "$(subst !,_,E!F)?=value", "$(subst ?,_,${subst =,_,G=H?I})::=value", "pre$(subst =,_,J=K)post +=value"]
+description = "Original assignment operator and delimiter tokenization with exact name/value/flavor observations."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "63617365303d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a63617365313d3c76616c75653e7c73696d706c657c636f6d6d616e64206c696e650a63617365323d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a63617365333d3c76616c75653e7c73696d706c657c636f6d6d616e64206c696e650a63617365343d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a"
+stderr_hex = ""

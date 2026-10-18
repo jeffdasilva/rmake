@@ -1,0 +1,11 @@
+id = "assignment-operator-cli-backslash-hash-is-not-assignment"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X\\#Y=value"]
+description = "Top-level hash bytes reject assignment syntax; hashes consumed inside make references remain part of name expansion."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027585c23593d76616c7565272e202053746f702e0a"

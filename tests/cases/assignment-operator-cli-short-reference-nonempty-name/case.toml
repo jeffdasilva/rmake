@@ -1,0 +1,11 @@
+id = "assignment-operator-cli-short-reference-nonempty-name"
+requirement = "variables.assignment-operators"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "$(subst x,+,x)=P", "$(subst x,?,x)=Q", "$(subst x,:,x)=C", "$(subst x,!,x)=B", "$(subst x,=,x)=E", "A$+=value", "B$?=value", "C$:=value", "D$!=value", "E$==value"]
+description = "Punctuation-named CLI variables expand into assignment names correctly, then GNU command-line replay emits an empty-variable-name fatal after parse output. Candidate lacks this generic replay phase."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "63617365303d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a63617365313d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a63617365323d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a63617365333d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a63617365343d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a"
+stderr_hex = "6d616b653a202a2a2a20656d707479207661726961626c65206e616d652e202053746f702e0a"

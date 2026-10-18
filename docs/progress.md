@@ -570,3 +570,33 @@ and exact candidate output, status and complete filesystem comparisons. It cover
 literal and computed names, short references, modifiers and rejected-name effect
 timing; its explicitly excluded boundaries are retained in the curated corpus.
 No GNU implementation source or upstream tests were consulted for this slice.
+
+## Assignment operator tokens — 2026-10-18
+
+Assignment recognition now uses one allocation-free lexical scan instead of
+generic separator searches followed by operator extraction and name validation.
+Short references consume operator bytes before classification, long references
+protect their internal delimiters, and backslashes remain literal. Unconsumed
+hashes reject assignment syntax even in CLI arguments. The existing rule parser
+and actual shell-assignment execution remain separate. The
+[assignment syntax notes](assignment-syntax.md) record the observed boundaries.
+
+Twenty-six new original fixtures add 25 required matches and one pending generic
+CLI replay case; two prior operator regressions are promoted. The corpus has
+784 fixtures: 702 required exact matches and 82 pending requirements. Full
+`make ci` passed with 251 Rust tests, 183 tooling tests, all generated/stateful
+and diagnostic comparisons and the top-level self-host flows.
+
+An independently authored campaign passes all 148 distinct inputs across ten
+families, including 20 `define` headers, delimiter/reference controls and malformed
+inner expressions. Exact GNU expectations and candidate byte streams, statuses
+and complete filesystem observations agree. No GNU implementation source or
+upstream tests were consulted for this slice.
+
+A paired release comparison against exact preceding commit `e2ee4a9` used 31
+alternating trials after three warm-ups with identical output. Before/after
+medians were 0.542/0.529 ms for tiny no-op, 31.140/30.798 ms for the 10,000-node
+graph, and 4.315/4.287 ms for 5,000 assignments. Median paired after/before ratios
+were 0.984, 0.989 and 1.005. These unisolated wall-time observations show no material
+change on the three early workloads; they do not establish a general speedup,
+GNU performance parity or completion of the performance milestone.

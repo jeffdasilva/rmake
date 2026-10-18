@@ -1,0 +1,14 @@
+id = "assignment-operator-file-reference-consumed-hash-is-name-content"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Top-level hash bytes reject assignment syntax; hashes consumed inside make references remain part of name expansion."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"NAME" = "A#B"
+
+[expected]
+exit_code = 0
+stdout_hex = "73686f72743d3c73686f72743e7c7265637572736976657c66696c650a6c6f6e673d3c6c6f6e673e7c7265637572736976657c66696c650a"
+stderr_hex = ""
