@@ -1,0 +1,9 @@
+# Rust build output. Keep Cargo.lock tracked when the application is initialized.
+/target/
+
+# Editor and operating-system artifacts.
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
