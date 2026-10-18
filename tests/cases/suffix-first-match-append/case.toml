@@ -1,0 +1,11 @@
+id = "suffix-first-match-append"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Suffix declarations append; first match wins even when a later suffix is longer."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.a.x>|<item.a>|<.>|<item.a>\n"
+stderr = ""

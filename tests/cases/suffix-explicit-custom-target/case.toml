@@ -1,0 +1,11 @@
+id = "suffix-explicit-custom-target"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "An explicit suffix metadata goal executes normal and order-only declared child rules."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", ".SUFFIXES"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "child:.x\nchild:.y\n"
+stderr = ""

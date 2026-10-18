@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "automatic-df-explicit-suffix-stem"
 requirement = "automatic.derivatives"
-candidate = "pending"
+candidate = "required"
 description = "A known suffix provides the stem of an explicit target and its directory and filename forms."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

@@ -1,0 +1,10 @@
+id = "forced-touch-before"
+requirement = "serial.forced-touch"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "-t"]
+provenance = "Original GNU Make 4.4.1 black-box probe; no implementation source consulted."
+
+[expected]
+exit_code = 0
+stdout = "absent\ntouch all\n"
+stderr = ""

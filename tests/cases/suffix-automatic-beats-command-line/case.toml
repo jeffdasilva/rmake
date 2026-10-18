@@ -1,0 +1,11 @@
+id = "suffix-automatic-beats-command-line"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "The recipe automatic stem overrides a command-line star variable."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "*=command-line"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.o>|<item>|<.>|<item>\n"
+stderr = ""

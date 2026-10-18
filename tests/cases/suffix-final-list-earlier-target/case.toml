@@ -1,0 +1,11 @@
+id = "suffix-final-list-earlier-target"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Recipes of earlier explicit targets use the final parsed suffix list."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.x>|<item>|<.>|<item>\n<item.y>|<>|<>|<>\n"
+stderr = ""

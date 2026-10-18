@@ -1,0 +1,11 @@
+id = "suffix-clear-replaces-recipe"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "A clearing suffix declaration can replace the old recipe and emits ordinary source-location warnings."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", ".SUFFIXES"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "new\n"
+stderr = "Makefile:5: warning: overriding recipe for target '.SUFFIXES'\nMakefile:4: warning: ignoring old recipe for target '.SUFFIXES'\n"

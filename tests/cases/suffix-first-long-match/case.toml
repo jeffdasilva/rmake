@@ -1,0 +1,11 @@
+id = "suffix-first-long-match"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "An earlier longer matching suffix wins because list order, not suffix length, decides."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.a.x>|<item>|<.>|<item>\n"
+stderr = ""

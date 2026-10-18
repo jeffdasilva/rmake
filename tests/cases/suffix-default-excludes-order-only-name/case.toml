@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Original rmake differential fixture.
+id = "suffix-default-excludes-order-only-name"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Order-only suffix metadata excludes a matching target from default-goal selection."
+provenance = "Independently authored from GNU Make 4.4.1 black-box observations; no upstream test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "chosen\n"
+stderr = ""

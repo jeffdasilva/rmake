@@ -1,0 +1,11 @@
+id = "suffix-order-only-append"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "Order-only suffix dependencies are recognized and do not clear previous entries."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+[expected]
+exit_code = 0
+stdout = "<item.a.x>|<item.a>|<.>|<item.a>\n<item.y>|<item>|<.>|<item>\n"
+stderr = ""
