@@ -233,6 +233,13 @@ and skipped effects; `WHITESPACE_CASE` supports individual replay. The
 [function whitespace notes](function-whitespace.md) describe the distinct
 preservation rules and the explicitly excluded upstream `let` crash family.
 
+`make test-word-index` checks `word` and `wordlist` numeric arguments against
+independently authored byte/status/filesystem expectations. Cases cover signed
+64-bit boundaries, signs, whitespace, invalid bytes, validation precedence and
+effects before failures, including missing arguments. `WORD_INDEX_CASE` replays
+one case. The [word index notes](word-indices.md) describe the numeric grammar
+and its distinction from arbitrary-length `intcmp` values.
+
 The current `make test-intcmp` gate executes 6,400 integer expressions across
 200 seeded programs. An independent Python integer model predicts normalization,
 branch selection and GNU 4.4.1's observed negative-number ordering quirk. The

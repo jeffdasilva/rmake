@@ -30,7 +30,7 @@ ARGS = ('-rR', '--no-print-directory')
 LIMITATIONS = [
     'trusted fixed inputs and process containment, not a security sandbox',
     'single invocations; timestamps and arbitrary process events not compared',
-    'invalid numeric word/wordlist diagnostics remain separate curated pending cases',
+    'numeric word/wordlist arguments have a separate matrix and curated cases',
     'GNU Make 4.4.1 crashes for multi-name let with a whitespace-only list; excluded here and retained separately as pending, never counted as a pass',
 ]
 

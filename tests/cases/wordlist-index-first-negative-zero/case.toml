@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "wordlist-index-first-negative-zero"
+requirement = "functions.words"
+candidate = "required"
+description = "wordlist normalizes negative zero when rejecting its first index."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "-0"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f72646c697374272066756e6374696f6e3a202730272e202053746f702e0a"

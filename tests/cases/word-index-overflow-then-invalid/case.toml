@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-overflow-then-invalid"
+requirement = "functions.words"
+candidate = "required"
+description = "word reports range overflow before a later invalid suffix in the same numeric text."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "9223372036854775808x"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e3a2027393232333337323033363835343737353830387827206f7574206f662072616e67652e202053746f702e0a"

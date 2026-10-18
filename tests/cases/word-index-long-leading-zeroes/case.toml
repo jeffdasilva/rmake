@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-long-leading-zeroes"
+requirement = "functions.words"
+candidate = "required"
+description = "word accepts a long run of leading zeroes without falsely reporting overflow."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "000000000000000000000000000000000000000000000000000000000000000000000000000000002"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c626574613e0a"
+stderr_hex = ""

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "wordlist-index-missing-list-inner-error-wins"
+requirement = "functions.words"
+candidate = "required"
+description = "A nested expansion error in a provided wordlist argument wins over missing-argument validation."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "6265666f72650a"
+stderr_hex = "4d616b6566696c653a343a202a2a2a206e65737465642e202053746f702e0a"

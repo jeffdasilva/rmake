@@ -192,6 +192,7 @@ pub enum ExpandError {
         count: usize,
     },
     WordIndexZero,
+    WordIndexError(Vec<u8>),
     ExpansionLimit,
 }
 
@@ -244,6 +245,7 @@ impl ExpandError {
         match self {
             Self::Located { error, .. } => error.diagnostic(),
             Self::FileError(message)
+            | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => message.clone().into(),
             Self::RecursiveVariable(name) => [
@@ -288,6 +290,7 @@ impl fmt::Display for ExpandError {
         match self {
             Self::Located { error, .. } => error.fmt(output),
             Self::FileError(message)
+            | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => {
                 output.write_str(&String::from_utf8_lossy(message))
@@ -1237,7 +1240,7 @@ impl Expansion<'_, '_> {
             if let Some((minimum, maximum)) = arity(name) {
                 let argument_text = trim_function_start(&body[end..]);
                 let args = split_args(argument_text, delimiter, maximum)?;
-                if args.len() < minimum {
+                if args.len() < minimum && !matches!(name, b"word" | b"wordlist") {
                     return Err(too_few_arguments(name, args.len()));
                 }
                 return self.function(name, &args);
@@ -1462,6 +1465,12 @@ impl Expansion<'_, '_> {
     }
 
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
+        if matches!(name, b"word" | b"wordlist") {
+            let minimum = if name == b"word" { 2 } else { 3 };
+            if args.len() < minimum {
+                return Err(too_few_arguments(name, args.len()));
+            }
+        }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
             b"file" => {
@@ -1573,21 +1582,39 @@ impl Expansion<'_, '_> {
             }
             b"words" => Ok(words(first).count().to_string().into_bytes()),
             b"word" => {
-                let index = number(first, name)?;
-                if index == 0 {
+                let index = word_index(first, name, false)?;
+                if index <= 0 {
                     return Err(ExpandError::WordIndexZero);
                 }
-                Ok(words(&args[1]).nth(index - 1).unwrap_or_default().to_vec())
+                Ok(words(&args[1])
+                    .nth(usize::try_from(index).unwrap_or(usize::MAX) - 1)
+                    .unwrap_or_default()
+                    .to_vec())
             }
             b"wordlist" => {
-                let start = number(first, name)?;
-                let end = number(&args[1], name)?;
-                if start == 0 {
-                    return Err(invalid(name, "start index must be greater than zero"));
+                let start = word_index(first, name, false)?;
+                if start < 1 {
+                    return Err(word_index_error(
+                        name,
+                        false,
+                        Some(start.to_string().as_bytes()),
+                        false,
+                    ));
+                }
+                let end = word_index(&args[1], name, true)?;
+                if end < 0 {
+                    return Err(word_index_error(
+                        name,
+                        true,
+                        Some(end.to_string().as_bytes()),
+                        false,
+                    ));
                 }
                 if end < start {
                     return Ok(Vec::new());
                 }
+                let start = usize::try_from(start).unwrap_or(usize::MAX);
+                let end = usize::try_from(end).unwrap_or(usize::MAX);
                 // Unlike most word functions, wordlist retains the whitespace
                 // between selected words from the expanded input.
                 let spans = word_spans(&args[2]);
@@ -1699,7 +1726,7 @@ fn invalid(function: &[u8], message: &'static str) -> ExpandError {
 }
 
 fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
-    if matches!(function, b"intcmp" | b"file") {
+    if matches!(function, b"intcmp" | b"file" | b"word" | b"wordlist") {
         ExpandError::InsufficientArguments {
             function: function.to_vec(),
             count,
@@ -1903,17 +1930,66 @@ fn split_args(
     Ok(result)
 }
 
-fn number(value: &[u8], function: &[u8]) -> Result<usize, ExpandError> {
-    let value = trim(value);
-    let digits = value.strip_prefix(b"+").unwrap_or(value);
-    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
-        return Err(invalid(function, "expected a nonnegative integer"));
+fn word_index_error(
+    function: &[u8],
+    second: bool,
+    value: Option<&[u8]>,
+    out_of_range: bool,
+) -> ExpandError {
+    let mut message = b"invalid ".to_vec();
+    message.extend_from_slice(if second { b"second" } else { b"first" });
+    message.extend_from_slice(b" argument to '");
+    message.extend_from_slice(function);
+    message.extend_from_slice(b"' function: ");
+    match value {
+        None => message.extend_from_slice(b"empty value"),
+        Some(value) => {
+            message.push(b'\'');
+            message.extend_from_slice(value);
+            message.push(b'\'');
+            if out_of_range {
+                message.extend_from_slice(b" out of range");
+            }
+        }
     }
-    digits.iter().try_fold(0usize, |result, digit| {
-        result
-            .checked_mul(10)
-            .and_then(|result| result.checked_add(usize::from(digit - b'0')))
-            .ok_or_else(|| invalid(function, "integer is too large"))
+    ExpandError::WordIndexError(message)
+}
+
+fn word_index(value: &[u8], function: &[u8], second: bool) -> Result<i64, ExpandError> {
+    let trimmed = trim(value);
+    if trimmed.is_empty() {
+        return Err(word_index_error(function, second, None, false));
+    }
+    let (negative, digits) = match trimmed[0] {
+        b'-' => (true, &trimmed[1..]),
+        b'+' => (false, &trimmed[1..]),
+        _ => (false, trimmed),
+    };
+    let limit = if negative {
+        1u64 << 63
+    } else {
+        i64::MAX as u64
+    };
+    let mut magnitude = 0u64;
+    let mut count = 0;
+    for digit in digits.iter().take_while(|byte| byte.is_ascii_digit()) {
+        let digit = u64::from(*digit - b'0');
+        if magnitude > (limit - digit) / 10 {
+            // Numeric-prefix overflow wins even when nonnumeric suffixes follow.
+            return Err(word_index_error(function, second, Some(value), true));
+        }
+        magnitude = magnitude * 10 + digit;
+        count += 1;
+    }
+    if count == 0 || count != digits.len() {
+        return Err(word_index_error(function, second, Some(value), false));
+    }
+    Ok(if negative && magnitude == 1u64 << 63 {
+        i64::MIN
+    } else if negative {
+        -(magnitude as i64)
+    } else {
+        magnitude as i64
     })
 }
 
@@ -2492,10 +2568,10 @@ mod tests {
                 b"first argument to 'word' function must be greater than 0"
             );
         }
-        assert!(matches!(
+        assert_eq!(
             VariableStore::new().expand(b"$(word -1,x)"),
-            Err(ExpandError::InvalidArguments { .. })
-        ));
+            Err(ExpandError::WordIndexZero)
+        );
     }
 
     #[test]
@@ -2850,11 +2926,141 @@ mod tests {
             b"$(wordlist 0,1,a)",
             b"$(word -1,a)",
         ] {
-            assert!(matches!(
-                VariableStore::new().expand(input),
-                Err(ExpandError::InvalidArguments { .. })
-            ));
+            assert!(VariableStore::new().expand(input).is_err());
         }
+    }
+
+    #[test]
+    fn word_indices_accept_signed_decimal_zero_and_i64_limits_exactly() {
+        for (expression, expected) in [
+            (b"$(word +0002,a b c)".as_slice(), b"b".as_slice()),
+            (b"$(word \x0b+2\r\n,a b c)", b"b"),
+            (b"$(word 9223372036854775807,a b c)", b""),
+            (b"$(wordlist 1,+9223372036854775807,a\tb c)", b"a\tb c"),
+            (
+                b"$(wordlist 9223372036854775807,9223372036854775807,a b)",
+                b"",
+            ),
+            (b"$(wordlist 1,-0000,a b)", b""),
+            (b"$(wordlist +0002,0003,a b c d)", b"b c"),
+        ] {
+            assert_eq!(expand(expression), expected);
+        }
+        let zeros = vec![b'0'; 100];
+        let expression = [b"$(word ".as_slice(), &zeros, b"2,a b c)"].concat();
+        assert_eq!(expand(&expression), b"b");
+    }
+
+    #[test]
+    fn word_index_errors_distinguish_domain_syntax_and_numeric_prefix_overflow() {
+        for (expression, expected) in [
+            (b"$(word -0001,a b)".as_slice(), b"first argument to 'word' function must be greater than 0".as_slice()),
+            (b"$(word -9223372036854775808,a b)", b"first argument to 'word' function must be greater than 0"),
+            (b"$(wordlist -0001,2,a b)", b"invalid first argument to 'wordlist' function: '-1'"),
+            (b"$(wordlist -0,bad,a b)", b"invalid first argument to 'wordlist' function: '0'"),
+            (b"$(wordlist 1,-0002,a b)", b"invalid second argument to 'wordlist' function: '-2'"),
+            (b"$(wordlist 1,-9223372036854775808,a b)", b"invalid second argument to 'wordlist' function: '-9223372036854775808'"),
+            (b"$(word 9223372036854775808x,a b)", b"invalid first argument to 'word' function: '9223372036854775808x' out of range"),
+            (b"$(word x9223372036854775808,a b)", b"invalid first argument to 'word' function: 'x9223372036854775808'"),
+            (b"$(wordlist 1,-9223372036854775809x,a b)", b"invalid second argument to 'wordlist' function: '-9223372036854775809x' out of range"),
+            (b"$(wordlist 1,18446744073709551615,a b)", b"invalid second argument to 'wordlist' function: '18446744073709551615' out of range"),
+            (b"$(word ,a b)", b"invalid first argument to 'word' function: empty value"),
+            (b"$(wordlist 1,\x0b\r\n,a b)", b"invalid second argument to 'wordlist' function: empty value"),
+        ] {
+            let error = VariableStore::new().expand(expression).unwrap_err();
+            assert_eq!(error.diagnostic().as_bytes(), expected);
+        }
+    }
+
+    #[test]
+    fn word_index_diagnostics_keep_untrimmed_non_utf8_bytes() {
+        let mut store = VariableStore::new();
+        store
+            .define_literal(b"N", b" \t\xffbad\xa0\x0b ", Origin::File)
+            .unwrap();
+        let error = store.expand(b"$(word $(N),a b)").unwrap_err();
+        assert_eq!(
+            error.diagnostic().as_bytes(),
+            b"invalid first argument to 'word' function: ' \t\xffbad\xa0\x0b '"
+        );
+        store
+            .define_literal(b"N", b" \t9223372036854775808x\x0b ", Origin::File)
+            .unwrap();
+        let error = store.expand(b"$(wordlist 1,$(N),a b)").unwrap_err();
+        assert_eq!(error.diagnostic().as_bytes(), b"invalid second argument to 'wordlist' function: ' \t9223372036854775808x\x0b ' out of range");
+    }
+
+    #[test]
+    fn word_functions_expand_provided_arguments_before_arity_or_numeric_validation() {
+        let store = VariableStore::new();
+        for (expression, messages, diagnostic) in [
+            (
+                b"$(word $(info first))".as_slice(),
+                vec![b"first".as_slice()],
+                b"insufficient number of arguments (1) to function 'word'".as_slice(),
+            ),
+            (
+                b"$(wordlist $(info first),$(info second))",
+                vec![b"first".as_slice(), b"second".as_slice()],
+                b"insufficient number of arguments (2) to function 'wordlist'",
+            ),
+            (
+                b"$(wordlist 0,$(info second)bad,$(info text))",
+                vec![b"second".as_slice(), b"text".as_slice()],
+                b"invalid first argument to 'wordlist' function: '0'",
+            ),
+            (
+                b"$(wordlist 1,$(info second)bad,$(info text))",
+                vec![b"second".as_slice(), b"text".as_slice()],
+                b"invalid second argument to 'wordlist' function: 'bad'",
+            ),
+        ] {
+            let mut outputs = Vec::new();
+            let error = store
+                .expand_with(
+                    expression,
+                    ExpansionContext::new(None, &mut |output| {
+                        if let Output::Info(message) = output {
+                            outputs.push(message.to_vec());
+                        }
+                    }),
+                )
+                .unwrap_err();
+            assert_eq!(outputs, messages);
+            assert_eq!(error.diagnostic().as_bytes(), diagnostic);
+        }
+        assert_eq!(
+            store.expand(b"$(word $(error before-arity))"),
+            Err(ExpandError::UserError(b"before-arity".to_vec()))
+        );
+        assert_eq!(
+            store.expand(b"$(wordlist 0,bad,$(error before-validation))"),
+            Err(ExpandError::UserError(b"before-validation".to_vec()))
+        );
+    }
+
+    #[test]
+    fn word_index_errors_keep_the_recursive_binding_definition() {
+        let mut store = VariableStore::new();
+        let definition = source(2);
+        let caller = source(9);
+        store
+            .define_at(
+                b"F",
+                b"$(word \xff,a b)",
+                Assignment::Recursive,
+                Origin::File,
+                &definition,
+            )
+            .unwrap();
+        let error = store
+            .expand_with(b"$(F)", ExpansionContext::new(Some(&caller), &mut |_| {}))
+            .unwrap_err();
+        assert_eq!(error.diagnostic_location(Some(&caller)), Some(&definition));
+        assert_eq!(
+            error.diagnostic().as_bytes(),
+            b"invalid first argument to 'word' function: '\xff'"
+        );
     }
 
     #[test]

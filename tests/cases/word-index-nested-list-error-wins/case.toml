@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "word-index-nested-list-error-wins"
+requirement = "functions.words"
+candidate = "required"
+description = "An error while expanding the word list wins over an invalid word index and retains prior output."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "6c6973742d6566666563740a"
+stderr_hex = "4d616b6566696c653a343a202a2a2a206e65737465642d6572726f722e202053746f702e0a"

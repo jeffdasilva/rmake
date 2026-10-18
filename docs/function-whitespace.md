@@ -31,8 +31,10 @@ GNU Make 4.4.1 can terminate with SIGSEGV for an insufficient `let` list, includ
 signal and remains pending: rmake safely binds missing values to empty strings.
 No memory corruption or deliberate crash was added to imitate that behavior.
 The positive generated campaign excludes this known crash family explicitly;
-those inputs are not counted as matches. Six unrelated invalid numeric-argument
-diagnostics also remain pending, with exact failing bytes retained in fixtures.
+those inputs are not counted as matches. The six invalid numeric-argument
+diagnostics found in this slice are covered by the subsequent
+[word index implementation](word-indices.md), with their exact bytes retained
+in required fixtures.
 
 This implementation and its fixtures were independently written from original
 oracle probes. No GNU implementation source or upstream tests were incorporated

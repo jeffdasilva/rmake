@@ -83,6 +83,9 @@ stream, status and filesystem expectations, including merged output ordering.
 partial reads and close failures; `FILESYSTEM_CASE` selects one for replay.
 `make test-whitespace` checks pure-function whitespace, local bindings and effect
 ordering; `WHITESPACE_CASE` selects one case.
+`make test-word-index` checks `word` and `wordlist` integer boundaries, raw-byte
+errors and expansion ordering; `WORD_INDEX_CASE` selects one case. See the
+[word index notes](docs/word-indices.md) for the accepted numeric grammar.
 Their reports and failure reproductions are written under `artifacts/`.
 
 `make bench-compare` builds release rmake and records alternating paired timings
