@@ -62,9 +62,16 @@ impl Options {
             {
                 first.insert(0, b'-');
             }
+            let mut inherited_end = false;
             for token in tokens {
                 if token == b"--" {
+                    inherited_end = true;
                     continue;
+                }
+                if inherited_end && token.starts_with(b"-") {
+                    return Err(
+                        "option-like goals in inherited make flags are not implemented".into(),
+                    );
                 }
                 // GNU omits these options when exporting MAKEFLAGS. Reject
                 // them here rather than reading a different file or directory.
@@ -321,5 +328,6 @@ mod tests {
         assert_eq!(options.assignments, [b"X=two words".to_vec()]);
         assert_eq!(options.goals, [b"all".to_vec()]);
         assert!(Options::with_environment([], Some("--jobserver-auth=3,4".into()), None).is_err());
+        assert!(Options::with_environment([], Some("r -- -n".into()), None).is_err());
     }
 }

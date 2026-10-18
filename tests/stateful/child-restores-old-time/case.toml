@@ -1,0 +1,22 @@
+id = "child-restores-old-time"
+description = "A rebuilt child that restores its old mtime does not force a newer parent."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = [{ "op" = "write", "path" = "trigger", "content" = "trigger\n", "mtime_ns" = 1600000000000000010 }, { "op" = "write", "path" = "child", "content" = "child\n", "mtime_ns" = 1600000000000000000 }, { "op" = "write", "path" = "out", "content" = "parent\n", "mtime_ns" = 1600000000000000020 }]
+
+[[steps]]
+name = "child-rebuilt-old-time"
+args = ["-rR", "--no-print-directory"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "child\n", "stderr" = "" }
+unchanged = ["out"]
+exact_mtime = { "child" = 1600000000000000000, "out" = 1600000000000000020 }
+mtime_order = []
+
+[[steps]]
+name = "child-still-old"
+args = ["-rR", "--no-print-directory"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "child\n", "stderr" = "" }
+unchanged = ["out"]
+exact_mtime = { "child" = 1600000000000000000, "out" = 1600000000000000020 }
+mtime_order = []

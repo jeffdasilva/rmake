@@ -57,6 +57,8 @@ validation. The recursive parallel case is only a first jobserver smoke test; it
 does not prove token accounting or FIFO/pipe interoperability.
 
 Add small original counterexamples for every discrepancy. Preserve exact output
-and side effects; do not broaden normalization to hide a failure. Add multi-step
-fixtures when the harness gains explicit step support rather than embedding
-uncontrolled timestamps or sleeps into these cases.
+and side effects; do not broaden normalization to hide a failure. The separate
+[stateful corpus](stateful/README.md) now provides explicit steps and deterministic
+timestamp inputs. Use that interface instead of uncontrolled sleeps in single-step
+cases. `make test-generated` also provides a reproducible pure-expansion campaign;
+its case count is separate from this curated inventory.

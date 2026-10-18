@@ -52,6 +52,17 @@ fixture runner is for trusted project fixtures only, not untrusted Makefiles.
 Use `make build`, `make test`, `make fmt-check`, `make lint`, and `make bench` for
 individual flows. The build binary is `target/debug/rmake`.
 
+`make test-generated` runs 200 reproducible programs containing 6,400 expression
+observations by default. Increase the campaign with `SEED`, `GENERATED_CASES` and
+`EXPRESSIONS`; `START_INDEX` replays a recorded program. `make test-stateful`
+compares multi-step builds and nanosecond timestamp boundaries. Both are CI gates.
+Their reports and failure reproductions are written under `artifacts/`.
+
+`make bench-compare` builds release rmake and records alternating paired timings
+against the verified oracle, checking exact output before reporting times. These
+early workloads are measurement tools, not evidence of complete compatibility or
+a general speed advantage.
+
 The serial engine can drive the repository's `build` and `check-core` targets:
 
 ```sh
