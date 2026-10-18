@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rmake", "crates/rmake-core"]
+members = ["crates/rmake", "crates/rmake-core", "crates/rmake-linux"]
 resolver = "3"
 
 [workspace.package]

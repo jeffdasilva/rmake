@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-call-surplus-eager"
+requirement = "functions.file"
+candidate = "required"
+description = "Call eagerly expands surplus arguments but file writes only its second argument."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "737572706c75730a3c24284c49544552414c293e0a"
+stderr_hex = ""

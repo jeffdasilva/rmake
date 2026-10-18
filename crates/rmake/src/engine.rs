@@ -9,6 +9,7 @@ use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
+use rmake_linux::filesystem::execute as filesystem_effect;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
@@ -240,7 +241,11 @@ impl Engine {
             }
             let name = database
                 .variables
-                .expand_with(spec.name, ExpansionContext::new(None, &mut output))
+                .expand_with(
+                    spec.name,
+                    ExpansionContext::new(None, &mut output)
+                        .with_filesystem(&mut filesystem_effect),
+                )
                 .map_err(|e| e.diagnostic())?;
             database
                 .variables
@@ -250,7 +255,8 @@ impl Engine {
                     spec.kind,
                     Origin::CommandLine,
                     None,
-                    ExpansionContext::new(None, &mut output),
+                    ExpansionContext::new(None, &mut output)
+                        .with_filesystem(&mut filesystem_effect),
                 )
                 .map_err(|e| e.diagnostic())?;
             if automatic_export_name(&name) {
@@ -313,7 +319,8 @@ impl Engine {
     ) -> Result<Vec<u8>, ExpandError> {
         variables.expand_with(
             bytes,
-            ExpansionContext::new(location, &mut |event| emit_output(&self.program, event)),
+            ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
+                .with_filesystem(&mut filesystem_effect),
         )
     }
 
@@ -400,7 +407,8 @@ impl Engine {
             if let Err(err) = self.database.read_with(
                 &bytes,
                 file.as_os_str().as_bytes(),
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut filesystem_effect),
             ) {
                 self.fatal(Some(&err.location), err.message.as_bytes());
                 return 2;
@@ -727,7 +735,8 @@ impl Engine {
         let variables = self.database.variables_for_target_with(
             target,
             &inherited,
-            ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+            ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                .with_filesystem(&mut filesystem_effect),
         )?;
         self.target_contexts
             .insert(target.to_vec(), variables.clone());
@@ -809,10 +818,10 @@ impl Engine {
             }
         }
         let variables = &variables;
-        let mut expanded = Vec::new();
-        for recipe in recipes {
+        let mut expanded = std::collections::VecDeque::new();
+        for (index, recipe) in recipes.iter().enumerate() {
             match self.expand(variables, &recipe.bytes, Some(&recipe.location)) {
-                Ok(bytes) => expanded.push((bytes, recipe)),
+                Ok(bytes) => expanded.push_back((index, bytes, recipe)),
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     return Execution::fatal(false);
@@ -820,17 +829,19 @@ impl Engine {
             }
         }
         let mut ran = false;
-        for (index, (bytes, recipe)) in expanded.into_iter().enumerate() {
+        while let Some((index, bytes, recipe)) = expanded.pop_front() {
             if bytes.is_empty() {
                 continue;
             }
             let mut command = trim_leading(&bytes);
-            let mut quiet = self.globally_silent() || self.special(b".SILENT", target, false);
-            let mut ignore = self.options.ignore_errors || self.special(b".IGNORE", target, true);
-            let mut force = recipe
-                .bytes
-                .windows(7)
-                .any(|s| s == b"$(MAKE)" || s == b"${MAKE}");
+            let raw_flags = crate::oneshell::prefixes(&recipe.bytes).1;
+            let mut quiet = self.globally_silent()
+                || self.special(b".SILENT", target, false)
+                || raw_flags.quiet;
+            let mut ignore = self.options.ignore_errors
+                || self.special(b".IGNORE", target, true)
+                || raw_flags.ignore_errors;
+            let mut force = flow.recursive(index);
             while let Some(prefix) = command.first() {
                 match prefix {
                     b'@' => quiet = true,
@@ -880,9 +891,21 @@ impl Engine {
                 continue;
             }
             let transformed;
+            let ordinary_invocation;
             if one_shell {
                 transformed = crate::oneshell::transform(command, shell, recipe.prefix);
                 command = &transformed;
+                ordinary_invocation = None;
+            } else {
+                let line = crate::process::prepare_line(command, shell, &flags, ifs.as_deref());
+                if let Some(next) = line.next {
+                    expanded.push_front((index, command[next..].to_vec(), recipe));
+                }
+                command = &command[..line.end];
+                ordinary_invocation = Some(line.invocation);
+                if command.is_empty() {
+                    continue;
+                }
             }
             if self.options.question && !force {
                 self.would_build = true;
@@ -917,7 +940,7 @@ impl Engine {
                     }
                 }
             } else {
-                crate::process::prepare(command, shell, &flags, ifs.as_deref())
+                ordinary_invocation.expect("ordinary commands are prepared with their boundary")
             };
             if crate::recipe_flow::optimized_noop(&invocation) {
                 continue;
@@ -1021,7 +1044,8 @@ impl Engine {
                         name,
                         ExpansionContext::new(variable.definition(), &mut |event| {
                             emit_output(&self.program, event)
-                        }),
+                        })
+                        .with_filesystem(&mut filesystem_effect),
                     ) {
                         Ok(value) => {
                             child.env(os(name), OsString::from_vec(value));

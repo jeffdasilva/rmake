@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-oneshell-quoted-read"
+requirement = "recipes.oneshell"
+candidate = "pending"
+description = "File-produced quoted newlines follow the existing pending GNU one-shell direct-command replay surface."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "66697273740a7365636f6e640a"
+stderr_hex = "2f62696e2f73683a20313a2053796e746178206572726f723a20556e7465726d696e617465642071756f74656420737472696e670a6d616b653a202a2a2a205b4d616b6566696c653a363a20616c6c5d204572726f7220320a"

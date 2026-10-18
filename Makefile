@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -18,6 +18,7 @@ GRAPH_CASES ?= 100
 GRAPH_NODES ?= 8
 MODE_CASE ?=
 DIAGNOSTIC_CASE ?=
+FILESYSTEM_CASE ?=
 INTCMP_SEED ?= 441011
 INTCMP_CASES ?= 200
 INTCMP_EXPRESSIONS ?= 32
@@ -41,6 +42,7 @@ help:
 		'  test-graphs     Compare seeded explicit dependency graphs' \
 		'  test-scopes     Compare scoped variables across seeded dependency graphs' \
 		'  test-pattern-scopes Compare mixed pattern and explicit variable scopes' \
+		'  test-filesystem  Compare Linux filesystem effects under injected faults' \
 		'  test-modes      Compare 512 ordinary/one-shell execution mode combinations' \
 		'  test-intcmp     Compare seeded arbitrary-length integer expressions' \
 		'  test-diagnostics Compare diagnostic output and expansion ordering' \
@@ -55,6 +57,7 @@ help:
 		'Graph overrides: GRAPH_SEED, GRAPH_CASES, GRAPH_NODES, START_INDEX.' \
 		'Mode replay: MODE_CASE=<case ID>.' \
 		'Diagnostic replay: DIAGNOSTIC_CASE=<case ID>.' \
+		'Filesystem fault replay: FILESYSTEM_CASE=<case ID>.' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'
 
@@ -106,6 +109,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIAGNOSTIC_CASE=message-204-child-output-order test-diagnostics
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FILESYSTEM_CASE=close-eio-write test-filesystem
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -139,9 +143,13 @@ test-stateful: build oracle-verify
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
-test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-modes test-intcmp test-diagnostics test-stateful
+test-filesystem: build oracle-verify
+	$(PYTHON) tools/stdio_faults.py --oracle "$(ORACLE)" --self-test $(if $(FILESYSTEM_CASE),--case "$(FILESYSTEM_CASE)")
+	$(PYTHON) tools/stdio_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(FILESYSTEM_CASE),--case "$(FILESYSTEM_CASE)")
 
-check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-modes test-intcmp test-diagnostics test-stateful
+test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-modes test-intcmp test-diagnostics test-stateful
+
+check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-modes test-intcmp test-diagnostics test-stateful
 
 ci: check test-selfhost
 

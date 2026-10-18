@@ -43,6 +43,11 @@ Start with a small Cargo workspace once implementation begins. Keep most
 subsystems as modules; split a crate only when it provides a useful dependency or
 safety boundary. No separate service or background daemon is required.
 
+The current workspace contains `rmake-core`, the `rmake` application and
+`rmake-linux` for explicit filesystem effects and its private stdio adapter.
+Process scheduling still lives in the application; the rest of the boundaries
+below describe the intended incremental structure, not completed subsystems.
+
 | Proposed crate | Responsibility | Dependencies |
 | --- | --- | --- |
 | `rmake-core` | Source handling, expression engine, variables, ordered rules, resolution, update semantics, diagnostic events | No OS process spawning; interfaces for effects |

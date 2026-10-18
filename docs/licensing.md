@@ -30,6 +30,8 @@ consulted for that independently written implementation and its later fixtures.
 The [pattern-variable notes](pattern-scopes.md) record the binding, activation
 and export-policy source references used for the independently written scope
 implementation.
+The [filesystem-effect notes](filesystem-effects.md) identify the filesystem and
+recipe-command source references and the narrow Linux stdio interface.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

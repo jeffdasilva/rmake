@@ -216,6 +216,16 @@ ordered matching pattern declarations to the same graphs and runs a separate
 100-program CI campaign; `--patterns` is retained for exact replay. Effectful
 functions remain outside these generators' current scope.
 
+`make test-filesystem` adds eleven original Linux/glibc fault scenarios. A
+temporary C interposer injects interrupted opens/reads/path observations, partial
+reads, write errors and errors after actual close. The runner compares exact
+streams, status, filesystem snapshots and injection traces with authored
+expectations, then compares both engines. `FILESYSTEM_CASE` selects a case for
+replay; reports retain the compiler, helper source and binary identities.
+Curated cases separately cover normal file/realpath behavior, byte filenames,
+symlinks, NUL expansion consumers, newline treatment and effect timing.
+See the [filesystem effect notes](filesystem-effects.md) for safety boundaries.
+
 The current `make test-intcmp` gate executes 6,400 integer expressions across
 200 seeded programs. An independent Python integer model predicts normalization,
 branch selection and GNU 4.4.1's observed negative-number ordering quirk. The

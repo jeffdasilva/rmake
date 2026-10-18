@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-dev-full-write-4095"
+requirement = "functions.file"
+candidate = "required"
+description = "Linux /dev/full write reports close failure at the 4096-byte stdio buffering boundary."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a31373a202a2a2a20636c6f73653a202f6465762f66756c6c3a204e6f207370616365206c656674206f6e206465766963652e202053746f702e0a"

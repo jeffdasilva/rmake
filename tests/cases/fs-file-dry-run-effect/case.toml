@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-dry-run-effect"
+requirement = "functions.file"
+candidate = "required"
+description = "GNU-compatible file dry run effect behavior, including exact output and resulting filesystem state."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620273c25733e5c6e27202776616c7565270a"
+stderr_hex = ""

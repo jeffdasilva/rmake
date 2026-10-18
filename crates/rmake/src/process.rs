@@ -50,6 +50,64 @@ pub fn prepare(command: &[u8], shell: &[u8], flags: &[u8], ifs: Option<&[u8]>) -
     shell_invocation(command, shell, flags)
 }
 
+pub struct PreparedLine {
+    pub invocation: Invocation,
+    /// The visible command ends here; the separator itself is not echoed.
+    pub end: usize,
+    /// Remaining commands reuse the same already-expanded logical recipe.
+    pub next: Option<usize>,
+}
+
+/// Ordinary recipes can gain new command boundaries during expansion. The
+/// direct lexer and shell fallback treat escaped newlines differently, so
+/// choose the invocation before exposing the residual command. Shell quotes do
+/// not protect an unescaped newline from make's command boundary.
+pub fn prepare_line(
+    command: &[u8],
+    shell: &[u8],
+    flags: &[u8],
+    ifs: Option<&[u8]>,
+) -> PreparedLine {
+    if !command.contains(&b'\n') {
+        return PreparedLine {
+            invocation: prepare(command, shell, flags, ifs),
+            end: command.len(),
+            next: None,
+        };
+    }
+    let direct_end = command_boundary(command, true);
+    let (invocation, end) = match prepare(&command[..direct_end], shell, flags, ifs) {
+        direct @ Invocation::Direct { .. } => (direct, direct_end),
+        Invocation::Shell { .. } => {
+            let end = command_boundary(command, false);
+            (shell_invocation(&command[..end], shell, flags), end)
+        }
+    };
+    PreparedLine {
+        invocation,
+        end,
+        next: (end < command.len()).then_some(end + 1),
+    }
+}
+
+fn command_boundary(command: &[u8], direct: bool) -> usize {
+    let mut single_quoted = false;
+    let mut index = 0;
+    while let Some(&byte) = command.get(index) {
+        match byte {
+            b'\\' if command.get(index + 1) == Some(&b'\n') => index += 2,
+            b'\\' if direct && !single_quoted && index + 1 < command.len() => index += 2,
+            b'\'' if direct => {
+                single_quoted = !single_quoted;
+                index += 1;
+            }
+            b'\n' => return index,
+            _ => index += 1,
+        }
+    }
+    command.len()
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Recipe,
@@ -279,6 +337,30 @@ fn single_quote(input: &[u8], output: &mut Vec<u8>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expanded_newline_ends_a_command_even_inside_a_quote() {
+        let command = b"printf '%s' 'first\nsecond'";
+        let line = prepare_line(command, b"/bin/sh", b"-c", None);
+        assert_eq!(&command[..line.end], b"printf '%s' 'first");
+        assert_eq!(&command[line.next.unwrap()..], b"second'");
+        assert!(
+            matches!(line.invocation, Invocation::Shell { args, .. } if args.last().unwrap() == b"printf '%s' 'first")
+        );
+    }
+
+    #[test]
+    fn newline_boundaries_distinguish_direct_and_shell_escaping() {
+        let command = b"printf one\\\\\ntwo";
+        let direct = prepare_line(command, b"/bin/sh", b"-c", None);
+        assert_eq!(&command[..direct.end], b"printf one\\\\");
+        assert!(matches!(direct.invocation, Invocation::Direct { .. }));
+        let shell = prepare_line(command, b"/bin/bash", b"-c", None);
+        assert_eq!(shell.end, command.len());
+        assert_eq!(shell.next, None);
+        let quoted = b"printf '%s' 'one\\\\\ntwo'";
+        assert_eq!(prepare_line(quoted, b"/bin/sh", b"-c", None).next, None);
+    }
 
     fn direct(program: &[u8], args: &[&[u8]]) -> Invocation {
         Invocation::Direct {

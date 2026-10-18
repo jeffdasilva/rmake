@@ -722,3 +722,41 @@ The [pattern-scope notes](pattern-scopes.md) describe the implementation and GNU
 source references consulted. Rust code and fixtures are independently authored;
 no GNU code or upstream tests were copied or translated. This completes the
 recorded variable-scope slice, not M3 or full GNU Make compatibility.
+
+## File and realpath effects with Linux I/O faults — 2026-10-18
+
+`file` now reads, truncates and appends, and `realpath` observes existing paths.
+Explicit callbacks keep OS effects out of the core. The new `rmake-linux` crate
+provides byte-preserving I/O and an owned, reviewed stdio adapter that retains
+GNU's buffered write/close error stages. Core and application code still forbid
+unsafe Rust. No observation cache or atomic file replacement is introduced.
+
+Expansion preserves file data through the correct NUL consumer boundaries,
+newline treatment and caller/definition diagnostic contexts. Ordinary recipes
+now execute expansion-generated command fragments separately, retaining raw
+modifiers, sticky recursive status and distinct direct/shell continuation rules.
+The [filesystem notes](filesystem-effects.md) describe safety, limits and source
+references. All implementation and tests are independently authored.
+
+Sixty-seven original fixtures were added; eight earlier file/path and empty-shell
+regressions are promoted. The corpus contains 1,023 cases: 969 required exact
+matches and 54 observed pending mismatches, with no failures or unexpected
+passes. Full `make ci` passed with 328 Rust tests, 197 tooling tests and all prior
+gates. `make test-filesystem` adds eleven durable, fault-injected comparisons to
+CI, including interrupted opens/reads/path observations, partial reads, buffered
+write failures and errors after exactly one actual close. A selected close-fault
+case also runs through the top-level Makefile using rmake. Independent expression,
+NUL, scope, recipe-mode and continuation probes matched all 432 inputs.
+
+A release comparison against preceding implementation commit `9ecc095` used 31
+alternating pairs after three warmups with identical output and execution
+context. Before/after medians were 0.628/0.629 ms for tiny no-op, 24.693/24.781 ms
+for 10,000 explicit targets, and 4.514/4.769 ms for 5,000 assignments. Median paired
+after/before ratios were 0.997, 1.012 and 1.055. The assignment workload was about
+5% slower in this unisolated run; the expanded evaluator needs later profiling.
+These measurements establish neither general performance nor GNU speed parity.
+
+Three added pending cases preserve broader `.ONESHELL` quoted-newline replay,
+pure-function vertical-tab and literal-NUL reader gaps. Wildcard, process and
+dynamic evaluation functions, includes/restarts, complete rule resolution,
+parallel execution, persistent caching and plugins remain later work.

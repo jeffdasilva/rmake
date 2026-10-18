@@ -22,11 +22,27 @@ pub enum Output<'a> {
     },
 }
 
+/// A filesystem operation requested by expansion. Filenames and contents are
+/// raw Linux bytes; the runtime owns filesystem access and error formatting.
+#[derive(Clone, Copy, Debug)]
+pub enum FilesystemEffect<'a> {
+    Realpath(&'a [u8]),
+    ReadFile(&'a [u8]),
+    WriteFile {
+        path: &'a [u8],
+        text: Option<&'a [u8]>,
+        append: bool,
+    },
+}
+
+type FilesystemReceiver<'a> = dyn FnMut(FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> + 'a;
+
 /// Explicit caller context and output receiver. This is never stored in or
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
     pub location: Option<&'a Location>,
     output: Option<&'a mut dyn FnMut(Output<'_>)>,
+    filesystem: Option<&'a mut FilesystemReceiver<'a>>,
 }
 
 impl<'a> ExpansionContext<'a> {
@@ -34,6 +50,7 @@ impl<'a> ExpansionContext<'a> {
         Self {
             location,
             output: Some(output),
+            filesystem: None,
         }
     }
 
@@ -42,7 +59,20 @@ impl<'a> ExpansionContext<'a> {
         Self {
             location: None,
             output: None,
+            filesystem: None,
         }
+    }
+
+    pub fn with_filesystem(mut self, filesystem: &'a mut FilesystemReceiver<'a>) -> Self {
+        self.filesystem = Some(filesystem);
+        self
+    }
+
+    pub fn perform_filesystem(
+        &mut self,
+        effect: FilesystemEffect<'_>,
+    ) -> Option<Result<Vec<u8>, Vec<u8>>> {
+        self.filesystem.as_mut().map(|receiver| receiver(effect))
     }
 
     pub fn emit(&mut self, output: Output<'_>) -> bool {
@@ -59,6 +89,10 @@ impl<'a> ExpansionContext<'a> {
             location,
             output: match &mut self.output {
                 Some(output) => Some(&mut **output),
+                None => None,
+            },
+            filesystem: match &mut self.filesystem {
+                Some(filesystem) => Some(&mut **filesystem),
                 None => None,
             },
         }

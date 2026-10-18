@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-read-directory"
+requirement = "functions.file"
+candidate = "required"
+description = "GNU-compatible file read directory behavior, including exact output and resulting filesystem state."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a20726561643a20666f6c6465723a2049732061206469726563746f72792e202053746f702e0a"

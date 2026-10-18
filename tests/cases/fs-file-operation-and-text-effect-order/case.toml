@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-operation-and-text-effect-order"
+requirement = "functions.file"
+candidate = "required"
+description = "GNU-compatible file operation and text effect order behavior, including exact output and resulting filesystem state."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f7065726174696f6e0a746578740a"
+stderr_hex = ""

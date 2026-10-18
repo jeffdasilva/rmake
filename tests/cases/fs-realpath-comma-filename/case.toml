@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-realpath-comma-filename"
+requirement = "functions.paths"
+candidate = "required"
+description = "GNU-compatible realpath comma filename behavior, including exact output and resulting filesystem state."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c636f6d6d612c6e616d653e0a"
+stderr_hex = ""

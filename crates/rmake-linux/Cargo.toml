@@ -1,0 +1,18 @@
+[package]
+name = "rmake-linux"
+description = "Linux effect adapters for rmake"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+rmake-core = { path = "../rmake-core" }
+
+# Semantic and application crates retain the workspace-wide forbid. Only the
+# private stdio adapter below may contain reviewed FFI.
+[lints.rust]
+unsafe_code = "deny"
+

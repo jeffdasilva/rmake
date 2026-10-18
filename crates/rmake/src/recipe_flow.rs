@@ -95,6 +95,12 @@ impl Flow {
         self.recursive.iter().any(|recursive| !recursive)
     }
 
+    /// Expanded '+' remains attached to its original logical recipe, including
+    /// commands after an expansion-generated newline.
+    pub fn recursive(&self, index: usize) -> bool {
+        self.recursive[index]
+    }
+
     /// Call only for nonzero expanded bodies, before command/configuration
     /// preparation. Modifier-only expansions are distinct from zero bytes.
     pub fn visit(&mut self, index: usize, forced: bool) {
