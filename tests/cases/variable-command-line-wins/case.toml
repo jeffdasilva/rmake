@@ -1,0 +1,11 @@
+id = "variable-command-line-wins"
+requirement = "variables.precedence"
+candidate = "pending"
+description = "variable command line wins"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "RESULT=command"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "command|command line\n"

@@ -1,0 +1,321 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Initial requirement families represented by this original corpus.
+# This is not a complete GNU Make 4.4.1 inventory.
+schema_version = 1
+target_version = "4.4.1"
+inventory_complete = false
+
+[[requirements]]
+id = "errors.expansion"
+title = "Expansion failures"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Make-Control-Functions.html"
+fixture_count = 3
+cases = ["error-explicit-function", "error-recursive-variable", "error-invalid-word-index"]
+
+[[requirements]]
+id = "errors.includes"
+title = "Required include failures"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Include.html"
+fixture_count = 1
+cases = ["error-required-include"]
+
+[[requirements]]
+id = "errors.recipes"
+title = "Failed recipes and keep-going"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Errors.html"
+fixture_count = 2
+cases = ["error-recipe-exit", "error-keep-going-independent"]
+
+[[requirements]]
+id = "errors.rules"
+title = "Unsatisfied prerequisites"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Errors.html"
+fixture_count = 1
+cases = ["error-missing-prerequisite"]
+
+[[requirements]]
+id = "errors.syntax"
+title = "Syntax errors"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Parsing-Makefiles.html"
+fixture_count = 2
+cases = ["error-missing-separator", "error-unclosed-conditional"]
+
+[[requirements]]
+id = "functions.control"
+title = "Lazy control flow, foreach and call"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Conditional-Functions.html"
+fixture_count = 10
+cases = ["function-if-true-lazy", "function-if-false-lazy", "function-and-short-circuit", "function-and-final-value", "function-or-short-circuit", "function-or-empty", "function-foreach", "function-foreach-restores", "function-call-arguments", "function-call-nested"]
+
+[[requirements]]
+id = "functions.diagnostics"
+title = "Expansion-time information and warnings"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Make-Control-Functions.html"
+fixture_count = 2
+cases = ["function-info-read-order", "function-warning-continues"]
+
+[[requirements]]
+id = "functions.eval"
+title = "Dynamic evaluation and double expansion"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Eval-Function.html"
+fixture_count = 3
+cases = ["function-eval-variable", "function-eval-rule", "function-eval-double-expansion"]
+
+[[requirements]]
+id = "functions.file"
+title = "File read and write effects"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/File-Function.html"
+fixture_count = 4
+cases = ["function-file-write-append", "function-file-read", "function-file-read-missing", "function-file-no-text"]
+
+[[requirements]]
+id = "functions.filesystem"
+title = "Wildcard filesystem observations"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Wildcard-Function.html"
+fixture_count = 3
+cases = ["function-wildcard-sorted", "function-wildcard-missing", "function-wildcard-pattern-order"]
+
+[[requirements]]
+id = "functions.paths"
+title = "Filename transformations"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/File-Name-Functions.html"
+fixture_count = 11
+cases = ["function-addprefix", "function-addsuffix", "function-dir", "function-notdir", "function-basename", "function-suffix", "function-join", "function-join-extra-right", "function-abspath", "function-realpath-existing", "function-realpath-missing"]
+
+[[requirements]]
+id = "functions.shell"
+title = "Shell execution, status and assignment"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Shell-Function.html"
+fixture_count = 6
+cases = ["function-shell-fold-newlines", "function-shell-status-zero", "function-shell-status-nonzero", "variable-shell-assignment", "function-shell-recursive-effects", "function-shell-simple-effects"]
+
+[[requirements]]
+id = "functions.text"
+title = "Text transformation functions"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Text-Functions.html"
+fixture_count = 9
+cases = ["function-subst", "function-subst-empty", "function-patsubst", "function-strip", "function-findstring-present", "function-findstring-absent", "function-filter", "function-filter-out", "function-sort-unique"]
+
+[[requirements]]
+id = "functions.words"
+title = "Word and word-list functions"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Text-Functions.html"
+fixture_count = 7
+cases = ["function-word", "function-word-outside", "function-wordlist", "function-wordlist-reversed", "function-words", "function-firstword", "function-lastword"]
+
+[[requirements]]
+id = "includes.read"
+title = "Include reading and ordering"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Include.html"
+fixture_count = 5
+cases = ["include-required", "include-optional-missing", "include-ordered-files", "include-expanded-name", "include-makefile-list"]
+
+[[requirements]]
+id = "includes.remake"
+title = "Generated makefiles and restart semantics"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
+fixture_count = 1
+cases = ["include-generated-restart"]
+
+[[requirements]]
+id = "parallel.execution"
+title = "Parallel updates and shared-target ownership"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Parallel.html"
+fixture_count = 3
+cases = ["parallel-independent-results", "parallel-shared-target-once", "parallel-notparallel-order"]
+
+[[requirements]]
+id = "parallel.jobserver"
+title = "Recursive local jobserver operation"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html"
+fixture_count = 1
+cases = ["parallel-recursive-jobserver"]
+
+[[requirements]]
+id = "recipes.errors"
+title = "Explicitly ignored recipe failures"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Errors.html"
+fixture_count = 1
+cases = ["recipe-ignore-error-prefix"]
+
+[[requirements]]
+id = "recipes.options"
+title = "Dry-run and question modes"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Instead-of-Execution.html"
+fixture_count = 4
+cases = ["recipe-dry-run", "recipe-dry-run-plus", "recipe-question-outdated", "recipe-question-current"]
+
+[[requirements]]
+id = "recipes.output"
+title = "Recipe echoing and silence"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Echoing.html"
+fixture_count = 2
+cases = ["recipe-silent-special", "recipe-command-echo"]
+
+[[requirements]]
+id = "recipes.shell"
+title = "Shell lifetime and oneshell behavior"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Execution.html"
+fixture_count = 2
+cases = ["recipe-oneshell-state", "recipe-independent-shells"]
+
+[[requirements]]
+id = "recursion.environment"
+title = "Recursive make and environment propagation"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Recursion.html"
+fixture_count = 4
+cases = ["recursion-makelevel", "recursion-exported-variable", "recursion-command-variable", "recursion-child-override"]
+
+[[requirements]]
+id = "rules.automatic"
+title = "Automatic variables and prerequisite classes"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Automatic-Variables.html"
+fixture_count = 3
+cases = ["rule-order-only-excluded-auto", "rule-automatic-duplicates", "rule-automatic-newer-all"]
+
+[[requirements]]
+id = "rules.explicit"
+title = "Explicit rules, defaults and update order"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Rules.html"
+fixture_count = 7
+cases = ["rule-default-first", "rule-default-goal-override", "rule-explicit-requested-goal", "rule-prerequisite-order", "rule-shared-prerequisite-once", "rule-empty-forced-target", "rule-double-colon"]
+
+[[requirements]]
+id = "rules.implicit"
+title = "Pattern rules, selection and directory search"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Implicit-Rules.html"
+fixture_count = 4
+cases = ["rule-pattern-basic", "rule-pattern-specificity", "rule-static-pattern", "rule-vpath-search"]
+
+[[requirements]]
+id = "rules.secondary"
+title = "Secondary prerequisite expansion"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Secondary-Expansion.html"
+fixture_count = 2
+cases = ["rule-secondary-expansion", "rule-secondary-automatic-target"]
+
+[[requirements]]
+id = "rules.special"
+title = "Special target behavior"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Special-Targets.html"
+fixture_count = 1
+cases = ["rule-phony-existing-file"]
+
+[[requirements]]
+id = "syntax.conditionals"
+title = "Conditional directives"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Conditional-Syntax.html"
+fixture_count = 6
+cases = ["conditional-ifeq-match", "conditional-ifneq-match", "conditional-ifdef-defined", "conditional-ifndef-empty", "conditional-else-if", "conditional-ignored-error"]
+
+[[requirements]]
+id = "syntax.reader"
+title = "Logical lines, comments and recipe syntax"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Parsing-Makefiles.html"
+fixture_count = 6
+cases = ["syntax-line-continuation", "syntax-comment-removal", "syntax-escaped-hash", "syntax-recipe-prefix", "syntax-inline-recipe", "syntax-dollar-escape"]
+
+[[requirements]]
+id = "variables.environment"
+title = "Exported and unexported shell environment"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
+fixture_count = 3
+cases = ["variable-export", "variable-unexport", "variable-export-simple"]
+
+[[requirements]]
+id = "variables.expansion"
+title = "Variable references, computed names and value retention"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Reference.html"
+fixture_count = 6
+cases = ["variable-computed-name", "variable-nested-name", "variable-substitution-reference", "variable-substitution-pattern", "variable-value-unexpanded", "variable-define-multiline"]
+
+[[requirements]]
+id = "variables.flavors"
+title = "Variable flavors and definition semantics"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Flavors.html"
+fixture_count = 9
+cases = ["variable-recursive-late", "variable-simple-early", "variable-double-colon-simple", "variable-append-recursive", "variable-append-simple", "variable-append-undefined", "variable-undefined-origin", "variable-flavor-pair", "variable-define-simple"]
+
+[[requirements]]
+id = "variables.precedence"
+title = "Variable origins, defaults and override precedence"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Override-Directive.html"
+fixture_count = 10
+cases = ["variable-default-unset", "variable-default-empty", "variable-default-existing", "variable-command-line-wins", "variable-override-wins", "variable-override-append", "variable-environment-origin", "variable-file-beats-environment", "variable-environment-override", "variable-undefine"]
+
+[[requirements]]
+id = "variables.scope"
+title = "Target, pattern and inherited variable scopes"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html"
+fixture_count = 4
+cases = ["variable-target-inherited", "variable-target-private", "variable-pattern-scope", "variable-shared-first-parent"]

@@ -1,0 +1,11 @@
+id = "rule-order-only-excluded-auto"
+requirement = "rules.automatic"
+candidate = "pending"
+description = "rule order only excluded auto"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "normal=normal|order=ordered\n"
