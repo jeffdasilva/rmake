@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+
+printf 'name=<%s> first=<%s> second=<%s> env=<%s> level=<%s>\n' "$0" "$1" "$2" "$PROCESS_VALUE" "$MAKELEVEL"
+false
+printf 'continued\n'
+printf 'removed=<%s>\n' "${REMOVE_ME-unset}"

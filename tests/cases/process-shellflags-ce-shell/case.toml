@@ -1,0 +1,11 @@
+id = "process-shellflags-ce-shell"
+requirement = "process.invocation"
+candidate = "required"
+description = "Reordered -ce flags force shell evaluation unlike exactly -ec"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

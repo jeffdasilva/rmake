@@ -1,0 +1,12 @@
+id = "process-enoexec-custom-shell"
+requirement = "process.invocation"
+candidate = "required"
+description = "An executable custom shell without a shebang receives its flags and command through /bin/sh fallback."
+provenance = "Original rmake fixture; independently checked against GNU Make 4.4.1 without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "shell=<./plain-shell> flags=<-c> env=<custom-shell-value>\nrecipe-output\n"
+stderr = ""

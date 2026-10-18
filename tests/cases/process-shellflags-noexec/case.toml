@@ -1,0 +1,12 @@
+id = "process-shellflags-noexec"
+requirement = "process.invocation"
+candidate = "required"
+description = "Nonstandard shell flags must not be bypassed by direct execution"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

@@ -8,6 +8,7 @@ use std::process::ExitCode;
 
 mod cli;
 mod engine;
+mod process;
 
 fn main() -> ExitCode {
     let mut args = std::env::args_os();

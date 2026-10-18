@@ -350,3 +350,13 @@ candidate_required = 21
 reference = "https://www.gnu.org/software/make/manual/html_node/Execution.html"
 fixture_count = 22
 cases = ["serial-phony-declaration", "serial-duplicate-goals", "serial-duplicate-prerequisites", "serial-empty-recipe", "serial-silent-option", "serial-dry-run-forced-prefix-order", "serial-query-stops-later-forced-line", "serial-query-stops-later-prerequisite", "serial-query-keep-going-forced-prerequisite", "serial-query-forced-only", "serial-delete-on-error-global", "serial-precious-prevents-error-delete", "serial-keep-going-direct-failure", "serial-keep-going-independent-goals", "serial-export-all", "serial-export-all-special", "serial-shell-environment-preserved", "serial-inherited-makeflags-dry-run", "serial-touch-skips-recipe", "serial-touch-forced-mixed", "serial-normal-order-prerequisite-overlap", "serial-circular-prerequisite-removed"]
+
+[[requirements]]
+id = "process.invocation"
+title = "Linux direct execution and shell command boundaries"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 30
+reference = "https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html"
+fixture_count = 30
+cases = ["process-direct-quoted-arguments", "process-direct-missing", "process-direct-missing-single-quoted", "process-shell-missing-double-quoted", "process-direct-missing-ignored", "process-shell-missing-env-prefix", "process-shell-builtin-cd", "process-shell-builtin-export", "process-shell-builtin-exit", "process-builtin-names-direct", "process-shell-builtin-test", "process-shellflags-ec-direct", "process-shellflags-ce-shell", "process-shellflags-noexec", "process-custom-bash-missing", "process-custom-shell-wrapper", "process-ifs-empty-direct", "process-ifs-permuted-direct", "process-ifs-custom-shell", "process-environment-prefix", "process-single-quoted-dollar", "process-backslash-metacharacters", "process-glob-and-redirection", "process-pipeline", "process-double-quoted-substitution", "process-enoexec-slash", "process-enoexec-path", "process-enoexec-shellflags-ec", "process-permission-denied", "process-enoexec-custom-shell"]

@@ -1,9 +1,9 @@
 # Original compatibility fixtures
 
-This corpus starts with **170 independently authored cases** across
-**36 requirement families**. It is an initial behavioral sample, not a
+This corpus starts with **200 independently authored cases** across
+**37 requirement families**. It is an initial behavioral sample, not a
 complete GNU Make 4.4.1 specification or a claim that rmake implements these cases.
-The serial slice requires **122 exact matches**; 48 cases remain explicitly
+The serial slice requires **152 exact matches**; 48 cases remain explicitly
 pending. Promotion to `required` needs an implementation and a successful
 comparison against the pinned reference. A passing sample does not mark its whole
 requirement family complete.

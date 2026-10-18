@@ -1,0 +1,11 @@
+id = "process-builtin-names-direct"
+requirement = "process.invocation"
+candidate = "required"
+description = "Bare printf and echo follow GNU external-command lookup despite shell builtin equivalents"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "continued\n"

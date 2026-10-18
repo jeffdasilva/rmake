@@ -1,0 +1,11 @@
+id = "process-shellflags-ec-direct"
+requirement = "process.invocation"
+candidate = "required"
+description = "Exactly -ec permits GNU direct execution for ordinary commands"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

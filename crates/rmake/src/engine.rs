@@ -12,7 +12,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::process::ExitStatusExt;
+use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::Command;
 use std::time::SystemTime;
@@ -612,8 +612,24 @@ impl Engine {
                     return (ran, true, false);
                 }
             };
-            let mut child = Command::new(os(shell));
-            child.args(words(&flags).map(os)).arg(os(command));
+            let ifs = if variables.get(b"IFS").is_some() {
+                match variables.expand(b"$(IFS)") {
+                    Ok(value) => Some(value),
+                    Err(err) => {
+                        self.fatal(Some(&recipe.location), err.to_string().as_bytes());
+                        return (ran, true, false);
+                    }
+                }
+            } else {
+                None
+            };
+            let (program, arguments) =
+                match crate::process::prepare(command, shell, &flags, ifs.as_deref()) {
+                    crate::process::Invocation::Direct { program, args } => (program, args),
+                    crate::process::Invocation::Shell { program, args } => (program, args),
+                };
+            let mut child = Command::new(os(&program));
+            child.args(arguments.iter().map(|arg| os(arg)));
             let mut exports: BTreeSet<Vec<u8>> = self
                 .inherited_exports
                 .iter()
@@ -675,18 +691,25 @@ impl Engine {
                 .unwrap_or(0);
             child.env("MAKELEVEL", level.saturating_add(1).to_string());
             let _ = io::stdout().flush();
-            let status = match child.status() {
-                Ok(status) => status,
-                Err(err) => {
-                    self.stderr(format!("{}: {err}", String::from_utf8_lossy(shell)).as_bytes());
-                    return (ran, true, false);
-                }
-            };
-            if !status.success() {
-                let error = status.code().map_or_else(
+            let result = launch_status(&program, &child);
+            let error = match result {
+                Ok(status) if status.success() => None,
+                Ok(status) => Some(status.code().map_or_else(
                     || format!("Signal {}", status.signal().unwrap_or(0)),
                     |code| format!("Error {code}"),
-                );
+                )),
+                Err(err) => {
+                    let text = err.to_string();
+                    let suffix = err
+                        .raw_os_error()
+                        .map(|code| format!(" (os error {code})"))
+                        .unwrap_or_default();
+                    let message = text.strip_suffix(&suffix).unwrap_or(&text);
+                    self.stderr(&[program.as_slice(), b": ", message.as_bytes()].concat());
+                    Some("Error 127".to_owned())
+                }
+            };
+            if let Some(error) = error {
                 if !ignore || !self.options.silent {
                     let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                     message.push(b'[');
@@ -725,4 +748,69 @@ fn has_force_prefix(bytes: &[u8]) -> bool {
         }
     }
     false
+}
+
+fn copy_environment(source: &Command, destination: &mut Command) {
+    for (name, value) in source.get_envs() {
+        if let Some(value) = value {
+            destination.env(name, value);
+        } else {
+            destination.env_remove(name);
+        }
+    }
+}
+
+/// Keep the exact executable that returned ENOEXEC. Re-searching using file mode
+/// bits is incorrect: an earlier PATH entry can have an execute bit yet deny the
+/// current user execution. Only the kernel's actual exec result decides that.
+fn launch_status(program: &[u8], template: &Command) -> io::Result<std::process::ExitStatus> {
+    let paths = if program.contains(&b'/') {
+        vec![std::path::PathBuf::from(os(program))]
+    } else {
+        let path = template
+            .get_envs()
+            .find(|(key, _)| *key == "PATH")
+            .map(|(_, value)| value.map(OsStr::to_owned))
+            .unwrap_or_else(|| std::env::var_os("PATH"))
+            .unwrap_or_else(|| "/bin:/usr/bin".into());
+        std::env::split_paths(&path)
+            .map(|directory| {
+                let directory = if directory.as_os_str().is_empty() {
+                    std::path::PathBuf::from(".")
+                } else {
+                    directory
+                };
+                directory.join(os(program))
+            })
+            .collect()
+    };
+    let mut denied = None;
+    let mut missing = io::Error::from_raw_os_error(2);
+    for path in paths {
+        let mut command = Command::new(&path);
+        command.arg0(os(program)).args(template.get_args());
+        copy_environment(template, &mut command);
+        match command.status() {
+            // Linux ENOEXEC: interpret the attempted file through /bin/sh,
+            // preserving args/environment but not the recipe's -e/-c flags.
+            Err(error) if error.raw_os_error() == Some(8) => {
+                let mut shell = Command::new("/bin/sh");
+                shell.arg(&path).args(template.get_args());
+                copy_environment(template, &mut shell);
+                return shell.status();
+            }
+            Err(error)
+                if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>
+            {
+                denied = Some(error)
+            }
+            Err(error)
+                if !program.contains(&b'/') && matches!(error.raw_os_error(), Some(2 | 20)) =>
+            {
+                missing = error
+            }
+            result => return result,
+        }
+    }
+    Err(denied.unwrap_or(missing))
 }

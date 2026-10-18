@@ -1,0 +1,11 @@
+id = "process-custom-bash-missing"
+requirement = "process.invocation"
+candidate = "required"
+description = "Custom /bin/bash selects Bash command-not-found diagnostics"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

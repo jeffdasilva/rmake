@@ -1,0 +1,15 @@
+id = "process-enoexec-shellflags-ec"
+requirement = "process.invocation"
+candidate = "required"
+description = "ENOEXEC fallback does not inherit recipe -e and retains explicit environment removals."
+provenance = "Original rmake fixture; independently checked with GNU Make 4.4.1, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+REMOVE_ME = "must-not-leak"
+
+[expected]
+exit_code = 0
+stdout = "name=<./plain-script> first=<two words> second=<literal> env=<flags-value> level=<1>\ncontinued\nremoved=<unset>\n"
+stderr = ""
