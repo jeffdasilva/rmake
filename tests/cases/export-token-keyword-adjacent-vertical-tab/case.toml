@@ -1,0 +1,11 @@
+id = "export-token-keyword-adjacent-vertical-tab"
+requirement = "variables.export-list-tokens"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "GNU recognizes vertical tab immediately after the export keyword as a directive boundary. Current generic directive recognition rejects it; the local export-list token fix does not change directive grammar."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "62696e64696e673d3c3e7c73696d706c657c66696c650a6368696c643d3c3e7c70726573656e740a"
+stderr_hex = ""

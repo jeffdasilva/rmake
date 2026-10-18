@@ -21,6 +21,13 @@ environment entry `Y=value=`, which the child reads as `Y` with value `value=`.
 The existing process launcher handles the tested cases without a serialization
 change. No cache or deferred execution shortcut is involved.
 
+Only a syntactically empty `export` or `unexport` directive changes global
+export-all mode. A nonempty list that expands to no names leaves that mode
+unchanged, while retaining any effects of its expansion. Expanded lists split
+on all six C whitespace bytes, including vertical tab; non-ASCII space-like
+bytes remain literal name contents. These rules are local to name-list handling
+and do not establish complete whitespace compatibility for other directives.
+
 ## Remaining boundaries
 
 Export behavior is still incomplete. Pending original fixtures retain these
@@ -28,10 +35,9 @@ distinct gaps:
 
 - Export/unexport and inherited environment policy can outlive an `undefine`
   in the current implementation. GNU removes the binding's policy too.
-- A syntactically empty directive differs from a nonempty list that expands
-  empty; the latter must not toggle export-all mode.
-- Vertical-tab-separated names introduced by expansion are not yet split like
-  GNU's list tokens.
+- A vertical tab immediately after the directive keyword is not yet recognized
+  as a directive separator. This differs from whitespace inside an expanded list
+  or after an already recognized keyword separator.
 - Modifier combinations and ordering of effects from multiple exported
   variables require additional compatibility work.
 

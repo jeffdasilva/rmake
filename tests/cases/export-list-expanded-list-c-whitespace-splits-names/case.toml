@@ -1,8 +1,8 @@
 id = "export-list-expanded-list-c-whitespace-splits-names"
 requirement = "variables.export-bindings"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
-description = "GNU splits expanded export lists on all six C whitespace bytes; current candidate does not split vertical tab, leaving Y and Z undefined."
+description = "Expanded export lists split on all six C whitespace bytes, including vertical tab, and materialize each named binding independently."
 provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
 
 [environment]

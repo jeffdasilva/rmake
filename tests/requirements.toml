@@ -516,7 +516,17 @@ id = "variables.export-bindings"
 title = "Export and unexport name-list binding creation and preservation"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 21
+candidate_required = 23
 reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
 fixture_count = 28
 cases = ["export-list-environment-override-origin-preserved", "export-list-equals-name-metadata-without-child-launch", "export-list-equals-name-raw-child-environment", "export-list-expanded-empty-list-is-not-export-all", "export-list-expanded-list-c-whitespace-splits-names", "export-list-expanded-repeated-names-materialized", "export-list-export-after-unexport-adds-child", "export-list-export-command-line-binding-preserved", "export-list-export-environment-binding-preserved", "export-list-export-recursive-binding-preserved", "export-list-export-simple-literal-dollar-preserved", "export-list-export-undefined-append-fatal-is-parse-time", "export-list-export-undefined-append-is-immediate", "export-list-export-undefined-blocks-conditional", "export-list-override-export-x-requires-assignment", "export-list-override-unexport-x-requires-assignment", "export-list-undefine-removes-export-metadata", "export-list-undefine-removes-inherited-export-policy", "export-list-undefine-removes-unexport-metadata", "export-list-undefine-removes-unexport-under-export-all", "export-list-unexport-after-export-removes-child", "export-list-unexport-command-line-binding-preserved", "export-list-unexport-environment-binding-preserved", "export-list-unexport-recursive-binding-preserved", "export-list-unexport-simple-literal-dollar-preserved", "export-list-unexport-undefined-append-fatal-is-parse-time", "export-list-unexport-undefined-append-is-immediate", "export-list-unexport-undefined-blocks-conditional"]
+
+[[requirements]]
+id = "variables.export-list-tokens"
+title = "Export-list raw emptiness and C-whitespace token boundaries"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 20
+reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
+fixture_count = 21
+cases = ["export-token-export-all-six-c-whitespace-separators", "export-token-export-non-ascii-bytes-do-not-split", "export-token-initial-all-export-empty-effect", "export-token-initial-all-export-expanded-empty", "export-token-initial-all-export-expanded-whitespace", "export-token-initial-all-export-raw-empty", "export-token-initial-all-unexport-empty-effect", "export-token-initial-all-unexport-expanded-empty", "export-token-initial-all-unexport-expanded-whitespace", "export-token-initial-all-unexport-raw-empty", "export-token-initial-none-export-empty-effect", "export-token-initial-none-export-expanded-empty", "export-token-initial-none-export-expanded-whitespace", "export-token-initial-none-export-raw-empty", "export-token-initial-none-unexport-empty-effect", "export-token-initial-none-unexport-expanded-empty", "export-token-initial-none-unexport-expanded-whitespace", "export-token-initial-none-unexport-raw-empty", "export-token-keyword-adjacent-vertical-tab", "export-token-unexport-all-six-c-whitespace-separators", "export-token-unexport-non-ascii-bytes-do-not-split"]

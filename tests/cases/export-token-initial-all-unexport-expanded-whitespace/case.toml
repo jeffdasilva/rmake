@@ -1,0 +1,14 @@
+id = "export-token-initial-all-unexport-expanded-whitespace"
+requirement = "variables.export-list-tokens"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export-list raw emptiness, expansion and byte-token boundary regression."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"NAMES" = " \t\u000b\f\r\n"
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c642d583d3c6b6570743e7c70726573656e740a"
+stderr_hex = ""

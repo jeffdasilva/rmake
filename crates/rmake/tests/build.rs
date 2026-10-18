@@ -601,3 +601,30 @@ fn export_list_missing_binding_reaches_child_empty_and_unexport_remains_unset() 
         assert!(output.stderr.is_empty());
     }
 }
+
+#[test]
+fn expanded_empty_export_lists_leave_child_export_all_policy_unchanged() {
+    for initial in [false, true] {
+        for directive in [b"export".as_slice(), b"unexport"] {
+            let source = [
+                b"X = value\n".as_slice(),
+                if initial { b"export\n" } else { b"" },
+                directive,
+                b" $(info evaluated)$(EMPTY)\nall:;@printf '[%s]:[%s]\\n' \"$$X\" \"$${X+x}\"\n",
+            ]
+            .concat();
+            let project = Project::new(&source);
+            let output = project.run(&[]);
+            assert!(output.status.success(), "{:?}", output.stderr);
+            assert_eq!(
+                output.stdout,
+                if initial {
+                    b"evaluated\n[value]:[x]\n".as_slice()
+                } else {
+                    b"evaluated\n[]:[]\n"
+                }
+            );
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
