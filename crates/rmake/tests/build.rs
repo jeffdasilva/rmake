@@ -4,6 +4,7 @@
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, FileTimes};
 use std::os::unix::ffi::OsStringExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -151,4 +152,31 @@ fn delete_on_error_removes_changed_output_but_preserves_precious() {
         assert_eq!(output.status.code(), Some(2));
         assert_eq!(project.0.join("output").exists(), precious);
     }
+}
+
+#[test]
+fn enoexec_fallback_preserves_the_path_entry_that_was_actually_executable() {
+    let project = Project::new(b"export PATH := first:second:/usr/bin:/bin\nall:\n\t@plain\n");
+    for (directory, contents, mode) in [
+        ("first", b"printf first".as_slice(), 0o601),
+        ("second", b"printf second".as_slice(), 0o755),
+    ] {
+        fs::create_dir(project.0.join(directory)).unwrap();
+        let path = project.0.join(directory).join("plain");
+        fs::write(&path, contents).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
+    }
+    let result = project.run(&[]);
+    assert!(result.status.success(), "{:?}", result.stderr);
+    // Root can execute when any execute bit is set. An ordinary owner cannot
+    // use the 'other execute' bit in place of its missing owner-execute bit.
+    let root = fs::metadata("/proc/self").unwrap().uid() == 0;
+    assert_eq!(
+        result.stdout,
+        if root {
+            b"first".as_slice()
+        } else {
+            b"second".as_slice()
+        }
+    );
 }

@@ -85,8 +85,8 @@ sorting and empty-pattern/empty-stem substitution discrepancies; the fixes have
 dedicated regression tests. Family coverage remains partial even when all of its
 current samples pass.
 
-This does not complete M2 or M3. Recipes currently go through a shell, so GNU's
-direct-exec path and its failure diagnostics remain open. There is no signal
+This does not complete M2 or M3. The initial slice sent recipes through a shell;
+the process follow-up below adds direct execution. There is no signal
 cleanup implementation, jobserver, include/restart handling, built-in rule
 database, implicit search, target/pattern scopes or persistent cache. Expansion
 effects are rejected. Makefile changes to execution flags and forced commands
@@ -120,3 +120,22 @@ measurements were about 0.53/0.48 ms (rmake/GNU) for tiny no-op, 25.96/11.92 ms 
 The current slice is slower on these three workloads. These are preliminary warm
 OS-cache observations on one host, without CPU isolation or confidence intervals;
 they guide later profiling and do not satisfy the performance milestone.
+
+## Linux command preparation and launch — 2026-10-18
+
+The process module now selects direct execution for GNU's supported simple
+command forms and preserves shell interpretation for expansions, metacharacters,
+built-ins and custom shell configuration. It keeps byte-valued arguments and
+empty quoted arguments. Launch failures use GNU's status/diagnostic behavior and
+respect ignored errors. Executable text without a shebang falls back through
+`/bin/sh`, including custom shell scripts, with preserved arguments/environment.
+
+PATH search retains the actual file that returned `ENOEXEC`; it does not guess
+executability from permission bits and accidentally interpret a different file.
+An effective-permission regression test covers that boundary. The module has 35
+unit tests, and 30 original process fixtures join the required differential set:
+the curated corpus now has 200 cases, 152 required matches and 48 pending cases.
+An additional independent 200-case command-quoting campaign matched the oracle.
+The larger seeded pure-expansion campaign also passed 1,000 programs containing
+128,000 observations (seed 20261018). These observations extend coverage without
+changing the open compatibility or performance gates.

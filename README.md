@@ -70,8 +70,9 @@ target/debug/rmake -rR --no-print-directory build check-core
 ```
 
 `make test-selfhost` exercises those same leaf flows without recursively invoking
-the full CI target. The runtime currently starts each recipe through the selected
-shell; GNU's direct-execution optimization and all its diagnostics are still open.
+the full CI target. Simple commands use GNU's direct-execution path; commands
+requiring shell interpretation retain the selected shell and flags. Full process,
+signal and diagnostic compatibility remains under development.
 
 ## Repository layout
 

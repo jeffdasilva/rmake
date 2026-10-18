@@ -1,0 +1,14 @@
+id = "process-ifs-permuted-direct"
+requirement = "process.invocation"
+candidate = "required"
+description = "Permuted ordinary whitespace in IFS still permits direct execution"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+IFS = "\n\t "
+
+[expected]
+exit_code = 2
+stdout = ""

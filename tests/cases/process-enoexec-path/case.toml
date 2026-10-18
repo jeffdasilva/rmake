@@ -1,0 +1,12 @@
+id = "process-enoexec-path"
+requirement = "process.invocation"
+candidate = "required"
+description = "PATH search locates an executable without a shebang and preserves the searched script name."
+provenance = "Original rmake fixture; independently checked with GNU Make 4.4.1, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "name=<tool-bin/plain-script> first=<two words> second=<literal> env=<path-value> level=<1>\ncontinued\n"
+stderr = ""

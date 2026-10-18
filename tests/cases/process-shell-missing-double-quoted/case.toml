@@ -1,0 +1,11 @@
+id = "process-shell-missing-double-quoted"
+requirement = "process.invocation"
+candidate = "required"
+description = "Double quotes select shell interpretation even without expansions"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

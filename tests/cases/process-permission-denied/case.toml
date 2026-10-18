@@ -1,0 +1,12 @@
+id = "process-permission-denied"
+requirement = "process.invocation"
+candidate = "required"
+description = "A regular command file without execute permission reports the direct-spawn GNU error and status."
+provenance = "Original rmake fixture; independently checked with GNU Make 4.4.1, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: ./plain-script: Permission denied\nmake: *** [Makefile:5: all] Error 127\n"

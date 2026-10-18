@@ -1,0 +1,12 @@
+id = "process-custom-shell-wrapper"
+requirement = "process.invocation"
+candidate = "required"
+description = "A custom shell is invoked even for an otherwise simple absolute command"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "custom-shell\n"
+stderr = ""

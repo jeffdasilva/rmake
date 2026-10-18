@@ -1,0 +1,15 @@
+id = "process-double-quoted-substitution"
+requirement = "process.invocation"
+candidate = "required"
+description = "Double quotes preserve command substitution and shell environment expansion"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+PROCESS_WORD = "environment"
+
+[expected]
+exit_code = 0
+stdout = "nested-environment\n"
+stderr = ""

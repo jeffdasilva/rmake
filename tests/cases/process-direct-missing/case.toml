@@ -1,0 +1,11 @@
+id = "process-direct-missing"
+requirement = "process.invocation"
+candidate = "required"
+description = "Unquoted missing command reports GNU direct-execution error bytes"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

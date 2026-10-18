@@ -1,0 +1,12 @@
+id = "process-glob-and-redirection"
+requirement = "process.invocation"
+candidate = "required"
+description = "Wildcard expansion and output redirection are delegated to the shell"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "sample-a\nsample-b\n"
+stderr = ""

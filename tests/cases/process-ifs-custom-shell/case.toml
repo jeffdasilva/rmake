@@ -1,0 +1,14 @@
+id = "process-ifs-custom-shell"
+requirement = "process.invocation"
+candidate = "required"
+description = "Non-whitespace IFS selects shell command interpretation"
+provenance = "Original rmake fixture; authored from independent GNU Make 4.4.1 behavior probes, without copying upstream tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+IFS = ":"
+
+[expected]
+exit_code = 2
+stdout = ""
