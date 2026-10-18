@@ -308,3 +308,44 @@ An expanded local campaign passed 1,000 programs with 64,000 expressions per
 engine using seed 20261018. These bounded campaigns do not establish complete
 function or diagnostic compatibility. Implementation and fixture provenance and
 the remaining location limitation are recorded in [the integer notes](intcmp.md).
+
+## Expansion source locations — 2026-10-18
+
+Variable bindings now retain shared definition locations, and structured
+expansion errors preserve the innermost failing context. Recursive variables and
+user calls, successful nested-expansion restoration, append/override/conditional
+assignments and multiline `define` header/endef distinctions follow the pinned
+oracle. Command-line and environment bindings inherit their caller's location.
+Runtime expansion preserves GNU's separate raw-body handling for `.SHELLFLAGS`
+and `.DEFAULT_GOAL`. Recursive-cycle messages retain the original variable bytes
+and identify the binding being re-entered.
+
+Forty-five new required original fixtures cover these rules, including multiple
+Makefiles and invalid-UTF-8 filenames. Six older diagnostic fixtures now match.
+One newly observed literal-`SHELL` process-launch mismatch is preserved as pending.
+The curated corpus has 497 cases: 428 required exact matches and 69 pending
+requirements. All 497 satisfy independent oracle expectations and oracle
+self-comparison. The Rust suite has 202 tests and the tooling suite has 164.
+
+A separate generated campaign passed 400 executions covering 399 distinct inputs
+across 25 source-location families. It independently predicts status and exact
+diagnostic bytes, verifies empty stdout and unchanged inputs, and varies source
+padding, chain depth, definition order and evaluation context. Eighteen further
+probes matched byte-valued/whitespace Makefile paths across recursive errors,
+cycles and appends. The ordinary and one-shell mode matrix, prior generators,
+stateful builds and self-host flows remain required gates.
+
+Simple-variable reads copy their value without cloning unused diagnostic
+metadata. Stored definition metadata remains available for later redefinitions,
+appends and inspection. This is a bounded allocation improvement, not persistent
+caching. [The diagnostic notes](diagnostics.md) record the verified boundaries,
+original provenance and remaining context work for unimplemented features.
+
+An alternating 31-sample release comparison with the preceding commit measured
+before/after medians of 0.630/0.623 ms for tiny no-op, 30.964/31.162 ms for the
+large graph, and 4.147/4.494 ms for 5,000 assignments. The assignment workload's
+median paired slowdown was 8.8%, even after avoiding the unnecessary simple-value
+metadata clone. Exact outputs agreed. These unisolated wall-clock measurements
+do not include CPU/memory profiles, but the observed regression remains open for
+allocation/layout work. Required location fidelity is retained; this does not
+satisfy the planned performance gate or establish an advantage over GNU.

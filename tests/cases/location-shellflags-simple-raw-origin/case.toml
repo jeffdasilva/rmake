@@ -1,0 +1,10 @@
+id = "location-shellflags-simple-raw-origin"
+requirement = "diagnostics.variable-locations"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original runtime-boundary regression; independently predicted status and bytes verified against GNU Make 4.4.1; no upstream source or tests consulted."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a202a2a2a206e6f6e2d6e756d6572696320666972737420617267756d656e7420746f2027696e74636d70272066756e6374696f6e3a2027626164272e202053746f702e0a"

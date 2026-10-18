@@ -1,0 +1,10 @@
+id = "location-simple-value-stays-literal"
+requirement = "diagnostics.variable-locations"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently authored variable-location fixture; expected source context derived from fresh black-box GNU Make 4.4.1 probes; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "2428696e74636d70206e6f742d616e2d696e74656765722c30290a"
+stderr_hex = ""

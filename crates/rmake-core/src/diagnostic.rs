@@ -6,6 +6,12 @@
 use std::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Location {
+    pub file: Vec<u8>,
+    pub line: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Diagnostic {
     Text(String),
     Bytes(Vec<u8>),

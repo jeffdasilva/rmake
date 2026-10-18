@@ -8,7 +8,7 @@ use crate::cli::Options;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::Diagnostic;
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
-use rmake_core::variables::{Assignment, ExpandError, Origin, VariableStore};
+use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
@@ -216,6 +216,10 @@ impl Engine {
         }
     }
 
+    fn expansion_error(&self, fallback: Option<&Location>, error: &ExpandError) {
+        self.fatal(error.location().or(fallback), error.diagnostic().as_bytes());
+    }
+
     pub fn run(mut self) -> u8 {
         let mut files = self.options.files.clone();
         if files.is_empty()
@@ -254,7 +258,7 @@ impl Engine {
                     .variables
                     .define_literal(b"MAKEFILE_LIST", &list, Origin::File)
             {
-                self.fatal(None, err.diagnostic().as_bytes());
+                self.expansion_error(None, &err);
                 return 2;
             }
             if let Err(err) = self.database.read(&bytes, file.as_os_str().as_bytes()) {
@@ -306,7 +310,17 @@ impl Engine {
             }
         }
         let goals = if self.options.goals.is_empty() {
-            match self.database.variables.expand(b"$(.DEFAULT_GOAL)") {
+            // GNU expands a recursive default goal's raw value here, without
+            // entering the .DEFAULT_GOAL binding's definition context. Nested
+            // references still carry their own definition locations.
+            let goal = self.database.variables.get(b".DEFAULT_GOAL").map_or_else(
+                || Ok(Vec::new()),
+                |variable| match variable.flavor() {
+                    Flavor::Simple => Ok(variable.raw_value().to_vec()),
+                    Flavor::Recursive => self.database.variables.expand(variable.raw_value()),
+                },
+            );
+            match goal {
                 Ok(goal) if !trim(&goal).is_empty() => {
                     let goals: Vec<_> = words(&goal).map(Vec::from).collect();
                     if goals.len() != 1 {
@@ -327,7 +341,7 @@ impl Engine {
                     return 2;
                 }
                 Err(err) => {
-                    self.fatal(None, err.diagnostic().as_bytes());
+                    self.expansion_error(None, &err);
                     return 2;
                 }
             }
@@ -537,7 +551,7 @@ impl Engine {
                 ];
                 for (name, value) in autos {
                     if let Err(err) = variables.define_literal(name, &value, Origin::Automatic) {
-                        self.fatal(None, err.diagnostic().as_bytes());
+                        self.expansion_error(None, &err);
                         outcome.failed = true;
                         break;
                     }
@@ -623,7 +637,7 @@ impl Engine {
             match variables.expand(&recipe.bytes) {
                 Ok(bytes) => expanded.push((bytes, recipe)),
                 Err(err) => {
-                    self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
+                    self.expansion_error(Some(&recipe.location), &err);
                     return Execution::failure(false, Cleanup::None);
                 }
             }
@@ -657,7 +671,7 @@ impl Engine {
             let shell = match variables.expand(b"$(SHELL)") {
                 Ok(shell) => shell,
                 Err(err) => {
-                    self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
+                    self.expansion_error(Some(&recipe.location), &err);
                     return Execution::failure(ran, Cleanup::None);
                 }
             };
@@ -666,10 +680,15 @@ impl Engine {
             } else {
                 &shell
             };
-            let flags = match variables.expand(b"$(.SHELLFLAGS)") {
+            // GNU rescans the raw flag text even for a simple binding and
+            // attributes direct errors to the recipe, not .SHELLFLAGS itself.
+            let flag_text = variables
+                .get(b".SHELLFLAGS")
+                .map_or(b"".as_slice(), |variable| variable.raw_value());
+            let flags = match variables.expand(flag_text) {
                 Ok(flags) => flags,
                 Err(err) => {
-                    self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
+                    self.expansion_error(Some(&recipe.location), &err);
                     return Execution::failure(ran, Cleanup::None);
                 }
             };
@@ -677,7 +696,7 @@ impl Engine {
                 match variables.expand(b"$(IFS)") {
                     Ok(value) => Some(value),
                     Err(err) => {
-                        self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
+                        self.expansion_error(Some(&recipe.location), &err);
                         return Execution::failure(ran, Cleanup::None);
                     }
                 }
@@ -762,18 +781,13 @@ impl Engine {
                     child.env_remove(os(name));
                     continue;
                 }
-                if let Some(var) = variables.get(name) {
-                    let value = if var.flavor() == rmake_core::variables::Flavor::Simple {
-                        Ok(var.raw_value().to_vec())
-                    } else {
-                        variables.expand(var.raw_value())
-                    };
-                    match value {
+                if variables.get(name).is_some() {
+                    match variables.expand_variable(name) {
                         Ok(value) => {
                             child.env(os(name), OsString::from_vec(value));
                         }
                         Err(err) => {
-                            self.fatal(Some(&recipe.location), err.diagnostic().as_bytes());
+                            self.expansion_error(Some(&recipe.location), &err);
                             return Execution::failure(ran, Cleanup::None);
                         }
                     }

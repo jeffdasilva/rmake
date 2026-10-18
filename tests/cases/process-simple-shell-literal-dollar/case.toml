@@ -1,0 +1,11 @@
+id = "process-simple-shell-literal-dollar"
+requirement = "process.invocation"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "A simple SHELL value retains literal dollar syntax; GNU attempts the literal program name instead of shell substitution."
+provenance = "Original black-box probe authored during expansion source-location review; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202428696e74636d703a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d204572726f72203132370a"

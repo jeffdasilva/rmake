@@ -1,0 +1,10 @@
+id = "location-default-goal-simple-literal"
+requirement = "diagnostics.variable-locations"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original runtime-boundary regression; independently predicted status and bytes verified against GNU Make 4.4.1; no upstream source or tests consulted."
+
+[expected]
+exit_code = 0
+stdout_hex = "6c69746572616c0a"
+stderr_hex = ""
