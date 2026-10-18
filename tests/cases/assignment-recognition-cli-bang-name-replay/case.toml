@@ -1,0 +1,11 @@
+id = "assignment-recognition-cli-bang-name-replay"
+requirement = "variables.assignment-recognition"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "X! =rmake_no_such_assignment_command"]
+description = "The literal X! name is assigned first, then GNU command-line replay also launches the RHS as a shell assignment; current candidate omits that replay diagnostic."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "65786163743d3c726d616b655f6e6f5f737563685f61737369676e6d656e745f636f6d6d616e643e7c7265637572736976657c636f6d6d616e64206c696e650a"
+stderr_hex = "6d616b653a20726d616b655f6e6f5f737563685f61737369676e6d656e745f636f6d6d616e643a204e6f20737563682066696c65206f72206469726563746f72790a"

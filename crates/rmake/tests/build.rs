@@ -551,3 +551,19 @@ fn command_line_assignment_whitespace_preserves_literal_names_and_rhs_tail() {
     assert_eq!(output.stdout, b"[value\x0b]:[literal]:[]\n");
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn raw_blank_cli_assignment_is_a_goal_but_short_reference_can_name_a_blank() {
+    let project = Project::new(b"$(info value=[$(XY)])\nall:;@true\n");
+    let invalid = project.run(&[OsStr::new("X Y=value")]);
+    assert_eq!(invalid.status.code(), Some(2));
+    assert_eq!(invalid.stdout, b"value=[]\n");
+    assert_eq!(
+        invalid.stderr,
+        b"rmake: *** No rule to make target 'X Y=value'.  Stop.\n"
+    );
+    let valid = project.run(&[OsStr::new("X$ Y=value")]);
+    assert!(valid.status.success(), "{:?}", valid.stderr);
+    assert_eq!(valid.stdout, b"value=[value]\n");
+    assert!(valid.stderr.is_empty());
+}

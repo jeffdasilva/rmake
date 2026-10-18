@@ -1,0 +1,11 @@
+id = "assignment-recognition-file-internal-blank-simple-is-target-syntax"
+requirement = "variables.assignment-recognition"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "Rejected raw internal blanks fall through colon-rule parsing; GNU diagnoses an empty target-specific variable name. Current candidate rejects the unsupported rule form instead."
+provenance = "Independently authored exact expectations checked with GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a20656d707479207661726961626c65206e616d652e202053746f702e0a"

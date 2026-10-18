@@ -1,0 +1,11 @@
+id = "assignment-recognition-cli-short-reference-consumes-operator-byte"
+requirement = "variables.assignment-recognition"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "A$+=value", "B$?=value", "C$:=value", "D$!=value", "E$::=value", "F$:::=value"]
+description = "A one-byte dollar reference consumes the leading operator byte before assignment recognition. Six original assignments preserve GNU flavor distinctions; current candidate extracts the operator first."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "413d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a423d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a433d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a443d3c76616c75653e7c7265637572736976657c636f6d6d616e64206c696e650a453d3c76616c75653e7c73696d706c657c636f6d6d616e64206c696e650a463d3c76616c75653e7c73696d706c657c636f6d6d616e64206c696e650a"
+stderr_hex = ""

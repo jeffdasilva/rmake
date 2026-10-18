@@ -1,0 +1,11 @@
+id = "assignment-recognition-file-export-falls-back-to-name-list"
+requirement = "variables.assignment-recognition"
+candidate = "pending"
+args = ["-rR", "--no-print-directory"]
+description = "A raw internal blank rejects assignment syntax; GNU export-name-list fallback creates simple empty File-origin bindings for X and Y=value. Current candidate does not materialize them."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "583d3c3e7c73696d706c657c66696c650a657175616c3d3c3e7c73696d706c657c66696c650a636f6d62696e65643d3c3e7c756e646566696e65647c756e646566696e65640a"
+stderr_hex = ""

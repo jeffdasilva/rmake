@@ -1,0 +1,11 @@
+id = "assignment-recognition-file-short-dollar-reference-consumes-blank"
+requirement = "variables.assignment-recognition"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original raw-blank assignment classification and expanded-name preservation regression."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "73706163653d3c76616c75653e7c7265637572736976657c66696c650a7461623d3c76616c75653e7c7265637572736976657c66696c650a"
+stderr_hex = ""

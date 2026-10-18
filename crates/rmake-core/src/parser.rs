@@ -230,6 +230,47 @@ fn assignment_start(bytes: &[u8]) -> &[u8] {
         .unwrap_or(bytes.len())..]
 }
 
+// Only literal syntax blanks disqualify an assignment name. Quotes and
+// backslashes are ordinary name bytes; make references can contain blanks or
+// produce them later. Even a short reference consumes its following blank byte.
+fn assignment_name_end(name: &[u8]) -> Option<usize> {
+    let mut cursor = 0;
+    let mut end = 0;
+    let mut trailing = false;
+    while cursor < name.len() {
+        if matches!(name[cursor], b' ' | b'\t') {
+            trailing = true;
+            cursor += 1;
+            continue;
+        }
+        if trailing {
+            return None;
+        }
+        match name[cursor] {
+            b'$' if cursor + 1 < name.len() => {
+                let open = name[cursor + 1];
+                cursor += 2;
+                if matches!(open, b'(' | b'{') {
+                    let close = if open == b'(' { b')' } else { b'}' };
+                    let mut depth = 1usize;
+                    while cursor < name.len() && depth != 0 {
+                        if name[cursor] == open {
+                            depth += 1;
+                        }
+                        if name[cursor] == close {
+                            depth -= 1;
+                        }
+                        cursor += 1;
+                    }
+                }
+            }
+            _ => cursor += 1,
+        }
+        end = cursor;
+    }
+    Some(end)
+}
+
 /// Parse an assignment without expanding either side. The caller chooses the
 /// origin and expands the name; the variable store controls RHS timing.
 pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
@@ -251,12 +292,9 @@ pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
         return None;
     }
     let name = assignment_start(&bytes[..end]);
-    let name_end = name
-        .iter()
-        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
-        .map_or(0, |index| index + 1);
+    let name = &name[..assignment_name_end(name)?];
     Some(AssignmentSpec {
-        name: &name[..name_end],
+        name,
         value: assignment_start(&bytes[equal + 1..]),
         kind,
     })
@@ -927,6 +965,57 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn assignment_recognition_rejects_literal_blanks_without_shell_quoting() {
+        for name in [
+            b"X Y".as_slice(),
+            b"X\tY",
+            b"X\\ Y",
+            b"'X Y'",
+            b"\"X Y\"",
+            b"$$(N X)",
+            b"X$$ Y",
+            b"X$\\ Y",
+        ] {
+            for operator in [b"=".as_slice(), b":=", b"::=", b":::=", b"+=", b"?="] {
+                let input = [name, operator, b"value"].concat();
+                assert!(assignment(&input).is_none(), "{input:?}");
+            }
+        }
+        assert_eq!(assignment(b"X\\ =value").unwrap().name, b"X\\");
+        assert_eq!(assignment(b"X\x0bY=value").unwrap().name, b"X\x0bY");
+        assert_eq!(assignment(b"X$ =value").unwrap().name, b"X$ ");
+        assert_eq!(assignment(b"X$\t \t=value").unwrap().name, b"X$\t");
+        assert!(assignment(b"X$=value").is_none());
+    }
+
+    #[test]
+    fn assignment_recognition_allows_short_and_balanced_name_references() {
+        for name in [
+            b"X$ Y".as_slice(),
+            b"X$\tY",
+            b"$(subst _, ,X_Y)",
+            b"pre$(N X)post",
+            b"${N ${INNER X}}",
+            b"\\$(subst _, ,X_Y)",
+            b"$(call f,(a b))",
+        ] {
+            let input = [name, b"=value"].concat();
+            assert_eq!(assignment(&input).unwrap().name, name);
+        }
+        let mut db = Database::default();
+        db.read(b"X$ Y = short\n$(subst _, ,X_Y) = computed\n", b"m")
+            .unwrap();
+        assert_eq!(db.variables.get(b"XY").unwrap().raw_value(), b"short");
+        assert_eq!(db.variables.get(b"X Y").unwrap().raw_value(), b"computed");
+        db.read(b"X$ =terminal\n", b"m").unwrap();
+        assert_eq!(db.variables.get(b"X").unwrap().raw_value(), b"terminal");
+        let error = Database::default().read(b"$ =empty\n", b"m").unwrap_err();
+        assert_eq!(error.message.as_bytes(), b"empty variable name");
+        let error = Database::default().read(b"X Y=value\n", b"m").unwrap_err();
+        assert_eq!(error.message.as_bytes(), b"missing separator");
     }
 
     #[test]
