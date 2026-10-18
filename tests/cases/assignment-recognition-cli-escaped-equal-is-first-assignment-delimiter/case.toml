@@ -1,8 +1,8 @@
 id = "assignment-recognition-cli-escaped-equal-is-first-assignment-delimiter"
 requirement = "variables.assignment-recognition"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "X\\=Y=value"]
-description = "GNU uses the first equal sign even after a literal backslash; current candidate skips the escaped delimiter. This is a separate operator-delimiter gap."
+description = "The first equal sign remains the assignment delimiter after a literal backslash, preserving the backslash in the variable name."
 provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
 
 [expected]

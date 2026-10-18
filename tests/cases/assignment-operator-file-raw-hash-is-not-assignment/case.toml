@@ -1,0 +1,11 @@
+id = "assignment-operator-file-raw-hash-is-not-assignment"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Top-level hash bytes reject assignment syntax; hashes consumed inside make references remain part of name expansion."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

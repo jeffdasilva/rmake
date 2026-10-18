@@ -1,0 +1,11 @@
+id = "assignment-operator-define-long-reference-header-delimiters"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original assignment operator and delimiter tokenization with exact name/value/flavor observations."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "73696d706c653d3c6f6c643e7c73696d706c657c66696c650a7265637572736976653d3c24284b293e7c7265637572736976657c66696c650a"
+stderr_hex = ""

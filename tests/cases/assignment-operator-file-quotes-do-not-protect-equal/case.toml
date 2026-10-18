@@ -1,0 +1,11 @@
+id = "assignment-operator-file-quotes-do-not-protect-equal"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original assignment operator and delimiter tokenization with exact name/value/flavor observations."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "63617365303d3c42273d76616c75653e7c7265637572736976657c66696c650a63617365313d3c44223d76616c75653e7c7265637572736976657c66696c650a"
+stderr_hex = ""

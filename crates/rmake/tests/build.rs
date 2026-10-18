@@ -567,3 +567,22 @@ fn raw_blank_cli_assignment_is_a_goal_but_short_reference_can_name_a_blank() {
     assert_eq!(valid.stdout, b"value=[value]\n");
     assert!(valid.stderr.is_empty());
 }
+
+#[test]
+fn consumed_shell_operator_and_literal_backslash_delimiter_do_not_execute_rhs() {
+    let project = Project::new(b"X$!=touch forbidden\nY\\=right=tail\n$(info [$(value X)]:[$(flavor X)]:[$(value Y\\)])\nall:;@true\n");
+    let output = project.run(&[]);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert_eq!(
+        output.stdout,
+        b"[touch forbidden]:[recursive]:[right=tail]\n"
+    );
+    assert!(output.stderr.is_empty());
+    assert!(!project.0.join("forbidden").exists());
+    let hash = project.run(&[OsStr::new("X#Y=value")]);
+    assert_eq!(hash.status.code(), Some(2));
+    assert_eq!(
+        hash.stderr,
+        b"rmake: *** No rule to make target 'X#Y=value'.  Stop.\n"
+    );
+}

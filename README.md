@@ -18,6 +18,8 @@ Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
 locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
 [`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
 gaps are documented in [diagnostic notes](docs/diagnostics.md).
+The [assignment syntax notes](docs/assignment-syntax.md) explain lexical token
+boundaries, whitespace handling and remaining assignment gaps.
 
 The target is a Linux-only Rust reimplementation of GNU Make 4.4.1, with extensive
 side-by-side testing. GNU Make's source may be used as a reference under its GPL

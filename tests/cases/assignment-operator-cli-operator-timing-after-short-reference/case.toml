@@ -1,0 +1,11 @@
+id = "assignment-operator-cli-operator-timing-after-short-reference"
+requirement = "variables.assignment-operators"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "K=old", "A$+:=$(K)", "B$?::=$(K)", "C$!:::=$(K)", "D$=+=$(K)", "E$:+=$(K)", "F$-?=$(K)", "K=new"]
+description = "Original assignment operator and delimiter tokenization with exact name/value/flavor observations."
+provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "413d3c6f6c643e7c6f6c647c73696d706c650a423d3c6f6c643e7c6f6c647c73696d706c650a433d3c6f6c643e7c6f6c647c7265637572736976650a443d3c24284b293e7c6e65777c7265637572736976650a453d3c24284b293e7c6e65777c7265637572736976650a463d3c24284b293e7c6e65777c7265637572736976650a"
+stderr_hex = ""

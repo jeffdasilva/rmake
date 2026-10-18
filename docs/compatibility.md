@@ -127,7 +127,9 @@ GNU timestamp semantics remain authoritative. Hashes used to validate interprete
 caches must not turn make into a content-based build system. Do not skip a recipe,
 shell expansion, file write, diagnostic, include-remake pass, or plugin call that
 the reference performs. Do not run Makefiles in a production sandbox by default:
-that would change their authorized shell behavior. The test harness is isolated.
+that would change their authorized shell behavior. The current test harness uses
+disposable workspaces for trusted fixtures; filesystem/network isolation remains
+an [open foundation gate](progress.md#open-foundation-gates).
 
 Caching introduces private implementation files, which GNU does not create. During
 rollout, strict mode leaves persistent caching disabled. Cache-enabled testing

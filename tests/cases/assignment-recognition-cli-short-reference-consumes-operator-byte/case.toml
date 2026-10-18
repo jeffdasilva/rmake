@@ -1,8 +1,8 @@
 id = "assignment-recognition-cli-short-reference-consumes-operator-byte"
 requirement = "variables.assignment-recognition"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "A$+=value", "B$?=value", "C$:=value", "D$!=value", "E$::=value", "F$:::=value"]
-description = "A one-byte dollar reference consumes the leading operator byte before assignment recognition. Six original assignments preserve GNU flavor distinctions; current candidate extracts the operator first."
+description = "A one-byte dollar reference consumes the leading operator byte before assignment recognition. Six original assignments preserve GNU flavor distinctions."
 provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
 
 [expected]
