@@ -91,10 +91,49 @@ fn automatic_export_name(name: &[u8]) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
 }
 
+/// Original probes of the pinned 64-bit Linux GNU profile establish this
+/// unsigned conversion, including its first-byte minus guard and overflow.
+/// The stored value is read directly: recursive make expressions stay deferred.
+fn startup_makelevel(value: &[u8]) -> u32 {
+    if value.first() == Some(&b'-') {
+        return 0;
+    }
+    // Rust's ASCII whitespace deliberately excludes vertical tab; GNU's C
+    // whitespace includes it, including mixed runs with other whitespace.
+    let value = &value[value
+        .iter()
+        .position(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
+        .unwrap_or(value.len())..];
+    let (negative, digits) = match value.first() {
+        Some(b'-') => (true, &value[1..]),
+        Some(b'+') => (false, &value[1..]),
+        _ => (false, value),
+    };
+    let mut magnitude = 0_u64;
+    let mut overflow = false;
+    for &byte in digits.iter().take_while(|byte| byte.is_ascii_digit()) {
+        match magnitude
+            .checked_mul(10)
+            .and_then(|value| value.checked_add(u64::from(byte - b'0')))
+        {
+            Some(value) => magnitude = value,
+            None => {
+                magnitude = u64::MAX;
+                overflow = true;
+            }
+        }
+    }
+    if negative && !overflow {
+        magnitude = magnitude.wrapping_neg();
+    }
+    magnitude as u32
+}
+
 pub struct Engine {
     options: Options,
     database: Database,
     program: Vec<u8>,
+    makelevel: u32,
     inherited_exports: HashSet<Vec<u8>>,
     done: HashMap<Vec<u8>, Outcome>,
     visiting: HashSet<Vec<u8>>,
@@ -160,10 +199,6 @@ impl Engine {
             .variables
             .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
             .map_err(|e| e.diagnostic())?;
-        database
-            .variables
-            .define_literal(b"MAKELEVEL", b"0", Origin::Default)
-            .map_err(|e| e.diagnostic())?;
         for arg in &options.assignments {
             let spec = assignment(arg).expect("CLI identified assignment");
             if [b"MAKEFLAGS".as_slice(), b"GNUMAKEFLAGS"].contains(&trim(spec.name)) {
@@ -181,6 +216,32 @@ impl Engine {
                 inherited_exports.insert(name);
             }
         }
+        let makelevel = startup_makelevel(
+            database
+                .variables
+                .get(b"MAKELEVEL")
+                .map_or(b"".as_slice(), |variable| variable.raw_value()),
+        );
+        // The special binding exists before reading Makefiles, but only a
+        // genuinely imported/CLI binding belongs to inherited_exports. A later
+        // file assignment must not acquire ordinary export side effects merely
+        // because this synthesized variable has environment origin.
+        database
+            .variables
+            .define_literal(
+                b"MAKELEVEL",
+                makelevel.to_string().as_bytes(),
+                if options.environment_override {
+                    Origin::EnvironmentOverride
+                } else {
+                    Origin::Environment
+                },
+            )
+            .map_err(|e| e.diagnostic())?;
+        let mut program = program;
+        if makelevel != 0 {
+            program.extend_from_slice(format!("[{makelevel}]").as_bytes());
+        }
         database.variables.remove(b"GNUMAKEFLAGS");
         database
             .variables
@@ -191,6 +252,7 @@ impl Engine {
             options,
             database,
             program,
+            makelevel,
             inherited_exports,
             done: HashMap::new(),
             visiting: HashSet::new(),
@@ -828,13 +890,10 @@ impl Engine {
             } else {
                 child.env("MAKEFLAGS", OsString::from_vec(self.options.flags()));
             }
-            let level = variables
-                .expand(b"$(MAKELEVEL)")
-                .ok()
-                .and_then(|v| String::from_utf8(v).ok())
-                .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(0);
-            child.env("MAKELEVEL", level.saturating_add(1).to_string());
+            // Ordinary export expansion above still has its normal effects.
+            // The child's numeric depth always comes from the startup snapshot,
+            // even if the visible binding was changed, removed, or unexported.
+            child.env("MAKELEVEL", self.makelevel.wrapping_add(1).to_string());
             let _ = io::stdout().flush();
             let result = launch_status(&program, &child);
             let launched = result.is_ok();
@@ -1093,6 +1152,46 @@ fn launch_status(program: &[u8], template: &Command) -> io::Result<std::process:
 mod tests {
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn makelevel_uses_raw_decimal_prefix_with_a_distinct_first_byte_minus_guard() {
+        for (input, expected) in [
+            (b"".as_slice(), 0),
+            (b"007", 7),
+            (b"+7", 7),
+            (b"-7", 0),
+            (b" -7", 4_294_967_289),
+            (b" \t\n\x0b\x0c\r+7tail", 7),
+            (b"7\xff", 7),
+            (b"\xff7", 0),
+            (b"0x10", 0),
+            (b"1.2", 1),
+            (b"+-7", 0),
+            (b" -", 0),
+            (b"$(intcmp 3,3)", 0),
+        ] {
+            assert_eq!(startup_makelevel(input), expected, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn makelevel_saturates_at_unsigned_long_limit_then_keeps_low_unsigned_int_bits() {
+        for (input, expected) in [
+            (b"4294967295".as_slice(), u32::MAX),
+            (b"4294967296", 0),
+            (b"4294967297", 1),
+            (b"9223372036854775808", 0),
+            (b"9223372036854775809", 1),
+            (b"18446744073709551615", u32::MAX),
+            (b"18446744073709551616", u32::MAX),
+            (b"999999999999999999999999999999999", u32::MAX),
+            (b" -999999999999999999999999999999999", u32::MAX),
+            (b"-999999999999999999999999999999999", 0),
+        ] {
+            assert_eq!(startup_makelevel(input), expected, "{input:?}");
+        }
+        assert_eq!(startup_makelevel(b" -1").wrapping_add(1), 0);
+    }
 
     fn automatic_store() -> VariableStore {
         let mut variables = VariableStore::new();

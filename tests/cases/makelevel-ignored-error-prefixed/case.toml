@@ -1,0 +1,14 @@
+id = "makelevel-ignored-error-prefixed"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "7"
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d3c383e0a"
+stderr_hex = "6d616b655b375d3a205b4d616b6566696c653a323a20616c6c5d204572726f722031202869676e6f726564290a"

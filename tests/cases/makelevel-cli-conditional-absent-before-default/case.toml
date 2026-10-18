@@ -1,0 +1,11 @@
+id = "makelevel-cli-conditional-absent-before-default"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "MAKELEVEL?=005"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c3030353e203c3030353e203c636f6d6d616e64206c696e653e203c7265637572736976653e0a3c3030353e203c3030353e203c636f6d6d616e64206c696e653e203c7265637572736976653e0a6368696c643d3c363e0a"
+stderr_hex = ""

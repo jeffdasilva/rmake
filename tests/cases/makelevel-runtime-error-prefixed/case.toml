@@ -1,0 +1,14 @@
+id = "makelevel-runtime-error-prefixed"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "007"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b655b375d3a202a2a2a205b4d616b6566696c653a323a20616c6c5d204572726f7220310a"

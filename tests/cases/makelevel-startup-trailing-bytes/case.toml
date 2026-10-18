@@ -1,0 +1,14 @@
+id = "makelevel-startup-trailing-bytes"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "23tail"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c32333e203c32333e203c656e7669726f6e6d656e743e203c73696d706c653e0a3c32333e203c32333e203c656e7669726f6e6d656e743e203c73696d706c653e0a6368696c643d3c32343e0a"
+stderr_hex = ""

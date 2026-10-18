@@ -1,0 +1,11 @@
+id = "makelevel-cli-simple-then-append-before-snapshot"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "MAKELEVEL:=4", "MAKELEVEL+=$(intcmp 8,8)"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c3420383e203c3420383e203c636f6d6d616e64206c696e653e203c73696d706c653e0a3c3420383e203c3420383e203c636f6d6d616e64206c696e653e203c73696d706c653e0a6368696c643d3c353e0a"
+stderr_hex = ""

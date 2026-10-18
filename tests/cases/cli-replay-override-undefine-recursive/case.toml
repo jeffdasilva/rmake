@@ -1,0 +1,11 @@
+id = "cli-replay-override-undefine-recursive"
+requirement = "variables.command-line-replay"
+candidate = "pending"
+args = ["-rR", "--no-print-directory", "X=007"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3c3e203c756e646566696e65643e203c756e646566696e65643e0a3c3030373e203c656e7669726f6e6d656e743e203c7265637572736976653e0a"
+stderr_hex = ""

@@ -1,0 +1,14 @@
+id = "makelevel-file-undefine-keeps-imported-depth"
+requirement = "recursion.makelevel"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
+provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"MAKELEVEL" = "007"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c3e203c3e203c756e646566696e65643e203c756e646566696e65643e0a3c3e203c3e203c756e646566696e65643e203c756e646566696e65643e0a6368696c643d3c383e0a"
+stderr_hex = ""

@@ -87,6 +87,8 @@ requiring shell interpretation retain the selected shell and flags. Full process
 signal and diagnostic compatibility remains under development.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
+The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup
+state, child exports and the still-incomplete command-line replay phase.
 
 ## Repository layout
 
