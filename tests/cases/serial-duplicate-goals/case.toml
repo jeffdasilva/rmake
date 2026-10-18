@@ -1,0 +1,11 @@
+id = "serial-duplicate-goals"
+requirement = "serial.runtime"
+candidate = "required"
+description = "duplicate goals"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "all", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "once\nmake: 'all' is up to date.\n"

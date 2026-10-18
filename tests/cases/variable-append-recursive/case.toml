@@ -1,6 +1,6 @@
 id = "variable-append-recursive"
 requirement = "variables.flavors"
-candidate = "pending"
+candidate = "required"
 description = "variable append recursive"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

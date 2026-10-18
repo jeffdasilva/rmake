@@ -1,6 +1,6 @@
 id = "function-addsuffix"
 requirement = "functions.paths"
-candidate = "pending"
+candidate = "required"
 description = "function addsuffix"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

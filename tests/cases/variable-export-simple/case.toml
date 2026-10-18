@@ -1,6 +1,6 @@
 id = "variable-export-simple"
 requirement = "variables.environment"
-candidate = "pending"
+candidate = "required"
 description = "variable export simple"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

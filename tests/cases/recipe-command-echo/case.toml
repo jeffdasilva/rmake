@@ -1,6 +1,6 @@
 id = "recipe-command-echo"
 requirement = "recipes.output"
-candidate = "pending"
+candidate = "required"
 description = "recipe command echo"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

@@ -1,0 +1,11 @@
+id = "serial-query-keep-going-forced-prerequisite"
+requirement = "serial.runtime"
+candidate = "required"
+description = "query keep going forced prerequisite"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-qk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "forced\n"

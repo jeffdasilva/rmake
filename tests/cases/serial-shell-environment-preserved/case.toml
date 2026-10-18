@@ -1,0 +1,14 @@
+id = "serial-shell-environment-preserved"
+requirement = "serial.runtime"
+candidate = "required"
+description = "shell environment preserved"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+SHELL = "inherited-choice"
+
+[expected]
+exit_code = 0
+stdout = "inherited-choice\n"

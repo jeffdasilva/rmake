@@ -1,0 +1,11 @@
+id = "serial-touch-skips-recipe"
+requirement = "serial.runtime"
+candidate = "required"
+description = "touch skips recipe"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "touch all\n"

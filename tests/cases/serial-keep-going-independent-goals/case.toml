@@ -1,0 +1,11 @@
+id = "serial-keep-going-independent-goals"
+requirement = "serial.runtime"
+candidate = "required"
+description = "keep going independent goals"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-k", "bad", "good"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "survived\n"

@@ -1,6 +1,6 @@
 id = "variable-override-append"
 requirement = "variables.precedence"
-candidate = "pending"
+candidate = "required"
 description = "variable override append"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory", "RESULT=command"]

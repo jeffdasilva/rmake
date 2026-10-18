@@ -34,13 +34,8 @@ fn help_describes_actual_capabilities() {
 }
 
 #[test]
-fn unsupported_builds_do_not_report_success() {
-    for args in [
-        vec![],
-        vec!["all"],
-        vec!["--unknown"],
-        vec!["--help", "all"],
-    ] {
+fn unsupported_options_do_not_report_success() {
+    for args in [vec!["--unknown"], vec!["-j2"], vec!["--jobs"]] {
         let output = Command::new(env!("CARGO_BIN_EXE_rmake"))
             .args(args)
             .output()

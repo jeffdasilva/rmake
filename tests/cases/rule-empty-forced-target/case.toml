@@ -1,6 +1,6 @@
 id = "rule-empty-forced-target"
 requirement = "rules.explicit"
-candidate = "pending"
+candidate = "required"
 description = "rule empty forced target"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

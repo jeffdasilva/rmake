@@ -1,6 +1,6 @@
 id = "error-missing-prerequisite"
 requirement = "errors.rules"
-candidate = "pending"
+candidate = "required"
 description = "error missing prerequisite"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

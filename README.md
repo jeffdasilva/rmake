@@ -1,17 +1,19 @@
 # rmake
 
-A planned Rust-based implementation of GNU Make.
+A Rust implementation of GNU Make, under active development.
 
 Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 [jeffdasilva/rmake](https://github.com/jeffdasilva/rmake).
 
 ## Status
 
-Implementation has started with the Rust workspace, pinned reference tooling,
-an independent differential harness, 148 original fixtures, and GitHub CI.
-The executable currently supports help/version only; Makefile evaluation is not
-implemented. See [implementation progress](docs/progress.md) for completed work
-and remaining gates.
+The executable now reads Makefiles, expands core variables/functions, and builds
+explicit dependencies serially. An independent differential harness compares it
+with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
+This is an experimental subset, **not yet a GNU Make replacement**. Includes,
+implicit rules, expansion effects, parallel jobs and many compatibility details
+remain unimplemented. See [implementation progress](docs/progress.md) for exact
+scope, required fixtures and open milestone gates.
 
 The target is a Linux-only Rust reimplementation of GNU Make 4.4.1, with extensive
 side-by-side testing. GNU Make's source may be used as a reference under its GPL
@@ -33,7 +35,7 @@ extensions follow.
 
 ## Getting started
 
-Clone the repository and view the available scaffolding command:
+Clone the repository and run the development workflows:
 
 ```sh
 git clone https://github.com/jeffdasilva/rmake.git
@@ -49,6 +51,16 @@ access to the pinned GNU/Rust downloads. Tools are installed inside the ignored
 fixture runner is for trusted project fixtures only, not untrusted Makefiles.
 Use `make build`, `make test`, `make fmt-check`, `make lint`, and `make bench` for
 individual flows. The build binary is `target/debug/rmake`.
+
+The serial engine can drive the repository's `build` and `check-core` targets:
+
+```sh
+target/debug/rmake -rR --no-print-directory build check-core
+```
+
+`make test-selfhost` exercises those same leaf flows without recursively invoking
+the full CI target. The runtime currently starts each recipe through the selected
+shell; GNU's direct-execution optimization and all its diagnostics are still open.
 
 ## Repository layout
 

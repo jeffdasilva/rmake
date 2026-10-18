@@ -1,6 +1,6 @@
 id = "function-firstword"
 requirement = "functions.words"
-candidate = "pending"
+candidate = "required"
 description = "function firstword"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

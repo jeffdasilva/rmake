@@ -1,0 +1,11 @@
+id = "serial-keep-going-direct-failure"
+requirement = "serial.runtime"
+candidate = "required"
+description = "keep going direct failure"
+provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
+args = ["-rR", "--no-print-directory", "-k"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
