@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-and-or-raw-argument-edge-trim"
+requirement = "functions.control"
+candidate = "required"
+description = "and and or trim literal C-whitespace edges from each raw argument before expansion."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "616e643d3c726573756c743e206f723d3c63686f73656e3e0a"
+stderr_hex = ""

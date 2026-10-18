@@ -760,3 +760,37 @@ Three added pending cases preserve broader `.ONESHELL` quoted-newline replay,
 pure-function vertical-tab and literal-NUL reader gaps. Wildcard, process and
 dynamic evaluation functions, includes/restarts, complete rule resolution,
 parallel execution, persistent caching and plugins remain later work.
+
+## Pure-function whitespace and local bindings — 2026-10-18
+
+Word/list and filename functions now use all six C-locale whitespace bytes while
+preserving non-whitespace control and non-ASCII bytes. Function-specific spans
+remain intact: `wordlist` preserves selected separators, literal `patsubst`
+preserves untouched input, and the final `let` binding receives the exact
+remaining bytes. `foreach` selects its first expanded name token; `or` and `and`
+trim each raw argument before expansion without discarding whitespace produced
+by expansion. The [function notes](function-whitespace.md) record these rules.
+
+Sixty-four original fixtures were added and the earlier vertical-tab regression
+was promoted. The corpus contains 1,087 cases: 1,027 required exact matches and
+60 explicit pending cases, with no failures or unexpected passes. Full `make ci`
+passed with 333 Rust tests, 210 tooling tests and all existing gates. New
+`make test-whitespace` adds 297 authored byte/status/filesystem scenarios to CI,
+including effect ordering and non-whitespace controls; a selected case also runs
+through rmake's top-level Makefile. An additional constrained campaign matched
+6,400 expressions across 200 programs.
+
+Seven added pending cases expose six existing invalid-number diagnostics and a
+GNU Make 4.4.1 `let` SIGSEGV. The positive campaign explicitly excludes the
+upstream crash family, while the curated case records its actual signal. rmake
+keeps safe empty bindings; the crash is not counted as a compatibility pass.
+
+The common no-NUL path now uses safe slice membership checks before scalar
+position scans, retaining all file-function truncation and effect boundaries.
+A comparison against preceding commit `bb504a3` used 31 alternating release
+pairs after three warmups with identical output/context. Before/after medians
+were 0.713/0.709 ms for tiny no-op, 21.814/22.016 ms for 10,000 explicit targets,
+and 4.396/4.181 ms for 5,000 assignments. Median paired after/before ratios were
+0.990, 1.006 and 0.955. The assignment workload improved about 4.5% in this
+unisolated run; this is not a general speed or GNU parity claim. Persistent
+caching and the broader compatibility/performance milestones remain incomplete.

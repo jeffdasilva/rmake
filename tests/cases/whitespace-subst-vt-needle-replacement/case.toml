@@ -1,0 +1,19 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-subst-vt-needle-replacement"
+requirement = "functions.text"
+candidate = "required"
+description = "subst replaces vertical-tab bytes with form-feed bytes without normalizing text."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"V" = "\u000b"
+"R" = "\f"
+"W" = "a\u000bb\u000bc"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c610c620c633e0a"
+stderr_hex = ""

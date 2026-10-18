@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-all-c-whitespace-notdir"
+requirement = "functions.paths"
+candidate = "required"
+description = "notdir splits every C-whitespace-delimited filename and removes directories."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = "\u000bdir/a.c\t\n\r\f\u000bplain.rs\u000blast.txt \u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c612e6320706c61696e2e7273206c6173742e7478743e0a"
+stderr_hex = ""

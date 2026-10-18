@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-call-if-vt-condition-trimmed"
+requirement = "functions.control"
+candidate = "required"
+description = "call expands its arguments before if trims the resulting raw condition."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = "\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c656c73653e0a"
+stderr_hex = ""

@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -19,6 +19,7 @@ GRAPH_NODES ?= 8
 MODE_CASE ?=
 DIAGNOSTIC_CASE ?=
 FILESYSTEM_CASE ?=
+WHITESPACE_CASE ?=
 INTCMP_SEED ?= 441011
 INTCMP_CASES ?= 200
 INTCMP_EXPRESSIONS ?= 32
@@ -43,6 +44,7 @@ help:
 		'  test-scopes     Compare scoped variables across seeded dependency graphs' \
 		'  test-pattern-scopes Compare mixed pattern and explicit variable scopes' \
 		'  test-filesystem  Compare Linux filesystem effects under injected faults' \
+		'  test-whitespace  Compare pure-function whitespace and effect ordering' \
 		'  test-modes      Compare 512 ordinary/one-shell execution mode combinations' \
 		'  test-intcmp     Compare seeded arbitrary-length integer expressions' \
 		'  test-diagnostics Compare diagnostic output and expansion ordering' \
@@ -58,6 +60,7 @@ help:
 		'Mode replay: MODE_CASE=<case ID>.' \
 		'Diagnostic replay: DIAGNOSTIC_CASE=<case ID>.' \
 		'Filesystem fault replay: FILESYSTEM_CASE=<case ID>.' \
+		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'
 
@@ -110,6 +113,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIAGNOSTIC_CASE=message-204-child-output-order test-diagnostics
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FILESYSTEM_CASE=close-eio-write test-filesystem
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WHITESPACE_CASE=let-final-remainder-0b test-whitespace
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -147,9 +151,13 @@ test-filesystem: build oracle-verify
 	$(PYTHON) tools/stdio_faults.py --oracle "$(ORACLE)" --self-test $(if $(FILESYSTEM_CASE),--case "$(FILESYSTEM_CASE)")
 	$(PYTHON) tools/stdio_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(FILESYSTEM_CASE),--case "$(FILESYSTEM_CASE)")
 
-test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-modes test-intcmp test-diagnostics test-stateful
+test-whitespace: build oracle-verify
+	$(PYTHON) tools/whitespace_matrix.py --oracle "$(ORACLE)" --self-test $(if $(WHITESPACE_CASE),--case "$(WHITESPACE_CASE)")
+	$(PYTHON) tools/whitespace_matrix.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(WHITESPACE_CASE),--case "$(WHITESPACE_CASE)")
 
-check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-modes test-intcmp test-diagnostics test-stateful
+test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-modes test-intcmp test-diagnostics test-stateful
+
+check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-modes test-intcmp test-diagnostics test-stateful
 
 ci: check test-selfhost
 

@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-let-no-names-still-evaluates-list"
+requirement = "functions.control"
+candidate = "required"
+description = "let evaluates the value list and body even when its name list contains only C whitespace."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"N" = "\u000b\f\r\t\n "
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973742d6566666563740a3c626f64793e0a"
+stderr_hex = ""

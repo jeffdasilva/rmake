@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-let-nested-restores-binding"
+requirement = "functions.control"
+candidate = "required"
+description = "Nested let restores the outer local binding and preserves the outer final-value remainder."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"V" = "\u000bone\u000btwo\u000bthree\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c5b6f6e655d2f5b696e6e65725d2f5b6f6e655d2f5b74776f0b74687265650b5d3e0a61667465723d6f7574736964650a"
+stderr_hex = ""

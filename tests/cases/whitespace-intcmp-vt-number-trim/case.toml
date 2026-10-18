@@ -1,0 +1,18 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-intcmp-vt-number-trim"
+requirement = "functions.intcmp"
+candidate = "required"
+description = "intcmp accepts vertical-tab whitespace around signed expanded integer operands."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "\u000b +2\u000b"
+"J" = "\u000b3\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c6c6573733e0a"
+stderr_hex = ""

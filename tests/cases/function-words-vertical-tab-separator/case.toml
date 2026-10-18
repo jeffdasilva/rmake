@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "function-words-vertical-tab-separator"
 requirement = "functions.words"
-candidate = "pending"
-description = "The generic words function counts vertical tab as a word separator; pending outside filesystem-only tokenization."
+candidate = "required"
+description = "The generic words function counts vertical tab as a C-locale word separator."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]
 timeout_seconds = 5

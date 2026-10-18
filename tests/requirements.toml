@@ -56,13 +56,13 @@ cases = ["error-missing-separator", "error-unclosed-conditional"]
 
 [[requirements]]
 id = "functions.control"
-title = "Lazy control flow, foreach and call"
+title = "Lazy control flow, local bindings and call"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 10
+candidate_required = 35
 reference = "https://www.gnu.org/software/make/manual/html_node/Conditional-Functions.html"
-fixture_count = 10
-cases = ["function-if-true-lazy", "function-if-false-lazy", "function-and-short-circuit", "function-and-final-value", "function-or-short-circuit", "function-or-empty", "function-foreach", "function-foreach-restores", "function-call-arguments", "function-call-nested"]
+fixture_count = 36
+cases = ["function-and-final-value", "function-and-short-circuit", "function-call-arguments", "function-call-nested", "function-foreach", "function-foreach-restores", "function-if-false-lazy", "function-if-true-lazy", "function-or-empty", "function-or-short-circuit", "whitespace-all-c-whitespace-foreach-list", "whitespace-all-c-whitespace-foreach-variable-name", "whitespace-all-c-whitespace-let-extra-tail", "whitespace-all-c-whitespace-let-names-values", "whitespace-and-expanded-vt-retained", "whitespace-and-later-vt-trimmed", "whitespace-and-or-raw-argument-edge-trim", "whitespace-call-foreach-vt-eager-late-body", "whitespace-call-if-vt-condition-trimmed", "whitespace-expanded-vt-if-is-nonempty", "whitespace-foreach-first-vt-delimited-name", "whitespace-if-all-c-raw-trimmed", "whitespace-if-expanded-c-whitespace-retained", "whitespace-let-empty-list-upstream-signal", "whitespace-let-last-empty-ignores-trailing-whitespace", "whitespace-let-more-names-than-words", "whitespace-let-nested-restores-binding", "whitespace-let-no-names-still-evaluates-list", "whitespace-let-one-name-trims-leading-preserves-tail", "whitespace-let-tail-preserves-trailing-separators", "whitespace-literal-vt-and-or-trimmed", "whitespace-literal-vt-if-lazy", "whitespace-literal-vt-if-trims-edges", "whitespace-or-expanded-vt-shortcircuit", "whitespace-or-later-vt-trimmed", "whitespace-raw-byte-control-foreach"]
 
 [[requirements]]
 id = "functions.diagnostics"
@@ -107,10 +107,10 @@ id = "functions.paths"
 title = "Filename transformations"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 20
+candidate_required = 28
 reference = "https://www.gnu.org/software/make/manual/html_node/File-Name-Functions.html"
-fixture_count = 20
-cases = ["fs-realpath-call-extra-eager", "fs-realpath-call-no-arguments", "fs-realpath-comma-filename", "fs-realpath-dot-and-trailing-slash", "fs-realpath-missing-component-dotdot", "fs-realpath-observes-prior-write", "fs-realpath-order-duplicates-missing", "fs-realpath-symlink-chain", "fs-realpath-vertical-tab-word-separator", "function-abspath", "function-addprefix", "function-addsuffix", "function-basename", "function-dir", "function-join", "function-join-extra-right", "function-notdir", "function-realpath-existing", "function-realpath-missing", "function-suffix"]
+fixture_count = 28
+cases = ["fs-realpath-call-extra-eager", "fs-realpath-call-no-arguments", "fs-realpath-comma-filename", "fs-realpath-dot-and-trailing-slash", "fs-realpath-missing-component-dotdot", "fs-realpath-observes-prior-write", "fs-realpath-order-duplicates-missing", "fs-realpath-symlink-chain", "fs-realpath-vertical-tab-word-separator", "function-abspath", "function-addprefix", "function-addsuffix", "function-basename", "function-dir", "function-join", "function-join-extra-right", "function-notdir", "function-realpath-existing", "function-realpath-missing", "function-suffix", "whitespace-all-c-whitespace-abspath", "whitespace-all-c-whitespace-addprefix", "whitespace-all-c-whitespace-addsuffix", "whitespace-all-c-whitespace-basename", "whitespace-all-c-whitespace-dir", "whitespace-all-c-whitespace-join", "whitespace-all-c-whitespace-notdir", "whitespace-all-c-whitespace-suffix"]
 
 [[requirements]]
 id = "functions.shell"
@@ -126,20 +126,20 @@ id = "functions.text"
 title = "Text transformation functions"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 9
+candidate_required = 18
 reference = "https://www.gnu.org/software/make/manual/html_node/Text-Functions.html"
-fixture_count = 9
-cases = ["function-subst", "function-subst-empty", "function-patsubst", "function-strip", "function-findstring-present", "function-findstring-absent", "function-filter", "function-filter-out", "function-sort-unique"]
+fixture_count = 18
+cases = ["function-filter", "function-filter-out", "function-findstring-absent", "function-findstring-present", "function-patsubst", "function-sort-unique", "function-strip", "function-subst", "function-subst-empty", "whitespace-all-c-whitespace-filter", "whitespace-all-c-whitespace-filter-out", "whitespace-all-c-whitespace-patsubst-literal", "whitespace-all-c-whitespace-patsubst-pattern", "whitespace-all-c-whitespace-sort", "whitespace-all-c-whitespace-strip", "whitespace-findstring-expanded-vt-preserved", "whitespace-subst-findstring-preserve-vt", "whitespace-subst-vt-needle-replacement"]
 
 [[requirements]]
 id = "functions.words"
 title = "Word and word-list functions"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 7
+candidate_required = 20
 reference = "https://www.gnu.org/software/make/manual/html_node/Text-Functions.html"
-fixture_count = 8
-cases = ["function-firstword", "function-lastword", "function-word", "function-word-outside", "function-wordlist", "function-wordlist-reversed", "function-words", "function-words-vertical-tab-separator"]
+fixture_count = 26
+cases = ["function-firstword", "function-lastword", "function-word", "function-word-outside", "function-wordlist", "function-wordlist-reversed", "function-words", "function-words-vertical-tab-separator", "whitespace-all-c-whitespace-firstword", "whitespace-all-c-whitespace-lastword", "whitespace-all-c-whitespace-word", "whitespace-all-c-whitespace-wordlist", "whitespace-all-c-whitespace-words", "whitespace-all-six-separators-individual", "whitespace-non-ascii-and-control-bytes-remain-in-words", "whitespace-raw-byte-nobreak-controls", "whitespace-word-index-1c", "whitespace-word-index-85", "whitespace-word-indices-all-six-trim", "whitespace-word-nobreak-index-rejected", "whitespace-word-vt-index-trim", "whitespace-wordlist-full-original-span", "whitespace-wordlist-index-1c", "whitespace-wordlist-index-85", "whitespace-wordlist-index-a0", "whitespace-wordlist-vt-index-trim"]
 
 [[requirements]]
 id = "includes.read"
@@ -310,10 +310,10 @@ id = "variables.expansion"
 title = "Variable references, computed names and value retention"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 6
+candidate_required = 8
 reference = "https://www.gnu.org/software/make/manual/html_node/Reference.html"
-fixture_count = 6
-cases = ["variable-computed-name", "variable-nested-name", "variable-substitution-reference", "variable-substitution-pattern", "variable-value-unexpanded", "variable-define-multiline"]
+fixture_count = 8
+cases = ["variable-computed-name", "variable-define-multiline", "variable-nested-name", "variable-substitution-pattern", "variable-substitution-reference", "variable-value-unexpanded", "whitespace-pattern-substitution-reference-vt", "whitespace-suffix-substitution-reference-vt"]
 
 [[requirements]]
 id = "variables.flavors"
@@ -430,10 +430,10 @@ id = "functions.intcmp"
 title = "Integer comparison values, lazy branches, call expansion and byte diagnostics"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 58
+candidate_required = 59
 reference = "https://www.gnu.org/software/make/manual/html_node/Conditional-Functions.html"
-fixture_count = 58
-cases = ["intcmp-all-ascii-whitespace", "intcmp-base-ten-leading-zero", "intcmp-branch-spaces", "intcmp-builtin-overrides-variable", "intcmp-call-delayed-branches", "intcmp-call-delayed-operands", "intcmp-call-eager-extra-error", "intcmp-call-eager-unselected-error", "intcmp-call-extra-arguments-ignored", "intcmp-call-normalization", "intcmp-canonical-negative", "intcmp-canonical-positive", "intcmp-command-line-error", "intcmp-empty-left", "intcmp-empty-right", "intcmp-empty-third-removes-default-number", "intcmp-equal-default-empty", "intcmp-equal-lazy", "intcmp-equal-positive", "intcmp-expanded-operands", "intcmp-extra-commas-in-last-branch", "intcmp-greater-defaults-equal", "intcmp-greater-explicit-empty", "intcmp-greater-lazy", "intcmp-greater-positive", "intcmp-greater-than-u64", "intcmp-greater-two-args", "intcmp-huge-equal-normalization", "intcmp-huge-negative", "intcmp-internal-whitespace", "intcmp-invalid-left-before-invalid-right", "intcmp-leading-zero-length", "intcmp-less-lazy", "intcmp-less-only-branch", "intcmp-less-positive", "intcmp-negative-equal-length-order", "intcmp-negative-magnitude-order", "intcmp-negative-magnitude-reverse", "intcmp-nested-call-diagnostic-location", "intcmp-nested-comparison", "intcmp-nonutf8-left", "intcmp-nonutf8-right", "intcmp-not-exponent", "intcmp-not-fraction", "intcmp-not-hexadecimal", "intcmp-not-underscore", "intcmp-one-argument", "intcmp-operand-multiline", "intcmp-operand-whitespace", "intcmp-operands-expand-before-validation", "intcmp-opposite-signs", "intcmp-recipe-error", "intcmp-selected-branch-error", "intcmp-sign-without-number", "intcmp-signed-zero", "intcmp-unequal-two-args", "intcmp-vertical-tab-function-separator", "intcmp-whitespace-empty-left"]
+fixture_count = 59
+cases = ["intcmp-all-ascii-whitespace", "intcmp-base-ten-leading-zero", "intcmp-branch-spaces", "intcmp-builtin-overrides-variable", "intcmp-call-delayed-branches", "intcmp-call-delayed-operands", "intcmp-call-eager-extra-error", "intcmp-call-eager-unselected-error", "intcmp-call-extra-arguments-ignored", "intcmp-call-normalization", "intcmp-canonical-negative", "intcmp-canonical-positive", "intcmp-command-line-error", "intcmp-empty-left", "intcmp-empty-right", "intcmp-empty-third-removes-default-number", "intcmp-equal-default-empty", "intcmp-equal-lazy", "intcmp-equal-positive", "intcmp-expanded-operands", "intcmp-extra-commas-in-last-branch", "intcmp-greater-defaults-equal", "intcmp-greater-explicit-empty", "intcmp-greater-lazy", "intcmp-greater-positive", "intcmp-greater-than-u64", "intcmp-greater-two-args", "intcmp-huge-equal-normalization", "intcmp-huge-negative", "intcmp-internal-whitespace", "intcmp-invalid-left-before-invalid-right", "intcmp-leading-zero-length", "intcmp-less-lazy", "intcmp-less-only-branch", "intcmp-less-positive", "intcmp-negative-equal-length-order", "intcmp-negative-magnitude-order", "intcmp-negative-magnitude-reverse", "intcmp-nested-call-diagnostic-location", "intcmp-nested-comparison", "intcmp-nonutf8-left", "intcmp-nonutf8-right", "intcmp-not-exponent", "intcmp-not-fraction", "intcmp-not-hexadecimal", "intcmp-not-underscore", "intcmp-one-argument", "intcmp-operand-multiline", "intcmp-operand-whitespace", "intcmp-operands-expand-before-validation", "intcmp-opposite-signs", "intcmp-recipe-error", "intcmp-selected-branch-error", "intcmp-sign-without-number", "intcmp-signed-zero", "intcmp-unequal-two-args", "intcmp-vertical-tab-function-separator", "intcmp-whitespace-empty-left", "whitespace-intcmp-vt-number-trim"]
 
 [[requirements]]
 id = "diagnostics.variable-locations"

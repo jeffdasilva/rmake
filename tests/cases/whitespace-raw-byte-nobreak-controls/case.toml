@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-raw-byte-nobreak-controls"
+requirement = "functions.words"
+candidate = "required"
+description = "Non-UTF-8 bytes and nonbreaking-space bytes remain within words under the C locale."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "776f7264733d3c333e2073747269703d3c61ff622063c2a0642065a0663e2066697273743d3c61ff623e206c6173743d3c65a0663e0a"
+stderr_hex = ""

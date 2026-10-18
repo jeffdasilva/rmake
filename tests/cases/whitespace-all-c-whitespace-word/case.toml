@@ -1,0 +1,18 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-all-c-whitespace-word"
+requirement = "functions.words"
+candidate = "required"
+description = "word indexes tokens separated by every C-locale ASCII whitespace byte."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = "\u000b \talpha\t\n\r\f\u000bbeta\u000b \talpha\f\r "
+"P" = "a%\u000bb%"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c626574613e0a"
+stderr_hex = ""

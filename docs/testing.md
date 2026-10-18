@@ -226,6 +226,13 @@ Curated cases separately cover normal file/realpath behavior, byte filenames,
 symlinks, NUL expansion consumers, newline treatment and effect timing.
 See the [filesystem effect notes](filesystem-effects.md) for safety boundaries.
 
+`make test-whitespace` checks pure-function tokenization, lazy arguments and
+local binding scopes across C whitespace and non-whitespace control bytes.
+Every case has authored stream/status/filesystem anchors, including selected
+and skipped effects; `WHITESPACE_CASE` supports individual replay. The
+[function whitespace notes](function-whitespace.md) describe the distinct
+preservation rules and the explicitly excluded upstream `let` crash family.
+
 The current `make test-intcmp` gate executes 6,400 integer expressions across
 200 seeded programs. An independent Python integer model predicts normalization,
 branch selection and GNU 4.4.1's observed negative-number ordering quirk. The

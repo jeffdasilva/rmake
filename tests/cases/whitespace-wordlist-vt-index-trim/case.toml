@@ -1,0 +1,18 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-wordlist-vt-index-trim"
+requirement = "functions.words"
+candidate = "required"
+description = "wordlist accepts vertical-tab whitespace around both expanded numeric bounds."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"I" = "\u000b2\u000b"
+"J" = "\u000b3\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "3c6220633e0a"
+stderr_hex = ""

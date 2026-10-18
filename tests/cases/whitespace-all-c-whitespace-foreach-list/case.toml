@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-all-c-whitespace-foreach-list"
+requirement = "functions.control"
+candidate = "required"
+description = "foreach iterates every C-whitespace-delimited word and restores one-space output separators."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = "\u000b \talpha\t\n\r\f\u000bbeta\u000b \talpha\f\r "
+
+[expected]
+exit_code = 0
+stdout_hex = "3c5b616c7068615d205b626574615d205b616c7068615d3e0a"
+stderr_hex = ""

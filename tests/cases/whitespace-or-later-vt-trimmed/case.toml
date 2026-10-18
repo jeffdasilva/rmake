@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "whitespace-or-later-vt-trimmed"
+requirement = "functions.control"
+candidate = "required"
+description = "or trims a later literal vertical-tab argument and evaluates the following error branch."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a2077726f6e672d6272616e63682e202053746f702e0a"
