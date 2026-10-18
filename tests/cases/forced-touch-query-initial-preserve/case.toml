@@ -1,0 +1,10 @@
+id = "forced-touch-query-initial-preserve"
+requirement = "serial.forced-touch"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "-qt"]
+provenance = "Original oracle fixture after reference study of GNU Make 4.4.1 job.c, remake.c, commands.c; no upstream test or implementation code copied."
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

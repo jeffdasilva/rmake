@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "ordinary-modifier-only-internal-plus-touch"
 requirement = "recipes.oneshell"
-candidate = "pending"
+candidate = "required"
 description = "ordinary modifier only internal plus touch"
 provenance = "Independently authored from black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "-t"]

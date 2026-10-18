@@ -1,0 +1,3 @@
+all:
+	+@:
+	@printf forbidden > forbidden

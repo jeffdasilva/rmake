@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-modes test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -16,6 +16,7 @@ START_INDEX ?= 0
 GRAPH_SEED ?= 44109
 GRAPH_CASES ?= 100
 GRAPH_NODES ?= 8
+MODE_CASE ?=
 CARGO = $(PYTHON) tools/rust.py cargo
 
 help:
@@ -34,6 +35,7 @@ help:
 		'  test-diff       Compare rmake against the oracle; report pending cases' \
 		'  test-generated  Compare seeded pure-expansion programs' \
 		'  test-graphs     Compare seeded explicit dependency graphs' \
+		'  test-modes      Compare 512 ordinary/one-shell execution mode combinations' \
 		'  test-stateful   Compare incremental builds and timestamp boundaries' \
 		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  bench           Record original GNU oracle workload baselines' \
@@ -43,6 +45,7 @@ help:
 		'' \
 		'Overrides: PYTHON, ORACLE, CANDIDATE, SEED, GENERATED_CASES, EXPRESSIONS.' \
 		'Graph overrides: GRAPH_SEED, GRAPH_CASES, GRAPH_NODES, START_INDEX.' \
+		'Mode replay: MODE_CASE=<case ID>.' \
 		'GNU compatibility is incomplete.'
 
 bootstrap: bootstrap-rust bootstrap-oracle
@@ -91,6 +94,7 @@ test-diff: build oracle-verify
 
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -100,13 +104,17 @@ test-graphs: build oracle-verify
 	$(PYTHON) tools/graph_generated.py --oracle "$(ORACLE)" --self-test --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/graph_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)"
 
+test-modes: build oracle-verify
+	$(PYTHON) tools/mode_matrix.py --oracle "$(ORACLE)" --self-test $(if $(MODE_CASE),--case "$(MODE_CASE)")
+	$(PYTHON) tools/mode_matrix.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(MODE_CASE),--case "$(MODE_CASE)")
+
 test-stateful: build oracle-verify
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
-test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-stateful
+test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-modes test-stateful
 
-check: check-core test-oracle test-diff test-generated test-graphs test-stateful
+check: check-core test-oracle test-diff test-generated test-graphs test-modes test-stateful
 
 ci: check test-selfhost
 

@@ -1,14 +1,11 @@
 # Ordinary forced commands in touch mode
 
-This records the unfinished ordinary-recipe behavior for GNU Make 4.4.1 on the
-pinned Linux profile. The 20 original `forced-touch-*` fixtures were independently
-written and checked against that executable before any GNU source consultation.
-Later transition analysis consulted upstream implementation as recorded below;
-no upstream implementation or test text was copied. Three fixtures currently
-match rmake and are required; seventeen
-remain pending in [the requirement ledger](../tests/requirements.toml). The
-runtime still explicitly rejects ordinary forced commands combined with touch
-mode when the guarded path is reached.
+This records ordinary-recipe lifecycle behavior for GNU Make 4.4.1 on the pinned
+Linux profile. The first 20 `forced-touch-*` fixtures were independently written
+and checked before any GNU source consultation. Sixteen further fixtures were
+independently authored after the reference study recorded below; no upstream
+implementation or test text was copied. All 36 cases are required matches in
+[the requirement ledger](../tests/requirements.toml).
 
 Observed execution rules:
 
@@ -39,7 +36,9 @@ Observed execution rules:
 The fixture state expectations below were separately asserted against the
 oracle. Every case must leave `forbidden` absent. The harness compares resulting
 file bytes, type, mode, links, stdout, stderr, and exit status between engines.
-It does not yet compare timestamps or run stateful build sequences.
+This curated single-invocation harness does not compare timestamps. The separate
+[stateful gate](../tests/stateful/README.md) covers selected lifecycle sequences
+with fixed timestamp inputs and explicit timestamp assertions.
 
 | Fixture | Options | Exit | `all` exists afterward |
 | --- | --- | ---: | --- |
@@ -64,11 +63,10 @@ It does not yet compare timestamps or run stateful build sequences.
 | `forced-touch-skipped-config-error` | `-t` | 2 | no |
 | `forced-touch-plain-skips-config` | `-t` | 0 | yes |
 
-Before removing the runtime guard, model the ordinary recipe cursor through
-command preparation, skipped commands, child completion, and target completion.
-Retain raw recursion flags, source locations, and the pre-stripping empty-body
-state. Verify the exact touch counts and query-induced cleanup rather than
-adding one unconditional touch after the loop.
+The ordinary recipe cursor must retain command preparation, skipped commands,
+child completion, and target completion as separate events. Raw recursion flags,
+source locations, and the pre-stripping empty-body state determine exact touch
+counts and query-induced cleanup.
 
 ## Query cleanup after child completion
 
@@ -99,28 +97,46 @@ The two cleanup policies must stay separate in rmake: changed-target cleanup on
 ordinary failure, and regular-target cleanup after query continuation. Neither
 query stop performs completion touching.
 
-The implementation should retain whether the last child attempt actually
-launched, distinguish an optimized no-child command from a real child, and
-represent cleanup as an explicit result. Preserve zero-byte line records and
-final recursion flags. Successful child completion with only zero-byte bodies
+The implementation retains whether the last child attempt actually launched,
+distinguishes an optimized no-child command from a real child, and represents
+cleanup as an explicit result. Its pure `recipe_flow` helper preserves zero-byte
+line distinctions and final recursion flags. Successful child completion with
+only zero-byte bodies
 remaining finalizes once; scanning remaining nonzero bodies without another
 launch can finalize twice, matching duplicate touch output. Initial dispatch
-exhaustion also follows the latter path. Test these transitions separately from
-shell preparation and filesystem effects before removing the runtime guard.
+exhaustion also follows the latter path. Focused helper tests check these
+transitions separately from shell preparation and filesystem effects.
 
 The 195 probes comprised 168 cleanup/protection combinations and 27 child-boundary
 cases. Some early restoration probes used local-time `touch -t`; exact restored
 mtime conclusions come from the separate boundary probes with `TZ=UTC` and fixed
-mtimes. Eleven original cleanup fixtures have been prepared for the next runtime
-change; they are not included in this document's 20-case ledger count. Exported
-recursive-variable timing and broader stateful timestamp comparisons remain
-outside this slice.
+mtimes. Sixteen further curated fixtures now cover these cleanup distinctions:
+
+- Eleven cover created and unchanged targets; initial dispatch, optimized colon,
+  direct-launch failure, and real-child exit; precious, phony, directory, and
+  symlink protections.
+- Three cover failure paths: an unignored missing direct executable preserves a
+  previously created target even with `.DELETE_ON_ERROR`; failed completion
+  touching deletes a read-only regular target after a child; the corresponding
+  directory remains. The read-only case applies its mode during the recipe so
+  Git's limited file-mode representation cannot weaken the fixture.
+- A paired wrapper test distinguishes `./sh -c ':'`, which GNU optimizes without
+  launching its wrapper, from `./mysh -c ':'`, which prints a marker from a real
+  child. The following query stop preserves the first target and deletes the
+  second. Shell basename and final arguments are observable inputs to this rule.
+
+Each fixture declares exact output and status, and its target existence,
+forbidden-output absence, retained bytes, and symlink referent were independently
+checked against the oracle where applicable. The differential snapshot checks
+these filesystem outcomes on every run. Exported recursive-variable timing and
+broader timestamp behavior still require additional coverage.
 
 ## Reference provenance
 
-The 20 committed fixtures predate source inspection. The later explanation and
-transition proposal above are source-informed and must not be described as
-clean-room inference. The reference was GNU Make 4.4.1's official
+The first 20 committed fixtures predate source inspection. The additional 16
+fixtures, later explanation, and execution lifecycle above are source-informed
+and must not be described as clean-room inference. The reference was GNU Make
+4.4.1's official
 [release archive](https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz), consulted on
 2026-10-18. Its SHA256 is
 `dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`.

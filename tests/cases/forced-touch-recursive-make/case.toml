@@ -1,6 +1,6 @@
 id = "forced-touch-recursive-make"
 requirement = "serial.forced-touch"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "-t"]
 provenance = "Original GNU Make 4.4.1 black-box probe; no implementation source consulted."
 

@@ -236,3 +236,43 @@ and 2.653/3.840 ms for 5,000 assignments. The large-graph slowdown remains an op
 performance issue. These unisolated wall-clock samples do not establish a
 statistically controlled regression or speed advantage; no persistent cache is
 enabled, and compatibility gates still precede acceleration work.
+
+## Ordinary recipe lifecycle and mode matrix — 2026-10-18
+
+The ordinary forced-touch guard is replaced by an explicit lifecycle model.
+Raw recursion flags select expansion, reached expanded modifiers update command
+flags, and completion retains GNU's one/two-touch distinction. Execution returns
+a named status and cleanup policy. Failed launches, real-child failures, query
+continuation and completion-touch failures preserve their different deletion
+rules. Exact prepared colon invocations can complete without launching a child;
+precious/phony targets, directories and symlink referents remain protected as
+observed. Touch-open diagnostics retain their operation and target name.
+
+A final special-target interaction campaign exposed global `.SILENT` behavior.
+It now suppresses completion touches, ignored-error summaries and no-work
+messages without adding `-s` to `MAKEFLAGS` or silencing recursive children.
+Target-specific `.SILENT` keeps its narrower recipe-echo effect. The already
+accepted `--no-print-directory` option is now preserved in `MAKEFLAGS`, including
+GNU's leading space when no short flags precede it and duplicate coalescing.
+
+Twenty-five new original fixtures and 19 formerly pending cases bring the curated
+corpus to 393 cases: 319 required matches and 74 pending requirements. The 36
+forced-touch fixtures all match. Five focused helper/CLI tests bring the Rust
+suite to 183 tests, and twelve matrix-runner tests bring the tooling suite to 138.
+An independent review replay matched 85 additional lifecycle/colon probes,
+including fixed timestamp and link-state observations.
+
+Eight new required stateful scenarios add 24 invocations, bringing that gate to
+23 scenarios and 61 invocations per engine. They independently assert preserved
+content, exact old mtimes, newer touched targets, query deletion, and absence of
+skipped recipe output. `make test-modes` preserves the original 512-case Cartesian
+matrix as a CI gate: ordinary/one-shell recipes, eight recipe shapes, and all
+combinations of `-n`, `-q`, `-t`, `-i`, and `-s`. Reports retain exact reproducers;
+`MODE_CASE` selects a recorded cell. Neither gate permits pending mismatches.
+
+The implementation remains serial and incomplete. Expansion effects, target
+scopes, includes/restarts, implicit rules, parallel/jobserver behavior, signals,
+full diagnostic compatibility and persistent caching remain open. The lifecycle
+code and later fixtures are independently written but source-informed; consulted
+GNU files/functions and archive hashes are recorded in
+[the provenance notes](forced-touch.md#reference-provenance).

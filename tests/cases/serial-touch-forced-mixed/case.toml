@@ -1,6 +1,6 @@
 id = "serial-touch-forced-mixed"
 requirement = "serial.runtime"
-candidate = "pending"
+candidate = "required"
 description = "touch forced mixed"
 provenance = "Original serial-runtime counterexample, independently authored from public behavior and black-box probes."
 args = ["-rR", "--no-print-directory", "-t"]

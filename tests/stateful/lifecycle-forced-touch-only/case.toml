@@ -1,0 +1,31 @@
+id = "lifecycle-forced-touch-only"
+description = "A recipe containing only a forced command does not touch an old target even with touch or query mode."
+provenance = "Original rmake scenario and expectations; authored after source-informed behavior notes, without copying upstream tests or implementation text."
+initial = [{ "op" = "write", "path" = "source", "content" = "source\n", "mtime_ns" = 1600000000000000010 }, { "op" = "write", "path" = "out", "content" = "payload\n", "mtime_ns" = 1600000000000000000 }]
+
+[[steps]]
+name = "forced-only-touch"
+args = ["-rR", "--no-print-directory", "-t", "out"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "", "stderr" = "" }
+unchanged = ["out", "source"]
+exact_mtime = { "out" = 1600000000000000000 }
+mtime_order = []
+
+[[steps]]
+name = "forced-only-query"
+args = ["-rR", "--no-print-directory", "-q", "out"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "", "stderr" = "" }
+unchanged = ["out", "source"]
+exact_mtime = { "out" = 1600000000000000000 }
+mtime_order = []
+
+[[steps]]
+name = "verify-content"
+args = ["-rR", "--no-print-directory", "verify"]
+actions = []
+expected = { "exit_code" = 0, "stdout" = "verified\n", "stderr" = "" }
+unchanged = ["out", "source"]
+exact_mtime = { "out" = 1600000000000000000 }
+mtime_order = []

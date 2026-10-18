@@ -10,6 +10,7 @@ mod cli;
 mod engine;
 mod oneshell;
 mod process;
+mod recipe_flow;
 
 fn main() -> ExitCode {
     let mut args = std::env::args_os();

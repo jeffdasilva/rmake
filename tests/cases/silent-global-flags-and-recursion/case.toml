@@ -1,0 +1,10 @@
+id = "silent-global-flags-and-recursion"
+requirement = "recipes.output"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original fixture from independent GNU Make 4.4.1 oracle probes after lifecycle reference study; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout = "<rR --no-print-directory>|<rR --no-print-directory>|<rR --no-print-directory>\nprintf \"child:%s\\n\" \"rR --no-print-directory\"\nchild:rR --no-print-directory\n"
+stderr = ""

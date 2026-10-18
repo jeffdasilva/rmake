@@ -191,6 +191,14 @@ make errors.
 | Nightly | Broad generators, interaction matrices, signal/jobserver stress, resource failures, mutation checks, integration corpus and repeated schedules |
 | Release | Complete in-scope ledger, zero unresolved in-scope differential failures, no outstanding required-feature skips, supported-profile matrix, reproducible soak and performance report |
 
+The current `make test-modes` gate executes 512 fixed original combinations of
+ordinary/one-shell recipes, eight command shapes, and all subsets of `-n`, `-q`,
+`-t`, `-i`, and `-s`. It performs oracle self-comparison before candidate
+comparison, asserts independent simple anchors and preserved input files, and
+retains exact failure reproductions. `MODE_CASE` replays a recorded cell. The
+matrix has no pending classification. It complements the curated corpus and the
+separate stateful timestamp gate; it does not cover every option interaction.
+
 Known missing features may be tracked during development, but reports must show
 their count and requirement IDs. CI must fail new differences and unexpected
 passes. Release conformance cannot pass with those missing features waived away.

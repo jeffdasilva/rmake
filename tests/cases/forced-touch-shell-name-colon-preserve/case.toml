@@ -1,0 +1,10 @@
+id = "forced-touch-shell-name-colon-preserve"
+requirement = "serial.forced-touch"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "-qt"]
+provenance = "Original fixture from independent Linux oracle probes following GNU Make 4.4.1 source-reference study; no upstream code or tests copied."
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""
