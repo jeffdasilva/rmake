@@ -27,6 +27,9 @@ independent coverage. The reference executable remains a test tool, not a runtim
 fallback. No GNU implementation code or upstream tests have been incorporated.
 The [ordinary recipe lifecycle notes](forced-touch.md) record the source sections
 consulted for that independently written implementation and its later fixtures.
+The [pattern-variable notes](pattern-scopes.md) record the binding, activation
+and export-policy source references used for the independently written scope
+implementation.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

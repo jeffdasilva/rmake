@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-private-simple-environment-appends"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A private simple pattern binding with retained append metadata combines outer values in the child environment."
+provenance = "Independently minimized from original seeded pattern-scope testing against GNU Make 4.4.1; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "<frozen>/<frozen>/simple/<base  frozen>\n"
+stderr = ""

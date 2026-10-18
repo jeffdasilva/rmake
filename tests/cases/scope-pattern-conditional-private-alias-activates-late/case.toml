@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-conditional-private-alias-activates-late"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A suppressed conditional pattern can mark the global binding private only when first activated."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=<global>/file\na.t=<>/undefined\nafter=<>/undefined\n"
+stderr = ""

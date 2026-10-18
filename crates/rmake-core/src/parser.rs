@@ -9,7 +9,10 @@
 pub use crate::diagnostic::Location;
 use crate::diagnostic::{Diagnostic, ExpansionContext, Output};
 use crate::reader::{Reader, strip_comment};
-use crate::variables::{Assignment, ExpandError, Origin, TargetScope, VariableStore};
+use crate::variables::{
+    Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
+    VariableStore, reference_end,
+};
 use std::collections::{HashMap, HashSet};
 
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
@@ -87,11 +90,20 @@ impl std::fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+/// One pattern-variable declaration. Equal-specificity patterns retain their
+/// original interleaved order, including repeated appearances of a pattern.
+#[derive(Clone, Debug)]
+pub struct PatternAssignment {
+    pattern: Pattern,
+    variable: PatternVariable,
+}
+
 #[derive(Default)]
 pub struct Database {
     pub variables: VariableStore,
     /// Target-only variable declarations never create rules or select a goal.
     pub target_scopes: HashMap<Vec<u8>, TargetScope>,
+    pub pattern_assignments: Vec<PatternAssignment>,
     pub rules: HashMap<Vec<u8>, Rule>,
     pub exports: HashSet<Vec<u8>>,
     pub unexports: HashSet<Vec<u8>>,
@@ -102,12 +114,62 @@ pub struct Database {
 impl Database {
     /// Activate a target's local bindings over its inherited execution context.
     /// Descendant visibility and append layers are preserved by the store.
-    pub fn variables_for_target(&self, target: &[u8], parent: &VariableStore) -> VariableStore {
-        if let Some(scope) = self.target_scopes.get(target) {
-            parent.with_target_scopes(&[scope])
-        } else {
-            parent.with_target_scopes(&[])
+    pub fn variables_for_target_with(
+        &mut self,
+        target: &[u8],
+        parent: &VariableStore,
+        mut context: ExpansionContext<'_>,
+    ) -> Result<VariableStore, ExpandError> {
+        let mut matching = self
+            .pattern_assignments
+            .iter()
+            .filter(|assignment| {
+                assignment
+                    .pattern
+                    .matches(target)
+                    .is_some_and(|stem| !stem.is_empty())
+            })
+            .collect::<Vec<_>>();
+        // More fixed bytes mean a shorter stem, hence higher precedence.
+        // Stable sorting preserves declaration order when stem lengths tie.
+        matching.sort_by_key(|assignment| assignment.pattern.fixed_len());
+        let mut pattern_scope = TargetScope::default();
+        for assignment in matching {
+            if pattern_scope.apply_pattern_with(
+                &mut self.variables,
+                &assignment.variable,
+                context.reborrow(),
+            )? {
+                // A suppressed conditional can return the global binding. Its
+                // modifiers then replace global export policy too.
+                let name = assignment.variable.name();
+                match self
+                    .variables
+                    .get(name)
+                    .and_then(|variable| variable.export_policy())
+                {
+                    Some(true) => {
+                        self.unexports.remove(name);
+                        self.exports.insert(name.to_vec());
+                    }
+                    Some(false) => {
+                        self.exports.remove(name);
+                        self.unexports.insert(name.to_vec());
+                    }
+                    None => {
+                        self.exports.remove(name);
+                        self.unexports.remove(name);
+                    }
+                }
+            }
         }
+        let mut parent = parent.clone();
+        parent.refresh_globals(&self.variables);
+        Ok(if let Some(scope) = self.target_scopes.get(target) {
+            parent.with_target_scopes(&[&pattern_scope, scope])
+        } else {
+            parent.with_target_scopes(&[&pattern_scope])
+        })
     }
 
     /// Initialize suffix metadata before reading user Makefiles. SUFFIXES is an
@@ -191,6 +253,24 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
         .filter(|word| !word.is_empty())
 }
 
+/// Percent quoting is shared with pattern matching. Other escaped filename
+/// syntax remains unsupported by this reader rather than being reinterpreted.
+fn only_percent_escapes(bytes: &[u8]) -> bool {
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        if bytes[cursor] == b'\\' {
+            while bytes.get(cursor) == Some(&b'\\') {
+                cursor += 1;
+            }
+            if bytes.get(cursor) != Some(&b'%') {
+                return false;
+            }
+        }
+        cursor += 1;
+    }
+    true
+}
+
 /// Find a separator outside nested make references. It is deliberately not a
 /// shell parser: quotes have no special meaning in make rule/assignment syntax.
 fn separator(bytes: &[u8], needle: u8) -> Option<usize> {
@@ -237,6 +317,12 @@ struct TargetAssignment<'a> {
     origin: Origin,
     private: bool,
     export: Option<bool>,
+}
+
+struct RulePrefix {
+    expanded: Vec<u8>,
+    consumed: usize,
+    colon: Option<usize>,
 }
 
 /// Modifiers are keywords only when the complete remaining text is not itself
@@ -392,6 +478,78 @@ impl Database {
             })
     }
 
+    /// Expand only the target portion. A colon generated by a reference fixes
+    /// the assignment/prerequisite boundary before the untouched tail runs.
+    /// Keep the consumed raw offset so ordinary rules can resume expansion
+    /// without emitting any prefix effects a second time.
+    fn expand_rule_prefix(
+        &self,
+        bytes: &[u8],
+        location: &Location,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<RulePrefix, ParseError> {
+        let limit = separator(bytes, b';').unwrap_or(bytes.len());
+        let mut expanded = Vec::new();
+        let mut consumed = 0;
+        while consumed < limit {
+            let start = consumed;
+            let part = if bytes[start] == b'$' {
+                consumed = match bytes.get(start + 1) {
+                    Some(b'(' | b'{') => {
+                        reference_end(bytes, start + 1).map_err(|error| ParseError {
+                            location: location.clone(),
+                            message: error.diagnostic(),
+                        })? + 1
+                    }
+                    Some(_) => start + 2,
+                    None => start + 1,
+                };
+                self.expand(&bytes[start..consumed], location, context)?
+            } else {
+                consumed += 1;
+                while consumed < limit
+                    && !matches!(bytes[consumed - 1], b':')
+                    && bytes[consumed] != b'$'
+                {
+                    consumed += 1;
+                }
+                bytes[start..consumed].to_vec()
+            };
+            if expanded.len().saturating_add(part.len()) > MAX_OUTPUT {
+                return Err(ParseError {
+                    location: location.clone(),
+                    message: ExpandError::ExpansionLimit.diagnostic(),
+                });
+            }
+            let has_colon = part.contains(&b':');
+            let has_semicolon = part.contains(&b';');
+            expanded.extend_from_slice(&part);
+            if has_colon || has_semicolon {
+                let colon = separator(&expanded, b':');
+                let semicolon = separator(&expanded, b';');
+                if semicolon.is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon)) {
+                    return Ok(RulePrefix {
+                        expanded,
+                        consumed,
+                        colon: None,
+                    });
+                }
+                if colon.is_some() {
+                    return Ok(RulePrefix {
+                        expanded,
+                        consumed,
+                        colon,
+                    });
+                }
+            }
+        }
+        Ok(RulePrefix {
+            expanded,
+            consumed,
+            colon: None,
+        })
+    }
+
     fn define(
         &mut self,
         spec: AssignmentSpec<'_>,
@@ -434,21 +592,42 @@ impl Database {
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let targets = words(targets).collect::<Vec<_>>();
-        if targets.iter().any(|target| target.contains(&b'%'))
-            || targets.last().is_some_and(|target| target.ends_with(b"&"))
-        {
+        if targets.last().is_some_and(|target| target.ends_with(b"&")) {
             return Err(ParseError {
                 location: location.clone(),
                 message: "rmake: unsupported rule form".into(),
             });
         }
-        if targets.iter().any(|target| target.contains(&b'\\')) {
-            return Err(ParseError {
-                location: location.clone(),
-                message: "rmake: escaped target names are not implemented".into(),
-            });
-        }
         for target in targets {
+            let pattern = Pattern::new(target);
+            if pattern.has_wildcard() {
+                let name = self.expand(assignment.spec.name, location, context)?;
+                let variable = PatternVariable::prepare_with(
+                    &self.variables,
+                    &name,
+                    assignment.spec.value,
+                    assignment.spec.kind,
+                    assignment.origin,
+                    assignment.private,
+                    assignment.export,
+                    Some(location),
+                    context.at(Some(location)),
+                )
+                .map_err(|error| ParseError {
+                    location: error.diagnostic_location(Some(location)).unwrap().clone(),
+                    message: error.diagnostic(),
+                })?;
+                self.pattern_assignments
+                    .push(PatternAssignment { pattern, variable });
+                continue;
+            }
+            if !only_percent_escapes(target) {
+                return Err(ParseError {
+                    location: location.clone(),
+                    message: "rmake: escaped target names are not implemented".into(),
+                });
+            }
+            let target = pattern.literal_bytes();
             let scope = self.target_scopes.entry(target.to_vec()).or_default();
             let parse_variables = scope.context(&self.variables);
             let name = parse_variables
@@ -872,36 +1051,17 @@ impl Database {
                     message: "recipe commences before first target".into(),
                 });
             }
-            // An unexpanded RHS belongs to the target's variable context. In
-            // particular, semicolons are value bytes and simple assignments
-            // must evaluate separately for every target in the declaration.
-            let raw_colon = separator(text, b':');
-            if let Some(colon) = raw_colon {
-                let after_colon = &text[colon + 1..];
-                let after_colon = after_colon.strip_prefix(b":").unwrap_or(after_colon);
-                if let Some(assignment) = target_assignment(after_colon) {
-                    let targets = self.expand(&text[..colon], &location, context)?;
-                    self.define_target_assignments(&targets, assignment, &location, context)?;
-                    current.clear();
-                    continue;
-                }
-            }
-            let inline = separator(&line.bytes, b';')
-                .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
-            let rule_text = inline.map_or(text.to_vec(), |i| strip_comment(&line.bytes[..i]));
-            let expanded_line = self.expand(&rule_text, &location, context)?;
-            // A colon generated while expanding the target portion can start a
-            // variable declaration too. A literal colon, however, freezes the
-            // syntax decision before prerequisites are expanded: `all: $(A)`
-            // with A=X=value is a prerequisite named X=value.
-            if raw_colon.is_none()
-                && let Some(colon) = separator(&expanded_line, b':')
-            {
-                let after_colon = &expanded_line[colon + 1..];
-                let after_colon = after_colon.strip_prefix(b":").unwrap_or(after_colon);
-                if let Some(assignment) = target_assignment(after_colon) {
+            // Preserve raw assignment text after either a literal colon or one
+            // generated by expanding the target prefix. Semicolons and colons
+            // in that RHS remain value bytes, and recursive effects stay lazy.
+            let prefix_expansion = self.expand_rule_prefix(text, &location, context)?;
+            if let Some(colon) = prefix_expansion.colon {
+                let mut tail = prefix_expansion.expanded[colon + 1..].to_vec();
+                tail.extend_from_slice(&text[prefix_expansion.consumed..]);
+                let tail = tail.strip_prefix(b":").unwrap_or(&tail);
+                if let Some(assignment) = target_assignment(tail) {
                     self.define_target_assignments(
-                        &expanded_line[..colon],
+                        &prefix_expansion.expanded[..colon],
                         assignment,
                         &location,
                         context,
@@ -910,6 +1070,22 @@ impl Database {
                     continue;
                 }
             }
+            let inline = separator(&line.bytes, b';')
+                .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
+            let rule_end = separator(text, b';').unwrap_or(text.len());
+            let tail = self.expand(
+                &text[prefix_expansion.consumed..rule_end],
+                &location,
+                context,
+            )?;
+            let mut expanded_line = prefix_expansion.expanded;
+            if expanded_line.len().saturating_add(tail.len()) > MAX_OUTPUT {
+                return Err(ParseError {
+                    location,
+                    message: ExpandError::ExpansionLimit.diagnostic(),
+                });
+            }
+            expanded_line.extend_from_slice(&tail);
             // A semicolon produced by immediate expansion is also an inline
             // recipe separator. Its text has already undergone that expansion.
             let expanded_inline = if inline.is_none() {
@@ -936,7 +1112,6 @@ impl Database {
             };
             if expanded.get(colon + 1) == Some(&b':')
                 || separator(&expanded[colon + 1..], b':').is_some()
-                || expanded[..colon].contains(&b'%')
                 || expanded[..colon].ends_with(b"&")
             {
                 return Err(ParseError {
@@ -944,15 +1119,25 @@ impl Database {
                     message: "rmake: unsupported rule form".into(),
                 });
             }
-            current = words(&expanded[..colon]).map(Vec::from).collect();
+            current.clear();
+            for target in words(&expanded[..colon]) {
+                let pattern = Pattern::new(target);
+                if pattern.has_wildcard() {
+                    return Err(ParseError {
+                        location,
+                        message: "rmake: unsupported rule form".into(),
+                    });
+                }
+                if !only_percent_escapes(target) {
+                    return Err(ParseError {
+                        location,
+                        message: "rmake: escaped target names are not implemented".into(),
+                    });
+                }
+                current.push(pattern.literal_bytes().to_vec());
+            }
             if current.is_empty() {
                 continue;
-            }
-            if current.iter().any(|target| target.contains(&b'\\')) {
-                return Err(ParseError {
-                    location,
-                    message: "rmake: escaped target names are not implemented".into(),
-                });
             }
             let prereqs = &expanded[colon + 1..];
             let (normal, order) = separator(prereqs, b'|')
@@ -1114,6 +1299,13 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn target_variables(database: &mut Database, target: &[u8]) -> VariableStore {
+        let globals = database.variables.clone();
+        database
+            .variables_for_target_with(target, &globals, ExpansionContext::pure())
+            .unwrap()
+    }
 
     fn normals(rule: &Rule) -> Vec<Vec<u8>> {
         rule.normal_prerequisites().map(Vec::from).collect()
@@ -1888,11 +2080,201 @@ mod tests {
         assert!(db.variables.get(b"NAME").is_none());
         assert!(db.variables.get(b".DEFAULT_GOAL").is_none());
         assert_eq!(
-            db.variables_for_target(b"target", &db.variables)
+            target_variables(&mut db, b"target")
                 .expand(b"$(NAME)")
                 .unwrap(),
             b"value"
         );
+    }
+
+    #[test]
+    fn pattern_declarations_do_not_create_rules_or_default_goals() {
+        let mut db = Database::default();
+        db.read(b"%.o:X=pattern\n", b"m").unwrap();
+        assert_eq!(db.pattern_assignments.len(), 1);
+        assert!(db.target_scopes.is_empty());
+        assert!(db.rules.is_empty());
+        assert!(db.variables.get(b".DEFAULT_GOAL").is_none());
+        assert!(db.variables.get(b"X").is_none());
+        assert_eq!(
+            target_variables(&mut db, b"item.o")
+                .expand(b"$(X)")
+                .unwrap(),
+            b"pattern"
+        );
+    }
+
+    #[test]
+    fn pattern_preparation_uses_global_names_and_expands_simple_values_per_pattern() {
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        db.read_with(
+            b"N=global\n%.o:N=local\n%.o %.x:$(N):=$(info read-$(N))value-$(N)-$$N\nN=later\n",
+            b"m",
+            ExpansionContext::new(None, &mut |output| {
+                if let Output::Info(message) = output {
+                    messages.push(message.to_vec());
+                }
+            }),
+        )
+        .unwrap();
+        assert_eq!(messages, [b"read-global".to_vec(), b"read-global".to_vec()]);
+        let variables = target_variables(&mut db, b"one.o");
+        assert_eq!(
+            variables.expand(b"$(N)|$(global)|$(local)").unwrap(),
+            b"local|value-global-$N|"
+        );
+    }
+
+    #[test]
+    fn pattern_scope_matching_preserves_full_paths_and_requires_a_nonempty_stem() {
+        let mut db = Database::default();
+        db.read(b"%.o:X=generic\nf%.o:X=basename\ndir/f%.o:X=path\na%b%c:Y=second-percent-literal\na\\%b%c:Z=escaped\n", b"m").unwrap();
+        for (target, expected) in [
+            (b"dir/foo.o".as_slice(), b"path".as_slice()),
+            (b"other/foo.o".as_slice(), b"generic".as_slice()),
+            (b"foo.o".as_slice(), b"basename".as_slice()),
+            (b".o".as_slice(), b"".as_slice()),
+        ] {
+            assert_eq!(
+                target_variables(&mut db, target).expand(b"$(X)").unwrap(),
+                expected
+            );
+        }
+        assert_eq!(
+            target_variables(&mut db, b"axxb%c")
+                .expand(b"$(Y)")
+                .unwrap(),
+            b"second-percent-literal"
+        );
+        assert_eq!(
+            target_variables(&mut db, b"axxbxc")
+                .expand(b"$(Y)")
+                .unwrap(),
+            b""
+        );
+        assert_eq!(
+            target_variables(&mut db, b"a%bxc").expand(b"$(Z)").unwrap(),
+            b"escaped"
+        );
+        assert_eq!(
+            target_variables(&mut db, b"a%bc").expand(b"$(Z)").unwrap(),
+            b""
+        );
+    }
+
+    #[test]
+    fn repeated_pattern_assignments_keep_interleaved_declaration_order() {
+        let mut db = Database::default();
+        db.read(b"X=base\n%.o:X+=one\na.%:X+=two\n%.o:X+=three\n", b"m")
+            .unwrap();
+        assert_eq!(
+            target_variables(&mut db, b"a.o")
+                .expand(b"$(X)|$(value X)|$(flavor X)")
+                .unwrap(),
+            b"base one two three|one two three|recursive"
+        );
+    }
+
+    #[test]
+    fn escaped_percent_can_name_a_literal_scope_and_explicit_rule() {
+        let mut db = Database::default();
+        db.read(b"a\\%b.o:X=literal\na\\%b.o:;\n", b"m").unwrap();
+        assert!(db.pattern_assignments.is_empty());
+        assert!(db.rules.contains_key(b"a%b.o".as_slice()));
+        assert_eq!(db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(), b"a%b.o");
+        assert_eq!(
+            target_variables(&mut db, b"a%b.o").expand(b"$(X)").unwrap(),
+            b"literal"
+        );
+        assert_eq!(
+            target_variables(&mut db, b"axb.o").expand(b"$(X)").unwrap(),
+            b""
+        );
+        assert!(Database::default().read(b"%.o:;\n", b"m").is_err());
+        assert!(Database::default().read(b"a\\ b:;\n", b"m").is_err());
+    }
+
+    #[test]
+    fn more_specific_patterns_precede_exact_target_scope_and_ignore_source_order() {
+        let mut db = Database::default();
+        db.read(
+            b"f%.o:X=narrow\n%.o:X=broad\n%:X=any\nfoo.o:X+=exact\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(
+            target_variables(&mut db, b"foo.o").expand(b"$(X)").unwrap(),
+            b"narrow exact"
+        );
+        assert_eq!(
+            target_variables(&mut db, b"bar.o").expand(b"$(X)").unwrap(),
+            b"broad"
+        );
+        assert_eq!(
+            target_variables(&mut db, b"other").expand(b"$(X)").unwrap(),
+            b"any"
+        );
+    }
+
+    #[test]
+    fn pattern_immediate_recursive_assignments_wait_until_activation() {
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        db.read_with(
+            b"K=early\n%.o:X:::=$(info deferred-$(K))value-$(K)-$$K\nK=late\n",
+            b"m",
+            ExpansionContext::new(None, &mut |output| {
+                if let Output::Info(message) = output {
+                    messages.push(message.to_vec());
+                }
+            }),
+        )
+        .unwrap();
+        assert!(messages.is_empty());
+        let globals = db.variables.clone();
+        let variables = db
+            .variables_for_target_with(
+                b"one.o",
+                &globals,
+                ExpansionContext::new(None, &mut |output| {
+                    if let Output::Info(message) = output {
+                        messages.push(message.to_vec());
+                    }
+                }),
+            )
+            .unwrap();
+        assert_eq!(messages, [b"deferred-late".to_vec()]);
+        assert_eq!(
+            variables.expand(b"$(X)|$(flavor X)").unwrap(),
+            b"value-late-$K|recursive"
+        );
+    }
+
+    #[test]
+    fn pattern_conditionals_use_activation_globals_and_refresh_parent_snapshots() {
+        let mut db = Database::default();
+        db.read(b"%.o:X?=pattern\nX=later\n", b"m").unwrap();
+        assert_eq!(
+            target_variables(&mut db, b"one.o").expand(b"$(X)").unwrap(),
+            b"later"
+        );
+        db.read(b"undefine X\n", b"m").unwrap();
+        assert_eq!(
+            target_variables(&mut db, b"two.o").expand(b"$(X)").unwrap(),
+            b"pattern"
+        );
+        db.read(b"X=global\n%.o:private X?=ignored\n", b"m")
+            .unwrap();
+        let stale_parent = db.variables.clone();
+        let variables = db
+            .variables_for_target_with(b"three.o", &stale_parent, ExpansionContext::pure())
+            .unwrap();
+        assert_eq!(
+            variables.expand(b"$(X)|$(origin X)").unwrap(),
+            b"|undefined"
+        );
+        assert!(db.variables.get(b"X").unwrap().is_private());
     }
 
     #[test]
@@ -1916,7 +2298,7 @@ mod tests {
         let mut db = Database::default();
         db.read(b"all: X = before;$(error deferred) # comment\n", b"m")
             .unwrap();
-        let variables = db.variables_for_target(b"all", &db.variables);
+        let variables = target_variables(&mut db, b"all");
         assert_eq!(
             variables.get(b"X").unwrap().raw_value(),
             b"before;$(error deferred) "
@@ -1951,7 +2333,7 @@ mod tests {
                 b"value-RIGHT".as_slice(),
             ),
         ] {
-            let variables = db.variables_for_target(target, &db.variables);
+            let variables = target_variables(&mut db, target);
             assert_eq!(variables.get(name).unwrap().raw_value(), value);
             assert!(variables.get(b"global").is_none());
         }
@@ -1965,7 +2347,7 @@ mod tests {
             b"m",
         )
         .unwrap();
-        let variables = db.variables_for_target(b"all", &db.variables);
+        let variables = target_variables(&mut db, b"all");
         let x = variables.get(b"X").unwrap();
         assert_eq!(x.origin(), Origin::Override);
         assert!(x.is_private());
@@ -2005,8 +2387,7 @@ mod tests {
                     Some(expected)
                 );
                 assert_eq!(
-                    db.variables_for_target(b"all", &db.variables)
-                        .export_policy(b"X"),
+                    target_variables(&mut db, b"all").export_policy(b"X"),
                     Some(expected)
                 );
             }
@@ -2026,7 +2407,7 @@ mod tests {
             b"first|second"
         );
         assert!(db.variables.get(b"X").unwrap().is_private());
-        let target = db.variables_for_target(b"all", &db.variables);
+        let target = target_variables(&mut db, b"all");
         assert_eq!(target.expand(b"$(X)|$(origin X)").unwrap(), b"|undefined");
         assert_eq!(
             target.expand(b"$(private)|$(export)").unwrap(),
@@ -2055,7 +2436,7 @@ mod tests {
             b"imported|environment override"
         );
         assert_eq!(
-            db.variables_for_target(b"all", &db.variables)
+            target_variables(&mut db, b"all")
                 .expand(b"$(X)|$(origin X)")
                 .unwrap(),
             b"local|file"
@@ -2070,9 +2451,7 @@ mod tests {
         db.read(b"X=global\nall:X=local\nall:$(X)\n", b"m").unwrap();
         assert_eq!(normals(&db.rules[b"all".as_slice()]), [b"global".to_vec()]);
         assert_eq!(
-            db.variables_for_target(b"all", &db.variables)
-                .expand(b"$(X)")
-                .unwrap(),
+            target_variables(&mut db, b"all").expand(b"$(X)").unwrap(),
             b"local"
         );
     }
@@ -2087,7 +2466,7 @@ mod tests {
         .unwrap();
         assert_eq!(normals(&db.rules[b"all".as_slice()]), [b"Y=value".to_vec()]);
         assert_eq!(
-            db.variables_for_target(b"all", &db.variables)
+            target_variables(&mut db, b"all")
                 .get(b"X")
                 .unwrap()
                 .raw_value(),
@@ -2097,13 +2476,91 @@ mod tests {
     }
 
     #[test]
+    fn generated_colon_preserves_unexpanded_rhs_and_both_delimiters() {
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        db.read_with(
+            b"P=$(info prefix)all:\n$(P) X=$(error deferred);a:b\nall:;\n",
+            b"m",
+            ExpansionContext::new(None, &mut |output| {
+                if let Output::Info(message) = output {
+                    messages.push(message.to_vec());
+                }
+            }),
+        )
+        .unwrap();
+        assert_eq!(messages, [b"prefix".to_vec()]);
+        assert_eq!(
+            target_variables(&mut db, b"all")
+                .get(b"X")
+                .unwrap()
+                .raw_value(),
+            b"$(error deferred);a:b"
+        );
+        assert!(db.rules[b"all".as_slice()].recipes.is_some());
+        let mut db = Database::default();
+        db.read(b"P=%.o:\n$(P) X=$(error deferred)\nall:;\n", b"m")
+            .unwrap();
+        assert_eq!(db.pattern_assignments.len(), 1);
+    }
+
+    #[test]
+    fn generated_colon_expands_simple_rhs_once_per_explicit_target() {
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        db.read_with(
+            b"P=$(info prefix)a b:\na:X=first\nb:X=second\n$(P) Y:=$(info rhs-$(X))$(X);value:tail\n",
+            b"m",
+            ExpansionContext::new(None, &mut |output| {
+                if let Output::Info(message) = output { messages.push(message.to_vec()); }
+            }),
+        ).unwrap();
+        assert_eq!(
+            messages,
+            [
+                b"prefix".to_vec(),
+                b"rhs-first".to_vec(),
+                b"rhs-second".to_vec()
+            ]
+        );
+        assert_eq!(
+            target_variables(&mut db, b"a").expand(b"$(Y)").unwrap(),
+            b"first;value:tail"
+        );
+        assert_eq!(
+            target_variables(&mut db, b"b").expand(b"$(Y)").unwrap(),
+            b"second;value:tail"
+        );
+    }
+
+    #[test]
+    fn incremental_rule_expansion_emits_each_prefix_and_prerequisite_effect_once() {
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        db.read_with(
+            b"P=$(info prefix)all:\n$(P) $(info prerequisite)dep;@echo untouched-$$(X) # shell\n",
+            b"m",
+            ExpansionContext::new(None, &mut |output| {
+                if let Output::Info(message) = output {
+                    messages.push(message.to_vec());
+                }
+            }),
+        )
+        .unwrap();
+        assert_eq!(messages, [b"prefix".to_vec(), b"prerequisite".to_vec()]);
+        assert_eq!(normals(&db.rules[b"all".as_slice()]), [b"dep".to_vec()]);
+        assert_eq!(
+            db.rules[b"all".as_slice()].recipes.as_ref().unwrap()[0].bytes,
+            b"@echo untouched-$$(X) # shell"
+        );
+    }
+
+    #[test]
     fn double_colon_variable_declaration_does_not_create_double_colon_rule() {
         let mut db = Database::default();
         db.read(b"all:: X=value\nall:;\n", b"m").unwrap();
         assert_eq!(
-            db.variables_for_target(b"all", &db.variables)
-                .expand(b"$(X)")
-                .unwrap(),
+            target_variables(&mut db, b"all").expand(b"$(X)").unwrap(),
             b"value"
         );
         assert!(db.rules[b"all".as_slice()].recipes.is_some());
@@ -2120,7 +2577,6 @@ mod tests {
             .read(b"all: =empty\n", b"m")
             .unwrap_err();
         assert_eq!(error.message.as_bytes(), b"empty variable name");
-        assert!(Database::default().read(b"%.o: X=value\n", b"m").is_err());
     }
 
     #[test]

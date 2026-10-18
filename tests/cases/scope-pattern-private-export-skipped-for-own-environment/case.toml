@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-private-export-skipped-for-own-environment"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A private exported pattern binding is skipped in its own recipe environment as well as descendant environments."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "leaf=<ancestor>/<unset>\na.t=<pattern>/<unset>\n"
+stderr = ""

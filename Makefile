@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -40,6 +40,7 @@ help:
 		'  test-generated  Compare seeded pure-expansion programs' \
 		'  test-graphs     Compare seeded explicit dependency graphs' \
 		'  test-scopes     Compare scoped variables across seeded dependency graphs' \
+		'  test-pattern-scopes Compare mixed pattern and explicit variable scopes' \
 		'  test-modes      Compare 512 ordinary/one-shell execution mode combinations' \
 		'  test-intcmp     Compare seeded arbitrary-length integer expressions' \
 		'  test-diagnostics Compare diagnostic output and expansion ordering' \
@@ -118,6 +119,10 @@ test-scopes: build oracle-verify
 	$(PYTHON) tools/graph_generated.py --scopes --oracle "$(ORACLE)" --self-test --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-scopes
 	$(PYTHON) tools/graph_generated.py --scopes --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-scopes
 
+test-pattern-scopes: build oracle-verify
+	$(PYTHON) tools/graph_generated.py --patterns --oracle "$(ORACLE)" --self-test --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-pattern-scopes
+	$(PYTHON) tools/graph_generated.py --patterns --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-pattern-scopes
+
 test-modes: build oracle-verify
 	$(PYTHON) tools/mode_matrix.py --oracle "$(ORACLE)" --self-test $(if $(MODE_CASE),--case "$(MODE_CASE)")
 	$(PYTHON) tools/mode_matrix.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(MODE_CASE),--case "$(MODE_CASE)")
@@ -134,9 +139,9 @@ test-stateful: build oracle-verify
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
-test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-modes test-intcmp test-diagnostics test-stateful
+test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-modes test-intcmp test-diagnostics test-stateful
 
-check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-modes test-intcmp test-diagnostics test-stateful
+check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-modes test-intcmp test-diagnostics test-stateful
 
 ci: check test-selfhost
 

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-append-before-simple-env"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "An earlier pattern append marker survives a simple assignment and affects child environment expansion."
+provenance = "Independently minimized from original seeded pattern-scope testing against GNU Make 4.4.1; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "<frozen>/<frozen>/simple/<n1 frozen>\n"
+stderr = ""

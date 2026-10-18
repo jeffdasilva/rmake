@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-cli-raw-snapshot-adopts-simple-flavor"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A simple pattern declaration preserves a recursive command-line snapshot as literal bytes."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "X=$(Y)"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "<$(Y)>/<$(Y)>/command line/simple\n"
+stderr = ""

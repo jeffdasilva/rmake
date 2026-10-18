@@ -32,6 +32,24 @@ def observation(program):
 
 
 class GenerationTests(unittest.TestCase):
+    def test_patterns_combine_with_explicit_scopes_without_changing_graphs(self):
+        repeated_patterns = False
+        for index in range(20):
+            plain = graphs.generate_program(44109, index, 8)
+            program = graphs.generate_program(44109, index, 8, patterns=True)
+            self.assertTrue(program.scopes)
+            self.assertTrue(program.patterns)
+            self.assertEqual(plain.declarations, program.declarations)
+            self.assertEqual(plain.goals, program.goals)
+            self.assertEqual(program, graphs.generate_program(44109, index, 8, patterns=True))
+            self.assertEqual(graphs.reproduction(program)[-1], "--patterns")
+            self.assertTrue(program.metadata()["pattern_scopes"])
+            patterns = [line.split(":", 1)[0] for line in program.scope_declarations
+                        if "%" in line.split(":", 1)[0]]
+            self.assertTrue(patterns)
+            repeated_patterns |= len(patterns) != len(set(patterns))
+        self.assertTrue(repeated_patterns)
+
     def test_scope_programs_preserve_graphs_and_replay_scope_declarations(self):
         modifiers = set()
         operators = set()

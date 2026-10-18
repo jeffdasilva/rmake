@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-escaped-percent-literal-target"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "An escaped percent target variable declaration creates a literal target binding."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "a%b.t=<literal>/<pattern>\naxb.t=<>/<pattern>\n"
+stderr = ""

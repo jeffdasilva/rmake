@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-second-percent-is-literal"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "Only the first unescaped percent in a variable target pattern acts as a wildcard."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "a-red%.t=<match>\na-redx.t=<>\n"
+stderr = ""

@@ -10,11 +10,11 @@ Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit dependencies serially. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
-Explicit target-specific variables support inheritance, private bindings,
-per-target assignment timing, and export policies. Seeded graph tests check their
+Target-specific and pattern-specific variables support inheritance, private
+bindings, assignment timing, and export policies. Seeded graph tests check their
 interactions with shared prerequisites and recipe environments.
 This is an experimental subset, **not yet a GNU Make replacement**. Includes,
-pattern-specific variables, implicit rules, filesystem/process expansion effects,
+implicit rules, filesystem/process expansion effects,
 parallel jobs and many compatibility details
 remain unimplemented. See [implementation progress](docs/progress.md) for exact
 scope, required fixtures and open milestone gates.

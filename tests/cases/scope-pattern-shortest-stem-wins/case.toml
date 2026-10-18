@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-pattern-shortest-stem-wins"
 requirement = "scope.pattern-specific"
-candidate = "pending"
+candidate = "required"
 description = "More specific matching patterns override less specific matching patterns."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-recipe-less-target-suppresses-activation"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A recipe-less target without a running descendant does not initialize matching pattern effects."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'all'.\n"
+stderr = ""

@@ -62,10 +62,11 @@ class Program:
     makefile: bytes
     scopes: bool = False
     scope_declarations: tuple[str, ...] = ()
+    patterns: bool = False
 
     @property
     def case_id(self) -> str:
-        suffix = "-scopes" if self.scopes else ""
+        suffix = "-patterns" if self.patterns else "-scopes" if self.scopes else ""
         return f"graph-generated-{self.seed}-{self.index:06d}{suffix}"
 
     @property
@@ -78,6 +79,7 @@ class Program:
                 "program_sha256": hashlib.sha256(self.makefile).hexdigest(),
                 "declarations": [dataclasses.asdict(value) for value in self.declarations],
                 "target_scopes": self.scopes,
+                "pattern_scopes": self.patterns,
                 "scope_declarations": list(self.scope_declarations),
                 "phony_nodes": list(self.phony), "goal_prerequisites": list(self.goals),
                 "original_expectations": {"first_row": ANCHOR.decode(),
@@ -106,8 +108,10 @@ def validate_budget(seed: int, cases: int, nodes: int, start_index: int = 0,
         raise conformance.HarnessError("campaign case index exceeds the supported range")
 
 
-def generate_program(seed: int, index: int, nodes: int, scopes: bool = False) -> Program:
+def generate_program(seed: int, index: int, nodes: int, scopes: bool = False,
+                     patterns: bool = False) -> Program:
     validate_budget(seed, 1, nodes, index)
+    scopes = scopes or patterns
     digest = hashlib.sha256(
         f"rmake-graph-generated-v{GENERATOR_VERSION}:{seed}:{index}:{nodes}".encode()).digest()
     rng = random.Random(int.from_bytes(digest, "big"))
@@ -151,6 +155,16 @@ def generate_program(seed: int, index: int, nodes: int, scopes: bool = False) ->
                 # context-sensitive expansion without creating recursive cycles.
                 value = rng.choice(("", f"{name}-{position}", "$(Y)" if variable == "X" else "$@"))
                 scope_declarations.append(f"{name}: {modifier}{variable} {operator} {value}")
+        if patterns:
+            for position in range(rng.randrange(1, 16)):
+                pattern = rng.choice(("%", "n%", "%0", "%1", "n0%", "%anchor", "a%"))
+                variable = rng.choice(("X", "Y"))
+                operator = rng.choice(("=", ":=", "::=", ":::=", "+=", "?="))
+                modifier = rng.choice(("", "private ", "override ", "export ", "unexport ",
+                                       "private export ", "override private "))
+                value = rng.choice(("", f"pattern-{position}",
+                                    "$(Y)" if variable == "X" else "$@"))
+                scope_declarations.append(f"{pattern}: {modifier}{variable} {operator} {value}")
         scope_declarations.append("Y = late")
     lines = ["# SPDX-License-Identifier: GPL-3.0-or-later",
              "# Independently generated; generation.json preserves the seed and declarations.",
@@ -172,7 +186,7 @@ def generate_program(seed: int, index: int, nodes: int, scopes: bool = False) ->
     if len(makefile) > MAX_PROGRAM_BYTES:
         raise conformance.HarnessError("generated Makefile exceeds its byte budget")
     return Program(seed, index, nodes, tuple(declarations), tuple(phony), tuple(goals), makefile,
-                   scopes, tuple(scope_declarations))
+                   scopes, tuple(scope_declarations), patterns)
 
 
 def materialize(program: Program, parent: Path) -> conformance.Case:
@@ -235,7 +249,8 @@ def program_errors(program: Program, observed: conformance.Observation) -> list[
 
 def reproduction(program: Program) -> list[str]:
     return ["--seed", str(program.seed), "--start-index", str(program.index),
-            "--cases", "1", "--nodes", str(program.nodes)] + (["--scopes"] if program.scopes else [])
+            "--cases", "1", "--nodes", str(program.nodes)] + (
+                ["--patterns"] if program.patterns else ["--scopes"] if program.scopes else [])
 
 
 def save_failure(artifacts: Path, program: Program, case: conformance.Case, workspace: Path,
@@ -271,7 +286,8 @@ def save_execution_failure(artifacts: Path, program: Program, case: conformance.
 def run_campaign(*, seed: int, cases: int, nodes: int, start_index: int,
                  reference: Path, candidate: Path, identities: dict[str, Any],
                  artifacts: Path, report_path: Path | None = None,
-                 max_failures: int = DEFAULT_MAX_FAILURES, scopes: bool = False) -> int:
+                 max_failures: int = DEFAULT_MAX_FAILURES, scopes: bool = False,
+                 patterns: bool = False) -> int:
     validate_budget(seed, cases, nodes, start_index, max_failures)
     failures = 0
     workload = hashlib.sha256()
@@ -282,7 +298,7 @@ def run_campaign(*, seed: int, cases: int, nodes: int, start_index: int,
         inputs.mkdir()
         workspace.mkdir()
         for index in range(start_index, start_index + cases):
-            program = generate_program(seed, index, nodes, scopes)
+            program = generate_program(seed, index, nodes, scopes, patterns)
             case = materialize(program, inputs)
             workload.update(index.to_bytes(8, "big"))
             workload.update(len(program.makefile).to_bytes(8, "big"))
@@ -322,7 +338,7 @@ def run_campaign(*, seed: int, cases: int, nodes: int, start_index: int,
               "generator_source_sha256": conformance.sha256_file(Path(__file__)),
               "python_version": sys.version, "seed": seed, "start_index": start_index,
               "cases": cases, "nodes_per_case": nodes, "executed": executed,
-              "target_scopes": scopes,
+              "target_scopes": scopes or patterns, "pattern_scopes": patterns,
               "executed_nodes": executed * nodes, "max_failures": max_failures,
               "workload_sha256": workload.hexdigest(), "identities": identities,
               "passed": executed - failures, "failed": failures, "unexecuted": cases - executed,
@@ -353,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cases", type=int, default=DEFAULT_CASES)
     parser.add_argument("--nodes", type=int, default=DEFAULT_NODES)
     parser.add_argument("--scopes", action="store_true", help="add explicit target-variable scope interactions")
+    parser.add_argument("--patterns", action="store_true", help="combine explicit and pattern-variable scopes")
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--max-failures", type=int, default=DEFAULT_MAX_FAILURES)
     parser.add_argument("--oracle", type=Path, default=conformance.ROOT / ".tools/oracle/bin/make")
@@ -377,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
                             candidate=Path(candidate_identity["path"]),
                             identities={"oracle": reference_identity, "candidate": candidate_identity},
                             artifacts=args.artifacts, report_path=args.report,
-                            max_failures=args.max_failures, scopes=args.scopes)
+                            max_failures=args.max_failures, scopes=args.scopes, patterns=args.patterns)
     except (conformance.HarnessError, oracle.OracleError, OSError) as error:
         print(f"graph-generated: {error}", file=sys.stderr)
         return 2
