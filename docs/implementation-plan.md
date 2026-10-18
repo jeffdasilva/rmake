@@ -1,9 +1,9 @@
 # rmake implementation plan
 
-Status: proposed roadmap, 2026-10-18. This plan adds documentation only. It does
-not initialize Cargo, implement rmake, provision the oracle, or claim passing
-conformance. See the [contract](compatibility.md), [architecture](architecture.md),
-and [testing strategy](testing.md) for the detailed requirements.
+Roadmap established 2026-10-18. Implementation is underway; the dated
+[progress record](progress.md) distinguishes implemented slices from open gates.
+See the [contract](compatibility.md), [architecture](architecture.md), and
+[testing strategy](testing.md) for the detailed requirements.
 
 Deliver vertical slices with original fixtures before implementation. Baseline
 performance throughout, establish compatibility before persistent graph caching,
@@ -40,7 +40,7 @@ internal module boundaries are present from M1.
 
 ## First implementation batch
 
-The next implementation request should start with M0, with this bounded output:
+The initial implementation batch starts with M0, with this bounded output:
 
 1. Pin the toolchain and create the small Cargo workspace, lockfile, and minimal
    entry points needed by the harness. Do not begin broad GNU semantics yet.
@@ -64,9 +64,9 @@ on a placeholder executable.
 
 ## Top-level Makefile interface
 
-The following targets are planned, not currently implemented. The existing
-scaffold's `make help` remains the only command until M0 wires real commands in.
-Do not add successful no-op targets that pretend to build or test the project.
+The following table defines the planned full interface. `make help` lists the
+currently implemented subset. Do not add successful no-op targets that pretend
+to build or test the project.
 
 | Target | Flow |
 | --- | --- |

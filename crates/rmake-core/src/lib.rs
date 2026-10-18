@@ -7,3 +7,7 @@
 //! compatibility target, not a claim that it is already implemented.
 
 pub const COMPATIBILITY_VERSION: &str = "4.4.1";
+
+pub mod parser;
+pub mod reader;
+pub mod variables;

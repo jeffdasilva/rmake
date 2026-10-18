@@ -43,3 +43,20 @@ The implementation keeps the conformance runner in Python initially to avoid
 coupling its expected answers to the Rust engine. Moving it to Rust is optional
 and must preserve this independence. This is a refinement of the proposed crate
 layout, not a change to the compatibility contract.
+
+## M1 language library slice — 2026-10-18
+
+The core now has independent byte-preserving reader, variable and incremental
+parser modules. The reader tracks physical source locations, folds continuations
+according to recipe context, and handles escaped comments, CRLF and changing
+recipe prefixes. The variable store implements assignment timing and precedence,
+nested references, substitution references, metadata functions, pure string/list/
+filename functions and lazy control forms. It exposes no process or filesystem
+effects. Expansion has explicit resource bounds while the engine is experimental.
+
+The parser evaluates assignments and conditionals as it reads, preserves deferred
+recipes, and records explicit normal/order-only prerequisites and exports. Original
+unit tests and focused GNU 4.4.1 probes cover these modules. This slice is not a
+claim that all M1 behavior is complete: effects, includes, target/pattern scopes,
+full diagnostics and several rule forms remain open. Connecting these modules to
+serial filesystem/process execution is the next separately reviewable slice.
