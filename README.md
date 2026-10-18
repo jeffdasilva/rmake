@@ -54,8 +54,10 @@ individual flows. The build binary is `target/debug/rmake`.
 
 `make test-generated` runs 200 reproducible programs containing 6,400 expression
 observations by default. Increase the campaign with `SEED`, `GENERATED_CASES` and
-`EXPRESSIONS`; `START_INDEX` replays a recorded program. `make test-stateful`
-compares multi-step builds and nanosecond timestamp boundaries. Both are CI gates.
+`EXPRESSIONS`; `START_INDEX` replays a recorded program. `make test-graphs` runs
+100 seeded explicit dependency graphs, with `GRAPH_SEED`, `GRAPH_CASES` and
+`GRAPH_NODES` controls. `make test-stateful` compares multi-step builds and
+nanosecond timestamp boundaries. These are CI gates.
 Their reports and failure reproductions are written under `artifacts/`.
 
 `make bench-compare` builds release rmake and records alternating paired timings

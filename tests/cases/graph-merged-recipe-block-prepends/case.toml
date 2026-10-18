@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-merged-recipe-block-prepends"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "The whole declaration carrying the recipe, including its order-only block, precedes previous declarations."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "visit=c\nvisit=d\nvisit=a\nvisit=b\nvisit=e\nvisit=f\nauto=all|first=c|plus=c a e|unique=c a e|newer=c a e|order=d b f\n"
+stderr = ""

@@ -376,8 +376,11 @@ impl Engine {
 
     fn special(&self, special: &[u8], target: &[u8], empty_means_all: bool) -> bool {
         self.database.rules.get(special).is_some_and(|rule| {
-            (empty_means_all && rule.prerequisites.is_empty())
-                || rule.prerequisites.iter().any(|name| name == target)
+            (empty_means_all && rule.dependencies.is_empty())
+                || rule
+                    .dependencies
+                    .iter()
+                    .any(|dependency| dependency.name == target)
         })
     }
 
@@ -419,17 +422,26 @@ impl Engine {
                 b".  Stop."
             });
             self.stderr(&message);
-            return Outcome {
+            let result = Outcome {
                 failed: true,
                 ..Outcome::default()
             };
+            self.done.insert(target.to_vec(), result);
+            return result;
         };
         self.visiting.insert(target.to_vec());
-        let normal = unique(&rule.prerequisites);
-        let order: Vec<_> = unique(&rule.order_only)
-            .into_iter()
-            .filter(|name| !normal.contains(name))
+        let canonical = rule.canonical_dependencies();
+        let normal: Vec<_> = canonical
+            .iter()
+            .filter(|d| !d.order_only)
+            .map(|d| d.name.clone())
             .collect();
+        let order: Vec<_> = canonical
+            .iter()
+            .filter(|d| d.order_only)
+            .map(|d| d.name.clone())
+            .collect();
+        let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
         let mut newer = Vec::new();
         let mut dropped = HashSet::new();
         let mut stale = before.is_none() || phony || self.options.always;
@@ -437,11 +449,11 @@ impl Engine {
             time: before,
             ..Outcome::default()
         };
-        for (dependency, order_only) in normal
-            .iter()
-            .map(|n| (n, false))
-            .chain(order.iter().map(|n| (n, true)))
-        {
+        // Visit occurrences in the merged declaration order. Completed nodes
+        // are memoized, but every circular occurrence must still be diagnosed.
+        for occurrence in &rule.dependencies {
+            let dependency = &occurrence.name;
+            let order_only = !normal_names.contains(dependency.as_slice());
             if self.visiting.contains(dependency) {
                 self.stderr(
                     &[
@@ -489,17 +501,16 @@ impl Engine {
                     .cloned()
                     .collect();
                 let repeated: Vec<_> = rule
-                    .prerequisites
-                    .iter()
+                    .normal_prerequisites()
                     .filter(|name| !dropped.contains(*name))
-                    .cloned()
+                    .map(Vec::from)
                     .collect();
                 let autos = [
                     (b"@".as_slice(), target.to_vec()),
-                    (b"<", normal.first().cloned().unwrap_or_default()),
+                    (b"<", repeated.first().cloned().unwrap_or_default()),
                     (b"^", joined(&normal)),
                     (b"+", joined(&repeated)),
-                    (b"?", joined(&newer)),
+                    (b"?", joined(unique(&newer))),
                     (b"|", joined(&order)),
                     (b"*", Vec::new()),
                     (b"%", Vec::new()),

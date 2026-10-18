@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-merged-recipe-order-only-prepends"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "An order-only recipe declaration moves its block ahead of earlier normal and order-only dependencies."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "visit=y\nvisit=a\nvisit=x\nvisit=b\nvisit=z\nauto=all|first=a|plus=a b|unique=a b|newer=a b|order=y x z\n"
+stderr = ""

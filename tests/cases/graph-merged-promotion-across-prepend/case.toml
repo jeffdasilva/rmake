@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-merged-promotion-across-prepend"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "Promotion uses the prepended block position while first and plus retain only original normal occurrences."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "visit=a\nvisit=c\nvisit=b\nvisit=d\nauto=all|first=b|plus=b d a|unique=a b d|newer=a b d|order=c\n"
+stderr = ""

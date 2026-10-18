@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-special-ignore-order-only"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "Order-only names on .IGNORE ignore only their named failure and leave the later independent failure fatal."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: [Makefile:8: ignored] Error 3 (ignored)\nmake: *** [Makefile:10: other] Error 4\n"

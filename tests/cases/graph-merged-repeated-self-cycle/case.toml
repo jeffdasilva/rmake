@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff Da Silva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "graph-merged-repeated-self-cycle"
+requirement = "graph.merged-prerequisites"
+candidate = "required"
+description = "Every raw self-cycle occurrence emits a diagnostic and is removed from automatic lists."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "visit=b\nvisit=x\nauto=all|first=b|plus=b|unique=b|newer=b|order=x\n"
+stderr = "make: Circular all <- all dependency dropped.\nmake: Circular all <- all dependency dropped.\n"
