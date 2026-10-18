@@ -1,8 +1,8 @@
 id = "export-list-expanded-empty-list-is-not-export-all"
 requirement = "variables.export-bindings"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
-description = "A syntactically nonempty export name list that expands empty must not enable export-all. Current candidate toggles export-all after expansion."
+description = "A syntactically nonempty export name list that expands empty leaves the global export setting unchanged."
 provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
 
 [expected]

@@ -1,0 +1,14 @@
+id = "export-token-unexport-all-six-c-whitespace-separators"
+requirement = "variables.export-list-tokens"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export-list raw emptiness, expansion and byte-token boundary regression."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[environment]
+"NAMES" = "A B\tC\u000bD\fE\rF\n"
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c642d413d3c3e7c0a6368696c642d423d3c3e7c0a6368696c642d433d3c3e7c0a6368696c642d443d3c3e7c0a6368696c642d453d3c3e7c0a6368696c642d463d3c3e7c0a6368696c642d473d3c67756172643e7c70726573656e740a"
+stderr_hex = ""

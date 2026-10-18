@@ -627,3 +627,27 @@ toggles, vertical-tab token splitting and modifier grammar. Other export-effect
 ordering gaps remain in the earlier corpus. No GNU implementation source or
 upstream tests were consulted for this slice. No performance or complete-export
 compatibility claim is made.
+
+## Export-list token and global-mode boundaries — 2026-10-18
+
+Only syntactically empty export/unexport directives now toggle export-all mode.
+Computed empty or whitespace-only lists retain the prior mode and still perform
+their expansion effects. Expanded list names split on all six C whitespace
+bytes, including vertical tab, while non-ASCII space-like bytes remain literal.
+Both changes are confined to name-list handling; general directive recognition
+and other language tokenizers remain separate compatibility work.
+
+Twenty-one original fixtures add 20 required matches and one pending
+keyword-adjacent vertical-tab case. Two previous regressions are promoted. The
+corpus now has 833 fixtures: 746 required exact matches and 87 explicit pending
+requirements. Full `make ci` passed with 259 Rust tests, 183 tooling tests, all
+generated/stateful/diagnostic comparisons and top-level self-host flows. There
+are no hidden failures or unexpected passes.
+
+An independent campaign passes all 150 distinct inputs against authored GNU
+expectations and candidate bytes, status, child environments and complete
+filesystem observations. It covers prior global states, raw versus computed
+emptiness, retained and fatal effects, mode skips, all C separators and non-ASCII
+negative controls. No GNU implementation source or upstream tests were consulted.
+This completes these two recorded regressions, not the broader export, language
+or performance milestones.

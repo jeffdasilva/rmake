@@ -1,0 +1,11 @@
+id = "export-token-unexport-non-ascii-bytes-do-not-split"
+requirement = "variables.export-list-tokens"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original export-list raw emptiness, expansion and byte-token boundary regression."
+provenance = "Independently authored exact GNU Make 4.4.1 expectations; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d65303d3c3e7c73696d706c657c66696c650a6e616d65313d3c3e7c73696d706c657c66696c650a6e616d65323d3c3e7c73696d706c657c66696c650a6e616d65333d3c3e7c73696d706c657c66696c650a626172653d3c756e646566696e65643e7c756e646566696e65640a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

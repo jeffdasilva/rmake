@@ -708,11 +708,16 @@ impl Database {
                 continue;
             }
             if let Some(export) = export {
+                // Only a syntactically empty directive changes export-all.
+                // An expression that expands to no names still has its effects,
+                // but does not become an empty directive after evaluation.
+                let is_list_space = |byte: &u8| byte.is_ascii_whitespace() || *byte == 0x0b;
+                let empty_directive = text.iter().all(is_list_space);
                 let names = self.expand(text, &location, context)?;
-                if trim(&names).is_empty() {
+                if empty_directive {
                     self.export_all = export;
                 }
-                for name in words(&names) {
+                for name in names.split(is_list_space).filter(|name| !name.is_empty()) {
                     // A name-list declaration creates missing empty simple
                     // bindings. Existing bindings retain all their metadata.
                     // These names were already expanded with the whole list.
@@ -972,6 +977,110 @@ mod tests {
             .filter(|d| d.order_only)
             .map(|d| d.name.clone())
             .collect()
+    }
+
+    #[test]
+    fn expanded_empty_export_lists_preserve_global_policy_and_emit_effects() {
+        for initial in [false, true] {
+            for directive in [b"export".as_slice(), b"unexport"] {
+                for expression in [
+                    b"$(UNDEFINED)".as_slice(),
+                    b"$(SPACES)",
+                    b"$(warning visited)",
+                ] {
+                    let mut db = Database {
+                        export_all: initial,
+                        ..Database::default()
+                    };
+                    db.variables
+                        .define_literal(b"SPACES", b" \t\n\x0b\x0c\r", Origin::File)
+                        .unwrap();
+                    let mut warnings = Vec::new();
+                    let input = [directive, b" ", expression, b"\n"].concat();
+                    db.read_with(
+                        &input,
+                        b"m",
+                        ExpansionContext::new(None, &mut |output| {
+                            if let Output::Warning { message, .. } = output {
+                                warnings.push(message.to_vec());
+                            }
+                        }),
+                    )
+                    .unwrap();
+                    assert_eq!(db.export_all, initial);
+                    assert_eq!(
+                        warnings.len(),
+                        usize::from(expression == b"$(warning visited)")
+                    );
+                    assert!(db.exports.is_empty() && db.unexports.is_empty());
+                }
+            }
+        }
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        assert!(
+            db.read_with(
+                b"export $(warning retained)$(error stop)\n",
+                b"m",
+                ExpansionContext::new(None, &mut |output| {
+                    if let Output::Warning { message, .. } = output {
+                        messages.push(message.to_vec());
+                    }
+                })
+            )
+            .is_err()
+        );
+        assert_eq!(messages, vec![b"retained".to_vec()]);
+        assert!(!db.export_all);
+    }
+
+    #[test]
+    fn raw_empty_export_directives_toggle_policy_including_vertical_tab_blanks() {
+        for (directive, expected) in [(b"export".as_slice(), true), (b"unexport", false)] {
+            let mut db = Database {
+                export_all: !expected,
+                ..Database::default()
+            };
+            let input = [directive, b" \t\x0b\x0c\r \n"].concat();
+            db.read(&input, b"m").unwrap();
+            assert_eq!(db.export_all, expected);
+            assert!(db.exports.is_empty() && db.unexports.is_empty());
+        }
+    }
+
+    #[test]
+    fn expanded_export_names_split_c_whitespace_but_preserve_other_byte_names() {
+        for directive in [b"export".as_slice(), b"unexport"] {
+            let mut db = Database::default();
+            db.variables
+                .define_literal(
+                    b"NAMES",
+                    b"X\tY\x0bZ\x0cQ\rR\nS X A\x85B C\xa0D",
+                    Origin::File,
+                )
+                .unwrap();
+            db.read(&[directive, b" $(NAMES)\n"].concat(), b"m")
+                .unwrap();
+            for name in [
+                b"X".as_slice(),
+                b"Y",
+                b"Z",
+                b"Q",
+                b"R",
+                b"S",
+                b"A\x85B",
+                b"C\xa0D",
+            ] {
+                assert_eq!(
+                    db.variables.get(name).unwrap().flavor(),
+                    crate::variables::Flavor::Simple
+                );
+                assert_eq!(db.exports.contains(name), directive == b"export");
+                assert_eq!(db.unexports.contains(name), directive == b"unexport");
+            }
+            assert!(db.variables.get(b"Y\x0bZ").is_none());
+            assert!(!db.export_all);
+        }
     }
 
     #[test]
