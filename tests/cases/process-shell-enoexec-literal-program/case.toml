@@ -1,0 +1,10 @@
+id = "process-shell-enoexec-literal-program"
+requirement = "process.invocation"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently authored custom-SHELL boundary fixture and expected argv; verified with pinned GNU Make 4.4.1 black-box execution; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "746578745b2d635d5b7072696e746620626f64795d0a"
+stderr_hex = ""

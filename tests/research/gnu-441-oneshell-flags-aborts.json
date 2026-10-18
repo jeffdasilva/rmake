@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "classification": "oracle-instability research, not a passing conformance fixture",
+  "observed_on": "2026-10-18",
+  "provenance": "Original black-box probes; no upstream source or tests consulted.",
+  "oracle_version": "4.4.1",
+  "oracle_sha256": "d129996c7f842a77375573eae5b188a6e24510a076658df5e0dd9ffd92571625",
+  "oracle_profile_id": "d4879c7eccbd443956760aacac4a848218b89f89d2267bddea715951bc890873",
+  "runtime": {
+    "architecture": "x86_64",
+    "libc": "glibc 2.39",
+    "shell": "dash",
+    "locale": "C"
+  },
+  "reproduction": "Place decoded Makefile and executable capture script in a disposable trusted-fixture directory. Invoke the verified oracle with the recorded argv under tools.conformance clean_environment and capture bounds. These two minimal reproductions were rechecked through that runner.",
+  "interpretation": "Negative status -6 denotes SIGABRT. These observations are not a compatibility-scope waiver, a general GNU guarantee, or an instruction to crash rmake. Complex one-shell flag behavior remains an open requirement.",
+  "records": [
+    {
+      "id": "oneshell-flags-10",
+      "makefile_hex": "2e4f4e455348454c4c3a0a5348454c4c203a3d202e2f636170747572650a2e5348454c4c464c414753203d202d632024244e414d450a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f7573722f62696e2f707974686f6e330a696d706f7274206f732c7379730a666f722061726720696e207379732e617267763a0a207072696e74286f732e6673656e636f646528617267292e68657828292c666c7573683d54727565290a",
+      "capture_mode": "0755",
+      "observed_exit_status": -6,
+      "stdout_hex": "3265326636333631373037343735373236350a32663632363936653266373336380a326436330a36333230323434653431346434350a373037323639366537343636323036323666363437390a",
+      "stderr_hex": "6672656528293a20696e76616c696420706f696e7465720a"
+    },
+    {
+      "id": "oneshell-flags-20",
+      "makefile_hex": "2e4f4e455348454c4c3a0a5348454c4c203a3d202e2f636170747572650a2e5348454c4c464c414753203d202d6320226f70656e0a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f7573722f62696e2f707974686f6e330a696d706f7274206f732c7379730a666f722061726720696e207379732e617267763a0a207072696e74286f732e6673656e636f646528617267292e68657828292c666c7573683d54727565290a",
+      "capture_mode": "0755",
+      "observed_exit_status": -6,
+      "stdout_hex": "3265326636333631373037343735373236350a32663632363936653266373336380a326436330a36333230323236663730363536650a373037323639366537343636323036323666363437390a",
+      "stderr_hex": "6672656528293a20696e76616c696420706f696e7465720a"
+    }
+  ]
+}

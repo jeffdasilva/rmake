@@ -202,7 +202,16 @@ fn requires_shell(program: &[u8]) -> bool {
 
 fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     let mut configuration = Vec::with_capacity(shell.len() + flags.len() + 1);
-    configuration.extend_from_slice(shell);
+    // GNU protects these SHELL bytes before reparsing the configuration. This
+    // happens even inside single quotes: their contents retain the inserted
+    // backslash. Existing quotes/backslashes still participate in parsing, so
+    // this is neither a shell evaluation of SHELL nor a literal argv split.
+    for &byte in shell {
+        if byte != b'\n' && is_metacharacter(byte) {
+            configuration.push(b'\\');
+        }
+        configuration.push(byte);
+    }
     configuration.push(b' ');
     configuration.extend_from_slice(flags);
     if let Some(mut words) = split_words(&configuration, Mode::Configuration)
@@ -217,8 +226,9 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
         };
     }
 
-    // SHELL and .SHELLFLAGS themselves can contain shell syntax. Preserve that
-    // syntax while making the recipe one literal argument to the selected shell.
+    // Flags retain shell syntax; assignments, builtins, and existing backslash
+    // combinations can also require evaluation after the SHELL protection.
+    // Preserve that syntax while keeping the recipe one literal argument.
     configuration.push(b' ');
     single_quote(command, &mut configuration);
     Invocation::Shell {
@@ -504,6 +514,95 @@ mod tests {
                     b"body".to_vec()
                 ]
             }
+        );
+    }
+
+    #[test]
+    fn shell_metacharacters_are_literal_before_configuration_parsing() {
+        for byte in b"#;\"*?[]&|<>(){}$`^~!" {
+            let program = [b"./capture".as_slice(), &[*byte], b"tail"].concat();
+            let argument = [b"left".as_slice(), &[*byte], b"right"].concat();
+            let shell_text = [&program[..], b" ", &argument].concat();
+            assert_eq!(
+                prepare(b"body", &shell_text, b"-c", None),
+                Invocation::Shell {
+                    program,
+                    args: vec![argument, b"-c".to_vec(), b"body".to_vec()],
+                },
+                "byte {byte}",
+            );
+        }
+    }
+
+    #[test]
+    fn shell_double_quotes_are_literal_but_single_quotes_still_group() {
+        assert_eq!(
+            prepare(
+                b"body",
+                b"./capture \"two words\" 'three words'",
+                b"-c",
+                None
+            ),
+            Invocation::Shell {
+                program: b"./capture".to_vec(),
+                args: vec![
+                    b"\"two".to_vec(),
+                    b"words\"".to_vec(),
+                    b"three words".to_vec(),
+                    b"-c".to_vec(),
+                    b"body".to_vec()
+                ],
+            },
+        );
+        assert_eq!(
+            prepare(
+                b"body",
+                b"./capture '$NAME' 'a;b' '\"quoted\"'",
+                b"-c",
+                None
+            ),
+            Invocation::Shell {
+                program: b"./capture".to_vec(),
+                args: vec![
+                    b"\\$NAME".to_vec(),
+                    b"a\\;b".to_vec(),
+                    b"\\\"quoted\\\"".to_vec(),
+                    b"-c".to_vec(),
+                    b"body".to_vec()
+                ],
+            },
+        );
+    }
+
+    #[test]
+    fn protected_shell_and_interpreted_flags_keep_separate_boundaries() {
+        assert_eq!(
+            prepare(b"body 'quoted'", b"./capture $NAME", b"-c \"$FLAG\"", None),
+            Invocation::Shell {
+                program: b"/bin/sh".to_vec(),
+                args: vec![
+                    b"-c".to_vec(),
+                    b"./capture \\$NAME -c \"$FLAG\" 'body '\\''quoted'\\'''".to_vec()
+                ],
+            },
+        );
+    }
+
+    #[test]
+    fn original_backslashes_can_reactivate_protected_shell_syntax() {
+        assert_eq!(
+            prepare(b"body", b"./capture \\$NAME", b"-c", None),
+            Invocation::Shell {
+                program: b"/bin/sh".to_vec(),
+                args: vec![b"-c".to_vec(), b"./capture \\\\$NAME -c 'body'".to_vec()],
+            },
+        );
+        assert_eq!(
+            prepare(b"body", b"./capture\\ space", b"-c", None),
+            Invocation::Shell {
+                program: b"./capture space".to_vec(),
+                args: vec![b"-c".to_vec(), b"body".to_vec()],
+            },
         );
     }
 

@@ -1,6 +1,6 @@
 id = "process-simple-shell-literal-dollar"
 requirement = "process.invocation"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
 description = "A simple SHELL value retains literal dollar syntax; GNU attempts the literal program name instead of shell substitution."
 provenance = "Original black-box probe authored during expansion source-location review; no upstream implementation or tests copied."

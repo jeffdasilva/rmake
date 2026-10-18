@@ -1,0 +1,10 @@
+id = "process-shell-missing-literal-program"
+requirement = "process.invocation"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+provenance = "Original independently authored custom-SHELL boundary fixture and expected argv; verified with pinned GNU Make 4.4.1 black-box execution; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202e2f6d697373696e67244e414d453a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a343a20616c6c5d204572726f72203132370a"
