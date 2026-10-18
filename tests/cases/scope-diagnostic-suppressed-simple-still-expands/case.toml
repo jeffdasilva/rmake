@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-diagnostic-suppressed-simple-still-expands"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "An immediate target assignment retains expansion effects even when command-line precedence suppresses the value."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "X=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "assignment\ncli\n"
+stderr = ""

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-override-command-line"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "Target override assignment outranks a command-line value and is inherited only below that target."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "X=cli"]

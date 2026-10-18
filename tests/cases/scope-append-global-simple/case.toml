@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-append-global-simple"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "A first target append is a recursive overlay over a global simple value and stores only its own RHS."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

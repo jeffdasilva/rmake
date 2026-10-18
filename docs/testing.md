@@ -204,6 +204,16 @@ retains exact failure reproductions. `MODE_CASE` replays a recorded cell. The
 matrix has no pending classification. It complements the curated corpus and the
 separate stateful timestamp gate; it does not cover every option interaction.
 
+`make test-scopes` extends the seeded DAG generator with explicit target variable
+declarations. Its default 100 graphs combine assignment flavors, inherited
+appends, private/override/export/unexport modifiers and shared prerequisites.
+Each node records expansion, raw value, origin, flavor and the actual child
+environment. Comparisons retain exact output, status and filesystem checks plus
+independent graph anchors; they do not predict GNU's scope resolution internally.
+`GRAPH_SEED`, `GRAPH_CASES`, `GRAPH_NODES` and `START_INDEX` control replay, and
+failure metadata retains the `--scopes` flag. Pattern declarations and effectful
+functions are outside this generator's current scope.
+
 The current `make test-intcmp` gate executes 6,400 integer expressions across
 200 seeded programs. An independent Python integer model predicts normalization,
 branch selection and GNU 4.4.1's observed negative-number ordering quirk. The

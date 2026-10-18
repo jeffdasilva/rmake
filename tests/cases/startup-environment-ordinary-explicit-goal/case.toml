@@ -1,0 +1,23 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "startup-environment-ordinary-explicit-goal"
+requirement = "variables.startup-environment"
+candidate = "required"
+description = "Ordinary environment startup bindings retain GNU origin and flavor with an explicit goal."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[environment]
+CURDIR = "import-CURDIR"
+MAKEFILE_LIST = "import-MAKEFILE_LIST"
+SUFFIXES = "import-SUFFIXES"
+MAKE_VERSION = "import-MAKE_VERSION"
+MAKE = "import-MAKE"
+MAKE_COMMAND = "import-MAKE_COMMAND"
+MAKECMDGOALS = "import-MAKECMDGOALS"
+
+[expected]
+exit_code = 0
+stdout = "CURDIR=<cwd>/file/simple\nMAKEFILE_LIST=<Makefile>/file/simple\nSUFFIXES=<import-SUFFIXES>/environment/recursive\nMAKE_VERSION=<import-MAKE_VERSION>/environment/recursive\nMAKE=<import-MAKE>/environment/recursive\nMAKE_COMMAND=<import-MAKE_COMMAND>/environment/recursive\nMAKECMDGOALS=<import-MAKECMDGOALS>/environment/recursive\n"
+stderr = ""

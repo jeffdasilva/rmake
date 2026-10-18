@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-environment-override-no-global"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "Without a global assignment collision, -e leaves the imported origin unchanged and a target assignment wins."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "-e"]

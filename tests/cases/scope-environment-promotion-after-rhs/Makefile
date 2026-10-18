@@ -1,0 +1,8 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+X := $(info before=$(origin X))discarded
+$(info after=$(origin X))
+all: X = local
+all:
+	@printf '%s/%s\n' '$(X)' '$(origin X)'

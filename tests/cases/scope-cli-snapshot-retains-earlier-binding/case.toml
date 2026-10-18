@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-cli-snapshot-retains-earlier-binding"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A suppressed target assignment snapshots the command-line binding before later global override."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "X=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "cli/command line/recursive\n"
+stderr = ""

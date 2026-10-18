@@ -338,7 +338,8 @@ cases = ["variable-default-unset", "variable-default-empty", "variable-default-e
 id = "variables.scope"
 title = "Target, pattern and inherited variable scopes"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 3
 reference = "https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html"
 fixture_count = 4
 cases = ["variable-target-inherited", "variable-target-private", "variable-pattern-scope", "variable-shared-first-parent"]
@@ -367,10 +368,11 @@ cases = ["process-direct-quoted-arguments", "process-direct-missing", "process-d
 id = "scope.target-specific"
 title = "Explicit target variable scope and assignment timing"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 68
 reference = "https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html"
-fixture_count = 22
-cases = ["scope-append-global-recursive", "scope-append-global-simple", "scope-append-inherited", "scope-append-local-simple", "scope-child-replaces-inherited", "scope-command-line-precedence", "scope-conditional-defined-empty", "scope-conditional-ignores-inherited", "scope-environment-override-flag", "scope-environment-override-no-global", "scope-environment-precedence", "scope-inherited-prerequisite-chain", "scope-override-command-line", "scope-override-environment", "scope-private-exposes-ancestor", "scope-private-target-value", "scope-recursive-automatic-context", "scope-recursive-simple-timing", "scope-shared-command-goal-order", "scope-shared-first-parent", "scope-simple-literal-dollar", "scope-simple-local-context"]
+fixture_count = 68
+cases = ["scope-append-empty-inherited-boundary", "scope-append-empty-local-simple-no-boundary", "scope-append-empty-two-inherited-layers", "scope-append-global-recursive", "scope-append-global-simple", "scope-append-inherited", "scope-append-local-simple", "scope-append-outer-expands-in-leaf-context", "scope-assignment-semicolon-literal", "scope-child-replaces-inherited", "scope-cli-conditional-does-not-snapshot", "scope-cli-first-append-deferred-before-snapshot", "scope-cli-simple-snapshot-preserves-literal-dollar", "scope-cli-snapshot-retains-earlier-binding", "scope-command-line-precedence", "scope-computed-name-local-context", "scope-conditional-defined-empty", "scope-conditional-global-definition-not-snapshot", "scope-conditional-ignores-inherited", "scope-declaration-does-not-create-rule", "scope-declaration-does-not-select-default", "scope-declaration-only-no-targets", "scope-diagnostic-exported-value-location", "scope-diagnostic-recursive-inherited-location", "scope-diagnostic-simple-assignment-location", "scope-diagnostic-suppressed-simple-still-expands", "scope-environment-collision-after-local", "scope-environment-override-flag", "scope-environment-override-no-global", "scope-environment-precedence", "scope-environment-promotion-after-rhs", "scope-export-inherited-global-policy", "scope-export-local-does-not-leak-sibling", "scope-export-local-inherits-child", "scope-export-parent-policy-child-replacement", "scope-export-private-does-not-reach-child", "scope-export-private-parent-restores-global-child", "scope-inherited-prerequisite-chain", "scope-losing-append-resets-private-append-metadata", "scope-losing-conditional-resets-private-append-metadata", "scope-losing-immediate-recursive-resets-private-append-metadata", "scope-losing-recursive-resets-private-append-metadata", "scope-losing-simple-resets-private-append-metadata", "scope-multiple-target-simple-per-context", "scope-override-command-line", "scope-override-environment", "scope-override-global-does-not-dominate-local", "scope-override-parent-does-not-dominate-child", "scope-prerequisites-expand-global-context", "scope-private-conditional-global-alias", "scope-private-exposes-ancestor", "scope-private-global-alias-survives-reassignment", "scope-private-global-skipped-on-descent", "scope-private-reset-by-suppressed-conditional", "scope-private-target-value", "scope-recursive-automatic-context", "scope-recursive-simple-timing", "scope-shared-command-goal-order", "scope-shared-first-parent", "scope-shell-local-inherits-child", "scope-shell-private-restores-default-child", "scope-shellflags-local-child-failure", "scope-shellflags-private-restores-default-child", "scope-simple-automatic-unavailable-at-read", "scope-simple-literal-dollar", "scope-simple-local-context", "scope-unexport-local-policy", "scope-unexport-parent-policy-child-replacement"]
 
 [[requirements]]
 id = "automatic.derivatives"
@@ -486,7 +488,7 @@ id = "variables.assignment-whitespace"
 title = "Assignment lexical whitespace and literal name/value bytes"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 29
+candidate_required = 30
 reference = "https://www.gnu.org/software/make/manual/html_node/Setting.html"
 fixture_count = 30
 cases = ["assignment-space-cli-append-undefined-rhs-prefix", "assignment-space-cli-colon-separated-operator-is-goal", "assignment-space-cli-conditional-rhs-prefix", "assignment-space-cli-double-simple-rhs-prefix", "assignment-space-cli-expanded-name-preserves-all-bytes", "assignment-space-cli-immediate-recursive-rhs-prefix", "assignment-space-cli-internal-space-name-is-goal", "assignment-space-cli-internal-tab-name-is-goal", "assignment-space-cli-literal-name-control-suffixes", "assignment-space-cli-name-leading-all-c-whitespace", "assignment-space-cli-name-space-tab-termination", "assignment-space-cli-quotes-and-trailing-value-bytes", "assignment-space-cli-recursive-rhs-prefix", "assignment-space-cli-simple-rhs-prefix", "assignment-space-continuation-keeps-control-whitespace", "assignment-space-file-append-undefined-rhs-prefix", "assignment-space-file-colon-separated-empty-target-variable", "assignment-space-file-conditional-rhs-prefix", "assignment-space-file-double-simple-rhs-prefix", "assignment-space-file-expanded-name-preserves-all-bytes", "assignment-space-file-immediate-recursive-rhs-prefix", "assignment-space-file-internal-space-name-not-assignment", "assignment-space-file-internal-tab-name-not-assignment", "assignment-space-file-literal-name-control-suffixes", "assignment-space-file-name-leading-control-whitespace", "assignment-space-file-name-space-tab-termination", "assignment-space-file-quotes-and-trailing-value-bytes", "assignment-space-file-recursive-rhs-prefix", "assignment-space-file-simple-rhs-prefix", "assignment-space-non-ascii-bytes-are-not-whitespace"]
@@ -496,7 +498,7 @@ id = "variables.assignment-recognition"
 title = "Raw assignment-name token recognition and computed-name preservation"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 26
+candidate_required = 27
 reference = "https://www.gnu.org/software/make/manual/html_node/Setting.html"
 fixture_count = 28
 cases = ["assignment-recognition-cli-backslash-does-not-escape-space", "assignment-recognition-cli-bang-name-replay", "assignment-recognition-cli-computed-reference-blanks-preserved", "assignment-recognition-cli-double-dollar-leaves-raw-blank", "assignment-recognition-cli-escaped-equal-is-first-assignment-delimiter", "assignment-recognition-cli-literal-parentheses-do-not-protect-space", "assignment-recognition-cli-operator-character-before-blank-is-name", "assignment-recognition-cli-quotes-do-not-protect-space", "assignment-recognition-cli-raw-space-before-empty-reference", "assignment-recognition-cli-rejected-name-does-not-expand-effects", "assignment-recognition-cli-short-blank-reference-before-operator", "assignment-recognition-cli-short-dollar-reference-consumes-blank", "assignment-recognition-cli-short-reference-consumes-operator-byte", "assignment-recognition-cli-terminal-short-reference-consumes-blank", "assignment-recognition-cli-trailing-blank-after-backslash", "assignment-recognition-file-backslash-does-not-escape-tab", "assignment-recognition-file-computed-reference-blanks-preserved", "assignment-recognition-file-escaped-dollar-does-not-open-reference", "assignment-recognition-file-export-falls-back-to-name-list", "assignment-recognition-file-internal-blank-simple-is-target-syntax", "assignment-recognition-file-operator-character-before-blank-is-name", "assignment-recognition-file-override-does-not-protect-raw-blank", "assignment-recognition-file-quotes-do-not-protect-tab", "assignment-recognition-file-raw-tab-after-empty-reference", "assignment-recognition-file-rejected-name-expands-as-rule-text", "assignment-recognition-file-short-dollar-reference-consumes-blank", "assignment-recognition-file-terminal-short-reference-consumes-blank", "assignment-recognition-file-trailing-tab-after-backslash"]
@@ -530,3 +532,22 @@ candidate_required = 20
 reference = "https://www.gnu.org/software/make/manual/html_node/Variables_002fRecursion.html"
 fixture_count = 21
 cases = ["export-token-export-all-six-c-whitespace-separators", "export-token-export-non-ascii-bytes-do-not-split", "export-token-initial-all-export-empty-effect", "export-token-initial-all-export-expanded-empty", "export-token-initial-all-export-expanded-whitespace", "export-token-initial-all-export-raw-empty", "export-token-initial-all-unexport-empty-effect", "export-token-initial-all-unexport-expanded-empty", "export-token-initial-all-unexport-expanded-whitespace", "export-token-initial-all-unexport-raw-empty", "export-token-initial-none-export-empty-effect", "export-token-initial-none-export-expanded-empty", "export-token-initial-none-export-expanded-whitespace", "export-token-initial-none-export-raw-empty", "export-token-initial-none-unexport-empty-effect", "export-token-initial-none-unexport-expanded-empty", "export-token-initial-none-unexport-expanded-whitespace", "export-token-initial-none-unexport-raw-empty", "export-token-keyword-adjacent-vertical-tab", "export-token-unexport-all-six-c-whitespace-separators", "export-token-unexport-non-ascii-bytes-do-not-split"]
+
+[[requirements]]
+id = "scope.pattern-specific"
+title = "Pattern-specific variable precedence and inheritance"
+status = "fixture-ready"
+candidate_status = "pending"
+reference = "https://www.gnu.org/software/make/manual/html_node/Pattern_002dspecific.html"
+fixture_count = 17
+cases = ["scope-pattern-append-simple-initializes-each-target", "scope-pattern-append-specificity-order", "scope-pattern-cli-snapshot-before-global-override", "scope-pattern-command-line-wins", "scope-pattern-computed-name-global-context", "scope-pattern-declaration-no-rule", "scope-pattern-equal-stem-later-wins", "scope-pattern-explicit-target-precedence", "scope-pattern-export-inheritance", "scope-pattern-inherits-prerequisites", "scope-pattern-multiple-assignments-local-flavor", "scope-pattern-override-command-line", "scope-pattern-private-exposes-parent", "scope-pattern-recursive-automatic-context", "scope-pattern-shadows-parent", "scope-pattern-shortest-stem-wins", "scope-pattern-simple-read-time"]
+
+[[requirements]]
+id = "variables.startup-environment"
+title = "Startup synthetic variable collisions with imported environment"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 4
+reference = "https://www.gnu.org/software/make/manual/html_node/Environment.html"
+fixture_count = 4
+cases = ["startup-environment-ordinary-default-goal", "startup-environment-ordinary-explicit-goal", "startup-environment-override-default-goal", "startup-environment-override-explicit-goal"]

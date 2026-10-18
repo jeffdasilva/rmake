@@ -9,7 +9,7 @@
 pub use crate::diagnostic::Location;
 use crate::diagnostic::{Diagnostic, ExpansionContext, Output};
 use crate::reader::{Reader, strip_comment};
-use crate::variables::{Assignment, ExpandError, Origin, VariableStore};
+use crate::variables::{Assignment, ExpandError, Origin, TargetScope, VariableStore};
 use std::collections::{HashMap, HashSet};
 
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
@@ -90,6 +90,8 @@ impl std::error::Error for ParseError {}
 #[derive(Default)]
 pub struct Database {
     pub variables: VariableStore,
+    /// Target-only variable declarations never create rules or select a goal.
+    pub target_scopes: HashMap<Vec<u8>, TargetScope>,
     pub rules: HashMap<Vec<u8>, Rule>,
     pub exports: HashSet<Vec<u8>>,
     pub unexports: HashSet<Vec<u8>>,
@@ -98,6 +100,16 @@ pub struct Database {
 }
 
 impl Database {
+    /// Activate a target's local bindings over its inherited execution context.
+    /// Descendant visibility and append layers are preserved by the store.
+    pub fn variables_for_target(&self, target: &[u8], parent: &VariableStore) -> VariableStore {
+        if let Some(scope) = self.target_scopes.get(target) {
+            parent.with_target_scopes(&[scope])
+        } else {
+            parent.with_target_scopes(&[])
+        }
+    }
+
     /// Initialize suffix metadata before reading user Makefiles. SUFFIXES is an
     /// independent default variable, defined even when builtin rules are off.
     /// Existing higher-priority variables and explicit rules are preserved.
@@ -218,6 +230,47 @@ pub struct AssignmentSpec<'a> {
     pub name: &'a [u8],
     pub value: &'a [u8],
     pub kind: Assignment,
+}
+
+struct TargetAssignment<'a> {
+    spec: AssignmentSpec<'a>,
+    origin: Origin,
+    private: bool,
+    export: Option<bool>,
+}
+
+/// Modifiers are keywords only when the complete remaining text is not itself
+/// an assignment: `target: private = value` names the variable `private`.
+fn target_assignment(mut bytes: &[u8]) -> Option<TargetAssignment<'_>> {
+    bytes = assignment_start(bytes);
+    let mut origin = Origin::File;
+    let mut private = false;
+    let mut export = None;
+    loop {
+        if let Some(spec) = assignment(bytes) {
+            return Some(TargetAssignment {
+                spec,
+                origin,
+                private,
+                export,
+            });
+        }
+        if let Some(rest) = directive(bytes, b"override") {
+            origin = Origin::Override;
+            bytes = rest;
+        } else if let Some(rest) = directive(bytes, b"private") {
+            private = true;
+            bytes = rest;
+        } else if let Some(rest) = directive(bytes, b"export") {
+            export = Some(true);
+            bytes = rest;
+        } else if let Some(rest) = directive(bytes, b"unexport") {
+            export = Some(false);
+            bytes = rest;
+        } else {
+            return None;
+        }
+    }
 }
 
 // Assignment syntax uses C whitespace at the start of names/values, but only
@@ -371,6 +424,63 @@ impl Database {
                 message: err.diagnostic(),
             })?;
         Ok(name)
+    }
+
+    fn define_target_assignments(
+        &mut self,
+        targets: &[u8],
+        assignment: TargetAssignment<'_>,
+        location: &Location,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let targets = words(targets).collect::<Vec<_>>();
+        if targets.iter().any(|target| target.contains(&b'%'))
+            || targets.last().is_some_and(|target| target.ends_with(b"&"))
+        {
+            return Err(ParseError {
+                location: location.clone(),
+                message: "rmake: unsupported rule form".into(),
+            });
+        }
+        if targets.iter().any(|target| target.contains(&b'\\')) {
+            return Err(ParseError {
+                location: location.clone(),
+                message: "rmake: escaped target names are not implemented".into(),
+            });
+        }
+        for target in targets {
+            let scope = self.target_scopes.entry(target.to_vec()).or_default();
+            let parse_variables = scope.context(&self.variables);
+            let name = parse_variables
+                .expand_with(assignment.spec.name, context.at(Some(location)))
+                .map_err(|error| ParseError {
+                    location: error.diagnostic_location(Some(location)).unwrap().clone(),
+                    message: error.diagnostic(),
+                })?;
+            if name.is_empty() {
+                return Err(ParseError {
+                    location: location.clone(),
+                    message: "empty variable name".into(),
+                });
+            }
+            scope
+                .define_with(
+                    &mut self.variables,
+                    &name,
+                    assignment.spec.value,
+                    assignment.spec.kind,
+                    assignment.origin,
+                    assignment.private,
+                    assignment.export,
+                    Some(location),
+                    context.at(Some(location)),
+                )
+                .map_err(|error| ParseError {
+                    location: error.diagnostic_location(Some(location)).unwrap().clone(),
+                    message: error.diagnostic(),
+                })?;
+        }
+        Ok(())
     }
 
     fn condition(
@@ -673,9 +783,16 @@ impl Database {
             let mut text = text;
             let mut origin = Origin::File;
             let mut export = None;
+            let mut private = false;
             loop {
-                if let Some(rest) = directive(text, b"override") {
+                // A modifier can itself be a variable name (`private = x`).
+                if assignment(text).is_some() {
+                    break;
+                } else if let Some(rest) = directive(text, b"override") {
                     origin = Origin::Override;
+                    text = rest;
+                } else if let Some(rest) = directive(text, b"private") {
+                    private = true;
                     text = rest;
                 } else if let Some(rest) = directive(text, b"export") {
                     export = Some(true);
@@ -689,18 +806,15 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"undefine") {
                 let name = self.expand(rest, &location, context)?;
-                if self
-                    .variables
-                    .get(trim(&name))
-                    .is_none_or(|v| v.origin() <= origin)
-                {
-                    self.variables.remove(trim(&name));
-                }
+                self.variables.undefine(trim(&name), origin);
                 current.clear();
                 continue;
             }
             if let Some(spec) = assignment(text) {
                 let name = self.define(spec, origin, &location, &location, context)?;
+                if private {
+                    self.variables.set_private(&name, true);
+                }
                 if let Some(export) = export {
                     self.set_export(name, export);
                 }
@@ -758,10 +872,44 @@ impl Database {
                     message: "recipe commences before first target".into(),
                 });
             }
+            // An unexpanded RHS belongs to the target's variable context. In
+            // particular, semicolons are value bytes and simple assignments
+            // must evaluate separately for every target in the declaration.
+            let raw_colon = separator(text, b':');
+            if let Some(colon) = raw_colon {
+                let after_colon = &text[colon + 1..];
+                let after_colon = after_colon.strip_prefix(b":").unwrap_or(after_colon);
+                if let Some(assignment) = target_assignment(after_colon) {
+                    let targets = self.expand(&text[..colon], &location, context)?;
+                    self.define_target_assignments(&targets, assignment, &location, context)?;
+                    current.clear();
+                    continue;
+                }
+            }
             let inline = separator(&line.bytes, b';')
                 .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
             let rule_text = inline.map_or(text.to_vec(), |i| strip_comment(&line.bytes[..i]));
             let expanded_line = self.expand(&rule_text, &location, context)?;
+            // A colon generated while expanding the target portion can start a
+            // variable declaration too. A literal colon, however, freezes the
+            // syntax decision before prerequisites are expanded: `all: $(A)`
+            // with A=X=value is a prerequisite named X=value.
+            if raw_colon.is_none()
+                && let Some(colon) = separator(&expanded_line, b':')
+            {
+                let after_colon = &expanded_line[colon + 1..];
+                let after_colon = after_colon.strip_prefix(b":").unwrap_or(after_colon);
+                if let Some(assignment) = target_assignment(after_colon) {
+                    self.define_target_assignments(
+                        &expanded_line[..colon],
+                        assignment,
+                        &location,
+                        context,
+                    )?;
+                    current.clear();
+                    continue;
+                }
+            }
             // A semicolon produced by immediate expansion is also an inline
             // recipe separator. Its text has already undergone that expansion.
             let expanded_inline = if inline.is_none() {
@@ -790,7 +938,6 @@ impl Database {
                 || separator(&expanded[colon + 1..], b':').is_some()
                 || expanded[..colon].contains(&b'%')
                 || expanded[..colon].ends_with(b"&")
-                || assignment(&expanded[colon + 1..]).is_some()
             {
                 return Err(ParseError {
                     location,
@@ -896,6 +1043,7 @@ impl Database {
     }
 
     fn set_export(&mut self, name: Vec<u8>, export: bool) {
+        self.variables.set_export_policy(&name, Some(export));
         if export {
             self.unexports.remove(&name);
             self.exports.insert(name);
@@ -1141,7 +1289,13 @@ mod tests {
                 let original = db.variables.get(b"X").unwrap().clone();
                 db.read(b"export X\nunexport X\nexport X\n", b"new")
                     .unwrap();
-                assert_eq!(db.variables.get(b"X"), Some(&original));
+                let exported = db.variables.get(b"X").unwrap();
+                assert_eq!(exported.raw_value(), original.raw_value());
+                assert_eq!(exported.flavor(), original.flavor());
+                assert_eq!(exported.origin(), original.origin());
+                assert_eq!(exported.definition(), original.definition());
+                assert_eq!(exported.is_private(), original.is_private());
+                assert_eq!(exported.export_policy(), Some(true));
                 assert!(db.exports.contains(b"X".as_slice()));
             }
         }
@@ -1729,13 +1883,244 @@ mod tests {
         assert!(assignment(b"target: NAME = value").is_none());
         assert!(assignment(b"NAME ::= value").is_some());
         let mut db = Database::default();
-        assert!(
-            db.read(b"target: NAME = value\n", b"m")
-                .unwrap_err()
-                .message
-                .to_string()
-                .contains("unsupported")
+        db.read(b"target: NAME = value\n", b"m").unwrap();
+        assert!(db.rules.is_empty());
+        assert!(db.variables.get(b"NAME").is_none());
+        assert!(db.variables.get(b".DEFAULT_GOAL").is_none());
+        assert_eq!(
+            db.variables_for_target(b"target", &db.variables)
+                .expand(b"$(NAME)")
+                .unwrap(),
+            b"value"
         );
+    }
+
+    #[test]
+    fn target_assignment_does_not_attach_a_recipe_or_select_default_goal() {
+        let mut db = Database::default();
+        db.read(b"scope: X=value\nreal:;\n", b"m").unwrap();
+        assert_eq!(db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(), b"real");
+        assert!(!db.rules.contains_key(b"scope".as_slice()));
+        let error = Database::default()
+            .read(b"real:\nscope:X=value\n\t@echo detached\n", b"m")
+            .unwrap_err();
+        assert_eq!(error.location.line, 3);
+        assert_eq!(
+            error.message.as_bytes(),
+            b"recipe commences before first target"
+        );
+    }
+
+    #[test]
+    fn target_assignment_keeps_semicolons_and_defers_recursive_values() {
+        let mut db = Database::default();
+        db.read(b"all: X = before;$(error deferred) # comment\n", b"m")
+            .unwrap();
+        let variables = db.variables_for_target(b"all", &db.variables);
+        assert_eq!(
+            variables.get(b"X").unwrap().raw_value(),
+            b"before;$(error deferred) "
+        );
+        assert!(db.rules.is_empty());
+    }
+
+    #[test]
+    fn target_names_values_and_computed_variable_names_use_distinct_contexts() {
+        let mut db = Database::default();
+        let mut messages = Vec::new();
+        db.read_with(
+            b"TARGETS=a b\nN=global\na:N=LEFT\nb:N=RIGHT\n$(TARGETS): $(N) := $(info $(N))value-$(N)\n",
+            b"m",
+            ExpansionContext::new(None, &mut |output| {
+                if let Output::Info(message) = output {
+                    messages.push(message.to_vec());
+                }
+            }),
+        )
+        .unwrap();
+        assert_eq!(messages, [b"LEFT".to_vec(), b"RIGHT".to_vec()]);
+        for (target, name, value) in [
+            (
+                b"a".as_slice(),
+                b"LEFT".as_slice(),
+                b"value-LEFT".as_slice(),
+            ),
+            (
+                b"b".as_slice(),
+                b"RIGHT".as_slice(),
+                b"value-RIGHT".as_slice(),
+            ),
+        ] {
+            let variables = db.variables_for_target(target, &db.variables);
+            assert_eq!(variables.get(name).unwrap().raw_value(), value);
+            assert!(variables.get(b"global").is_none());
+        }
+    }
+
+    #[test]
+    fn target_qualifiers_are_binding_metadata_and_can_also_name_variables() {
+        let mut db = Database::default();
+        db.read(
+            b"all: private override export X=one\nall: unexport Y=two\nall: private = three\nall: export = four\n",
+            b"m",
+        )
+        .unwrap();
+        let variables = db.variables_for_target(b"all", &db.variables);
+        let x = variables.get(b"X").unwrap();
+        assert_eq!(x.origin(), Origin::Override);
+        assert!(x.is_private());
+        assert_eq!(x.export_policy(), Some(true));
+        assert_eq!(variables.get(b"Y").unwrap().export_policy(), Some(false));
+        assert_eq!(
+            variables.expand(b"$(private)|$(export)").unwrap(),
+            b"three|four"
+        );
+        assert!(db.exports.is_empty());
+        assert!(db.unexports.is_empty());
+    }
+
+    #[test]
+    fn global_export_directives_replace_policy_from_target_conditional_aliases() {
+        for (target_modifier, global_modifier, expected) in [
+            (b"export".as_slice(), b"unexport".as_slice(), false),
+            (b"unexport".as_slice(), b"export".as_slice(), true),
+        ] {
+            for assignment in [b"X\n".as_slice(), b"X=replaced\n"] {
+                let mut db = Database::default();
+                db.read(
+                    &[
+                        b"X=global\nall: ",
+                        target_modifier,
+                        b" X?=ignored\n",
+                        global_modifier,
+                        b" ",
+                        assignment,
+                    ]
+                    .concat(),
+                    b"m",
+                )
+                .unwrap();
+                assert_eq!(
+                    db.variables.get(b"X").unwrap().export_policy(),
+                    Some(expected)
+                );
+                assert_eq!(
+                    db.variables_for_target(b"all", &db.variables)
+                        .export_policy(b"X"),
+                    Some(expected)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn global_private_assignments_remain_visible_while_reading_and_hidden_on_descent() {
+        let mut db = Database::default();
+        db.read(
+            b"private X=first\nBEFORE:=$(X)\nX=second\nAFTER:=$(X)\nprivate=ordinary\nexport=also-ordinary\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(
+            db.variables.expand(b"$(BEFORE)|$(AFTER)").unwrap(),
+            b"first|second"
+        );
+        assert!(db.variables.get(b"X").unwrap().is_private());
+        let target = db.variables_for_target(b"all", &db.variables);
+        assert_eq!(target.expand(b"$(X)|$(origin X)").unwrap(), b"|undefined");
+        assert_eq!(
+            target.expand(b"$(private)|$(export)").unwrap(),
+            b"ordinary|also-ordinary"
+        );
+        db.read(b"Y=existing\nprivate Y?=ignored\n", b"m").unwrap();
+        assert!(db.variables.get(b"Y").unwrap().is_private());
+        assert_eq!(db.variables.expand(b"$(Y)").unwrap(), b"existing");
+    }
+
+    #[test]
+    fn undefine_preserves_and_promotes_environment_override_unless_qualified() {
+        let mut db = Database::default();
+        db.variables.set_environment_override(true);
+        db.variables
+            .define(
+                b"X",
+                b"imported",
+                Assignment::Recursive,
+                Origin::Environment,
+            )
+            .unwrap();
+        db.read(b"all:X=local\nundefine X\n", b"m").unwrap();
+        assert_eq!(
+            db.variables.expand(b"$(X)|$(origin X)").unwrap(),
+            b"imported|environment override"
+        );
+        assert_eq!(
+            db.variables_for_target(b"all", &db.variables)
+                .expand(b"$(X)|$(origin X)")
+                .unwrap(),
+            b"local|file"
+        );
+        db.read(b"override undefine X\n", b"m").unwrap();
+        assert!(db.variables.get(b"X").is_none());
+    }
+
+    #[test]
+    fn target_prerequisites_still_expand_from_global_read_context() {
+        let mut db = Database::default();
+        db.read(b"X=global\nall:X=local\nall:$(X)\n", b"m").unwrap();
+        assert_eq!(normals(&db.rules[b"all".as_slice()]), [b"global".to_vec()]);
+        assert_eq!(
+            db.variables_for_target(b"all", &db.variables)
+                .expand(b"$(X)")
+                .unwrap(),
+            b"local"
+        );
+    }
+
+    #[test]
+    fn generated_colon_starts_target_assignment_but_generated_prerequisite_does_not() {
+        let mut db = Database::default();
+        db.read(
+            b"DECL=all: X=$$(error deferred)\n$(DECL)\nPREREQ=Y=value\nall:$(PREREQ)\n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(normals(&db.rules[b"all".as_slice()]), [b"Y=value".to_vec()]);
+        assert_eq!(
+            db.variables_for_target(b"all", &db.variables)
+                .get(b"X")
+                .unwrap()
+                .raw_value(),
+            b"$(error deferred)"
+        );
+        assert!(db.variables.get(b"Y").is_none());
+    }
+
+    #[test]
+    fn double_colon_variable_declaration_does_not_create_double_colon_rule() {
+        let mut db = Database::default();
+        db.read(b"all:: X=value\nall:;\n", b"m").unwrap();
+        assert_eq!(
+            db.variables_for_target(b"all", &db.variables)
+                .expand(b"$(X)")
+                .unwrap(),
+            b"value"
+        );
+        assert!(db.rules[b"all".as_slice()].recipes.is_some());
+    }
+
+    #[test]
+    fn target_assignment_reports_immediate_errors_in_its_parse_context() {
+        let error = Database::default()
+            .read(b"all:X=$(error failure)\nall:Y:=$(X)\n", b"m")
+            .unwrap_err();
+        assert_eq!(error.location.line, 2);
+        assert_eq!(error.message.as_bytes(), b"failure");
+        let error = Database::default()
+            .read(b"all: =empty\n", b"m")
+            .unwrap_err();
+        assert_eq!(error.message.as_bytes(), b"empty variable name");
+        assert!(Database::default().read(b"%.o: X=value\n", b"m").is_err());
     }
 
     #[test]

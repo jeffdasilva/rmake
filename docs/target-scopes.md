@@ -1,6 +1,10 @@
 # Target-variable scope design notes
 
-Status: researched, **not implemented**. Explicit target-specific assignments and pattern-specific scopes remain unsupported. The 22 original `scope-*` fixtures in `tests/cases` belong to the pending `scope.target-specific` family. Passing oracle checks establishes their expected behavior; it does not establish candidate support. These notes record GNU Make 4.4.1 observations from the pinned oracle on 2026-10-18.
+Status: explicit target-specific assignments are implemented with layered bindings,
+inheritance, privacy and export policies. Pattern-specific scopes remain
+unsupported and have a separate pending fixture family. These notes record GNU
+Make 4.4.1 observations from the pinned oracle on 2026-10-18; the
+[progress record](progress.md) records the verified corpus and remaining gates.
 
 The [GNU target-specific variable documentation](https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html) describes separate target definitions, evaluation in the target's context, inheritance to prerequisites, and first-parent behavior for shared prerequisites. The [inheritance documentation](https://www.gnu.org/software/make/manual/html_node/Suppressing-Inheritance.html) describes `private`. The details below were checked with original disposable Makefiles; no upstream tests were copied.
 
@@ -8,7 +12,11 @@ The [GNU target-specific variable documentation](https://www.gnu.org/software/ma
 
 Keep target bindings separate from the explicit-rule table. A declaration such as `name: X = value` neither supplies a build rule nor chooses the default goal. Alone it produces `No targets`; requesting the missing `name` still produces `No rule to make target`. A scope entry must not make that target buildable.
 
-Use byte-keyed binding layers rather than a flattened map. A target binding needs its raw value, flavor, origin, source location, privacy/export policy, and an explicit “append outer definition” marker. A proposed interface is:
+The implementation uses byte-keyed binding layers rather than a flattened map.
+Target bindings store their raw value, flavor, origin, source location,
+privacy/export policy, and an explicit “append outer definition” marker.
+Immutable maps are shared with `Arc`; recipe automatic variables use a small
+overlay without copying the global map. The interfaces distinguish:
 
 - `TargetScope`: local byte-keyed bindings, stored by target name separately from `Database.rules`.
 - A parse context: that target's existing local bindings over the current global bindings.
@@ -59,6 +67,32 @@ X := $(BROKEN)
 all: ; @printf '<%s>\n' '$(X)'
 ```
 
-Running the oracle with `X=chosen` still reports recursive expansion. Replacing `:=` with `:::=` does too. With `+=`, command-line `X:=chosen` errors while `X=chosen` prints `<chosen>`. With `?=` or `=`, both retain the command-line value without expanding the discarded recursive text. Focused Rust tests cover these errors, preservation of the prior binding, and conditional laziness. This fix does not add target scopes or expansion effects.
+Running the oracle with `X=chosen` still reports recursive expansion. Replacing `:=` with `:::=` does too. With `+=`, command-line `X:=chosen` errors while `X=chosen` prints `<chosen>`. With `?=` or `=`, both retain the command-line value without expanding the discarded recursive text. Focused Rust tests cover these errors, preservation of the prior binding, and conditional laziness. A first target append is independently recursive, so a global command-line simple binding does not make that suffix immediate.
 
-The pending fixtures cover inheritance, privacy, shared prerequisites, local simple/recursive timing, literal dollars, automatic-variable context, append layers, conditional assignments, and CLI/environment precedence. Follow-up fixtures are still needed for the metadata alias above, multiple-target/computed-name evaluation, CLI snapshot versus conditional behavior, variable-only target declarations, empty inherited append suffixes, export/unexport combinations, and pattern-specific precedence. Pattern scopes remain a separate unfinished step.
+Required fixtures now cover inheritance, privacy, shared prerequisites, local
+simple/recursive timing, literal dollars, automatic-variable context, append
+layers, conditional assignments, CLI/environment precedence, metadata aliasing,
+multiple-target/computed-name evaluation, variable-only declarations and exports.
+`make test-scopes` also combines these operations across seeded dependency graphs.
+
+A losing nonappend target assignment (`=`, `:=`, `::=`, `:::=`) clears an earlier
+inherited-append marker even when its origin cannot replace the value. Losing
+`?=` and `+=` preserve that marker. Unqualified assignments reset privacy in both
+cases. Immediate RHS evaluation still precedes the metadata change.
+
+Hidden private global bindings do not supply export/unexport policy to an
+independent local binding. Explicit local policy and export-all mode still apply.
+An unspecified child policy can inherit an ancestor policy even when a child
+binding supplies the value. These distinctions are observable in real child
+environments, not only through make variable expansion.
+
+## Pattern scopes: next implementation
+
+The pending pattern fixtures expose a separate activation model. Preserve each
+declaration in order instead of merging matching patterns into static target
+maps. Computed names and simple RHS values use global context while reading;
+conditional assignment and appending resolve when the target is activated.
+Patterns with shorter stems are more specific; equal-specificity definitions
+retain declaration order. A deferred append to a simple pattern binding expands
+its suffix in the target activation context while retaining simple flavor.
+This behavior is not implemented by the explicit target scope API alone.

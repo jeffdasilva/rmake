@@ -651,3 +651,38 @@ emptiness, retained and fatal effects, mode skips, all C separators and non-ASCI
 negative controls. No GNU implementation source or upstream tests were consulted.
 This completes these two recorded regressions, not the broader export, language
 or performance milestones.
+
+## Explicit target-variable scopes — 2026-10-18
+
+Explicit target declarations now have separate binding layers, preserving
+per-target immediate expansion, deferred recursive values, inherited appends,
+command-line snapshots, first-parent ownership of shared prerequisites and
+private/export/unexport policy. Variable-only declarations do not create build
+rules or choose a default goal. Global private bindings remain visible while
+reading and disappear on descent. Environment override origins are promoted at
+the observed collision point, including startup metadata and undefine.
+
+Sixty-seven new original fixtures include 17 pending pattern-scope cases for the
+next slice. The curated corpus contains 900 cases: 823 required exact matches and
+77 observed pending mismatches, with no failures or unexpected passes. Full
+`make ci` passed, including 288 Rust tests, 185 tooling tests and the existing
+generated/stateful/diagnostic and self-host gates. New `make test-scopes` runs
+100 seeded dependency graphs in CI. A larger 1,000-graph campaign passed exact
+oracle/candidate output, status and filesystem comparisons; five minimized
+assignment-metadata regressions from that campaign are now curated fixtures.
+
+Immutable `Arc` binding maps let each recipe add automatic variables without
+copying the globals. A comparison against exact previous main commit `69f74b0`
+used 31 alternating paired release trials after three warmups, with identical
+paths, environment, arguments and outputs. Before/after medians were
+0.687/0.676 ms for tiny no-op, 30.027/23.894 ms for 10,000 explicit targets, and
+4.350/4.369 ms for 5,000 assignments. Median paired after/before ratios were
+1.005, 0.800 and 1.016. This is an unisolated early-workload measurement, not a
+general performance claim or GNU speed parity; persistent caching is absent.
+
+Pattern scopes require ordered declarations with activation-time conditional and
+append semantics and remain explicitly unsupported. Shell/file/eval functions,
+includes/restarts, complete rules and parallel execution remain later milestones.
+The [scope notes](target-scopes.md) describe the implemented model and the next
+activation boundary. This slice used original code and oracle probes; no GNU
+implementation source or upstream tests were incorporated.

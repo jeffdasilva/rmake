@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-environment-override-flag"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "A global assignment collision under -e promotes the imported value and makes it outrank target assignments."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "-e"]

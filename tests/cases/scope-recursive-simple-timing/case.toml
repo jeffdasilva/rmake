@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-recursive-simple-timing"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "Simple target RHS expands when parsed while recursive target RHS sees later local values."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-append-specificity-order"
+requirement = "scope.pattern-specific"
+candidate = "pending"
+description = "Pattern append layers combine from broadest to most specific then explicit."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "global general specific explicit/<explicit>\n"
+stderr = ""

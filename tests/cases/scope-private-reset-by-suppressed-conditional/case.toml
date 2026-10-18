@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-private-reset-by-suppressed-conditional"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "An unqualified conditional target declaration resets an existing local private flag."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=local\nall=local\n"
+stderr = ""

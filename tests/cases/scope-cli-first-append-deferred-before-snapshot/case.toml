@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-cli-first-append-deferred-before-snapshot"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A first target append remains deferred before a simple command-line snapshot suppresses it."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "X:=chosen"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "chosen/simple\n"
+stderr = ""

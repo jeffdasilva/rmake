@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-cli-conditional-does-not-snapshot"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A suppressed conditional target assignment creates no command-line snapshot."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "X=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "later/override/recursive\n"
+stderr = ""
