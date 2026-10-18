@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-wordlist-large-variable-tail"
+requirement = "functions.words"
+candidate = "required"
+description = "wordlist preserves the first and final selected separators in a variable containing 3072 words."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"BASE" = "alpha\tbeta\u000bgamma "
+
+[expected]
+exit_code = 0
+stdout_hex = "636f756e743d3c333037323e2066697273743d3c616c70686109626574613e207461696c3d3c626574610b67616d6d613e0a"
+stderr_hex = ""

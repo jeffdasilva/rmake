@@ -1347,12 +1347,12 @@ impl Expansion<'_, '_> {
                 let names = self.expand(args[0])?;
                 let values = self.expand(args[1])?;
                 let names: Vec<_> = words(&names).collect();
-                let value_spans = word_spans(&values);
+                let mut value_spans = word_spans(&values);
                 let mut bindings = BTreeMap::new();
                 for (index, name) in names.iter().enumerate() {
-                    let value = match value_spans.get(index) {
-                        Some((start, _)) if index + 1 == names.len() => values[*start..].to_vec(),
-                        Some((start, end)) => values[*start..*end].to_vec(),
+                    let value = match value_spans.next() {
+                        Some((start, _)) if index + 1 == names.len() => values[start..].to_vec(),
+                        Some((start, end)) => values[start..end].to_vec(),
                         None => Vec::new(),
                     };
                     bindings.insert(name.to_vec(), local(value));
@@ -1617,12 +1617,15 @@ impl Expansion<'_, '_> {
                 let end = usize::try_from(end).unwrap_or(usize::MAX);
                 // Unlike most word functions, wordlist retains the whitespace
                 // between selected words from the expanded input.
-                let spans = word_spans(&args[2]);
-                let Some((start_byte, _)) = spans.get(start - 1) else {
+                let mut spans = word_spans(&args[2]);
+                let Some((start_byte, first_end)) = spans.nth(start - 1) else {
                     return Ok(Vec::new());
                 };
-                let end_byte = spans[end.min(spans.len()) - 1].1;
-                Ok(args[2][*start_byte..end_byte].to_vec())
+                let end_byte = spans
+                    .take(end - start)
+                    .last()
+                    .map_or(first_end, |(_, end)| end);
+                Ok(args[2][start_byte..end_byte].to_vec())
             }
             b"firstword" => Ok(words(first).next().unwrap_or_default().to_vec()),
             b"lastword" => Ok(words(first).last().unwrap_or_default().to_vec()),
@@ -1829,21 +1832,21 @@ fn words(value: &[u8]) -> impl Iterator<Item = &[u8]> {
     value.split(gnu_whitespace).filter(|word| !word.is_empty())
 }
 
-fn word_spans(value: &[u8]) -> Vec<(usize, usize)> {
-    let mut result = Vec::new();
+fn word_spans(value: &[u8]) -> impl Iterator<Item = (usize, usize)> {
     let mut position = 0;
-    while position < value.len() {
-        if gnu_whitespace(&value[position]) {
+    std::iter::from_fn(move || {
+        while position < value.len() && gnu_whitespace(&value[position]) {
             position += 1;
-            continue;
+        }
+        if position == value.len() {
+            return None;
         }
         let start = position;
         while position < value.len() && !gnu_whitespace(&value[position]) {
             position += 1;
         }
-        result.push((start, position));
-    }
-    result
+        Some((start, position))
+    })
 }
 
 fn join_words<'a>(values: impl IntoIterator<Item = &'a [u8]>) -> Result<Vec<u8>, ExpandError> {

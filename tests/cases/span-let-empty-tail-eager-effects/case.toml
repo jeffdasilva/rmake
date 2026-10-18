@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-let-empty-tail-eager-effects"
+requirement = "functions.control"
+candidate = "required"
+description = "let executes name, value and body effects when its final binding has no remaining word."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = " \u000bonly\t\n\r\f "
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d65730a76616c7565730a626f64790a3c5b6f6e6c795d2f5b5d3e0a"
+stderr_hex = ""

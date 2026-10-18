@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-patsubst-literal-empty-text-eager-effects"
+requirement = "functions.text"
+candidate = "required"
+description = "Literal patsubst expands pattern, replacement and text even when the text result is empty."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7061747465726e0a7265706c6163656d656e740a746578740a3c3e0a"
+stderr_hex = ""

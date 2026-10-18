@@ -1,0 +1,2 @@
+# Span fixture inputs deliberately contain trailing separators and raw bytes.
+tests/cases/span-*/input -text whitespace=-blank-at-eol,-blank-at-eof

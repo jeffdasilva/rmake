@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-patsubst-literal-whitespace-only-eager-effects"
+requirement = "functions.text"
+candidate = "required"
+description = "Literal patsubst preserves a whitespace-only text exactly while retaining all argument effects."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = " \t\n\u000b\f\r "
+
+[expected]
+exit_code = 0
+stdout_hex = "7061747465726e0a7265706c6163656d656e740a746578740a3c20090a0b0c0d203e0a"
+stderr_hex = ""

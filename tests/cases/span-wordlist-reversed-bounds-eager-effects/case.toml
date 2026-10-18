@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "span-wordlist-reversed-bounds-eager-effects"
+requirement = "functions.words"
+candidate = "required"
+description = "wordlist evaluates every argument before returning empty for reversed valid bounds."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+"W" = " \talpha\nbeta\u000bgamma\r\f "
+
+[expected]
+exit_code = 0
+stdout_hex = "73746172740a656e640a6c6973740a3c3e0a"
+stderr_hex = ""
