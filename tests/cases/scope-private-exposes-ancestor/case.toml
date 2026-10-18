@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-private-exposes-ancestor"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "A private child value is skipped by descendants, which can still inherit an earlier ancestor value."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

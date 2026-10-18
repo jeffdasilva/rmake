@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-multiple-assignments-local-flavor"
+requirement = "scope.pattern-specific"
+candidate = "pending"
+description = "A deferred pattern append uses final globals while retaining an earlier simple flavor."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "base-old tail-new/simple\n"
+stderr = ""

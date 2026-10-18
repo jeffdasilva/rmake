@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-prerequisites-expand-global-context"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Prerequisites expand globally even when a target already has local values."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "global=local\nall=local\n"
+stderr = ""

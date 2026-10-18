@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-shared-command-goal-order"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "Command goal order chooses the first context used to update a shared prerequisite."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory", "right", "left"]

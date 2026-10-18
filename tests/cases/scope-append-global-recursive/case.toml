@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-append-global-recursive"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "A target append includes a global recursive value and expands each part using the target context."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

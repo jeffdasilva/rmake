@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-override-parent-does-not-dominate-child"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A distinct ordinary child binding can shadow an inherited override binding."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child/file\n"
+stderr = ""

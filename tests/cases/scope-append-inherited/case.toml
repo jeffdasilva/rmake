@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-append-inherited"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "Appending on a prerequisite retains the inherited parent value and passes the combined value onward."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

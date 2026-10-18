@@ -1,0 +1,17 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-environment-promotion-after-rhs"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A global environment collision promotes origin only after its immediate RHS and then affects target precedence."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory", "-e"]
+timeout_seconds = 5
+
+[environment]
+X = "environment"
+
+[expected]
+exit_code = 0
+stdout = "before=environment\nafter=environment override\nenvironment/environment override\n"
+stderr = ""

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-shared-first-parent"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "A shared prerequisite runs once using the first parent context, then each parent keeps its own value."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

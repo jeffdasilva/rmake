@@ -175,20 +175,23 @@ impl Engine {
                 .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
         }
         let mut database = Database::default();
+        database
+            .variables
+            .set_environment_override(options.environment_override);
         let mut inherited_exports = HashSet::new();
         for (name, value) in std::env::vars_os() {
             let name = name.as_bytes();
             if name == b"SHELL" {
                 continue;
             }
-            let origin = if options.environment_override {
-                Origin::EnvironmentOverride
-            } else {
-                Origin::Environment
-            };
             database
                 .variables
-                .define(name, value.as_bytes(), Assignment::Recursive, origin)
+                .define(
+                    name,
+                    value.as_bytes(),
+                    Assignment::Recursive,
+                    Origin::Environment,
+                )
                 .map_err(|e| e.diagnostic())?;
             inherited_exports.insert(name.to_vec());
         }
@@ -213,10 +216,12 @@ impl Engine {
             .variables
             .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
             .map_err(|e| e.diagnostic())?;
-        database
-            .variables
-            .define_literal(b"MAKECMDGOALS", &joined(&options.goals), Origin::Default)
-            .map_err(|e| e.diagnostic())?;
+        if !options.goals.is_empty() {
+            database
+                .variables
+                .define_literal(b"MAKECMDGOALS", &joined(&options.goals), Origin::Default)
+                .map_err(|e| e.diagnostic())?;
+        }
         database
             .variables
             .set_working_directory(cwd.as_os_str().as_bytes());
@@ -477,9 +482,10 @@ impl Engine {
             self.options.goals.clone()
         };
         let mut failed = false;
+        let global_variables = self.database.variables.clone();
         for goal in goals {
             let already_done = self.done.contains_key(&goal);
-            let outcome = self.build(&goal, None, 0);
+            let outcome = self.build(&goal, None, 0, &global_variables);
             failed |= outcome.failed;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
                 break;
@@ -546,7 +552,13 @@ impl Engine {
                 .is_some_and(|rule| rule.dependencies.is_empty())
     }
 
-    fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+    fn build(
+        &mut self,
+        target: &[u8],
+        parent: Option<&[u8]>,
+        depth: usize,
+        inherited: &VariableStore,
+    ) -> Outcome {
         if let Some(outcome) = self.done.get(target) {
             return *outcome;
         }
@@ -592,6 +604,10 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         };
+        // Keep each ancestor layer until lookup: private bindings are skipped
+        // on descent, and a local += must still expand the outer value using
+        // this target's context. Completed prerequisites keep their first owner.
+        let variables = self.database.variables_for_target(target, inherited);
         self.visiting.insert(target.to_vec());
         let canonical = rule.canonical_dependencies();
         let normal: Vec<_> = canonical
@@ -631,7 +647,7 @@ impl Engine {
                 dropped.insert(dependency.clone());
                 continue;
             }
-            let child = self.build(dependency, Some(target), depth + 1);
+            let child = self.build(dependency, Some(target), depth + 1, &variables);
             outcome.ran |= child.ran;
             outcome.failed |= child.failed;
             outcome.fatal |= child.fatal;
@@ -655,7 +671,7 @@ impl Engine {
         }
         if stale && !outcome.failed && !outcome.question_outdated {
             if let Some(recipes) = &rule.recipes {
-                let mut variables = self.database.variables.clone();
+                let mut variables = variables;
                 let normal: Vec<_> = normal
                     .iter()
                     .filter(|name| !dropped.contains(*name))
@@ -889,25 +905,45 @@ impl Engine {
                 .inherited_exports
                 .iter()
                 .chain(self.database.exports.iter())
+                .chain(self.database.unexports.iter())
                 .cloned()
                 .collect();
-            if self.database.export_all
+            let export_all = self.database.export_all
                 || self
                     .database
                     .rules
-                    .contains_key(b".EXPORT_ALL_VARIABLES".as_slice())
-            {
-                for (name, variable) in variables.definitions() {
-                    if name != b"SHELL"
+                    .contains_key(b".EXPORT_ALL_VARIABLES".as_slice());
+            for (name, variable) in variables.definitions() {
+                if variables.export_policy(name).is_some()
+                    || (export_all
+                        && name != b"SHELL"
                         && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                        && automatic_export_name(name)
-                    {
-                        exports.insert(name.to_vec());
-                    }
+                        && automatic_export_name(name))
+                {
+                    exports.insert(name.to_vec());
                 }
             }
             for name in &exports {
-                if self.database.unexports.contains(name) {
+                if !variables.export_policy(name).unwrap_or_else(|| {
+                    if self
+                        .database
+                        .variables
+                        .get(name)
+                        .is_some_and(|variable| variable.is_private())
+                    {
+                        // A suppressed private conditional can mark the
+                        // global binding private. Its export policy is then
+                        // hidden too; export-all still applies independently
+                        // to an unrelated visible target binding.
+                        export_all
+                            && automatic_export_name(name)
+                            && variables.get(name).is_some_and(|variable| {
+                                !matches!(variable.origin(), Origin::Default | Origin::Automatic)
+                            })
+                    } else {
+                        !self.database.unexports.contains(name)
+                    }
+                }) {
                     child.env_remove(os(name));
                     continue;
                 }
@@ -939,10 +975,10 @@ impl Engine {
                     child.env_remove(os(name));
                 }
             }
-            for name in &self.database.unexports {
-                child.env_remove(os(name));
-            }
-            if self.database.unexports.contains(b"MAKEFLAGS".as_slice()) {
+            if !variables
+                .export_policy(b"MAKEFLAGS")
+                .unwrap_or_else(|| !self.database.unexports.contains(b"MAKEFLAGS".as_slice()))
+            {
                 child.env_remove("MAKEFLAGS");
             } else {
                 child.env("MAKEFLAGS", OsString::from_vec(self.options.flags()));

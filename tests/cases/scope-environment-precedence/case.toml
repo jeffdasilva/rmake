@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "scope-environment-precedence"
 requirement = "scope.target-specific"
-candidate = "pending"
+candidate = "required"
 description = "Ordinary target assignments outrank the environment in their subtree and leave siblings unchanged."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

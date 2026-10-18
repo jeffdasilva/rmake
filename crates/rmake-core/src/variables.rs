@@ -64,6 +64,14 @@ pub struct Variable {
     flavor: Flavor,
     origin: Origin,
     definition: Option<Arc<Location>>,
+    scope: ScopeMetadata,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ScopeMetadata {
+    private: bool,
+    export: Option<bool>,
+    append_outer: bool,
 }
 
 impl Variable {
@@ -81,6 +89,14 @@ impl Variable {
 
     pub fn definition(&self) -> Option<&Location> {
         self.definition.as_deref()
+    }
+
+    pub fn is_private(&self) -> bool {
+        self.scope.private
+    }
+
+    pub fn export_policy(&self) -> Option<bool> {
+        self.scope.export
     }
 }
 
@@ -245,8 +261,23 @@ impl std::error::Error for ExpandError {}
 
 #[derive(Clone, Debug, Default)]
 pub struct VariableStore {
-    variables: BTreeMap<Vec<u8>, Variable>,
+    variables: Arc<BTreeMap<Vec<u8>, Variable>>,
+    layers: Vec<VariableLayer>,
     working_directory: Option<Vec<u8>>,
+    environment_override: bool,
+}
+
+#[derive(Clone, Debug)]
+struct VariableLayer {
+    variables: Arc<BTreeMap<Vec<u8>, Variable>>,
+    inherited: bool,
+}
+
+/// Bindings attached to a target or pattern, independent of build rules.
+/// Clones share immutable definitions; modifying a declaration uses copy on write.
+#[derive(Clone, Debug, Default)]
+pub struct TargetScope {
+    variables: Arc<BTreeMap<Vec<u8>, Variable>>,
 }
 
 impl VariableStore {
@@ -261,17 +292,137 @@ impl VariableStore {
     }
 
     pub fn get(&self, name: &[u8]) -> Option<&Variable> {
-        self.variables.get(name)
+        self.lookup_from(name, 0).map(|(_, value)| value)
     }
 
     pub fn remove(&mut self, name: &[u8]) -> Option<Variable> {
-        self.variables.remove(name)
+        Arc::make_mut(&mut self.variables).remove(name)
+    }
+
+    /// Unlike internal removal, an undefine directive observes origin priority
+    /// and promotes an environment binding when -e makes it prevail.
+    pub fn undefine(&mut self, name: &[u8], origin: Origin) -> bool {
+        self.promote_environment(name, origin);
+        if self
+            .get(name)
+            .is_some_and(|variable| variable.origin > origin)
+        {
+            return false;
+        }
+        self.remove(name).is_some()
     }
 
     pub fn definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
-        self.variables
+        std::iter::once((0, &self.variables))
+            .chain(
+                self.layers
+                    .iter()
+                    .enumerate()
+                    .map(|(index, layer)| (index + 1, &layer.variables)),
+            )
+            .flat_map(move |(index, variables)| {
+                variables.iter().filter_map(move |(name, value)| {
+                    self.lookup_from(name, 0)
+                        .is_some_and(|(selected, _)| selected == index)
+                        .then_some((name.as_slice(), value))
+                })
+            })
+    }
+
+    fn lookup_from(&self, name: &[u8], start: usize) -> Option<(usize, &Variable)> {
+        if start == 0
+            && let Some(value) = self.variables.get(name)
+        {
+            return Some((0, value));
+        }
+        self.layers
             .iter()
-            .map(|(name, value)| (name.as_slice(), value))
+            .enumerate()
+            .skip(start.saturating_sub(1))
+            .find_map(|(index, layer)| {
+                let value = layer.variables.get(name)?;
+                (!layer.inherited || !value.scope.private).then_some((index + 1, value))
+            })
+    }
+
+    /// GNU promotes imported environment origins on a conflicting global
+    /// assignment, not when importing the environment or reading a variable.
+    pub fn set_environment_override(&mut self, enabled: bool) {
+        self.environment_override = enabled;
+    }
+
+    fn promote_environment(&mut self, name: &[u8], origin: Origin) {
+        if self.environment_override
+            && origin != Origin::Environment
+            && self
+                .variables
+                .get(name)
+                .is_some_and(|variable| variable.origin == Origin::Environment)
+        {
+            Arc::make_mut(&mut self.variables)
+                .get_mut(name)
+                .unwrap()
+                .origin = Origin::EnvironmentOverride;
+        }
+    }
+
+    /// Qualifiers can change metadata without replacing a binding's value.
+    pub fn set_private(&mut self, name: &[u8], private: bool) {
+        if let Some(variable) = Arc::make_mut(&mut self.variables).get_mut(name) {
+            variable.scope.private = private;
+        }
+    }
+
+    /// Keep explicit global directives coherent with metadata aliased by a
+    /// suppressed target conditional assignment.
+    pub fn set_export_policy(&mut self, name: &[u8], export: Option<bool>) {
+        if let Some(variable) = Arc::make_mut(&mut self.variables).get_mut(name) {
+            variable.scope.export = export;
+        }
+    }
+
+    /// Enter a target with its matching scopes in low-to-high precedence order.
+    /// Ancestor layers stay separate: a private child definition can expose an
+    /// earlier ancestor again when entering the grandchild.
+    pub fn with_target_scopes(&self, scopes: &[&TargetScope]) -> Self {
+        let mut layers = Vec::with_capacity(scopes.len() + self.layers.len() + 1);
+        for scope in scopes.iter().rev() {
+            if !scope.variables.is_empty() {
+                layers.push(VariableLayer {
+                    variables: Arc::clone(&scope.variables),
+                    inherited: false,
+                });
+            }
+        }
+        if !self.variables.is_empty() {
+            layers.push(VariableLayer {
+                variables: Arc::clone(&self.variables),
+                inherited: true,
+            });
+        }
+        layers.extend(self.layers.iter().map(|layer| VariableLayer {
+            variables: Arc::clone(&layer.variables),
+            inherited: true,
+        }));
+        Self {
+            variables: Arc::default(),
+            layers,
+            working_directory: self.working_directory.clone(),
+            environment_override: false,
+        }
+    }
+
+    /// An unspecified local policy inherits the closest visible explicit one,
+    /// even when a different binding supplies the variable's value.
+    pub fn export_policy(&self, name: &[u8]) -> Option<bool> {
+        let mut start = 0;
+        while let Some((index, value)) = self.lookup_from(name, start) {
+            if let Some(policy) = value.scope.export {
+                return Some(policy);
+            }
+            start = index + 1;
+        }
+        None
     }
 
     /// Define an already-expanded name. Conditional assignment skips an existing
@@ -327,11 +478,28 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        if let Some(old) = self.get(name) {
-            if assignment == Assignment::Conditional {
-                return Ok(());
-            }
-            if old.origin > origin {
+        if assignment == Assignment::Conditional && self.get(name).is_some() {
+            return Ok(());
+        }
+        // An empty append does not reach GNU's definition replacement path, so
+        // it neither changes the value nor promotes an environment origin.
+        if assignment == Assignment::Append && value.is_empty() && self.variables.contains_key(name)
+        {
+            return Ok(());
+        }
+        let promote_environment = self.environment_override
+            && self
+                .variables
+                .get(name)
+                .is_some_and(|old| old.origin == Origin::Environment)
+            && origin != Origin::Environment;
+        if let Some(old) = self.variables.get(name) {
+            let old_origin = if promote_environment {
+                Origin::EnvironmentOverride
+            } else {
+                old.origin
+            };
+            if old_origin > origin {
                 // GNU evaluates immediate assignments even when their result is
                 // discarded. An append is immediate only for a simple binding
                 // already present in this store; recursive appends stay deferred.
@@ -341,6 +509,12 @@ impl VariableStore {
                 ) || (assignment == Assignment::Append && old.flavor == Flavor::Simple)
                 {
                     self.expand_with(value, context.reborrow())?;
+                }
+                if promote_environment {
+                    Arc::make_mut(&mut self.variables)
+                        .get_mut(name)
+                        .unwrap()
+                        .origin = Origin::EnvironmentOverride;
                 }
                 return Ok(());
             }
@@ -352,6 +526,7 @@ impl VariableStore {
                 flavor: Flavor::Simple,
                 origin,
                 definition: None,
+                scope: ScopeMetadata::default(),
             },
             Assignment::ImmediateRecursive => {
                 let expanded = self.expand_with(value, context.reborrow())?;
@@ -367,10 +542,11 @@ impl VariableStore {
                     flavor: Flavor::Recursive,
                     origin,
                     definition: None,
+                    scope: ScopeMetadata::default(),
                 }
             }
             Assignment::Append => {
-                if let Some(old) = self.get(name) {
+                if let Some(old) = self.variables.get(name) {
                     let extra = match old.flavor {
                         Flavor::Recursive => value.to_vec(),
                         Flavor::Simple => self.expand_with(value, context.reborrow())?,
@@ -390,6 +566,7 @@ impl VariableStore {
                         flavor: old.flavor,
                         origin,
                         definition: None,
+                        scope: ScopeMetadata::default(),
                     }
                 } else {
                     Variable {
@@ -397,6 +574,7 @@ impl VariableStore {
                         flavor: Flavor::Recursive,
                         origin,
                         definition: None,
+                        scope: ScopeMetadata::default(),
                     }
                 }
             }
@@ -405,13 +583,21 @@ impl VariableStore {
                 flavor: Flavor::Recursive,
                 origin,
                 definition: None,
+                scope: ScopeMetadata::default(),
             },
         };
         if variable.value.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
         variable.definition = definition.cloned().map(Arc::new);
-        self.variables.insert(name.to_vec(), variable);
+        variable.scope = self
+            .variables
+            .get(name)
+            .map_or_else(ScopeMetadata::default, |old| old.scope);
+        if assignment != Assignment::Append {
+            variable.scope.append_outer = false;
+        }
+        Arc::make_mut(&mut self.variables).insert(name.to_vec(), variable);
         Ok(())
     }
 
@@ -427,19 +613,21 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
+        self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());
         }
         if value.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
-        self.variables.insert(
+        Arc::make_mut(&mut self.variables).insert(
             name.to_vec(),
             Variable {
                 value: value.to_vec(),
                 flavor: Flavor::Simple,
                 origin,
                 definition: None,
+                scope: ScopeMetadata::default(),
             },
         );
         Ok(())
@@ -457,6 +645,7 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
+        self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());
         }
@@ -468,13 +657,14 @@ impl VariableStore {
             push(&mut combined, b" ")?;
         }
         push(&mut combined, value)?;
-        self.variables.insert(
+        Arc::make_mut(&mut self.variables).insert(
             name.to_vec(),
             Variable {
                 value: combined,
                 flavor,
                 origin,
                 definition: Some(Arc::new(location.clone())),
+                scope: ScopeMetadata::default(),
             },
         );
         Ok(())
@@ -518,6 +708,83 @@ impl VariableStore {
             context,
             binding_context: None,
         }
+    }
+}
+
+impl TargetScope {
+    /// The read context sees this target's earlier declarations over the current
+    /// global definitions. Ancestors do not exist until dependency traversal.
+    pub fn context(&self, globals: &VariableStore) -> VariableStore {
+        let mut context = globals.with_target_scopes(&[]);
+        context.variables = Arc::clone(&self.variables);
+        context
+    }
+
+    pub fn get(&self, name: &[u8]) -> Option<&Variable> {
+        self.variables.get(name)
+    }
+
+    /// Apply an explicit target declaration. Origin precedence applies inside
+    /// this scope; global override values do not outrank a target definition.
+    #[allow(clippy::too_many_arguments)]
+    pub fn define_with(
+        &mut self,
+        globals: &mut VariableStore,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+        origin: Origin,
+        private: bool,
+        export: Option<bool>,
+        definition: Option<&Location>,
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        if name.is_empty() {
+            return Err(ExpandError::EmptyVariableName);
+        }
+        let mut scope = self.context(globals);
+        if assignment == Assignment::Conditional && scope.get(name).is_some() {
+            // GNU's suppressed conditional returns the existing binding itself.
+            // Qualifiers can consequently mutate even global binding metadata.
+            let variable = if self.variables.contains_key(name) {
+                Arc::make_mut(&mut self.variables).get_mut(name)
+            } else {
+                Arc::make_mut(&mut globals.variables).get_mut(name)
+            };
+            if let Some(variable) = variable {
+                variable.scope.private = private;
+                if export.is_some() {
+                    variable.scope.export = export;
+                }
+            }
+            return Ok(());
+        }
+        let append_outer = assignment == Assignment::Append && !self.variables.contains_key(name);
+        scope.define_with(name, value, assignment, origin, definition, context)?;
+        let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
+        variable.scope.append_outer =
+            assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
+        if let Some(global) = globals.get(name)
+            && matches!(
+                global.origin,
+                Origin::CommandLine | Origin::EnvironmentOverride
+            )
+            && global.origin > variable.origin
+        {
+            // Preserve a snapshot: a later global override must not change the
+            // command-line/environment binding selected for this target.
+            let policy = variable.scope.export;
+            *variable = global.clone();
+            if policy.is_some() {
+                variable.scope.export = policy;
+            }
+        }
+        variable.scope.private = private;
+        if export.is_some() {
+            variable.scope.export = export;
+        }
+        self.variables = scope.variables;
+        Ok(())
     }
 }
 
@@ -593,7 +860,12 @@ impl Expansion<'_, '_> {
     }
 
     fn variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        let Some(variable) = self.lookup(name) else {
+        let binding = self.bindings.iter().rev().find_map(|scope| scope.get(name));
+        let (variable, layer) = if let Some(variable) = binding {
+            (variable, None)
+        } else if let Some((layer, variable)) = self.store.lookup_from(name, 0) {
+            (variable, Some(layer))
+        } else {
             return Ok(Vec::new());
         };
         if variable.flavor == Flavor::Simple {
@@ -607,9 +879,37 @@ impl Expansion<'_, '_> {
             );
         }
         self.active.push(name.to_vec());
-        let result = self.expand_binding(&variable);
+        let result = self.expand_layer(name, &variable, layer, 0);
         self.active.pop();
         result
+    }
+
+    fn expand_layer(
+        &mut self,
+        name: &[u8],
+        variable: &Variable,
+        layer: Option<usize>,
+        depth: usize,
+    ) -> Result<Vec<u8>, ExpandError> {
+        if depth >= MAX_DEPTH {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        if variable.flavor == Flavor::Simple {
+            return Ok(variable.value.clone());
+        }
+        let mut value = Vec::new();
+        if variable.scope.append_outer
+            && let Some(layer) = layer
+            && let Some((outer_layer, outer)) = self.store.lookup_from(name, layer + 1)
+        {
+            let outer = outer.clone();
+            value = self.expand_layer(name, &outer, Some(outer_layer), depth + 1)?;
+            if !value.is_empty() {
+                push(&mut value, b" ")?;
+            }
+        }
+        push(&mut value, &self.expand_binding(variable)?)?;
+        Ok(value)
     }
 
     fn reference(&mut self, body: &[u8], delimiter: u8) -> Result<Vec<u8>, ExpandError> {
@@ -786,6 +1086,16 @@ impl Expansion<'_, '_> {
         let Some(variable) = self.lookup(name).cloned() else {
             return Ok(Vec::new());
         };
+        let layer = if self
+            .bindings
+            .iter()
+            .rev()
+            .any(|scope| scope.contains_key(name))
+        {
+            None
+        } else {
+            self.store.lookup_from(name, 0).map(|(layer, _)| layer)
+        };
         let mut bindings = BTreeMap::new();
         // Inner calls hide missing outer positional parameters as well.
         for scope in &self.bindings {
@@ -810,7 +1120,7 @@ impl Expansion<'_, '_> {
         let result = if variable.flavor == Flavor::Simple {
             Ok(variable.value)
         } else {
-            self.expand_binding(&variable)
+            self.expand_layer(name, &variable, layer, 0)
         };
         self.bindings.pop();
         result.map_err(|error| error.at(variable.definition.as_ref()))
@@ -998,6 +1308,7 @@ fn local(value: Vec<u8>) -> Variable {
         flavor: Flavor::Simple,
         origin: Origin::Automatic,
         definition: None,
+        scope: ScopeMetadata::default(),
     }
 }
 
@@ -2667,6 +2978,644 @@ mod tests {
             .define_literal(b"@", b"ignored", Origin::File)
             .unwrap();
         assert_eq!(store.expand(b"$@").unwrap(), b"output$X");
+    }
+
+    fn scoped_define(
+        scope: &mut TargetScope,
+        globals: &mut VariableStore,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+    ) {
+        scope
+            .define_with(
+                globals,
+                name,
+                value,
+                assignment,
+                Origin::File,
+                false,
+                None,
+                Some(&source(4)),
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn target_context_layers_share_globals_and_isolate_automatic_mutations() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"X", b"global", Assignment::Recursive);
+        let first = globals.with_target_scopes(&[]);
+        let mut second = first.with_target_scopes(&[]);
+        assert!(Arc::ptr_eq(&globals.variables, &second.layers[0].variables));
+        assert_eq!(second.layers.len(), 1);
+        second
+            .define_literal(b"@", b"target", Origin::Automatic)
+            .unwrap();
+        assert!(globals.get(b"@").is_none());
+        assert!(first.get(b"@").is_none());
+        assert_eq!(second.expand(b"$@:$(X)").unwrap(), b"target:global");
+        assert_eq!(second.definitions().count(), 2);
+    }
+
+    #[test]
+    fn target_immediate_values_use_local_parse_context_and_keep_literal_dollars() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"K", b"global", Assignment::Recursive);
+        let mut scope = TargetScope::default();
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"K",
+            b"local",
+            Assignment::Recursive,
+        );
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"$(K)-$$K",
+            Assignment::Simple,
+        );
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"K",
+            b"later",
+            Assignment::Recursive,
+        );
+        let context = globals.with_target_scopes(&[&scope]);
+        assert_eq!(context.expand(b"$(X)|$(K)").unwrap(), b"local-$K|later");
+        assert_eq!(globals.expand(b"$(K)|$(X)").unwrap(), b"global|");
+    }
+
+    #[test]
+    fn scope_selection_precedes_origin_and_private_child_exposes_ancestor_again() {
+        let mut globals = VariableStore::new();
+        globals
+            .define(b"X", b"global", Assignment::Recursive, Origin::Override)
+            .unwrap();
+        let mut parent = TargetScope::default();
+        parent
+            .define_with(
+                &mut globals,
+                b"X",
+                b"parent",
+                Assignment::Recursive,
+                Origin::Override,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut child = TargetScope::default();
+        child
+            .define_with(
+                &mut globals,
+                b"X",
+                b"child",
+                Assignment::Recursive,
+                Origin::File,
+                true,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let parent_context = globals.with_target_scopes(&[&parent]);
+        let child_context = parent_context.with_target_scopes(&[&child]);
+        assert_eq!(
+            child_context.expand(b"$(X) $(origin X)").unwrap(),
+            b"child file"
+        );
+        let grandchild = child_context.with_target_scopes(&[]);
+        assert_eq!(
+            grandchild.expand(b"$(X) $(origin X)").unwrap(),
+            b"parent override"
+        );
+        assert_eq!(
+            grandchild
+                .definitions()
+                .filter(|(name, _)| *name == b"X")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn inherited_append_keeps_each_suffix_and_expands_outer_in_current_context() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"K", b"old", Assignment::Recursive);
+        define(&mut globals, b"X", b"base-$(K)", Assignment::Recursive);
+        let mut parent = TargetScope::default();
+        scoped_define(
+            &mut parent,
+            &mut globals,
+            b"X",
+            b"parent-$(K)",
+            Assignment::Append,
+        );
+        let mut child = TargetScope::default();
+        scoped_define(
+            &mut child,
+            &mut globals,
+            b"X",
+            b"child-$(K)",
+            Assignment::Append,
+        );
+        scoped_define(
+            &mut child,
+            &mut globals,
+            b"K",
+            b"child",
+            Assignment::Recursive,
+        );
+        let context = globals
+            .with_target_scopes(&[&parent])
+            .with_target_scopes(&[&child]);
+        assert_eq!(
+            context.expand(b"$(X)|$(value X)|$(flavor X)").unwrap(),
+            b"base-child parent-child child-child|child-$(K)|recursive"
+        );
+    }
+
+    #[test]
+    fn first_target_append_is_recursive_even_over_global_simple_and_preserves_empty_suffix() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"K", b"old", Assignment::Recursive);
+        define(&mut globals, b"X", b"base-$(K)", Assignment::Simple);
+        let mut parent = TargetScope::default();
+        scoped_define(&mut parent, &mut globals, b"X", b"", Assignment::Append);
+        let mut child = TargetScope::default();
+        scoped_define(
+            &mut child,
+            &mut globals,
+            b"X",
+            b"tail-$(K)",
+            Assignment::Append,
+        );
+        define(&mut globals, b"K", b"new", Assignment::Recursive);
+        let context = globals
+            .with_target_scopes(&[&parent])
+            .with_target_scopes(&[&child]);
+        assert_eq!(
+            context.expand(b"$(X)|$(value X)|$(flavor X)").unwrap(),
+            b"base-old  tail-new|tail-$(K)|recursive"
+        );
+    }
+
+    #[test]
+    fn replacing_local_append_discards_its_outer_value() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"X", b"global", Assignment::Recursive);
+        let mut scope = TargetScope::default();
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"append",
+            Assignment::Append,
+        );
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"replacement",
+            Assignment::Recursive,
+        );
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&scope])
+                .expand(b"$(X)")
+                .unwrap(),
+            b"replacement"
+        );
+    }
+
+    #[test]
+    fn losing_target_assignment_resets_append_metadata_except_for_conditional() {
+        for assignment in [
+            Assignment::Recursive,
+            Assignment::Simple,
+            Assignment::Conditional,
+        ] {
+            let mut globals = VariableStore::new();
+            define(&mut globals, b"X", b"global", Assignment::Recursive);
+            let mut scope = TargetScope::default();
+            scope
+                .define_with(
+                    &mut globals,
+                    b"X",
+                    b"suffix",
+                    Assignment::Append,
+                    Origin::Override,
+                    false,
+                    None,
+                    None,
+                    ExpansionContext::pure(),
+                )
+                .unwrap();
+            scoped_define(&mut scope, &mut globals, b"X", b"ignored", assignment);
+            let expected = if assignment == Assignment::Conditional {
+                b"global suffix|suffix".as_slice()
+            } else {
+                b"suffix|suffix".as_slice()
+            };
+            assert_eq!(
+                globals
+                    .with_target_scopes(&[&scope])
+                    .expand(b"$(X)|$(value X)")
+                    .unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn call_and_function_local_bindings_work_with_target_appends() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"X", b"global-$(1)", Assignment::Recursive);
+        let mut scope = TargetScope::default();
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"local-$(1)",
+            Assignment::Append,
+        );
+        let context = globals.with_target_scopes(&[&scope]);
+        assert_eq!(
+            context
+                .expand(b"$(call X,arg)|$(foreach X,a b,$(X))")
+                .unwrap(),
+            b"global-arg local-arg|a b"
+        );
+    }
+
+    #[test]
+    fn target_append_detects_recursive_reference_and_preserves_provenance() {
+        let mut globals = VariableStore::new();
+        globals
+            .define_at(
+                b"X",
+                b"$(X)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(2),
+            )
+            .unwrap();
+        let mut scope = TargetScope::default();
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"suffix",
+            Assignment::Append,
+        );
+        let error = globals
+            .with_target_scopes(&[&scope])
+            .expand(b"$(X)")
+            .unwrap_err();
+        assert!(
+            error
+                .diagnostic()
+                .to_string()
+                .contains("Recursive variable 'X'")
+        );
+        assert_eq!(error.location(), Some(&source(4)));
+    }
+
+    #[test]
+    fn target_command_line_snapshot_is_distinct_from_suppressed_conditional() {
+        let mut globals = VariableStore::new();
+        globals
+            .define(b"X", b"cli", Assignment::Simple, Origin::CommandLine)
+            .unwrap();
+        let mut normal = TargetScope::default();
+        scoped_define(
+            &mut normal,
+            &mut globals,
+            b"X",
+            b"ignored",
+            Assignment::Recursive,
+        );
+        let mut conditional = TargetScope::default();
+        scoped_define(
+            &mut conditional,
+            &mut globals,
+            b"X",
+            b"ignored",
+            Assignment::Conditional,
+        );
+        globals
+            .define(b"X", b"later", Assignment::Recursive, Origin::Override)
+            .unwrap();
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&normal])
+                .expand(b"$(X) $(origin X) $(flavor X)")
+                .unwrap(),
+            b"cli command line simple"
+        );
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&conditional])
+                .expand(b"$(X)")
+                .unwrap(),
+            b"later"
+        );
+        assert!(conditional.get(b"X").is_none());
+    }
+
+    #[test]
+    fn target_first_append_does_not_evaluate_losing_suffix_for_simple_cli_binding() {
+        let mut globals = VariableStore::new();
+        globals
+            .define(b"X", b"cli", Assignment::Simple, Origin::CommandLine)
+            .unwrap();
+        let mut scope = TargetScope::default();
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"$(error unused)",
+            Assignment::Append,
+        );
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&scope])
+                .expand(b"$(X)")
+                .unwrap(),
+            b"cli"
+        );
+    }
+
+    #[test]
+    fn suppressed_target_conditional_can_mark_global_private_without_copying_it() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"X", b"global", Assignment::Recursive);
+        let mut scope = TargetScope::default();
+        scope
+            .define_with(
+                &mut globals,
+                b"X",
+                b"ignored",
+                Assignment::Conditional,
+                Origin::File,
+                true,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        assert!(scope.get(b"X").is_none());
+        assert!(globals.get(b"X").unwrap().is_private());
+        assert_eq!(globals.expand(b"$(X)").unwrap(), b"global");
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&scope])
+                .expand(b"$(X)")
+                .unwrap(),
+            b""
+        );
+        define(&mut globals, b"X", b"later", Assignment::Recursive);
+        assert!(globals.get(b"X").unwrap().is_private());
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"created",
+            Assignment::Conditional,
+        );
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&scope])
+                .expand(b"$(X)")
+                .unwrap(),
+            b"created"
+        );
+    }
+
+    #[test]
+    fn unqualified_losing_target_assignment_resets_privacy_but_keeps_export_policy() {
+        let mut globals = VariableStore::new();
+        let mut scope = TargetScope::default();
+        scope
+            .define_with(
+                &mut globals,
+                b"X",
+                b"first",
+                Assignment::Recursive,
+                Origin::Override,
+                true,
+                Some(false),
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        scoped_define(
+            &mut scope,
+            &mut globals,
+            b"X",
+            b"ignored",
+            Assignment::Conditional,
+        );
+        let child = globals
+            .with_target_scopes(&[&scope])
+            .with_target_scopes(&[]);
+        assert_eq!(child.expand(b"$(X)").unwrap(), b"first");
+        assert_eq!(child.export_policy(b"X"), Some(false));
+    }
+
+    #[test]
+    fn scoped_export_policies_inherit_independently_from_selected_values() {
+        let mut globals = VariableStore::new();
+        let mut parent = TargetScope::default();
+        parent
+            .define_with(
+                &mut globals,
+                b"X",
+                b"parent",
+                Assignment::Recursive,
+                Origin::File,
+                false,
+                Some(false),
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut child = TargetScope::default();
+        scoped_define(
+            &mut child,
+            &mut globals,
+            b"X",
+            b"child",
+            Assignment::Recursive,
+        );
+        let context = globals
+            .with_target_scopes(&[&parent])
+            .with_target_scopes(&[&child]);
+        assert_eq!(context.expand(b"$(X)").unwrap(), b"child");
+        assert_eq!(context.export_policy(b"X"), Some(false));
+        child
+            .define_with(
+                &mut globals,
+                b"X",
+                b"private",
+                Assignment::Recursive,
+                Origin::File,
+                true,
+                Some(true),
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let context = globals
+            .with_target_scopes(&[&parent])
+            .with_target_scopes(&[&child]);
+        assert_eq!(context.export_policy(b"X"), Some(true));
+        assert_eq!(
+            context.with_target_scopes(&[]).export_policy(b"X"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn environment_override_promotes_only_on_global_collision_after_rhs_evaluation() {
+        let mut globals = VariableStore::new();
+        globals.set_environment_override(true);
+        globals
+            .define(b"X", b"env", Assignment::Recursive, Origin::Environment)
+            .unwrap();
+        let mut early = TargetScope::default();
+        scoped_define(
+            &mut early,
+            &mut globals,
+            b"X",
+            b"local",
+            Assignment::Recursive,
+        );
+        define(&mut globals, b"X", b"unused", Assignment::Conditional);
+        assert_eq!(globals.get(b"X").unwrap().origin(), Origin::Environment);
+        let mut outputs = Vec::new();
+        globals
+            .define_with(
+                b"X",
+                b"$(info $(origin X))ignored",
+                Assignment::Simple,
+                Origin::File,
+                None,
+                ExpansionContext::new(None, &mut |output| {
+                    if let Output::Info(bytes) = output {
+                        outputs.push(bytes.to_vec());
+                    }
+                }),
+            )
+            .unwrap();
+        assert_eq!(outputs, vec![b"environment".to_vec()]);
+        assert_eq!(
+            globals.get(b"X").unwrap().origin(),
+            Origin::EnvironmentOverride
+        );
+        let mut late = TargetScope::default();
+        scoped_define(
+            &mut late,
+            &mut globals,
+            b"X",
+            b"ignored",
+            Assignment::Recursive,
+        );
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&early])
+                .expand(b"$(X) $(origin X)")
+                .unwrap(),
+            b"local file"
+        );
+        assert_eq!(
+            globals
+                .with_target_scopes(&[&late])
+                .expand(b"$(X) $(origin X)")
+                .unwrap(),
+            b"env environment override"
+        );
+    }
+
+    #[test]
+    fn literal_initialization_and_metadata_append_promote_environment_collisions() {
+        for origin in [Origin::Default, Origin::File] {
+            let mut globals = VariableStore::new();
+            globals.set_environment_override(true);
+            globals
+                .define(b"X", b"env$Y", Assignment::Recursive, Origin::Environment)
+                .unwrap();
+            globals.define_literal(b"X", b"default", origin).unwrap();
+            let variable = globals.get(b"X").unwrap();
+            assert_eq!(variable.raw_value(), b"env$Y");
+            assert_eq!(variable.origin(), Origin::EnvironmentOverride);
+            assert_eq!(variable.flavor(), Flavor::Recursive);
+        }
+        let mut globals = VariableStore::new();
+        globals.set_environment_override(true);
+        globals
+            .define(b"X", b"env$Y", Assignment::Recursive, Origin::Environment)
+            .unwrap();
+        globals
+            .append_literal_at(b"X", b"file", Origin::File, &source(1))
+            .unwrap();
+        assert_eq!(globals.get(b"X").unwrap().raw_value(), b"env$Y");
+        assert_eq!(
+            globals.get(b"X").unwrap().origin(),
+            Origin::EnvironmentOverride
+        );
+        assert_eq!(globals.get(b"X").unwrap().definition(), None);
+    }
+
+    #[test]
+    fn environment_origin_survives_empty_append_but_undefine_promotes_it() {
+        let mut globals = VariableStore::new();
+        globals.set_environment_override(true);
+        globals
+            .define(b"X", b"env", Assignment::Recursive, Origin::Environment)
+            .unwrap();
+        define(&mut globals, b"X", b"", Assignment::Append);
+        assert_eq!(globals.get(b"X").unwrap().origin(), Origin::Environment);
+        assert!(!globals.undefine(b"X", Origin::File));
+        assert_eq!(
+            globals.get(b"X").unwrap().origin(),
+            Origin::EnvironmentOverride
+        );
+        assert_eq!(globals.get(b"X").unwrap().raw_value(), b"env");
+        assert!(globals.undefine(b"X", Origin::Override));
+        assert!(globals.get(b"X").is_none());
+    }
+
+    #[test]
+    fn global_export_directive_replaces_policy_aliased_by_target_conditional() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"X", b"global", Assignment::Recursive);
+        let mut scope = TargetScope::default();
+        scope
+            .define_with(
+                &mut globals,
+                b"X",
+                b"ignored",
+                Assignment::Conditional,
+                Origin::File,
+                false,
+                Some(true),
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        assert_eq!(globals.export_policy(b"X"), Some(true));
+        globals.set_export_policy(b"X", Some(false));
+        assert_eq!(
+            globals.with_target_scopes(&[&scope]).export_policy(b"X"),
+            Some(false)
+        );
     }
 
     #[test]

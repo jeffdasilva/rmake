@@ -1,0 +1,23 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "startup-environment-override-explicit-goal"
+requirement = "variables.startup-environment"
+candidate = "required"
+description = "Environment override startup bindings retain GNU origin and flavor with an explicit goal."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-erR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[environment]
+CURDIR = "import-CURDIR"
+MAKEFILE_LIST = "import-MAKEFILE_LIST"
+SUFFIXES = "import-SUFFIXES"
+MAKE_VERSION = "import-MAKE_VERSION"
+MAKE = "import-MAKE"
+MAKE_COMMAND = "import-MAKE_COMMAND"
+MAKECMDGOALS = "import-MAKECMDGOALS"
+
+[expected]
+exit_code = 0
+stdout = "CURDIR=<import-CURDIR>/environment override/recursive\nMAKEFILE_LIST=<import-MAKEFILE_LIST>/environment override/recursive\nSUFFIXES=<import-SUFFIXES>/environment override/recursive\nMAKE_VERSION=<import-MAKE_VERSION>/environment override/recursive\nMAKE=<import-MAKE>/environment override/recursive\nMAKE_COMMAND=<import-MAKE_COMMAND>/environment override/recursive\nMAKECMDGOALS=<import-MAKECMDGOALS>/environment override/recursive\n"
+stderr = ""

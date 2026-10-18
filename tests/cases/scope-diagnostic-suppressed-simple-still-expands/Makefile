@@ -1,0 +1,6 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+all: X := $(info assignment)discarded
+all:
+	@printf '%s\n' '$(X)'

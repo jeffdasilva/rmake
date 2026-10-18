@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "scope-pattern-append-simple-initializes-each-target"
+requirement = "scope.pattern-specific"
+candidate = "pending"
+description = "An append after a simple pattern assignment initializes once per matching target in final global context."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "append=:new\nred.task=base-old tail-new/simple/<base-old tail-new>\nappend=:new\nblue.task=base-old tail-new/simple/<base-old tail-new>\n"
+stderr = ""

@@ -32,6 +32,28 @@ def observation(program):
 
 
 class GenerationTests(unittest.TestCase):
+    def test_scope_programs_preserve_graphs_and_replay_scope_declarations(self):
+        modifiers = set()
+        operators = set()
+        for index in range(30):
+            plain = graphs.generate_program(44109, index, 8)
+            scoped = graphs.generate_program(44109, index, 8, scopes=True)
+            self.assertEqual(plain.declarations, scoped.declarations)
+            self.assertEqual(plain.goals, scoped.goals)
+            self.assertNotEqual(plain.case_id, scoped.case_id)
+            self.assertEqual(scoped, graphs.generate_program(44109, index, 8, scopes=True))
+            self.assertTrue(scoped.metadata()["target_scopes"])
+            self.assertEqual(scoped.metadata()["scope_declarations"], list(scoped.scope_declarations))
+            for line in scoped.scope_declarations:
+                self.assertIn(line.encode() + b"\n", scoped.makefile)
+                modifiers.update(word for word in line.split() if word in
+                                 ("private", "override", "export", "unexport"))
+                operators.update(word for word in line.split() if word in
+                                 ("=", ":=", "::=", ":::=", "+=", "?="))
+            self.assertIn("--scopes", graphs.reproduction(scoped))
+        self.assertEqual(modifiers, {"private", "override", "export", "unexport"})
+        self.assertEqual(operators, {"=", ":=", "::=", ":::=", "+=", "?="})
+
     def test_same_seed_index_and_size_produce_identical_program(self):
         left = graphs.generate_program(44109, 7, 8)
         right = graphs.generate_program(44109, 7, 8)
@@ -121,6 +143,19 @@ class GenerationTests(unittest.TestCase):
 
 
 class ExpectationTests(unittest.TestCase):
+    def test_scope_anchors_reject_missing_duplicate_and_malformed_observations(self):
+        program = graphs.generate_program(44109, 5, 8, scopes=True)
+        observed = observation(program)
+        rows = [f"scope|{name}|value|raw|file|recursive|other|export|export".encode()
+                for name in program.node_names]
+        observed.stdout = observed.stdout.replace(graphs.FINISH,
+                                                  b"\n".join(rows + [graphs.FINISH]))
+        self.assertEqual(graphs.program_errors(program, observed), [])
+        for wrong in (rows[1:], rows + rows[:1], [b"scope|n0"] + rows[1:]):
+            mutant = copy.deepcopy(observed)
+            mutant.stdout = mutant.stdout.replace(b"\n".join(rows), b"\n".join(wrong))
+            self.assertTrue(graphs.program_errors(program, mutant))
+
     def setUp(self):
         self.program = graphs.generate_program(44109, 5, 8)
         self.reference = observation(self.program)
