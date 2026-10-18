@@ -1,8 +1,8 @@
 id = "empty-shell-expanded-newline-invalid-assignment-first-command"
 requirement = "process.empty-shell"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
-description = "Known in-scope ordinary expanded-recipe newline splitting gap; preserved as an observed mismatch, not a compatibility exception."
+description = "An invalid environment assignment on the first expanded recipe line fails before later expanded commands run."
 provenance = "Original independently asserted literal-LF recipe regression, verified with pinned GNU Make 4.4.1 black-box execution; no upstream source or tests copied."
 
 [expected]

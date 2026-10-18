@@ -1,6 +1,6 @@
 id = "function-file-write-append"
 requirement = "functions.file"
-candidate = "pending"
+candidate = "required"
 description = "function file write append"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

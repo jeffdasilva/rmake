@@ -50,7 +50,9 @@ fn main() -> ExitCode {
         println!("  -t / -e    Touch targets / let environment override file variables");
         println!("  -rR / -j1  Disable built-ins / execute serially");
         println!("\nDevelopment build: explicit serial rules and core variables only.");
-        println!("Includes, implicit rules, effects and parallel jobs are not implemented.");
+        println!(
+            "Includes, implicit rules, shell/eval functions and parallel jobs are not implemented."
+        );
         return ExitCode::SUCCESS;
     }
     match engine::Engine::new(options, program.clone(), &invocation) {

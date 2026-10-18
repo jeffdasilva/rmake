@@ -1,0 +1,2 @@
+@printf 'first\n'
+printf 'second\n'

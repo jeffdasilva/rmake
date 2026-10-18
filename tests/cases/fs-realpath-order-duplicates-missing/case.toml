@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-realpath-order-duplicates-missing"
+requirement = "functions.paths"
+candidate = "required"
+description = "Realpath preserves argument order and duplicates while dropping paths that cannot be resolved."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c622061206220613e0a"
+stderr_hex = ""

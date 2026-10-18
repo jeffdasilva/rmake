@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-nul-later-info-effect-order"
+requirement = "functions.file"
+candidate = "required"
+description = "nul later info effect order: preserve exact GNU Make byte and effect behavior."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61667465722d6e756c0a3c66697273740a"
+stderr_hex = ""

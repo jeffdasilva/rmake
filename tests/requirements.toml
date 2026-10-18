@@ -87,10 +87,11 @@ cases = ["function-eval-variable", "function-eval-rule", "function-eval-double-e
 id = "functions.file"
 title = "File read and write effects"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 59
 reference = "https://www.gnu.org/software/make/manual/html_node/File-Function.html"
-fixture_count = 4
-cases = ["function-file-write-append", "function-file-read", "function-file-read-missing", "function-file-no-text"]
+fixture_count = 59
+cases = ["fs-file-append-directory-error", "fs-file-append-no-text-and-empty", "fs-file-append-through-symlink", "fs-file-call-no-arguments", "fs-file-call-read-extra-argument", "fs-file-call-surplus-eager", "fs-file-dev-full-append-4095", "fs-file-dev-full-append-4096", "fs-file-dev-full-omitted-text", "fs-file-dev-full-write-4095", "fs-file-dev-full-write-4096", "fs-file-dry-run-effect", "fs-file-empty-operation", "fs-file-expansion-completes-before-launch", "fs-file-invalid-operation", "fs-file-invalid-operation-expands-text-first", "fs-file-invalid-operation-text-error-first", "fs-file-missing-name", "fs-file-name-expanded-comma", "fs-file-name-first-whitespace-token", "fs-file-nul-inner-expansion-keeps-outer-suffix", "fs-file-nul-later-effects-still-run", "fs-file-nul-later-info-effect-order", "fs-file-operation-and-text-effect-order", "fs-file-ordinary-expanded-backslash-newline", "fs-file-ordinary-expanded-prefix-echo", "fs-file-ordinary-quoted-read", "fs-file-pattern-deferred-simple-append", "fs-file-query-effect", "fs-file-raw-path-diagnostic", "fs-file-raw-path-roundtrip", "fs-file-read-cr-without-lf", "fs-file-read-crcrlf", "fs-file-read-directory", "fs-file-read-empty-missing", "fs-file-read-missing-name", "fs-file-read-raw-byte-nul", "fs-file-read-recipe-error", "fs-file-read-removes-one-final-lf", "fs-file-read-second-argument", "fs-file-read-strips-final-crlf", "fs-file-shortcircuit-lazy", "fs-file-target-recursive-context", "fs-file-target-simple-timing", "fs-file-touch-skips-effect", "fs-file-vertical-tab-filename-tokenization", "fs-file-write-append-truncate", "fs-file-write-directory-error", "fs-file-write-empty-vs-no-text", "fs-file-write-literal-dollar-commas", "fs-file-write-missing-parent-error", "fs-file-write-recipe-error", "fs-file-write-text-ending-newline", "fs-file-write-through-dangling-symlink", "fs-file-write-through-symlink", "function-file-no-text", "function-file-read", "function-file-read-missing", "function-file-write-append"]
 
 [[requirements]]
 id = "functions.filesystem"
@@ -106,10 +107,10 @@ id = "functions.paths"
 title = "Filename transformations"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 9
+candidate_required = 20
 reference = "https://www.gnu.org/software/make/manual/html_node/File-Name-Functions.html"
-fixture_count = 11
-cases = ["function-addprefix", "function-addsuffix", "function-dir", "function-notdir", "function-basename", "function-suffix", "function-join", "function-join-extra-right", "function-abspath", "function-realpath-existing", "function-realpath-missing"]
+fixture_count = 20
+cases = ["fs-realpath-call-extra-eager", "fs-realpath-call-no-arguments", "fs-realpath-comma-filename", "fs-realpath-dot-and-trailing-slash", "fs-realpath-missing-component-dotdot", "fs-realpath-observes-prior-write", "fs-realpath-order-duplicates-missing", "fs-realpath-symlink-chain", "fs-realpath-vertical-tab-word-separator", "function-abspath", "function-addprefix", "function-addsuffix", "function-basename", "function-dir", "function-join", "function-join-extra-right", "function-notdir", "function-realpath-existing", "function-realpath-missing", "function-suffix"]
 
 [[requirements]]
 id = "functions.shell"
@@ -137,8 +138,8 @@ status = "fixture-ready"
 candidate_status = "partial"
 candidate_required = 7
 reference = "https://www.gnu.org/software/make/manual/html_node/Text-Functions.html"
-fixture_count = 7
-cases = ["function-word", "function-word-outside", "function-wordlist", "function-wordlist-reversed", "function-words", "function-firstword", "function-lastword"]
+fixture_count = 8
+cases = ["function-firstword", "function-lastword", "function-word", "function-word-outside", "function-wordlist", "function-wordlist-reversed", "function-words", "function-words-vertical-tab-separator"]
 
 [[requirements]]
 id = "includes.read"
@@ -291,8 +292,8 @@ status = "fixture-ready"
 candidate_status = "partial"
 candidate_required = 6
 reference = "https://www.gnu.org/software/make/manual/html_node/Parsing-Makefiles.html"
-fixture_count = 6
-cases = ["syntax-line-continuation", "syntax-comment-removal", "syntax-escaped-hash", "syntax-recipe-prefix", "syntax-inline-recipe", "syntax-dollar-escape"]
+fixture_count = 7
+cases = ["syntax-comment-removal", "syntax-dollar-escape", "syntax-escaped-hash", "syntax-inline-recipe", "syntax-line-continuation", "syntax-reader-literal-nul-skips-physical-tail", "syntax-recipe-prefix"]
 
 [[requirements]]
 id = "variables.environment"
@@ -401,8 +402,8 @@ status = "fixture-ready"
 candidate_status = "partial"
 candidate_required = 63
 reference = "https://www.gnu.org/software/make/manual/html_node/One-Shell.html"
-fixture_count = 65
-cases = ["oneshell-comment-first-failure-location", "oneshell-config-expanded-under-dry", "oneshell-config-expanded-under-query", "oneshell-continuation-preserves-modifier", "oneshell-custom-shell-final-empty-line", "oneshell-custom-shell-flags-argv", "oneshell-dry-query-query-wins", "oneshell-dry-run-first-force", "oneshell-dry-run-internal-plus", "oneshell-dry-run-unforced", "oneshell-dry-touch-no-file", "oneshell-empty-first-line-echo", "oneshell-enabled-after-recipe", "oneshell-errexit-first-location", "oneshell-errexit-ignore-option", "oneshell-first-ignore-applies-whole", "oneshell-first-silent-applies-whole", "oneshell-heredoc-internal-modifiers", "oneshell-intermediate-failure-default", "oneshell-internal-ignore-not-global", "oneshell-internal-silent-not-global", "oneshell-prefix-remembered-at-parse", "oneshell-query-first-force", "oneshell-query-indirect-make-not-force", "oneshell-query-internal-make-reference", "oneshell-query-touch-creates-file", "oneshell-query-unforced", "oneshell-quoted-direct-tail-replay", "oneshell-quoted-internal-modifiers", "oneshell-shared-state-file", "oneshell-shellflags-expanded-under-dry", "oneshell-shellflags-expanded-under-query", "oneshell-touch-first-force", "oneshell-touch-internal-plus", "oneshell-touch-skips-body-expansion", "ordinary-config-expanded-under-dry", "ordinary-config-expanded-under-query", "ordinary-dry-touch-configuration-skipped", "ordinary-query-touch-configuration-skipped", "ordinary-shellflags-expanded-under-dry", "ordinary-shellflags-expanded-under-query", "oneshell-custom-shell-quoted-flags", "oneshell-modifier-only-first-plus-dry-touch", "oneshell-modifier-only-first-plus-touch", "oneshell-modifier-only-internal-plus-dry-touch", "oneshell-modifier-only-internal-plus-touch", "oneshell-modifier-only-plain-dry-touch", "oneshell-modifier-only-plain-touch", "oneshell-expanded-empty-configuration", "oneshell-expanded-modifier-configuration", "oneshell-expanded-space-configuration", "ordinary-expanded-empty-configuration", "ordinary-expanded-modifier-configuration", "ordinary-expanded-space-configuration", "oneshell-query-exit-one-delete-on-error", "oneshell-query-forced-exit-one", "oneshell-query-forced-exit-two", "oneshell-query-ignore-option-exit-one", "oneshell-query-ignore-option-exit-two", "oneshell-query-ignored-prefix-exit-one", "oneshell-query-keep-going-exit-one", "oneshell-query-keep-going-exit-two", "ordinary-modifier-only-internal-plus-touch", "ordinary-modifier-only-plain-touch", "ordinary-query-forced-exit-one"]
+fixture_count = 66
+cases = ["fs-file-oneshell-quoted-read", "oneshell-comment-first-failure-location", "oneshell-config-expanded-under-dry", "oneshell-config-expanded-under-query", "oneshell-continuation-preserves-modifier", "oneshell-custom-shell-final-empty-line", "oneshell-custom-shell-flags-argv", "oneshell-custom-shell-quoted-flags", "oneshell-dry-query-query-wins", "oneshell-dry-run-first-force", "oneshell-dry-run-internal-plus", "oneshell-dry-run-unforced", "oneshell-dry-touch-no-file", "oneshell-empty-first-line-echo", "oneshell-enabled-after-recipe", "oneshell-errexit-first-location", "oneshell-errexit-ignore-option", "oneshell-expanded-empty-configuration", "oneshell-expanded-modifier-configuration", "oneshell-expanded-space-configuration", "oneshell-first-ignore-applies-whole", "oneshell-first-silent-applies-whole", "oneshell-heredoc-internal-modifiers", "oneshell-intermediate-failure-default", "oneshell-internal-ignore-not-global", "oneshell-internal-silent-not-global", "oneshell-modifier-only-first-plus-dry-touch", "oneshell-modifier-only-first-plus-touch", "oneshell-modifier-only-internal-plus-dry-touch", "oneshell-modifier-only-internal-plus-touch", "oneshell-modifier-only-plain-dry-touch", "oneshell-modifier-only-plain-touch", "oneshell-prefix-remembered-at-parse", "oneshell-query-exit-one-delete-on-error", "oneshell-query-first-force", "oneshell-query-forced-exit-one", "oneshell-query-forced-exit-two", "oneshell-query-ignore-option-exit-one", "oneshell-query-ignore-option-exit-two", "oneshell-query-ignored-prefix-exit-one", "oneshell-query-indirect-make-not-force", "oneshell-query-internal-make-reference", "oneshell-query-keep-going-exit-one", "oneshell-query-keep-going-exit-two", "oneshell-query-touch-creates-file", "oneshell-query-unforced", "oneshell-quoted-direct-tail-replay", "oneshell-quoted-internal-modifiers", "oneshell-shared-state-file", "oneshell-shellflags-expanded-under-dry", "oneshell-shellflags-expanded-under-query", "oneshell-touch-first-force", "oneshell-touch-internal-plus", "oneshell-touch-skips-body-expansion", "ordinary-config-expanded-under-dry", "ordinary-config-expanded-under-query", "ordinary-dry-touch-configuration-skipped", "ordinary-expanded-empty-configuration", "ordinary-expanded-modifier-configuration", "ordinary-expanded-space-configuration", "ordinary-modifier-only-internal-plus-touch", "ordinary-modifier-only-plain-touch", "ordinary-query-forced-exit-one", "ordinary-query-touch-configuration-skipped", "ordinary-shellflags-expanded-under-dry", "ordinary-shellflags-expanded-under-query"]
 
 [[requirements]]
 id = "serial.forced-touch"
@@ -469,7 +470,7 @@ id = "process.empty-shell"
 title = "Empty and undefined SHELL execution and literal recipe programs"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 35
+candidate_required = 37
 reference = "https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html"
 fixture_count = 37
 cases = ["empty-shell-colon-skips-export-preparation", "empty-shell-colon-trailing-space-not-noop", "empty-shell-dry-skips-launch", "empty-shell-explicit-flags-program-argv", "empty-shell-explicit-flags-shell-executes", "empty-shell-forced-n-launches", "empty-shell-forced-q-launches", "empty-shell-forced-t-launches", "empty-shell-ignored-failure-continues", "empty-shell-keep-going-later-goal", "empty-shell-oneshell-dry-keeps-internal-prefixes", "empty-shell-oneshell-explicit-flags-still-empty", "empty-shell-oneshell-recursive-empty", "empty-shell-oneshell-undefined", "empty-shell-oneshell-undefined-flags", "empty-shell-query-skips-launch", "empty-shell-recursive-empty-default-flags", "empty-shell-touch-skips-launch", "empty-shell-undefined-default-flags", "empty-shell-undefined-flags-whole-missing-program", "empty-shell-whitespace-only-shell-literal-program", "empty-shell-whole-backslash-program", "empty-shell-whole-byte-program", "empty-shell-whole-quotes-program", "empty-shell-whole-space-program", "empty-shell-assignment-digit-leading-literal-file", "empty-shell-assignment-direct-failure-keeps-created-target", "empty-shell-assignment-export-prepared-before-no-output", "empty-shell-assignment-invalid-missing-shell-diagnostic", "empty-shell-assignment-metacharacters-stay-literal", "empty-shell-assignment-oneshell-retains-empty-program", "empty-shell-assignment-shell-failure-deletes-created-target", "empty-shell-assignment-slash-prefix-literal-file", "empty-shell-assignment-valid-name-skips-same-file", "empty-shell-assignment-whole-multiple-values-skips-same-file", "empty-shell-expanded-newline-invalid-assignment-first-command", "empty-shell-expanded-newline-valid-assignment-then-command"]

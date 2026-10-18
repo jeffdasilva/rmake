@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-realpath-symlink-chain"
+requirement = "functions.paths"
+candidate = "required"
+description = "Realpath follows valid symlink chains and omits dangling links."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c64617461206461746120646174613e0a"
+stderr_hex = ""

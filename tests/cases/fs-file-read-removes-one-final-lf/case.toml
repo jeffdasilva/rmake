@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-file-read-removes-one-final-lf"
+requirement = "functions.file"
+candidate = "required"
+description = "File reads remove exactly one final newline while retaining earlier newlines."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6e653d3c616c7068613e2074776f3d3c626574610a3e206e6f6e653d3c67616d6d613e0a"
+stderr_hex = ""

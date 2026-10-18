@@ -1,0 +1,14 @@
+# Copyright 2026 Jeff DaSilva
+# SPDX-License-Identifier: GPL-3.0-or-later
+id = "fs-realpath-call-extra-eager"
+requirement = "functions.paths"
+candidate = "required"
+description = "GNU-compatible realpath call extra eager behavior, including exact output and resulting filesystem state."
+provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "65787472610a3c696e7075743e0a"
+stderr_hex = ""

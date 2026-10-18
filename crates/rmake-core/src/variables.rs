@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
-//! Byte-preserving variables and expansion without filesystem or process effects.
+//! Byte-preserving variables and expansion with explicit effect receivers.
 //!
 //! `define` receives an already-expanded variable name and an RHS whose assignment
 //! syntax whitespace has been removed by the reader. Expansion never interprets
-//! UTF-8. Output effects use an explicit callback; filesystem-dependent functions
-//! remain explicit errors. An unknown variable still expands to empty.
+//! UTF-8. Output and filesystem effects use explicit callbacks; core evaluation
+//! performs no operating-system calls. An unknown variable still expands to empty.
 
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use crate::diagnostic::{Diagnostic, ExpansionContext, Location, Output};
+use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, Location, Output};
 
 const MAX_DEPTH: usize = 128;
-pub(crate) const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Assignment {
@@ -167,6 +167,7 @@ pub enum ExpandError {
         error: Box<ExpandError>,
     },
     Unsupported(Vec<u8>),
+    FileError(Vec<u8>),
     UserError(Vec<u8>),
     /// A user error inside a recursive binding keeps the first entered binding
     /// context. An explicit absent location must survive diagnostic unwinding.
@@ -242,9 +243,9 @@ impl ExpandError {
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
             Self::Located { error, .. } => error.diagnostic(),
-            Self::UserError(message) | Self::ContextualUserError { message, .. } => {
-                message.clone().into()
-            }
+            Self::FileError(message)
+            | Self::UserError(message)
+            | Self::ContextualUserError { message, .. } => message.clone().into(),
             Self::RecursiveVariable(name) => [
                 b"Recursive variable '".as_slice(),
                 name,
@@ -286,7 +287,9 @@ impl fmt::Display for ExpandError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Located { error, .. } => error.fmt(output),
-            Self::UserError(message) | Self::ContextualUserError { message, .. } => {
+            Self::FileError(message)
+            | Self::UserError(message)
+            | Self::ContextualUserError { message, .. } => {
                 output.write_str(&String::from_utf8_lossy(message))
             }
             Self::Unsupported(name) => write!(
@@ -1102,11 +1105,20 @@ impl Expansion<'_, '_> {
     }
 
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        // GNU consumes a C string at each expansion boundary. A NUL returned
+        // by a file read does not skip later effects in this same expansion;
+        // truncate only after evaluating all remaining source text.
+        let input = input.split(|byte| *byte == 0).next().unwrap_or_default();
         if self.depth >= MAX_DEPTH || input.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
         self.depth += 1;
-        let result = self.expand_inner(input);
+        let result = self.expand_inner(input).map(|mut result| {
+            if let Some(nul) = result.iter().position(|byte| *byte == 0) {
+                result.truncate(nul);
+            }
+            result
+        });
         self.depth -= 1;
         result
     }
@@ -1337,7 +1349,7 @@ impl Expansion<'_, '_> {
                 result
             }
             b"call" => self.call(args),
-            b"shell" | b"eval" | b"file" | b"wildcard" | b"realpath" | b"guile" => {
+            b"shell" | b"eval" | b"wildcard" | b"guile" => {
                 Err(ExpandError::Unsupported(name.to_vec()))
             }
             _ => {
@@ -1422,9 +1434,69 @@ impl Expansion<'_, '_> {
         result.map_err(|error| error.at(variable.definition.as_ref()))
     }
 
+    fn filesystem(
+        &mut self,
+        name: &[u8],
+        effect: FilesystemEffect<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        match self.context.perform_filesystem(effect) {
+            None => Err(ExpandError::Unsupported(name.to_vec())),
+            Some(Err(message)) => Err(ExpandError::ContextualUserError {
+                message,
+                location: self.context.location.cloned().map(Arc::new),
+            }),
+            Some(Ok(bytes)) if bytes.len() > MAX_OUTPUT => Err(ExpandError::ExpansionLimit),
+            Some(Ok(bytes)) => Ok(bytes),
+        }
+    }
+
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
+            b"file" => {
+                let (offset, read, append) = match first {
+                    [b'>', b'>', ..] => (2, false, true),
+                    [b'>', ..] => (1, false, false),
+                    [b'<', ..] => (1, true, false),
+                    _ => {
+                        return Err(ExpandError::FileError(
+                            [b"file: invalid file operation: ".as_slice(), first].concat(),
+                        ));
+                    }
+                };
+                let path = filesystem_words(&first[offset..])
+                    .next()
+                    .ok_or_else(|| ExpandError::FileError(b"file: missing filename".to_vec()))?;
+                if read {
+                    if args.len() > 1 {
+                        return Err(ExpandError::FileError(b"file: too many arguments".to_vec()));
+                    }
+                    self.filesystem(name, FilesystemEffect::ReadFile(path))
+                } else {
+                    self.filesystem(
+                        name,
+                        FilesystemEffect::WriteFile {
+                            path,
+                            text: args.get(1).map(Vec::as_slice),
+                            append,
+                        },
+                    )?;
+                    Ok(Vec::new())
+                }
+            }
+            b"realpath" => {
+                let mut result = Vec::new();
+                for path in filesystem_words(first) {
+                    let canonical = self.filesystem(name, FilesystemEffect::Realpath(path))?;
+                    if !canonical.is_empty() {
+                        if !result.is_empty() {
+                            push(&mut result, b" ")?;
+                        }
+                        push(&mut result, &canonical)?;
+                    }
+                }
+                Ok(result)
+            }
             b"error" => args.first().map_or_else(
                 || Ok(Vec::new()),
                 |message| {
@@ -1616,7 +1688,7 @@ fn invalid(function: &[u8], message: &'static str) -> ExpandError {
 }
 
 fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
-    if function == b"intcmp" {
+    if matches!(function, b"intcmp" | b"file") {
         ExpandError::InsufficientArguments {
             function: function.to_vec(),
             count,
@@ -1715,6 +1787,11 @@ fn trim(value: &[u8]) -> &[u8] {
     value
 }
 
+// Filesystem function tokens use all C-locale whitespace, including VT.
+fn filesystem_words(value: &[u8]) -> impl Iterator<Item = &[u8]> {
+    value.split(gnu_whitespace).filter(|word| !word.is_empty())
+}
+
 fn words(value: &[u8]) -> impl Iterator<Item = &[u8]> {
     value
         .split(u8::is_ascii_whitespace)
@@ -1774,11 +1851,11 @@ fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
         | b"join" => Some((2, Some(2))),
         b"if" => Some((2, Some(3))),
         b"intcmp" => Some((2, Some(5))),
-        b"error" | b"info" | b"warning" => Some((0, Some(1))),
+        b"error" | b"info" | b"warning" | b"realpath" => Some((0, Some(1))),
         b"or" | b"and" | b"call" => Some((1, None)),
         b"strip" | b"sort" | b"words" | b"firstword" | b"lastword" | b"dir" | b"notdir"
-        | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"realpath"
-        | b"wildcard" | b"shell" | b"eval" | b"guile" => Some((1, Some(1))),
+        | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"wildcard"
+        | b"shell" | b"eval" | b"guile" => Some((1, Some(1))),
         b"file" => Some((1, Some(2))),
         _ => None,
     }
@@ -3245,8 +3322,254 @@ mod tests {
     }
 
     #[test]
+    fn filesystem_effects_preserve_raw_paths_and_distinguish_omitted_text() {
+        let store = VariableStore::new();
+        let mut operations = Vec::new();
+        let mut handler = |effect: FilesystemEffect<'_>| match effect {
+            FilesystemEffect::WriteFile { path, text, append } => {
+                operations.push((path.to_vec(), text.map(Vec::from), append));
+                Ok(Vec::new())
+            }
+            _ => panic!("unexpected filesystem operation"),
+        };
+        let result = store
+            .expand_with(
+                b"$(file >a\xff ignored)$(file >>b,)$(file >c,$$(literal),tail)",
+                ExpansionContext::pure().with_filesystem(&mut handler),
+            )
+            .unwrap();
+        assert!(result.is_empty());
+        assert_eq!(
+            operations,
+            [
+                (b"a\xff".to_vec(), None, false),
+                (b"b".to_vec(), Some(Vec::new()), true),
+                (b"c".to_vec(), Some(b"$(literal),tail".to_vec()), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn filesystem_tokens_include_vertical_tab_separators() {
+        let store = VariableStore::new();
+        let mut paths = Vec::new();
+        let mut handler = |effect: FilesystemEffect<'_>| {
+            match effect {
+                FilesystemEffect::ReadFile(path) => paths.push(path.to_vec()),
+                FilesystemEffect::WriteFile { path, .. } => paths.push(path.to_vec()),
+                FilesystemEffect::Realpath(path) => paths.push(path.to_vec()),
+            }
+            Ok(Vec::new())
+        };
+        let result = store
+            .expand_with(
+                b"$(file <\x0bin\x0bignored)$(file >\x0bout\x0bignored,text)$(realpath a\x0bb)",
+                ExpansionContext::pure().with_filesystem(&mut handler),
+            )
+            .unwrap();
+        assert!(result.is_empty());
+        assert_eq!(
+            paths,
+            [
+                b"in".to_vec(),
+                b"out".to_vec(),
+                b"a".to_vec(),
+                b"b".to_vec()
+            ]
+        );
+    }
+
+    #[test]
+    fn filesystem_validation_runs_after_all_argument_effects() {
+        let store = VariableStore::new();
+        assert_eq!(
+            store.expand(b"$(call file)"),
+            Err(ExpandError::InsufficientArguments {
+                function: b"file".to_vec(),
+                count: 0,
+            })
+        );
+        for (input, expected) in [
+            (
+                b"$(file >,$(info rhs))".as_slice(),
+                b"file: missing filename".as_slice(),
+            ),
+            (
+                b"$(file invalid,$(info rhs))".as_slice(),
+                b"file: invalid file operation: invalid".as_slice(),
+            ),
+            (
+                b"$(file <in,$(info rhs))".as_slice(),
+                b"file: too many arguments".as_slice(),
+            ),
+        ] {
+            let mut outputs = Vec::new();
+            let mut calls = 0;
+            let mut handler = |_effect: FilesystemEffect<'_>| {
+                calls += 1;
+                Ok(Vec::new())
+            };
+            let error = store
+                .expand_with(
+                    input,
+                    ExpansionContext::new(None, &mut |output| {
+                        if let Output::Info(message) = output {
+                            outputs.push(message.to_vec());
+                        }
+                    })
+                    .with_filesystem(&mut handler),
+                )
+                .unwrap_err();
+            assert_eq!(error.diagnostic().as_bytes(), expected);
+            assert_eq!(outputs, [b"rhs".to_vec()]);
+            assert_eq!(calls, 0);
+        }
+    }
+
+    #[test]
+    fn filesystem_io_errors_use_active_context_while_usage_uses_binding_source() {
+        let mut store = VariableStore::new();
+        store
+            .define_at(
+                b"F",
+                b"$(file >missing/out,x)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(1),
+            )
+            .unwrap();
+        for active in [None, Some(source(4))] {
+            let mut handler = |_effect: FilesystemEffect<'_>| {
+                Err(b"open: missing/out: No such file or directory".to_vec())
+            };
+            let error = store
+                .expand_with(
+                    b"$(F)",
+                    ExpansionContext::new(active.as_ref(), &mut |_| {})
+                        .with_filesystem(&mut handler),
+                )
+                .unwrap_err();
+            assert_eq!(error.diagnostic_location(active.as_ref()), active.as_ref());
+        }
+        store
+            .define_at(
+                b"F",
+                b"$(file >,x)",
+                Assignment::Recursive,
+                Origin::File,
+                &source(1),
+            )
+            .unwrap();
+        let active = source(4);
+        let error = store
+            .expand_with(b"$(F)", ExpansionContext::new(Some(&active), &mut |_| {}))
+            .unwrap_err();
+        assert_eq!(error.diagnostic_location(Some(&active)), Some(&source(1)));
+    }
+
+    #[test]
+    fn realpath_joins_successes_preserves_duplicates_and_accepts_empty_call() {
+        let store = VariableStore::new();
+        assert_eq!(
+            store.expand(b"$(call realpath)|$(realpath )").unwrap(),
+            b"|"
+        );
+        let mut paths = Vec::new();
+        let mut handler = |effect: FilesystemEffect<'_>| {
+            let FilesystemEffect::Realpath(path) = effect else {
+                panic!("wrong operation")
+            };
+            paths.push(path.to_vec());
+            Ok(if path == b"missing" {
+                Vec::new()
+            } else {
+                [b"/root/".as_slice(), path].concat()
+            })
+        };
+        assert_eq!(
+            store
+                .expand_with(
+                    b"$(realpath a missing a\xff a)",
+                    ExpansionContext::pure().with_filesystem(&mut handler)
+                )
+                .unwrap(),
+            b"/root/a /root/a\xff /root/a"
+        );
+        assert_eq!(
+            paths,
+            [
+                b"a".to_vec(),
+                b"missing".to_vec(),
+                b"a\xff".to_vec(),
+                b"a".to_vec()
+            ]
+        );
+        assert!(
+            matches!(store.expand(b"$(file >out,text)"), Err(ExpandError::Unsupported(name)) if name == b"file")
+        );
+    }
+
+    #[test]
+    fn file_reads_retain_nul_until_each_expansion_consumer_finishes() {
+        let mut store = VariableStore::new();
+        store
+            .define(
+                b"F",
+                b"before$(file <data)after",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        let mut handler = |effect: FilesystemEffect<'_>| {
+            assert!(matches!(effect, FilesystemEffect::ReadFile(b"data")));
+            Ok(b"a\0b".to_vec())
+        };
+        let mut messages = Vec::new();
+        assert_eq!(
+            store
+                .expand_with(
+                    b"$(info before$(file <data)$(info suffix)after)",
+                    ExpansionContext::new(None, &mut |output| {
+                        if let Output::Info(message) = output {
+                            messages.push(message.to_vec());
+                        }
+                    })
+                    .with_filesystem(&mut handler)
+                )
+                .unwrap(),
+            b""
+        );
+        assert_eq!(messages, [b"suffix".to_vec(), b"beforea".to_vec()]);
+        for (input, expected) in [
+            (b"$(F):tail".as_slice(), b"beforea:tail".as_slice()),
+            (
+                b"$(subst a,z,before$(file <data)after):tail".as_slice(),
+                b"beforez:tail".as_slice(),
+            ),
+            (
+                b"$(if yes,$(file <data)after)outside".as_slice(),
+                b"aoutside".as_slice(),
+            ),
+        ] {
+            assert_eq!(
+                store
+                    .expand_with(
+                        input,
+                        ExpansionContext::pure().with_filesystem(&mut handler)
+                    )
+                    .unwrap(),
+                expected
+            );
+        }
+        assert_eq!(
+            store.expand(b"left\0$(error must-not-expand)").unwrap(),
+            b"left"
+        );
+    }
+
+    #[test]
     fn unimplemented_effects_are_explicitly_unsupported() {
-        for name in ["shell", "eval", "file", "wildcard", "realpath", "guile"] {
+        for name in ["shell", "eval", "wildcard", "realpath", "guile"] {
             let input = format!("$({name} value)");
             assert_eq!(
                 VariableStore::new().expand(input.as_bytes()),

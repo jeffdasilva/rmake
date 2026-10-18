@@ -13,8 +13,10 @@ with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
 Target-specific and pattern-specific variables support inheritance, private
 bindings, assignment timing, and export policies. Seeded graph tests check their
 interactions with shared prerequisites and recipe environments.
+The `file` and `realpath` functions use explicit Linux filesystem effects, with
+byte-preserving paths and tests for buffered I/O failures.
 This is an experimental subset, **not yet a GNU Make replacement**. Includes,
-implicit rules, filesystem/process expansion effects,
+implicit rules, `wildcard`, process expansion effects,
 parallel jobs and many compatibility details
 remain unimplemented. See [implementation progress](docs/progress.md) for exact
 scope, required fixtures and open milestone gates.
@@ -77,6 +79,8 @@ scale or replay that campaign. See [integer comparison notes](docs/intcmp.md).
 `make test-diagnostics` checks 206 fixed output-function scenarios with independent
 stream, status and filesystem expectations, including merged output ordering.
 `DIAGNOSTIC_CASE` replays one recorded cell. This is also part of `make ci`.
+`make test-filesystem` checks eleven Linux/glibc I/O fault scenarios, including
+partial reads and close failures; `FILESYSTEM_CASE` selects one for replay.
 Their reports and failure reproductions are written under `artifacts/`.
 
 `make bench-compare` builds release rmake and records alternating paired timings

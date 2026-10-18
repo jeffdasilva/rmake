@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 rmake-core = { path = "../rmake-core" }
+rmake-linux = { path = "../rmake-linux" }
 
 [lints]
 workspace = true
