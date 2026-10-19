@@ -158,6 +158,36 @@ fn wildcard_keeps_dangling_symlinks_but_directory_suffix_follows_them() {
 }
 
 #[test]
+fn literal_queries_preserve_path_spelling_and_root_separator_rules() {
+    let directory = Directory::new();
+    fs::create_dir(directory.0.join("d")).unwrap();
+    fs::write(directory.0.join("d/file"), b"original").unwrap();
+    let mut runtime = Runtime::default();
+    for suffix in [b"/d/file".as_slice(), b"/d//file", b"/d/../d/file"] {
+        let path = [directory.0.as_os_str().as_bytes(), suffix].concat();
+        assert_eq!(
+            runtime.execute(FilesystemEffect::Wildcard(&path)).unwrap(),
+            path
+        );
+    }
+    // The initial Linux development/CI profile provides /tmp. GNU glob treats
+    // this two-separator root prefix differently from an interior doubled '/'.
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(b"//tmp"))
+            .unwrap(),
+        b"/tmp"
+    );
+    let missing = [directory.0.as_os_str().as_bytes(), b"/missing"].concat();
+    assert!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&missing))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
 fn reads_keep_raw_bytes_and_observe_each_change() {
     let directory = Directory::new();
     let path = directory.0.join(std::ffi::OsStr::from_bytes(b"raw-\xff"));

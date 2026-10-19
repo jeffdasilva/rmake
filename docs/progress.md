@@ -915,3 +915,30 @@ wall-time observations have no confidence intervals or CPU/RSS/I/O coverage and
 establish no general performance guarantee. Non-C profiles, process/eval effects,
 includes/restarts, complete rules, parallel execution, persistent caching and
 plugins remain open milestones.
+
+## Wildcard allocation follow-up — 2026-10-18
+
+Filename sequences without archive grouping now retain their owned tokens rather
+than cloning each token into another list. Unescaped literal wildcard queries
+borrow qualified paths for the same fresh existence check and return their owned
+result directly; single-result glob queries also avoid a final copy. No lookup is
+cached or omitted. GNU's `//name` root spelling and interior repeated separators
+are preserved, with a focused Linux adapter regression check.
+
+Full `make ci` passed with 345 Rust tests and 240 tooling tests. The curated corpus
+remains 1,271 cases: 1,220 required matches and 51 explicit pending mismatches,
+with no failures or unexpected passes. The generated wildcard, filesystem fault,
+external cache-mutation and self-host gates remain green.
+
+Against preceding production source `f0acfb8`, 31 alternating release pairs after
+three warmups measured literal-query medians of 1.148 ms before and 1.052 ms after;
+the median paired after/before ratio was 0.903. Cold, repeated and complex query
+ratios were 1.001, 0.998 and 1.007. Core tiny no-op, 10,000-target and
+5,000-assignment ratios were 0.959, 0.992 and 0.996. The same paths, arguments,
+environment and output were used within each pair.
+
+In a separate 31-pair comparison after two warmups, GNU/rmake medians were
+1.140/0.891 ms cold, 37.504/11.865 ms repeated, 40.003/15.313 ms complex and
+0.937/0.988 ms literal. Literal queries still trail GNU in this run. These are
+unisolated local wall-time measurements without confidence intervals or
+CPU/RSS/I/O coverage; they establish no general speed guarantee or full parity.

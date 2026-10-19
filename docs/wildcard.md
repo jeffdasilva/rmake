@@ -38,6 +38,14 @@ fast path over raw byte names, dot boundaries and slash cases. Sorting directory
 names once makes repeated selected subsets already ordered. Final output still
 retains each query's required ordering.
 
+Ordinary filename sequences return their owned tokens directly when archive
+grouping is unnecessary. Unescaped literal queries borrow the lookup path until
+the fresh existence check completes, then return one owned result without
+building a list of paths or copying its output again. Single-result glob queries
+also transfer their owned result. Root-separator spelling, escaped-pattern cache
+behavior, archive processing, syscall interruption boundaries and output limits
+remain the same.
+
 `make bench-compare BENCH_SUITE=wildcard` measures cold, repeated, complex and
 literal queries over 1,000 original files prepared before timing. This is a
 focused workload suite, not evidence of complete GNU parity or general speed.
