@@ -110,3 +110,7 @@ They retain Free Software Foundation copyright attribution and the GPL grant.
 The [built-in notes](builtins.md) distinguish these declarations from the
 independently authored Rust conversion and extraction tools, and record the
 `src/rule.c` and `src/default.c` source references.
+
+The [default-recipe notes](default-recipes.md) record the GNU Make 4.4.1
+`src/implicit.c` reference used to clarify selected-pattern special flags.
+The Rust implementation and default-recipe differential fixtures are original.

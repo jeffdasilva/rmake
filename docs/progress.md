@@ -1348,3 +1348,13 @@ measured paired improvements of 1.64x and 6.08x over the previous rmake on the t
 synthetic workloads; GNU remained faster on both. No persistent cache was added.
 See [performance evidence](implicit-search-performance.md) for hashes, raw-report
 location, measured medians, methodology and limitations.
+
+## Default recipes and selected-pattern flags
+
+Implemented `.DEFAULT` command fallback with explicit/implicit precedence,
+cancellation at declaration completion, correct automatic variables, target
+contexts, error locations and generated includes. Corrected `.PRECIOUS` and
+`.NOTINTERMEDIATE` inheritance to use the exact selected implicit pattern rather
+than arbitrary filename matches. Added 42 original required differential cases.
+Corpus: 2,187 cases, with 2,173 required passes and 14 pending. See
+[default recipes](default-recipes.md) for scope and source references.

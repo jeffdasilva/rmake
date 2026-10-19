@@ -1,0 +1,12 @@
+id = "default-explicit-prerequisite"
+requirement = "rules.implicit"
+candidate = "required"
+description = "default-explicit-prerequisite"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "696e7075743a696e7075740a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "default-duplicate-goal"
+requirement = "rules.implicit"
+candidate = "required"
+description = "default-duplicate-goal"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "missing", "missing"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6275696c740a6d616b653a20276d697373696e672720697320757020746f20646174652e0a"
+stderr_hex = ""

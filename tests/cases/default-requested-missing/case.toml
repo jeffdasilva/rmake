@@ -1,0 +1,12 @@
+id = "default-requested-missing"
+requirement = "rules.implicit"
+candidate = "required"
+description = "default-requested-missing"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "missing"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d697373696e673a6d697373696e670a"
+stderr_hex = ""

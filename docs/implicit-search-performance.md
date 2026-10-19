@@ -35,3 +35,17 @@ The measured binaries were:
 - Previous: `f0a951cc3ac7130fe2d26903db64c7e98c50ae8dc0b4415dda9e4c8af49b88f7`
 - Current: `29779eae1860f50de5779de0e1bf29a3e464466d3839bde1471bed1d6a0853d0`
 - GNU: `d129996c7f842a77375573eae5b188a6e24510a076658df5e0dd9ffd92571625`
+
+## Follow-up with default-recipe support
+
+Repeating the same 31-sample campaign after `.DEFAULT` and selected-pattern flag
+support produced these measurements. Labels refer to the recorded binaries,
+not future revisions; GNU remained faster on both workloads.
+
+| Irrelevant patterns | Previous rmake median | Candidate median | GNU median | Median paired previous/candidate |
+| --- | --- | --- | --- | --- |
+| 64 | 2.648 ms | 1.655 ms | 0.976 ms | 1.63 |
+| 256 | 13.872 ms | 2.346 ms | 1.469 ms | 5.92 |
+
+Candidate SHA256: `282dafc48e02f72d6e339a9564165b9d9192f2714be020727289d4fdb7b3378d`.
+Raw evidence: local ignored `artifacts/bench/implicit-filter-defaults.json`.

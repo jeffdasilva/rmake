@@ -1,0 +1,12 @@
+id = "default-requested-default-target"
+requirement = "rules.implicit"
+candidate = "required"
+description = "default-requested-default-target"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", ".DEFAULT"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "2e44454641554c543a2e44454641554c543a696e7075740a"
+stderr_hex = ""

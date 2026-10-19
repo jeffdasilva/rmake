@@ -957,9 +957,7 @@ impl Engine {
 
     fn intermediate(&self, target: &[u8]) -> bool {
         !self.options.goals.iter().any(|goal| goal == target)
-            && !self
-                .database
-                .matches_special_pattern(b".NOTINTERMEDIATE", target)
+            && !self.special_for_rule(b".NOTINTERMEDIATE", target)
             && !self
                 .database
                 .rules
@@ -970,12 +968,22 @@ impl Engine {
                 || self.special(b".SECONDARY", target, false))
     }
 
+    fn special_for_rule(&self, special: &[u8], target: &[u8]) -> bool {
+        self.special(special, target, false)
+            || self
+                .database
+                .rules
+                .get(target)
+                .and_then(|rule| rule.implicit_pattern.as_deref())
+                .is_some_and(|pattern| self.special(special, pattern, false))
+    }
+
     fn remove_intermediates(&mut self) {
         let mut removed = Vec::new();
         for target in std::mem::take(&mut self.created_intermediates) {
             if removed.contains(&target)
                 || self.special(b".SECONDARY", &target, true)
-                || self.database.matches_special_pattern(b".PRECIOUS", &target)
+                || self.special_for_rule(b".PRECIOUS", &target)
                 || self.special(b".PHONY", &target, false)
             {
                 continue;
@@ -1239,6 +1247,19 @@ impl Engine {
                 }
                 self.database.rules.insert(name, rule);
             }
+        } else if existing.is_none()
+            && let Some(default) = self.database.rules.get(b".DEFAULT".as_slice())
+            && default.recipes.is_some()
+        {
+            self.database.rules.insert(
+                target.to_vec(),
+                Rule {
+                    recipes: default.recipes.clone(),
+                    recipe_location: default.recipe_location.clone(),
+                    default_recipe: true,
+                    ..Rule::default()
+                },
+            );
         }
     }
 
@@ -1639,7 +1660,14 @@ impl Engine {
                 let newer: Vec<_> = newer.iter().map(|name| self.resolved_name(name)).collect();
                 let autos = [
                     (b"@".as_slice(), target.to_vec()),
-                    (b"<", repeated.first().cloned().unwrap_or_default()),
+                    (
+                        b"<",
+                        if rule.default_recipe || target == b".DEFAULT" {
+                            target.to_vec()
+                        } else {
+                            repeated.first().cloned().unwrap_or_default()
+                        },
+                    ),
                     (b"^", joined(&normal)),
                     (b"+", joined(&repeated)),
                     (b"?", joined(unique(&newer))),
@@ -2324,10 +2352,7 @@ impl Engine {
         phony: bool,
         cleanup: Cleanup,
     ) {
-        if cleanup == Cleanup::None
-            || phony
-            || self.database.matches_special_pattern(b".PRECIOUS", target)
-        {
+        if cleanup == Cleanup::None || phony || self.special_for_rule(b".PRECIOUS", target) {
             return;
         }
         if cleanup == Cleanup::ChangedOnError

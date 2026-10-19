@@ -44,6 +44,11 @@ pub struct Rule {
     pub double_colon: Option<Vec<Rule>>,
     /// Double-colon pattern rules cannot infer missing prerequisites.
     pub terminal: bool,
+    /// Runtime-selected .DEFAULT commands use the target itself as $<.
+    pub default_recipe: bool,
+    /// The selected implicit pattern controls pattern-level special flags;
+    /// explicit/static/default rules do not inherit arbitrary matching flags.
+    pub implicit_pattern: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug)]
@@ -66,14 +71,24 @@ struct RuleDeclaration {
     patterns: HashMap<Vec<u8>, Pattern>,
     implicit: HashMap<Vec<u8>, usize>,
     warnings: Vec<(Location, Diagnostic)>,
+    cancel_default: bool,
 }
 
 impl RuleDeclaration {
     fn finish(
         &mut self,
+        rules: &mut HashMap<Vec<u8>, Rule>,
         warnings: &mut Vec<(Location, Diagnostic)>,
         context: &mut ExpansionContext<'_>,
     ) {
+        if self.cancel_default
+            && !self.recipe_started
+            && let Some(rule) = rules.get_mut(b".DEFAULT".as_slice())
+        {
+            rule.recipes = None;
+            rule.recipe_location = None;
+        }
+        self.cancel_default = false;
         for (location, message) in self.warnings.drain(..) {
             record_warning(warnings, context, location, message);
         }
@@ -262,14 +277,6 @@ impl Database {
             .collect()
     }
 
-    pub fn matches_special_pattern(&self, special: &[u8], target: &[u8]) -> bool {
-        self.rules.get(special).is_some_and(|rule| {
-            rule.dependencies
-                .iter()
-                .any(|dependency| Pattern::new(&dependency.name).matches(target).is_some())
-        })
-    }
-
     /// Produce candidates in stem-length and declaration order, without I/O.
     /// The runtime checks prerequisites and commits only a viable candidate.
     pub fn implicit_candidates(&self, target: &[u8]) -> Vec<ImplicitCandidate> {
@@ -317,6 +324,7 @@ impl Database {
                 continue;
             }
             let mut candidate = rule.clone();
+            candidate.implicit_pattern = Some(name.to_vec());
             candidate.stem = Some(if stripped {
                 [directory, stem].concat()
             } else {
@@ -1329,7 +1337,7 @@ impl Database {
             // branch. Recognition itself has no expansion effects.
             if let Some(spec) = assignment(text) {
                 if active {
-                    declaration.finish(&mut self.warnings, context);
+                    declaration.finish(&mut self.rules, &mut self.warnings, context);
                     self.define(spec, Origin::File, &location, &location, context)?;
                 }
                 continue;
@@ -1427,7 +1435,7 @@ impl Database {
                 && let Some(header) = directive(variable_text, b"define")
             {
                 let definition = if active {
-                    declaration.finish(&mut self.warnings, context);
+                    declaration.finish(&mut self.rules, &mut self.warnings, context);
                     let spec = assignment(header);
                     if spec.as_ref().is_some_and(|spec| !spec.value.is_empty()) {
                         record_warning(
@@ -1557,7 +1565,7 @@ impl Database {
                 continue;
             }
             if let Some(spec) = variable_assignment {
-                declaration.finish(&mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context);
                 let name = self.define(spec, origin, &location, &location, context)?;
                 if private {
                     self.variables.set_private(&name, true);
@@ -1568,7 +1576,7 @@ impl Database {
                 continue;
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
-                declaration.finish(&mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context);
                 let name = self.expand(rest, &location, context)?;
                 let name = trim(&name);
                 if self.variables.undefine(name, origin) {
@@ -1584,7 +1592,7 @@ impl Database {
                 .map(|names| (true, names))
                 .or_else(|| directive(text, b"unexport").map(|names| (false, names)));
             if let Some((export, text)) = export_list {
-                declaration.finish(&mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context);
                 // Only a syntactically empty directive changes export-all.
                 // An expression that expands to no names still has its effects,
                 // but does not become an empty directive after evaluation.
@@ -1612,7 +1620,7 @@ impl Database {
                 continue;
             }
             if [b"include".as_slice(), b"-include", b"sinclude"].contains(&keyword) {
-                declaration.finish(&mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context);
                 let names = self.expand(directive(text, keyword).unwrap(), &location, context)?;
                 let optional = keyword != b"include";
                 for name in crate::filenames::sequence(&names) {
@@ -1686,7 +1694,7 @@ impl Database {
                 continue;
             }
             if keyword == b"vpath" {
-                declaration.finish(&mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context);
                 let value = self.expand(directive(text, b"vpath").unwrap(), &location, context)?;
                 let mut names = words(&value);
                 if let Some(pattern) = names.next() {
@@ -1706,7 +1714,7 @@ impl Database {
                 continue;
             }
             if keyword == b"load" {
-                declaration.finish(&mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context);
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -1717,7 +1725,7 @@ impl Database {
                     .into(),
                 });
             }
-            declaration.finish(&mut self.warnings, context);
+            declaration.finish(&mut self.rules, &mut self.warnings, context);
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
                 return Err(ParseError {
                     unlocated: false,
@@ -1869,6 +1877,9 @@ impl Database {
                     })?;
             }
             for target in &declaration.targets {
+                if target == b".DEFAULT" && empty_dependencies {
+                    declaration.cancel_default = true;
+                }
                 if target == b".WAIT" && !empty_dependencies && self.wait_warnings & 1 == 0 {
                     self.wait_warnings |= 1;
                     declaration.warnings.push((
@@ -2018,7 +2029,7 @@ impl Database {
                 message: "missing 'endif'".into(),
             });
         }
-        declaration.finish(&mut self.warnings, context);
+        declaration.finish(&mut self.rules, &mut self.warnings, context);
         Ok(())
     }
 

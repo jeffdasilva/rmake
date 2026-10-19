@@ -1,0 +1,12 @@
+id = "default-parent-scope"
+requirement = "rules.implicit"
+candidate = "required"
+description = "default-parent-scope"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "706172656e740a"
+stderr_hex = ""
