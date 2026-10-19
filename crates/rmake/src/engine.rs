@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
-//! Linux filesystem and serial process boundary for the initial explicit-rule slice.
+//! Linux filesystem, dependency traversal and process execution boundary.
 //! No persistent cache and no delegation to GNU Make are involved.
 
 use crate::cli::Options;
@@ -97,6 +97,14 @@ struct Outcome {
     blocked: bool,
 }
 
+fn merge_child(outcome: &mut Outcome, child: Outcome) {
+    outcome.ran |= child.ran;
+    outcome.failed |= child.failed;
+    outcome.fatal |= child.fatal;
+    outcome.blocked |= child.failed;
+    outcome.question_outdated |= child.question_outdated;
+}
+
 fn automatic_export_name(name: &[u8]) -> bool {
     name.first()
         .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
@@ -190,6 +198,23 @@ struct RecipeState {
     permit: Option<Permit>,
 }
 
+/// A dependency traversal can yield without holding a recipe slot. Only the
+/// interpreter owns these frames; effects and secondary expansion run once.
+struct RuleState {
+    rule: Rule,
+    last_epoch: Option<u64>,
+    depth: usize,
+    before: Option<SystemTime>,
+    phony: bool,
+    next: usize,
+    serial_dependency: Option<Vec<u8>>,
+    stopped: bool,
+    stale: bool,
+    outcome: Outcome,
+    dropped: HashSet<Vec<u8>>,
+    deferred_intermediates: Vec<Vec<u8>>,
+}
+
 type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
 
 pub struct Engine {
@@ -206,6 +231,9 @@ pub struct Engine {
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     would_build: bool,
     parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
+    pending_rules: HashMap<Vec<u8>, RuleState>,
+    graph_epoch: u64,
+    graph_abort: Option<Status>,
     completed_jobs: std::sync::mpsc::Receiver<JobResult>,
     job_sender: std::sync::mpsc::Sender<JobResult>,
     parallel_failed: bool,
@@ -464,6 +492,9 @@ impl Engine {
             target_contexts: HashMap::new(),
             would_build: false,
             parallel_jobs: HashMap::new(),
+            pending_rules: HashMap::new(),
+            graph_epoch: 0,
+            graph_abort: None,
             completed_jobs,
             job_sender,
             parallel_failed: false,
@@ -887,47 +918,41 @@ impl Engine {
             self.options.goals.clone()
         };
         let mut failed = false;
+        let mut requested = Vec::new();
         for goal in goals {
-            let already_done = self.done.contains_key(&goal);
-            if already_done {
+            self.graph_epoch = self.graph_epoch.wrapping_add(1);
+            let already_done = self.done.contains_key(&goal) || self.pending(&goal);
+            if already_done && !self.parallel_graph() {
                 self.wait_target(&goal);
             }
             let outcome = self.build(&goal, None, 0);
-            failed |= outcome.failed;
+            if self.parallel_graph() {
+                requested.push((goal, already_done, outcome));
+            } else {
+                failed |= outcome.failed;
+                self.report_goal(&goal, already_done, outcome);
+            }
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
                 break;
             }
-            if outcome.failed
-                && self.options.keep_going
-                && outcome.blocked
-                && !self.options.question
-            {
-                self.stderr(
-                    &[
-                        b"Target '".as_slice(),
-                        &goal,
-                        b"' not remade because of errors.",
-                    ]
-                    .concat(),
-                );
-            } else if !outcome.failed
-                && (!outcome.ran || already_done)
-                && !self.options.question
-                && !self.globally_silent()
-            {
-                let has_recipe = self.database.rules.get(&goal).is_some_and(|rule| {
-                    rule.recipes.is_some()
-                        || rule.double_colon.as_ref().is_some_and(|branches| {
-                            branches.iter().any(|rule| rule.recipes.is_some())
-                        })
-                }) && !self.special(b".PHONY", &goal, false);
-                let body = if has_recipe {
-                    [b"'".as_slice(), &goal, b"' is up to date."].concat()
-                } else {
-                    [b"Nothing to be done for '".as_slice(), &goal, b"'."].concat()
-                };
-                self.stdout(&[self.program.as_slice(), b": ", &body].concat());
+        }
+        while requested.iter().any(|(goal, _, _)| self.pending(goal)) {
+            self.graph_epoch = self.graph_epoch.wrapping_add(1);
+            for (goal, _, _) in &requested {
+                if self.pending_rules.contains_key(goal) {
+                    self.build(goal, None, 0);
+                }
             }
+            if requested.iter().any(|(goal, _, _)| self.pending(goal))
+                && !self.parallel_jobs.is_empty()
+            {
+                self.reap_job();
+            }
+        }
+        for (goal, already_done, initial) in requested {
+            let outcome = self.done.get(&goal).copied().unwrap_or(initial);
+            failed |= outcome.failed;
+            self.report_goal(&goal, already_done, outcome);
         }
         self.wait_all_jobs();
         self.remove_intermediates();
@@ -945,6 +970,40 @@ impl Engine {
             1
         } else {
             0
+        }
+    }
+
+    fn report_goal(&self, goal: &[u8], already_done: bool, outcome: Outcome) {
+        if outcome.fatal {
+            return;
+        }
+        if outcome.failed && self.options.keep_going && outcome.blocked && !self.options.question {
+            self.stderr(
+                &[
+                    b"Target '".as_slice(),
+                    goal,
+                    b"' not remade because of errors.",
+                ]
+                .concat(),
+            );
+        } else if !outcome.failed
+            && (!outcome.ran || already_done)
+            && !self.options.question
+            && !self.globally_silent()
+        {
+            let has_recipe = self.database.rules.get(goal).is_some_and(|rule| {
+                rule.recipes.is_some()
+                    || rule
+                        .double_colon
+                        .as_ref()
+                        .is_some_and(|branches| branches.iter().any(|rule| rule.recipes.is_some()))
+            }) && !self.special(b".PHONY", goal, false);
+            let body = if has_recipe {
+                [b"'".as_slice(), goal, b"' is up to date."].concat()
+            } else {
+                [b"Nothing to be done for '".as_slice(), goal, b"'."].concat()
+            };
+            self.stdout(&[self.program.as_slice(), b": ", &body].concat());
         }
     }
 
@@ -1123,9 +1182,26 @@ impl Engine {
         }
     }
 
+    fn pending(&self, target: &[u8]) -> bool {
+        self.pending_rules.contains_key(target) || self.parallel_jobs.contains_key(target)
+    }
+
+    fn parallel_graph(&self) -> bool {
+        self.job_slots() > 1
+            && !self.options.dry_run
+            && !self.options.question
+            && !self.options.touch
+    }
+
     fn wait_target(&mut self, target: &[u8]) {
-        while self.parallel_jobs.contains_key(target) {
-            self.reap_job();
+        while self.pending(target) {
+            self.graph_epoch = self.graph_epoch.wrapping_add(1);
+            if self.pending_rules.contains_key(target) {
+                self.build(target, None, 0);
+            }
+            if self.pending(target) && !self.parallel_jobs.is_empty() {
+                self.reap_job();
+            }
         }
     }
 
@@ -1150,6 +1226,7 @@ impl Engine {
     }
 
     fn complete_job(&mut self, (target, result): JobResult) {
+        self.graph_epoch = self.graph_epoch.wrapping_add(1);
         let mut job = self
             .parallel_jobs
             .remove(&target)
@@ -1193,16 +1270,10 @@ impl Engine {
             outcome.fatal |= execution.status == Status::Fatal;
             self.cleanup_target(&target, job.before, job.phony, execution.cleanup);
         }
-        if failed
-            && !self.options.keep_going
-            && !self.parallel_failed
-            && !self.parallel_jobs.is_empty()
-        {
-            self.stderr(b"*** Waiting for unfinished jobs....");
-        }
         self.parallel_failed |= failed;
         outcome.ran = true;
         outcome.failed |= failed;
+        self.record_graph_failure(outcome);
         outcome.time = if job.phony { None } else { modified(&target) };
         self.done.insert(target, outcome);
     }
@@ -1407,10 +1478,53 @@ impl Engine {
             .unwrap_or_else(|| name.to_vec())
     }
 
+    fn record_graph_failure(&mut self, outcome: Outcome) {
+        if !self.parallel_graph()
+            || !(outcome.fatal || (outcome.failed && !self.options.keep_going))
+        {
+            return;
+        }
+        let status = if outcome.fatal {
+            Status::Fatal
+        } else {
+            Status::Failure
+        };
+        if self.graph_abort.is_none() {
+            if !self.parallel_jobs.is_empty() {
+                self.stderr(b"*** Waiting for unfinished jobs....");
+            }
+            self.graph_abort = Some(status);
+            self.graph_epoch = self.graph_epoch.wrapping_add(1);
+        } else if status == Status::Fatal {
+            self.graph_abort = Some(status);
+        }
+    }
+
+    fn apply_graph_abort(&self, outcome: &mut Outcome) {
+        if let Some(status) = self.graph_abort {
+            outcome.failed = true;
+            outcome.fatal |= status == Status::Fatal;
+        }
+    }
+
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
         self.poll_jobs();
+        let outcome = self.build_inner(target, parent, depth);
+        self.record_graph_failure(outcome);
+        outcome
+    }
+
+    fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        if self.pending_rules.contains_key(target) {
+            return self.resume_rule(target);
+        }
         if let Some(outcome) = self.done.get(target) {
             return *outcome;
+        }
+        if self.graph_abort.is_some() {
+            let mut outcome = Outcome::default();
+            self.apply_graph_abort(&mut outcome);
+            return outcome;
         }
         if depth >= 512 {
             self.fatal(None, b"rmake: dependency nesting limit exceeded");
@@ -1522,50 +1636,107 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        self.visiting.insert(target.to_vec());
-        let canonical = rule.canonical_dependencies();
-        let normal: Vec<_> = canonical
-            .iter()
-            .filter(|d| !d.order_only)
-            .map(|d| d.name.clone())
-            .collect();
-        let order: Vec<_> = canonical
-            .iter()
-            .filter(|d| d.order_only)
-            .map(|d| d.name.clone())
-            .collect();
-        let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
-        let mut newer = Vec::new();
-        let mut dropped = HashSet::new();
-        let mut deferred_intermediates = Vec::new();
-        let mut stale = before.is_none()
+        let stale = before.is_none()
             || phony
             || self.options.always
             || (double_colon && rule.dependencies.is_empty());
-        let mut outcome = Outcome {
-            time: before,
-            ..Outcome::default()
-        };
-        // Visit occurrences in the merged declaration order. Completed nodes
-        // are memoized, but every circular occurrence must still be diagnosed.
-        for (index, occurrence) in rule.dependencies.iter().enumerate() {
+        self.pending_rules.insert(
+            target.to_vec(),
+            RuleState {
+                rule,
+                last_epoch: None,
+                depth,
+                before,
+                phony,
+                next: 0,
+                serial_dependency: None,
+                stopped: false,
+                stale,
+                outcome: Outcome {
+                    time: before,
+                    ..Outcome::default()
+                },
+                dropped: HashSet::new(),
+                deferred_intermediates: Vec::new(),
+            },
+        );
+        let outcome = self.resume_rule(target);
+        if double_colon || !self.parallel_graph() {
+            self.wait_target(target);
+            self.done.get(target).copied().unwrap_or(outcome)
+        } else {
+            outcome
+        }
+    }
+
+    /// Advance every currently reachable branch until a local barrier or its
+    /// unfinished prerequisites require a yield. A suspended node is not on the
+    /// DFS ancestry stack: shared pending prerequisites are not circular edges.
+    fn resume_rule(&mut self, target: &[u8]) -> Outcome {
+        // Shared subgraphs can be reached through many parents in one pass.
+        // Reconsider a blocked frame only after a completion or a new outer
+        // pass, never once per incoming edge (which can grow exponentially).
+        if let Some(state) = self.pending_rules.get(target)
+            && state.last_epoch == Some(self.graph_epoch)
+        {
+            return state.outcome;
+        }
+        let mut state = self
+            .pending_rules
+            .remove(target)
+            .expect("pending rule frame");
+        state.last_epoch = Some(self.graph_epoch);
+        self.apply_graph_abort(&mut state.outcome);
+        state.stopped |= self.graph_abort.is_some();
+        self.visiting.insert(target.to_vec());
+        let serial = self.special(b".NOTPARALLEL", target, false);
+        let mut waiting = false;
+        while !state.stopped
+            && self.graph_abort.is_none()
+            && state.next < state.rule.dependencies.len()
+        {
+            if let Some(dependency) = &state.serial_dependency {
+                if self.pending_rules.contains_key(dependency) {
+                    self.build(dependency, Some(target), state.depth + 1);
+                }
+                if self.pending(dependency) {
+                    waiting = true;
+                    break;
+                }
+                if let Some(child) = self.done.get(dependency).copied() {
+                    merge_child(&mut state.outcome, child);
+                }
+                state.serial_dependency = None;
+                if state.outcome.fatal || (state.outcome.failed && !self.options.keep_going) {
+                    state.stopped = true;
+                    break;
+                }
+            }
+            let occurrence = &state.rule.dependencies[state.next];
             let dependency = &occurrence.name;
             if dependency == b".WAIT" {
-                for prior in &rule.dependencies[..index] {
-                    self.wait_target(&prior.name);
-                    if let Some(child) = self.done.get(&prior.name) {
-                        outcome.ran |= child.ran;
-                        outcome.failed |= child.failed;
-                        outcome.fatal |= child.fatal;
-                        outcome.blocked |= child.failed;
-                        outcome.question_outdated |= child.question_outdated;
+                for prior in &state.rule.dependencies[..state.next] {
+                    if prior.name == b".WAIT" || state.dropped.contains(&prior.name) {
+                        continue;
+                    }
+                    if self.pending_rules.contains_key(&prior.name) {
+                        self.build(&prior.name, Some(target), state.depth + 1);
+                    }
+                    waiting |= self.pending(&prior.name);
+                    if let Some(child) = self.done.get(&prior.name).copied() {
+                        merge_child(&mut state.outcome, child);
                     }
                 }
-                if outcome.fatal || (outcome.failed && !self.options.keep_going) {
+                if waiting {
                     break;
+                }
+                state.next += 1;
+                if state.outcome.fatal || (state.outcome.failed && !self.options.keep_going) {
+                    state.stopped = true;
                 }
                 continue;
             }
+            state.next += 1;
             if self.visiting.contains(dependency) {
                 self.stderr(
                     &[
@@ -1577,40 +1748,86 @@ impl Engine {
                     ]
                     .concat(),
                 );
-                dropped.insert(dependency.clone());
+                state.dropped.insert(dependency.clone());
                 continue;
             }
-            let mut child =
-                if !stale && self.intermediate(dependency) && modified(dependency).is_none() {
-                    let child =
-                        self.check_intermediate(dependency, target, before.unwrap(), depth + 1);
-                    if !self.done.contains_key(dependency) {
-                        deferred_intermediates.push(dependency.clone());
-                    }
-                    if !occurrence.order_only && (child.time.is_none() || child.time > before) {
-                        stale = true;
-                    }
-                    child
-                } else {
-                    self.build(dependency, Some(target), depth + 1)
-                };
-            if self.special(b".NOTPARALLEL", target, false) {
-                self.wait_target(dependency);
-                if let Some(completed) = self.done.get(dependency) {
-                    child = *completed;
+            let child = if !state.stale
+                && self.intermediate(dependency)
+                && modified(dependency).is_none()
+            {
+                let child = self.check_intermediate(
+                    dependency,
+                    target,
+                    state.before.unwrap(),
+                    state.depth + 1,
+                );
+                if !self.done.contains_key(dependency) {
+                    state.deferred_intermediates.push(dependency.clone());
                 }
+                if !occurrence.order_only && (child.time.is_none() || child.time > state.before) {
+                    state.stale = true;
+                }
+                child
+            } else {
+                self.build(dependency, Some(target), state.depth + 1)
+            };
+            merge_child(&mut state.outcome, child);
+            if serial {
+                state.serial_dependency = Some(dependency.clone());
             }
-            outcome.ran |= child.ran;
-            outcome.failed |= child.failed;
-            outcome.fatal |= child.fatal;
-            outcome.blocked |= child.failed;
-            outcome.question_outdated |= child.question_outdated;
             if child.fatal
                 || ((child.failed || child.question_outdated) && !self.options.keep_going)
             {
-                break;
+                state.stopped = true;
             }
         }
+        // Revisit suspended children in declaration order without replaying the
+        // parent's dependency expansion, circular diagnostics or scope setup.
+        for occurrence in &state.rule.dependencies[..state.next] {
+            let dependency = &occurrence.name;
+            if dependency == b".WAIT" || state.dropped.contains(dependency) {
+                continue;
+            }
+            if self.pending_rules.contains_key(dependency) {
+                self.build(dependency, Some(target), state.depth + 1);
+            }
+            waiting |= self.pending(dependency);
+        }
+        if waiting {
+            self.visiting.remove(target);
+            let outcome = state.outcome;
+            self.pending_rules.insert(target.to_vec(), state);
+            return outcome;
+        }
+        self.finish_rule(target, state)
+    }
+
+    fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
+        let RuleState {
+            rule,
+            depth,
+            before,
+            phony,
+            mut stale,
+            mut outcome,
+            dropped,
+            deferred_intermediates,
+            ..
+        } = state;
+        let canonical = rule.canonical_dependencies();
+        let normal: Vec<_> = canonical
+            .iter()
+            .filter(|d| !d.order_only)
+            .map(|d| d.name.clone())
+            .collect();
+        let order: Vec<_> = canonical
+            .iter()
+            .filter(|d| d.order_only)
+            .map(|d| d.name.clone())
+            .collect();
+        self.apply_graph_abort(&mut outcome);
+        let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
+        let mut newer = Vec::new();
         for occurrence in &rule.dependencies {
             let dependency = &occurrence.name;
             if dependency == b".WAIT" || dropped.contains(dependency) {
@@ -1823,7 +2040,10 @@ impl Engine {
         } else {
             self.wait_all_jobs();
         }
-        if self.parallel_failed && !self.options.keep_going {
+        if self.graph_abort == Some(Status::Fatal) {
+            return Execution::fatal(false);
+        }
+        if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
         let permit = if parallel {
@@ -1837,7 +2057,10 @@ impl Engine {
         } else {
             None
         };
-        if self.parallel_failed && !self.options.keep_going {
+        if self.graph_abort == Some(Status::Fatal) {
+            return Execution::fatal(false);
+        }
+        if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
         let mut variables = match self.target_variables(target) {

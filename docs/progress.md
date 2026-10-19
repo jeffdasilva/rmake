@@ -1375,3 +1375,13 @@ changing inherited descriptor flags or accepting the server. Extend the invalid
 authentication test with two valid but unrelated pipes and verify both original
 pools retain their tokens. Valid GNU/rmake interoperability is unchanged; the
 mixed-engine campaign remains part of CI.
+
+## Resumable dependency branches
+
+Yield single-colon graph traversal while prerequisite recipes run, preserving
+secondary expansion, first-parent scope ownership, local barriers, circular-edge
+diagnostics and final staleness decisions. Per-pass epochs bound repeated visits
+to shared pending subgraphs. Add 32 required original cases, promote the existing
+independent-sibling case, and record two remaining synchronous paths as pending.
+Corpus: 2,221 cases, with 2,206 required and 15 pending. See
+[ready branches](ready-branches.md).
