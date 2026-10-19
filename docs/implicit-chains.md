@@ -42,3 +42,11 @@ Reference: GNU Make 4.4.1 `src/implicit.c` (`pattern_search`) and `src/file.c`
 (`remove_intermediates`) were read to clarify two-pass selection, terminal rules,
 compatibility fallback and cleanup stages. The implementation and fixtures were
 independently authored; no GNU C implementation or upstream tests were copied.
+
+Search-limit exhaustion is distinct from a proven failed search. The engine
+terminates with an explicit resource-limit error, including during makefile
+remaking; it cannot install or execute `.DEFAULT` as a substitute for an
+unfinished search. The private resolver result is must-use at its call sites.
+An original in-memory 131-rule regression checks the fatal build outcome,
+absence of an installed fallback, and absence of recipe execution. This is a
+fail-safe implementation bound, not GNU equivalence for arbitrarily deep chains.

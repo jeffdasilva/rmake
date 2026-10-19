@@ -1358,3 +1358,12 @@ contexts, error locations and generated includes. Corrected `.PRECIOUS` and
 than arbitrary filename matches. Added 42 original required differential cases.
 Corpus: 2,187 cases, with 2,173 required passes and 14 pending. See
 [default recipes](default-recipes.md) for scope and source references.
+
+## Fail-safe implicit-search limits
+
+Final review found that an exhausted bounded search could be mistaken for a
+proven absence of implicit rules and select `.DEFAULT`. Distinguish exhaustion,
+propagate a fatal outcome through ordinary builds and makefile remaking, and make
+the resolver result must-use. A 131-rule in-memory regression verifies failure
+without installing or executing a fallback. The corpus remains 2,173 required
+and 14 pending; Rust coverage gains this separate safety-boundary test.
