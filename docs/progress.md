@@ -1057,3 +1057,24 @@ Median paired after/before ratios were 1.032, 1.014 and 1.007. These unisolated
 wall-time observations establish no speed improvement and do not cover CPU,
 RSS or I/O. No persistent cache or runtime fallback was introduced; complete
 compatibility and release-scale performance validation remain unfinished.
+
+## Copy contiguous expansion literals — 2026-10-18
+
+The expression evaluator now copies literal runs with one bounded append. Dollar
+references, unmatched terminal dollars, NUL consumer boundaries and expansion
+effects retain their original order. A new resource-boundary test checks exact
+limit success, failure before a later effect, and a terminal dollar at the limit.
+No cache, unsafe code or source-reference dependency is added.
+
+Full `make ci` passed with 351 Rust tests, 240 tooling tests and all existing
+curated, generated, fault, stateful and self-host gates. The corpus remains 1,395
+cases: 1,354 required exact matches and 41 observed pending mismatches, with no
+failures or unexpected passes.
+
+Against preceding production source `88a3f03`, 31 alternating release pairs after
+three warmups observed 10–19% less elapsed time on six large-text word-span
+workloads. Core workload median paired ratios were 1.004, 0.970 and 0.999 for
+tiny no-op, 10,000 targets and 5,000 assignments. The
+[literal expansion notes](literal-expansion.md) record the individual ratios,
+output checks and measurement limitations. Full compatibility, persistent cache
+validation and broader performance work remain open.
