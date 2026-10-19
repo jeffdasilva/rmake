@@ -893,9 +893,14 @@ impl Database {
                 .get(b".RECIPEPREFIX")
                 .and_then(|v| v.raw_value().first().copied())
                 .unwrap_or(b'\t');
-            let Some(line) = reader.next_line(prefix, !declaration.targets.is_empty()) else {
+            let Some(mut line) = reader.next_line(prefix, !declaration.targets.is_empty()) else {
                 break;
             };
+            // GNU strips one UTF-8 BOM from the first observed logical line,
+            // after file-stream reads have already counted its bytes.
+            if line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
+                line.bytes.drain(..3);
+            }
             last_line = line.end_line;
             let location = Location {
                 file: file.to_vec(),
