@@ -13,7 +13,7 @@ use crate::variables::{
     Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
     VariableStore, reference_end,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
 /// This metadata does not install implicit rules or suffix-rule conversions.
@@ -157,6 +157,10 @@ pub struct Database {
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
     include_depth: usize,
+    evaluation_depth: usize,
+    pub(crate) evaluation_scope: Option<VariableStore>,
+    recipe_expansion: bool,
+    pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
 }
 
 impl Database {
@@ -326,6 +330,50 @@ mod include_tests {
         assert!(file.missing && !file.optional);
         assert_eq!(file.read_error.as_ref().unwrap().0.line, 1);
         assert!(db.rules.contains_key(b"generated.mk".as_slice()));
+    }
+}
+
+#[cfg(test)]
+mod evaluation_tests {
+    use super::*;
+
+    #[test]
+    fn evaluation_changes_are_visible_in_the_same_expansion_and_next_read() {
+        let mut db = Database::default();
+        db.read(b"V=before\n", b"Makefile").unwrap();
+        assert_eq!(
+            db.expand_with(b"$(V):$(eval V=after)$(V)", ExpansionContext::pure())
+                .unwrap(),
+            b"before:after"
+        );
+        db.read(b"X:=$(V)\n", b"later.mk").unwrap();
+        assert_eq!(db.variables.expand(b"$(X)").unwrap(), b"after");
+    }
+
+    #[test]
+    fn evaluation_reads_call_bindings_but_assignments_modify_the_global_binding() {
+        let mut db = Database::default();
+        db.read(
+            b"V=global\n$(foreach V,a b,$(eval X:=$$(V))$(eval V=changed))\n",
+            b"Makefile",
+        )
+        .unwrap();
+        assert_eq!(db.variables.expand(b"$(X):$(V)").unwrap(), b"b:changed");
+    }
+
+    #[test]
+    fn generated_rule_keeps_caller_line_for_recipe_diagnostics() {
+        let mut db = Database::default();
+        db.read(b"\n\n$(eval target:;echo command)\n", b"outer.mk")
+            .unwrap();
+        let recipe = &db.rules[b"target".as_slice()].recipes.as_ref().unwrap()[0];
+        assert_eq!(
+            recipe.location,
+            Location {
+                file: b"outer.mk".to_vec(),
+                line: 3
+            }
+        );
     }
 }
 
@@ -580,13 +628,12 @@ fn record_warning(
 
 impl Database {
     fn expand(
-        &self,
+        &mut self,
         bytes: &[u8],
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ParseError> {
-        self.variables
-            .expand_with(bytes, context.at(Some(location)))
+        self.expand_with(bytes, context.at(Some(location)))
             .map_err(|err| ParseError {
                 unlocated: err.is_unlocated(),
                 location: err
@@ -602,7 +649,7 @@ impl Database {
     /// Keep the consumed raw offset so ordinary rules can resume expansion
     /// without emitting any prefix effects a second time.
     fn expand_rule_prefix(
-        &self,
+        &mut self,
         bytes: &[u8],
         location: &Location,
         context: &mut ExpansionContext<'_>,
@@ -710,14 +757,25 @@ impl Database {
         evaluation_location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        self.variables
-            .define_with(
+        let mut variables = std::mem::take(&mut self.variables);
+        let result = variables
+            .define_with_using(
                 spec.name,
                 spec.value,
                 spec.kind,
                 origin,
                 Some(location),
                 context.at(Some(evaluation_location)),
+                |variables, bytes, shell, context| {
+                    std::mem::swap(variables, &mut self.variables);
+                    let result = if shell {
+                        crate::variables::shell_database(self, bytes, context)
+                    } else {
+                        self.expand_with(bytes, context)
+                    };
+                    std::mem::swap(variables, &mut self.variables);
+                    result
+                },
             )
             .map_err(|err| ParseError {
                 unlocated: err.is_unlocated(),
@@ -726,7 +784,9 @@ impl Database {
                     .unwrap_or(evaluation_location)
                     .clone(),
                 message: err.diagnostic(),
-            })
+            });
+        self.variables = variables;
+        result
     }
 
     fn define_target_assignments(
@@ -843,8 +903,16 @@ impl Database {
                     });
                 }
                 return Ok(Some(
-                    self.variables
-                        .get(&name[..end])
+                    self.evaluation_bindings
+                        .iter()
+                        .rev()
+                        .find_map(|bindings| bindings.get(&name[..end]))
+                        .or_else(|| {
+                            self.evaluation_scope
+                                .as_ref()
+                                .and_then(|scope| scope.get(&name[..end]))
+                        })
+                        .or_else(|| self.variables.get(&name[..end]))
                         .is_some_and(|var| !var.raw_value().is_empty())
                         ^ negate,
                 ));
@@ -960,6 +1028,117 @@ impl Database {
         &mut self,
         bytes: &[u8],
         file: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        self.read_at(bytes, file, None, context)
+    }
+
+    pub fn expand_with(
+        &mut self,
+        bytes: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        if let Some(mut scope) = self.evaluation_scope.take() {
+            scope.refresh_globals(&self.variables);
+            let result = crate::variables::expand_scoped_database(self, &mut scope, bytes, context);
+            self.evaluation_scope = Some(scope);
+            result
+        } else {
+            crate::variables::expand_database(self, bytes, context)
+        }
+    }
+
+    pub fn expand_in(
+        &mut self,
+        variables: &mut VariableStore,
+        bytes: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        variables.refresh_globals(&self.variables);
+        let previous = std::mem::replace(&mut self.recipe_expansion, true);
+        let result = crate::variables::expand_scoped_database(self, variables, bytes, context);
+        self.recipe_expansion = previous;
+        result
+    }
+
+    pub fn expand_environment_in(
+        &mut self,
+        variables: &mut VariableStore,
+        name: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        variables.refresh_globals(&self.variables);
+        let previous = std::mem::replace(&mut self.recipe_expansion, true);
+        let result = crate::variables::expand_environment_database(self, variables, name, context);
+        self.recipe_expansion = previous;
+        result
+    }
+
+    pub(crate) fn evaluate_in(
+        &mut self,
+        bytes: &[u8],
+        location: Option<&Location>,
+        scope: Option<&mut VariableStore>,
+        bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let previous_scope =
+            std::mem::replace(&mut self.evaluation_scope, scope.as_deref().cloned());
+        let previous_bindings = std::mem::replace(&mut self.evaluation_bindings, bindings);
+        let result = self.read_evaluated(bytes, location, context);
+        if let Some(scope) = scope {
+            *scope = self.evaluation_scope.take().expect("evaluation scope");
+        }
+        self.evaluation_scope = previous_scope;
+        self.evaluation_bindings = previous_bindings;
+        result
+    }
+
+    pub(crate) fn read_evaluated(
+        &mut self,
+        bytes: &[u8],
+        location: Option<&Location>,
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let (file, offset) = location.map_or((b"".as_slice(), 0), |location| {
+            (location.file.as_slice(), location.line.saturating_sub(1))
+        });
+        if self.evaluation_depth >= 128 {
+            return Err(ParseError {
+                location: Location {
+                    file: file.to_vec(),
+                    line: offset + 1,
+                },
+                unlocated: location.is_none(),
+                message: "rmake: evaluation nesting limit exceeded".into(),
+            });
+        }
+        self.evaluation_depth += 1;
+        let result = self
+            .read_at(
+                &bytes[..bytes
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap_or(bytes.len())],
+                file,
+                Some(offset + 1),
+                context,
+            )
+            .map_err(|mut error| {
+                if location.is_none() {
+                    error.unlocated = true;
+                }
+                error
+            });
+        self.evaluation_depth -= 1;
+        result
+    }
+
+    fn read_at(
+        &mut self,
+        bytes: &[u8],
+        file: &[u8],
+        evaluated_at: Option<usize>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let context = &mut context;
@@ -980,13 +1159,13 @@ impl Database {
             };
             // GNU strips one UTF-8 BOM from the first observed logical line,
             // after file-stream reads have already counted its bytes.
-            if line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
+            if evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
                 line.bytes.drain(..3);
             }
             last_line = line.end_line;
             let location = Location {
                 file: file.to_vec(),
-                line: line.line,
+                line: evaluated_at.unwrap_or(line.line),
             };
             for _ in 0..reader.take_nul_warnings() {
                 record_warning(
@@ -1467,6 +1646,13 @@ impl Database {
                     message: "rmake: unsupported rule form".into(),
                 });
             }
+            if self.recipe_expansion {
+                return Err(ParseError {
+                    unlocated: false,
+                    location,
+                    message: "prerequisites cannot be defined in recipes".into(),
+                });
+            }
             declaration.location = Some(location.clone());
             for target in words(&expanded[..colon]) {
                 let pattern = Pattern::new(target);
@@ -1554,7 +1740,7 @@ impl Database {
                 unlocated: false,
                 location: Location {
                     file: file.to_vec(),
-                    line: last_line + 1,
+                    line: evaluated_at.unwrap_or(last_line + 1),
                 },
                 message: "missing 'endif'".into(),
             });

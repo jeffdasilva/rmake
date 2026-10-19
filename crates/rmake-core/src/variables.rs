@@ -14,11 +14,65 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::diagnostic::{
-    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output,
+    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
 };
 
 const MAX_DEPTH: usize = 128;
 pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+
+#[cfg(test)]
+mod shell_effect_tests {
+    use super::*;
+    use crate::diagnostic::ShellResult;
+
+    #[test]
+    fn shell_status_is_an_override_binding_visible_before_the_expansion_finishes() {
+        let mut variables = VariableStore::new();
+        let mut emit = |_: Output<'_>| {};
+        let mut run = |_: ShellRequest<'_>| {
+            Ok(ShellResult {
+                stdout: b"first\r\nsecond\n\n".to_vec(),
+                status: 7,
+            })
+        };
+        assert_eq!(
+            variables
+                .expand_mut_with(
+                    b"$(shell command):$(.SHELLSTATUS):$(origin .SHELLSTATUS)",
+                    ExpansionContext::new(None, &mut emit).with_shell(&mut run)
+                )
+                .unwrap(),
+            b"first second:7:override"
+        );
+        assert_eq!(
+            variables
+                .expand(b"$(.SHELLSTATUS):$(flavor .SHELLSTATUS)")
+                .unwrap(),
+            b"7:simple"
+        );
+    }
+
+    #[test]
+    fn empty_shell_command_does_not_launch_or_replace_previous_status() {
+        let mut variables = VariableStore::new();
+        variables
+            .define_literal(b".SHELLSTATUS", b"9", Origin::Override)
+            .unwrap();
+        let mut emit = |_: Output<'_>| {};
+        let mut run = |_: ShellRequest<'_>| -> Result<ShellResult, Vec<u8>> {
+            panic!("empty command launched")
+        };
+        assert_eq!(
+            variables
+                .expand_mut_with(
+                    b"$(shell ):$(.SHELLSTATUS)",
+                    ExpansionContext::new(None, &mut emit).with_shell(&mut run)
+                )
+                .unwrap(),
+            b":9"
+        );
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Assignment {
@@ -624,7 +678,40 @@ impl VariableStore {
         assignment: Assignment,
         origin: Origin,
         definition: Option<&Location>,
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        self.define_with_using(
+            name,
+            value,
+            assignment,
+            origin,
+            definition,
+            context,
+            |store, bytes, shell, context| {
+                if shell {
+                    store.shell_with(bytes, context)
+                } else {
+                    store.expand_mut_with(bytes, context)
+                }
+            },
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn define_with_using(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+        origin: Origin,
+        definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
+        mut expand: impl FnMut(
+            &mut VariableStore,
+            &[u8],
+            bool,
+            ExpansionContext<'_>,
+        ) -> Result<Vec<u8>, ExpandError>,
     ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
@@ -656,10 +743,15 @@ impl VariableStore {
                 // already present in this store; recursive appends stay deferred.
                 if matches!(
                     assignment,
-                    Assignment::Simple | Assignment::ImmediateRecursive
+                    Assignment::Simple | Assignment::ImmediateRecursive | Assignment::Shell
                 ) || (assignment == Assignment::Append && old.flavor == Flavor::Simple)
                 {
-                    self.expand_with(value, context.reborrow())?;
+                    expand(
+                        self,
+                        value,
+                        assignment == Assignment::Shell,
+                        context.reborrow(),
+                    )?;
                 }
                 if promote_environment {
                     Arc::make_mut(&mut self.variables)
@@ -671,16 +763,32 @@ impl VariableStore {
             }
         }
         let mut variable = match assignment {
-            Assignment::Shell => return Err(ExpandError::Unsupported(b"!=".to_vec())),
+            Assignment::Shell => Variable {
+                value: expand(self, value, true, context.reborrow())?,
+                flavor: Flavor::Recursive,
+                origin,
+                definition: None,
+                scope: ScopeMetadata::default(),
+            },
             Assignment::Simple => Variable {
-                value: self.expand_with(value, context.reborrow())?,
+                value: expand(
+                    self,
+                    value,
+                    assignment == Assignment::Shell,
+                    context.reborrow(),
+                )?,
                 flavor: Flavor::Simple,
                 origin,
                 definition: None,
                 scope: ScopeMetadata::default(),
             },
             Assignment::ImmediateRecursive => {
-                let expanded = self.expand_with(value, context.reborrow())?;
+                let expanded = expand(
+                    self,
+                    value,
+                    assignment == Assignment::Shell,
+                    context.reborrow(),
+                )?;
                 let mut escaped = Vec::new();
                 for byte in expanded {
                     push(&mut escaped, &[byte])?;
@@ -697,10 +805,15 @@ impl VariableStore {
                 }
             }
             Assignment::Append => {
-                if let Some(old) = self.variables.get(name) {
+                if let Some(old) = self.variables.get(name).cloned() {
                     let extra = match old.flavor {
                         Flavor::Recursive => value.to_vec(),
-                        Flavor::Simple => self.expand_with(value, context.reborrow())?,
+                        Flavor::Simple => expand(
+                            self,
+                            value,
+                            assignment == Assignment::Shell,
+                            context.reborrow(),
+                        )?,
                     };
                     // Empty appends do not replace the binding, its origin,
                     // or its definition location, even with override.
@@ -843,15 +956,58 @@ impl VariableStore {
         self.expansion(context).expand(input)
     }
 
+    pub fn expand_mut_with(
+        &mut self,
+        input: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        Expansion {
+            store: StoreAccess::Write(self),
+            bindings: Vec::new(),
+            active: Vec::new(),
+            depth: 0,
+            context,
+            binding_context: None,
+        }
+        .expand(input)
+    }
+
+    pub fn shell_with(
+        &mut self,
+        input: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        let mut expansion = Expansion {
+            store: StoreAccess::Write(self),
+            bindings: Vec::new(),
+            active: Vec::new(),
+            depth: 0,
+            context,
+            binding_context: None,
+        };
+        if !expansion.context.has_shell() {
+            return Err(ExpandError::Unsupported(b"!=".to_vec()));
+        }
+        let command = expansion.expand(input)?;
+        expansion.shell(&command)
+    }
+
     /// Invocation phases have an unlocated outer expansion, as when GNU
     /// decodes MAKEFLAGS. User output/errors retain that outer context while
     /// nested validation errors still carry their binding provenance.
     pub fn expand_at_invocation_with(
-        &self,
+        &mut self,
         input: &[u8],
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
-        let mut expansion = self.expansion(context);
+        let mut expansion = Expansion {
+            store: StoreAccess::Write(self),
+            bindings: Vec::new(),
+            active: Vec::new(),
+            depth: 0,
+            context,
+            binding_context: None,
+        };
         expansion.binding_context = Some(None);
         expansion.expand(input)
     }
@@ -896,9 +1052,42 @@ impl VariableStore {
         }
     }
 
+    pub fn expand_environment_variable_mut_with(
+        &mut self,
+        name: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        let environment = self.for_environment();
+        let Some((layer, variable)) = environment.lookup_from(name, 0) else {
+            return Ok(Vec::new());
+        };
+        let mut expansion = Expansion {
+            store: StoreAccess::Write(self),
+            bindings: Vec::new(),
+            active: Vec::new(),
+            depth: 0,
+            context,
+            binding_context: None,
+        };
+        if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+            // GNU constructs an inherited append by searching the entire file
+            // context again. Environment selection may have skipped a private
+            // pattern binding that this second, ordinary lookup can see.
+            let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) else {
+                return Ok(Vec::new());
+            };
+            let first = first.clone();
+            expansion.active.push((name.to_vec(), Some(layer)));
+            expansion.binding_context = Some(variable.definition.clone());
+            expansion.expand_layer(name, &first, Some(first_layer), 0)
+        } else {
+            expansion.selected_variable(name, variable, Some(layer))
+        }
+    }
+
     fn expansion<'a, 'b>(&'a self, context: ExpansionContext<'b>) -> Expansion<'a, 'b> {
         Expansion {
-            store: self,
+            store: StoreAccess::Read(self),
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
@@ -1111,8 +1300,153 @@ impl TargetScope {
     }
 }
 
+enum StoreAccess<'a> {
+    Read(&'a VariableStore),
+    Write(&'a mut VariableStore),
+    Database(&'a mut crate::parser::Database),
+    Scoped {
+        database: &'a mut crate::parser::Database,
+        variables: &'a mut VariableStore,
+    },
+}
+
+impl std::ops::Deref for StoreAccess<'_> {
+    type Target = VariableStore;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Read(store) => store,
+            Self::Write(store) => store,
+            Self::Database(db) => &db.variables,
+            Self::Scoped { variables, .. } => variables,
+        }
+    }
+}
+
+impl StoreAccess<'_> {
+    fn writable(&mut self) -> Option<&mut VariableStore> {
+        match self {
+            Self::Read(_) => None,
+            Self::Write(store) => Some(store),
+            Self::Database(db) => Some(&mut db.variables),
+            Self::Scoped { variables, .. } => Some(variables),
+        }
+    }
+}
+
+pub(crate) fn expand_scoped_database(
+    db: &mut crate::parser::Database,
+    variables: &mut VariableStore,
+    input: &[u8],
+    context: ExpansionContext<'_>,
+) -> Result<Vec<u8>, ExpandError> {
+    let bindings = db.evaluation_bindings.clone();
+    Expansion {
+        store: StoreAccess::Scoped {
+            database: db,
+            variables,
+        },
+        bindings,
+        active: Vec::new(),
+        depth: 0,
+        context,
+        binding_context: None,
+    }
+    .expand(input)
+}
+
+pub(crate) fn expand_environment_database(
+    db: &mut crate::parser::Database,
+    variables: &mut VariableStore,
+    name: &[u8],
+    context: ExpansionContext<'_>,
+) -> Result<Vec<u8>, ExpandError> {
+    let environment = variables.for_environment();
+    let Some((layer, variable)) = environment.lookup_from(name, 0) else {
+        return Ok(Vec::new());
+    };
+    let bindings = db.evaluation_bindings.clone();
+    let mut expansion = Expansion {
+        store: StoreAccess::Scoped {
+            database: db,
+            variables,
+        },
+        bindings,
+        active: Vec::new(),
+        depth: 0,
+        context,
+        binding_context: None,
+    };
+    if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+        let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) else {
+            return Ok(Vec::new());
+        };
+        let first = first.clone();
+        expansion.active.push((name.to_vec(), Some(layer)));
+        expansion.binding_context = Some(variable.definition.clone());
+        expansion.expand_layer(name, &first, Some(first_layer), 0)
+    } else {
+        expansion.selected_variable(name, variable, Some(layer))
+    }
+}
+
+pub(crate) fn expand_database(
+    db: &mut crate::parser::Database,
+    input: &[u8],
+    context: ExpansionContext<'_>,
+) -> Result<Vec<u8>, ExpandError> {
+    let bindings = db.evaluation_bindings.clone();
+    Expansion {
+        store: StoreAccess::Database(db),
+        bindings,
+        active: Vec::new(),
+        depth: 0,
+        context,
+        binding_context: None,
+    }
+    .expand(input)
+}
+
+pub(crate) fn shell_database(
+    db: &mut crate::parser::Database,
+    input: &[u8],
+    context: ExpansionContext<'_>,
+) -> Result<Vec<u8>, ExpandError> {
+    let bindings = db.evaluation_bindings.clone();
+    let mut scope = db.evaluation_scope.take();
+    if let Some(scope) = &mut scope {
+        scope.refresh_globals(&db.variables);
+    }
+    let result = {
+        let store = if let Some(variables) = &mut scope {
+            StoreAccess::Scoped {
+                database: &mut *db,
+                variables,
+            }
+        } else {
+            StoreAccess::Database(&mut *db)
+        };
+        let mut expansion = Expansion {
+            store,
+            bindings,
+            active: Vec::new(),
+            depth: 0,
+            context,
+            binding_context: None,
+        };
+        if !expansion.context.has_shell() {
+            Err(ExpandError::Unsupported(b"!=".to_vec()))
+        } else {
+            expansion
+                .expand(input)
+                .and_then(|command| expansion.shell(&command))
+        }
+    };
+    db.evaluation_scope = scope;
+    result
+}
+
 struct Expansion<'a, 'b> {
-    store: &'a VariableStore,
+    store: StoreAccess<'a>,
     bindings: Vec<BTreeMap<Vec<u8>, Variable>>,
     active: Vec<(Vec<u8>, Option<usize>)>,
     depth: usize,
@@ -1412,7 +1746,14 @@ impl Expansion<'_, '_> {
                 result
             }
             b"call" => self.call(args),
-            b"shell" | b"eval" | b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
+            b"shell" => {
+                if !self.context.has_shell() || matches!(self.store, StoreAccess::Read(_)) {
+                    return Err(ExpandError::Unsupported(name.to_vec()));
+                }
+                let command = self.expand(args[0])?;
+                self.shell(&command)
+            }
+            b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
             _ => {
                 let expanded = args
                     .iter()
@@ -1514,6 +1855,152 @@ impl Expansion<'_, '_> {
         }
     }
 
+    fn environment_variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        let environment = self.store.for_environment();
+        let Some((layer, variable)) = environment.lookup_from(name, 0) else {
+            return Ok(Vec::new());
+        };
+        if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+            let Some((first_layer, first)) = self.store.lookup_from(name, 0) else {
+                return Ok(Vec::new());
+            };
+            let first = first.clone();
+            self.active.push((name.to_vec(), Some(layer)));
+            let prior = self.binding_context.replace(variable.definition.clone());
+            let result = self.expand_layer(name, &first, Some(first_layer), 0);
+            self.binding_context = prior;
+            self.active.pop();
+            result
+        } else {
+            self.selected_variable(name, variable, Some(layer))
+        }
+    }
+
+    fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        if matches!(self.store, StoreAccess::Read(_)) {
+            return Err(ExpandError::Unsupported(b"shell".to_vec()));
+        }
+        if command
+            .iter()
+            .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
+        {
+            return Ok(Vec::new());
+        }
+        let shell = self.variable(b"SHELL")?;
+        let flags_raw = self
+            .store
+            .get(b".SHELLFLAGS")
+            .map_or_else(Vec::new, |v| v.value.clone());
+        let flags = self.expand(&flags_raw)?;
+        let ifs = if self.lookup(b"IFS").is_some() {
+            Some(self.variable(b"IFS")?)
+        } else {
+            None
+        };
+        let export_all = match &self.store {
+            StoreAccess::Database(db) | StoreAccess::Scoped { database: db, .. } => {
+                db.export_all || db.rules.contains_key(b".EXPORT_ALL_VARIABLES".as_slice())
+            }
+            _ => false,
+        };
+        let names: Vec<_> = self
+            .store
+            .for_environment()
+            .definitions()
+            .map(|(name, variable)| (name.to_vec(), variable.clone()))
+            .collect();
+        let mut environment = Vec::new();
+        for (name, variable) in names {
+            if name == b"SHELL" && variable.export_policy().is_none() {
+                continue;
+            }
+            let valid = name
+                .first()
+                .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
+                && name
+                    .iter()
+                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_');
+            let export = self.store.resolve_export_policy(&name).unwrap_or(
+                valid
+                    && (matches!(
+                        variable.origin,
+                        Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
+                    ) || (export_all
+                        && !matches!(variable.origin, Origin::Default | Origin::Automatic))),
+            );
+            if !export {
+                environment.push((name, None));
+                continue;
+            }
+            // GNU uses the original process environment when constructing an
+            // exported recursive variable would re-enter the current binding.
+            if self.active.iter().any(|(active, _)| *active == name) {
+                continue;
+            }
+            let value = if matches!(
+                variable.origin,
+                Origin::Environment | Origin::EnvironmentOverride
+            ) {
+                variable.value
+            } else {
+                self.environment_variable(&name)?
+            };
+            environment.push((name, Some(value)));
+        }
+        let result = self
+            .context
+            .run_shell(ShellRequest {
+                command,
+                shell: &shell,
+                flags: &flags,
+                ifs: ifs.as_deref(),
+                environment: &environment,
+            })
+            .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
+            .map_err(ExpandError::UnlocatedError)?;
+        let status = result.status.to_string();
+        self.store
+            .writable()
+            .expect("mutable shell host")
+            .define_literal(b".SHELLSTATUS", status.as_bytes(), Origin::Override)?;
+        if result.stdout.len() > MAX_OUTPUT {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        let mut output = Vec::new();
+        let mut index = 0;
+        while index < result.stdout.len() {
+            let byte = result.stdout[index];
+            if byte == 0 {
+                break;
+            }
+            if byte == b'\r' && result.stdout.get(index + 1) == Some(&b'\n') {
+                index += 1;
+            }
+            output.push(if result.stdout[index] == b'\n' {
+                b' '
+            } else {
+                byte
+            });
+            index += 1;
+        }
+        // Strip only folded trailing newlines, retaining literal trailing spaces.
+        let mut end = result
+            .stdout
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(result.stdout.len());
+        let mut folded = 0;
+        while end > 0 && result.stdout[end - 1] == b'\n' {
+            folded += 1;
+            end -= 1;
+            if end > 0 && result.stdout[end - 1] == b'\r' {
+                end -= 1;
+            }
+        }
+        output.truncate(output.len().saturating_sub(folded));
+        Ok(output)
+    }
+
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
         if matches!(name, b"word" | b"wordlist") {
             let minimum = if name == b"word" { 2 } else { 3 };
@@ -1523,6 +2010,48 @@ impl Expansion<'_, '_> {
         }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
+            b"shell" => self.shell(first),
+            b"eval" => {
+                let location = self.context.location.cloned();
+                let result = match &mut self.store {
+                    StoreAccess::Database(db) => db.evaluate_in(
+                        first,
+                        location.as_ref(),
+                        None,
+                        self.bindings.clone(),
+                        self.context.reborrow(),
+                    ),
+                    StoreAccess::Scoped {
+                        database,
+                        variables,
+                    } => {
+                        let result = database.evaluate_in(
+                            first,
+                            location.as_ref(),
+                            Some(*variables),
+                            self.bindings.clone(),
+                            self.context.reborrow(),
+                        );
+                        variables.refresh_globals(&database.variables);
+                        result
+                    }
+                    _ => return Err(ExpandError::Unsupported(name.to_vec())),
+                };
+                result.map_err(|error| {
+                    if error.unlocated {
+                        ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
+                    } else {
+                        ExpandError::Located {
+                            location: Arc::new(error.location),
+                            error: Box::new(ExpandError::FileError(
+                                error.message.as_bytes().to_vec(),
+                            )),
+                        }
+                    }
+                })?;
+                Ok(Vec::new())
+            }
+
             b"wildcard" => {
                 let mut output = Vec::new();
                 for mut pattern in crate::filenames::sequence(first) {

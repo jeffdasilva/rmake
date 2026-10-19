@@ -1,0 +1,12 @@
+id = "dynamic-eval-recipe-automatic-second-stage"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-recipe-automatic-second-stage"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "616c6c0a"
+stderr_hex = ""

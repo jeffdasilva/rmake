@@ -1,0 +1,12 @@
+id = "dynamic-eval-error-second-stage"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-error-second-stage"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a207365636f6e642e202053746f702e0a"

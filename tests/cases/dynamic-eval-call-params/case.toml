@@ -1,0 +1,12 @@
+id = "dynamic-eval-call-params"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-call-params"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "706172616d657465720a"
+stderr_hex = ""

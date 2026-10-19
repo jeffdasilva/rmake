@@ -1,0 +1,12 @@
+id = "dynamic-eval-override-command"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-override-command"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "V=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66696c650a"
+stderr_hex = ""

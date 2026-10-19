@@ -1,0 +1,12 @@
+id = "dynamic-eval-lazy-skipped"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-lazy-skipped"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "736166650a"
+stderr_hex = ""

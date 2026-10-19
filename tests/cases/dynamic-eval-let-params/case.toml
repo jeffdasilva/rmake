@@ -1,0 +1,12 @@
+id = "dynamic-eval-let-params"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-let-params"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7265643a626c756520677265656e0a"
+stderr_hex = ""

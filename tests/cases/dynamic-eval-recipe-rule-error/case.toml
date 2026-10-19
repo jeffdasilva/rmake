@@ -1,0 +1,12 @@
+id = "dynamic-eval-recipe-rule-error"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-recipe-rule-error"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a20707265726571756973697465732063616e6e6f7420626520646566696e656420696e20726563697065732e202053746f702e0a"
