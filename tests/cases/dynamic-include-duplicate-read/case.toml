@@ -1,0 +1,12 @@
+id = "dynamic-include-duplicate-read"
+requirement = "includes.read"
+candidate = "required"
+description = "duplicate-read"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6120613a4d616b6566696c6520612e6d6b20612e6d6b0a"
+stderr_hex = ""

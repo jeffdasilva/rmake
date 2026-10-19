@@ -1,6 +1,6 @@
 id = "error-required-include"
 requirement = "errors.includes"
-candidate = "pending"
+candidate = "required"
 description = "error required include"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

@@ -1,6 +1,6 @@
 id = "include-expanded-name"
 requirement = "includes.read"
-candidate = "pending"
+candidate = "required"
 description = "include expanded name"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

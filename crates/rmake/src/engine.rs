@@ -6,8 +6,8 @@
 
 use crate::cli::Options;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
-use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludedFile, Output};
+use rmake_core::parser::{Database, Location, Makefile, Recipe, Rule, assignment, trim, words};
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use std::cell::RefCell;
@@ -170,6 +170,7 @@ pub struct Engine {
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     would_build: bool,
+    makefile_error: RefCell<Option<(Location, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
 }
@@ -323,6 +324,7 @@ impl Engine {
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             would_build: false,
+            makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
         })
@@ -339,6 +341,18 @@ impl Engine {
             ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
         )
+    }
+
+    fn show_makefile_error(&self) {
+        if let Some((location, message)) = self.makefile_error.borrow_mut().take() {
+            emit_output(
+                &self.program,
+                Output::Warning {
+                    location: Some(&location),
+                    message: &message,
+                },
+            );
+        }
     }
 
     fn stderr(&self, body: &[u8]) {
@@ -395,77 +409,195 @@ impl Engine {
             self.expansion_error(None, &error);
             return 2;
         }
-        for file in &files {
-            let mut bytes = Vec::new();
-            let read = if file == Path::new("-") {
-                io::stdin().read_to_end(&mut bytes)
-            } else {
-                fs::read(file).map(|content| {
-                    bytes = content;
-                    bytes.len()
-                })
-            };
-            if let Err(err) = read {
-                self.fatal(None, format!("{}: {err}", file.display()).as_bytes());
-                return 2;
+        let initial_database = self.database.clone();
+        let mut restarts = 0_u32;
+        let mut stdin_bytes = None;
+        loop {
+            if restarts > 0 {
+                self.database = initial_database.clone();
+                self.database
+                    .variables
+                    .define_literal(
+                        b"MAKE_RESTARTS",
+                        restarts.to_string().as_bytes(),
+                        Origin::Environment,
+                    )
+                    .expect("bounded restart count");
+                self.done.clear();
+                self.visiting.clear();
+                self.scope_parents.clear();
+                self.target_contexts.clear();
             }
-            if let Err(err) = self.database.variables.append_literal_at(
-                b"MAKEFILE_LIST",
-                file.as_os_str().as_bytes(),
-                Origin::File,
-                &Location {
-                    file: file.as_os_str().as_bytes().to_vec(),
-                    line: 1,
-                },
-            ) {
-                self.expansion_error(None, &err);
-                return 2;
-            }
-            if let Err(err) = self.database.read_with(
-                &bytes,
-                file.as_os_str().as_bytes(),
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
-            ) {
-                self.fatal(err.source_location(), err.message.as_bytes());
-                return 2;
-            }
-        }
-        for (name, initial) in [
-            (b"MAKEFLAGS".as_slice(), &self.initial_flags),
-            (b"GNUMAKEFLAGS", &self.initial_gnu_flags),
-        ] {
-            match self.expand(
-                &self.database.variables,
-                &[b"$(".as_slice(), name, b")"].concat(),
-                None,
-            ) {
-                Ok(current) if &current == initial => {}
-                _ => {
-                    self.fatal(
-                        None,
-                        b"rmake: changing make flags in a Makefile is not implemented yet",
+            for file in &files {
+                let mut bytes = Vec::new();
+                let read = if file == Path::new("-") {
+                    if let Some(saved) = &stdin_bytes {
+                        bytes = Vec::clone(saved);
+                        Ok(bytes.len())
+                    } else {
+                        let result = io::stdin().read_to_end(&mut bytes);
+                        stdin_bytes = Some(bytes.clone());
+                        result
+                    }
+                } else {
+                    fs::read(file).map(|content| {
+                        bytes = content;
+                        bytes.len()
+                    })
+                };
+                if let Err(err) = read {
+                    emit_output(
+                        &self.program,
+                        Output::Warning {
+                            location: None,
+                            message: format!("{}: {}", file.display(), os_error(&err)).as_bytes(),
+                        },
                     );
+                    self.database.makefiles.push(Makefile {
+                        name: file.as_os_str().as_bytes().to_vec(),
+                        optional: false,
+                        missing: true,
+                        read_error: None,
+                    });
+                    continue;
+                }
+                if file != Path::new("-") {
+                    self.database.makefiles.push(Makefile {
+                        name: file.as_os_str().as_bytes().to_vec(),
+                        optional: false,
+                        missing: false,
+                        read_error: None,
+                    });
+                }
+                if let Err(err) = self.database.variables.append_literal_at(
+                    b"MAKEFILE_LIST",
+                    file.as_os_str().as_bytes(),
+                    Origin::File,
+                    &Location {
+                        file: file.as_os_str().as_bytes().to_vec(),
+                        line: 1,
+                    },
+                ) {
+                    self.expansion_error(None, &err);
+                    return 2;
+                }
+                if let Err(err) = self.database.read_with(
+                    &bytes,
+                    file.as_os_str().as_bytes(),
+                    ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                        .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                        .with_includes(&mut |name| {
+                            fs::read(os(name))
+                                .map(|bytes| IncludedFile {
+                                    name: name.to_vec(),
+                                    bytes,
+                                })
+                                .map_err(|error| os_error(&error).into_bytes())
+                        }),
+                ) {
+                    self.fatal(err.source_location(), err.message.as_bytes());
                     return 2;
                 }
             }
-        }
-        match crate::command_variables::replay(
-            &mut self.database.variables,
-            self.command_replay,
-            if self.options.environment_override {
-                Origin::EnvironmentOverride
-            } else {
-                Origin::Environment
-            },
-            ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
-        ) {
-            Ok(names) => self.inherited_exports.extend(names),
-            Err(error) => {
-                self.expansion_error(None, &error);
+            for (name, initial) in [
+                (b"MAKEFLAGS".as_slice(), &self.initial_flags),
+                (b"GNUMAKEFLAGS", &self.initial_gnu_flags),
+            ] {
+                match self.expand(
+                    &self.database.variables,
+                    &[b"$(".as_slice(), name, b")"].concat(),
+                    None,
+                ) {
+                    Ok(current) if &current == initial => {}
+                    _ => {
+                        self.fatal(
+                            None,
+                            b"rmake: changing make flags in a Makefile is not implemented yet",
+                        );
+                        return 2;
+                    }
+                }
+            }
+            match crate::command_variables::replay(
+                &mut self.database.variables,
+                self.command_replay,
+                if self.options.environment_override {
+                    Origin::EnvironmentOverride
+                } else {
+                    Origin::Environment
+                },
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
+            ) {
+                Ok(names) => self.inherited_exports.extend(names),
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return 2;
+                }
+            }
+            // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
+            // recipes. A fresh database is constructed only when a file changed.
+            let modes = (
+                self.options.dry_run,
+                self.options.question,
+                self.options.touch,
+                self.options.always,
+            );
+            self.options.dry_run = false;
+            self.options.question = false;
+            self.options.touch = false;
+            if restarts > 0 {
+                self.options.always = false;
+            }
+            let mut changed = false;
+            let mut failed = false;
+            let mut seen = HashSet::new();
+            for makefile in self.database.makefiles.clone() {
+                if !seen.insert(makefile.name.clone())
+                    || self.special(b".PHONY", &makefile.name, false)
+                {
+                    continue;
+                }
+                if !self.database.rules.contains_key(&makefile.name)
+                    && (!makefile.missing || makefile.optional)
+                {
+                    continue;
+                }
+                let before = modified(&makefile.name);
+                *self.makefile_error.borrow_mut() = if makefile.optional {
+                    None
+                } else {
+                    makefile.read_error.map(|(location, error)| {
+                        (location, [makefile.name.as_slice(), b": ", &error].concat())
+                    })
+                };
+                let result = self.build(&makefile.name, None, 0);
+                self.makefile_error.borrow_mut().take();
+                failed |= result.failed && !makefile.optional;
+                changed |= !result.failed && modified(&makefile.name) != before;
+                if result.fatal {
+                    failed = true;
+                    break;
+                }
+            }
+            (
+                self.options.dry_run,
+                self.options.question,
+                self.options.touch,
+                self.options.always,
+            ) = modes;
+            if changed {
+                restarts += 1;
+                if restarts > 128 {
+                    self.fatal(None, b"rmake: makefile restart limit exceeded");
+                    return 2;
+                }
+                continue;
+            }
+            if failed {
                 return 2;
             }
+            break;
         }
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
@@ -635,6 +767,7 @@ impl Engine {
             } else {
                 b".  Stop."
             });
+            self.show_makefile_error();
             self.stderr(&message);
             let result = Outcome {
                 failed: true,
@@ -1145,6 +1278,9 @@ impl Engine {
                 }
             };
             if let Some(error) = error {
+                if !ignore {
+                    self.show_makefile_error();
+                }
                 if !ignore || !self.globally_silent() {
                     let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                     message.push(b'[');
@@ -1486,10 +1622,8 @@ mod tests {
 
     #[test]
     fn parsing_cannot_override_or_undefine_automatic_variants() {
-        let mut database = Database {
-            variables: automatic_store(),
-            ..Database::default()
-        };
+        let mut database = Database::default();
+        database.variables = automatic_store();
         database
             .read(
                 b"@D = ignored\n@F := ignored\noverride <D = ignored\noverride <F += ignored\nundefine ^D\noverride undefine ^F\n",
@@ -1512,10 +1646,8 @@ mod tests {
 
     #[test]
     fn user_base_value_is_visible_during_parsing_then_recipe_value_wins() {
-        let mut database = Database {
-            variables: automatic_store(),
-            ..Database::default()
-        };
+        let mut database = Database::default();
+        database.variables = automatic_store();
         database
             .read(
                 b"override @ := before/file\nPARSE := $(@D)|$(@F)\n",

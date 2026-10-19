@@ -1,0 +1,12 @@
+id = "dynamic-include-glob-sorted"
+requirement = "includes.read"
+candidate = "required"
+description = "glob-sorted"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f726465723d6120620a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "dynamic-include-empty-expanded"
+requirement = "includes.read"
+candidate = "required"
+description = "empty-expanded"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "696e636c7564652d656666656374730a646f6e650a"
+stderr_hex = ""
