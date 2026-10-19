@@ -7,6 +7,10 @@
 compile_error!("rmake-linux requires Linux");
 
 pub mod filesystem;
+mod wildcard;
+
+#[allow(unsafe_code)]
+mod posix;
 
 // libc owns buffering and reports deferred write failures at fclose. Keeping
 // that behavior requires a small FFI boundary; no semantic code uses unsafe.

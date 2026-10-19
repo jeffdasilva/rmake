@@ -866,3 +866,52 @@ from 97,404 KiB to 33,700 KiB. These are unisolated workload-specific measuremen
 not general performance guarantees. rmake remained slower than GNU Make in all
 six new workloads. Persistent caching and the wider compatibility/performance
 milestones remain incomplete.
+
+## Wildcard expansion and invocation directory observations — 2026-10-18
+
+`wildcard` now supports the current C-locale Linux/glibc profile through an
+invocation-owned filesystem runtime. Filename-sequence quoting, raw bytes,
+dot/link handling, path spelling, scoped/effectful HOME expansion and per-pattern
+ordering are preserved. Archive groups, traditional/GNU/BSD names, thin-archive
+fallbacks and GNU's matching-member repetition quirk have original fixtures.
+Malformed numeric headers and unsupported archive-symbol references preserve
+program-only fatal diagnostics through parsing and recipes without panics.
+
+Directory observations have path and device/inode keys, including missing paths.
+Successful file-write opens and completed recipe dispatch invalidate them.
+Reads retain them, and literal existence checks remain fresh. Cached owned
+names, compiled patterns, safe single-star matching and one-time directory sorting
+reduce repeated work without suppressing expansion effects. The
+[wildcard notes](wildcard.md) record semantics, source references, safety limits
+and the still-open locale/profile validation.
+
+The corpus adds 122 original fixtures and promotes three prior cases: 1,268 total,
+with 1,217 required exact matches, 51 explicit pending mismatches and no failures
+or unexpected passes. Full `make ci` passed with 344 Rust tests, 240 tooling tests,
+all prior gates and a selected wildcard self-host flow. `make test-wildcards`
+adds 100 independently modeled ASCII query programs to CI; an extended 1,000
+program campaign passed with a separate seed. Additional original campaigns
+matched 1,596 filename inputs and eight external cache-mutation scenarios.
+
+The filesystem interposer now has 19 required scenarios, adding six external
+mutation checks and two interruption boundaries. Both engines must match
+authored streams, status, complete filesystem and injection traces. The tests
+retain GNU's one-shot literal lstat and archive-open fallback, distinct from
+directory-discovery retries. The simple-star optimization also matches direct
+libc results across raw-byte names, dot boundaries and slash cases.
+
+`BENCH_SUITE=wildcard` adds cold, repeated, complex and literal query workloads
+over 1,000 untimed input files. `BENCH_REPEAT` controls paired measured samples.
+In 31 alternating release trials after two warmups, oracle/rmake median times
+were 1.070/0.838 ms cold, 36.367/11.416 ms repeated, 39.832/15.072 ms complex and
+1.089/1.267 ms literal. Repeated and complex queries are faster in these local
+measurements; literal queries remain slower than GNU. Both engines also drove
+the benchmark target through the top-level Makefile.
+
+Against preceding implementation `add18bb`, 31 alternating core-workload pairs
+after three warmups had median paired after/before ratios of 1.003 for tiny no-op,
+0.987 for 10,000 explicit targets and 1.031 for 5,000 assignments. These unisolated
+wall-time observations have no confidence intervals or CPU/RSS/I/O coverage and
+establish no general performance guarantee. Non-C profiles, process/eval effects,
+includes/restarts, complete rules, parallel execution, persistent caching and
+plugins remain open milestones.

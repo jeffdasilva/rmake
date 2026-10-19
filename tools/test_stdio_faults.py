@@ -48,13 +48,15 @@ class StdioFaultTests(unittest.TestCase):
             ast.parse(path.read_text(), feature_version=(3, 11))
 
     def test_inventory_covers_each_stage_and_is_bounded(self):
-        self.assertEqual(len(self.cells), 11)
-        self.assertEqual(len({cell.id for cell in self.cells}), 11)
+        self.assertEqual(len(self.cells), 19)
+        self.assertEqual(len({cell.id for cell in self.cells}), 19)
         self.assertEqual({cell.fault for cell in self.cells},
                          {'open-eintr', 'close-eio', 'read-eintr', 'read-eio',
-                          'write-eio', 'realpath-eintr', 'stat-eintr'})
+                          'write-eio', 'realpath-eintr', 'stat-eintr',
+                          'wildcard-files', 'wildcard-missing', 'wildcard-alias', 'wildcard-replaced',
+                          'archive-open-eintr'})
         self.assertEqual({cell.stage for cell in self.cells}, {None, 'read', 'write', 'close'})
-        self.assertTrue(all(len(cell.makefile) < 256 for cell in self.cells))
+        self.assertTrue(all(len(cell.makefile) < 512 for cell in self.cells))
         self.assertTrue(all(cell.trace for cell in self.cells))
         self.assertEqual(self.cells, faults.inventory())
 
@@ -83,6 +85,28 @@ class StdioFaultTests(unittest.TestCase):
         self.assertFalse((case.path / 'prefix.marker').exists())
         self.assertEqual(case.args, ('-rR', '--no-print-directory'))
         self.assertEqual(case.timeout, 5)
+
+    def test_wildcard_cases_anchor_cached_names_and_all_mutations(self):
+        for name in ('files', 'missing', 'alias', 'replaced'):
+            cell = next(cell for cell in self.cells if cell.id == 'wildcard-' + name)
+            anchor = faults.expected(cell, self.root)
+            self.assertIn(b'external-mutation', cell.trace)
+            self.assertIn(b'cached=<', anchor.stdout)
+            self.assertIn(b'literal=<', anchor.stdout)
+            self.assertIn(b'fresh=<', anchor.stdout)
+            self.assertEqual(anchor.filesystem['work/invalidate'], faults.regular_file(b''))
+            self.assertNotEqual(faults.wildcard_entries(cell, False), faults.wildcard_entries(cell, True))
+        replacement = next(cell for cell in self.cells if cell.id == 'wildcard-replaced')
+        anchor = faults.expected(replacement, self.root)
+        self.assertEqual(anchor.filesystem['work/old/a.t'], faults.regular_file(b'old\n'))
+        self.assertEqual(anchor.filesystem['work/d/b.t'], faults.regular_file(b'new\n'))
+
+    def test_missing_cache_mutation_is_rejected_even_if_both_engines_agree(self):
+        cell = next(cell for cell in self.cells if cell.id == 'wildcard-alias')
+        status, _, report, _ = self.campaign(cell=cell,
+            mutate=lambda obs: obs.filesystem.pop('work/d/b.t'))
+        self.assertEqual(status, 1)
+        self.assertEqual(report['cases'][0]['status'], 'FAIL')
 
     def test_success_uses_same_workspace_and_retains_expectations(self):
         status, output, report, roots = self.campaign()

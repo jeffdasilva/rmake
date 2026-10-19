@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-caret-class"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "Original wildcard boundary: caret-class"
+provenance = "Independently authored inputs and GNU Make 4.4.1 oracle observations; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b4d616b6566696c65206220622e63207061747465726e20782e685d0a"
+stderr_hex = ""

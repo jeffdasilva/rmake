@@ -14,6 +14,7 @@ import base64
 import dataclasses
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -28,6 +29,8 @@ PROTECTED = b'Original filesystem fault campaign anchor.\n'
 PREFIX = b'$(file >prefix.marker,before)\n$(info begin)\n'
 SUFFIX = b'$(file >suffix.marker,after)\nall:;@:\n'
 ARGS = ('-rR', '--no-print-directory')
+ARCHIVE = (b'!<arch>\n' + b'a.o/'.ljust(16) + b'0'.ljust(12)
+           + b'0'.ljust(6) * 2 + b'644'.ljust(8) + b'0'.ljust(10) + b'`\n')
 
 
 @dataclasses.dataclass(frozen=True)
@@ -39,6 +42,7 @@ class Cell:
     stage: str | None
     final: bytes
     trace: bytes
+    initial: bytes = INITIAL
 
     @property
     def makefile(self) -> bytes:
@@ -68,7 +72,53 @@ def inventory() -> tuple[Cell, ...]:
         cells.append(Cell(fault, fault, b'$(info path=<$(realpath effect-probe)>)',
                           b'begin\npath=<@WORK@/effect-probe>\n', None,
                           INITIAL, b'interrupted\n'))
+    for mode, first, later, before, cached, literal, fresh in (
+        ('files', b'*.t', b'*.t', b'a.t', b'a.t', b'b.t', b'b.t'),
+        ('files-escaped-dot', b'a\\.t', b'a\\.t', b'a.t', b'a.t', b'b.t', b''),
+        ('files-escaped-letter', b'\\a.t', b'\\a.t', b'a.t', b'a.t', b'b.t', b''),
+        ('missing', b'missing/*.t', b'missing/*.t', b'', b'', b'missing/b.t', b'missing/b.t'),
+        ('alias', b'd/*.t', b'link/*.t', b'd/a.t', b'link/a.t', b'link/b.t', b'link/b.t'),
+        ('replaced', b'd/*.t', b'd/*.t', b'd/a.t', b'd/a.t', b'd/b.t', b'd/b.t'),
+    ):
+        expression = (b'$(info before=<$(wildcard ' + first + b')>)\n'
+                      b'$(info data=<$(file <effect-probe)>)\n'
+                      b'$(info cached=<$(wildcard ' + later + b')>)\n'
+                      b'$(info literal=<$(wildcard ' + literal + b')>)\n'
+                      b'$(file >invalidate)\n$(info fresh=<$(wildcard ' + later + b')>)')
+        stdout = (b'begin\nbefore=<' + before + b'>\ndata=<original-content>\ncached=<'
+                  + cached + b'>\nliteral=<' + literal + b'>\nfresh=<' + fresh + b'>\n')
+        fault = 'wildcard-files' if mode.startswith('files-') else 'wildcard-' + mode
+        cells.append(Cell('wildcard-' + mode, fault, expression, stdout,
+                          None, INITIAL, b'external-mutation\n'))
+    cells.append(Cell('wildcard-stat-eintr', 'stat-eintr',
+                      b'$(info path=<$(wildcard effect-probe)>)',
+                      b'begin\npath=<>\n', None, INITIAL, b'interrupted\n'))
+    cells.append(Cell('archive-open-eintr', 'archive-open-eintr',
+                      b'$(info path=<$(wildcard effect-probe(*))>)',
+                      b'begin\npath=<effect-probe(*)>\n', None, ARCHIVE,
+                      b'interrupted\n', initial=ARCHIVE))
     return tuple(cells)
+
+
+def wildcard_entries(cell: Cell, final: bool) -> dict:
+    if not cell.fault.startswith('wildcard-'):
+        return {}
+    if cell.fault == 'wildcard-files':
+        entries = {'b.t' if final else 'a.t': regular_file(b'new\n' if final else b'old\n')}
+    elif cell.fault == 'wildcard-missing':
+        entries = {'missing': {'type': 'directory', 'mode': 0o755},
+                   'missing/b.t': regular_file(b'new\n')} if final else {}
+    else:
+        entries = {'d': {'type': 'directory', 'mode': 0o755},
+                   'd/b.t' if final else 'd/a.t': regular_file(b'new\n' if final else b'old\n')}
+        if cell.fault == 'wildcard-alias':
+            entries['link'] = {'type': 'symlink', 'mode': 0o777, 'target': 'd'}
+        elif final:
+            entries.update({'old': {'type': 'directory', 'mode': 0o755},
+                            'old/a.t': regular_file(b'old\n')})
+    if final:
+        entries['invalidate'] = regular_file(b'')
+    return entries
 
 
 def regular_file(content: bytes) -> dict:
@@ -84,6 +134,7 @@ def expected(cell: Cell, workspace: Path) -> conformance.Observation:
         files['suffix.marker'] = b'after\n'
     filesystem = {name: {'type': 'directory', 'mode': 0o755} for name in ('home', 'tmp', 'work')}
     filesystem.update({'work/' + name: regular_file(content) for name, content in files.items()})
+    filesystem.update({'work/' + name: item for name, item in wildcard_entries(cell, True).items()})
     stderr = (f'Makefile:3: *** {cell.stage}: effect-probe: Input/output error.  Stop.\n'.encode()
               if cell.stage else b'')
     return conformance.Observation(cell.stdout.replace(b'@WORK@', bytes(workspace / 'work')),
@@ -93,10 +144,19 @@ def expected(cell: Cell, workspace: Path) -> conformance.Observation:
 def materialize(cell: Cell, parent: Path, library: Path) -> conformance.Case:
     path = parent / cell.id
     path.mkdir(parents=True)
-    for name, contents in {'Makefile': cell.makefile, 'effect-probe': INITIAL,
+    for name, contents in {'Makefile': cell.makefile, 'effect-probe': cell.initial,
                            'protected.txt': PROTECTED}.items():
         (path / name).write_bytes(contents)
         (path / name).chmod(0o644)
+    for name, entry in wildcard_entries(cell, False).items():
+        target = path / name
+        if entry['type'] == 'directory':
+            target.mkdir()
+        elif entry['type'] == 'symlink':
+            os.symlink(entry['target'], target)
+        else:
+            target.write_bytes(base64.b64decode(entry['content']))
+            target.chmod(0o644)
     return conformance.Case(path, cell.id, 'effects.filesystem-faults', 'required', ARGS, 5,
                             {'LD_PRELOAD': str(library), 'RMAKE_STDIO_FAULT': cell.fault}, {})
 

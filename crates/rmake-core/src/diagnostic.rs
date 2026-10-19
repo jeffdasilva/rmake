@@ -26,6 +26,9 @@ pub enum Output<'a> {
 /// raw Linux bytes; the runtime owns filesystem access and error formatting.
 #[derive(Clone, Copy, Debug)]
 pub enum FilesystemEffect<'a> {
+    Wildcard(&'a [u8]),
+    /// Account/environment fallback; make's nonempty HOME is expanded in core.
+    Tilde(&'a [u8]),
     Realpath(&'a [u8]),
     ReadFile(&'a [u8]),
     WriteFile {
@@ -35,7 +38,28 @@ pub enum FilesystemEffect<'a> {
     },
 }
 
-type FilesystemReceiver<'a> = dyn FnMut(FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> + 'a;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FilesystemError {
+    Caller(Vec<u8>),
+    Unlocated(Vec<u8>),
+}
+
+impl From<Vec<u8>> for FilesystemError {
+    fn from(message: Vec<u8>) -> Self {
+        Self::Caller(message)
+    }
+}
+
+impl FilesystemError {
+    pub fn into_message(self) -> Vec<u8> {
+        match self {
+            Self::Caller(message) | Self::Unlocated(message) => message,
+        }
+    }
+}
+
+type FilesystemReceiver<'a> =
+    dyn FnMut(FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> + 'a;
 
 /// Explicit caller context and output receiver. This is never stored in or
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
@@ -71,7 +95,7 @@ impl<'a> ExpansionContext<'a> {
     pub fn perform_filesystem(
         &mut self,
         effect: FilesystemEffect<'_>,
-    ) -> Option<Result<Vec<u8>, Vec<u8>>> {
+    ) -> Option<Result<Vec<u8>, FilesystemError>> {
         self.filesystem.as_mut().map(|receiver| receiver(effect))
     }
 

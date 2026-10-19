@@ -44,7 +44,10 @@ subsystems as modules; split a crate only when it provides a useful dependency o
 safety boundary. No separate service or background daemon is required.
 
 The current workspace contains `rmake-core`, the `rmake` application and
-`rmake-linux` for explicit filesystem effects and its private stdio adapter.
+`rmake-linux` for explicit filesystem effects and its private stdio/POSIX adapters.
+The engine owns invocation-scoped directory observations shared across expansion
+contexts. Successful file-write opens and recipe dispatch completion invalidate
+them; other observations retain their own freshness rules.
 Process scheduling still lives in the application; the rest of the boundaries
 below describe the intended incremental structure, not completed subsystems.
 

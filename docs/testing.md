@@ -226,6 +226,23 @@ Curated cases separately cover normal file/realpath behavior, byte filenames,
 symlinks, NUL expansion consumers, newline treatment and effect timing.
 See the [filesystem effect notes](filesystem-effects.md) for safety boundaries.
 
+Six additional interposer cases perform deterministic external mutations during
+a read without advancing make's command generation. Their authored observations
+check stale wildcard results, fresh literal existence tests, cached missing
+directories, inode aliases, path replacement and subsequent write invalidation.
+The injection trace and complete filesystem are anchored for both engines. An
+additional interrupted literal lookup verifies GNU's one-shot lstat boundary.
+A separate archive-open interruption verifies member-pattern fallback without
+silently retrying the failed open.
+
+`make test-wildcards` adds 100 seeded query programs by default. A separate Python
+model predicts ASCII glob matches, dot rules, per-pattern sorting and duplicates
+across files and directories. A write phase verifies cache invalidation, and
+both engines must match exact stdout/status and complete filesystem expectations.
+Reports retain seed, program index, expression count, input digest and executable
+identities for replay. Curated Makefiles supply escapes, raw bytes, tilde,
+archive formats, errors and recipe timing outside the generated model's scope.
+
 `make test-whitespace` checks pure-function tokenization, lazy arguments and
 local binding scopes across C whitespace and non-whitespace control bytes.
 Every case has authored stream/status/filesystem anchors, including selected

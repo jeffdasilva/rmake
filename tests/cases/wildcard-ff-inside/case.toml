@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-ff-inside"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "Original wildcard boundary: ff-inside"
+provenance = "Independently authored inputs and GNU Make 4.4.1 oracle observations; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b610c625d0a"
+stderr_hex = ""

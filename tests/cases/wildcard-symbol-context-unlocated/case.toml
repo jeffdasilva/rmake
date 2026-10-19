@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-symbol-context-unlocated"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "Original wildcard boundary: symbol-context-unlocated"
+provenance = "Independently authored inputs and GNU Make 4.4.1 oracle observations; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20617474656d707420746f2075736520756e737570706f7274656420666561747572653a20276c69622e612828782929272e202053746f702e0a"

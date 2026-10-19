@@ -35,8 +35,23 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans)
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
+
+    def test_wildcard_suite_distinguishes_cold_cached_complex_and_literal_queries(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.wildcard_workloads())
+        self.assertEqual([name for name, _ in workloads],
+                         ['wildcard-cold', 'wildcard-warm', 'wildcard-complex', 'wildcard-literal'])
+        self.assertEqual([source.count(b'$(wildcard') for _, source in workloads], [1, 200, 200, 1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertIsNone(benchmark.prepare_files(root, 'tiny-noop'))
+            fixture = benchmark.prepare_files(root, 'wildcard-cold')
+            self.assertEqual(fixture['files'], 1000)
+            self.assertEqual(len(list((root / 'inputs').iterdir())), 1000)
+            self.assertEqual((root / 'inputs/file0999.c').read_bytes(), b'original\n')
 
 
 if __name__ == "__main__":

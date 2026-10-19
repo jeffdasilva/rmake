@@ -13,7 +13,9 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, Location, Output};
+use crate::diagnostic::{
+    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output,
+};
 
 const MAX_DEPTH: usize = 128;
 pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
@@ -168,6 +170,7 @@ pub enum ExpandError {
     },
     Unsupported(Vec<u8>),
     FileError(Vec<u8>),
+    UnlocatedError(Vec<u8>),
     UserError(Vec<u8>),
     /// A user error inside a recursive binding keeps the first entered binding
     /// context. An explicit absent location must survive diagnostic unwinding.
@@ -197,6 +200,9 @@ pub enum ExpandError {
 }
 
 impl ExpandError {
+    pub fn is_unlocated(&self) -> bool {
+        matches!(self, Self::UnlocatedError(_))
+    }
     pub fn location(&self) -> Option<&Location> {
         match self {
             Self::Located { location, .. } => Some(location),
@@ -213,6 +219,9 @@ impl ExpandError {
         &'a self,
         context: Option<&'a Location>,
     ) -> Option<&'a Location> {
+        if matches!(self, Self::UnlocatedError(_)) {
+            return None;
+        }
         if self.is_user_error() {
             context.or(self.location())
         } else {
@@ -229,7 +238,10 @@ impl ExpandError {
     }
 
     fn at(self, location: Option<&Arc<Location>>) -> Self {
-        if matches!(self, Self::ContextualUserError { .. }) {
+        if matches!(
+            self,
+            Self::ContextualUserError { .. } | Self::UnlocatedError(_)
+        ) {
             return self;
         }
         match location {
@@ -245,6 +257,7 @@ impl ExpandError {
         match self {
             Self::Located { error, .. } => error.diagnostic(),
             Self::FileError(message)
+            | Self::UnlocatedError(message)
             | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => message.clone().into(),
@@ -290,6 +303,7 @@ impl fmt::Display for ExpandError {
         match self {
             Self::Located { error, .. } => error.fmt(output),
             Self::FileError(message)
+            | Self::UnlocatedError(message)
             | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => {
@@ -1363,9 +1377,7 @@ impl Expansion<'_, '_> {
                 result
             }
             b"call" => self.call(args),
-            b"shell" | b"eval" | b"wildcard" | b"guile" => {
-                Err(ExpandError::Unsupported(name.to_vec()))
-            }
+            b"shell" | b"eval" | b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
             _ => {
                 let expanded = args
                     .iter()
@@ -1455,7 +1467,10 @@ impl Expansion<'_, '_> {
     ) -> Result<Vec<u8>, ExpandError> {
         match self.context.perform_filesystem(effect) {
             None => Err(ExpandError::Unsupported(name.to_vec())),
-            Some(Err(message)) => Err(ExpandError::ContextualUserError {
+            Some(Err(FilesystemError::Unlocated(message))) => {
+                Err(ExpandError::UnlocatedError(message))
+            }
+            Some(Err(FilesystemError::Caller(message))) => Err(ExpandError::ContextualUserError {
                 message,
                 location: self.context.location.cloned().map(Arc::new),
             }),
@@ -1473,6 +1488,49 @@ impl Expansion<'_, '_> {
         }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
+            b"wildcard" => {
+                let mut output = Vec::new();
+                for mut pattern in crate::filenames::sequence(first) {
+                    if pattern.starts_with(b"~") {
+                        let expanded = if pattern.len() == 1 || pattern[1] == b'/' {
+                            let home = self.variable(b"HOME")?;
+                            if home.is_empty() {
+                                self.filesystem(name, FilesystemEffect::Tilde(&pattern))?
+                            } else {
+                                let mut expanded = home;
+                                push(&mut expanded, &pattern[1..])?;
+                                expanded
+                            }
+                        } else {
+                            self.filesystem(name, FilesystemEffect::Tilde(&pattern))?
+                        };
+                        if !expanded.is_empty() {
+                            pattern = expanded;
+                        }
+                    }
+                    if let Some((_, member)) = crate::filenames::archive_parts(&pattern)
+                        && member.starts_with(b"(")
+                        && member.ends_with(b")")
+                    {
+                        return Err(ExpandError::UnlocatedError(
+                            [
+                                b"attempt to use unsupported feature: '".as_slice(),
+                                &pattern,
+                                b"'",
+                            ]
+                            .concat(),
+                        ));
+                    }
+                    let matches = self.filesystem(name, FilesystemEffect::Wildcard(&pattern))?;
+                    if !matches.is_empty() {
+                        if !output.is_empty() {
+                            push(&mut output, b" ")?;
+                        }
+                        push(&mut output, &matches)?;
+                    }
+                }
+                Ok(output)
+            }
             b"file" => {
                 let (offset, read, append) = match first {
                     [b'>', b'>', ..] => (2, false, true),
@@ -3684,6 +3742,9 @@ mod tests {
                 FilesystemEffect::ReadFile(path) => paths.push(path.to_vec()),
                 FilesystemEffect::WriteFile { path, .. } => paths.push(path.to_vec()),
                 FilesystemEffect::Realpath(path) => paths.push(path.to_vec()),
+                FilesystemEffect::Wildcard(_) | FilesystemEffect::Tilde(_) => {
+                    panic!("unexpected wildcard")
+                }
             }
             Ok(Vec::new())
         };
@@ -3766,7 +3827,9 @@ mod tests {
             .unwrap();
         for active in [None, Some(source(4))] {
             let mut handler = |_effect: FilesystemEffect<'_>| {
-                Err(b"open: missing/out: No such file or directory".to_vec())
+                Err(b"open: missing/out: No such file or directory"
+                    .to_vec()
+                    .into())
             };
             let error = store
                 .expand_with(

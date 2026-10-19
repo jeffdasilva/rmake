@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -57,6 +58,38 @@ static int interrupt_once(const char *path, const char *mode) {
     return 0;
 }
 
+int open(const char *path, int flags, ...) {
+    int (*next)(const char *, int, ...) = symbol("open");
+    mode_t mode = 0;
+    if ((flags & O_CREAT) || ((flags & O_TMPFILE) == O_TMPFILE)) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, mode_t);
+        va_end(args);
+    }
+    if (interrupt_once(path, "archive-open-eintr")) return -1;
+    return next(path, flags, mode);
+}
+
+static void external_mutation(void) {
+    const char *file = "b.t";
+    if (mode_is("wildcard-files")) {
+        if (unlink("a.t")) _exit(126);
+    } else if (mode_is("wildcard-missing")) {
+        if (mkdir("missing", 0755)) _exit(126);
+        file = "missing/b.t";
+    } else if (mode_is("wildcard-alias")) {
+        if (unlink("d/a.t")) _exit(126);
+        file = "d/b.t";
+    } else if (mode_is("wildcard-replaced")) {
+        if (rename("d", "old") || mkdir("d", 0755)) _exit(126);
+        file = "d/b.t";
+    } else return;
+    int fd = open(file, O_WRONLY | O_CREAT | O_EXCL, 0644);
+    if (fd < 0 || write(fd, "new\n", 4) != 4 || close(fd)) _exit(127);
+    note("external-mutation\n");
+}
+
 struct read_cookie {
     FILE *backing;
     unsigned calls;
@@ -88,6 +121,10 @@ FILE *fopen(const char *path, const char *mode) {
     FILE *(*next)(const char *, const char *) = symbol("fopen");
     if (interrupt_once(path, "open-eintr"))
         return NULL;
+    if (selected(path) && mode[0] == 'r' && !interrupted) {
+        external_mutation();
+        interrupted = 1;
+    }
     FILE *stream = next(path, mode);
     if (!stream || !selected(path))
         return stream;
@@ -162,6 +199,18 @@ int stat64(const char *path, struct stat64 *out) {
     int (*next)(const char *, struct stat64 *) = symbol("stat64");
     if (interrupt_once(path, "stat-eintr"))
         return -1;
+    return next(path, out);
+}
+
+int lstat(const char *path, struct stat *out) {
+    int (*next)(const char *, struct stat *) = symbol("lstat");
+    if (interrupt_once(path, "stat-eintr")) return -1;
+    return next(path, out);
+}
+
+int lstat64(const char *path, struct stat64 *out) {
+    int (*next)(const char *, struct stat64 *) = symbol("lstat64");
+    if (interrupt_once(path, "stat-eintr")) return -1;
     return next(path, out);
 }
 

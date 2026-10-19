@@ -8,15 +8,58 @@ use std::fs;
 use std::io;
 use std::os::unix::ffi::OsStrExt;
 
-use rmake_core::diagnostic::FilesystemEffect;
+use rmake_core::diagnostic::{FilesystemEffect, FilesystemError};
 use rmake_core::variables::MAX_OUTPUT;
 
 use crate::stdio::Stream;
+use crate::{posix, wildcard::Wildcard};
 
-/// Execute exactly the requested effect, without consulting or caching make
-/// variables. Reads and path observations must run again on every evaluation.
+#[derive(Default)]
+pub struct Runtime {
+    wildcard: Wildcard,
+}
+
+impl Runtime {
+    pub fn execute(&mut self, effect: FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> {
+        execute_with(effect, &mut self.wildcard)
+    }
+
+    /// Completed make children invalidate directory observations, including
+    /// failed commands. Reads and skipped commands retain the observations.
+    pub fn child_completed(&mut self) {
+        self.wildcard.invalidate();
+    }
+}
+
+/// One-shot adapter for callers without an invocation runtime. The engine owns
+/// a Runtime across evaluations; reads and realpath observations remain fresh.
 pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
+    Runtime::default()
+        .execute(effect)
+        .map_err(FilesystemError::into_message)
+}
+
+fn execute_with(
+    effect: FilesystemEffect<'_>,
+    wildcard: &mut Wildcard,
+) -> Result<Vec<u8>, FilesystemError> {
     match effect {
+        FilesystemEffect::Wildcard(pattern) => wildcard.expand(pattern),
+        FilesystemEffect::Tilde(name) => {
+            let slash = name.iter().position(|&b| b == b'/').unwrap_or(name.len());
+            let home = if slash == 1 {
+                std::env::var_os("HOME")
+                    .filter(|home| !home.is_empty())
+                    .map(|home| home.as_bytes().to_vec())
+                    .or_else(|| posix::home(None))
+            } else {
+                posix::home(Some(&name[1..slash]))
+            };
+            Ok(home.map_or_else(Vec::new, |mut home| {
+                home.extend_from_slice(&name[slash..]);
+                home
+            }))
+        }
         FilesystemEffect::Realpath(path) => {
             // GNU's Linux profile uses PATH_MAX-sized input/output buffers and
             // verifies the resolved path still exists. Failures omit this word.
@@ -33,10 +76,11 @@ pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
             }
             Ok(path.into_os_string().as_bytes().to_vec())
         }
-        FilesystemEffect::ReadFile(path) => read(path),
+        FilesystemEffect::ReadFile(path) => read(path).map_err(Into::into),
         FilesystemEffect::WriteFile { path, text, append } => {
             let mut stream = Stream::open(path, if append { c"a" } else { c"w" })
                 .map_err(|error| diagnostic(b"open", path, error))?;
+            wildcard.invalidate();
             if let Some(text) = text {
                 stream
                     .write_text(text, !text.ends_with(b"\n"))
@@ -50,7 +94,7 @@ pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
     }
 }
 
-fn retry_interrupted<T>(mut operation: impl FnMut() -> io::Result<T>) -> io::Result<T> {
+pub(crate) fn retry_interrupted<T>(mut operation: impl FnMut() -> io::Result<T>) -> io::Result<T> {
     loop {
         match operation() {
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,

@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use rmake_core::diagnostic::FilesystemEffect;
+use rmake_linux::filesystem::Runtime;
 use rmake_linux::filesystem::execute;
 
 struct Directory(PathBuf);
@@ -34,6 +35,126 @@ impl Drop for Directory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn wildcard_observations_share_inode_contents_and_refresh_after_effects() {
+    let directory = Directory::new();
+    let path = directory.0.join("d");
+    fs::create_dir(&path).unwrap();
+    fs::write(path.join("old.t"), b"old").unwrap();
+    symlink("d", directory.0.join("alias")).unwrap();
+    let pattern = [path.as_os_str().as_bytes(), b"/*.t"].concat();
+    let alias = [directory.0.as_os_str().as_bytes(), b"/alias/*.t"].concat();
+    let old = path.join("old.t").as_os_str().as_bytes().to_vec();
+    let new = path.join("new.t").as_os_str().as_bytes().to_vec();
+    let mut runtime = Runtime::default();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        old
+    );
+    fs::remove_file(path.join("old.t")).unwrap();
+    fs::write(path.join("new.t"), b"new").unwrap();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        old
+    );
+    assert_eq!(
+        runtime.execute(FilesystemEffect::Wildcard(&alias)).unwrap(),
+        directory.0.join("alias/old.t").as_os_str().as_bytes()
+    );
+    assert_eq!(
+        runtime.execute(FilesystemEffect::Wildcard(&new)).unwrap(),
+        new
+    );
+    runtime.execute(FilesystemEffect::ReadFile(&new)).unwrap();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        old
+    );
+    runtime
+        .execute(FilesystemEffect::WriteFile {
+            path: &new,
+            text: None,
+            append: true,
+        })
+        .unwrap();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        new
+    );
+    fs::remove_file(path.join("new.t")).unwrap();
+    runtime.child_completed();
+    assert!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn wildcard_cached_paths_survive_external_directory_replacement() {
+    let directory = Directory::new();
+    let path = directory.0.join("d");
+    fs::create_dir(&path).unwrap();
+    fs::write(path.join("a"), b"a").unwrap();
+    let pattern = [path.as_os_str().as_bytes(), b"/*"].concat();
+    let old = path.join("a").as_os_str().as_bytes().to_vec();
+    let mut runtime = Runtime::default();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        old
+    );
+    fs::rename(&path, directory.0.join("old")).unwrap();
+    fs::create_dir(&path).unwrap();
+    fs::write(path.join("b"), b"b").unwrap();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        old
+    );
+    runtime.child_completed();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        path.join("b").as_os_str().as_bytes()
+    );
+}
+
+#[test]
+fn wildcard_keeps_dangling_symlinks_but_directory_suffix_follows_them() {
+    let directory = Directory::new();
+    let link = directory.0.join("link");
+    symlink("link", &link).unwrap();
+    let pattern = [directory.0.as_os_str().as_bytes(), b"/li*"].concat();
+    let mut runtime = Runtime::default();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&pattern))
+            .unwrap(),
+        link.as_os_str().as_bytes()
+    );
+    assert!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(
+                &[pattern, b"/".to_vec()].concat()
+            ))
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
