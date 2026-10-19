@@ -1,6 +1,6 @@
 id = "cli-replay-conditional-imported-literal-dollar"
 requirement = "variables.command-line-replay"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "X?=ignored"]
 description = "Original startup-depth and variable-phase boundary with exact independent stream and exit expectations."
 provenance = "Original independent black-box GNU Make 4.4.1 expectations; no upstream source or tests copied."

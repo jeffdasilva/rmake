@@ -8,6 +8,7 @@ use std::io::{self, Write};
 use std::process::ExitCode;
 
 mod cli;
+mod command_variables;
 mod engine;
 mod oneshell;
 mod process;

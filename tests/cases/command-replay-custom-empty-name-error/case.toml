@@ -1,0 +1,11 @@
+id = "command-replay-custom-empty-name-error"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=old"]
+description = "Original startup/replay phase boundary: custom empty name error."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20656d707479207661726961626c65206e616d652e202053746f702e0a"

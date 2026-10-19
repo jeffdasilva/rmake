@@ -1,0 +1,2 @@
+MAKEOVERRIDES==value
+all:;@:

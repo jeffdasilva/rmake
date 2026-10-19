@@ -1,0 +1,11 @@
+id = "command-replay-after-all-input-files"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-f", "first.mk", "-f", "second.mk", "X=original"]
+description = "Original startup/replay phase boundary: after all input files."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "70617273653d756e646566696e65640a7265636970653d3c6f726967696e616c3e7c656e7669726f6e6d656e740a"
+stderr_hex = ""

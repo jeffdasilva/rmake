@@ -55,12 +55,12 @@ path stored in `MAKE` and `MAKE_COMMAND` does not acquire a diagnostic suffix.
 
 ## Remaining scope
 
-GNU also reapplies command-line bindings after parsing Makefiles. Existing rmake
-does not implement that general phase. Original pending cases preserve its
-effects on both `MAKELEVEL` and ordinary variables, including `override undefine`
-and a conditional command-line assignment that loses to an imported recursive
-value. Parse-time normalization and recipe-time replay must remain distinct.
-Another pending generic assignment case preserves a leading-vertical-tab RHS
+The later [command-binding replay implementation](command-replay.md) reapplies
+captured bindings after parsing, including `override undefine` and conditional
+assignments that retain imported recursive values. That source-informed slice
+is separate from the original executable-only depth investigation above.
+Startup normalization and post-read replay remain distinct: replay does not
+recompute invocation depth. A pending generic assignment case preserves a leading-vertical-tab RHS
 lexing difference. That is separate from the startup numeric converter, which
 handles vertical tab correctly in raw imported values.
 

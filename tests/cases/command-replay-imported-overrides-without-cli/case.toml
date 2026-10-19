@@ -1,0 +1,14 @@
+id = "command-replay-imported-overrides-without-cli"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original startup/replay phase boundary: imported overrides without cli."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"MAKEOVERRIDES" = "Y=new"
+
+[expected]
+exit_code = 0
+stdout_hex = "7061727365642d583d3c3e7c756e646566696e65647c756e646566696e65640a7061727365642d593d3c3e7c756e646566696e65640a6f76657272696465733d3c593d6e65773e7c656e7669726f6e6d656e747c7265637572736976650a68696464656e3d3c3e7c756e646566696e65647c756e646566696e65640a7265636970652d583d3c3e7c7c756e646566696e65647c756e646566696e65640a7265636970652d593d3c6e65773e7c656e7669726f6e6d656e740a"
+stderr_hex = ""

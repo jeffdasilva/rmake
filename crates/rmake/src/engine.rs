@@ -164,6 +164,7 @@ pub struct Engine {
     program: Vec<u8>,
     makelevel: u32,
     inherited_exports: HashSet<Vec<u8>>,
+    command_replay: bool,
     done: HashMap<Vec<u8>, Outcome>,
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
@@ -240,6 +241,8 @@ impl Engine {
             .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
             .map_err(|e| e.diagnostic())?;
         let mut output = |event: Output<'_>| emit_output(&program, event);
+        let mut command_names = Vec::new();
+        let mut seen_commands = HashSet::new();
         for arg in &options.assignments {
             let spec = assignment(arg).expect("CLI identified assignment");
             if [b"MAKEFLAGS".as_slice(), b"GNUMAKEFLAGS"].contains(&trim(spec.name)) {
@@ -265,10 +268,16 @@ impl Engine {
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect)),
                 )
                 .map_err(|e| e.diagnostic())?;
+            if seen_commands.insert(name.clone()) {
+                command_names.push(name.clone());
+            }
             if automatic_export_name(&name) {
                 inherited_exports.insert(name);
             }
         }
+        let command_replay =
+            crate::command_variables::prepare(&mut database.variables, &command_names)
+                .map_err(|error| error.diagnostic())?;
         let makelevel = startup_makelevel(
             database
                 .variables
@@ -308,6 +317,7 @@ impl Engine {
             program,
             makelevel,
             inherited_exports,
+            command_replay,
             done: HashMap::new(),
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
@@ -438,6 +448,23 @@ impl Engine {
                     );
                     return 2;
                 }
+            }
+        }
+        match crate::command_variables::replay(
+            &mut self.database.variables,
+            self.command_replay,
+            if self.options.environment_override {
+                Origin::EnvironmentOverride
+            } else {
+                Origin::Environment
+            },
+            ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
+        ) {
+            Ok(names) => self.inherited_exports.extend(names),
+            Err(error) => {
+                self.expansion_error(None, &error);
+                return 2;
             }
         }
         // Reject special execution modes until their semantics are implemented,

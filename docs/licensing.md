@@ -39,6 +39,8 @@ The [export-binding notes](export-bindings.md) record the source references used
 for the independently authored binding-lifetime follow-up.
 The [NUL reader notes](nul-reader.md) record GNU's file-buffer and diagnostic
 references for the independently authored stream model.
+The [command replay notes](command-replay.md) record GNU's startup, post-read
+decoding and binding-precedence references for the independently authored replay.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

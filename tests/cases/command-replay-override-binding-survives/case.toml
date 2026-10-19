@@ -1,0 +1,11 @@
+id = "command-replay-override-binding-survives"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=original"]
+description = "Original startup/replay phase boundary: override binding survives."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b652d583d3c66696c653e7c6f766572726964650a"
+stderr_hex = ""

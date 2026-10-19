@@ -1,8 +1,8 @@
 id = "assignment-operator-cli-short-reference-nonempty-name"
 requirement = "variables.assignment-operators"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory", "$(subst x,+,x)=P", "$(subst x,?,x)=Q", "$(subst x,:,x)=C", "$(subst x,!,x)=B", "$(subst x,=,x)=E", "A$+=value", "B$?=value", "C$:=value", "D$!=value", "E$==value"]
-description = "Punctuation-named CLI variables expand into assignment names correctly, then GNU command-line replay emits an empty-variable-name fatal after parse output. Candidate lacks this generic replay phase."
+description = "Punctuation-named CLI variables expand into assignment names correctly, then GNU command-line replay emits an empty-variable-name fatal after parse output. The post-read replay preserves the observed fatal."
 provenance = "Independently authored GNU Make 4.4.1 black-box expectations; no upstream source or tests copied."
 
 [expected]

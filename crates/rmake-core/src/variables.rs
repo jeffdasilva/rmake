@@ -843,6 +843,19 @@ impl VariableStore {
         self.expansion(context).expand(input)
     }
 
+    /// Invocation phases have an unlocated outer expansion, as when GNU
+    /// decodes MAKEFLAGS. User output/errors retain that outer context while
+    /// nested validation errors still carry their binding provenance.
+    pub fn expand_at_invocation_with(
+        &self,
+        input: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        let mut expansion = self.expansion(context);
+        expansion.binding_context = Some(None);
+        expansion.expand(input)
+    }
+
     /// Pure/test convenience wrapper that rejects output functions.
     pub fn expand_variable(&self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
         self.expand_variable_with(name, ExpansionContext::pure())
