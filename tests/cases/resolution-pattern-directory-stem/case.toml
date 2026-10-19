@@ -1,0 +1,12 @@
+id = "resolution-pattern-directory-stem"
+requirement = "rules.implicit"
+candidate = "required"
+description = "resolution-pattern-directory-stem"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7375622f782e6f75743a7375622f782e696e3a7375622f780a"
+stderr_hex = ""

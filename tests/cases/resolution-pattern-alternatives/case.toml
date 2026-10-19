@@ -1,0 +1,12 @@
+id = "resolution-pattern-alternatives"
+requirement = "rules.implicit"
+candidate = "required"
+description = "resolution-pattern-alternatives"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "733a782e730a"
+stderr_hex = ""

@@ -52,7 +52,7 @@ fn main() -> ExitCode {
         println!("  -t / -e    Touch targets / let environment override file variables");
         println!("  -rR / -j1  Disable built-ins / execute serially");
         println!("\nDevelopment build: explicit serial rules, includes and dynamic expansion.");
-        println!("Implicit rules and parallel jobs are not implemented.");
+        println!("Implicit-rule chaining and parallel jobs are not implemented.");
         return ExitCode::SUCCESS;
     }
     match engine::Engine::new(options, program.clone(), &invocation) {

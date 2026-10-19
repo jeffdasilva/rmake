@@ -37,6 +37,11 @@ pub struct Rule {
     /// None means no recipe; Some(empty) is an explicit empty recipe.
     pub recipes: Option<Vec<Recipe>>,
     pub recipe_location: Option<Location>,
+    pub stem: Option<Vec<u8>>,
+    pub prerequisite_location: Option<Location>,
+    pub deferred: bool,
+    pub recipe_dependency_count: usize,
+    pub double_colon: Option<Vec<Rule>>,
 }
 
 /// A declaration stays open across blank/comment and conditional lines. Rule
@@ -47,6 +52,9 @@ struct RuleDeclaration {
     offsets: HashMap<Vec<u8>, usize>,
     location: Option<Location>,
     recipe_started: bool,
+    branches: HashMap<Vec<u8>, usize>,
+    patterns: HashMap<Vec<u8>, Pattern>,
+    implicit: HashMap<Vec<u8>, usize>,
     warnings: Vec<(Location, Diagnostic)>,
 }
 
@@ -61,6 +69,9 @@ impl RuleDeclaration {
         }
         self.targets.clear();
         self.offsets.clear();
+        self.branches.clear();
+        self.patterns.clear();
+        self.implicit.clear();
         self.location = None;
         self.recipe_started = false;
     }
@@ -156,6 +167,8 @@ pub struct Database {
     pub export_all: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
+    implicit_rules: Vec<(Pattern, Rule)>,
+    pub vpaths: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
     include_depth: usize,
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
@@ -222,6 +235,69 @@ impl Database {
         } else {
             parent.with_target_scopes(&[&pattern_scope])
         })
+    }
+
+    pub fn vpath_directories(&self, target: &[u8]) -> Vec<Vec<u8>> {
+        self.vpaths
+            .iter()
+            .filter(|(pattern, _)| Pattern::new(pattern).matches(target).is_some())
+            .flat_map(|(_, paths)| paths.clone())
+            .collect()
+    }
+
+    /// Produce candidates in stem-length and declaration order, without I/O.
+    /// The runtime checks prerequisites and commits only a viable candidate.
+    pub fn implicit_candidates(&self, target: &[u8]) -> Vec<Rule> {
+        let mut result = Vec::new();
+        for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
+            if rule.recipes.is_none()
+                || self.implicit_rules[index + 1..]
+                    .iter()
+                    .any(|(later_pattern, later_rule)| {
+                        pattern == later_pattern && rule.dependencies == later_rule.dependencies
+                    })
+            {
+                continue;
+            }
+            let name = pattern.literal_bytes();
+            let directory = target
+                .iter()
+                .rposition(|byte| *byte == b'/')
+                .map_or(b"".as_slice(), |slash| &target[..=slash]);
+            let stripped = !name.contains(&b'/');
+            let word = if stripped {
+                &target[directory.len()..]
+            } else {
+                target
+            };
+            let Some(stem) = pattern.matches(word).filter(|stem| !stem.is_empty()) else {
+                continue;
+            };
+            let mut candidate = rule.clone();
+            candidate.stem = Some(if stripped {
+                [directory, stem].concat()
+            } else {
+                stem.to_vec()
+            });
+            let mut valid = true;
+            for dependency in &mut candidate.dependencies {
+                let pattern = Pattern::new(&dependency.name);
+                let Ok(name) = pattern.replace(stem) else {
+                    valid = false;
+                    break;
+                };
+                dependency.name = if stripped && pattern.has_wildcard() {
+                    [directory, &name].concat()
+                } else {
+                    name
+                };
+            }
+            if valid {
+                result.push(candidate);
+            }
+        }
+        result.sort_by_key(|rule| rule.stem.as_ref().map_or(0, Vec::len));
+        result
     }
 
     /// Initialize suffix metadata before reading user Makefiles. SUFFIXES is an
@@ -1557,7 +1633,27 @@ impl Database {
                 }
                 continue;
             }
-            if [b"vpath".as_slice(), b"load"].contains(&keyword) {
+            if keyword == b"vpath" {
+                declaration.finish(&mut self.warnings, context);
+                let value = self.expand(directive(text, b"vpath").unwrap(), &location, context)?;
+                let mut names = words(&value);
+                if let Some(pattern) = names.next() {
+                    let directories: Vec<_> = names
+                        .flat_map(|name| name.split(|byte| *byte == b':'))
+                        .filter(|path| !path.is_empty())
+                        .map(Vec::from)
+                        .collect();
+                    if directories.is_empty() {
+                        self.vpaths.retain(|(name, _)| name != pattern);
+                    } else {
+                        self.vpaths.push((pattern.to_vec(), directories));
+                    }
+                } else {
+                    self.vpaths.clear();
+                }
+                continue;
+            }
+            if keyword == b"load" {
                 declaration.finish(&mut self.warnings, context);
                 return Err(ParseError {
                     unlocated: false,
@@ -1636,10 +1732,8 @@ impl Database {
                     message: message.into(),
                 });
             };
-            if expanded.get(colon + 1) == Some(&b':')
-                || separator(&expanded[colon + 1..], b':').is_some()
-                || expanded[..colon].ends_with(b"&")
-            {
+            let double_colon = expanded.get(colon + 1) == Some(&b':');
+            if expanded[..colon].ends_with(b"&") {
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -1657,11 +1751,9 @@ impl Database {
             for target in words(&expanded[..colon]) {
                 let pattern = Pattern::new(target);
                 if pattern.has_wildcard() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: "rmake: unsupported rule form".into(),
-                    });
+                    declaration
+                        .patterns
+                        .insert(pattern.literal_bytes().to_vec(), pattern.clone());
                 }
                 if !only_percent_escapes(target) {
                     return Err(ParseError {
@@ -1675,7 +1767,31 @@ impl Database {
             if declaration.targets.is_empty() {
                 continue;
             }
-            let prereqs = &expanded[colon + 1..];
+            let mut prereqs = &expanded[colon + 1 + usize::from(double_colon)..];
+            let static_pattern = if let Some(second) = separator(prereqs, b':') {
+                let patterns: Vec<_> = words(&prereqs[..second]).collect();
+                if patterns.len() != 1 || !Pattern::new(patterns[0]).has_wildcard() {
+                    return Err(ParseError {
+                        unlocated: false,
+                        location,
+                        message: if patterns.is_empty() {
+                            "missing target pattern"
+                        } else if patterns.len() > 1 {
+                            "multiple target patterns"
+                        } else {
+                            "target pattern contains no '%'"
+                        }
+                        .into(),
+                    });
+                }
+                let pattern = Pattern::new(patterns[0]);
+                prereqs = &prereqs[second + 1..];
+                Some(pattern)
+            } else {
+                None
+            };
+            let secondary =
+                self.rules.contains_key(b".SECONDEXPANSION".as_slice()) && prereqs.contains(&b'$');
             let (normal, order) = separator(prereqs, b'|')
                 .map_or((prereqs, &b""[..]), |i| (&prereqs[..i], &prereqs[i + 1..]));
             let empty_dependencies =
@@ -1689,6 +1805,7 @@ impl Database {
                 && let Some(target) = declaration.targets.iter().find(|target| {
                     (!target.starts_with(b".") || target.contains(&b'/'))
                         && !self.is_suffix_rule_name(target)
+                        && !declaration.patterns.contains_key(target.as_slice())
                 })
             {
                 self.variables
@@ -1700,7 +1817,92 @@ impl Database {
                     })?;
             }
             for target in &declaration.targets {
-                let rule = self.rules.entry(target.clone()).or_default();
+                let mut unmatched = false;
+                let stem = if let Some(pattern) = &static_pattern {
+                    if let Some(stem) = pattern.matches(target) {
+                        Some(stem.to_vec())
+                    } else {
+                        record_warning(
+                            &mut self.warnings,
+                            context,
+                            location.clone(),
+                            [
+                                b"target '".as_slice(),
+                                target,
+                                b"' doesn't match the target pattern",
+                            ]
+                            .concat()
+                            .into(),
+                        );
+                        unmatched = true;
+                        Some(target.clone())
+                    }
+                } else {
+                    None
+                };
+                let rule = if let Some(pattern) = declaration.patterns.get(target) {
+                    let index = *declaration
+                        .implicit
+                        .entry(target.clone())
+                        .or_insert_with(|| {
+                            self.implicit_rules.push((pattern.clone(), Rule::default()));
+                            self.implicit_rules.len() - 1
+                        });
+                    &mut self.implicit_rules[index].1
+                } else {
+                    let occupied = self.rules.contains_key(target);
+                    let root = self.rules.entry(target.clone()).or_default();
+                    if occupied && root.double_colon.is_some() != double_colon {
+                        return Err(ParseError {
+                            unlocated: false,
+                            location: location.clone(),
+                            message: [
+                                b"target file '".as_slice(),
+                                target,
+                                b"' has both : and :: entries",
+                            ]
+                            .concat()
+                            .into(),
+                        });
+                    }
+                    if double_colon {
+                        let branches = root.double_colon.get_or_insert_with(Vec::new);
+                        let index =
+                            *declaration
+                                .branches
+                                .entry(target.clone())
+                                .or_insert_with(|| {
+                                    branches.push(Rule::default());
+                                    branches.len() - 1
+                                });
+                        &mut branches[index]
+                    } else {
+                        root
+                    }
+                };
+                rule.prerequisite_location = Some(location.clone());
+                if let Some(stem) = &stem {
+                    rule.stem = Some(stem.clone());
+                }
+                if unmatched {
+                    declaration
+                        .offsets
+                        .entry(target.clone())
+                        .or_insert(rule.dependencies.len());
+                    continue;
+                }
+                if secondary {
+                    rule.deferred = true;
+                    rule.dependencies.push(Dependency {
+                        name: prereqs.to_vec(),
+                        order_only: false,
+                    });
+                    declaration
+                        .offsets
+                        .entry(target.clone())
+                        .or_insert(rule.dependencies.len() - 1);
+                    continue;
+                }
                 if target == b".SUFFIXES" && empty_dependencies {
                     // Clearing suffix metadata retains its recipe and location.
                     // Record offsets only after clearing, including repeated
@@ -1711,15 +1913,22 @@ impl Database {
                     .offsets
                     .entry(target.clone())
                     .or_insert(rule.dependencies.len());
-                rule.dependencies
-                    .extend([(normal, false), (order, true)].into_iter().flat_map(
-                        |(names, order_only)| {
-                            words(names).map(move |name| Dependency {
-                                name: name.to_vec(),
-                                order_only,
-                            })
-                        },
-                    ));
+                for (names, order_only) in [(normal, false), (order, true)] {
+                    for name in words(names) {
+                        let name = if let Some(stem) = &stem {
+                            Pattern::new(name)
+                                .replace(stem)
+                                .map_err(|error| ParseError {
+                                    unlocated: false,
+                                    location: location.clone(),
+                                    message: error.diagnostic(),
+                                })?
+                        } else {
+                            name.to_vec()
+                        };
+                        rule.dependencies.push(Dependency { name, order_only });
+                    }
+                }
             }
             let recipe = inline
                 .map(|i| line.bytes[i + 1..].to_vec())
@@ -1778,13 +1987,26 @@ impl Database {
                 }
                 continue;
             }
-            let rule = self
-                .rules
-                .get_mut(target)
-                .expect("current targets were inserted");
+            let rule = if let Some(index) = declaration.implicit.get(target) {
+                &mut self.implicit_rules[*index].1
+            } else {
+                let rule = self
+                    .rules
+                    .get_mut(target)
+                    .expect("current targets were inserted");
+                if let Some(index) = declaration.branches.get(target) {
+                    &mut rule
+                        .double_colon
+                        .as_mut()
+                        .expect("double colon declaration")[*index]
+                } else {
+                    rule
+                }
+            };
             if !declaration.recipe_started {
                 let count = rule.dependencies.len() - declaration.offsets[target];
                 rule.dependencies.rotate_right(count);
+                rule.recipe_dependency_count = count;
                 if let Some(previous) = &rule.recipe_location {
                     declaration.warnings.push((
                         recipe.location.clone(),
@@ -2714,7 +2936,9 @@ mod tests {
             target_variables(&mut db, b"axb.o").expand(b"$(X)").unwrap(),
             b""
         );
-        assert!(Database::default().read(b"%.o:;\n", b"m").is_err());
+        let mut patterns = Database::default();
+        patterns.read(b"%.o:;\n", b"m").unwrap();
+        assert_eq!(patterns.implicit_candidates(b"file.o").len(), 1);
         assert!(Database::default().read(b"a\\ b:;\n", b"m").is_err());
     }
 

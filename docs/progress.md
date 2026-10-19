@@ -1271,3 +1271,10 @@ Added shell capture, shell assignments and dynamic eval with target/global
 scope separation. There are now 1,905 fixtures: 1,883 required exact passes and
 22 pending mismatches. See [stateful expansion](stateful-expansion.md) for
 architecture, safety limits and remaining boundaries.
+
+## Pattern, static, secondary and double-colon resolution
+
+Added a direct implicit-rule search slice, static patterns, VPATH and selective
+vpath search, secondary expansion and independent double-colon branches. There
+are 1,943 cases: 1,928 required and 15 pending. Full local CI passed; see
+[rule resolution](rule-resolution.md) for the remaining search boundaries.

@@ -1,0 +1,12 @@
+id = "resolution-static-missing-pattern"
+requirement = "rules.implicit"
+candidate = "required"
+description = "resolution-static-missing-pattern"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720746172676574207061747465726e2e202053746f702e0a"

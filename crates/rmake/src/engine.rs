@@ -7,7 +7,9 @@
 use crate::cli::Options;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludedFile, Output};
-use rmake_core::parser::{Database, Location, Makefile, Recipe, Rule, assignment, trim, words};
+use rmake_core::parser::{
+    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
+};
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use std::cell::RefCell;
@@ -170,6 +172,8 @@ pub struct Engine {
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     would_build: bool,
+    vpath_dirs: Vec<Vec<u8>>,
+    resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     makefile_error: RefCell<Option<(Location, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
@@ -342,6 +346,8 @@ impl Engine {
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             would_build: false,
+            vpath_dirs: Vec::new(),
+            resolved_names: HashMap::new(),
             makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
@@ -470,6 +476,7 @@ impl Engine {
                 self.visiting.clear();
                 self.scope_parents.clear();
                 self.target_contexts.clear();
+                self.resolved_names.clear();
             }
             for file in &files {
                 let mut bytes = Vec::new();
@@ -584,6 +591,18 @@ impl Engine {
                     return 2;
                 }
             }
+            let vpath = match self.expand_global(b"$(VPATH)", None) {
+                Ok(value) => value,
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return 2;
+                }
+            };
+            self.vpath_dirs = vpath
+                .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
+                .filter(|path| !path.is_empty())
+                .map(Vec::from)
+                .collect();
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
             let modes = (
@@ -604,6 +623,16 @@ impl Engine {
             for makefile in self.database.makefiles.clone() {
                 if !seen.insert(makefile.name.clone())
                     || self.special(b".PHONY", &makefile.name, false)
+                    || self
+                        .database
+                        .rules
+                        .get(&makefile.name)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                        .is_some_and(|branches| {
+                            branches
+                                .iter()
+                                .any(|rule| rule.dependencies.is_empty() && rule.recipes.is_some())
+                        })
                 {
                     continue;
                 }
@@ -651,8 +680,7 @@ impl Engine {
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
         for name in [
-            b".SECONDEXPANSION".as_slice(),
-            b".POSIX",
+            b".POSIX".as_slice(),
             b".WAIT",
             b".NOTPARALLEL",
             b".INTERMEDIATE",
@@ -733,12 +761,12 @@ impl Engine {
                 && !self.options.question
                 && !self.globally_silent()
             {
-                let has_recipe = self
-                    .database
-                    .rules
-                    .get(&goal)
-                    .is_some_and(|rule| rule.recipes.is_some())
-                    && !self.special(b".PHONY", &goal, false);
+                let has_recipe = self.database.rules.get(&goal).is_some_and(|rule| {
+                    rule.recipes.is_some()
+                        || rule.double_colon.as_ref().is_some_and(|branches| {
+                            branches.iter().any(|rule| rule.recipes.is_some())
+                        })
+                }) && !self.special(b".PHONY", &goal, false);
                 let body = if has_recipe {
                     [b"'".as_slice(), &goal, b"' is up to date."].concat()
                 } else {
@@ -777,6 +805,112 @@ impl Engine {
                 .is_some_and(|rule| rule.dependencies.is_empty())
     }
 
+    fn find_vpath(&self, target: &[u8]) -> Option<Vec<u8>> {
+        if modified(target).is_some() {
+            return Some(target.to_vec());
+        }
+        self.database
+            .vpath_directories(target)
+            .into_iter()
+            .chain(self.vpath_dirs.iter().cloned())
+            .find_map(|directory| {
+                let path = Path::new(os(&directory)).join(os(target));
+                path.exists().then(|| path.as_os_str().as_bytes().to_vec())
+            })
+    }
+
+    fn resolve_implicit(&mut self, target: &[u8]) {
+        let existing = self.database.rules.get(target).cloned();
+        if existing
+            .as_ref()
+            .is_some_and(|rule| rule.recipes.is_some() || rule.double_colon.is_some())
+        {
+            return;
+        }
+        for mut candidate in self.database.implicit_candidates(target) {
+            if candidate.dependencies.iter().all(|dependency| {
+                self.database.rules.contains_key(&dependency.name)
+                    || self.find_vpath(&dependency.name).is_some()
+            }) {
+                if let Some(explicit) = existing {
+                    candidate.dependencies.extend(explicit.dependencies);
+                    candidate.deferred |= explicit.deferred;
+                }
+                self.database.rules.insert(target.to_vec(), candidate);
+                break;
+            }
+        }
+    }
+
+    fn expand_dependencies(&mut self, target: &[u8], rule: &mut Rule) -> Result<(), ExpandError> {
+        if !rule.deferred {
+            return Ok(());
+        }
+        let mut variables = self.target_variables(target)?;
+        let mut dependencies: Vec<Dependency> = Vec::new();
+        let cut = rule.recipe_dependency_count.min(rule.dependencies.len());
+        let mut prior_count = 0;
+        for (index, occurrence) in rule.dependencies[cut..]
+            .iter()
+            .chain(&rule.dependencies[..cut])
+            .enumerate()
+        {
+            if index == rule.dependencies.len() - cut {
+                prior_count = dependencies.len();
+            }
+            let normal: Vec<_> = dependencies
+                .iter()
+                .filter(|d| !d.order_only)
+                .map(|d| d.name.clone())
+                .collect();
+            let order: Vec<_> = dependencies
+                .iter()
+                .filter(|d| d.order_only)
+                .map(|d| d.name.clone())
+                .collect();
+            for (name, value) in [
+                (b"@".as_slice(), target.to_vec()),
+                (b"<", normal.first().cloned().unwrap_or_default()),
+                (b"^", joined(unique(&normal))),
+                (b"+", joined(&normal)),
+                (b"|", joined(unique(&order))),
+                (b"?", Vec::new()),
+                (b"*", rule.stem.clone().unwrap_or_default()),
+            ] {
+                variables.define_literal(name, &value, Origin::Automatic)?;
+            }
+            let value = self.expand(
+                &mut variables,
+                &occurrence.name,
+                rule.prerequisite_location.as_ref(),
+            )?;
+            let mut order_only = occurrence.order_only;
+            for name in words(&value) {
+                if name == b"|" {
+                    order_only = true;
+                } else {
+                    dependencies.push(Dependency {
+                        name: name.to_vec(),
+                        order_only,
+                    });
+                }
+            }
+        }
+        if cut > 0 {
+            dependencies.rotate_left(prior_count);
+        }
+        rule.dependencies = dependencies;
+        rule.deferred = false;
+        Ok(())
+    }
+
+    fn resolved_name(&self, name: &[u8]) -> Vec<u8> {
+        self.resolved_names
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_vec())
+    }
+
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
         if let Some(outcome) = self.done.get(target) {
             return *outcome;
@@ -789,9 +923,16 @@ impl Engine {
                 ..Outcome::default()
             };
         }
-        let before = modified(target);
         let phony = self.special(b".PHONY", target, false);
-        let Some(rule) = self
+        if !phony {
+            self.resolve_implicit(target);
+        }
+        let resolved = if phony { None } else { self.find_vpath(target) };
+        let before = resolved.as_deref().and_then(modified);
+        if let Some(resolved) = resolved.filter(|name| name != target) {
+            self.resolved_names.insert(target.to_vec(), resolved);
+        }
+        let Some(mut rule) = self
             .database
             .rules
             .get(target)
@@ -824,12 +965,57 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         };
+        if let Some(branches) = rule.double_colon.take() {
+            let mut combined = Outcome {
+                time: before,
+                ..Outcome::default()
+            };
+            for branch in branches {
+                let result = self.build_rule(target, parent, depth, before, phony, branch, true);
+                combined.time = result.time;
+                combined.ran |= result.ran;
+                combined.failed |= result.failed;
+                combined.fatal |= result.fatal;
+                combined.blocked |= result.blocked;
+                combined.question_outdated |= result.question_outdated;
+                self.done.remove(target);
+                if result.fatal || (result.failed && !self.options.keep_going) {
+                    break;
+                }
+            }
+            self.done.insert(target.to_vec(), combined);
+            return combined;
+        }
+        self.build_rule(target, parent, depth, before, phony, rule, false)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_rule(
+        &mut self,
+        target: &[u8],
+        parent: Option<&[u8]>,
+        depth: usize,
+        before: Option<SystemTime>,
+        phony: bool,
+        mut rule: Rule,
+        double_colon: bool,
+    ) -> Outcome {
         // Scope activation is lazy: an up-to-date or empty-recipe target must
         // not evaluate deferred pattern assignments. Record first ownership so
         // a descendant's recipe can later initialize the ancestor contexts.
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| parent.map(Vec::from));
+        if let Err(error) = self.expand_dependencies(target, &mut rule) {
+            self.expansion_error(rule.prerequisite_location.as_ref(), &error);
+            let result = Outcome {
+                failed: true,
+                fatal: true,
+                ..Outcome::default()
+            };
+            self.done.insert(target.to_vec(), result);
+            return result;
+        }
         self.visiting.insert(target.to_vec());
         let canonical = rule.canonical_dependencies();
         let normal: Vec<_> = canonical
@@ -845,7 +1031,10 @@ impl Engine {
         let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
         let mut newer = Vec::new();
         let mut dropped = HashSet::new();
-        let mut stale = before.is_none() || phony || self.options.always;
+        let mut stale = before.is_none()
+            || phony
+            || self.options.always
+            || (double_colon && rule.dependencies.is_empty());
         let mut outcome = Outcome {
             time: before,
             ..Outcome::default()
@@ -908,6 +1097,14 @@ impl Engine {
                     .filter(|name| !dropped.contains(*name))
                     .map(Vec::from)
                     .collect();
+                self.resolved_names.remove(target);
+                let normal: Vec<_> = normal.iter().map(|name| self.resolved_name(name)).collect();
+                let order: Vec<_> = order.iter().map(|name| self.resolved_name(name)).collect();
+                let repeated: Vec<_> = repeated
+                    .iter()
+                    .map(|name| self.resolved_name(name))
+                    .collect();
+                let newer: Vec<_> = newer.iter().map(|name| self.resolved_name(name)).collect();
                 let autos = [
                     (b"@".as_slice(), target.to_vec()),
                     (b"<", repeated.first().cloned().unwrap_or_default()),
@@ -915,7 +1112,12 @@ impl Engine {
                     (b"+", joined(&repeated)),
                     (b"?", joined(unique(&newer))),
                     (b"|", joined(&order)),
-                    (b"*", self.database.explicit_stem(target).to_vec()),
+                    (
+                        b"*",
+                        rule.stem
+                            .clone()
+                            .unwrap_or_else(|| self.database.explicit_stem(target).to_vec()),
+                    ),
                     (b"%", Vec::new()),
                 ];
                 let execution = self.execute(target, recipes, &autos, phony);
@@ -925,7 +1127,13 @@ impl Engine {
                 outcome.question_outdated |= execution.status == Status::Question;
                 self.cleanup_target(target, before, phony, execution.cleanup);
             }
-            outcome.time = if phony { None } else { modified(target) };
+            outcome.time = if phony {
+                None
+            } else if rule.recipes.is_some() {
+                modified(target)
+            } else {
+                before
+            };
         }
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);

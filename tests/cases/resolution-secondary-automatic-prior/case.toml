@@ -1,0 +1,12 @@
+id = "resolution-secondary-automatic-prior"
+requirement = "rules.secondary"
+candidate = "required"
+description = "resolution-secondary-automatic-prior"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6e652074776f3a6f6e652074776f206f6e650a"
+stderr_hex = ""
