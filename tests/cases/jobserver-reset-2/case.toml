@@ -1,0 +1,12 @@
+id = "jobserver-reset-2"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "jobserver-reset-2"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c640a"
+stderr_hex = "6d616b655b315d3a207761726e696e673a202d6a3220666f7263656420696e207375626d616b653a20726573657474696e67206a6f62736572766572206d6f64652e0a"

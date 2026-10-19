@@ -10,6 +10,9 @@ pub struct Options {
     pub files: Vec<PathBuf>,
     pub jobs: Option<usize>,
     pub inherited_jobs: bool,
+    pub jobserver_auth: Option<Vec<u8>>,
+    pub jobserver_pipe: bool,
+    pub reset_jobserver: bool,
     pub directories: Vec<PathBuf>,
     pub goals: Vec<Vec<u8>>,
     pub assignments: Vec<Vec<u8>>,
@@ -100,12 +103,18 @@ impl Options {
                 combined.push(OsString::from_vec(token));
             }
         }
-        let inherited = Self::parse(combined.clone())?.jobs;
+        let inherited_options = Self::parse(combined.clone())?;
+        let inherited = inherited_options.jobs;
         let args: Vec<_> = args.into_iter().collect();
-        let explicit = Self::parse(args.clone())?.jobs;
+        let explicit_options = Self::parse(args.clone())?;
+        let explicit = explicit_options.jobs;
         combined.extend(args);
         let mut result = Self::parse(combined)?;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
+        result.reset_jobserver = explicit.is_some() && result.jobserver_auth.is_some();
+        if result.reset_jobserver {
+            result.jobserver_auth = None;
+        }
         Ok(result)
     }
 
@@ -153,6 +162,29 @@ impl Options {
                     *flag = true;
                 } else {
                     match name {
+                        b"--jobserver-auth" | b"--jobserver-fds" => {
+                            result.jobserver_auth = Some(
+                                value
+                                    .or_else(|| {
+                                        i += 1;
+                                        args.get(i).cloned()
+                                    })
+                                    .ok_or("jobserver authentication requires an argument")?,
+                            );
+                        }
+                        b"--jobserver-style" => {
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    args.get(i).cloned()
+                                })
+                                .ok_or("jobserver style requires an argument")?;
+                            result.jobserver_pipe = match value.as_slice() {
+                                b"fifo" => false,
+                                b"pipe" => true,
+                                _ => return Err("unknown jobserver style".into()),
+                            };
+                        }
                         b"--no-print-directory" if value.is_none() => {
                             result.no_print_directory = true
                         }
@@ -279,6 +311,15 @@ impl Options {
                 flags.extend_from_slice(jobs.to_string().as_bytes());
             }
         }
+        if let Some(auth) = &self.jobserver_auth {
+            flags.extend_from_slice(b" --jobserver-auth=");
+            for byte in auth {
+                if byte.is_ascii_whitespace() || *byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(*byte);
+            }
+        }
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
         }
@@ -360,8 +401,36 @@ mod tests {
         assert!(!options.keep_going);
         assert_eq!(options.assignments, [b"X=two words".to_vec()]);
         assert_eq!(options.goals, [b"all".to_vec()]);
-        assert!(Options::with_environment([], Some("--jobserver-auth=3,4".into()), None).is_err());
+        assert_eq!(
+            Options::with_environment([], Some("--jobserver-auth=3,4".into()), None)
+                .unwrap()
+                .jobserver_auth,
+            Some(b"3,4".to_vec())
+        );
         assert!(Options::with_environment([], Some("r -- -n".into()), None).is_err());
+    }
+
+    #[test]
+    fn jobserver_transport_and_explicit_job_reset_are_distinct() {
+        let inherited = Options::with_environment(
+            [],
+            Some("-j --jobserver-auth=fifo:/tmp/server".into()),
+            None,
+        )
+        .unwrap();
+        assert!(inherited.inherited_jobs);
+        assert!(!inherited.reset_jobserver);
+        assert_eq!(inherited.jobserver_auth, Some(b"fifo:/tmp/server".to_vec()));
+        let reset =
+            Options::with_environment(["-j2".into()], Some("-j --jobserver-auth=3,4".into()), None)
+                .unwrap();
+        assert!(!reset.inherited_jobs);
+        assert!(reset.reset_jobserver);
+        assert!(reset.jobserver_auth.is_none());
+        let pipe = parse(&["--jobserver-style=pipe", "--jobs=3"]).unwrap();
+        assert!(pipe.jobserver_pipe);
+        assert_eq!(pipe.jobs, Some(3));
+        assert!(parse(&["--jobserver-style=invalid"]).is_err());
     }
 
     #[test]

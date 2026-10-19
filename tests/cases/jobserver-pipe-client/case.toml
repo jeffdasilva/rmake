@@ -1,0 +1,12 @@
+id = "jobserver-pipe-client"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "jobserver-pipe-client"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f6b656e733a320a746f6b656e733a320a"
+stderr_hex = ""

@@ -283,3 +283,8 @@ release job must provide those capabilities.
 Self-hosting is a milestone gate: both GNU Make 4.4.1 and rmake must drive the same
 top-level developer flows, including recursive invocations. A passing build of
 rmake itself is necessary but far from sufficient evidence of full compatibility.
+
+`make test-jobserver` compares mixed GNU/rmake recursive trees using FIFO and
+pipe jobservers, including bounded concurrency, failures, borrowed pool ownership
+and token restoration. See [jobserver validation](jobserver.md) for independent
+anchors, retained evidence, and signal/containment limitations.

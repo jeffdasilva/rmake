@@ -47,14 +47,14 @@ fn help_describes_actual_capabilities() {
     assert!(
         String::from_utf8(output.stdout)
             .unwrap()
-            .contains("not implemented")
+            .contains("compatibility is incomplete")
     );
     assert!(output.stderr.is_empty());
 }
 
 #[test]
 fn unsupported_options_do_not_report_success() {
-    for args in [vec!["--unknown"], vec!["-j2"], vec!["--jobs"]] {
+    for args in [vec!["--unknown"], vec!["-j0"], vec!["--jobs=0"]] {
         let output = Command::new(env!("CARGO_BIN_EXE_rmake"))
             .args(args)
             .output()
