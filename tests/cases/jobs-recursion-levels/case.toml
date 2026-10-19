@@ -1,0 +1,12 @@
+id = "jobs-recursion-levels"
+requirement = "recursion.environment"
+candidate = "required"
+description = "jobs-recursion-levels"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "313a320a"
+stderr_hex = ""

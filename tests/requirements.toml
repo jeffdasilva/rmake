@@ -169,16 +169,18 @@ cases = ["include-generated-restart", "dynamic-include-optional-generated", "dyn
 id = "parallel.execution"
 title = "Parallel updates and shared-target ownership"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 20
 reference = "https://www.gnu.org/software/make/manual/html_node/Parallel.html"
-fixture_count = 3
-cases = ["parallel-independent-results", "parallel-shared-target-once", "parallel-notparallel-order"]
+fixture_count = 20
+cases = ["parallel-independent-results", "parallel-shared-target-once", "parallel-notparallel-order", "jobs-concurrent-barrier", "jobs-separate-goals", "jobs-bounded-two", "jobs-shared-target", "jobs-target-notparallel", "jobs-global-notparallel", "jobs-multiline-recipe", "jobs-oneshell-state", "jobs-root-failure", "jobs-ignored-failure", "jobs-keep-going", "jobs-wait-on-failure", "jobs-delete-on-error", "jobs-serial-job-one", "jobs-unlimited", "jobs-duplicate-goal", "jobs-delete-with-outstanding"]
 
 [[requirements]]
 id = "parallel.jobserver"
 title = "Recursive local jobserver operation"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 1
 reference = "https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html"
 fixture_count = 1
 cases = ["parallel-recursive-jobserver"]
@@ -228,10 +230,10 @@ id = "recursion.environment"
 title = "Recursive make and environment propagation"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 3
+candidate_required = 15
 reference = "https://www.gnu.org/software/make/manual/html_node/Recursion.html"
-fixture_count = 6
-cases = ["diagnostic-gnumakeflags-warning-expansion", "diagnostic-makeflags-warning-expansion", "recursion-child-override", "recursion-command-variable", "recursion-exported-variable", "recursion-makelevel"]
+fixture_count = 17
+cases = ["diagnostic-gnumakeflags-warning-expansion", "diagnostic-makeflags-warning-expansion", "recursion-child-override", "recursion-command-variable", "recursion-exported-variable", "recursion-makelevel", "jobs-recursion-recursive", "jobs-recursion-simple", "jobs-recursion-spaces", "jobs-recursion-backslash", "jobs-recursion-recursive-dollar", "jobs-recursion-simple-dollar", "jobs-recursion-reference", "jobs-recursion-child-override", "jobs-recursion-clear-overrides", "jobs-recursion-levels", "jobs-recursion-dry"]
 
 [[requirements]]
 id = "rules.automatic"

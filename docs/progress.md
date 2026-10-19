@@ -1278,3 +1278,10 @@ Added a direct implicit-rule search slice, static patterns, VPATH and selective
 vpath search, secondary expansion and independent double-colon branches. There
 are 1,943 cases: 1,928 required and 15 pending. Full local CI passed; see
 [rule resolution](rule-resolution.md) for the remaining search boundaries.
+
+## Local parallel execution and recursive command bindings
+
+Added a bounded local job pool, target completion tracking, .NOTPARALLEL and
+recursive command-line transport. There are 1,971 fixtures: 1,961 required exact
+passes and ten pending mismatches. The local scheduler and recursion still have
+documented compatibility limits; see [local parallelism](local-parallelism.md).

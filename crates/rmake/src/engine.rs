@@ -159,6 +159,16 @@ fn emit_output(program: &[u8], output: Output<'_>) {
     }
 }
 
+struct ParallelJob {
+    program: Vec<u8>,
+    location: Location,
+    ignore: bool,
+    before: Option<SystemTime>,
+    phony: bool,
+}
+
+type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
+
 pub struct Engine {
     options: Options,
     filesystem: RefCell<FilesystemRuntime>,
@@ -172,6 +182,11 @@ pub struct Engine {
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     would_build: bool,
+    parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
+    completed_jobs: std::sync::mpsc::Receiver<JobResult>,
+    job_sender: std::sync::mpsc::Sender<JobResult>,
+    parallel_failed: bool,
+    remaking: bool,
     vpath_dirs: Vec<Vec<u8>>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     makefile_error: RefCell<Option<(Location, Vec<u8>)>>,
@@ -333,6 +348,7 @@ impl Engine {
             .define_literal(b"GNUMAKEFLAGS", b"", Origin::Override)
             .map_err(|e| e.diagnostic())?;
         let initial_flags = options.flags();
+        let (job_sender, completed_jobs) = std::sync::mpsc::channel();
         Ok(Self {
             options,
             filesystem,
@@ -346,6 +362,11 @@ impl Engine {
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             would_build: false,
+            parallel_jobs: HashMap::new(),
+            completed_jobs,
+            job_sender,
+            parallel_failed: false,
+            remaking: false,
             vpath_dirs: Vec::new(),
             resolved_names: HashMap::new(),
             makefile_error: RefCell::new(None),
@@ -591,6 +612,23 @@ impl Engine {
                     return 2;
                 }
             }
+            if self
+                .database
+                .variables
+                .get(b"MAKEOVERRIDES")
+                .is_some_and(|value| !value.raw_value().is_empty())
+            {
+                let raw = [self.options.flags(), b" -- $(MAKEOVERRIDES)".to_vec()].concat();
+                if let Err(error) = self.database.variables.define(
+                    b"MAKEFLAGS",
+                    &raw,
+                    Assignment::Recursive,
+                    Origin::File,
+                ) {
+                    self.expansion_error(None, &error);
+                    return 2;
+                }
+            }
             let vpath = match self.expand_global(b"$(VPATH)", None) {
                 Ok(value) => value,
                 Err(error) => {
@@ -617,6 +655,7 @@ impl Engine {
             if restarts > 0 {
                 self.options.always = false;
             }
+            self.remaking = true;
             let mut changed = false;
             let mut failed = false;
             let mut seen = HashSet::new();
@@ -664,6 +703,7 @@ impl Engine {
                 self.options.touch,
                 self.options.always,
             ) = modes;
+            self.remaking = false;
             if changed {
                 restarts += 1;
                 if restarts > 128 {
@@ -682,7 +722,6 @@ impl Engine {
         for name in [
             b".POSIX".as_slice(),
             b".WAIT",
-            b".NOTPARALLEL",
             b".INTERMEDIATE",
             b".SECONDARY",
             b".LOW_RESOLUTION_TIME",
@@ -738,6 +777,9 @@ impl Engine {
         let mut failed = false;
         for goal in goals {
             let already_done = self.done.contains_key(&goal);
+            if already_done {
+                self.wait_target(&goal);
+            }
             let outcome = self.build(&goal, None, 0);
             failed |= outcome.failed;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
@@ -775,6 +817,8 @@ impl Engine {
                 self.stdout(&[self.program.as_slice(), b": ", &body].concat());
             }
         }
+        self.wait_all_jobs();
+        failed |= self.parallel_failed;
         if failed {
             2
         } else if self.would_build {
@@ -805,9 +849,101 @@ impl Engine {
                 .is_some_and(|rule| rule.dependencies.is_empty())
     }
 
-    fn find_vpath(&self, target: &[u8]) -> Option<Vec<u8>> {
-        if modified(target).is_some() {
-            return Some(target.to_vec());
+    fn job_slots(&self) -> usize {
+        if self.remaking
+            || self.options.inherited_jobs
+            || self
+                .database
+                .rules
+                .get(b".NOTPARALLEL".as_slice())
+                .is_some_and(|rule| rule.dependencies.is_empty())
+        {
+            1
+        } else {
+            self.options.jobs.unwrap_or(1)
+        }
+    }
+
+    fn wait_target(&mut self, target: &[u8]) {
+        while self.parallel_jobs.contains_key(target) {
+            self.reap_job();
+        }
+    }
+
+    fn wait_all_jobs(&mut self) {
+        while !self.parallel_jobs.is_empty() {
+            self.reap_job();
+        }
+    }
+
+    fn poll_jobs(&mut self) {
+        while let Ok(result) = self.completed_jobs.try_recv() {
+            self.complete_job(result);
+        }
+    }
+
+    fn reap_job(&mut self) {
+        let result = self
+            .completed_jobs
+            .recv()
+            .expect("a live worker owns its completion sender");
+        self.complete_job(result);
+    }
+
+    fn complete_job(&mut self, (target, result): JobResult) {
+        let job = self
+            .parallel_jobs
+            .remove(&target)
+            .expect("reserved parallel target");
+        self.filesystem.borrow_mut().child_completed();
+        let launched = result.is_ok();
+        let error = match result {
+            Ok(status) if status.success() => None,
+            Ok(status) => Some(status.code().map_or_else(
+                || format!("Signal {}", status.signal().unwrap_or(0)),
+                |code| format!("Error {code}"),
+            )),
+            Err(error) => {
+                self.stderr(&[job.program.as_slice(), b": ", os_error(&error).as_bytes()].concat());
+                Some("Error 127".to_string())
+            }
+        };
+        let failed = error.is_some() && !job.ignore;
+        if let Some(error) = error
+            && (!job.ignore || !self.globally_silent())
+        {
+            let message = [
+                if job.ignore { b"".as_slice() } else { b"*** " },
+                b"[",
+                &job.location.file,
+                format!(":{}: ", job.location.line).as_bytes(),
+                &target,
+                format!("] {error}{}", if job.ignore { " (ignored)" } else { "" }).as_bytes(),
+            ]
+            .concat();
+            self.stderr(&message);
+        }
+        if failed && launched {
+            self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnError);
+        }
+        if failed
+            && !self.options.keep_going
+            && !self.parallel_failed
+            && !self.parallel_jobs.is_empty()
+        {
+            self.stderr(b"*** Waiting for unfinished jobs....");
+        }
+        self.parallel_failed |= failed;
+        let mut outcome = self.done.get(&target).copied().unwrap_or_default();
+        outcome.ran = true;
+        outcome.failed |= failed;
+        outcome.time = if job.phony { None } else { modified(&target) };
+        self.done.insert(target, outcome);
+    }
+
+    fn find_vpath(&self, target: &[u8]) -> Option<(Option<Vec<u8>>, SystemTime)> {
+        if let Some(time) = modified(target) {
+            return Some((None, time));
         }
         self.database
             .vpath_directories(target)
@@ -815,7 +951,8 @@ impl Engine {
             .chain(self.vpath_dirs.iter().cloned())
             .find_map(|directory| {
                 let path = Path::new(os(&directory)).join(os(target));
-                path.exists().then(|| path.as_os_str().as_bytes().to_vec())
+                let name = path.as_os_str().as_bytes();
+                modified(name).map(|time| (Some(name.to_vec()), time))
             })
     }
 
@@ -912,6 +1049,7 @@ impl Engine {
     }
 
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        self.poll_jobs();
         if let Some(outcome) = self.done.get(target) {
             return *outcome;
         }
@@ -928,8 +1066,8 @@ impl Engine {
             self.resolve_implicit(target);
         }
         let resolved = if phony { None } else { self.find_vpath(target) };
-        let before = resolved.as_deref().and_then(modified);
-        if let Some(resolved) = resolved.filter(|name| name != target) {
+        let before = resolved.as_ref().map(|(_, time)| *time);
+        if let Some((Some(resolved), _)) = resolved {
             self.resolved_names.insert(target.to_vec(), resolved);
         }
         let Some(mut rule) = self
@@ -971,7 +1109,12 @@ impl Engine {
                 ..Outcome::default()
             };
             for branch in branches {
-                let result = self.build_rule(target, parent, depth, before, phony, branch, true);
+                let mut result =
+                    self.build_rule(target, parent, depth, before, phony, branch, true);
+                self.wait_target(target);
+                if let Some(completed) = self.done.get(target) {
+                    result = *completed;
+                }
                 combined.time = result.time;
                 combined.ran |= result.ran;
                 combined.failed |= result.failed;
@@ -1043,7 +1186,6 @@ impl Engine {
         // are memoized, but every circular occurrence must still be diagnosed.
         for occurrence in &rule.dependencies {
             let dependency = &occurrence.name;
-            let order_only = !normal_names.contains(dependency.as_slice());
             if self.visiting.contains(dependency) {
                 self.stderr(
                     &[
@@ -1058,7 +1200,13 @@ impl Engine {
                 dropped.insert(dependency.clone());
                 continue;
             }
-            let child = self.build(dependency, Some(target), depth + 1);
+            let mut child = self.build(dependency, Some(target), depth + 1);
+            if self.special(b".NOTPARALLEL", target, false) {
+                self.wait_target(dependency);
+                if let Some(completed) = self.done.get(dependency) {
+                    child = *completed;
+                }
+            }
             outcome.ran |= child.ran;
             outcome.failed |= child.failed;
             outcome.fatal |= child.fatal;
@@ -1069,6 +1217,22 @@ impl Engine {
             {
                 break;
             }
+        }
+        for occurrence in &rule.dependencies {
+            let dependency = &occurrence.name;
+            if dropped.contains(dependency) {
+                continue;
+            }
+            self.wait_target(dependency);
+            let Some(child) = self.done.get(dependency).copied() else {
+                continue;
+            };
+            outcome.ran |= child.ran;
+            outcome.failed |= child.failed;
+            outcome.fatal |= child.fatal;
+            outcome.blocked |= child.failed;
+            outcome.question_outdated |= child.question_outdated;
+            let order_only = !normal_names.contains(dependency.as_slice());
             if !order_only
                 && (self.options.always
                     || before.is_none()
@@ -1120,7 +1284,7 @@ impl Engine {
                     ),
                     (b"%", Vec::new()),
                 ];
-                let execution = self.execute(target, recipes, &autos, phony);
+                let execution = self.execute(target, recipes, &autos, phony, before);
                 outcome.ran |= execution.ran;
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
                 outcome.fatal |= execution.status == Status::Fatal;
@@ -1177,6 +1341,7 @@ impl Engine {
         recipes: &[Recipe],
         automatic: &[(&[u8], Vec<u8>)],
         phony: bool,
+        before: Option<SystemTime>,
     ) -> Execution {
         let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
         let combined;
@@ -1231,6 +1396,22 @@ impl Engine {
             } else {
                 Execution::success(false)
             };
+        }
+        let parallel = self.job_slots() > 1
+            && recipes.len() == 1
+            && !recursive
+            && !self.options.dry_run
+            && !self.options.question
+            && !self.options.touch;
+        if parallel {
+            while self.parallel_jobs.len() >= self.job_slots() {
+                self.reap_job();
+            }
+        } else {
+            self.wait_all_jobs();
+        }
+        if self.parallel_failed && !self.options.keep_going {
+            return Execution::failure(false, Cleanup::None);
         }
         let mut variables = match self.target_variables(target) {
             Ok(variables) => variables,
@@ -1502,14 +1683,59 @@ impl Engine {
                 .unwrap_or_else(|| !self.database.unexports.contains(b"MAKEFLAGS".as_slice()))
             {
                 child.env_remove("MAKEFLAGS");
-            } else {
-                child.env("MAKEFLAGS", OsString::from_vec(self.options.flags()));
+            } else if !child
+                .get_envs()
+                .any(|(name, value)| name == "MAKEFLAGS" && value.is_some())
+            {
+                match self.expand(variables, b"$(MAKEFLAGS)", Some(&recipe.location)) {
+                    Ok(flags) => {
+                        child.env("MAKEFLAGS", OsString::from_vec(flags));
+                    }
+                    Err(error) => {
+                        self.expansion_error(Some(&recipe.location), &error);
+                        return Execution::fatal(ran);
+                    }
+                }
             }
             // Ordinary export expansion above still has its normal effects.
             // The child's numeric depth always comes from the startup snapshot,
             // even if the visible binding was changed, removed, or unexported.
             child.env("MAKELEVEL", self.makelevel.wrapping_add(1).to_string());
             let _ = io::stdout().flush();
+            if parallel && expanded.is_empty() {
+                let sender = self.job_sender.clone();
+                let name = target.to_vec();
+                let executable = program.clone();
+                let first = self.parallel_jobs.is_empty();
+                let worker =
+                    std::thread::Builder::new()
+                        .name("rmake-job".into())
+                        .spawn(move || {
+                            let result = launch_child(&executable, &child, |mut command| {
+                                if !first {
+                                    command.stdin(std::process::Stdio::null());
+                                }
+                                command.status()
+                            });
+                            let _ = sender.send((name, result));
+                        });
+                if let Err(error) = worker {
+                    self.stderr(os_error(&error).as_bytes());
+                    return Execution::failure(ran, Cleanup::None);
+                }
+                self.parallel_jobs.insert(
+                    target.to_vec(),
+                    ParallelJob {
+                        program,
+                        location: recipe.location.clone(),
+                        ignore,
+                        before,
+                        phony,
+                    },
+                );
+                return Execution::success(true);
+            }
+            self.wait_all_jobs();
             let result = launch_status(&program, &child);
             self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();

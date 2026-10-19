@@ -1,0 +1,12 @@
+id = "jobs-bounded-two"
+requirement = "parallel.execution"
+candidate = "required"
+description = "jobs-bounded-two"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j2"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

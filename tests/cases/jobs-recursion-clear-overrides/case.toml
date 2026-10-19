@@ -1,0 +1,12 @@
+id = "jobs-recursion-clear-overrides"
+requirement = "recursion.environment"
+candidate = "required"
+description = "jobs-recursion-clear-overrides"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "TOKEN=parent"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66696c657c66696c657c7265637572736976650a"
+stderr_hex = ""

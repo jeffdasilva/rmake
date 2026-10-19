@@ -8,6 +8,8 @@ use std::path::PathBuf;
 #[derive(Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
+    pub jobs: Option<usize>,
+    pub inherited_jobs: bool,
     pub directories: Vec<PathBuf>,
     pub goals: Vec<Vec<u8>>,
     pub assignments: Vec<Vec<u8>>,
@@ -37,7 +39,17 @@ impl Options {
     ) -> Result<Self, String> {
         let mut combined = Vec::new();
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
-            let bytes = flags.as_bytes();
+            let raw = flags.as_bytes();
+            let mut decoded = Vec::with_capacity(raw.len());
+            let mut pos = 0;
+            while pos < raw.len() {
+                decoded.push(raw[pos]);
+                if raw[pos] == b'$' && raw.get(pos + 1) == Some(&b'$') {
+                    pos += 1;
+                }
+                pos += 1;
+            }
+            let bytes = decoded.as_slice();
             let mut tokens = Vec::new();
             let mut token = Vec::new();
             let mut i = 0;
@@ -88,8 +100,13 @@ impl Options {
                 combined.push(OsString::from_vec(token));
             }
         }
+        let inherited = Self::parse(combined.clone())?.jobs;
+        let args: Vec<_> = args.into_iter().collect();
+        let explicit = Self::parse(args.clone())?.jobs;
         combined.extend(args);
-        Self::parse(combined)
+        let mut result = Self::parse(combined)?;
+        result.inherited_jobs = inherited.is_some() && explicit.is_none();
+        Ok(result)
     }
 
     pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Self, String> {
@@ -170,11 +187,7 @@ impl Options {
                                     None
                                 }
                             });
-                            if value.as_deref() != Some(b"1") {
-                                return Err(
-                                    "parallel execution is not implemented yet; use -j1".into()
-                                );
-                            }
+                            result.jobs = Some(job_count(value.as_deref().unwrap_or_default())?);
                         }
                         _ => {
                             return Err(format!(
@@ -220,11 +233,7 @@ impl Options {
                                 })?
                             };
                             if option == b'j' {
-                                if value != b"1" {
-                                    return Err(
-                                        "parallel execution is not implemented yet; use -j1".into(),
-                                    );
-                                }
+                                result.jobs = Some(job_count(&value)?);
                             } else if option == b'f' {
                                 result.files.push(OsString::from_vec(value).into());
                             } else {
@@ -264,11 +273,28 @@ impl Options {
                 flags.push(flag);
             }
         }
+        if let Some(jobs) = self.jobs {
+            flags.extend_from_slice(b" -j");
+            if jobs != usize::MAX {
+                flags.extend_from_slice(jobs.to_string().as_bytes());
+            }
+        }
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
         }
         flags
     }
+}
+
+fn job_count(value: &[u8]) -> Result<usize, String> {
+    if value.is_empty() {
+        return Ok(usize::MAX);
+    }
+    std::str::from_utf8(value)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .ok_or_else(|| "the '-j' option requires a positive integer argument".into())
 }
 
 pub fn invocation_name(arg: &std::ffi::OsStr) -> Vec<u8> {
@@ -306,11 +332,12 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_parallelism_fails_explicitly() {
-        for args in [&["-j2"][..], &["--jobs"], &["-j", "all"], &["--jobs=0"]] {
-            assert!(parse(args).is_err());
+    fn parallel_options_and_zero_rejection() {
+        for args in [&["-j2"][..], &["--jobs"], &["-j", "all"]] {
+            assert!(parse(args).unwrap().jobs.is_some());
         }
-        assert!(parse(&["--jobs", "1"]).is_ok());
+        assert!(parse(&["--jobs=0"]).is_err());
+        assert_eq!(parse(&["--jobs", "1"]).unwrap().jobs, Some(1));
     }
 
     #[test]

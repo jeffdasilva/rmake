@@ -50,9 +50,9 @@ fn main() -> ExitCode {
         println!("  -B / -q    Always rebuild / query whether recipes are needed");
         println!("  -i / -k    Ignore recipe errors / continue independent targets");
         println!("  -t / -e    Touch targets / let environment override file variables");
-        println!("  -rR / -j1  Disable built-ins / execute serially");
-        println!("\nDevelopment build: explicit serial rules, includes and dynamic expansion.");
-        println!("Implicit-rule chaining and parallel jobs are not implemented.");
+        println!("  -rR / -jN  Disable built-ins / set local job limit");
+        println!("\nDevelopment build: rule resolution, dynamic expansion and local jobs.");
+        println!("Implicit-rule chaining and shared jobserver support are not implemented.");
         return ExitCode::SUCCESS;
     }
     match engine::Engine::new(options, program.clone(), &invocation) {
