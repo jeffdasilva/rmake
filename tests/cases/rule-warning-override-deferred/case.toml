@@ -1,0 +1,11 @@
+id = "rule-warning-override-deferred"
+requirement = "graph.rule-warning-timing"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+description = "Original rule-recording warning boundary: override deferred."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3a0a"
+stderr_hex = "4d616b6566696c653a333a20636f6e646974696f6e0a4d616b6566696c653a323a207761726e696e673a206f766572726964696e672072656369706520666f72207461726765742027616c6c270a4d616b6566696c653a313a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f72207461726765742027616c6c270a4d616b6566696c653a353a20626172726965720a"

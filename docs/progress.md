@@ -1078,3 +1078,28 @@ tiny no-op, 10,000 targets and 5,000 assignments. The
 [literal expansion notes](literal-expansion.md) record the individual ratios,
 output checks and measurement limitations. Full compatibility, persistent cache
 validation and broader performance work remain open.
+
+## Defer recipe-dependent rule warnings — 2026-10-18
+
+The parser now retains local declaration state and emits duplicate-target and
+recipe-replacement diagnostics when the declaration closes. Repeated targets
+without a recipe do not warn. Conditional effects, read-time warnings, assignment
+effects, target occurrence order and EOF/fatal paths keep their distinct phases.
+The [rule warning notes](rule-warnings.md) describe the boundaries, graph scope
+and GNU source references used for this independently authored implementation.
+
+Twenty-nine original fixtures were added and one pending case promoted. Full
+`make ci` passed with 351 Rust tests, 240 tooling tests and all existing generated,
+fault, stateful and self-host gates. The curated corpus contains 1,424 cases:
+1,384 required exact matches and 40 observed pending mismatches, with no failures
+or unexpected passes. A 440-program warning matrix matched exact streams and
+statuses. The earlier 2,380-program modifier campaign now also matches exactly;
+its 276 prior duplicate-warning differences are resolved without normalization.
+
+Against preceding production source `65032a9`, 31 alternating release pairs after
+three warmups measured before/after medians of 0.701/0.700 ms for tiny no-op,
+21.478/21.340 ms for 10,000 targets and 4.457/4.505 ms for 5,000 assignments.
+Median paired after/before ratios were 1.004, 1.000 and 1.008. These unisolated
+wall-time observations establish no speed improvement; CPU/RSS/I/O and broader
+release validation remain open. Complete dynamic input, rule families, recursive
+options, parallel execution and full GNU compatibility are still unfinished.

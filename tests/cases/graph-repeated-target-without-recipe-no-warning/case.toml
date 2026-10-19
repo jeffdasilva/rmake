@@ -1,8 +1,8 @@
 id = "graph-repeated-target-without-recipe-no-warning"
 requirement = "graph.merged-prerequisites"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
-description = "GNU emits no duplicate-target warning when the declaration has no recipe. The candidate currently warns before knowing whether a recipe follows."
+description = "GNU emits no duplicate-target warning when the declaration has no recipe. Warnings are deferred until rule recording and require a recipe."
 provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream implementation or tests copied."
 
 [expected]

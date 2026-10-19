@@ -1,0 +1,11 @@
+id = "rule-warning-inline-empty"
+requirement = "graph.rule-warning-timing"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+description = "Original rule-recording warning boundary: inline empty."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a2027616c6c2720697320757020746f20646174652e0a"
+stderr_hex = "4d616b6566696c653a313a207461726765742027616c6c2720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a"

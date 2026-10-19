@@ -39,6 +39,33 @@ pub struct Rule {
     pub recipe_location: Option<Location>,
 }
 
+/// A declaration stays open across blank/comment and conditional lines. Rule
+/// diagnostics become observable only when the next statement closes it.
+#[derive(Default)]
+struct RuleDeclaration {
+    targets: Vec<Vec<u8>>,
+    offsets: HashMap<Vec<u8>, usize>,
+    location: Option<Location>,
+    recipe_started: bool,
+    warnings: Vec<(Location, Diagnostic)>,
+}
+
+impl RuleDeclaration {
+    fn finish(
+        &mut self,
+        warnings: &mut Vec<(Location, Diagnostic)>,
+        context: &mut ExpansionContext<'_>,
+    ) {
+        for (location, message) in self.warnings.drain(..) {
+            record_warning(warnings, context, location, message);
+        }
+        self.targets.clear();
+        self.offsets.clear();
+        self.location = None;
+        self.recipe_started = false;
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Dependency {
     pub name: Vec<u8>,
@@ -834,11 +861,9 @@ impl Database {
     ) -> Result<(), ParseError> {
         let context = &mut context;
         let mut reader = Reader::new(bytes);
-        let mut current = Vec::<Vec<u8>>::new();
         // Keep declaration boundaries until its first recipe is seen: GNU
         // places that declaration's prerequisites before earlier declarations.
-        let mut current_offsets = HashMap::<Vec<u8>, usize>::new();
-        let mut recipe_started = false;
+        let mut declaration = RuleDeclaration::default();
         let mut conditions = Vec::<Conditional>::new();
         let mut last_line = 0;
         loop {
@@ -847,7 +872,7 @@ impl Database {
                 .get(b".RECIPEPREFIX")
                 .and_then(|v| v.raw_value().first().copied())
                 .unwrap_or(b'\t');
-            let Some(line) = reader.next_line(prefix, !current.is_empty()) else {
+            let Some(line) = reader.next_line(prefix, !declaration.targets.is_empty()) else {
                 break;
             };
             last_line = line.end_line;
@@ -867,15 +892,12 @@ impl Database {
             if line.recipe {
                 if active {
                     self.add_recipe(
-                        &current,
-                        &current_offsets,
+                        &mut declaration,
                         Recipe {
                             bytes: line.bytes[1..].to_vec(),
                             location,
                             prefix,
                         },
-                        &mut recipe_started,
-                        context,
                     );
                 }
                 continue;
@@ -953,6 +975,9 @@ impl Database {
                 continue;
             }
             if let Some(header) = directive(text, b"define") {
+                if active {
+                    declaration.finish(&mut self.warnings, context);
+                }
                 let mut body = Vec::new();
                 let mut depth = 1;
                 let mut warning_line = location.line;
@@ -1013,7 +1038,6 @@ impl Database {
                         },
                         context,
                     )?;
-                    current.clear();
                 }
                 continue;
             }
@@ -1045,16 +1069,17 @@ impl Database {
                 }
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
+                declaration.finish(&mut self.warnings, context);
                 let name = self.expand(rest, &location, context)?;
                 let name = trim(&name);
                 if self.variables.undefine(name, origin) {
                     self.exports.remove(name);
                     self.unexports.remove(name);
                 }
-                current.clear();
                 continue;
             }
             if let Some(spec) = assignment(variable_text) {
+                declaration.finish(&mut self.warnings, context);
                 let name = self.define(spec, origin, &location, &location, context)?;
                 if private {
                     self.variables.set_private(&name, true);
@@ -1062,7 +1087,6 @@ impl Database {
                 if let Some(export) = export {
                     self.set_export(name, export);
                 }
-                current.clear();
                 continue;
             }
             // Modifiers only belong to a recognized variable operation. If
@@ -1072,6 +1096,7 @@ impl Database {
                 .map(|names| (true, names))
                 .or_else(|| directive(text, b"unexport").map(|names| (false, names)));
             if let Some((export, text)) = export_list {
+                declaration.finish(&mut self.warnings, context);
                 // Only a syntactically empty directive changes export-all.
                 // An expression that expands to no names still has its effects,
                 // but does not become an empty directive after evaluation.
@@ -1096,7 +1121,6 @@ impl Database {
                     }
                     self.set_export(name.to_vec(), export);
                 }
-                current.clear();
                 continue;
             }
             if [
@@ -1108,6 +1132,7 @@ impl Database {
             ]
             .contains(&keyword)
             {
+                declaration.finish(&mut self.warnings, context);
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -1118,6 +1143,7 @@ impl Database {
                     .into(),
                 });
             }
+            declaration.finish(&mut self.warnings, context);
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
                 return Err(ParseError {
                     unlocated: false,
@@ -1140,7 +1166,6 @@ impl Database {
                         &location,
                         context,
                     )?;
-                    current.clear();
                     continue;
                 }
             }
@@ -1171,7 +1196,6 @@ impl Database {
             let expanded =
                 expanded_inline.map_or(expanded_line.as_slice(), |i| &expanded_line[..i]);
             if trim(expanded).is_empty() {
-                current.clear();
                 continue;
             }
             let Some(colon) = separator(expanded, b':') else {
@@ -1196,7 +1220,7 @@ impl Database {
                     message: "rmake: unsupported rule form".into(),
                 });
             }
-            current.clear();
+            declaration.location = Some(location.clone());
             for target in words(&expanded[..colon]) {
                 let pattern = Pattern::new(target);
                 if pattern.has_wildcard() {
@@ -1213,9 +1237,9 @@ impl Database {
                         message: "rmake: escaped target names are not implemented".into(),
                     });
                 }
-                current.push(pattern.literal_bytes().to_vec());
+                declaration.targets.push(pattern.literal_bytes().to_vec());
             }
-            if current.is_empty() {
+            if declaration.targets.is_empty() {
                 continue;
             }
             let prereqs = &expanded[colon + 1..];
@@ -1229,7 +1253,7 @@ impl Database {
                 .variables
                 .get(b".DEFAULT_GOAL")
                 .is_none_or(|v| v.raw_value().is_empty())
-                && let Some(target) = current.iter().find(|target| {
+                && let Some(target) = declaration.targets.iter().find(|target| {
                     (!target.starts_with(b".") || target.contains(&b'/'))
                         && !self.is_suffix_rule_name(target)
                 })
@@ -1242,8 +1266,7 @@ impl Database {
                         message: err.diagnostic(),
                     })?;
             }
-            current_offsets.clear();
-            for target in &current {
+            for target in &declaration.targets {
                 let rule = self.rules.entry(target.clone()).or_default();
                 if target == b".SUFFIXES" && empty_dependencies {
                     // Clearing suffix metadata retains its recipe and location.
@@ -1251,22 +1274,10 @@ impl Database {
                     // target names in the same declaration.
                     rule.dependencies.clear();
                 }
-                if current_offsets.contains_key(target) {
-                    record_warning(
-                        &mut self.warnings,
-                        context,
-                        location.clone(),
-                        [
-                            b"target '".as_slice(),
-                            target,
-                            b"' given more than once in the same rule",
-                        ]
-                        .concat()
-                        .into(),
-                    );
-                } else {
-                    current_offsets.insert(target.clone(), rule.dependencies.len());
-                }
+                declaration
+                    .offsets
+                    .entry(target.clone())
+                    .or_insert(rule.dependencies.len());
                 rule.dependencies
                     .extend([(normal, false), (order, true)].into_iter().flat_map(
                         |(names, order_only)| {
@@ -1277,21 +1288,17 @@ impl Database {
                         },
                     ));
             }
-            recipe_started = false;
             let recipe = inline
                 .map(|i| line.bytes[i + 1..].to_vec())
                 .or_else(|| expanded_inline.map(|i| expanded_line[i + 1..].to_vec()));
             if let Some(bytes) = recipe {
                 self.add_recipe(
-                    &current,
-                    &current_offsets,
+                    &mut declaration,
                     Recipe {
                         bytes,
                         location,
                         prefix,
                     },
-                    &mut recipe_started,
-                    context,
                 );
             }
         }
@@ -1305,6 +1312,7 @@ impl Database {
                 message: "missing 'endif'".into(),
             });
         }
+        declaration.finish(&mut self.warnings, context);
         Ok(())
     }
 
@@ -1319,30 +1327,33 @@ impl Database {
         }
     }
 
-    fn add_recipe(
-        &mut self,
-        targets: &[Vec<u8>],
-        offsets: &HashMap<Vec<u8>, usize>,
-        recipe: Recipe,
-        started: &mut bool,
-        context: &mut ExpansionContext<'_>,
-    ) {
+    fn add_recipe(&mut self, declaration: &mut RuleDeclaration, recipe: Recipe) {
         let mut seen = HashSet::new();
-        for target in targets {
+        for target in &declaration.targets {
             if !seen.insert(target) {
+                if !declaration.recipe_started {
+                    declaration.warnings.push((
+                        declaration.location.clone().expect("rule header location"),
+                        [
+                            b"target '".as_slice(),
+                            target,
+                            b"' given more than once in the same rule",
+                        ]
+                        .concat()
+                        .into(),
+                    ));
+                }
                 continue;
             }
             let rule = self
                 .rules
                 .get_mut(target)
                 .expect("current targets were inserted");
-            if !*started {
-                let count = rule.dependencies.len() - offsets[target];
+            if !declaration.recipe_started {
+                let count = rule.dependencies.len() - declaration.offsets[target];
                 rule.dependencies.rotate_right(count);
                 if let Some(previous) = &rule.recipe_location {
-                    record_warning(
-                        &mut self.warnings,
-                        context,
+                    declaration.warnings.push((
                         recipe.location.clone(),
                         [
                             b"warning: overriding recipe for target '".as_slice(),
@@ -1351,10 +1362,8 @@ impl Database {
                         ]
                         .concat()
                         .into(),
-                    );
-                    record_warning(
-                        &mut self.warnings,
-                        context,
+                    ));
+                    declaration.warnings.push((
                         previous.clone(),
                         [
                             b"warning: ignoring old recipe for target '".as_slice(),
@@ -1363,7 +1372,7 @@ impl Database {
                         ]
                         .concat()
                         .into(),
-                    );
+                    ));
                 }
                 rule.recipes = Some(Vec::new());
                 rule.recipe_location = Some(recipe.location.clone());
@@ -1373,7 +1382,7 @@ impl Database {
                 .expect("recipe initialized")
                 .push(recipe.clone());
         }
-        *started = true;
+        declaration.recipe_started = true;
     }
 }
 
