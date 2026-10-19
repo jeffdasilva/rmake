@@ -97,7 +97,7 @@ impl Rule {
     pub fn normal_prerequisites(&self) -> impl Iterator<Item = &[u8]> {
         self.dependencies
             .iter()
-            .filter(|dependency| !dependency.order_only)
+            .filter(|dependency| !dependency.order_only && dependency.name != b".WAIT")
             .map(|dependency| dependency.name.as_slice())
     }
 
@@ -109,7 +109,9 @@ impl Rule {
         let mut seen = HashSet::new();
         self.dependencies
             .iter()
-            .filter(|dependency| seen.insert(dependency.name.as_slice()))
+            .filter(|dependency| {
+                dependency.name != b".WAIT" && seen.insert(dependency.name.as_slice())
+            })
             .map(|dependency| Dependency {
                 name: dependency.name.clone(),
                 order_only: !normal.contains(dependency.name.as_slice()),
@@ -186,6 +188,8 @@ pub struct Database {
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
     recipe_expansion: bool,
+    // One warning per category across includes/eval: prerequisites=1, commands=2.
+    wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
 }
 
@@ -1862,6 +1866,13 @@ impl Database {
                     })?;
             }
             for target in &declaration.targets {
+                if target == b".WAIT" && !empty_dependencies && self.wait_warnings & 1 == 0 {
+                    self.wait_warnings |= 1;
+                    declaration.warnings.push((
+                        location.clone(),
+                        ".WAIT should not have prerequisites".into(),
+                    ));
+                }
                 let mut unmatched = false;
                 let stem = if let Some(pattern) = &static_pattern {
                     if let Some(stem) = pattern.matches(target) {
@@ -2022,6 +2033,13 @@ impl Database {
     fn add_recipe(&mut self, declaration: &mut RuleDeclaration, recipe: Recipe) {
         let mut seen = HashSet::new();
         for target in &declaration.targets {
+            if target == b".WAIT" && self.wait_warnings & 2 == 0 {
+                self.wait_warnings |= 2;
+                declaration.warnings.push((
+                    declaration.location.clone().expect("rule header location"),
+                    ".WAIT should not have commands".into(),
+                ));
+            }
             if !seen.insert(target) {
                 if !declaration.recipe_started {
                     declaration.warnings.push((

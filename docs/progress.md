@@ -1328,3 +1328,12 @@ Added 15 original differential fixtures, six Linux adapter tests, a CLI transpor
 case, and three independent tooling-anchor tests. The corpus has 2,116 cases:
 2,103 required and 13 pending. See [jobservers](jobserver.md) for precise coverage,
 procfs/resource assumptions, and unfinished signal/load/output-sync behavior.
+
+## Prerequisite phase barriers
+
+Implemented `.WAIT` prerequisite phases with local waiting, automatic-variable
+exclusion, error/keep-going behavior, secondary/static/implicit expansion and
+special-target diagnostic timing. Added 28 original required cases plus one
+pending fixture exposing incomplete scheduling across independent graph branches.
+Corpus: 2,145 cases, 2,131 required and 14 pending. See
+[phase barriers](wait-barriers.md) for coverage and the remaining ready-graph work.

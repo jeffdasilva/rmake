@@ -1,0 +1,1 @@
+all: .WAIT .WAIT

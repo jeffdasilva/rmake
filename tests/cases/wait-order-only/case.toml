@@ -1,0 +1,12 @@
+id = "wait-order-only"
+requirement = "parallel.execution"
+candidate = "required"
+description = "wait-order-only"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "613a6220630a"
+stderr_hex = ""
