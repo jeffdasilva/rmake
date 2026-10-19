@@ -48,6 +48,9 @@ pub fn sequence(input: &[u8]) -> Vec<Vec<u8>> {
         }
         tokens.push(token);
     }
+    if tokens.len() < 2 || !tokens.iter().any(|token| token.contains(&b'(')) {
+        return tokens;
+    }
     let mut result = Vec::new();
     let mut group: Option<Vec<u8>> = None;
     for (index, token) in tokens.iter().enumerate() {

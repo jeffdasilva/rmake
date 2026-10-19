@@ -105,6 +105,31 @@ fn exists(path: &[u8], directory: bool) -> bool {
     }
 }
 
+fn literal(pattern: &[u8]) -> Option<Result<Vec<u8>, Vec<u8>>> {
+    if !pattern.is_empty() && !pattern.ends_with(b"/") && !scanned(pattern, true) {
+        let name = if pattern.starts_with(b"//") && !pattern[2..].contains(&b'/') {
+            &pattern[1..]
+        } else {
+            pattern
+        };
+        let local;
+        let lookup = if name.contains(&b'/') {
+            name
+        } else {
+            local = join(b".", name);
+            &local
+        };
+        if !exists(lookup, false) {
+            return Some(Ok(Vec::new()));
+        }
+        if name.len().saturating_add(32) > MAX_OUTPUT {
+            return Some(Err(LIMIT.to_vec()));
+        }
+        return Some(Ok(name.to_vec()));
+    }
+    None
+}
+
 impl Wildcard {
     pub fn invalidate(&mut self) {
         self.directories.clear();
@@ -171,6 +196,15 @@ impl Wildcard {
     }
 
     fn paths(&mut self, pattern: &[u8]) -> Result<Vec<Vec<u8>>, Vec<u8>> {
+        if let Some(result) = literal(pattern) {
+            return result.map(|path| {
+                if path.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![path]
+                }
+            });
+        }
         self.query(pattern, false, false, 0)
     }
 
@@ -259,7 +293,19 @@ impl Wildcard {
     pub fn expand(&mut self, pattern: &[u8]) -> Result<Vec<u8>, FilesystemError> {
         let (path, member) = rmake_core::filenames::archive_parts(pattern)
             .map_or((pattern, None), |(path, member)| (path, Some(member)));
-        let paths = self.paths(path)?;
+        if member.is_none()
+            && let Some(result) = literal(path)
+        {
+            return result.map_err(Into::into);
+        }
+        let mut paths = if member.is_some() {
+            self.paths(path)?
+        } else {
+            self.query(path, false, false, 0)?
+        };
+        if member.is_none() && paths.len() == 1 {
+            return Ok(paths.pop().unwrap());
+        }
         let mut output = Vec::new();
         for matched in paths {
             let repeats = if let Some(member) = member {
