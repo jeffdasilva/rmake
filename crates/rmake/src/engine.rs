@@ -173,6 +173,19 @@ struct ParallelJob {
     ignore: bool,
     before: Option<SystemTime>,
     phony: bool,
+    continuation: RecipeState,
+}
+
+/// Interpreter-owned continuation. Workers receive only one prepared Command;
+/// subsequent command configuration and exports are evaluated after completion.
+struct RecipeState {
+    expanded: std::collections::VecDeque<(usize, Vec<u8>, Recipe)>,
+    variables: VariableStore,
+    flow: Flow,
+    ran: bool,
+    one_shell: bool,
+    stdin_owner: bool,
+    environment: Option<Vec<(OsString, Option<OsString>)>>,
 }
 
 type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
@@ -1015,7 +1028,7 @@ impl Engine {
     }
 
     fn complete_job(&mut self, (target, result): JobResult) {
-        let job = self
+        let mut job = self
             .parallel_jobs
             .remove(&target)
             .expect("reserved parallel target");
@@ -1032,7 +1045,8 @@ impl Engine {
                 Some("Error 127".to_string())
             }
         };
-        let failed = error.is_some() && !job.ignore;
+        job.continuation.flow.attempted(launched);
+        let mut failed = error.is_some() && !job.ignore;
         if let Some(error) = error
             && (!job.ignore || !self.globally_silent())
         {
@@ -1049,6 +1063,14 @@ impl Engine {
         if failed && launched {
             self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnError);
         }
+        let mut outcome = self.done.get(&target).copied().unwrap_or_default();
+        if !failed {
+            let execution =
+                self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
+            failed |= matches!(execution.status, Status::Failure | Status::Fatal);
+            outcome.fatal |= execution.status == Status::Fatal;
+            self.cleanup_target(&target, job.before, job.phony, execution.cleanup);
+        }
         if failed
             && !self.options.keep_going
             && !self.parallel_failed
@@ -1057,7 +1079,6 @@ impl Engine {
             self.stderr(b"*** Waiting for unfinished jobs....");
         }
         self.parallel_failed |= failed;
-        let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         outcome.ran = true;
         outcome.failed |= failed;
         outcome.time = if job.phony { None } else { modified(&target) };
@@ -1591,7 +1612,7 @@ impl Engine {
             });
             (recipes, has_commands, recursive)
         };
-        let mut flow = Flow::new(
+        let flow = Flow::new(
             recipes
                 .iter()
                 .map(|recipe| {
@@ -1618,8 +1639,6 @@ impl Engine {
             };
         }
         let parallel = self.job_slots() > 1
-            && recipes.len() == 1
-            && !recursive
             && !self.options.dry_run
             && !self.options.question
             && !self.options.touch;
@@ -1646,18 +1665,54 @@ impl Engine {
                 return Execution::fatal(false);
             }
         }
-        let variables = &mut variables;
         let mut expanded = std::collections::VecDeque::new();
         for (index, recipe) in recipes.iter().enumerate() {
-            match self.expand(variables, &recipe.bytes, Some(&recipe.location)) {
-                Ok(bytes) => expanded.push_back((index, bytes, recipe)),
+            match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
+                Ok(bytes) => expanded.push_back((index, bytes, recipe.clone())),
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     return Execution::fatal(false);
                 }
             }
         }
-        let mut ran = false;
+        self.continue_recipe(
+            target,
+            RecipeState {
+                expanded,
+                variables,
+                flow,
+                ran: false,
+                one_shell,
+                stdin_owner: !self
+                    .parallel_jobs
+                    .values()
+                    .any(|job| job.continuation.stdin_owner),
+                environment: None,
+            },
+            phony,
+            before,
+            parallel,
+        )
+    }
+
+    fn continue_recipe(
+        &mut self,
+        target: &[u8],
+        state: RecipeState,
+        phony: bool,
+        before: Option<SystemTime>,
+        parallel: bool,
+    ) -> Execution {
+        let RecipeState {
+            mut expanded,
+            mut variables,
+            mut flow,
+            mut ran,
+            one_shell,
+            stdin_owner,
+            mut environment,
+        } = state;
+        let variables = &mut variables;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
             if bytes.is_empty() {
                 continue;
@@ -1728,7 +1783,7 @@ impl Engine {
             } else {
                 let line = crate::process::prepare_line(command, shell, &flags, ifs.as_deref());
                 if let Some(next) = line.next {
-                    expanded.push_front((index, command[next..].to_vec(), recipe));
+                    expanded.push_front((index, command[next..].to_vec(), recipe.clone()));
                 }
                 command = &command[..line.end];
                 ordinary_invocation = Some(line.invocation);
@@ -1780,153 +1835,172 @@ impl Engine {
             };
             let mut child = Command::new(os(&program));
             child.args(arguments.iter().map(|arg| os(arg)));
-            // Environment selection skips private pattern bindings, but inner
-            // references still expand using the complete target context.
-            let environment_variables = variables.for_environment();
-            let mut exports: BTreeSet<Vec<u8>> = self
-                .inherited_exports
-                .iter()
-                .chain(self.database.exports.iter())
-                .chain(self.database.unexports.iter())
-                .cloned()
-                .collect();
-            let export_all = self.database.export_all
-                || self
-                    .database
-                    .rules
-                    .contains_key(b".EXPORT_ALL_VARIABLES".as_slice());
-            for (name, variable) in environment_variables.definitions() {
-                if environment_variables.resolve_export_policy(name).is_some()
-                    || (export_all
-                        && name != b"SHELL"
-                        && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                        && automatic_export_name(name))
-                {
-                    exports.insert(name.to_vec());
+            if let Some(values) = &environment {
+                for (name, value) in values {
+                    if let Some(value) = value {
+                        child.env(name, value);
+                    } else {
+                        child.env_remove(name);
+                    }
                 }
-            }
-            for name in &exports {
-                if !environment_variables
-                    .resolve_export_policy(name)
-                    .unwrap_or_else(|| {
-                        let default_export = || {
-                            automatic_export_name(name)
-                                && environment_variables.get(name).is_some_and(|variable| {
-                                    !matches!(
-                                        variable.origin(),
-                                        Origin::Default | Origin::Automatic
-                                    ) && (export_all
-                                        || matches!(
+            } else {
+                // Environment selection skips private pattern bindings, but inner
+                // references still expand using the complete target context.
+                let environment_variables = variables.for_environment();
+                let mut exports: BTreeSet<Vec<u8>> = self
+                    .inherited_exports
+                    .iter()
+                    .chain(self.database.exports.iter())
+                    .chain(self.database.unexports.iter())
+                    .cloned()
+                    .collect();
+                let export_all = self.database.export_all
+                    || self
+                        .database
+                        .rules
+                        .contains_key(b".EXPORT_ALL_VARIABLES".as_slice());
+                for (name, variable) in environment_variables.definitions() {
+                    if environment_variables.resolve_export_policy(name).is_some()
+                        || (export_all
+                            && name != b"SHELL"
+                            && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
+                            && automatic_export_name(name))
+                    {
+                        exports.insert(name.to_vec());
+                    }
+                }
+                for name in &exports {
+                    if !environment_variables
+                        .resolve_export_policy(name)
+                        .unwrap_or_else(|| {
+                            let default_export = || {
+                                automatic_export_name(name)
+                                    && environment_variables.get(name).is_some_and(|variable| {
+                                        !matches!(
                                             variable.origin(),
-                                            Origin::Environment
-                                                | Origin::EnvironmentOverride
-                                                | Origin::CommandLine
-                                        ))
-                                })
-                        };
-                        if self
-                            .database
-                            .variables
-                            .get(name)
-                            .is_some_and(|variable| variable.export_default_reset())
-                        {
-                            // A pattern conditional can explicitly reset an
-                            // imported name's policy. Re-evaluate default
-                            // eligibility from the selected binding instead
-                            // of retaining the startup name-list decision.
-                            return default_export();
-                        }
-                        if self
-                            .database
-                            .variables
-                            .get(name)
-                            .is_some_and(|variable| variable.is_private())
-                        {
-                            // A suppressed private conditional can mark the
-                            // global binding private. Its export policy is then
-                            // hidden too; export-all still applies independently
-                            // to an unrelated visible target binding.
-                            export_all
-                                && automatic_export_name(name)
-                                && environment_variables.get(name).is_some_and(|variable| {
-                                    !matches!(
-                                        variable.origin(),
-                                        Origin::Default | Origin::Automatic
-                                    )
-                                })
-                        } else {
-                            !self.database.unexports.contains(name) && default_export()
-                        }
-                    })
-                {
-                    child.env_remove(os(name));
-                    continue;
-                }
-                if let Some(variable) = environment_variables.get(name) {
-                    // Imported environment values are recursive when referenced
-                    // by make syntax, but are passed back to children verbatim.
-                    if matches!(
-                        variable.origin(),
-                        Origin::Environment | Origin::EnvironmentOverride
-                    ) {
-                        child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
+                                            Origin::Default | Origin::Automatic
+                                        ) && (export_all
+                                            || matches!(
+                                                variable.origin(),
+                                                Origin::Environment
+                                                    | Origin::EnvironmentOverride
+                                                    | Origin::CommandLine
+                                            ))
+                                    })
+                            };
+                            if self
+                                .database
+                                .variables
+                                .get(name)
+                                .is_some_and(|variable| variable.export_default_reset())
+                            {
+                                // A pattern conditional can explicitly reset an
+                                // imported name's policy. Re-evaluate default
+                                // eligibility from the selected binding instead
+                                // of retaining the startup name-list decision.
+                                return default_export();
+                            }
+                            if self
+                                .database
+                                .variables
+                                .get(name)
+                                .is_some_and(|variable| variable.is_private())
+                            {
+                                // A suppressed private conditional can mark the
+                                // global binding private. Its export policy is then
+                                // hidden too; export-all still applies independently
+                                // to an unrelated visible target binding.
+                                export_all
+                                    && automatic_export_name(name)
+                                    && environment_variables.get(name).is_some_and(|variable| {
+                                        !matches!(
+                                            variable.origin(),
+                                            Origin::Default | Origin::Automatic
+                                        )
+                                    })
+                            } else {
+                                !self.database.unexports.contains(name) && default_export()
+                            }
+                        })
+                    {
+                        child.env_remove(os(name));
                         continue;
                     }
-                    match self.database.expand_environment_in(
-                        variables,
-                        name,
-                        ExpansionContext::new(variable.definition(), &mut |event| {
-                            emit_output(&self.program, event)
-                        })
-                        .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result = crate::shell::run(request, &self.program, self.makelevel);
-                            self.filesystem.borrow_mut().child_completed();
-                            result
-                        })
-                        .with_includes(&mut read_include),
-                    ) {
-                        Ok(value) => {
-                            child.env(os(name), OsString::from_vec(value));
+                    if let Some(variable) = environment_variables.get(name) {
+                        // Imported environment values are recursive when referenced
+                        // by make syntax, but are passed back to children verbatim.
+                        if matches!(
+                            variable.origin(),
+                            Origin::Environment | Origin::EnvironmentOverride
+                        ) {
+                            child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
+                            continue;
                         }
-                        Err(err) => {
-                            self.expansion_error(variable.definition(), &err);
+                        match self.database.expand_environment_in(
+                            variables,
+                            name,
+                            ExpansionContext::new(variable.definition(), &mut |event| {
+                                emit_output(&self.program, event)
+                            })
+                            .with_filesystem(&mut |effect| {
+                                self.filesystem.borrow_mut().execute(effect)
+                            })
+                            .with_shell(&mut |request| {
+                                let result =
+                                    crate::shell::run(request, &self.program, self.makelevel);
+                                self.filesystem.borrow_mut().child_completed();
+                                result
+                            })
+                            .with_includes(&mut read_include),
+                        ) {
+                            Ok(value) => {
+                                child.env(os(name), OsString::from_vec(value));
+                            }
+                            Err(err) => {
+                                self.expansion_error(variable.definition(), &err);
+                                return Execution::fatal(ran);
+                            }
+                        }
+                    } else {
+                        child.env_remove(os(name));
+                    }
+                }
+                if !environment_variables
+                    .resolve_export_policy(b"MAKEFLAGS")
+                    .unwrap_or_else(|| !self.database.unexports.contains(b"MAKEFLAGS".as_slice()))
+                {
+                    child.env_remove("MAKEFLAGS");
+                } else if !child
+                    .get_envs()
+                    .any(|(name, value)| name == "MAKEFLAGS" && value.is_some())
+                {
+                    match self.expand(variables, b"$(MAKEFLAGS)", Some(&recipe.location)) {
+                        Ok(flags) => {
+                            child.env("MAKEFLAGS", OsString::from_vec(flags));
+                        }
+                        Err(error) => {
+                            self.expansion_error(Some(&recipe.location), &error);
                             return Execution::fatal(ran);
                         }
                     }
-                } else {
-                    child.env_remove(os(name));
                 }
+                // Ordinary export expansion above still has its normal effects.
+                // The child's numeric depth always comes from the startup snapshot,
+                // even if the visible binding was changed, removed, or unexported.
+                child.env("MAKELEVEL", self.makelevel.wrapping_add(1).to_string());
+                environment = Some(
+                    child
+                        .get_envs()
+                        .map(|(name, value)| (name.to_owned(), value.map(OsStr::to_owned)))
+                        .collect(),
+                );
             }
-            if !environment_variables
-                .resolve_export_policy(b"MAKEFLAGS")
-                .unwrap_or_else(|| !self.database.unexports.contains(b"MAKEFLAGS".as_slice()))
-            {
-                child.env_remove("MAKEFLAGS");
-            } else if !child
-                .get_envs()
-                .any(|(name, value)| name == "MAKEFLAGS" && value.is_some())
-            {
-                match self.expand(variables, b"$(MAKEFLAGS)", Some(&recipe.location)) {
-                    Ok(flags) => {
-                        child.env("MAKEFLAGS", OsString::from_vec(flags));
-                    }
-                    Err(error) => {
-                        self.expansion_error(Some(&recipe.location), &error);
-                        return Execution::fatal(ran);
-                    }
-                }
-            }
-            // Ordinary export expansion above still has its normal effects.
-            // The child's numeric depth always comes from the startup snapshot,
-            // even if the visible binding was changed, removed, or unexported.
-            child.env("MAKELEVEL", self.makelevel.wrapping_add(1).to_string());
             let _ = io::stdout().flush();
-            if parallel && expanded.is_empty() {
+            if parallel {
                 let sender = self.job_sender.clone();
                 let name = target.to_vec();
                 let executable = program.clone();
-                let first = self.parallel_jobs.is_empty();
+                let first = stdin_owner;
                 let worker =
                     std::thread::Builder::new()
                         .name("rmake-job".into())
@@ -1951,6 +2025,15 @@ impl Engine {
                         ignore,
                         before,
                         phony,
+                        continuation: RecipeState {
+                            expanded,
+                            variables: variables.clone(),
+                            flow,
+                            ran,
+                            one_shell,
+                            stdin_owner,
+                            environment,
+                        },
                     },
                 );
                 return Execution::success(true);
