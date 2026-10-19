@@ -974,3 +974,29 @@ assignments. Median paired after/before ratios were 1.029, 1.019 and 1.008.
 These unisolated wall-time measurements establish no speed improvement and have
 no confidence intervals or CPU/RSS/I/O coverage. Broader environment behavior,
 effect ordering, dynamic semantics and the remaining milestones stay incomplete.
+
+## Variable-modifier fallback — 2026-10-18
+
+The parser now retains the original statement while recognizing assignment
+modifiers. When no variable operation is found, export/unexport lists and rules
+use that original text. Keyword-shaped list names are materialized and exported
+with their proper metadata. Bare or misplaced modifiers retain GNU's syntax
+errors and prior expansion effects. Rule targets named `override` or `private`
+also retain their names and default-goal order. Valid assignments and qualified
+undefines keep their modifier handling. GNU Make 4.4.1 `src/read.c`
+`parse_var_assignment` and `eval` informed the independently authored change.
+
+Thirty-seven original required fixtures were added, and two pending fixtures
+were promoted. Full `make ci` passed with 346 Rust tests, 240 tooling tests and all
+existing gates. A larger campaign compared 2,380 original modifier combinations:
+2,104 matched exactly; 276 differed only because rmake warns about repeated
+targets even when a declaration has no recipe. The same mismatch reproduces with
+`all all:` on the preceding implementation. One new pending graph fixture
+preserves that warning gap; comparisons were not normalized or excused.
+
+After adding that pending fixture, refreshed tooling, oracle and candidate gates
+passed. The curated corpus contains 1,333 cases: 1,286 required exact matches and
+47 observed pending mismatches, with no failures or unexpected passes. This
+bounded parser correction introduces no cache or performance claim. Complete
+directive grammar, warning timing, dynamic semantics and later milestones remain
+open.
