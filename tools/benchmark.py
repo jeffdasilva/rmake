@@ -59,6 +59,17 @@ def selected_workloads(suite):
         yield from wildcard_workloads()
     if suite in ("bindings", "all"):
         yield from binding_workloads()
+    if suite in ("implicit-search", "all"):
+        yield from implicit_search_workloads()
+
+
+def implicit_search_workloads():
+    """Many irrelevant definitions, with real resolution but no child launches."""
+    for count in (64, 256):
+        targets = ' '.join(f'node{i}.out' for i in range(400))
+        patterns = ''.join(f'ignored{i}%.unused{i}:;\n' for i in range(count))
+        yield f'implicit-unmatched-{count}', (
+            f'all: {targets}\n' + patterns + '%.out:;\n').encode()
 
 
 def binding_workloads():
@@ -95,8 +106,10 @@ def prepare_files(path, workload):
             'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
 
 
-def paired_order(iteration, candidate):
+def paired_order(iteration, candidate, baseline=False):
     engines = ["oracle", "candidate"] if candidate else ["oracle"]
+    if baseline:
+        engines.insert(1, "baseline")
     return engines if iteration % 2 == 0 else list(reversed(engines))
 
 
@@ -109,12 +122,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
     parser.add_argument("--candidate", type=Path)
+    parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
         parser.error("--repeat must be between 3 and 1000")
+    if args.baseline and not args.candidate:
+        parser.error("--baseline requires --candidate")
     oracle = args.oracle.resolve()
     profile = reference_oracle.verify(oracle)
     identities = {"oracle": conformance.executable_identity(oracle, oracle=True)}
@@ -123,6 +139,9 @@ def main():
     if args.candidate:
         identities["candidate"] = conformance.executable_identity(args.candidate)
         executables["candidate"] = Path(identities["candidate"]["path"])
+    if args.baseline:
+        identities["baseline"] = conformance.executable_identity(args.baseline)
+        executables["baseline"] = Path(identities["baseline"]["path"])
     report = {
         "schema": 2,
         "suite": args.suite,
@@ -145,7 +164,7 @@ def main():
             samples = {label: [] for label in executables}
             expected = None
             for iteration in range(args.repeat + 2):
-                for label in paired_order(iteration, args.candidate is not None):
+                for label in paired_order(iteration, args.candidate is not None, args.baseline is not None):
                     alias.unlink(missing_ok=True)
                     alias.symlink_to(executables[label])
                     start = time.perf_counter_ns()
@@ -169,6 +188,10 @@ def main():
                 record["paired_oracle_over_candidate"] = [
                     left / right for left, right in zip(samples["oracle"], samples["candidate"])]
                 record["median_paired_ratio"] = statistics.median(record["paired_oracle_over_candidate"])
+            if args.baseline:
+                record["paired_baseline_over_candidate"] = [
+                    left / right for left, right in zip(samples["baseline"], samples["candidate"])]
+                record["median_paired_baseline_ratio"] = statistics.median(record["paired_baseline_over_candidate"])
             report["workloads"].append(record)
             display = ", ".join(f"{label} median {values['median_ns'] / 1_000_000:.3f} ms"
                                 for label, values in record["measurements"].items())
