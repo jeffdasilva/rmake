@@ -1,0 +1,11 @@
+id = "undefine-export-repeated-reset"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Binding lifetime and export policy: repeated reset."
+provenance = "Independently authored input and exact expectations, verified against pinned GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d3c7365636f6e643e7c70726573656e740a"
+stderr_hex = ""

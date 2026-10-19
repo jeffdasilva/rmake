@@ -1,0 +1,14 @@
+id = "undefine-export-curdir-initialization"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Internal literal metadata updates retain the imported binding export policy."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream implementation or tests copied."
+
+[environment]
+"CURDIR" = "from-environment"
+
+[expected]
+exit_code = 0
+stdout_hex = "6375726469723d63757272656e740a"
+stderr_hex = ""

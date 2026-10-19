@@ -199,6 +199,9 @@ impl Engine {
                     Origin::Environment,
                 )
                 .map_err(|e| e.diagnostic())?;
+            // Imported export policy belongs to this binding. Ordinary
+            // reassignment retains it; undefine destroys it with the binding.
+            database.variables.set_export_policy(name, Some(true));
             inherited_exports.insert(name.to_vec());
         }
         database
@@ -984,17 +987,8 @@ impl Engine {
                 if !environment_variables
                     .resolve_export_policy(name)
                     .unwrap_or_else(|| {
-                        if self
-                            .database
-                            .variables
-                            .get(name)
-                            .is_some_and(|variable| variable.export_default_reset())
-                        {
-                            // A pattern conditional can explicitly reset an
-                            // imported name's policy. Re-evaluate default
-                            // eligibility from the selected binding instead
-                            // of retaining the startup name-list decision.
-                            return automatic_export_name(name)
+                        let default_export = || {
+                            automatic_export_name(name)
                                 && environment_variables.get(name).is_some_and(|variable| {
                                     !matches!(
                                         variable.origin(),
@@ -1006,7 +1000,19 @@ impl Engine {
                                                 | Origin::EnvironmentOverride
                                                 | Origin::CommandLine
                                         ))
-                                });
+                                })
+                        };
+                        if self
+                            .database
+                            .variables
+                            .get(name)
+                            .is_some_and(|variable| variable.export_default_reset())
+                        {
+                            // A pattern conditional can explicitly reset an
+                            // imported name's policy. Re-evaluate default
+                            // eligibility from the selected binding instead
+                            // of retaining the startup name-list decision.
+                            return default_export();
                         }
                         if self
                             .database
@@ -1027,7 +1033,7 @@ impl Engine {
                                     )
                                 })
                         } else {
-                            !self.database.unexports.contains(name)
+                            !self.database.unexports.contains(name) && default_export()
                         }
                     })
                 {

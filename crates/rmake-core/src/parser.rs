@@ -1025,7 +1025,11 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"undefine") {
                 let name = self.expand(rest, &location, context)?;
-                self.variables.undefine(trim(&name), origin);
+                let name = trim(&name);
+                if self.variables.undefine(name, origin) {
+                    self.exports.remove(name);
+                    self.unexports.remove(name);
+                }
                 current.clear();
                 continue;
             }

@@ -28,13 +28,31 @@ on all six C whitespace bytes, including vertical tab; non-ASCII space-like
 bytes remain literal name contents. These rules are local to name-list handling
 and do not establish complete whitespace compatibility for other directives.
 
+## Binding lifetime
+
+Export policy belongs to a binding. Imported environment bindings start with an
+export policy, and reassignment retains it. Internal literal initialization and
+metadata appends retain it too, including updates to `CURDIR`, `MAKEFILE_LIST`
+and `MAKELEVEL`. Synthesizing a previously absent variable does not create an
+inherited export policy.
+
+A successful `undefine` removes the binding and its explicit export/unexport
+membership. A later definition starts with default policy: an ordinary file
+binding is absent from the child environment unless export-all or a new explicit
+directive selects it. Refused undefines retain the old policy, including when
+command-line priority or `-e` protects the binding. Explicit target and pattern
+policies survive removal of an unrelated global binding.
+
+The engine still visits startup environment names to remove stale entries from
+the child environment. Membership in that name list alone does not select a new
+binding for export. Default selection checks the current origin and export-all
+mode, preserving ordinary export expansion and its effects.
+
 ## Remaining boundaries
 
 Export behavior is still incomplete. Pending original fixtures retain these
 distinct gaps:
 
-- Export/unexport and inherited environment policy can outlive an `undefine`
-  in the current implementation. GNU removes the binding's policy too.
 - A vertical tab immediately after the directive keyword is not yet recognized
   as a directive separator. This differs from whitespace inside an expanded list
   or after an already recognized keyword separator.
@@ -45,7 +63,12 @@ The harness keeps metadata-only fixtures separate from recipe-launch fixtures;
 it does not remove child execution from an existing failing case to make it pass.
 Passing this slice does not establish full export or environment compatibility.
 
-These behaviors and tests come from original executable probes against the
-pinned oracle. No GNU implementation source or upstream tests were consulted
-for this slice. See [implementation progress](progress.md) for exact validation
-counts and the remaining milestone gates.
+The initial name-list behaviors and tests came from original executable probes
+against the pinned oracle, without inspecting upstream implementation or tests.
+The binding-lifetime follow-up also consulted GNU Make 4.4.1 `src/main.c`
+environment import and `src/variable.c` (`define_variable_in_set`,
+`undefine_variable_in_set`, `define_automatic_variables`, `should_export` and
+`target_environment`). Rust changes and fixture inputs are independently
+authored; no upstream code or tests were incorporated. See
+[implementation progress](progress.md) for exact validation counts and remaining
+milestone gates.

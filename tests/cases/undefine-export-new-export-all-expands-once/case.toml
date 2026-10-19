@@ -1,0 +1,11 @@
+id = "undefine-export-new-export-all-expands-once"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Binding lifetime and export policy: new export all expands once."
+provenance = "Independently authored input and exact expectations, verified against pinned GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6578706f72742d657870616e6465640a6368696c643d3c76616c75653e7c70726573656e740a"
+stderr_hex = ""

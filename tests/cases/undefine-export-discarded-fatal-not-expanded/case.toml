@@ -1,0 +1,11 @@
+id = "undefine-export-discarded-fatal-not-expanded"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Binding lifetime and export policy: discarded fatal not expanded."
+provenance = "Independently authored input and exact expectations, verified against pinned GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d3c3e7c0a"
+stderr_hex = ""
