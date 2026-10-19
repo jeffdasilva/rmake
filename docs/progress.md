@@ -1000,3 +1000,34 @@ passed. The curated corpus contains 1,333 cases: 1,286 required exact matches an
 bounded parser correction introduces no cache or performance claim. Complete
 directive grammar, warning timing, dynamic semantics and later milestones remain
 open.
+
+## Literal NUL input and file-stream boundaries — 2026-10-18
+
+The reader now models GNU's visible stream chunks when a Makefile contains a
+literal NUL. Discarded tails, subsequent appended reads, persistent buffer growth,
+synthetic newlines, continuation/recipe handling and observed line counts retain
+the pinned reference behavior. Warnings are emitted at read time, with the
+definition reader's distinct positions for `define` bodies. The ordinary reader
+remains the path for files without NUL bytes.
+
+Capacity is represented as an integer rather than a large allocation. The
+reference's signed 32-bit read-count conversion is preserved safely. A tiny
+NUL-bearing input can reach that boundary; an extended campaign exposed it and
+the regression fixture checks the resulting input stop. The
+[NUL reader notes](nul-reader.md) record phase behavior and source references.
+
+Thirty-two original fixtures were added and one pending fixture promoted. Full
+`make ci` passed with 348 Rust tests and 240 tooling tests; formatting, Clippy and
+Rust tests were repeated after marking the rare reader path cold. The curated
+corpus contains 1,365 cases: 1,319 required exact matches and 46 observed pending
+mismatches, with no failures or unexpected passes. A separate seeded campaign of
+400 original stream programs matched the oracle, including buffer growth and
+mixed tails/continuations.
+
+Against preceding production source `516dc1a`, 31 alternating release pairs after
+three warmups measured tiny no-op medians of 0.591/0.621 ms, 10,000-target medians
+of 21.121/22.263 ms and 5,000-assignment medians of 4.251/4.362 ms before/after.
+Median paired after/before ratios were 1.039, 1.043 and 1.027. These unisolated
+wall-time observations establish no speed improvement; CPU/RSS/I/O profiles and
+broader release-scale validation remain open. Full GNU compatibility is not
+claimed by this reader slice.

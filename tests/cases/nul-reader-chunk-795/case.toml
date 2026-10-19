@@ -1,0 +1,11 @@
+id = "nul-reader-chunk-795"
+requirement = "syntax.reader"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original NUL-aware file-reader boundary: chunk 795."
+provenance = "Independently authored exact bytes and expectations verified against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d61726b0a"
+stderr_hex = ""

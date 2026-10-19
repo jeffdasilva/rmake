@@ -25,6 +25,9 @@ pub struct Reader<'a> {
     offset: usize,
     next_physical_line: usize,
     posix: bool,
+    nul_input: bool,
+    stream_capacity: usize,
+    nul_warnings: usize,
 }
 
 struct PhysicalLine<'a> {
@@ -40,6 +43,9 @@ impl<'a> Reader<'a> {
             offset: 0,
             next_physical_line: 1,
             posix: false,
+            nul_input: source.contains(&0),
+            stream_capacity: 200,
+            nul_warnings: 0,
         }
     }
 
@@ -59,6 +65,10 @@ impl<'a> Reader<'a> {
     /// Ordinary continuations collapse surrounding spaces/tabs, except that
     /// POSIX mode preserves whitespace before a continuation and separate joins.
     pub fn next_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
+        self.nul_warnings = 0;
+        if self.nul_input {
+            return self.nul_line(recipe_prefix, in_rule_context);
+        }
         let first = self.physical_line()?;
         let recipe = in_rule_context && first.bytes.first() == Some(&recipe_prefix);
         let mut result = LogicalLine {
@@ -124,6 +134,94 @@ impl<'a> Reader<'a> {
             continued = true;
         }
         Some(result)
+    }
+
+    /// Warnings belong to the read operation, before interpreting its contents.
+    /// Define bodies choose their own diagnostic position for this event.
+    pub fn take_nul_warnings(&mut self) -> usize {
+        std::mem::take(&mut self.nul_warnings)
+    }
+
+    #[cold]
+    fn nul_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
+        let line = self.next_physical_line;
+        let mut raw = Vec::new();
+        let mut lines = 0;
+        while self.offset < self.source.len() {
+            // GNU's file reader retains a growing buffer across logical lines.
+            // A read consumes its entire chunk even when C-string observation
+            // ends at an embedded NUL. Later reads overwrite the discarded tail.
+            // The pinned Linux reader passes the remaining capacity through
+            // a 32-bit signed fgets count. Nonpositive counts end the read
+            // without consuming input; emulate that boundary without reserving
+            // GNU's potentially enormous virtual buffer.
+            let read_size = (self.stream_capacity - raw.len()) as i32;
+            if read_size <= 0 {
+                break;
+            }
+            let available = read_size as usize - 1;
+            let remaining = &self.source[self.offset..];
+            let chunk = &remaining[..available.min(remaining.len())];
+            let count = chunk
+                .iter()
+                .position(|&byte| byte == b'\n')
+                .map_or(chunk.len(), |position| position + 1);
+            let chunk = &chunk[..count];
+            self.offset += count;
+            let visible = chunk
+                .iter()
+                .position(|&byte| byte == 0)
+                .unwrap_or(chunk.len());
+            if visible == 0 {
+                self.nul_warnings += 1;
+                raw.push(b'\n');
+            } else {
+                raw.extend_from_slice(&chunk[..visible]);
+            }
+            if raw.last() == Some(&b'\n') {
+                lines += 1;
+                if raw.ends_with(b"\r\n") {
+                    raw.remove(raw.len() - 2);
+                }
+                let continuation = raw[..raw.len() - 1]
+                    .iter()
+                    .rev()
+                    .take_while(|&&byte| byte == b'\\')
+                    .count()
+                    % 2
+                    == 1;
+                if !continuation {
+                    raw.pop();
+                    break;
+                }
+                if self.stream_capacity - raw.len() >= 80 {
+                    continue;
+                }
+            }
+            self.stream_capacity = self.stream_capacity.saturating_mul(2);
+        }
+        if lines == 0 {
+            if raw.is_empty() {
+                return None;
+            }
+            lines = 1;
+        }
+        self.next_physical_line += lines;
+        // The retained text is now NUL-free. Reuse ordinary recipe/continuation
+        // handling while retaining the file reader's observed line count.
+        let mut reader = Reader::new(&raw);
+        reader.set_posix(self.posix);
+        let mut folded = reader
+            .next_line(recipe_prefix, in_rule_context)
+            .unwrap_or(LogicalLine {
+                bytes: Vec::new(),
+                line,
+                end_line: line,
+                recipe: false,
+            });
+        folded.line = line;
+        folded.end_line = self.next_physical_line - 1;
+        Some(folded)
     }
 
     fn physical_line(&mut self) -> Option<PhysicalLine<'a>> {
@@ -240,6 +338,39 @@ mod tests {
     #[test]
     fn empty_input_has_no_phantom_line() {
         assert!(Reader::new(b"").next_line(b'\t', false).is_none());
+    }
+
+    #[test]
+    fn nul_reads_append_visible_chunks_and_keep_observed_line_numbers() {
+        let mut reader = Reader::new(b"X=one\0discarded\nTWO\n\0discarded\nlast\n");
+        let first = reader.next_line(b'\t', false).unwrap();
+        assert_eq!(first.bytes, b"X=oneTWO");
+        assert_eq!((first.line, first.end_line), (1, 1));
+        assert_eq!(reader.take_nul_warnings(), 0);
+        let blank = reader.next_line(b'\t', false).unwrap();
+        assert!(blank.bytes.is_empty());
+        assert_eq!((blank.line, blank.end_line), (2, 2));
+        assert_eq!(reader.take_nul_warnings(), 1);
+        assert_eq!(reader.take_nul_warnings(), 0);
+        let last = reader.next_line(b'\t', false).unwrap();
+        assert_eq!(last.bytes, b"last");
+        assert_eq!((last.line, last.end_line), (3, 3));
+    }
+
+    #[test]
+    fn nul_chunk_boundaries_retain_earlier_buffer_growth() {
+        let mut source = vec![b'#'];
+        source.extend(std::iter::repeat_n(b'x', 300));
+        source.extend_from_slice(b"\n#");
+        source.extend(std::iter::repeat_n(b'x', 198));
+        source.extend_from_slice(b"\0discarded\nnext\nlast\n");
+        let mut reader = Reader::new(&source);
+        assert_eq!(reader.next_line(b'\t', false).unwrap().bytes.len(), 301);
+        let joined = reader.next_line(b'\t', false).unwrap();
+        assert!(joined.bytes.ends_with(b"next"));
+        assert_eq!(reader.take_nul_warnings(), 0);
+        assert_eq!((joined.line, joined.end_line), (2, 2));
+        assert_eq!(reader.next_line(b'\t', false).unwrap().line, 3);
     }
 
     #[test]

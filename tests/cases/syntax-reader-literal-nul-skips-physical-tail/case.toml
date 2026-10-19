@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "syntax-reader-literal-nul-skips-physical-tail"
 requirement = "syntax.reader"
-candidate = "pending"
-description = "Raw Makefile NUL truncation remains a separate pending reader surface from file-produced expansion NUL."
+candidate = "required"
+description = "Raw Makefile NUL handling discards the unread portion of a stream chunk before appending later reads."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]
 timeout_seconds = 5
