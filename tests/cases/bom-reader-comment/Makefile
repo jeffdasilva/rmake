@@ -1,0 +1,2 @@
+﻿# comment
+all:;@$(info done):

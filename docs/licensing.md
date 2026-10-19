@@ -47,6 +47,8 @@ The [assignment notes](assignment-syntax.md) also record the later GNU source
 reference for dispatching assignments before directive-shaped variable names.
 The [directive whitespace notes](directive-whitespace.md) record active and
 ignored definition-reader boundaries and diagnostic phases for the later slice.
+The [initial-BOM notes](initial-bom.md) record the read/parse phase reference
+used for independently authored byte-prefix handling.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

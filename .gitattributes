@@ -11,3 +11,7 @@ tests/cases/rule-warning-*/Makefile -text
 
 # Directive fixtures intentionally retain control bytes next to line endings.
 tests/cases/directive-space-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Preserve complete/partial BOMs, NULs and original line endings.
+tests/cases/bom-reader-*/*.mk -text
+tests/cases/bom-reader-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

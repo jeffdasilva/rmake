@@ -1179,3 +1179,26 @@ the two global workloads and slightly faster for the two local workloads. The
 workload construction and limitations. These unisolated wall-time observations
 have no confidence intervals or CPU/RSS/I/O coverage and establish no general
 speed advantage. Complete compatibility and broader performance work remain open.
+
+## Initial UTF-8 BOM phase — 2026-10-18
+
+The parser now removes one initial UTF-8 BOM from each input's first observed
+logical line after stream reading. Other positions, doubled/partial BOMs and raw
+value/body/recipe bytes remain literal. Keeping this after reading preserves NUL
+buffer behavior and source positions. The [initial-BOM notes](initial-bom.md)
+record the source reference, behavior and remaining generated-input/debug scope.
+
+Twenty-six original required fixtures were added. Full `make ci` passed with
+351 Rust tests, 240 tooling tests and all existing generated, fault, stateful and
+self-host gates. The curated corpus contains 1,609 cases: 1,570 required exact
+matches and 39 observed pending mismatches, with no failures or unexpected passes.
+A separate seeded campaign of 400 BOM-prefixed NUL-stream programs matched exact
+streams and statuses, including buffer growth and discarded tails.
+
+Against source `c407c57`, 31 alternating release pairs after three warmups
+measured before/after medians of 0.693/0.692 ms for tiny no-op, 21.789/22.222 ms
+for 10,000 targets and 4.500/4.502 ms for 5,000 assignments. Median paired
+after/before ratios were 1.006, 1.001 and 0.993. These unisolated wall-time
+observations establish no speed improvement and have no confidence intervals or
+CPU/RSS/I/O coverage. Broader syntax, dynamic semantics, rule resolution, runtime
+and release validation remain incomplete.

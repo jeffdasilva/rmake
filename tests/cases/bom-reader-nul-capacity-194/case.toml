@@ -1,0 +1,11 @@
+id = "bom-reader-nul-capacity-194"
+requirement = "syntax.initial-bom"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original first-logical-line UTF-8 BOM boundary: nul capacity 194."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720736570617261746f72202864696420796f75206d65616e2054414220696e7374656164206f662038207370616365733f292e202053746f702e0a"
