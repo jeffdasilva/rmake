@@ -215,6 +215,19 @@ struct RuleState {
     deferred_intermediates: Vec<Vec<u8>>,
 }
 
+/// Double-colon branches remain sequential for one target, while their
+/// unfinished dependencies yield to unrelated targets in the enclosing graph.
+struct DoubleColonState {
+    parent: Option<Vec<u8>>,
+    depth: usize,
+    before: Option<SystemTime>,
+    phony: bool,
+    branches: std::collections::VecDeque<Rule>,
+    active: bool,
+    last_epoch: Option<u64>,
+    combined: Outcome,
+}
+
 type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
 
 pub struct Engine {
@@ -232,6 +245,7 @@ pub struct Engine {
     would_build: bool,
     parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
     pending_rules: HashMap<Vec<u8>, RuleState>,
+    pending_double_colon: HashMap<Vec<u8>, DoubleColonState>,
     graph_epoch: u64,
     graph_abort: Option<Status>,
     completed_jobs: std::sync::mpsc::Receiver<JobResult>,
@@ -493,6 +507,7 @@ impl Engine {
             would_build: false,
             parallel_jobs: HashMap::new(),
             pending_rules: HashMap::new(),
+            pending_double_colon: HashMap::new(),
             graph_epoch: 0,
             graph_abort: None,
             completed_jobs,
@@ -939,7 +954,7 @@ impl Engine {
         while requested.iter().any(|(goal, _, _)| self.pending(goal)) {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             for (goal, _, _) in &requested {
-                if self.pending_rules.contains_key(goal) {
+                if self.graph_pending(goal) {
                     self.build(goal, None, 0);
                 }
             }
@@ -1182,8 +1197,12 @@ impl Engine {
         }
     }
 
+    fn graph_pending(&self, target: &[u8]) -> bool {
+        self.pending_rules.contains_key(target) || self.pending_double_colon.contains_key(target)
+    }
+
     fn pending(&self, target: &[u8]) -> bool {
-        self.pending_rules.contains_key(target) || self.parallel_jobs.contains_key(target)
+        self.graph_pending(target) || self.parallel_jobs.contains_key(target)
     }
 
     fn parallel_graph(&self) -> bool {
@@ -1196,7 +1215,7 @@ impl Engine {
     fn wait_target(&mut self, target: &[u8]) {
         while self.pending(target) {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
-            if self.pending_rules.contains_key(target) {
+            if self.graph_pending(target) {
                 self.build(target, None, 0);
             }
             if self.pending(target) && !self.parallel_jobs.is_empty() {
@@ -1515,6 +1534,9 @@ impl Engine {
     }
 
     fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        if self.pending_double_colon.contains_key(target) {
+            return self.resume_double_colon(target);
+        }
         if self.pending_rules.contains_key(target) {
             return self.resume_rule(target);
         }
@@ -1581,32 +1603,93 @@ impl Engine {
             return result;
         };
         if let Some(branches) = rule.double_colon.take() {
-            let mut combined = Outcome {
-                time: before,
-                ..Outcome::default()
-            };
-            for branch in branches {
-                let mut result =
-                    self.build_rule(target, parent, depth, before, phony, branch, true);
+            self.pending_double_colon.insert(
+                target.to_vec(),
+                DoubleColonState {
+                    parent: parent.map(Vec::from),
+                    depth,
+                    before,
+                    phony,
+                    branches: branches.into(),
+                    active: false,
+                    last_epoch: None,
+                    combined: Outcome {
+                        time: before,
+                        ..Outcome::default()
+                    },
+                },
+            );
+            let outcome = self.resume_double_colon(target);
+            if !self.parallel_graph() {
                 self.wait_target(target);
-                if let Some(completed) = self.done.get(target) {
-                    result = *completed;
-                }
-                combined.time = result.time;
-                combined.ran |= result.ran;
-                combined.failed |= result.failed;
-                combined.fatal |= result.fatal;
-                combined.blocked |= result.blocked;
-                combined.question_outdated |= result.question_outdated;
-                self.done.remove(target);
-                if result.fatal || (result.failed && !self.options.keep_going) {
-                    break;
-                }
+                return self.done.get(target).copied().unwrap_or(outcome);
             }
-            self.done.insert(target.to_vec(), combined);
-            return combined;
+            return outcome;
         }
         self.build_rule(target, parent, depth, before, phony, rule, false)
+    }
+
+    fn resume_double_colon(&mut self, target: &[u8]) -> Outcome {
+        if let Some(state) = self.pending_double_colon.get(target)
+            && state.last_epoch == Some(self.graph_epoch)
+        {
+            return state.combined;
+        }
+        let mut state = self
+            .pending_double_colon
+            .remove(target)
+            .expect("pending double-colon continuation");
+        state.last_epoch = Some(self.graph_epoch);
+        loop {
+            if state.active {
+                if self.pending_rules.contains_key(target) {
+                    self.resume_rule(target);
+                }
+                if self.pending_rules.contains_key(target)
+                    || self.parallel_jobs.contains_key(target)
+                {
+                    let mut outcome = state.combined;
+                    if let Some(branch) = self.done.get(target).copied() {
+                        merge_child(&mut outcome, branch);
+                    }
+                    self.pending_double_colon.insert(target.to_vec(), state);
+                    return outcome;
+                }
+                let result = self
+                    .done
+                    .remove(target)
+                    .expect("finished double-colon branch");
+                state.combined.time = result.time;
+                state.combined.ran |= result.ran;
+                state.combined.failed |= result.failed;
+                state.combined.fatal |= result.fatal;
+                state.combined.blocked |= result.blocked;
+                state.combined.question_outdated |= result.question_outdated;
+                self.record_graph_failure(result);
+                state.active = false;
+                if result.fatal || (result.failed && !self.options.keep_going) {
+                    state.branches.clear();
+                }
+            }
+            self.apply_graph_abort(&mut state.combined);
+            if self.graph_abort.is_some() {
+                state.branches.clear();
+            }
+            let Some(branch) = state.branches.pop_front() else {
+                self.done.insert(target.to_vec(), state.combined);
+                return state.combined;
+            };
+            self.build_rule(
+                target,
+                state.parent.as_deref(),
+                state.depth,
+                state.before,
+                state.phony,
+                branch,
+                true,
+            );
+            state.active = true;
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1661,7 +1744,7 @@ impl Engine {
             },
         );
         let outcome = self.resume_rule(target);
-        if double_colon || !self.parallel_graph() {
+        if !self.parallel_graph() {
             self.wait_target(target);
             self.done.get(target).copied().unwrap_or(outcome)
         } else {
@@ -1696,7 +1779,7 @@ impl Engine {
             && state.next < state.rule.dependencies.len()
         {
             if let Some(dependency) = &state.serial_dependency {
-                if self.pending_rules.contains_key(dependency) {
+                if self.graph_pending(dependency) {
                     self.build(dependency, Some(target), state.depth + 1);
                 }
                 if self.pending(dependency) {
@@ -1719,7 +1802,7 @@ impl Engine {
                     if prior.name == b".WAIT" || state.dropped.contains(&prior.name) {
                         continue;
                     }
-                    if self.pending_rules.contains_key(&prior.name) {
+                    if self.graph_pending(&prior.name) {
                         self.build(&prior.name, Some(target), state.depth + 1);
                     }
                     waiting |= self.pending(&prior.name);
@@ -1788,7 +1871,7 @@ impl Engine {
             if dependency == b".WAIT" || state.dropped.contains(dependency) {
                 continue;
             }
-            if self.pending_rules.contains_key(dependency) {
+            if self.graph_pending(dependency) {
                 self.build(dependency, Some(target), state.depth + 1);
             }
             waiting |= self.pending(dependency);

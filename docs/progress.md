@@ -1385,3 +1385,12 @@ to shared pending subgraphs. Add 32 required original cases, promote the existin
 independent-sibling case, and record two remaining synchronous paths as pending.
 Corpus: 2,221 cases, with 2,206 required and 15 pending. See
 [ready branches](ready-branches.md).
+
+## Double-colon graph continuations
+
+Yield double-colon dependency branches to unrelated ready work while keeping
+commands and declarations for one target sequential. Preserve aggregate status
+and shared ownership through all branches. Add twelve required differential
+cases and promote the previous double-colon sibling probe. Corpus: 2,233 cases,
+with 2,219 required and 14 pending. See
+[double-colon scheduling](double-colon-scheduling.md).
