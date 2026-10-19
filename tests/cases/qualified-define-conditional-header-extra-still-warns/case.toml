@@ -1,0 +1,11 @@
+id = "qualified-define-conditional-header-extra-still-warns"
+requirement = "variables.qualified-define"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=command"]
+description = "Original qualified definition/name/body phase: conditional header extra still warns."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b636f6d6d616e647c636f6d6d616e64206c696e655d0a"
+stderr_hex = "4d616b6566696c653a313a2065787472616e656f757320746578742061667465722027646566696e6527206469726563746976650a"

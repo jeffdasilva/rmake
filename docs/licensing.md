@@ -51,6 +51,8 @@ The [initial-BOM notes](initial-bom.md) record the read/parse phase reference
 used for independently authored byte-prefix handling.
 The [conditional whitespace notes](conditional-whitespace.md) record name-token,
 operand and expansion-order references used by the independent conditional fix.
+The [qualified-definition notes](qualified-definitions.md) record modifier,
+header-name and body-evaluation phases used by the independent follow-up.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

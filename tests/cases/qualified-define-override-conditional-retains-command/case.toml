@@ -1,0 +1,11 @@
+id = "qualified-define-override-conditional-retains-command"
+requirement = "variables.qualified-define"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=command"]
+description = "Original qualified definition/name/body phase: override conditional retains command."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7261773d3c636f6d6d616e643e7c636f6d6d616e64206c696e657c7265637572736976650a657870616e6465643d3c636f6d6d616e643e0a6368696c643d3c636f6d6d616e643e7c70726573656e740a"
+stderr_hex = ""

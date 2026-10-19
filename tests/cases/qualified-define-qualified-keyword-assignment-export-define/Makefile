@@ -1,0 +1,3 @@
+export define :=one
+$(info [$(value define)|$(origin define)])
+all:;@:
