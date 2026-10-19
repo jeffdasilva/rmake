@@ -1,0 +1,11 @@
+id = "modifier-fallback-unexport-override-undefine"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original statement fallback after unsuccessful variable-modifier recognition: unexport override undefine."
+provenance = "Independently authored input and exact expectations, verified against GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d3c3e7c0a"
+stderr_hex = ""

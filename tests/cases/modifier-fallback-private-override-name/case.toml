@@ -1,0 +1,11 @@
+id = "modifier-fallback-private-override-name"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original statement fallback after unsuccessful variable-modifier recognition: private override name."
+provenance = "Independently authored input and exact expectations, verified against GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

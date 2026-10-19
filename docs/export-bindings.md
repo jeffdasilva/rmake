@@ -48,6 +48,19 @@ the child environment. Membership in that name list alone does not select a new
 binding for export. Default selection checks the current origin and export-all
 mode, preserving ordinary export expansion and its effects.
 
+## Modifier recognition and fallback
+
+Assignment modifiers take effect only after recognizing a variable operation.
+If no assignment or `undefine` follows, the parser returns to the original
+statement. Consequently, `export override X` is an export name list containing
+`override` and `X`; `override export X` follows ordinary syntax handling and
+reports a missing separator. Expansions on that syntax path retain their effects
+before the diagnostic. Bare `override` and `private` are syntax errors too.
+
+When the original statement is a rule, all its targets are preserved. For example,
+`override target:` declares two targets and selects `override` as the default
+goal. Valid assignment and qualified `undefine` forms still use their modifiers.
+
 ## Remaining boundaries
 
 Export behavior is still incomplete. Pending original fixtures retain these
@@ -56,8 +69,11 @@ distinct gaps:
 - A vertical tab immediately after the directive keyword is not yet recognized
   as a directive separator. This differs from whitespace inside an expanded list
   or after an already recognized keyword separator.
-- Modifier combinations and ordering of effects from multiple exported
-  variables require additional compatibility work.
+- Additional directive grammar and ordering of effects from multiple exported
+  variables require compatibility work.
+- Repeated targets without a recipe currently emit a warning that GNU omits.
+  The broader modifier campaign exposed this existing rule-diagnostic gap; an
+  exact pending graph fixture retains it.
 
 The harness keeps metadata-only fixtures separate from recipe-launch fixtures;
 it does not remove child execution from an existing failing case to make it pass.
@@ -72,3 +88,8 @@ environment import and `src/variable.c` (`define_variable_in_set`,
 authored; no upstream code or tests were incorporated. See
 [implementation progress](progress.md) for exact validation counts and remaining
 milestone gates.
+
+The modifier-fallback follow-up also consulted `src/read.c`
+`parse_var_assignment` and directive handling in `eval`. Its Rust changes and
+fixture inputs are independently authored, without incorporating upstream code
+or tests.

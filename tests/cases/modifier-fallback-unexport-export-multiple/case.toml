@@ -1,0 +1,11 @@
+id = "modifier-fallback-unexport-export-multiple"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original statement fallback after unsuccessful variable-modifier recognition: unexport export multiple."
+provenance = "Independently authored input and exact expectations, verified against GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "583d3c6b6570743e7c66696c657c7265637572736976650a6578706f72743d3c3e7c66696c657c73696d706c650a756e6578706f72743d3c3e7c66696c657c73696d706c650a6f766572726964653d3c3e7c66696c657c73696d706c650a707269766174653d3c3e7c66696c657c73696d706c650a583d3c3e7c206578706f72743d3c3e7c20756e6578706f72743d3c3e7c206f766572726964653d3c3e7c20707269766174653d3c3e7c0a"
+stderr_hex = ""

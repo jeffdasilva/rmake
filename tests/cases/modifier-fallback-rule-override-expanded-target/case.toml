@@ -1,0 +1,11 @@
+id = "modifier-fallback-rule-override-expanded-target"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original statement fallback after unsuccessful variable-modifier recognition: rule override expanded target."
+provenance = "Independently authored input and exact expectations, verified against GNU Make 4.4.1; no upstream source or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d65730a64656661756c743d3c6f766572726964653e0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220276f76657272696465272e0a"
+stderr_hex = ""

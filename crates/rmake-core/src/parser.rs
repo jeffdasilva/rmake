@@ -999,31 +999,31 @@ impl Database {
             if !active {
                 continue;
             }
-            let mut text = text;
+            let mut variable_text = text;
             let mut origin = Origin::File;
             let mut export = None;
             let mut private = false;
             loop {
                 // A modifier can itself be a variable name (`private = x`).
-                if assignment(text).is_some() {
+                if assignment(variable_text).is_some() {
                     break;
-                } else if let Some(rest) = directive(text, b"override") {
+                } else if let Some(rest) = directive(variable_text, b"override") {
                     origin = Origin::Override;
-                    text = rest;
-                } else if let Some(rest) = directive(text, b"private") {
+                    variable_text = rest;
+                } else if let Some(rest) = directive(variable_text, b"private") {
                     private = true;
-                    text = rest;
-                } else if let Some(rest) = directive(text, b"export") {
+                    variable_text = rest;
+                } else if let Some(rest) = directive(variable_text, b"export") {
                     export = Some(true);
-                    text = rest;
-                } else if let Some(rest) = directive(text, b"unexport") {
+                    variable_text = rest;
+                } else if let Some(rest) = directive(variable_text, b"unexport") {
                     export = Some(false);
-                    text = rest;
+                    variable_text = rest;
                 } else {
                     break;
                 }
             }
-            if let Some(rest) = directive(text, b"undefine") {
+            if let Some(rest) = directive(variable_text, b"undefine") {
                 let name = self.expand(rest, &location, context)?;
                 let name = trim(&name);
                 if self.variables.undefine(name, origin) {
@@ -1033,7 +1033,7 @@ impl Database {
                 current.clear();
                 continue;
             }
-            if let Some(spec) = assignment(text) {
+            if let Some(spec) = assignment(variable_text) {
                 let name = self.define(spec, origin, &location, &location, context)?;
                 if private {
                     self.variables.set_private(&name, true);
@@ -1044,7 +1044,13 @@ impl Database {
                 current.clear();
                 continue;
             }
-            if let Some(export) = export {
+            // Modifiers only belong to a recognized variable operation. If
+            // there was none, parse the original statement as a directive or
+            // rule. Names such as `private` remain literal export-list names.
+            let export_list = directive(text, b"export")
+                .map(|names| (true, names))
+                .or_else(|| directive(text, b"unexport").map(|names| (false, names)));
+            if let Some((export, text)) = export_list {
                 // Only a syntactically empty directive changes export-all.
                 // An expression that expands to no names still has its effects,
                 // but does not become an empty directive after evaluation.
