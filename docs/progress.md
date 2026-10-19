@@ -1294,3 +1294,13 @@ implicit optional-include remaking are implemented. See
 [implicit chains](implicit-chains.md) for boundaries and source references.
 Added 39 original differential cases (37 required, two pending) and six stateful
 scenarios (12 invocations). Corpus: 2,010 cases, 1,998 required and 12 pending.
+
+## Linux built-ins and suffix transformations
+
+Added default command variables, embedded Linux suffix/fixed rule declarations,
+post-read suffix conversion, override/cancellation priority, disabled-rule modes
+and built-in diagnostic locations. The data verifier and regenerator are
+available through the top-level Makefile; CI verifies the data against the pinned
+oracle. See [built-ins](builtins.md) for provenance and remaining boundaries.
+Added 66 original differential cases and three tooling tests. All 2,064 required
+cases pass; 12 pending mismatches remain, out of 2,076 total cases.

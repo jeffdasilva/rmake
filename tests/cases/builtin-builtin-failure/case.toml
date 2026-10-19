@@ -1,0 +1,12 @@
+id = "builtin-builtin-failure"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-builtin-failure"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "66616c7365202020202d63202d6f20782e6f20782e630a"
+stderr_hex = "6d616b653a202a2a2a205b3c6275696c74696e3e3a20782e6f5d204572726f7220310a"

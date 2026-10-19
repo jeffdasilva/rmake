@@ -1,0 +1,12 @@
+id = "builtin-web-to-tex"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-web-to-tex"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "776561766520782e7765620a"
+stderr_hex = ""

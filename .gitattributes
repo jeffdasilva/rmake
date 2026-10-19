@@ -21,3 +21,6 @@ tests/cases/conditional-space-*/Makefile -text whitespace=-blank-at-eol,-blank-a
 
 # Definition fixtures retain control bytes and header/body stream boundaries.
 tests/cases/qualified-define-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Built-in command data preserves observable spaces before recipe newlines.
+crates/rmake-core/data/*.mk -text whitespace=-blank-at-eol,-blank-at-eof

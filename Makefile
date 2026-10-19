@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -44,6 +44,8 @@ help:
 		'  test-unit       Run Rust unit and integration tests' \
 		'  test-tools      Test the independent tooling' \
 		'  test-oracle     Validate fixtures against two oracle executions' \
+		'  test-builtins   Verify embedded Linux defaults against the pinned oracle' \
+		'  regenerate-builtins Refresh declarative Linux defaults from the oracle' \
 		'  test-diff       Compare rmake against the oracle; report pending cases' \
 		'  test-generated  Compare seeded pure-expansion programs' \
 		'  test-graphs     Compare seeded explicit dependency graphs' \
@@ -117,6 +119,12 @@ oracle-verify:
 test-oracle: oracle-verify
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --self-test
 
+test-builtins: oracle-verify
+	$(PYTHON) tools/builtin_data.py --oracle "$(ORACLE)" --check
+
+regenerate-builtins: oracle-verify
+	$(PYTHON) tools/builtin_data.py --oracle "$(ORACLE)" --write
+
 test-diff: build oracle-verify
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
@@ -177,9 +185,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful
+test: test-unit test-tools test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful
 
-check: check-core test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful
+check: check-core test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful
 
 ci: check test-selfhost
 

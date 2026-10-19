@@ -1,0 +1,12 @@
+id = "builtin-w-to-c"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-w-to-c"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6374616e676c6520782e77202d20782e630a"
+stderr_hex = ""

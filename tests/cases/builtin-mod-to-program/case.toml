@@ -1,0 +1,12 @@
+id = "builtin-mod-to-program"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-mod-to-program"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d3263202020202d6f2078202d65207820782e6d6f640a"
+stderr_hex = ""

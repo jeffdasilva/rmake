@@ -51,6 +51,15 @@ fn modified(name: &[u8]) -> Option<SystemTime> {
     fs::metadata(os(name)).and_then(|m| m.modified()).ok()
 }
 
+fn location_prefix(location: &Location) -> Vec<u8> {
+    let mut bytes = location.file.clone();
+    if location.line != 0 {
+        bytes.extend_from_slice(format!(":{}", location.line).as_bytes());
+    }
+    bytes.extend_from_slice(b": ");
+    bytes
+}
+
 /// GNU exposes these recursive definitions even while reading makefiles and
 /// with -R. Their automatic origin also protects them from override/undefine.
 /// Keep the formulas, rather than precomputing paths: origin/flavor/value and
@@ -146,8 +155,7 @@ fn emit_output(program: &[u8], output: Output<'_>) {
         Output::Warning { location, message } => {
             let mut out = io::stderr().lock();
             if let Some(location) = location {
-                let _ = out.write_all(&location.file);
-                let _ = write!(out, ":{}: ", location.line);
+                let _ = out.write_all(&location_prefix(location));
             } else {
                 let _ = out.write_all(program);
                 let _ = out.write_all(b": ");
@@ -235,6 +243,16 @@ impl Engine {
         database
             .initialize_suffixes(!options.no_rules)
             .map_err(|error| error.diagnostic())?;
+        if !options.no_variables {
+            database
+                .initialize_builtin_variables()
+                .map_err(|error| error.diagnostic())?;
+        }
+        if !options.no_rules {
+            database
+                .initialize_builtin_rules()
+                .map_err(|error| error.message)?;
+        }
         define_automatic_variants(&mut database.variables).map_err(|error| error.diagnostic())?;
         for (name, value) in [
             (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
@@ -447,8 +465,8 @@ impl Engine {
     fn fatal(&self, location: Option<&Location>, message: &[u8]) {
         if let Some(location) = location {
             let mut out = io::stderr().lock();
-            let _ = out.write_all(&location.file);
-            let _ = write!(out, ":{}: *** ", location.line);
+            let _ = out.write_all(&location_prefix(location));
+            let _ = out.write_all(b"*** ");
             let _ = out.write_all(message);
             let _ = out.write_all(b".  Stop.\n");
         } else {
@@ -641,6 +659,13 @@ impl Engine {
                     return 2;
                 }
             };
+            if let Err(error) = self.database.finalize_implicit_rules(
+                !self.options.no_rules,
+                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+            ) {
+                self.fatal(error.source_location(), error.message.as_bytes());
+                return 2;
+            }
             self.vpath_dirs = vpath
                 .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
                 .filter(|path| !path.is_empty())
@@ -1014,8 +1039,7 @@ impl Engine {
             let message = [
                 if job.ignore { b"".as_slice() } else { b"*** " },
                 b"[",
-                &job.location.file,
-                format!(":{}: ", job.location.line).as_bytes(),
+                &location_prefix(&job.location),
                 &target,
                 format!("] {error}{}", if job.ignore { " (ignored)" } else { "" }).as_bytes(),
             ]
@@ -1972,8 +1996,7 @@ impl Engine {
                 if !ignore || !self.globally_silent() {
                     let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                     message.push(b'[');
-                    message.extend_from_slice(&recipe.location.file);
-                    message.extend_from_slice(format!(":{}: ", recipe.location.line).as_bytes());
+                    message.extend_from_slice(&location_prefix(&recipe.location));
                     message.extend_from_slice(target);
                     message.extend_from_slice(
                         format!("] {error}{}", if ignore { " (ignored)" } else { "" }).as_bytes(),

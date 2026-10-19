@@ -1,0 +1,12 @@
+id = "builtin-capital-s-to-s"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-capital-s-to-s"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6363202d452020782e53203e20782e730a"
+stderr_hex = ""

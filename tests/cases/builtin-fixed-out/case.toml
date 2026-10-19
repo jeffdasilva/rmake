@@ -1,0 +1,12 @@
+id = "builtin-fixed-out"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-fixed-out"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726d202d6620782e6f7574200a6370207820782e6f75740a"
+stderr_hex = ""

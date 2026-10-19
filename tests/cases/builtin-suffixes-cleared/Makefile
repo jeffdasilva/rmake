@@ -1,0 +1,2 @@
+.SUFFIXES:
+all: x.o
