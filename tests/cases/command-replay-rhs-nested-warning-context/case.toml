@@ -1,0 +1,11 @@
+id = "command-replay-rhs-nested-warning-context"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=old"]
+description = "Original startup/replay phase boundary: rhs nested warning context."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b652d593d3c626f64793e7c656e7669726f6e6d656e747c73696d706c650a6368696c643d3c626f64793e7c70726573656e740a"
+stderr_hex = "4d616b6566696c653a313a206d6163726f0a"

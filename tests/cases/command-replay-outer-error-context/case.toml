@@ -1,0 +1,11 @@
+id = "command-replay-outer-error-context"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=one"]
+description = "Original startup/replay phase boundary: outer error context."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "7061727365642d583d3c6f6e653e7c636f6d6d616e64206c696e657c7265637572736976650a7061727365642d593d3c3e7c756e646566696e65640a6f76657272696465733d3c24286572726f7220626164293e7c66696c657c7265637572736976650a68696464656e3d3c583d6f6e653e7c6175746f6d617469637c73696d706c650a"
+stderr_hex = "6d616b653a202a2a2a206261642e202053746f702e0a"

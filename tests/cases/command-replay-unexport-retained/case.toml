@@ -1,0 +1,11 @@
+id = "command-replay-unexport-retained"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-e", "X=old"]
+description = "Original startup/replay phase boundary: unexport retained."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b652d593d3c6e65773e7c656e7669726f6e6d656e74206f766572726964657c7265637572736976650a6368696c643d3c3e7c0a"
+stderr_hex = ""

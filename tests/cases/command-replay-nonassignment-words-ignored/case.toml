@@ -1,0 +1,11 @@
+id = "command-replay-nonassignment-words-ignored"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=old"]
+description = "Original startup/replay phase boundary: nonassignment words ignored."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b652d593d3c6e65773e7c656e7669726f6e6d656e747c7265637572736976650a6368696c643d3c6e65773e7c70726573656e740a"
+stderr_hex = ""

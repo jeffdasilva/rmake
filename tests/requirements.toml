@@ -480,10 +480,11 @@ cases = ["empty-shell-colon-skips-export-preparation", "empty-shell-colon-traili
 id = "variables.command-line-replay"
 title = "Generic command-line binding replay after Makefile parsing"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 34
 reference = "https://www.gnu.org/software/make/manual/html_node/Overriding.html"
-fixture_count = 4
-cases = ["cli-replay-conditional-imported-literal-dollar", "cli-replay-conditional-imported-recursive", "cli-replay-override-undefine-recursive", "cli-replay-override-undefine-simple"]
+fixture_count = 34
+cases = ["cli-replay-conditional-imported-literal-dollar", "cli-replay-conditional-imported-recursive", "cli-replay-override-undefine-recursive", "cli-replay-override-undefine-simple", "command-replay-after-all-input-files", "command-replay-before-default-goal-expansion", "command-replay-clear-overrides", "command-replay-conditional-environment-metadata", "command-replay-custom-empty-name-error", "command-replay-custom-overrides", "command-replay-duplicate-first-declaration-order", "command-replay-empty-imported-overrides", "command-replay-environment-override-new-binding", "command-replay-environment-override-precedence", "command-replay-export-retained", "command-replay-file-binding-after-undefine", "command-replay-file-precedence", "command-replay-imported-overrides-without-cli", "command-replay-invalid-default-export-name", "command-replay-metadata", "command-replay-name-nested-warning-context", "command-replay-nested-validation-location", "command-replay-new-binding-exported", "command-replay-no-command-overrides-added-late", "command-replay-nonassignment-words-ignored", "command-replay-outer-error-context", "command-replay-outer-warning-context", "command-replay-override-binding-survives", "command-replay-override-precedence", "command-replay-quoted-space", "command-replay-rhs-nested-warning-context", "command-replay-shell-quotes-are-literal", "command-replay-simple-new-value", "command-replay-unexport-retained"]
 
 [[requirements]]
 id = "variables.assignment-whitespace"
@@ -510,7 +511,7 @@ id = "variables.assignment-operators"
 title = "Reference-aware assignment operators and literal delimiters"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 25
+candidate_required = 26
 reference = "https://www.gnu.org/software/make/manual/html_node/Setting.html"
 fixture_count = 26
 cases = ["assignment-operator-cli-backslash-hash-is-not-assignment", "assignment-operator-cli-consumed-only-delimiter-is-goal", "assignment-operator-cli-expanded-name-delimiters-stay-literal", "assignment-operator-cli-literal-backslash-before-delimiters", "assignment-operator-cli-literal-dollar-and-short-reference", "assignment-operator-cli-long-reference-contained-delimiters", "assignment-operator-cli-operator-timing-after-short-reference", "assignment-operator-cli-quotes-do-not-protect-equal", "assignment-operator-cli-raw-hash-is-not-assignment", "assignment-operator-cli-reference-consumed-hash-is-name-content", "assignment-operator-cli-short-reference-nonempty-name", "assignment-operator-cli-short-reference-operator-bytes", "assignment-operator-define-long-reference-header-delimiters", "assignment-operator-define-short-reference-header-flavors", "assignment-operator-file-backslash-hash-is-not-assignment", "assignment-operator-file-consumed-only-delimiter-is-not-assignment", "assignment-operator-file-expanded-name-delimiters-stay-literal", "assignment-operator-file-literal-backslash-before-delimiters", "assignment-operator-file-literal-dollar-and-short-reference", "assignment-operator-file-long-reference-contained-delimiters", "assignment-operator-file-operator-timing-after-short-reference", "assignment-operator-file-quotes-do-not-protect-equal", "assignment-operator-file-raw-hash-is-not-assignment", "assignment-operator-file-reference-consumed-hash-is-name-content", "assignment-operator-file-short-reference-nonempty-name", "assignment-operator-file-short-reference-operator-bytes"]

@@ -1031,3 +1031,29 @@ Median paired after/before ratios were 1.039, 1.043 and 1.027. These unisolated
 wall-time observations establish no speed improvement; CPU/RSS/I/O profiles and
 broader release-scale validation remain open. Full GNU compatibility is not
 claimed by this reader slice.
+
+## Post-read command binding replay — 2026-10-18
+
+Startup now snapshots winning command-line bindings and defines the corresponding
+automatic snapshot and default `MAKEOVERRIDES` metadata. After all Makefiles are
+read, active overrides are expanded and decoded into environment-origin
+assignments, respecting `-e`, ordinary precedence and binding export lifetime.
+The invocation-level outer diagnostic context remains distinct from nested
+definition locations. The [command replay notes](command-replay.md) record the
+phase model, source references and remaining flags/recursive-transport gaps.
+
+Thirty original required fixtures were added and five pending cases promoted.
+Full `make ci` passed with 350 Rust tests, 240 tooling tests and all existing
+generated, fault, stateful and self-host gates. The curated corpus contains 1,395
+cases: 1,354 required exact matches and 41 observed pending mismatches, with no
+failures or unexpected passes. A separate 480-program replay campaign matched
+both engines' streams and statuses across operators, values, imports, precedence
+and source mutations. General flag decoding and recursive transport remain open.
+
+Against preceding production source `5fb7f4c`, 31 alternating release pairs after
+three warmups measured before/after medians of 0.689/0.691 ms for tiny no-op,
+21.811/22.181 ms for 10,000 targets and 4.370/4.415 ms for 5,000 assignments.
+Median paired after/before ratios were 1.032, 1.014 and 1.007. These unisolated
+wall-time observations establish no speed improvement and do not cover CPU,
+RSS or I/O. No persistent cache or runtime fallback was introduced; complete
+compatibility and release-scale performance validation remain unfinished.

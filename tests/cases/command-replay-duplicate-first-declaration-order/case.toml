@@ -1,0 +1,11 @@
+id = "command-replay-duplicate-first-declaration-order"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=one", "Y=two", "X+=more"]
+description = "Original startup/replay phase boundary: duplicate first declaration order."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7061727365642d583d3c6f6e65206d6f72653e7c636f6d6d616e64206c696e657c7265637572736976650a7061727365642d593d3c74776f3e7c636f6d6d616e64206c696e650a6f76657272696465733d3c247b2d2a2d636f6d6d616e642d7661726961626c65732d2a2d7d3e7c64656661756c747c7265637572736976650a68696464656e3d3c593d74776f20583d6f6e655c206d6f72653e7c6175746f6d617469637c73696d706c650a7265636970652d583d3c6f6e65206d6f72653e7c6f6e65206d6f72657c636f6d6d616e64206c696e657c7265637572736976650a7265636970652d593d3c74776f3e7c636f6d6d616e64206c696e650a"
+stderr_hex = ""

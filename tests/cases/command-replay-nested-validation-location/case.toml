@@ -1,0 +1,11 @@
+id = "command-replay-nested-validation-location"
+requirement = "variables.command-line-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=old"]
+description = "Original startup/replay phase boundary: nested validation location."
+provenance = "Independently authored input and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e3a2027626164272e202053746f702e0a"
