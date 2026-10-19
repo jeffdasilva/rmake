@@ -1367,3 +1367,11 @@ propagate a fatal outcome through ordinary builds and makefile remaking, and mak
 the resolver result must-use. A 131-rule regression in a private empty directory verifies failure
 without installing or executing a fallback. The corpus remains 2,173 required
 and 14 pending; Rust coverage gains this separate safety-boundary test.
+
+## Jobserver descriptor identity
+
+Validate that incoming pipe endpoints have the same device/inode identity before
+changing inherited descriptor flags or accepting the server. Extend the invalid
+authentication test with two valid but unrelated pipes and verify both original
+pools retain their tokens. Valid GNU/rmake interoperability is unchanged; the
+mixed-engine campaign remains part of CI.
