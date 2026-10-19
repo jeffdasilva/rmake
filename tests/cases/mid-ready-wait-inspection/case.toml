@@ -1,0 +1,12 @@
+id = "mid-ready-wait-inspection"
+requirement = "parallel.execution"
+candidate = "required"
+description = "Original bounded dependency-branch scheduling and ordering probe: mid-ready-wait-inspection."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j4", "--jobserver-style=pipe"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "726d206d6964646c650a"
+stderr_hex = ""

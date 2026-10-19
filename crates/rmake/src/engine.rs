@@ -207,7 +207,8 @@ struct RuleState {
     before: Option<SystemTime>,
     phony: bool,
     next: usize,
-    serial_dependency: Option<Vec<u8>>,
+    serial_dependency: Option<usize>,
+    inspections: HashMap<usize, (u64, Outcome)>,
     stopped: bool,
     stale: bool,
     outcome: Outcome,
@@ -1089,53 +1090,66 @@ impl Engine {
         parent: &[u8],
         time: SystemTime,
         depth: usize,
-    ) -> Outcome {
+    ) -> (Outcome, bool) {
         if depth >= 512
+            || self.done.contains_key(target)
+            || self.pending(target)
             || !self.intermediate(target)
             || modified(target).is_some()
             || self.special(b".PHONY", target, false)
         {
-            return self.build(target, Some(parent), depth);
+            let outcome = self.build(target, Some(parent), depth);
+            return (outcome, self.pending(target));
         }
         let Some(rule) = self.database.rules.get(target).cloned() else {
-            return self.build(target, Some(parent), depth);
+            let outcome = self.build(target, Some(parent), depth);
+            return (outcome, self.pending(target));
         };
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
         if rule.deferred {
-            return self.build(target, Some(parent), depth);
+            let outcome = self.build(target, Some(parent), depth);
+            return (outcome, self.pending(target));
         }
         let mut result = Outcome {
             time: Some(time),
             ..Outcome::default()
         };
         let mut stale = self.options.always;
+        let mut waiting = false;
+        let serial = self.special(b".NOTPARALLEL", target, false);
         self.visiting.insert(target.to_vec());
         for dep in &rule.dependencies {
             if dep.name == b".WAIT" {
+                if waiting {
+                    break;
+                }
                 continue;
             }
             if self.visiting.contains(&dep.name) {
                 continue;
             }
-            let child = self.check_intermediate(&dep.name, target, time, depth + 1);
-            self.wait_target(&dep.name);
-            let child = self.done.get(&dep.name).copied().unwrap_or(child);
-            result.ran |= child.ran;
-            result.failed |= child.failed;
-            result.fatal |= child.fatal;
-            result.question_outdated |= child.question_outdated;
-            stale |= !dep.order_only && (child.time.is_none() || child.time > Some(time));
-            if child.failed && !self.options.keep_going {
+            let (child, pending) = self.check_intermediate(&dep.name, target, time, depth + 1);
+            merge_child(&mut result, child);
+            waiting |= pending;
+            // A running child has no final timestamp yet. Never materialize an
+            // intermediate just because that provisional timestamp is absent.
+            if !pending {
+                stale |= !dep.order_only && (child.time.is_none() || child.time > Some(time));
+            }
+            if child.fatal || (child.failed && !self.options.keep_going) || (serial && pending) {
                 break;
             }
         }
         self.visiting.remove(target);
-        if stale && !result.failed {
-            self.build(target, Some(parent), depth)
+        if waiting {
+            (result, true)
+        } else if stale && !result.failed {
+            let outcome = self.build(target, Some(parent), depth);
+            (outcome, self.pending(target))
         } else {
-            result
+            (result, false)
         }
     }
 
@@ -1733,6 +1747,7 @@ impl Engine {
                 phony,
                 next: 0,
                 serial_dependency: None,
+                inspections: HashMap::new(),
                 stopped: false,
                 stale,
                 outcome: Outcome {
@@ -1778,16 +1793,12 @@ impl Engine {
             && self.graph_abort.is_none()
             && state.next < state.rule.dependencies.len()
         {
-            if let Some(dependency) = &state.serial_dependency {
-                if self.graph_pending(dependency) {
-                    self.build(dependency, Some(target), state.depth + 1);
-                }
-                if self.pending(dependency) {
+            if let Some(index) = state.serial_dependency {
+                let (child, pending) = self.visit_prerequisite(target, &mut state, index, false);
+                merge_child(&mut state.outcome, child);
+                if pending {
                     waiting = true;
                     break;
-                }
-                if let Some(child) = self.done.get(dependency).copied() {
-                    merge_child(&mut state.outcome, child);
                 }
                 state.serial_dependency = None;
                 if state.outcome.fatal || (state.outcome.failed && !self.options.keep_going) {
@@ -1798,17 +1809,15 @@ impl Engine {
             let occurrence = &state.rule.dependencies[state.next];
             let dependency = &occurrence.name;
             if dependency == b".WAIT" {
-                for prior in &state.rule.dependencies[..state.next] {
+                for index in 0..state.next {
+                    let prior = &state.rule.dependencies[index];
                     if prior.name == b".WAIT" || state.dropped.contains(&prior.name) {
                         continue;
                     }
-                    if self.graph_pending(&prior.name) {
-                        self.build(&prior.name, Some(target), state.depth + 1);
-                    }
-                    waiting |= self.pending(&prior.name);
-                    if let Some(child) = self.done.get(&prior.name).copied() {
-                        merge_child(&mut state.outcome, child);
-                    }
+                    let (child, pending) =
+                        self.visit_prerequisite(target, &mut state, index, false);
+                    waiting |= pending;
+                    merge_child(&mut state.outcome, child);
                 }
                 if waiting {
                     break;
@@ -1834,29 +1843,11 @@ impl Engine {
                 state.dropped.insert(dependency.clone());
                 continue;
             }
-            let child = if !state.stale
-                && self.intermediate(dependency)
-                && modified(dependency).is_none()
-            {
-                let child = self.check_intermediate(
-                    dependency,
-                    target,
-                    state.before.unwrap(),
-                    state.depth + 1,
-                );
-                if !self.done.contains_key(dependency) {
-                    state.deferred_intermediates.push(dependency.clone());
-                }
-                if !occurrence.order_only && (child.time.is_none() || child.time > state.before) {
-                    state.stale = true;
-                }
-                child
-            } else {
-                self.build(dependency, Some(target), state.depth + 1)
-            };
+            let index = state.next - 1;
+            let (child, _) = self.visit_prerequisite(target, &mut state, index, true);
             merge_child(&mut state.outcome, child);
             if serial {
-                state.serial_dependency = Some(dependency.clone());
+                state.serial_dependency = Some(index);
             }
             if child.fatal
                 || ((child.failed || child.question_outdated) && !self.options.keep_going)
@@ -1866,15 +1857,33 @@ impl Engine {
         }
         // Revisit suspended children in declaration order without replaying the
         // parent's dependency expansion, circular diagnostics or scope setup.
-        for occurrence in &state.rule.dependencies[..state.next] {
-            let dependency = &occurrence.name;
+        for index in 0..state.next {
+            let dependency = &state.rule.dependencies[index].name;
             if dependency == b".WAIT" || state.dropped.contains(dependency) {
                 continue;
             }
-            if self.graph_pending(dependency) {
-                self.build(dependency, Some(target), state.depth + 1);
+            let (child, pending) = self.visit_prerequisite(target, &mut state, index, false);
+            merge_child(&mut state.outcome, child);
+            waiting |= pending;
+        }
+        if !waiting {
+            // Staleness only needs an immutable membership test, so repeated
+            // normal occurrences need no canonical list or cloned names here.
+            state.stale |= state.rule.normal_prerequisites().any(|name| {
+                !state.dropped.contains(name)
+                    && self
+                        .done
+                        .get(name)
+                        .is_some_and(|child| self.prerequisite_stale(state.before, *child))
+            });
+            self.apply_graph_abort(&mut state.outcome);
+            if state.stale && !state.outcome.failed && !state.outcome.question_outdated {
+                for dependency in &state.deferred_intermediates {
+                    let child = self.build(dependency, Some(target), state.depth + 1);
+                    merge_child(&mut state.outcome, child);
+                    waiting |= self.pending(dependency);
+                }
             }
-            waiting |= self.pending(dependency);
         }
         if waiting {
             self.visiting.remove(target);
@@ -1885,16 +1894,74 @@ impl Engine {
         self.finish_rule(target, state)
     }
 
+    /// An inspection is a per-parent timestamp question, not an actual update
+    /// of the missing file. Keep it out of `done` so a different parent can ask
+    /// against its own timestamp or require the intermediate to materialize.
+    fn visit_prerequisite(
+        &mut self,
+        target: &[u8],
+        state: &mut RuleState,
+        index: usize,
+        first: bool,
+    ) -> (Outcome, bool) {
+        if let Some((epoch, outcome)) = state.inspections.get(&index)
+            && *epoch == self.graph_epoch
+        {
+            return (*outcome, true);
+        }
+        let occurrence = &state.rule.dependencies[index];
+        let dependency = &occurrence.name;
+        let inspect = state.inspections.contains_key(&index)
+            || (first
+                && !state.stale
+                && self.intermediate(dependency)
+                && modified(dependency).is_none());
+        if inspect {
+            let epoch = self.graph_epoch;
+            let (child, pending) = self.check_intermediate(
+                dependency,
+                target,
+                state.before.expect("inspection has an existing parent"),
+                state.depth + 1,
+            );
+            if pending {
+                state.inspections.insert(index, (epoch, child));
+            } else {
+                state.inspections.remove(&index);
+                if !self.done.contains_key(dependency) {
+                    state.deferred_intermediates.push(dependency.clone());
+                }
+                if !occurrence.order_only && (child.time.is_none() || child.time > state.before) {
+                    state.stale = true;
+                }
+            }
+            (child, pending)
+        } else {
+            let child = if first || self.graph_pending(dependency) {
+                self.build(dependency, Some(target), state.depth + 1)
+            } else {
+                self.done.get(dependency).copied().unwrap_or_default()
+            };
+            (child, self.pending(dependency))
+        }
+    }
+
+    fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
+        self.options.always
+            || before.is_none()
+            || child.time.is_none()
+            || child.time > before
+            || (self.options.dry_run && child.ran)
+    }
+
     fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
         let RuleState {
             rule,
-            depth,
             before,
             phony,
             mut stale,
             mut outcome,
             dropped,
-            deferred_intermediates,
             ..
         } = state;
         let canonical = rule.canonical_dependencies();
@@ -1926,27 +1993,9 @@ impl Engine {
             outcome.blocked |= child.failed;
             outcome.question_outdated |= child.question_outdated;
             let order_only = !normal_names.contains(dependency.as_slice());
-            if !order_only
-                && (self.options.always
-                    || before.is_none()
-                    || child.time.is_none()
-                    || child.time > before
-                    || (self.options.dry_run && child.ran))
-            {
+            if !order_only && self.prerequisite_stale(before, child) {
                 stale = true;
                 newer.push(dependency.clone());
-            }
-        }
-        if stale && !outcome.failed && !outcome.question_outdated {
-            for dependency in deferred_intermediates {
-                let child = self.build(&dependency, Some(target), depth + 1);
-                self.wait_target(&dependency);
-                let child = self.done.get(&dependency).copied().unwrap_or(child);
-                outcome.ran |= child.ran;
-                outcome.failed |= child.failed;
-                outcome.fatal |= child.fatal;
-                outcome.blocked |= child.failed;
-                outcome.question_outdated |= child.question_outdated;
             }
         }
         if stale && !outcome.failed && !outcome.question_outdated {

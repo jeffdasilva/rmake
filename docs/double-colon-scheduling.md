@@ -23,6 +23,7 @@ previous double-colon sibling case is promoted to required. Exact output, exit
 status and filesystem observations are checked against GNU Make 4.4.1. No
 upstream implementation or tests were copied.
 
-The corpus has 2,233 cases: 2,219 required and 14 pending. Missing-intermediate
-inspection remains a synchronous graph boundary; its sibling probe remains
-pending. This is not a complete inventory of remaining compatibility work.
+Missing-intermediate inspection and materialization now yield as well; see
+[intermediate scheduling](intermediate-scheduling.md). The current corpus has
+2,245 cases: 2,232 required and 13 pending. This is not a complete inventory of
+remaining compatibility work.

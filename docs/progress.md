@@ -1404,3 +1404,13 @@ outputs/statuses and 31 alternating measured samples. GNU remained slightly
 faster. No performance threshold or persistent graph cache is introduced. See
 [nested-branch measurements](branch-scheduling-performance.md) for limits,
 reproduction and binary identities. Default benchmark workloads are unchanged.
+
+## Missing-intermediate graph continuations
+
+Yield both inspection and late materialization of missing intermediates so
+independent graph branches can progress. Base creation decisions on finalized
+input timestamps, retaining old-timestamp and per-parent semantics without
+marking absent files updated. Honor local barriers during inspection. Add twelve
+required differential cases and promote the previous intermediate sibling probe.
+Corpus: 2,245 cases, with 2,232 required and 13 pending. See
+[intermediate scheduling](intermediate-scheduling.md).
