@@ -13,6 +13,7 @@ mod engine;
 mod oneshell;
 mod process;
 mod recipe_flow;
+mod shell;
 
 fn main() -> ExitCode {
     let mut args = std::env::args_os();
@@ -50,8 +51,8 @@ fn main() -> ExitCode {
         println!("  -i / -k    Ignore recipe errors / continue independent targets");
         println!("  -t / -e    Touch targets / let environment override file variables");
         println!("  -rR / -j1  Disable built-ins / execute serially");
-        println!("\nDevelopment build: explicit serial rules and core variables only.");
-        println!("Implicit rules, shell/eval functions and parallel jobs are not implemented.");
+        println!("\nDevelopment build: explicit serial rules, includes and dynamic expansion.");
+        println!("Implicit rules and parallel jobs are not implemented.");
         return ExitCode::SUCCESS;
     }
     match engine::Engine::new(options, program.clone(), &invocation) {

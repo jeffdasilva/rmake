@@ -181,6 +181,11 @@ impl Engine {
             std::env::set_current_dir(dir)
                 .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
         }
+        let startup_level = startup_makelevel(
+            std::env::var_os("MAKELEVEL")
+                .as_deref()
+                .map_or(b"".as_slice(), OsStrExt::as_bytes),
+        );
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
         database
@@ -242,6 +247,9 @@ impl Engine {
             .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
             .map_err(|e| e.diagnostic())?;
         let mut output = |event: Output<'_>| emit_output(&program, event);
+        database
+            .variables
+            .set_export_policy(b"MAKEFLAGS", Some(true));
         let mut command_names = Vec::new();
         let mut seen_commands = HashSet::new();
         for arg in &options.assignments {
@@ -251,10 +259,15 @@ impl Engine {
             }
             let name = database
                 .variables
-                .expand_with(
+                .expand_mut_with(
                     spec.name,
                     ExpansionContext::new(None, &mut output)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect)),
+                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
+                        .with_shell(&mut |request| {
+                            let result = crate::shell::run(request, &program, startup_level);
+                            filesystem.borrow_mut().child_completed();
+                            result
+                        }),
                 )
                 .map_err(|e| e.diagnostic())?;
             database
@@ -266,7 +279,12 @@ impl Engine {
                     Origin::CommandLine,
                     None,
                     ExpansionContext::new(None, &mut output)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect)),
+                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
+                        .with_shell(&mut |request| {
+                            let result = crate::shell::run(request, &program, startup_level);
+                            filesystem.borrow_mut().child_completed();
+                            result
+                        }),
                 )
                 .map_err(|e| e.diagnostic())?;
             if seen_commands.insert(name.clone()) {
@@ -331,15 +349,40 @@ impl Engine {
     }
 
     fn expand(
-        &self,
-        variables: &VariableStore,
+        &mut self,
+        variables: &mut VariableStore,
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
-        variables.expand_with(
+        self.database.expand_in(
+            variables,
             bytes,
             ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result = crate::shell::run(request, &self.program, self.makelevel);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut read_include),
+        )
+    }
+
+    fn expand_global(
+        &mut self,
+        bytes: &[u8],
+        location: Option<&Location>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.database.expand_with(
+            bytes,
+            ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result = crate::shell::run(request, &self.program, self.makelevel);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut read_include),
         )
     }
 
@@ -486,6 +529,11 @@ impl Engine {
                     file.as_os_str().as_bytes(),
                     ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
                         .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                        .with_shell(&mut |request| {
+                            let result = crate::shell::run(request, &self.program, self.makelevel);
+                            self.filesystem.borrow_mut().child_completed();
+                            result
+                        })
                         .with_includes(&mut |name| {
                             fs::read(os(name))
                                 .map(|bytes| IncludedFile {
@@ -500,15 +548,11 @@ impl Engine {
                 }
             }
             for (name, initial) in [
-                (b"MAKEFLAGS".as_slice(), &self.initial_flags),
-                (b"GNUMAKEFLAGS", &self.initial_gnu_flags),
+                (b"MAKEFLAGS".as_slice(), self.initial_flags.clone()),
+                (b"GNUMAKEFLAGS", self.initial_gnu_flags.clone()),
             ] {
-                match self.expand(
-                    &self.database.variables,
-                    &[b"$(".as_slice(), name, b")"].concat(),
-                    None,
-                ) {
-                    Ok(current) if &current == initial => {}
+                match self.expand_global(&[b"$(".as_slice(), name, b")"].concat(), None) {
+                    Ok(current) if current == initial => {}
                     _ => {
                         self.fatal(
                             None,
@@ -527,7 +571,12 @@ impl Engine {
                     Origin::Environment
                 },
                 ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    }),
             ) {
                 Ok(names) => self.inherited_exports.extend(names),
                 Err(error) => {
@@ -622,15 +671,14 @@ impl Engine {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
             // references still carry their own definition locations.
-            let goal = self.database.variables.get(b".DEFAULT_GOAL").map_or_else(
-                || Ok(Vec::new()),
-                |variable| match variable.flavor() {
-                    Flavor::Simple => Ok(variable.raw_value().to_vec()),
-                    Flavor::Recursive => {
-                        self.expand(&self.database.variables, variable.raw_value(), None)
-                    }
-                },
-            );
+            let binding = self.database.variables.get(b".DEFAULT_GOAL").cloned();
+            let goal = match binding {
+                None => Ok(Vec::new()),
+                Some(variable) if variable.flavor() == Flavor::Simple => {
+                    Ok(variable.raw_value().to_vec())
+                }
+                Some(variable) => self.expand_global(variable.raw_value(), None),
+            };
             match goal {
                 Ok(goal) if !trim(&goal).is_empty() => {
                     let goals: Vec<_> = words(&goal).map(Vec::from).collect();
@@ -903,7 +951,12 @@ impl Engine {
             target,
             &inherited,
             ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result = crate::shell::run(request, &self.program, self.makelevel);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                }),
         )?;
         self.target_contexts
             .insert(target.to_vec(), variables.clone());
@@ -984,7 +1037,7 @@ impl Engine {
                 return Execution::fatal(false);
             }
         }
-        let variables = &variables;
+        let variables = &mut variables;
         let mut expanded = std::collections::VecDeque::new();
         for (index, recipe) in recipes.iter().enumerate() {
             match self.expand(variables, &recipe.bytes, Some(&recipe.location)) {
@@ -1035,8 +1088,8 @@ impl Engine {
             // attributes direct errors to the recipe, not .SHELLFLAGS itself.
             let flag_text = variables
                 .get(b".SHELLFLAGS")
-                .map_or(b"".as_slice(), |variable| variable.raw_value());
-            let flags = match self.expand(variables, flag_text, Some(&recipe.location)) {
+                .map_or_else(Vec::new, |variable| variable.raw_value().to_vec());
+            let flags = match self.expand(variables, &flag_text, Some(&recipe.location)) {
                 Ok(flags) => flags,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
@@ -1210,14 +1263,19 @@ impl Engine {
                         child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
                         continue;
                     }
-                    match variables.expand_environment_variable_with(
+                    match self.database.expand_environment_in(
+                        variables,
                         name,
                         ExpansionContext::new(variable.definition(), &mut |event| {
                             emit_output(&self.program, event)
                         })
-                        .with_filesystem(&mut |effect| {
-                            self.filesystem.borrow_mut().execute(effect)
-                        }),
+                        .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                        .with_shell(&mut |request| {
+                            let result = crate::shell::run(request, &self.program, self.makelevel);
+                            self.filesystem.borrow_mut().child_completed();
+                            result
+                        })
+                        .with_includes(&mut read_include),
                     ) {
                         Ok(value) => {
                             child.env(os(name), OsString::from_vec(value));
@@ -1407,7 +1465,16 @@ impl Engine {
     }
 }
 
-fn os_error(error: &io::Error) -> String {
+fn read_include(name: &[u8]) -> Result<IncludedFile, Vec<u8>> {
+    fs::read(os(name))
+        .map(|bytes| IncludedFile {
+            name: name.to_vec(),
+            bytes,
+        })
+        .map_err(|error| os_error(&error).into_bytes())
+}
+
+pub(crate) fn os_error(error: &io::Error) -> String {
     let text = error.to_string();
     let suffix = error
         .raw_os_error()
@@ -1450,6 +1517,14 @@ fn copy_environment(source: &Command, destination: &mut Command) {
 /// bits is incorrect: an earlier PATH entry can have an execute bit yet deny the
 /// current user execution. Only the kernel's actual exec result decides that.
 fn launch_status(program: &[u8], template: &Command) -> io::Result<std::process::ExitStatus> {
+    launch_child(program, template, |mut command| command.status())
+}
+
+pub(crate) fn launch_child<T>(
+    program: &[u8],
+    template: &Command,
+    mut run: impl FnMut(Command) -> io::Result<T>,
+) -> io::Result<T> {
     let paths = if program.contains(&b'/') {
         vec![std::path::PathBuf::from(os(program))]
     } else {
@@ -1476,14 +1551,14 @@ fn launch_status(program: &[u8], template: &Command) -> io::Result<std::process:
         let mut command = Command::new(&path);
         command.arg0(os(program)).args(template.get_args());
         copy_environment(template, &mut command);
-        match command.status() {
+        match run(command) {
             // Linux ENOEXEC: interpret the attempted file through /bin/sh,
             // preserving args/environment but not the recipe's -e/-c flags.
             Err(error) if error.raw_os_error() == Some(8) => {
                 let mut shell = Command::new("/bin/sh");
                 shell.arg(&path).args(template.get_args());
                 copy_environment(template, &mut shell);
-                return shell.status();
+                return run(shell);
             }
             Err(error)
                 if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>

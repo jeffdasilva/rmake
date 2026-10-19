@@ -1,0 +1,12 @@
+id = "dynamic-eval-nested"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-nested"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "696e6e65723a696e6e65720a"
+stderr_hex = ""

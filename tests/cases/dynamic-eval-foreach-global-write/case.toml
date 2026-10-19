@@ -1,0 +1,12 @@
+id = "dynamic-eval-foreach-global-write"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-foreach-global-write"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "610a620a6368616e6765640a"
+stderr_hex = ""

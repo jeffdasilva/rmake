@@ -79,10 +79,11 @@ cases = ["diagnostic-call-first-argument-eager-surplus", "diagnostic-call-if-eag
 id = "functions.eval"
 title = "Dynamic evaluation and double expansion"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 39
 reference = "https://www.gnu.org/software/make/manual/html_node/Eval-Function.html"
-fixture_count = 3
-cases = ["function-eval-variable", "function-eval-rule", "function-eval-double-expansion"]
+fixture_count = 39
+cases = ["function-eval-variable", "function-eval-rule", "function-eval-double-expansion", "dynamic-eval-same-expression", "dynamic-eval-double-simple", "dynamic-eval-first-stage-effects", "dynamic-eval-second-stage-effects", "dynamic-eval-nested", "dynamic-eval-name-before-rhs", "dynamic-eval-lazy-skipped", "dynamic-eval-empty-result", "dynamic-eval-origin-flavor-value", "dynamic-eval-call-params", "dynamic-eval-foreach-params", "dynamic-eval-let-params", "dynamic-eval-foreach-global-write", "dynamic-eval-error-first-stage", "dynamic-eval-error-second-stage", "dynamic-eval-bad-syntax", "dynamic-eval-conditional", "dynamic-eval-conditional-loop-name", "dynamic-eval-define-produced", "dynamic-eval-append", "dynamic-eval-command-precedence", "dynamic-eval-override-command", "dynamic-eval-undefine", "dynamic-eval-call-builtin", "dynamic-eval-include", "dynamic-eval-shell-assignment", "dynamic-eval-recipe-global", "dynamic-eval-recipe-local-precedence", "dynamic-eval-recipe-automatic-second-stage", "dynamic-eval-recipe-rule-error", "dynamic-eval-recipe-export-rule-error", "dynamic-eval-recipe-simple-dollar", "dynamic-eval-recipe-loop", "dynamic-eval-recipe-target-context-read", "dynamic-eval-recipe-include", "dynamic-eval-multiline-error"]
 
 [[requirements]]
 id = "functions.file"
@@ -118,10 +119,11 @@ cases = ["fs-realpath-call-extra-eager", "fs-realpath-call-no-arguments", "fs-re
 id = "functions.shell"
 title = "Shell execution, status and assignment"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 51
 reference = "https://www.gnu.org/software/make/manual/html_node/Shell-Function.html"
-fixture_count = 6
-cases = ["function-shell-fold-newlines", "function-shell-status-zero", "function-shell-status-nonzero", "variable-shell-assignment", "function-shell-recursive-effects", "function-shell-simple-effects"]
+fixture_count = 51
+cases = ["function-shell-fold-newlines", "function-shell-status-zero", "function-shell-status-nonzero", "variable-shell-assignment", "function-shell-recursive-effects", "function-shell-simple-effects", "dynamic-shell-empty-status", "dynamic-shell-whitespace-status", "dynamic-shell-empty-side-effects", "dynamic-shell-same-expression", "dynamic-shell-status-value", "dynamic-shell-status-replace-cli", "dynamic-shell-fold-crlf", "dynamic-shell-fold-lone-cr", "dynamic-shell-fold-trailing-space", "dynamic-shell-fold-leading-newlines", "dynamic-shell-nul-before-later-effects", "dynamic-shell-nul-after-newline", "dynamic-shell-stderr-unfolded", "dynamic-shell-signal-status", "dynamic-shell-launch-missing", "dynamic-shell-export-simple", "dynamic-shell-export-recursive", "dynamic-shell-unexport", "dynamic-shell-export-all", "dynamic-shell-export-recursive-self", "dynamic-shell-level", "dynamic-shell-command-arg", "dynamic-shell-call-builtin", "dynamic-shell-configured-shell", "dynamic-shell-flags-errexit", "dynamic-shell-lazy-unselected", "dynamic-shell-capture-file-effect", "dynamic-shell-wildcard-invalidated", "dynamic-shell-assignment-recursive-dollars", "dynamic-shell-assignment-suppressed", "dynamic-shell-assignment-failure", "dynamic-shell-assignment-empty", "dynamic-shell-nested-command", "dynamic-shell-recipe-normal", "dynamic-shell-recipe-dry", "dynamic-shell-recipe-query", "dynamic-shell-recipe-touch", "dynamic-shell-recipe-export-all", "dynamic-shell-recipe-export-local", "dynamic-shell-recipe-status-local", "dynamic-shell-makeflags", "dynamic-shell-status-not-exported", "dynamic-shell-level-file-value", "dynamic-shell-status-inherits-global", "dynamic-shell-private-pattern-environment"]
 
 [[requirements]]
 id = "functions.text"
@@ -504,7 +506,7 @@ id = "variables.assignment-recognition"
 title = "Raw assignment-name token recognition and computed-name preservation"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 27
+candidate_required = 28
 reference = "https://www.gnu.org/software/make/manual/html_node/Setting.html"
 fixture_count = 28
 cases = ["assignment-recognition-cli-backslash-does-not-escape-space", "assignment-recognition-cli-bang-name-replay", "assignment-recognition-cli-computed-reference-blanks-preserved", "assignment-recognition-cli-double-dollar-leaves-raw-blank", "assignment-recognition-cli-escaped-equal-is-first-assignment-delimiter", "assignment-recognition-cli-literal-parentheses-do-not-protect-space", "assignment-recognition-cli-operator-character-before-blank-is-name", "assignment-recognition-cli-quotes-do-not-protect-space", "assignment-recognition-cli-raw-space-before-empty-reference", "assignment-recognition-cli-rejected-name-does-not-expand-effects", "assignment-recognition-cli-short-blank-reference-before-operator", "assignment-recognition-cli-short-dollar-reference-consumes-blank", "assignment-recognition-cli-short-reference-consumes-operator-byte", "assignment-recognition-cli-terminal-short-reference-consumes-blank", "assignment-recognition-cli-trailing-blank-after-backslash", "assignment-recognition-file-backslash-does-not-escape-tab", "assignment-recognition-file-computed-reference-blanks-preserved", "assignment-recognition-file-escaped-dollar-does-not-open-reference", "assignment-recognition-file-export-falls-back-to-name-list", "assignment-recognition-file-internal-blank-simple-is-target-syntax", "assignment-recognition-file-operator-character-before-blank-is-name", "assignment-recognition-file-override-does-not-protect-raw-blank", "assignment-recognition-file-quotes-do-not-protect-tab", "assignment-recognition-file-raw-tab-after-empty-reference", "assignment-recognition-file-rejected-name-expands-as-rule-text", "assignment-recognition-file-short-dollar-reference-consumes-blank", "assignment-recognition-file-terminal-short-reference-consumes-blank", "assignment-recognition-file-trailing-tab-after-backslash"]

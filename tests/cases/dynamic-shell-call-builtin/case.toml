@@ -1,0 +1,12 @@
+id = "dynamic-shell-call-builtin"
+requirement = "functions.shell"
+candidate = "required"
+description = "dynamic-shell-call-builtin"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b68656c6c6f5d0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "dynamic-shell-launch-missing"
+requirement = "functions.shell"
+candidate = "required"
+description = "dynamic-shell-launch-missing"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d3a3132370a"
+stderr_hex = "6d616b653a20726d616b652d6e6f2d737563682d65786563757461626c652d3434313a204e6f20737563682066696c65206f72206469726563746f72790a"

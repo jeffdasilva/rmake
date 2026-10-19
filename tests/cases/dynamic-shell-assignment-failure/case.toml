@@ -1,0 +1,12 @@
+id = "dynamic-shell-assignment-failure"
+requirement = "functions.shell"
+candidate = "required"
+description = "dynamic-shell-assignment-failure"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f75747075743a340a"
+stderr_hex = ""

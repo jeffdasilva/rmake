@@ -1,0 +1,12 @@
+id = "dynamic-eval-foreach-params"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-foreach-params"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "783d610a783d620a"
+stderr_hex = ""

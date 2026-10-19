@@ -1,0 +1,12 @@
+id = "dynamic-eval-same-expression"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-same-expression"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6265666f72653a61667465720a"
+stderr_hex = ""

@@ -1,6 +1,6 @@
 id = "function-eval-variable"
 requirement = "functions.eval"
-candidate = "pending"
+candidate = "required"
 description = "function eval variable"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

@@ -1,6 +1,6 @@
 id = "function-eval-rule"
 requirement = "functions.eval"
-candidate = "pending"
+candidate = "required"
 description = "function eval rule"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory"]

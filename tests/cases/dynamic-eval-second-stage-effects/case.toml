@@ -1,0 +1,12 @@
+id = "dynamic-eval-second-stage-effects"
+requirement = "functions.eval"
+candidate = "required"
+description = "dynamic-eval-second-stage-effects"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7365636f6e640a746578740a"
+stderr_hex = ""

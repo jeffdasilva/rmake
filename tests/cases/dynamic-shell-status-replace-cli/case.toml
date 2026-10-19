@@ -1,0 +1,12 @@
+id = "dynamic-shell-status-replace-cli"
+requirement = "functions.shell"
+candidate = "required"
+description = "dynamic-shell-status-replace-cli"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", ".SHELLSTATUS=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3a320a"
+stderr_hex = ""

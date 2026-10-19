@@ -1264,3 +1264,10 @@ Added required/optional nested includes and makefile remake/restart staging.
 The corpus now has 1,824 cases: 1,792 required and 32 pending. Include support
 is partial: search directories and the full remake failure semantics remain.
 See [dynamic makefiles](dynamic-makefiles.md).
+
+## Stateful shell and evaluation slice
+
+Added shell capture, shell assignments and dynamic eval with target/global
+scope separation. There are now 1,905 fixtures: 1,883 required exact passes and
+22 pending mismatches. See [stateful expansion](stateful-expansion.md) for
+architecture, safety limits and remaining boundaries.
