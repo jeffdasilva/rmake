@@ -104,6 +104,9 @@ retains the original three workloads; `BENCH_SUITE=all` includes every suite.
 1,000 input files prepared outside the timed invocations.
 `BENCH_SUITE=bindings` measures repeated reads of large simple global and local
 values, with eight references per assignment and five replacement assignments.
+`BENCH_SUITE=implicit-search` measures resolution with many irrelevant patterns.
+Set `BENCH_BASELINE=/absolute/path/to/previous/rmake` to compare a previous
+candidate in the same campaign. See the [implicit search measurements](docs/implicit-search-performance.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:

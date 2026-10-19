@@ -1337,3 +1337,14 @@ special-target diagnostic timing. Added 28 original required cases plus one
 pending fixture exposing incomplete scheduling across independent graph branches.
 Corpus: 2,145 cases, 2,131 required and 14 pending. See
 [phase barriers](wait-barriers.md) for coverage and the remaining ready-graph work.
+
+## Implicit-search comparison reduction
+
+Moved replacement/cancellation checks after pure pattern matching, and computed
+the target directory prefix once per search. Added an original implicit-search
+benchmark suite, optional previous-candidate timing through `BENCH_BASELINE`, and
+a tooling test for workload structure/order. A 31-sample release comparison
+measured paired improvements of 1.64x and 6.08x over the previous rmake on the two
+synthetic workloads; GNU remained faster on both. No persistent cache was added.
+See [performance evidence](implicit-search-performance.md) for hashes, raw-report
+location, measured medians, methodology and limitations.

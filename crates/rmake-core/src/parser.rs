@@ -283,23 +283,15 @@ impl Database {
     ) -> Vec<ImplicitCandidate> {
         let mut result = Vec::new();
         let mut specific = false;
+        let directory = target
+            .iter()
+            .rposition(|byte| *byte == b'/')
+            .map_or(b"".as_slice(), |slash| &target[..=slash]);
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
             if active.contains(&index) {
                 continue;
             }
-            if self.implicit_rules[index + 1..]
-                .iter()
-                .any(|(later_pattern, later_rule)| {
-                    pattern == later_pattern && rule.dependencies == later_rule.dependencies
-                })
-            {
-                continue;
-            }
             let name = pattern.literal_bytes();
-            let directory = target
-                .iter()
-                .rposition(|byte| *byte == b'/')
-                .map_or(b"".as_slice(), |slash| &target[..=slash]);
             let stripped = !name.contains(&b'/');
             let word = if stripped {
                 &target[directory.len()..]
@@ -309,6 +301,17 @@ impl Database {
             let Some(stem) = pattern.matches(word).filter(|stem| !stem.is_empty()) else {
                 continue;
             };
+            // Nonmatching patterns cannot affect replacement/cancellation or
+            // match-anything suppression. Avoid scanning later definitions for
+            // every irrelevant pattern on every target.
+            if self.implicit_rules[index + 1..]
+                .iter()
+                .any(|(later_pattern, later_rule)| {
+                    pattern == later_pattern && rule.dependencies == later_rule.dependencies
+                })
+            {
+                continue;
+            }
             specific |= name != b"%" && (rule.recipes.is_some() || rule.dependencies.is_empty());
             if rule.recipes.is_none() {
                 continue;

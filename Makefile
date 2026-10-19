@@ -11,6 +11,7 @@ CANDIDATE ?= $(CURDIR)/target/debug/rmake
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
 BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
+BENCH_BASELINE ?=
 SEED ?= 44101
 GENERATED_CASES ?= 200
 EXPRESSIONS ?= 32
@@ -199,7 +200,7 @@ bench: oracle-verify
 	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
 
 clean:
 	+$(CARGO) clean

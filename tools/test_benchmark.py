@@ -13,6 +13,8 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(benchmark.paired_order(0, True), ["oracle", "candidate"])
         self.assertEqual(benchmark.paired_order(1, True), ["candidate", "oracle"])
         self.assertEqual(benchmark.paired_order(1, False), ["oracle"])
+        self.assertEqual(benchmark.paired_order(0, True, True), ["oracle", "baseline", "candidate"])
+        self.assertEqual(benchmark.paired_order(1, True, True), ["candidate", "baseline", "oracle"])
 
     def test_workloads_are_stable_and_cover_distinct_costs(self):
         first = list(benchmark.workloads())
@@ -35,8 +37,18 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
+
+    def test_implicit_search_has_real_targets_and_no_process_launches(self):
+        workloads = list(benchmark.implicit_search_workloads())
+        self.assertEqual(workloads, list(benchmark.implicit_search_workloads()))
+        self.assertEqual([name for name, _ in workloads], ['implicit-unmatched-64', 'implicit-unmatched-256'])
+        for (_, source), count in zip(workloads, (64, 256)):
+            self.assertEqual(source.count(b'.out'), 401)
+            self.assertEqual(source.count(b'.unused'), count)
+            self.assertTrue(source.endswith(b'%.out:;\n'))
+        self.assertEqual(list(benchmark.selected_workloads('implicit-search')), workloads)
 
     def test_wildcard_suite_distinguishes_cold_cached_complex_and_literal_queries(self):
         import tempfile
