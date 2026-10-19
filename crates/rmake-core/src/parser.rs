@@ -278,13 +278,6 @@ pub fn trim(bytes: &[u8]) -> &[u8] {
     &bytes[start..end]
 }
 
-fn trim_start(bytes: &[u8]) -> &[u8] {
-    &bytes[bytes
-        .iter()
-        .position(|b| !b.is_ascii_whitespace())
-        .unwrap_or(bytes.len())..]
-}
-
 pub fn words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
     bytes
         .split(u8::is_ascii_whitespace)
@@ -753,7 +746,11 @@ impl Database {
         for (keyword, negate) in [(b"ifdef".as_slice(), false), (b"ifndef", true)] {
             if let Some(name) = directive(bytes, keyword) {
                 let name = self.expand(name, location, context)?;
-                if words(&name).count() > 1 {
+                let end = name
+                    .iter()
+                    .position(|byte| is_c_space(*byte))
+                    .unwrap_or(name.len());
+                if !assignment_start(&name[end..]).is_empty() {
                     return Err(ParseError {
                         unlocated: false,
                         location: location.clone(),
@@ -762,7 +759,7 @@ impl Database {
                 }
                 return Ok(Some(
                     self.variables
-                        .get(trim(&name))
+                        .get(&name[..end])
                         .is_some_and(|var| !var.raw_value().is_empty())
                         ^ negate,
                 ));
@@ -803,7 +800,7 @@ impl Database {
                     let left = &args[1..comma];
                     let left_end = left
                         .iter()
-                        .rposition(|b| !b.is_ascii_whitespace())
+                        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
                         .map_or(0, |i| i + 1);
                     let left = self.expand(&left[..left_end], location, context)?;
                     let mut closing = None;
@@ -823,7 +820,7 @@ impl Database {
                     let closing = closing.ok_or_else(invalid)?;
                     (
                         left,
-                        trim_start(&args[comma + 1..closing]),
+                        assignment_start(&args[comma + 1..closing]),
                         &args[closing + 1..],
                     )
                 } else {
@@ -837,7 +834,7 @@ impl Database {
                         .ok_or_else(invalid)?
                         + 1;
                     let left = self.expand(&args[1..end], location, context)?;
-                    let rest = trim_start(&args[end + 1..]);
+                    let rest = assignment_start(&args[end + 1..]);
                     let quote2 = *rest.first().ok_or_else(invalid)?;
                     if quote2 != b'\'' && quote2 != b'"' {
                         return Err(invalid());
@@ -849,7 +846,7 @@ impl Database {
                         + 1;
                     (left, &rest[1..end2], &rest[end2 + 1..])
                 };
-                if !trim(extra).is_empty() {
+                if !assignment_start(extra).is_empty() {
                     record_warning(
                         &mut self.warnings,
                         context,
