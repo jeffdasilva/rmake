@@ -1414,3 +1414,12 @@ marking absent files updated. Honor local barriers during inspection. Add twelve
 required differential cases and promote the previous intermediate sibling probe.
 Corpus: 2,245 cases, with 2,232 required and 13 pending. See
 [intermediate scheduling](intermediate-scheduling.md).
+
+## Leaf scheduling fast path
+
+Rules without prerequisites now use existing recipe finalization directly,
+avoiding pending-frame hash-table work. Successful outcomes skip an unnecessary
+parallel-policy lookup in the failure guard. The full corpus and gates are
+unchanged. A 101-sample paired local comparison improved the 10,000-target no-op
+workload by about 8%; tiny startup and expansion do not show meaningful speedup,
+and GNU remains faster. See [measurements and limits](ready-leaf-performance.md).

@@ -1512,8 +1512,8 @@ impl Engine {
     }
 
     fn record_graph_failure(&mut self, outcome: Outcome) {
-        if !self.parallel_graph()
-            || !(outcome.fatal || (outcome.failed && !self.options.keep_going))
+        if !(outcome.fatal || (outcome.failed && !self.options.keep_going))
+            || !self.parallel_graph()
         {
             return;
         }
@@ -1737,27 +1737,30 @@ impl Engine {
             || phony
             || self.options.always
             || (double_colon && rule.dependencies.is_empty());
-        self.pending_rules.insert(
-            target.to_vec(),
-            RuleState {
-                rule,
-                last_epoch: None,
-                depth,
-                before,
-                phony,
-                next: 0,
-                serial_dependency: None,
-                inspections: HashMap::new(),
-                stopped: false,
-                stale,
-                outcome: Outcome {
-                    time: before,
-                    ..Outcome::default()
-                },
-                dropped: HashSet::new(),
-                deferred_intermediates: Vec::new(),
+        let state = RuleState {
+            rule,
+            last_epoch: None,
+            depth,
+            before,
+            phony,
+            next: 0,
+            serial_dependency: None,
+            inspections: HashMap::new(),
+            stopped: false,
+            stale,
+            outcome: Outcome {
+                time: before,
+                ..Outcome::default()
             },
-        );
+            dropped: HashSet::new(),
+            deferred_intermediates: Vec::new(),
+        };
+        // A leaf cannot suspend dependency traversal. Keep the same recipe
+        // finalization path, without inserting and removing a graph frame.
+        if state.rule.dependencies.is_empty() {
+            return self.finish_rule(target, state);
+        }
+        self.pending_rules.insert(target.to_vec(), state);
         let outcome = self.resume_rule(target);
         if !self.parallel_graph() {
             self.wait_target(target);
