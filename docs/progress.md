@@ -1155,3 +1155,27 @@ Median paired after/before ratios were 0.974, 0.986 and 1.032. These unisolated
 wall-time observations establish no general speedup; the assignment workload was
 slower. CPU/RSS/I/O, complete definition/conditional grammar and the remaining
 dynamic, rule, runtime and release-validation milestones remain unfinished.
+
+## Copy simple values directly — 2026-10-18
+
+Simple-variable expansion now copies stored bytes once without cloning the whole
+binding first. Recursive values retain their existing owned-binding, provenance,
+cycle and append-layer paths. No cache or expansion effects are introduced.
+Four permanent repeated-read workloads are available through
+`make bench-compare BENCH_SUITE=bindings`; the `all` suite includes them.
+
+Full `make ci` passed with 351 Rust tests, 240 tooling tests and all existing
+curated, generated, fault, stateful and self-host gates. The corpus remains
+1,583 cases: 1,544 required exact matches and 39 observed pending mismatches,
+with no failures or unexpected passes. The permanent binding benchmark also
+matched GNU Make 4.4.1 output and successful status for all four workloads.
+
+Against source `8081183`, 31 alternating release pairs after three warmups
+observed about 9–22% lower elapsed time on repeated reads of 256 KiB and 1 MiB
+global/local simple values. Existing core and word-span workloads showed no
+consistent improvement. A separate GNU comparison still found rmake slower for
+the two global workloads and slightly faster for the two local workloads. The
+[simple-copy notes](simple-value-copy.md) record exact medians, paired ratios,
+workload construction and limitations. These unisolated wall-time observations
+have no confidence intervals or CPU/RSS/I/O coverage and establish no general
+speed advantage. Complete compatibility and broader performance work remain open.

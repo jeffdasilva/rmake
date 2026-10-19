@@ -35,7 +35,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_wildcard_suite_distinguishes_cold_cached_complex_and_literal_queries(self):
