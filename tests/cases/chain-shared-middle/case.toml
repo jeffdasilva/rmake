@@ -1,0 +1,12 @@
+id = "chain-shared-middle"
+requirement = "rules.implicit"
+candidate = "pending"
+description = "chain-shared-middle"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6964646c650a726d20782e6d69640a"
+stderr_hex = "4d616b6566696c653a323a207761726e696e673a207061747465726e2072656369706520646964206e6f74207570646174652070656572207461726765742027782e6f74686572272e0a"

@@ -1,0 +1,12 @@
+id = "chain-two-roots"
+requirement = "rules.implicit"
+candidate = "pending"
+description = "chain-two-roots"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726d20622e6d696420612e6d69640a"
+stderr_hex = ""

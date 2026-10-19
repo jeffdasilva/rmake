@@ -192,6 +192,8 @@ pub struct Engine {
     makefile_error: RefCell<Option<(Location, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
+    intermediates: HashSet<Vec<u8>>,
+    created_intermediates: Vec<Vec<u8>>,
 }
 
 impl Engine {
@@ -372,6 +374,8 @@ impl Engine {
             makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
+            intermediates: HashSet::new(),
+            created_intermediates: Vec::new(),
         })
     }
 
@@ -494,6 +498,7 @@ impl Engine {
                     )
                     .expect("bounded restart count");
                 self.done.clear();
+                self.intermediates.clear();
                 self.visiting.clear();
                 self.scope_parents.clear();
                 self.target_contexts.clear();
@@ -675,6 +680,7 @@ impl Engine {
                 {
                     continue;
                 }
+                self.resolve_implicit(&makefile.name);
                 if !self.database.rules.contains_key(&makefile.name)
                     && (!makefile.missing || makefile.optional)
                 {
@@ -705,6 +711,7 @@ impl Engine {
             ) = modes;
             self.remaking = false;
             if changed {
+                self.remove_intermediates();
                 restarts += 1;
                 if restarts > 128 {
                     self.fatal(None, b"rmake: makefile restart limit exceeded");
@@ -713,19 +720,14 @@ impl Engine {
                 continue;
             }
             if failed {
+                self.remove_intermediates();
                 return 2;
             }
             break;
         }
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
-        for name in [
-            b".POSIX".as_slice(),
-            b".WAIT",
-            b".INTERMEDIATE",
-            b".SECONDARY",
-            b".LOW_RESOLUTION_TIME",
-        ] {
+        for name in [b".POSIX".as_slice(), b".WAIT", b".LOW_RESOLUTION_TIME"] {
             if self.database.rules.contains_key(name) {
                 self.fatal(
                     None,
@@ -818,6 +820,7 @@ impl Engine {
             }
         }
         self.wait_all_jobs();
+        self.remove_intermediates();
         failed |= self.parallel_failed;
         if failed {
             2
@@ -836,6 +839,102 @@ impl Engine {
                     .iter()
                     .any(|dependency| dependency.name == target)
         })
+    }
+
+    fn intermediate(&self, target: &[u8]) -> bool {
+        !self.options.goals.iter().any(|goal| goal == target)
+            && !self
+                .database
+                .matches_special_pattern(b".NOTINTERMEDIATE", target)
+            && !self
+                .database
+                .rules
+                .get(b".NOTINTERMEDIATE".as_slice())
+                .is_some_and(|rule| rule.dependencies.is_empty())
+            && (self.intermediates.contains(target)
+                || self.special(b".INTERMEDIATE", target, false)
+                || self.special(b".SECONDARY", target, false))
+    }
+
+    fn remove_intermediates(&mut self) {
+        let mut removed = Vec::new();
+        for target in std::mem::take(&mut self.created_intermediates) {
+            if removed.contains(&target)
+                || self.special(b".SECONDARY", &target, true)
+                || self.database.matches_special_pattern(b".PRECIOUS", &target)
+                || self.special(b".PHONY", &target, false)
+            {
+                continue;
+            }
+            if self.options.question || self.options.touch {
+                continue;
+            }
+            if self.options.dry_run
+                || (fs::symlink_metadata(os(&target)).is_ok_and(|m| !m.is_dir())
+                    && fs::remove_file(os(&target)).is_ok())
+            {
+                removed.push(target);
+            }
+        }
+        if !removed.is_empty() && !self.globally_silent() {
+            self.stdout(&[b"rm ".as_slice(), &joined(removed)].concat());
+        }
+    }
+
+    /// Missing intermediate files do not by themselves make a parent stale.
+    /// Update their real inputs first, and materialize the chain only if an
+    /// input is newer than the parent (or another prerequisite requires it).
+    fn check_intermediate(
+        &mut self,
+        target: &[u8],
+        parent: &[u8],
+        time: SystemTime,
+        depth: usize,
+    ) -> Outcome {
+        if depth >= 512
+            || !self.intermediate(target)
+            || modified(target).is_some()
+            || self.special(b".PHONY", target, false)
+        {
+            return self.build(target, Some(parent), depth);
+        }
+        let Some(rule) = self.database.rules.get(target).cloned() else {
+            return self.build(target, Some(parent), depth);
+        };
+        self.scope_parents
+            .entry(target.to_vec())
+            .or_insert_with(|| Some(parent.to_vec()));
+        if rule.deferred {
+            return self.build(target, Some(parent), depth);
+        }
+        let mut result = Outcome {
+            time: Some(time),
+            ..Outcome::default()
+        };
+        let mut stale = self.options.always;
+        self.visiting.insert(target.to_vec());
+        for dep in &rule.dependencies {
+            if self.visiting.contains(&dep.name) {
+                continue;
+            }
+            let child = self.check_intermediate(&dep.name, target, time, depth + 1);
+            self.wait_target(&dep.name);
+            let child = self.done.get(&dep.name).copied().unwrap_or(child);
+            result.ran |= child.ran;
+            result.failed |= child.failed;
+            result.fatal |= child.fatal;
+            result.question_outdated |= child.question_outdated;
+            stale |= !dep.order_only && (child.time.is_none() || child.time > Some(time));
+            if child.failed && !self.options.keep_going {
+                break;
+            }
+        }
+        self.visiting.remove(target);
+        if stale && !result.failed {
+            self.build(target, Some(parent), depth)
+        } else {
+            result
+        }
     }
 
     /// An empty .SILENT affects global diagnostics and touch messages, but does
@@ -964,19 +1063,87 @@ impl Engine {
         {
             return;
         }
-        for mut candidate in self.database.implicit_candidates(target) {
-            if candidate.dependencies.iter().all(|dependency| {
-                self.database.rules.contains_key(&dependency.name)
-                    || self.find_vpath(&dependency.name).is_some()
-            }) {
-                if let Some(explicit) = existing {
-                    candidate.dependencies.extend(explicit.dependencies);
-                    candidate.deferred |= explicit.deferred;
+        let mut budget = 100_000;
+        let mut plan = self.implicit_plan(target, &mut Vec::new(), false, &mut budget);
+        if plan.is_none() {
+            budget = 100_000;
+            plan = self.implicit_plan(target, &mut Vec::new(), true, &mut budget);
+        }
+        if let Some(plan) = plan {
+            for (name, mut rule) in plan {
+                if let Some(explicit) = self.database.rules.get(&name) {
+                    rule.dependencies.extend(explicit.dependencies.clone());
+                    rule.deferred |= explicit.deferred;
                 }
-                self.database.rules.insert(target.to_vec(), candidate);
-                break;
+                if name != target
+                    && !self.database.explicit_names.contains(&name)
+                    && !self.options.goals.contains(&name)
+                {
+                    self.intermediates.insert(name.clone());
+                }
+                self.database.rules.insert(name, rule);
             }
         }
+    }
+
+    /// Search is transactional: a rejected branch never installs rules or marks
+    /// files intermediate. Rule identities, rather than names alone, prevent
+    /// unbounded chains such as %.x: %.x.x.
+    fn implicit_plan(
+        &self,
+        target: &[u8],
+        active: &mut Vec<usize>,
+        compatibility: bool,
+        budget: &mut usize,
+    ) -> Option<Vec<(Vec<u8>, Rule)>> {
+        if active.len() >= 128 || *budget == 0 {
+            return None;
+        }
+        let candidates = self.database.implicit_candidates_excluding(target, active);
+        for chain in [false, true] {
+            for candidate in &candidates {
+                if *budget == 0 {
+                    return None;
+                }
+                *budget -= 1;
+                if active.contains(&candidate.identity)
+                    || (chain && candidate.rule.terminal)
+                    || (!active.is_empty() && candidate.match_anything && !candidate.rule.terminal)
+                {
+                    continue;
+                }
+                let mut plan = Vec::new();
+                let mut valid = true;
+                active.push(candidate.identity);
+                for dependency in &candidate.rule.dependencies {
+                    let name = &dependency.name;
+                    let explicit = self.database.rules.contains_key(name)
+                        || self.database.rules.get(target).is_some_and(|rule| {
+                            rule.dependencies.iter().any(|dep| dep.name == *name)
+                        });
+                    if explicit
+                        || self.find_vpath(name).is_some()
+                        || (compatibility && self.database.explicit_names.contains(name))
+                    {
+                        continue;
+                    }
+                    if chain
+                        && let Some(child) = self.implicit_plan(name, active, compatibility, budget)
+                    {
+                        plan.extend(child);
+                    } else {
+                        valid = false;
+                        break;
+                    }
+                }
+                active.pop();
+                if valid {
+                    plan.push((target.to_vec(), candidate.rule.clone()));
+                    return Some(plan);
+                }
+            }
+        }
+        None
     }
 
     fn expand_dependencies(&mut self, target: &[u8], rule: &mut Rule) -> Result<(), ExpandError> {
@@ -1174,6 +1341,7 @@ impl Engine {
         let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
         let mut newer = Vec::new();
         let mut dropped = HashSet::new();
+        let mut deferred_intermediates = Vec::new();
         let mut stale = before.is_none()
             || phony
             || self.options.always
@@ -1200,7 +1368,20 @@ impl Engine {
                 dropped.insert(dependency.clone());
                 continue;
             }
-            let mut child = self.build(dependency, Some(target), depth + 1);
+            let mut child =
+                if !stale && self.intermediate(dependency) && modified(dependency).is_none() {
+                    let child =
+                        self.check_intermediate(dependency, target, before.unwrap(), depth + 1);
+                    if !self.done.contains_key(dependency) {
+                        deferred_intermediates.push(dependency.clone());
+                    }
+                    if !occurrence.order_only && (child.time.is_none() || child.time > before) {
+                        stale = true;
+                    }
+                    child
+                } else {
+                    self.build(dependency, Some(target), depth + 1)
+                };
             if self.special(b".NOTPARALLEL", target, false) {
                 self.wait_target(dependency);
                 if let Some(completed) = self.done.get(dependency) {
@@ -1242,6 +1423,18 @@ impl Engine {
             {
                 stale = true;
                 newer.push(dependency.clone());
+            }
+        }
+        if stale && !outcome.failed && !outcome.question_outdated {
+            for dependency in deferred_intermediates {
+                let child = self.build(&dependency, Some(target), depth + 1);
+                self.wait_target(&dependency);
+                let child = self.done.get(&dependency).copied().unwrap_or(child);
+                outcome.ran |= child.ran;
+                outcome.failed |= child.failed;
+                outcome.fatal |= child.fatal;
+                outcome.blocked |= child.failed;
+                outcome.question_outdated |= child.question_outdated;
             }
         }
         if stale && !outcome.failed && !outcome.question_outdated {
@@ -1289,6 +1482,9 @@ impl Engine {
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
                 outcome.fatal |= execution.status == Status::Fatal;
                 outcome.question_outdated |= execution.status == Status::Question;
+                if execution.ran && self.intermediate(target) && before.is_none() {
+                    self.created_intermediates.push(target.to_vec());
+                }
                 self.cleanup_target(target, before, phony, execution.cleanup);
             }
             outcome.time = if phony {
@@ -1862,7 +2058,10 @@ impl Engine {
         phony: bool,
         cleanup: Cleanup,
     ) {
-        if cleanup == Cleanup::None || phony || self.special(b".PRECIOUS", target, false) {
+        if cleanup == Cleanup::None
+            || phony
+            || self.database.matches_special_pattern(b".PRECIOUS", target)
+        {
             return;
         }
         if cleanup == Cleanup::ChangedOnError

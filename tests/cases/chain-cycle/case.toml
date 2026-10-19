@@ -1,0 +1,12 @@
+id = "chain-cycle"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-cycle"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "77726f6e670a77726f6e670a"
+stderr_hex = "6d616b653a2043697263756c617220782e6d6964203c2d20782e6f757420646570656e64656e63792064726f707065642e0a"

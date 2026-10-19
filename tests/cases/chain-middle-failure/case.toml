@@ -1,0 +1,12 @@
+id = "chain-middle-failure"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-middle-failure"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "726d20782e6d69640a"
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a333a20782e6d69645d204572726f7220370a"

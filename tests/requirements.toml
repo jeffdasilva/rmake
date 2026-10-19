@@ -160,10 +160,10 @@ id = "includes.remake"
 title = "Generated makefiles and restart semantics"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 10
+candidate_required = 12
 reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
-fixture_count = 10
-cases = ["include-generated-restart", "dynamic-include-optional-generated", "dynamic-include-sinclude-generated", "dynamic-include-generated-query", "dynamic-include-generated-dry", "dynamic-include-generated-touch", "dynamic-include-generated-phantom", "dynamic-include-restart-chain", "dynamic-include-restart-command-binding", "dynamic-include-phony-no-restart"]
+fixture_count = 12
+cases = ["include-generated-restart", "dynamic-include-optional-generated", "dynamic-include-sinclude-generated", "dynamic-include-generated-query", "dynamic-include-generated-dry", "dynamic-include-generated-touch", "dynamic-include-generated-phantom", "dynamic-include-restart-chain", "dynamic-include-restart-command-binding", "dynamic-include-phony-no-restart", "chain-optional-generated-include", "chain-required-chained-include"]
 
 [[requirements]]
 id = "parallel.execution"
@@ -260,10 +260,10 @@ id = "rules.implicit"
 title = "Pattern rules, selection and directory search"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 31
+candidate_required = 65
 reference = "https://www.gnu.org/software/make/manual/html_node/Implicit-Rules.html"
-fixture_count = 31
-cases = ["rule-pattern-basic", "rule-pattern-specificity", "rule-static-pattern", "rule-vpath-search", "resolution-pattern-alternatives", "resolution-pattern-specific-first", "resolution-pattern-declaration-order", "resolution-pattern-order-only", "resolution-pattern-explicit-prerequisite", "resolution-pattern-empty-recipe", "resolution-pattern-cancellation", "resolution-pattern-replacement", "resolution-pattern-directory-stem", "resolution-pattern-slash-target", "resolution-pattern-empty-stem", "resolution-pattern-not-default", "resolution-static-normal-order", "resolution-static-fixed-prerequisite", "resolution-static-recipe-literal-dollar", "resolution-vpath-selective", "resolution-vpath-colon", "resolution-vpath-declaration-order", "resolution-vpath-clear-pattern", "resolution-vpath-clear-all", "resolution-vpath-local-wins", "resolution-vpath-pattern-input", "resolution-vpath-subdirectory", "resolution-static-mismatch", "resolution-static-missing-pattern", "resolution-static-multiple-patterns", "resolution-static-no-percent"]
+fixture_count = 67
+cases = ["rule-pattern-basic", "rule-pattern-specificity", "rule-static-pattern", "rule-vpath-search", "resolution-pattern-alternatives", "resolution-pattern-specific-first", "resolution-pattern-declaration-order", "resolution-pattern-order-only", "resolution-pattern-explicit-prerequisite", "resolution-pattern-empty-recipe", "resolution-pattern-cancellation", "resolution-pattern-replacement", "resolution-pattern-directory-stem", "resolution-pattern-slash-target", "resolution-pattern-empty-stem", "resolution-pattern-not-default", "resolution-static-normal-order", "resolution-static-fixed-prerequisite", "resolution-static-recipe-literal-dollar", "resolution-vpath-selective", "resolution-vpath-colon", "resolution-vpath-declaration-order", "resolution-vpath-clear-pattern", "resolution-vpath-clear-all", "resolution-vpath-local-wins", "resolution-vpath-pattern-input", "resolution-vpath-subdirectory", "resolution-static-mismatch", "resolution-static-missing-pattern", "resolution-static-multiple-patterns", "resolution-static-no-percent", "chain-two-step", "chain-three-step", "chain-secondary-named", "chain-secondary-all", "chain-precious-named", "chain-precious-pattern", "chain-explicit-target", "chain-explicit-prerequisite-retained", "chain-explicit-goal-retained", "chain-source-vpath", "chain-directory", "chain-direct-before-chain", "chain-branch-rollback", "chain-recursive-rule-guard", "chain-cycle", "chain-terminal-reject", "chain-terminal-existing", "chain-terminal-leaf", "chain-match-anything-no-chain", "chain-specific-suppresses-anything", "chain-dummy-suppresses-anything", "chain-terminal-match-anything", "chain-order-only", "chain-mode-n", "chain-mode-q", "chain-mode-t", "chain-mode-s", "chain-mode-j2", "chain-failure-cleanup", "chain-middle-failure", "chain-delete-on-error", "chain-two-roots", "chain-shared-middle", "chain-notintermediate-all", "chain-notintermediate-name", "chain-notintermediate-pattern"]
 
 [[requirements]]
 id = "rules.secondary"
@@ -280,10 +280,10 @@ id = "rules.special"
 title = "Special target behavior"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 1
+candidate_required = 2
 reference = "https://www.gnu.org/software/make/manual/html_node/Special-Targets.html"
-fixture_count = 1
-cases = ["rule-phony-existing-file"]
+fixture_count = 2
+cases = ["rule-phony-existing-file", "chain-explicit-intermediate"]
 
 [[requirements]]
 id = "syntax.conditionals"

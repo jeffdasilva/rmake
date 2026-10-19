@@ -99,3 +99,7 @@ terms compatible with the project license.
 The dynamic makefile slice consulted GNU Make 4.4.1 `src/main.c` and
 `src/remake.c` for remake staging and deferred include diagnostics. Its Rust
 implementation and differential fixtures were authored for this project.
+
+The [implicit-chain notes](implicit-chains.md) record the GNU Make 4.4.1
+`src/implicit.c` and `src/file.c` references used for independently authored
+transactional resolution and intermediate lifecycle handling.

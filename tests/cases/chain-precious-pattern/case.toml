@@ -1,0 +1,12 @@
+id = "chain-precious-pattern"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-precious-pattern"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6964646c653a782e7372633a780a66696e616c3a782e6d69643a780a"
+stderr_hex = ""
