@@ -36,8 +36,8 @@ compared with pinned GNU Make 4.4.1 without normalization.
 
 At introduction, two new pending fixtures exposed synchronous double-colon and
 missing-intermediate paths. [Double-colon continuations](double-colon-scheduling.md)
-now resolve the first boundary. Missing-intermediate inspection remains follow-up
-work. The current corpus has 2,233 cases: 2,219 required and 14 pending. Pending
+resolve the first boundary. [Intermediate continuations](intermediate-scheduling.md)
+now resolve the second. The current corpus has 2,245 cases: 2,232 required and 13 pending. Pending
 counts are not a complete inventory of missing GNU behavior; grouped outputs,
 archive rules, implicit secondary expansion, signals, load limits and output
 synchronization also remain.
