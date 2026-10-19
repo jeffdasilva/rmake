@@ -1,0 +1,12 @@
+id = "chain-optional-generated-include"
+requirement = "includes.remake"
+candidate = "required"
+description = "chain-optional-generated-include"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726561643a310a"
+stderr_hex = ""

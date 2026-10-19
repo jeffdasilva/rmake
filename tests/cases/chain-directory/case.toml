@@ -1,0 +1,12 @@
+id = "chain-directory"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-directory"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6964646c653a7375622f782e7372633a7375622f780a66696e616c3a7375622f782e6d69643a7375622f780a726d207375622f782e6d69640a"
+stderr_hex = ""

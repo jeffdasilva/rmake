@@ -1,0 +1,12 @@
+id = "chain-notintermediate-pattern"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-notintermediate-pattern"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

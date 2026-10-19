@@ -1285,3 +1285,12 @@ Added a bounded local job pool, target completion tracking, .NOTPARALLEL and
 recursive command-line transport. There are 1,971 fixtures: 1,961 required exact
 passes and ten pending mismatches. The local scheduler and recursion still have
 documented compatibility limits; see [local parallelism](local-parallelism.md).
+
+## Implicit chains and intermediate lifecycle
+
+Transactional implicit-chain planning, terminal and match-anything selection,
+intermediate cleanup/retention, incremental checks of missing intermediates, and
+implicit optional-include remaking are implemented. See
+[implicit chains](implicit-chains.md) for boundaries and source references.
+Added 39 original differential cases (37 required, two pending) and six stateful
+scenarios (12 invocations). Corpus: 2,010 cases, 1,998 required and 12 pending.

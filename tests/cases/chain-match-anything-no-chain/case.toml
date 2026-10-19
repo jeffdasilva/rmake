@@ -1,0 +1,12 @@
+id = "chain-match-anything-no-chain"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-match-anything-no-chain"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027782e6f7574272c206e65656465642062792027616c6c272e202053746f702e0a"

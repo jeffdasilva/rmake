@@ -1,0 +1,18 @@
+id = "chain-later-trigger"
+description = "Intermediate chain update and retention across repeated builds: later-trigger."
+provenance = "Original rmake fixture; independently authored and observed against pinned GNU Make 4.4.1."
+initial = [{"op" = "write", "path" = "x.src", "content" = "data\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "x.out", "content" = "data\n", "mtime_ns" = 1600000000000000020}, {"op" = "write", "path" = "trigger", "content" = "data\n", "mtime_ns" = 1600000000000000030}]
+
+[[steps]]
+name = "first"
+expected = {"exit_code" = 0, "stdout" = "middle\nfinal\nrm x.mid\n", "stderr" = ""}
+unchanged = ["trigger", "x.src"]
+exact_mtime = {"trigger" = 1600000000000000030, "x.src" = 1600000000000000000}
+mtime_order = [["x.out", ">", "x.src"]]
+
+[[steps]]
+name = "repeat"
+expected = {"exit_code" = 0, "stdout" = "make: 'x.out' is up to date.\n", "stderr" = ""}
+unchanged = ["x.out", "trigger", "x.src"]
+exact_mtime = {"trigger" = 1600000000000000030, "x.src" = 1600000000000000000}
+mtime_order = [["x.out", ">", "x.src"]]

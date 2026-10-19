@@ -42,6 +42,16 @@ pub struct Rule {
     pub deferred: bool,
     pub recipe_dependency_count: usize,
     pub double_colon: Option<Vec<Rule>>,
+    /// Double-colon pattern rules cannot infer missing prerequisites.
+    pub terminal: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct ImplicitCandidate {
+    /// Stable within this database; a rule cannot recur in its own chain.
+    pub identity: usize,
+    pub match_anything: bool,
+    pub rule: Rule,
 }
 
 /// A declaration stays open across blank/comment and conditional lines. Rule
@@ -162,6 +172,9 @@ pub struct Database {
     pub target_scopes: HashMap<Vec<u8>, TargetScope>,
     pub pattern_assignments: Vec<PatternAssignment>,
     pub rules: HashMap<Vec<u8>, Rule>,
+    /// Names mentioned by explicit declarations, distinct from inferred graph
+    /// nodes. Maintained incrementally so implicit search never scans the graph.
+    pub explicit_names: HashSet<Vec<u8>>,
     pub exports: HashSet<Vec<u8>>,
     pub unexports: HashSet<Vec<u8>>,
     pub export_all: bool,
@@ -245,17 +258,36 @@ impl Database {
             .collect()
     }
 
+    pub fn matches_special_pattern(&self, special: &[u8], target: &[u8]) -> bool {
+        self.rules.get(special).is_some_and(|rule| {
+            rule.dependencies
+                .iter()
+                .any(|dependency| Pattern::new(&dependency.name).matches(target).is_some())
+        })
+    }
+
     /// Produce candidates in stem-length and declaration order, without I/O.
     /// The runtime checks prerequisites and commits only a viable candidate.
-    pub fn implicit_candidates(&self, target: &[u8]) -> Vec<Rule> {
+    pub fn implicit_candidates(&self, target: &[u8]) -> Vec<ImplicitCandidate> {
+        self.implicit_candidates_excluding(target, &[])
+    }
+
+    pub fn implicit_candidates_excluding(
+        &self,
+        target: &[u8],
+        active: &[usize],
+    ) -> Vec<ImplicitCandidate> {
         let mut result = Vec::new();
+        let mut specific = false;
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
-            if rule.recipes.is_none()
-                || self.implicit_rules[index + 1..]
-                    .iter()
-                    .any(|(later_pattern, later_rule)| {
-                        pattern == later_pattern && rule.dependencies == later_rule.dependencies
-                    })
+            if active.contains(&index) {
+                continue;
+            }
+            if self.implicit_rules[index + 1..]
+                .iter()
+                .any(|(later_pattern, later_rule)| {
+                    pattern == later_pattern && rule.dependencies == later_rule.dependencies
+                })
             {
                 continue;
             }
@@ -273,6 +305,10 @@ impl Database {
             let Some(stem) = pattern.matches(word).filter(|stem| !stem.is_empty()) else {
                 continue;
             };
+            specific |= name != b"%" && (rule.recipes.is_some() || rule.dependencies.is_empty());
+            if rule.recipes.is_none() {
+                continue;
+            }
             let mut candidate = rule.clone();
             candidate.stem = Some(if stripped {
                 [directory, stem].concat()
@@ -293,10 +329,16 @@ impl Database {
                 };
             }
             if valid {
-                result.push(candidate);
+                result.push(ImplicitCandidate {
+                    identity: index,
+                    match_anything: name == b"%",
+                    rule: candidate,
+                });
             }
         }
-        result.sort_by_key(|rule| rule.stem.as_ref().map_or(0, Vec::len));
+        result
+            .retain(|candidate| !specific || !candidate.match_anything || candidate.rule.terminal);
+        result.sort_by_key(|candidate| candidate.rule.stem.as_ref().map_or(0, Vec::len));
         result
     }
 
@@ -1851,8 +1893,10 @@ impl Database {
                             self.implicit_rules.push((pattern.clone(), Rule::default()));
                             self.implicit_rules.len() - 1
                         });
+                    self.implicit_rules[index].1.terminal = double_colon;
                     &mut self.implicit_rules[index].1
                 } else {
+                    self.explicit_names.insert(target.clone());
                     let occupied = self.rules.contains_key(target);
                     let root = self.rules.entry(target.clone()).or_default();
                     if occupied && root.double_colon.is_some() != double_colon {
@@ -1929,6 +1973,9 @@ impl Database {
                         } else {
                             name.to_vec()
                         };
+                        if !declaration.patterns.contains_key(target) {
+                            self.explicit_names.insert(name.clone());
+                        }
                         rule.dependencies.push(Dependency { name, order_only });
                     }
                 }

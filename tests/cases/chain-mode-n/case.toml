@@ -1,0 +1,12 @@
+id = "chain-mode-n"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-mode-n"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f206d6964646c653a782e7372633a783b637020782e73726320782e6d69640a6563686f2066696e616c3a782e6d69643a783b637020782e6d696420782e6f75740a726d20782e6d69640a"
+stderr_hex = ""

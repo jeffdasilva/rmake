@@ -1,0 +1,12 @@
+id = "chain-mode-j2"
+requirement = "rules.implicit"
+candidate = "required"
+description = "chain-mode-j2"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j2"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6964646c653a782e7372633a780a66696e616c3a782e6d69643a780a726d20782e6d69640a"
+stderr_hex = ""
