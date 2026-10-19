@@ -60,3 +60,9 @@ interrupted-target cleanup and exit signaling, load limits and output
 synchronization still need work. This slice does not claim signal-safe token
 recovery on process termination. The tracked fatal-resumption GNU diagnostic
 mismatch also remains pending; its FIFO leak is not reproduced.
+
+Incoming pipe authentication also verifies that the reopened read and write
+ends identify the same FIFO/pipe object before changing inherited FD flags or
+using the server. Distinct valid pipes are not a valid pair; they produce the
+unavailable-server fallback without consuming or redirecting tokens. The invalid
+authentication regression now checks mismatched pairs and intact original pools.

@@ -193,6 +193,18 @@ impl Jobserver {
     }
 
     fn from_pipe(protocol_reader: File, writer: File) -> io::Result<Self> {
+        let read_metadata = protocol_reader.metadata()?;
+        let write_metadata = writer.metadata()?;
+        if !read_metadata.file_type().is_fifo()
+            || !write_metadata.file_type().is_fifo()
+            || read_metadata.dev() != write_metadata.dev()
+            || read_metadata.ino() != write_metadata.ino()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "jobserver descriptors refer to different pipes",
+            ));
+        }
         let reader = reopen(protocol_reader.as_raw_fd(), true, true)?;
         let auth = format!("{},{}", protocol_reader.as_raw_fd(), writer.as_raw_fd()).into_bytes();
         Ok(Self(Arc::new(Inner {
@@ -223,6 +235,7 @@ impl Jobserver {
         }
         let reader = reopen(read, true, false)?;
         let writer = reopen(write, false, false)?;
+        let server = Self::from_pipe(reader, writer)?;
         // FD flags belong to this process's descriptors, not the parent's open
         // descriptions. Ordinary commands must not inherit the incoming pair.
         for descriptor in [read, write] {
@@ -230,7 +243,7 @@ impl Jobserver {
                 return Err(io::Error::last_os_error());
             }
         }
-        Self::from_pipe(reader, writer)
+        Ok(server)
     }
 
     pub fn auth(&self) -> &[u8] {
@@ -409,5 +422,19 @@ mod tests {
         ] {
             assert!(Jobserver::join(auth).is_err());
         }
+        let first = Jobserver::create(2, true).unwrap();
+        let second = Jobserver::create(2, true).unwrap();
+        let mismatched = format!(
+            "{},{}",
+            first.0.protocol_reader.as_ref().unwrap().as_raw_fd(),
+            second.0.writer.as_raw_fd()
+        );
+        assert!(Jobserver::join(mismatched.as_bytes()).is_err());
+        let first_token = first.try_acquire().unwrap().unwrap();
+        let second_token = second.try_acquire().unwrap().unwrap();
+        assert_eq!(first_token.byte, b'+');
+        assert_eq!(second_token.byte, b'+');
+        assert!(first.try_acquire().unwrap().is_none());
+        assert!(second.try_acquire().unwrap().is_none());
     }
 }
