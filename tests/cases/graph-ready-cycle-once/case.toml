@@ -1,0 +1,12 @@
+id = "graph-ready-cycle-once"
+requirement = "parallel.execution"
+candidate = "required"
+description = "Original bounded dependency-branch scheduling and ordering probe: graph-ready-cycle-once."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "6d616b653a2043697263756c6172206c6f6f70203c2d206c65667420646570656e64656e63792064726f707065642e0a"

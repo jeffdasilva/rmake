@@ -1,0 +1,12 @@
+id = "graph-ready-abort-missing-goal"
+requirement = "parallel.execution"
+candidate = "required"
+description = "Original bounded dependency-branch scheduling and ordering probe: graph-ready-abort-missing-goal."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3", "--jobserver-style=pipe", "left", "missing"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276d697373696e67272e202053746f702e0a6d616b653a202a2a2a2057616974696e6720666f7220756e66696e6973686564206a6f62732e2e2e2e0a"

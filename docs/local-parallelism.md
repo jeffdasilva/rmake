@@ -76,4 +76,5 @@ cases, with 2,088 required passes and 13 pending mismatches.
 
 `.WAIT` prerequisite phase barriers are implemented. See
 [phase barriers](wait-barriers.md) for local-scope ordering, automatic-variable
-exclusion, diagnostic coverage and the remaining independent-branch scheduler gap.
+exclusion, diagnostic coverage. [Resumable branches](ready-branches.md) now let independent
+single-colon subgraphs progress while another branch waits.
