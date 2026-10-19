@@ -12,6 +12,7 @@ use rmake_core::parser::{
 };
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
+use rmake_linux::jobserver::{Jobserver, Permit};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -186,6 +187,7 @@ struct RecipeState {
     one_shell: bool,
     stdin_owner: bool,
     environment: Option<Vec<(OsString, Option<OsString>)>>,
+    permit: Option<Permit>,
 }
 
 type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
@@ -215,10 +217,15 @@ pub struct Engine {
     initial_gnu_flags: Vec<u8>,
     intermediates: HashSet<Vec<u8>>,
     created_intermediates: Vec<Vec<u8>>,
+    jobserver: Option<Jobserver>,
 }
 
 impl Engine {
-    pub fn new(options: Options, program: Vec<u8>, invocation: &OsStr) -> Result<Self, Diagnostic> {
+    pub fn new(
+        mut options: Options,
+        program: Vec<u8>,
+        invocation: &OsStr,
+    ) -> Result<Self, Diagnostic> {
         for dir in &options.directories {
             std::env::set_current_dir(dir)
                 .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
@@ -228,6 +235,67 @@ impl Engine {
                 .as_deref()
                 .map_or(b"".as_slice(), OsStrExt::as_bytes),
         );
+        let warning_program = if startup_level == 0 {
+            program.clone()
+        } else {
+            [program.as_slice(), format!("[{startup_level}]").as_bytes()].concat()
+        };
+        if options.reset_jobserver {
+            emit_output(
+                &warning_program,
+                Output::Warning {
+                    location: None,
+                    message: format!(
+                        "warning: -j{} forced in submake: resetting jobserver mode.",
+                        options.jobs.filter(|jobs| *jobs != usize::MAX).unwrap_or(0)
+                    )
+                    .as_bytes(),
+                },
+            );
+        }
+        let jobserver = if options.jobs == Some(1) {
+            options.jobserver_auth = None;
+            None
+        } else if let Some(auth) = &options.jobserver_auth {
+            match Jobserver::join(auth) {
+                Ok(server) => Some(server),
+                Err(error) => {
+                    if let Some(path) = auth.strip_prefix(b"fifo:") {
+                        emit_output(
+                            &warning_program,
+                            Output::Warning {
+                                location: None,
+                                message: &[
+                                    b"cannot open jobserver ".as_slice(),
+                                    path,
+                                    b": ",
+                                    os_error(&error).as_bytes(),
+                                ]
+                                .concat(),
+                            },
+                        );
+                    }
+                    emit_output(&warning_program, Output::Warning { location: None,
+                        message: b"warning: jobserver unavailable: using -j1.  Add '+' to parent make rule." });
+                    options.jobs = Some(1);
+                    options.jobserver_auth = None;
+                    None
+                }
+            }
+        } else if let Some(jobs) = options.jobs.filter(|jobs| *jobs > 1 && *jobs != usize::MAX) {
+            Some(
+                Jobserver::create(jobs, options.jobserver_pipe).map_err(|error| {
+                    Diagnostic::from(format!("jobserver: {}", os_error(&error)))
+                })?,
+            )
+        } else {
+            None
+        };
+        if let Some(server) = &jobserver {
+            options.jobs = Some(usize::MAX);
+            options.jobserver_auth = Some(server.auth().to_vec());
+        }
+        options.inherited_jobs = false;
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
         database
@@ -407,6 +475,7 @@ impl Engine {
             initial_gnu_flags: Vec::new(),
             intermediates: HashSet::new(),
             created_intermediates: Vec::new(),
+            jobserver,
         })
     }
 
@@ -859,6 +928,13 @@ impl Engine {
         }
         self.wait_all_jobs();
         self.remove_intermediates();
+        if let Some(error) = self.jobserver.as_ref().and_then(Jobserver::take_error) {
+            self.fatal(
+                None,
+                format!("jobserver token return: {}", os_error(&error)).as_bytes(),
+            );
+            return 2;
+        }
         failed |= self.parallel_failed;
         if failed {
             2
@@ -998,6 +1074,38 @@ impl Engine {
             1
         } else {
             self.options.jobs.unwrap_or(1)
+        }
+    }
+
+    fn reserve_job(&mut self) -> io::Result<Option<Permit>> {
+        let Some(server) = self.jobserver.clone() else {
+            return Ok(None);
+        };
+        loop {
+            if !self.parallel_jobs.values().any(|job| {
+                job.continuation
+                    .permit
+                    .as_ref()
+                    .is_some_and(Permit::is_implicit)
+            }) {
+                return Ok(Some(Permit::implicit()));
+            }
+            if let Some(permit) = server.try_acquire()? {
+                return Ok(Some(permit));
+            }
+            // Local completions wake immediately. Tokens returned by another
+            // process are checked within 5 ms without changing shared FD flags.
+            match self
+                .completed_jobs
+                .recv_timeout(std::time::Duration::from_millis(5))
+            {
+                Ok(result) => self.complete_job(result),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(_) => return Err(io::Error::from(io::ErrorKind::BrokenPipe)),
+            }
+            if self.parallel_failed && !self.options.keep_going {
+                return Ok(None);
+            }
         }
     }
 
@@ -1652,6 +1760,20 @@ impl Engine {
         if self.parallel_failed && !self.options.keep_going {
             return Execution::failure(false, Cleanup::None);
         }
+        let permit = if parallel {
+            match self.reserve_job() {
+                Ok(permit) => permit,
+                Err(error) => {
+                    self.fatal(None, format!("jobserver: {}", os_error(&error)).as_bytes());
+                    return Execution::fatal(false);
+                }
+            }
+        } else {
+            None
+        };
+        if self.parallel_failed && !self.options.keep_going {
+            return Execution::failure(false, Cleanup::None);
+        }
         let mut variables = match self.target_variables(target) {
             Ok(variables) => variables,
             Err(error) => {
@@ -1688,6 +1810,7 @@ impl Engine {
                     .values()
                     .any(|job| job.continuation.stdin_owner),
                 environment: None,
+                permit,
             },
             phony,
             before,
@@ -1711,6 +1834,7 @@ impl Engine {
             one_shell,
             stdin_owner,
             mut environment,
+            permit,
         } = state;
         let variables = &mut variables;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
@@ -2001,16 +2125,24 @@ impl Engine {
                 let name = target.to_vec();
                 let executable = program.clone();
                 let first = stdin_owner;
+                let jobserver = self.jobserver.clone();
                 let worker =
                     std::thread::Builder::new()
                         .name("rmake-job".into())
                         .spawn(move || {
                             let result = launch_child(&executable, &child, |mut command| {
+                                if let Some(server) = &jobserver {
+                                    server.configure_child(&mut command, force);
+                                }
                                 if !first {
                                     command.stdin(std::process::Stdio::null());
                                 }
                                 command.status()
                             });
+                            // Completion must imply that the worker has released
+                            // its jobserver owner, so process exit cannot race
+                            // the last FIFO unlink against thread teardown.
+                            drop(jobserver);
                             let _ = sender.send((name, result));
                         });
                 if let Err(error) = worker {
@@ -2033,13 +2165,19 @@ impl Engine {
                             one_shell,
                             stdin_owner,
                             environment,
+                            permit,
                         },
                     },
                 );
                 return Execution::success(true);
             }
             self.wait_all_jobs();
-            let result = launch_status(&program, &child);
+            let result = launch_child(&program, &child, |mut command| {
+                if let Some(server) = &self.jobserver {
+                    server.configure_child(&mut command, force);
+                }
+                command.status()
+            });
             self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();
             flow.attempted(launched);
@@ -2255,10 +2393,6 @@ fn copy_environment(source: &Command, destination: &mut Command) {
 /// Keep the exact executable that returned ENOEXEC. Re-searching using file mode
 /// bits is incorrect: an earlier PATH entry can have an execute bit yet deny the
 /// current user execution. Only the kernel's actual exec result decides that.
-fn launch_status(program: &[u8], template: &Command) -> io::Result<std::process::ExitStatus> {
-    launch_child(program, template, |mut command| command.status())
-}
-
 pub(crate) fn launch_child<T>(
     program: &[u8],
     template: &Command,

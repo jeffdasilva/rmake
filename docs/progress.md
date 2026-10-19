@@ -1315,3 +1315,16 @@ configuration still evaluates per command. Stdin ownership survives continuation
 Added 24 required fixtures and one pending GNU fatal-resumption case. The corpus
 contains 2,101 cases: 2,088 required and 13 pending. See
 [local parallelism](local-parallelism.md) for boundaries and validation.
+
+## Shared Linux jobservers
+
+FIFO and pipe jobservers now share a concurrency limit with recursive GNU/rmake
+children in either direction. Permits remain attached to whole recipe
+continuations and return on ordinary completion/error paths. Added unavailable
+server diagnostics, explicit-child reset handling, owned/borrowed resource
+lifecycle and recursive-only pipe descriptor inheritance. The mixed-engine
+campaign is a top-level Makefile/CI gate with 61 checks per run.
+Added 15 original differential fixtures, six Linux adapter tests, a CLI transport
+case, and three independent tooling-anchor tests. The corpus has 2,116 cases:
+2,103 required and 13 pending. See [jobservers](jobserver.md) for precise coverage,
+procfs/resource assumptions, and unfinished signal/load/output-sync behavior.

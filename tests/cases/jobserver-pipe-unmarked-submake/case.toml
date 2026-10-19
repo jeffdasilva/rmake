@@ -1,0 +1,12 @@
+id = "jobserver-pipe-unmarked-submake"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "jobserver-pipe-unmarked-submake"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3", "--jobserver-style=pipe", "CHILD=make"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c640a"
+stderr_hex = "6d616b655b315d3a207761726e696e673a206a6f6273657276657220756e617661696c61626c653a207573696e67202d6a312e202041646420272b2720746f20706172656e74206d616b652072756c652e0a"

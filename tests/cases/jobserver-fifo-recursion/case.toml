@@ -1,0 +1,12 @@
+id = "jobserver-fifo-recursion"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "jobserver-fifo-recursion"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3", "--jobserver-style=fifo"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f6b656e733a320a636f6d706c657465640a"
+stderr_hex = ""

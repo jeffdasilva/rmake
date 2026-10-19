@@ -17,16 +17,16 @@ command queue, target variables, automatic variables, export snapshot, stdin
 ownership and recipe flow. A successful or ignored child resumes that state; an
 unignored failure stops the target. Already-running targets finish their queued
 commands after another target fails. Workers still own only one prepared command.
-This is not yet a complete GNU scheduler or shared jobserver implementation.
+Shared FIFO and pipe jobservers are implemented; see [jobservers](jobserver.md)
+for cross-engine validation and remaining scheduler boundaries.
 
 Recursive children receive command-line bindings through MAKEFLAGS/MAKEOVERRIDES,
 including escaped spaces, backslashes and dollars. Child arguments take precedence;
 clearing MAKEOVERRIDES stops command-line-origin transport. Inherited scheduling
-without a shared jobserver is conservative and serial, avoiding independent
-nested pools that multiply resource use. Explicit child job options are honored.
-General expression evaluation in imported MAKEFLAGS, jobserver protocol/FIFO
-interoperability, load limiting, output synchronization and complete signal
-behavior remain follow-up work.
+joins the parent's shared pool, including GNU parents/children. Explicit child job
+options reset that mode. Unavailable inherited servers fall back to serial.
+General expression evaluation in imported MAKEFLAGS, load limiting, output
+synchronization and complete signal behavior remain follow-up work.
 
 The initial local-pool validation added 28 original differential fixtures and promotes five existing
 fixtures. The new two-process barrier cannot pass under serial execution. A
@@ -70,6 +70,6 @@ across child-command boundaries. The full mode matrix and stateful gates pass.
 One additional pending case records GNU's fatal expansion during parallel recipe
 resumption. GNU 4.4.1 prints an extra wait/ECHILD error; its default FIFO variant
 also leaks a PID-named FIFO. The corpus uses GNU's pipe style to keep that oracle
-observation reproducible; rmake has not implemented that diagnostic path/protocol
-option. No leaked FIFO is reproduced or normalized away. Total corpus: 2,101
+observation reproducible. The pipe protocol option is now implemented; the GNU
+fatal-resumption diagnostic path remains pending. No leaked FIFO is reproduced or normalized away. Total corpus: 2,101
 cases, with 2,088 required passes and 13 pending mismatches.

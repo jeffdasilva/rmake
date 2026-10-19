@@ -1,0 +1,15 @@
+id = "jobserver-inherited-missing-fifo"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "jobserver-inherited-missing-fifo"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFLAGS = "-j --jobserver-auth=fifo:absent"
+
+[expected]
+exit_code = 0
+stdout_hex = "73657269616c0a"
+stderr_hex = "6d616b653a2063616e6e6f74206f70656e206a6f6273657276657220616273656e743a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a207761726e696e673a206a6f6273657276657220756e617661696c61626c653a207573696e67202d6a312e202041646420272b2720746f20706172656e74206d616b652072756c652e0a"

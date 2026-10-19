@@ -50,9 +50,12 @@ fn main() -> ExitCode {
         println!("  -B / -q    Always rebuild / query whether recipes are needed");
         println!("  -i / -k    Ignore recipe errors / continue independent targets");
         println!("  -t / -e    Touch targets / let environment override file variables");
-        println!("  -rR / -jN  Disable built-ins / set local job limit");
-        println!("\nDevelopment build: rule resolution, dynamic expansion and local jobs.");
-        println!("Implicit-rule chaining and shared jobserver support are not implemented.");
+        println!("  -rR / -jN  Disable built-ins / set shared local job limit");
+        println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
+        println!("\nDevelopment build: GNU Make compatibility is incomplete.");
+        println!(
+            "Grouped outputs, output synchronization and complete signal handling remain unfinished."
+        );
         return ExitCode::SUCCESS;
     }
     match engine::Engine::new(options, program.clone(), &invocation) {
