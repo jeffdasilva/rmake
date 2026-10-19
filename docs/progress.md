@@ -1304,3 +1304,14 @@ available through the top-level Makefile; CI verifies the data against the pinne
 oracle. See [built-ins](builtins.md) for provenance and remaining boundaries.
 Added 66 original differential cases and three tooling tests. All 2,064 required
 cases pass; 12 pending mismatches remain, out of 2,076 total cases.
+
+## Parallel recipe continuations
+
+Complete ordinary recipes and recursive invocations can now run concurrently,
+with interpreter-owned continuation state and one slot retained per target.
+Success and ignored failures resume the next command; unignored failures stop
+that target. Export environments are frozen once per target, while shell
+configuration still evaluates per command. Stdin ownership survives continuation.
+Added 24 required fixtures and one pending GNU fatal-resumption case. The corpus
+contains 2,101 cases: 2,088 required and 13 pending. See
+[local parallelism](local-parallelism.md) for boundaries and validation.
