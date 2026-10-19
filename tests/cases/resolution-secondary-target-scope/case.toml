@@ -1,0 +1,12 @@
+id = "resolution-secondary-target-scope"
+requirement = "rules.secondary"
+candidate = "required"
+description = "resolution-secondary-target-scope"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "72696768740a"
+stderr_hex = ""

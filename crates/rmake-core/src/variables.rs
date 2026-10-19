@@ -2638,7 +2638,7 @@ fn substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, ExpandErro
     Ok(output)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Pattern {
     bytes: Vec<u8>,
     wildcard: Option<usize>,
@@ -2707,7 +2707,7 @@ impl Pattern {
         }
     }
 
-    fn replace(&self, stem: &[u8]) -> Result<Vec<u8>, ExpandError> {
+    pub(crate) fn replace(&self, stem: &[u8]) -> Result<Vec<u8>, ExpandError> {
         if let Some(position) = self.wildcard {
             let mut output = self.bytes[..position].to_vec();
             push(&mut output, stem)?;

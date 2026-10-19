@@ -1,0 +1,12 @@
+id = "resolution-static-mismatch"
+requirement = "rules.implicit"
+candidate = "required"
+description = "resolution-static-mismatch"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f64643a3a6f64640a"
+stderr_hex = "4d616b6566696c653a313a2074617267657420276f64642720646f65736e2774206d617463682074686520746172676574207061747465726e0a"

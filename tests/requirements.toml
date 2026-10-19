@@ -248,28 +248,30 @@ id = "rules.explicit"
 title = "Explicit rules, defaults and update order"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 6
+candidate_required = 13
 reference = "https://www.gnu.org/software/make/manual/html_node/Rules.html"
-fixture_count = 7
-cases = ["rule-default-first", "rule-default-goal-override", "rule-explicit-requested-goal", "rule-prerequisite-order", "rule-shared-prerequisite-once", "rule-empty-forced-target", "rule-double-colon"]
+fixture_count = 13
+cases = ["rule-default-first", "rule-default-goal-override", "rule-explicit-requested-goal", "rule-prerequisite-order", "rule-shared-prerequisite-once", "rule-empty-forced-target", "rule-double-colon", "resolution-double-existing-unconditional", "resolution-double-both-missing", "resolution-double-prerequisite-union", "resolution-double-mixed-single-first", "resolution-double-mixed-double-first", "resolution-double-include-no-loop"]
 
 [[requirements]]
 id = "rules.implicit"
 title = "Pattern rules, selection and directory search"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 31
 reference = "https://www.gnu.org/software/make/manual/html_node/Implicit-Rules.html"
-fixture_count = 4
-cases = ["rule-pattern-basic", "rule-pattern-specificity", "rule-static-pattern", "rule-vpath-search"]
+fixture_count = 31
+cases = ["rule-pattern-basic", "rule-pattern-specificity", "rule-static-pattern", "rule-vpath-search", "resolution-pattern-alternatives", "resolution-pattern-specific-first", "resolution-pattern-declaration-order", "resolution-pattern-order-only", "resolution-pattern-explicit-prerequisite", "resolution-pattern-empty-recipe", "resolution-pattern-cancellation", "resolution-pattern-replacement", "resolution-pattern-directory-stem", "resolution-pattern-slash-target", "resolution-pattern-empty-stem", "resolution-pattern-not-default", "resolution-static-normal-order", "resolution-static-fixed-prerequisite", "resolution-static-recipe-literal-dollar", "resolution-vpath-selective", "resolution-vpath-colon", "resolution-vpath-declaration-order", "resolution-vpath-clear-pattern", "resolution-vpath-clear-all", "resolution-vpath-local-wins", "resolution-vpath-pattern-input", "resolution-vpath-subdirectory", "resolution-static-mismatch", "resolution-static-missing-pattern", "resolution-static-multiple-patterns", "resolution-static-no-percent"]
 
 [[requirements]]
 id = "rules.secondary"
 title = "Secondary prerequisite expansion"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 7
 reference = "https://www.gnu.org/software/make/manual/html_node/Secondary-Expansion.html"
-fixture_count = 2
-cases = ["rule-secondary-expansion", "rule-secondary-automatic-target"]
+fixture_count = 7
+cases = ["rule-secondary-expansion", "rule-secondary-automatic-target", "resolution-secondary-order-only", "resolution-secondary-target-scope", "resolution-secondary-info-timing", "resolution-secondary-automatic-prior", "resolution-secondary-automatic-first"]
 
 [[requirements]]
 id = "rules.special"
