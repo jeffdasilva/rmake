@@ -34,12 +34,13 @@ required. Bounded marker handshakes prove overlap; these are functional tests,
 not speed thresholds. Exact output, exit status and filesystem observations are
 compared with pinned GNU Make 4.4.1 without normalization.
 
-Two new pending fixtures expose remaining synchronous paths: a double-colon
-branch and the missing-intermediate inspection can still wait before an
-independent sibling is visited. These are follow-up scheduling work. The corpus
-has 2,221 cases: 2,206 required and 15 pending. Pending counts are not a complete
-inventory of missing GNU behavior; grouped outputs, archive rules, implicit
-secondary expansion, signals, load limits and output synchronization also remain.
+At introduction, two new pending fixtures exposed synchronous double-colon and
+missing-intermediate paths. [Double-colon continuations](double-colon-scheduling.md)
+now resolve the first boundary. Missing-intermediate inspection remains follow-up
+work. The current corpus has 2,233 cases: 2,219 required and 14 pending. Pending
+counts are not a complete inventory of missing GNU behavior; grouped outputs,
+archive rules, implicit secondary expansion, signals, load limits and output
+synchronization also remain.
 
 The rule-frame implementation and all fixtures are original Rust/Makefile work;
 no upstream implementation or test material was copied for this change.
