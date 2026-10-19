@@ -1103,3 +1103,28 @@ Median paired after/before ratios were 1.004, 1.000 and 1.008. These unisolated
 wall-time observations establish no speed improvement; CPU/RSS/I/O and broader
 release validation remain open. Complete dynamic input, rule families, recursive
 options, parallel execution and full GNU compatibility are still unfinished.
+
+## Assignments before directive dispatch — 2026-10-18
+
+Lexically recognized assignments now precede conditional and directive dispatch.
+Keyword-shaped names such as `ifdef`, `define` and `undefine` retain ordinary
+variable behavior. Ignored assignments have no name/value effects and do not
+alter the conditional stack; active assignments close the preceding declaration
+before their immediate effects. The [assignment notes](assignment-syntax.md)
+record the independently authored correction and its GNU source reference.
+
+Forty-two original required fixtures were added. Full `make ci` passed with
+351 Rust tests, 240 tooling tests and all existing generated, fault, stateful and
+self-host gates. The curated corpus contains 1,466 cases: 1,426 required exact
+matches and 40 observed pending mismatches, with no failures or unexpected passes.
+An original 324-program matrix across eighteen keywords, six operators and three
+spacings now matches exactly, resolving its 96 previously observed differences.
+
+Against preceding production source `1fc55d7`, 31 alternating release pairs after
+three warmups measured before/after medians of 0.678/0.678 ms for tiny no-op,
+20.653/20.957 ms for 10,000 targets and 4.509/4.263 ms for 5,000 assignments.
+Median paired after/before ratios were 1.001, 1.027 and 0.952. The selected
+assignment workload improved by about 5% in this run; the graph workload was
+slower. These unisolated wall-time observations have no confidence intervals or
+CPU/RSS/I/O measurements and establish no general speedup. Directive whitespace,
+definition grammar and later compatibility milestones remain separate work.

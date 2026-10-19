@@ -50,12 +50,30 @@ used to tokenize assignments. File lines that are not assignments retain their
 normal rule/directive handling; CLI arguments become goals. Effects produced by
 those later paths are observable and covered independently.
 
+## Directive-shaped variable names
+
+Assignment recognition precedes conditional and directive dispatch. Thus
+`ifdef = value`, `define := value` and `undefine += value` assign variables rather
+than opening a conditional/definition or deleting a binding. This also applies
+inside ignored branches: recognized assignments are skipped without expanding
+names or values and without changing the conditional stack. Active assignments
+close the preceding rule before their expansion effects.
+
+Forty-two original fixtures cover keyword names, recursive/simple metadata,
+ignored and active conditional stacks, effects and later genuine directives.
+A separate 324-program matrix crosses eighteen keywords, six operators and
+three spacings; all comparisons match the pinned oracle after the priority fix.
+GNU Make 4.4.1 `src/read.c` (`parse_var_assignment`, the assignment-first path in
+`eval`) informed this independently authored dispatch correction. This later
+source-informed change is separate from the original scanner investigation below.
+
 ## Remaining boundaries and provenance
 
-Target-specific and other colon-rule syntax, generic command-line binding replay,
-and actual shell assignments remain separate compatibility work. The
+Broader colon-rule grammar, recursive option transport and actual shell
+assignments remain separate compatibility work. The
 [export-binding notes](export-bindings.md) describe name-list materialization and
-its remaining environment boundaries. Passing token fixtures does not imply
+its environment boundaries. The later [command replay slice](command-replay.md)
+implements post-read binding replay within its documented scope. Passing token fixtures does not imply
 complete support for these features or all `define` and directive combinations.
 
 The scanner and tests were independently authored from original executable probes

@@ -1,0 +1,11 @@
+id = "keyword-variable-undefine-name-and-undefine-directive"
+requirement = "variables.keyword-names"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original assignment/directive precedence case: undefine name and undefine directive."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b686561647c756e646566696e65645d0a"
+stderr_hex = ""
