@@ -787,7 +787,10 @@ impl Engine {
                 {
                     continue;
                 }
-                self.resolve_implicit(&makefile.name);
+                if !self.resolve_implicit(&makefile.name) {
+                    self.remove_intermediates();
+                    return 2;
+                }
                 if !self.database.rules.contains_key(&makefile.name)
                     && (!makefile.missing || makefile.optional)
                 {
@@ -1219,19 +1222,24 @@ impl Engine {
             })
     }
 
-    fn resolve_implicit(&mut self, target: &[u8]) {
+    #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
+    fn resolve_implicit(&mut self, target: &[u8]) -> bool {
         let existing = self.database.rules.get(target).cloned();
         if existing
             .as_ref()
             .is_some_and(|rule| rule.recipes.is_some() || rule.double_colon.is_some())
         {
-            return;
+            return true;
         }
         let mut budget = 100_000;
         let mut plan = self.implicit_plan(target, &mut Vec::new(), false, &mut budget);
-        if plan.is_none() {
+        if plan.is_none() && budget != 0 {
             budget = 100_000;
             plan = self.implicit_plan(target, &mut Vec::new(), true, &mut budget);
+        }
+        if plan.is_none() && budget == 0 {
+            self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
+            return false;
         }
         if let Some(plan) = plan {
             for (name, mut rule) in plan {
@@ -1261,6 +1269,7 @@ impl Engine {
                 },
             );
         }
+        true
     }
 
     /// Search is transactional: a rejected branch never installs rules or marks
@@ -1273,7 +1282,10 @@ impl Engine {
         compatibility: bool,
         budget: &mut usize,
     ) -> Option<Vec<(Vec<u8>, Rule)>> {
-        if active.len() >= 128 || *budget == 0 {
+        if active.len() >= 128 {
+            *budget = 0;
+        }
+        if *budget == 0 {
             return None;
         }
         let candidates = self.database.implicit_candidates_excluding(target, active);
@@ -1409,8 +1421,12 @@ impl Engine {
             };
         }
         let phony = self.special(b".PHONY", target, false);
-        if !phony {
-            self.resolve_implicit(target);
+        if !phony && !self.resolve_implicit(target) {
+            return Outcome {
+                failed: true,
+                fatal: true,
+                ..Outcome::default()
+            };
         }
         let resolved = if phony { None } else { self.find_vpath(target) };
         let before = resolved.as_ref().map(|(_, time)| *time);
@@ -2500,6 +2516,51 @@ pub(crate) fn launch_child<T>(
 mod tests {
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn exhausted_implicit_search_cannot_install_a_default_recipe() {
+        struct Directory(std::path::PathBuf);
+        impl Drop for Directory {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let nonce = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("rmake-search-limit-{}-{nonce}", std::process::id()));
+        fs::create_dir(&path).unwrap();
+        let directory = Directory(path);
+        let target = directory.0.join("input.p0");
+        let target = target.as_os_str().as_bytes();
+        let mut engine = Engine::new(
+            Options {
+                no_rules: true,
+                no_variables: true,
+                ..Options::default()
+            },
+            b"rmake".to_vec(),
+            OsStr::new("rmake"),
+        )
+        .unwrap();
+        let mut source = b".DEFAULT:;echo wrong-recipe\n".to_vec();
+        for index in 0..130 {
+            source.extend_from_slice(format!("%.p{index}: %.p{};\n", index + 1).as_bytes());
+        }
+        source.extend_from_slice(b"%.p130:;\n");
+        engine.database.read(&source, b"Makefile").unwrap();
+        let result = engine.build(target, None, 0);
+        assert!(result.failed && result.fatal && !result.ran);
+        assert!(!engine.database.rules.contains_key(target));
+        assert!(fs::read_dir(&directory.0).unwrap().next().is_none());
+        assert!(
+            engine.database.rules[b".DEFAULT".as_slice()]
+                .recipes
+                .is_some()
+        );
+    }
 
     #[test]
     fn makelevel_uses_raw_decimal_prefix_with_a_distinct_first_byte_minus_guard() {

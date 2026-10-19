@@ -40,3 +40,9 @@ Reference: GNU Make 4.4.1 `src/implicit.c` was consulted for the use of the sele
 implicit pattern when inheriting precious/not-intermediate flags. The fallback
 and cancellation behavior was established by independently authored executable
 probes. No upstream implementation code or tests were copied.
+
+A search that reaches its work/depth limit is not eligible for default fallback.
+It now produces a fatal resource-limit outcome instead of selecting `.DEFAULT`.
+The regression covers a chain beyond the implementation depth bound and verifies
+that no default recipe is installed or run. Known resource bounds remain a limit
+on full GNU equivalence, while failure cannot choose an unproven build recipe.
