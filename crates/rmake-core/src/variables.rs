@@ -1220,6 +1220,11 @@ impl Expansion<'_, '_> {
         } else {
             return Ok(Vec::new());
         };
+        if variable.flavor == Flavor::Simple {
+            // Simple values need neither definition context nor a temporary
+            // owned binding. Copy their bytes once, directly from the store.
+            return Ok(variable.value.clone());
+        }
         let variable = variable.clone();
         self.selected_variable(name, &variable, layer)
     }

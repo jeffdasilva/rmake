@@ -98,10 +98,12 @@ against the verified oracle, checking exact output before reporting times. These
 early workloads are measurement tools, not evidence of complete compatibility or
 a general speed advantage.
 Use `BENCH_SUITE=word-spans` for six large-list workloads covering selected ranges,
-full scans, `let` remainders and literal `patsubst`; `BENCH_SUITE=all` includes both
-suites. The default `core` suite retains the original three workloads.
+full scans, `let` remainders and literal `patsubst`. The default `core` suite
+retains the original three workloads; `BENCH_SUITE=all` includes every suite.
 `BENCH_SUITE=wildcard` measures cold, repeated, complex and literal queries over
 1,000 input files prepared outside the timed invocations.
+`BENCH_SUITE=bindings` measures repeated reads of large simple global and local
+values, with eight references per assignment and five replacement assignments.
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The serial engine can drive the repository's `build` and `check-core` targets:

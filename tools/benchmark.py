@@ -57,6 +57,20 @@ def selected_workloads(suite):
         yield from span_workloads()
     if suite in ("wildcard", "all"):
         yield from wildcard_workloads()
+    if suite in ("bindings", "all"):
+        yield from binding_workloads()
+
+
+def binding_workloads():
+    """Repeated reads expose value-copy costs that a single lookup can hide."""
+    for size in (262144, 1048576):
+        for local in (False, True):
+            refs = b"$(X)" * 8 if local else b"$(TEXT)" * 8
+            expression = b"$(foreach X,$(TEXT)," + refs + b")" if local else refs
+            source = (b"TEXT := " + b"x" * size + b"\n"
+                      + (b"OUT := " + expression + b"\n") * 5
+                      + b"$(info $(words $(OUT)))\nall:;@:\n")
+            yield f"simple-{'local' if local else 'global'}-{size}", source
 
 
 def wildcard_workloads():
@@ -96,7 +110,7 @@ def main():
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
