@@ -15,3 +15,6 @@ tests/cases/directive-space-*/Makefile -text whitespace=-blank-at-eol,-blank-at-
 # Preserve complete/partial BOMs, NULs and original line endings.
 tests/cases/bom-reader-*/*.mk -text
 tests/cases/bom-reader-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Conditional fixtures distinguish literal control bytes from expansion output.
+tests/cases/conditional-space-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

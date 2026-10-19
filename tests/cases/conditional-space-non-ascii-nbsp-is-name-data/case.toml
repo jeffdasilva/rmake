@@ -1,0 +1,14 @@
+id = "conditional-space-non-ascii-nbsp-is-name-data"
+requirement = "syntax.conditional-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original conditional operand/token/effect boundary: non ascii nbsp is name data."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"WS" = "\u00a0"
+
+[expected]
+exit_code = 0
+stdout_hex = "747275650a"
+stderr_hex = ""

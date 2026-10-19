@@ -1,0 +1,14 @@
+id = "conditional-space-ignored-name-has-no-effects"
+requirement = "syntax.conditional-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original conditional operand/token/effect boundary: ignored name has no effects."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"WS" = "\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "646f6e650a"
+stderr_hex = ""

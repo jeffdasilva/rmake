@@ -1202,3 +1202,29 @@ after/before ratios were 1.006, 1.001 and 0.993. These unisolated wall-time
 observations establish no speed improvement and have no confidence intervals or
 CPU/RSS/I/O coverage. Broader syntax, dynamic semantics, rule resolution, runtime
 and release validation remain incomplete.
+
+## Conditional operand and name whitespace — 2026-10-18
+
+Conditional name validation now keeps GNU's first-token rule after expansion,
+including invalid leading separators, valid trailing separators and literal
+non-ASCII name data. Parenthesized comparisons trim only raw left-side blanks,
+skip raw right-side C whitespace and preserve expanded/trailing operand bytes.
+Quoted-operand gaps and final separators use their own C-whitespace handling.
+The [conditional notes](conditional-whitespace.md) record phase ordering, source
+references and the still-open broader grammar scope.
+
+One hundred thirty original required fixtures were added. Full `make ci` passed
+with 351 Rust tests, 240 tooling tests and all existing generated, fault, stateful
+and self-host gates. The curated corpus contains 1,739 cases: 1,700 required exact
+matches and 39 observed pending mismatches, with no failures or unexpected passes.
+The 122-program conditional operand matrix matches independently authored anchors
+and both engines, resolving 26 prior differences. Eight additional fixtures
+preserve effect/error ordering, skipped branches and non-ASCII behavior.
+
+Against source `a97640a`, 31 alternating release pairs after three warmups measured
+before/after medians of 0.687/0.703 ms for tiny no-op, 21.645/21.708 ms for 10,000
+targets and 4.360/4.429 ms for 5,000 assignments. Median paired after/before
+ratios were 1.020, 0.993 and 1.014. These unisolated wall-time observations
+establish no performance improvement and lack confidence intervals or CPU/RSS/I/O
+measurements. General definition grammar, shell/eval effects, includes/restarts,
+complete rule resolution, parallel runtime and release validation remain open.

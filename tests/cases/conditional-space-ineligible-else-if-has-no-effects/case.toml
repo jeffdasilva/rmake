@@ -1,0 +1,14 @@
+id = "conditional-space-ineligible-else-if-has-no-effects"
+requirement = "syntax.conditional-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original conditional operand/token/effect boundary: ineligible else if has no effects."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"WS" = "\u000b"
+
+[expected]
+exit_code = 0
+stdout_hex = "63686f73656e0a"
+stderr_hex = ""

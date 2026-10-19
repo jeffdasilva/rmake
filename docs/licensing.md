@@ -49,6 +49,8 @@ The [directive whitespace notes](directive-whitespace.md) record active and
 ignored definition-reader boundaries and diagnostic phases for the later slice.
 The [initial-BOM notes](initial-bom.md) record the read/parse phase reference
 used for independently authored byte-prefix handling.
+The [conditional whitespace notes](conditional-whitespace.md) record name-token,
+operand and expansion-order references used by the independent conditional fix.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.

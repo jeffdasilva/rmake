@@ -1,0 +1,11 @@
+id = "conditional-space-ifneq-right-start-sp"
+requirement = "syntax.conditional-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original conditional operand/token/effect boundary: ifneq right start sp."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "66616c73650a"
+stderr_hex = ""

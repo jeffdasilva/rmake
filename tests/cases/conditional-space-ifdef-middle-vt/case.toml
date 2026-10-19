@@ -1,0 +1,14 @@
+id = "conditional-space-ifdef-middle-vt"
+requirement = "syntax.conditional-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original conditional operand/token/effect boundary: ifdef middle vt."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"WS" = "\u000b"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a202a2a2a20696e76616c69642073796e74617820696e20636f6e646974696f6e616c2e202053746f702e0a"

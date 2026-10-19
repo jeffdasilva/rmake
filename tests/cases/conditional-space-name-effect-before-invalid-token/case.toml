@@ -1,0 +1,14 @@
+id = "conditional-space-name-effect-before-invalid-token"
+requirement = "syntax.conditional-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original conditional operand/token/effect boundary: name effect before invalid token."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"WS" = "\u000b"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a206e616d650a4d616b6566696c653a313a202a2a2a20696e76616c69642073796e74617820696e20636f6e646974696f6e616c2e202053746f702e0a"
