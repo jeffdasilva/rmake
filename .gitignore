@@ -12,5 +12,6 @@ __pycache__/
 *.swp
 *.swo
 *~
+!/tests/cases/wildcard-escaped-tilde/~
 .DS_Store
 Thumbs.db
