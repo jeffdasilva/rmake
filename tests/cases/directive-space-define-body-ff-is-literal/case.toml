@@ -1,0 +1,11 @@
+id = "directive-space-define-body-ff-is-literal"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original directive/body whitespace boundary: define body ff is literal."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b646566696e650c696e6e65725d0a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "directive-space-leading-vt-nested-define"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original directive/body whitespace boundary: leading vt nested define."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b0b646566696e6520696e6e65720a626f64790a656e6465665d0a"
+stderr_hex = ""

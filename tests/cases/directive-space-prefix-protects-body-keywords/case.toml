@@ -1,0 +1,11 @@
+id = "directive-space-prefix-protects-body-keywords"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original directive/body whitespace boundary: prefix protects body keywords."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b3e646566696e6520696e6e65720a3e656e6465662065787472615d0a"
+stderr_hex = ""

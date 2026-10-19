@@ -399,7 +399,8 @@ fn target_assignment(mut bytes: &[u8]) -> Option<TargetAssignment<'_>> {
 
 // Assignment syntax uses C whitespace at the start of names/values, but only
 // space and tab at the end of raw names. Other trailing bytes name the variable.
-// This deliberately does not alter directive or physical-line whitespace rules.
+// Directive tokenization shares this leading rule; body keyword boundaries and
+// physical-line handling remain separate.
 fn assignment_start(bytes: &[u8]) -> &[u8] {
     &bytes[bytes
         .iter()
@@ -476,8 +477,28 @@ pub fn assignment(bytes: &[u8]) -> Option<AssignmentSpec<'_>> {
 fn directive<'a>(bytes: &'a [u8], keyword: &[u8]) -> Option<&'a [u8]> {
     bytes
         .strip_prefix(keyword)
-        .filter(|rest| rest.is_empty() || rest[0].is_ascii_whitespace())
-        .map(trim_start)
+        .filter(|rest| rest.is_empty() || is_c_space(rest[0]))
+        .map(assignment_start)
+}
+
+fn is_c_space(byte: u8) -> bool {
+    byte.is_ascii_whitespace() || byte == 0x0b
+}
+
+fn directive_keyword(bytes: &[u8]) -> &[u8] {
+    bytes
+        .split(|byte| is_c_space(*byte))
+        .next()
+        .unwrap_or_default()
+}
+
+/// Define bodies skip leading C whitespace, but their nesting keywords require
+/// space/tab boundaries. Other whitespace after the keyword remains body data.
+fn body_directive<'a>(bytes: &'a [u8], keyword: &[u8]) -> Option<&'a [u8]> {
+    assignment_start(bytes)
+        .strip_prefix(keyword)
+        .filter(|rest| rest.is_empty() || matches!(rest[0], b' ' | b'\t'))
+        .map(assignment_start)
 }
 
 #[derive(Clone, Copy)]
@@ -905,7 +926,7 @@ impl Database {
             // Assignment values may contain semicolons. Rule inline recipes
             // retain shell comments, so comment stripping happens separately.
             let normal = strip_comment(&line.bytes);
-            let text = trim_start(&normal);
+            let text = assignment_start(&normal);
             if text.is_empty() {
                 continue;
             }
@@ -919,7 +940,7 @@ impl Database {
                 }
                 continue;
             }
-            let keyword = words(text).next().unwrap_or_default();
+            let keyword = directive_keyword(text);
             if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"].contains(&keyword) {
                 let yes = active && self.condition(text, &location, context)?.unwrap_or(false);
                 conditions.push(Conditional {
@@ -950,7 +971,7 @@ impl Database {
                     top.otherwise = true;
                     eligible
                 } else if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"]
-                    .contains(&words(rest).next().unwrap_or_default())
+                    .contains(&directive_keyword(rest))
                 {
                     eligible && self.condition(rest, &location, context)?.unwrap_or(false)
                 } else {
@@ -993,6 +1014,11 @@ impl Database {
                 let mut warning_line = location.line;
                 loop {
                     let Some(part) = reader.next_line(prefix, false) else {
+                        if !active {
+                            // Ignored definitions are skipped by the outer
+                            // reader, whose EOF error is the open conditional.
+                            break;
+                        }
                         return Err(ParseError {
                             unlocated: false,
                             location,
@@ -1005,19 +1031,41 @@ impl Database {
                             context,
                             Location {
                                 file: file.to_vec(),
-                                line: warning_line,
+                                line: if active { warning_line } else { part.line },
                             },
                             "warning: NUL character seen; rest of line ignored".into(),
                         );
                     }
                     warning_line += part.end_line - part.line + 1;
                     last_line = part.end_line;
-                    let token = trim(&part.bytes);
+                    if !active {
+                        // Ignored definitions have no nesting counter: the
+                        // first standalone endef resumes conditional reading.
+                        let normal = strip_comment(&part.bytes);
+                        if (part.bytes.first() != Some(&prefix) || declaration.targets.is_empty())
+                            && directive(assignment_start(&normal), b"endef")
+                                .is_some_and(|rest| rest.is_empty())
+                        {
+                            break;
+                        }
+                        continue;
+                    }
                     if part.bytes.first() != Some(&prefix) {
-                        if directive(token, b"define").is_some() {
+                        if body_directive(&part.bytes, b"define").is_some() {
                             depth += 1;
                         }
-                        if directive(token, b"endef").is_some() {
+                        if let Some(rest) = body_directive(&part.bytes, b"endef") {
+                            if !assignment_start(&strip_comment(rest)).is_empty() {
+                                record_warning(
+                                    &mut self.warnings,
+                                    context,
+                                    Location {
+                                        file: file.to_vec(),
+                                        line: part.end_line,
+                                    },
+                                    "extraneous text after 'endef' directive".into(),
+                                );
+                            }
                             depth -= 1;
                             if depth == 0 {
                                 break;

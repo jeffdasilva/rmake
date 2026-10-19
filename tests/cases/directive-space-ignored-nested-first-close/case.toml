@@ -1,0 +1,11 @@
+id = "directive-space-ignored-nested-first-close"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Ignored define body termination, effect suppression, source location and conditional EOF boundary."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "646f6e650a"
+stderr_hex = ""

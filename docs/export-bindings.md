@@ -66,14 +66,12 @@ goal. Valid assignment and qualified `undefine` forms still use their modifiers.
 Export behavior is still incomplete. Pending original fixtures retain these
 distinct gaps:
 
-- A vertical tab immediately after the directive keyword is not yet recognized
-  as a directive separator. This differs from whitespace inside an expanded list
-  or after an already recognized keyword separator.
 - Additional directive grammar and ordering of effects from multiple exported
   variables require compatibility work.
-- Repeated targets without a recipe currently emit a warning that GNU omits.
-  The broader modifier campaign exposed this existing rule-diagnostic gap; an
-  exact pending graph fixture retains it.
+
+The later [directive-whitespace slice](directive-whitespace.md) recognizes the
+vertical-tab keyword boundary. The [rule-warning slice](rule-warnings.md) resolves
+the earlier repeated-target warning gap and its declaration timing.
 
 The harness keeps metadata-only fixtures separate from recipe-launch fixtures;
 it does not remove child execution from an existing failing case to make it pass.
