@@ -2519,6 +2519,22 @@ mod tests {
 
     #[test]
     fn exhausted_implicit_search_cannot_install_a_default_recipe() {
+        struct Directory(std::path::PathBuf);
+        impl Drop for Directory {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let nonce = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("rmake-search-limit-{}-{nonce}", std::process::id()));
+        fs::create_dir(&path).unwrap();
+        let directory = Directory(path);
+        let target = directory.0.join("input.p0");
+        let target = target.as_os_str().as_bytes();
         let mut engine = Engine::new(
             Options {
                 no_rules: true,
@@ -2529,15 +2545,16 @@ mod tests {
             OsStr::new("rmake"),
         )
         .unwrap();
-        let mut source = b"all: input.p0\n.DEFAULT:;echo wrong-recipe\n".to_vec();
+        let mut source = b".DEFAULT:;echo wrong-recipe\n".to_vec();
         for index in 0..130 {
             source.extend_from_slice(format!("%.p{index}: %.p{};\n", index + 1).as_bytes());
         }
         source.extend_from_slice(b"%.p130:;\n");
         engine.database.read(&source, b"Makefile").unwrap();
-        let result = engine.build(b"input.p0", None, 0);
+        let result = engine.build(target, None, 0);
         assert!(result.failed && result.fatal && !result.ran);
-        assert!(!engine.database.rules.contains_key(b"input.p0".as_slice()));
+        assert!(!engine.database.rules.contains_key(target));
+        assert!(fs::read_dir(&directory.0).unwrap().next().is_none());
         assert!(
             engine.database.rules[b".DEFAULT".as_slice()]
                 .recipes

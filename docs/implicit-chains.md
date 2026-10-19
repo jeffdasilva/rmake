@@ -47,6 +47,6 @@ Search-limit exhaustion is distinct from a proven failed search. The engine
 terminates with an explicit resource-limit error, including during makefile
 remaking; it cannot install or execute `.DEFAULT` as a substitute for an
 unfinished search. The private resolver result is must-use at its call sites.
-An original in-memory 131-rule regression checks the fatal build outcome,
+An original 131-rule regression in a private empty directory checks the fatal build outcome,
 absence of an installed fallback, and absence of recipe execution. This is a
 fail-safe implementation bound, not GNU equivalence for arbitrarily deep chains.
