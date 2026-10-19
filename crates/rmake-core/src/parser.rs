@@ -552,6 +552,9 @@ fn target_assignment(mut bytes: &[u8]) -> Option<TargetAssignment<'_>> {
     let mut export = None;
     loop {
         if let Some(spec) = assignment(bytes) {
+            if separator(spec.name, b';').is_some() {
+                return None;
+            }
             return Some(TargetAssignment {
                 spec,
                 origin,

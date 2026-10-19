@@ -1,0 +1,12 @@
+id = "jobs-recursion-spaces"
+requirement = "recursion.environment"
+candidate = "required"
+description = "jobs-recursion-spaces"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "TOKEN=one two"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6e652074776f7c636f6d6d616e64206c696e657c7265637572736976650a"
+stderr_hex = ""

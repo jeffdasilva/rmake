@@ -1,0 +1,12 @@
+id = "jobs-ignored-failure"
+requirement = "parallel.execution"
+candidate = "required"
+description = "jobs-ignored-failure"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j2", "-i"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "636f6d706c6574650a"
+stderr_hex = "6d616b653a205b4d616b6566696c653a323a206c6566745d204572726f722037202869676e6f726564290a"

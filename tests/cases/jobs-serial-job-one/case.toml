@@ -1,0 +1,12 @@
+id = "jobs-serial-job-one"
+requirement = "parallel.execution"
+candidate = "required"
+description = "jobs-serial-job-one"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6566740a72696768740a"
+stderr_hex = ""

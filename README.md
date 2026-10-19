@@ -106,7 +106,7 @@ retains the original three workloads; `BENCH_SUITE=all` includes every suite.
 values, with eight references per assignment and five replacement assignments.
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
-The serial engine can drive the repository's `build` and `check-core` targets:
+The engine can drive the repository's `build` and `check-core` targets:
 
 ```sh
 target/debug/rmake -rR --no-print-directory build check-core
@@ -126,6 +126,10 @@ Required/optional includes and generated makefile restarts are supported in the
 [current include slice](docs/dynamic-makefiles.md). Shell functions, `!=`, and
 `eval` now use explicit mutable interpreter state; see
 [stateful expansion](docs/stateful-expansion.md) for supported behavior and limits.
+
+Local `-jN` scheduling, `.NOTPARALLEL`, and recursive command bindings are now
+available. The [local parallelism notes](docs/local-parallelism.md) describe the
+current single-command scheduling scope and remaining jobserver work.
 
 ## Repository layout
 
