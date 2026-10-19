@@ -1,0 +1,11 @@
+id = "directive-space-endef-body-cr-is-literal"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original directive/body whitespace boundary: endef body cr is literal."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b656e6465660d696e6e65720a626f64795d0a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "directive-space-modifier-private-vt-target"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "A C-whitespace modifier boundary followed by a blank must retain assignment priority and global/target origin."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6f6e657c66696c655d0a"
+stderr_hex = ""

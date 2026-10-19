@@ -1,0 +1,11 @@
+id = "directive-space-ifndef-vt-leading-vt"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original directive/body whitespace boundary: ifndef vt leading vt."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7965730a"
+stderr_hex = ""

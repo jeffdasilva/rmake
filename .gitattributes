@@ -8,3 +8,6 @@ tests/cases/wildcard-*/*.a -text
 # Literal NUL and CRLF reader fixtures preserve their source bytes.
 tests/cases/nul-reader-*/Makefile -text
 tests/cases/rule-warning-*/Makefile -text
+
+# Directive fixtures intentionally retain control bytes next to line endings.
+tests/cases/directive-space-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

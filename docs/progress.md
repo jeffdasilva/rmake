@@ -1128,3 +1128,30 @@ assignment workload improved by about 5% in this run; the graph workload was
 slower. These unisolated wall-time observations have no confidence intervals or
 CPU/RSS/I/O measurements and establish no general speedup. Directive whitespace,
 definition grammar and later compatibility milestones remain separate work.
+
+## Directive C-whitespace and active/ignored definitions — 2026-10-18
+
+Directive dispatch now recognizes C-whitespace keyword boundaries and leading
+vertical tabs while retaining assignment-first interpretation and separate rule
+filename tokenization. Active definition bodies keep their narrower space/tab
+keyword boundaries, preserve other literal separators and emit `endef` extra-text
+warnings at the observed closing position. Ignored definitions instead follow
+standalone closure, recipe context, effect suppression and conditional EOF rules.
+The [directive whitespace notes](directive-whitespace.md) record those phases,
+remaining grammar scope and source references for the independent implementation.
+
+One hundred seventeen original fixtures were added and the export-keyword
+vertical-tab case promoted. Final full `make ci` passed with 351 Rust tests,
+240 tooling tests and all generated, fault, stateful and self-host gates. The
+curated corpus contains 1,583 cases: 1,544 required exact matches and 39 observed
+pending mismatches, with no failures or unexpected passes. Separate campaigns
+matched 160 directive/body programs, 336 ignored-definition programs, 972 keyword
+and C-separator programs, and all 2,380 modifier programs without normalization.
+
+Against preceding production source `b2e24e5`, 31 alternating release pairs after
+three warmups measured before/after medians of 0.714/0.708 ms for tiny no-op,
+22.298/22.221 ms for 10,000 targets and 4.370/4.493 ms for 5,000 assignments.
+Median paired after/before ratios were 0.974, 0.986 and 1.032. These unisolated
+wall-time observations establish no general speedup; the assignment workload was
+slower. CPU/RSS/I/O, complete definition/conditional grammar and the remaining
+dynamic, rule, runtime and release-validation milestones remain unfinished.

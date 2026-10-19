@@ -1,0 +1,11 @@
+id = "directive-space-ignored-extra-hides-endif"
+requirement = "syntax.directive-whitespace"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Ignored define body termination, effect suppression, source location and conditional EOF boundary."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a353a202a2a2a206d697373696e672027656e646966272e202053746f702e0a"
