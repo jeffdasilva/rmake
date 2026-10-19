@@ -1,0 +1,11 @@
+id = "keyword-variable-ignored-keyword-assignments-preserve-stack"
+requirement = "variables.keyword-names"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original assignment/directive precedence case: ignored keyword assignments preserve stack."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b756e646566696e65647c756e646566696e65647c756e646566696e65647c756e646566696e65647c756e646566696e65645d0a"
+stderr_hex = ""

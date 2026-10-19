@@ -909,6 +909,16 @@ impl Database {
             if text.is_empty() {
                 continue;
             }
+            // Assignment syntax wins over directive keywords. In particular,
+            // `ifdef = value` must not open a conditional, even in an ignored
+            // branch. Recognition itself has no expansion effects.
+            if let Some(spec) = assignment(text) {
+                if active {
+                    declaration.finish(&mut self.warnings, context);
+                    self.define(spec, Origin::File, &location, &location, context)?;
+                }
+                continue;
+            }
             let keyword = words(text).next().unwrap_or_default();
             if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"].contains(&keyword) {
                 let yes = active && self.condition(text, &location, context)?.unwrap_or(false);
