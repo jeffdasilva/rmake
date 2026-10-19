@@ -1,0 +1,11 @@
+id = "undefine-export-pattern-export-retains"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Binding lifetime and export policy: pattern export retains."
+provenance = "Independently authored input and exact expectations, verified against pinned GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "70617273653d3c6c617465723e7c66696c657c7265637572736976650a6d616b653d3c6c6f63616c3e7c66696c657c7265637572736976650a6368696c643d3c6c6f63616c3e7c70726573656e740a"
+stderr_hex = ""

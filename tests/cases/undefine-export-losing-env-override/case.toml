@@ -1,0 +1,14 @@
+id = "undefine-export-losing-env-override"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-e"]
+description = "Binding lifetime and export policy: losing env override."
+provenance = "Independently authored input and exact expectations, verified against pinned GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"X" = "env"
+
+[expected]
+exit_code = 0
+stdout_hex = "70617273653d3c656e763e7c656e7669726f6e6d656e74206f766572726964657c7265637572736976650a6d616b653d3c656e763e7c656e7669726f6e6d656e74206f766572726964657c7265637572736976650a6368696c643d3c3e7c0a"
+stderr_hex = ""

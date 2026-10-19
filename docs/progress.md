@@ -942,3 +942,35 @@ In a separate 31-pair comparison after two warmups, GNU/rmake medians were
 0.937/0.988 ms literal. Literal queries still trail GNU in this run. These are
 unisolated local wall-time measurements without confidence intervals or
 CPU/RSS/I/O coverage; they establish no general speed guarantee or full parity.
+
+## Export policy and binding lifetime — 2026-10-18
+
+Successful `undefine` directives now discard export/unexport membership with the
+binding. Imported export policy is stored on the binding itself, retained by
+ordinary assignments and internal literal/metadata updates, and discarded by
+deletion. A startup name-list entry alone no longer exports a new file-origin
+definition or an override of an ordinary command-line binding. Refused undefines
+retain policy, and explicit target/pattern policies stay independent.
+
+Internal updates preserve imported `MAKELEVEL`, `CURDIR` and `MAKEFILE_LIST`
+export behavior, including expansion errors before the numeric child-depth
+override. The existing MAKELEVEL regression gate caught a discarded policy during
+development; both it and new internal-update fixtures pass. No shell/eval effect,
+command-line replay, new cache or GNU runtime fallback is introduced. The
+[export-binding notes](export-bindings.md) record semantics and source references.
+
+Twenty-four original fixtures were added and three pending fixtures promoted.
+Full `make ci` passed with 346 Rust tests, 240 tooling tests and all existing
+generated, fault, stateful and self-host gates. The curated corpus contains 1,295
+cases: 1,247 required exact matches and 48 observed pending mismatches, with no
+failures or unexpected passes. A separate 792-program matrix matched both engines
+against independent stream/status anchors across origins, policies, deletion,
+assignment operators, export-all and local target policies.
+
+Against preceding production source `5b069a3`, 31 alternating release pairs after
+three warmups measured before/after medians of 0.688/0.693 ms for tiny no-op,
+22.610/22.522 ms for 10,000 explicit targets and 4.173/4.177 ms for 5,000
+assignments. Median paired after/before ratios were 1.029, 1.019 and 1.008.
+These unisolated wall-time measurements establish no speed improvement and have
+no confidence intervals or CPU/RSS/I/O coverage. Broader environment behavior,
+effect ordering, dynamic semantics and the remaining milestones stay incomplete.

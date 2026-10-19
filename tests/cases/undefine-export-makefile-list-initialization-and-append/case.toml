@@ -1,0 +1,14 @@
+id = "undefine-export-makefile-list-initialization-and-append"
+requirement = "variables.export-bindings"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Internal literal metadata updates retain the imported binding export policy."
+provenance = "Independently authored exact GNU Make 4.4.1 black-box expectations; no upstream implementation or tests copied."
+
+[environment]
+"MAKEFILE_LIST" = "from-environment"
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973743d3c4d616b6566696c653e0a"
+stderr_hex = ""

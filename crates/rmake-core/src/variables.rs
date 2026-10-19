@@ -771,6 +771,10 @@ impl VariableStore {
         if value.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
+        let scope = self
+            .variables
+            .get(name)
+            .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
         Arc::make_mut(&mut self.variables).insert(
             name.to_vec(),
             Variable {
@@ -778,7 +782,7 @@ impl VariableStore {
                 flavor: Flavor::Simple,
                 origin,
                 definition: None,
-                scope: ScopeMetadata::default(),
+                scope,
             },
         );
         Ok(())
@@ -808,6 +812,10 @@ impl VariableStore {
             push(&mut combined, b" ")?;
         }
         push(&mut combined, value)?;
+        let scope = self
+            .variables
+            .get(name)
+            .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
         Arc::make_mut(&mut self.variables).insert(
             name.to_vec(),
             Variable {
@@ -815,7 +823,7 @@ impl VariableStore {
                 flavor,
                 origin,
                 definition: Some(Arc::new(location.clone())),
-                scope: ScopeMetadata::default(),
+                scope,
             },
         );
         Ok(())
@@ -3650,6 +3658,32 @@ mod tests {
                 (true, Some(inner), b"separate".to_vec())
             ]
         );
+    }
+
+    #[test]
+    fn literal_updates_retain_binding_metadata_until_undefine() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"X", b"old", Assignment::Recursive);
+        store.set_private(b"X", true);
+        store.set_export_policy(b"X", Some(true));
+        store
+            .define_literal(b"X", b"$(untouched)", Origin::File)
+            .unwrap();
+        store
+            .append_literal_at(b"X", b"$tail", Origin::File, &source(1))
+            .unwrap();
+        let variable = store.get(b"X").unwrap();
+        assert_eq!(variable.raw_value(), b"$(untouched) $tail");
+        assert_eq!(variable.flavor(), Flavor::Simple);
+        assert!(variable.is_private());
+        assert_eq!(variable.export_policy(), Some(true));
+        assert!(store.undefine(b"X", Origin::File));
+        store
+            .define_literal(b"X", b"replacement", Origin::File)
+            .unwrap();
+        let variable = store.get(b"X").unwrap();
+        assert!(!variable.is_private());
+        assert_eq!(variable.export_policy(), None);
     }
 
     #[test]
