@@ -1,0 +1,12 @@
+id = "dynamic-include-generated-query"
+requirement = "includes.remake"
+candidate = "required"
+description = "generated-query"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

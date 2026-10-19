@@ -95,3 +95,7 @@ initial snapshot. See [Apache-2.0 section 2](https://www.apache.org/licenses/LIC
 The current GPL grant covers the project's own material. It does not change the
 licenses of third-party material, and future contributions must be accepted on
 terms compatible with the project license.
+
+The dynamic makefile slice consulted GNU Make 4.4.1 `src/main.c` and
+`src/remake.c` for remake staging and deferred include diagnostics. Its Rust
+implementation and differential fixtures were authored for this project.

@@ -19,7 +19,8 @@ cases = ["error-explicit-function", "error-recursive-variable", "error-invalid-w
 id = "errors.includes"
 title = "Required include failures"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 1
 reference = "https://www.gnu.org/software/make/manual/html_node/Include.html"
 fixture_count = 1
 cases = ["error-required-include"]
@@ -146,19 +147,21 @@ cases = ["function-firstword", "function-lastword", "function-word", "function-w
 id = "includes.read"
 title = "Include reading and ordering"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 21
 reference = "https://www.gnu.org/software/make/manual/html_node/Include.html"
-fixture_count = 5
-cases = ["include-required", "include-optional-missing", "include-ordered-files", "include-expanded-name", "include-makefile-list"]
+fixture_count = 21
+cases = ["include-required", "include-optional-missing", "include-ordered-files", "include-expanded-name", "include-makefile-list", "dynamic-include-nested-order", "dynamic-include-conditional-isolated", "dynamic-include-conditional-unclosed", "dynamic-include-conditional-inactive", "dynamic-include-optional-nested-required", "dynamic-include-optional-syntax-fatal", "dynamic-include-missing-empty-rule", "dynamic-include-list-absent-excluded", "dynamic-include-glob-sorted", "dynamic-include-glob-unmatched-optional", "dynamic-include-glob-unmatched-required", "dynamic-include-escaped-space", "dynamic-include-empty-expanded", "dynamic-include-duplicate-read", "dynamic-include-parent-recipe-boundary", "dynamic-include-included-default-goal"]
 
 [[requirements]]
 id = "includes.remake"
 title = "Generated makefiles and restart semantics"
 status = "fixture-ready"
-candidate_status = "pending"
+candidate_status = "partial"
+candidate_required = 10
 reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
-fixture_count = 1
-cases = ["include-generated-restart"]
+fixture_count = 10
+cases = ["include-generated-restart", "dynamic-include-optional-generated", "dynamic-include-sinclude-generated", "dynamic-include-generated-query", "dynamic-include-generated-dry", "dynamic-include-generated-touch", "dynamic-include-generated-phantom", "dynamic-include-restart-chain", "dynamic-include-restart-command-binding", "dynamic-include-phony-no-restart"]
 
 [[requirements]]
 id = "parallel.execution"

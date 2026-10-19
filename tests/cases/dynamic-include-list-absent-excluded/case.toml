@@ -1,0 +1,12 @@
+id = "dynamic-include-list-absent-excluded"
+requirement = "includes.read"
+candidate = "required"
+description = "list-absent-excluded"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973743d4d616b6566696c652070726573656e742e6d6b0a"
+stderr_hex = ""

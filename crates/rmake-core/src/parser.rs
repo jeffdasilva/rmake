@@ -7,7 +7,7 @@
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
 pub use crate::diagnostic::Location;
-use crate::diagnostic::{Diagnostic, ExpansionContext, Output};
+use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, Output};
 use crate::reader::{Reader, strip_comment};
 use crate::variables::{
     Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
@@ -136,7 +136,15 @@ pub struct PatternAssignment {
     variable: PatternVariable,
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug)]
+pub struct Makefile {
+    pub name: Vec<u8>,
+    pub optional: bool,
+    pub missing: bool,
+    pub read_error: Option<(Location, Vec<u8>)>,
+}
+
+#[derive(Clone, Default)]
 pub struct Database {
     pub variables: VariableStore,
     /// Target-only variable declarations never create rules or select a goal.
@@ -147,6 +155,8 @@ pub struct Database {
     pub unexports: HashSet<Vec<u8>>,
     pub export_all: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
+    pub makefiles: Vec<Makefile>,
+    include_depth: usize,
 }
 
 impl Database {
@@ -263,6 +273,59 @@ impl Database {
                         })
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod include_tests {
+    use super::*;
+    use crate::diagnostic::IncludedFile;
+
+    #[test]
+    fn nested_read_uses_shared_database_and_records_only_successful_list_entries() {
+        let mut db = Database::default();
+        let mut output = Vec::new();
+        let mut emit = |event: Output<'_>| {
+            if let Output::Info(bytes) = event {
+                output.push(bytes.to_vec());
+            }
+        };
+        let mut read = |name: &[u8]| match name {
+            b"child.mk" => Ok(IncludedFile {
+                name: name.to_vec(),
+                bytes: b"V=child\n-include absent.mk\n".to_vec(),
+            }),
+            _ => Err(b"No such file or directory".to_vec()),
+        };
+        db.read_with(
+            b"include child.mk\n$(info $(V):$(MAKEFILE_LIST))\nall:;\n",
+            b"Makefile",
+            ExpansionContext::new(None, &mut emit).with_includes(&mut read),
+        )
+        .unwrap();
+        assert_eq!(output, [b"child:child.mk".to_vec()]);
+        assert_eq!(db.makefiles.len(), 2);
+        assert!(db.makefiles[1].optional && db.makefiles[1].missing);
+        assert!(db.rules.contains_key(b"all".as_slice()));
+    }
+
+    #[test]
+    fn absent_required_include_is_retained_for_remake_and_has_no_early_warning() {
+        let mut db = Database::default();
+        let mut events = 0;
+        let mut emit = |_: Output<'_>| events += 1;
+        let mut read = |_: &[u8]| Err(b"No such file or directory".to_vec());
+        db.read_with(
+            b"include generated.mk\ngenerated.mk:;\n",
+            b"Makefile",
+            ExpansionContext::new(None, &mut emit).with_includes(&mut read),
+        )
+        .unwrap();
+        assert_eq!(events, 0);
+        let file = &db.makefiles[0];
+        assert!(file.missing && !file.optional);
+        assert_eq!(file.read_error.as_ref().unwrap().0.line, 1);
+        assert!(db.rules.contains_key(b"generated.mk".as_slice()));
     }
 }
 
@@ -1241,15 +1304,81 @@ impl Database {
                 }
                 continue;
             }
-            if [
-                b"include".as_slice(),
-                b"-include",
-                b"sinclude",
-                b"vpath",
-                b"load",
-            ]
-            .contains(&keyword)
-            {
+            if [b"include".as_slice(), b"-include", b"sinclude"].contains(&keyword) {
+                declaration.finish(&mut self.warnings, context);
+                let names = self.expand(directive(text, keyword).unwrap(), &location, context)?;
+                let optional = keyword != b"include";
+                for name in crate::filenames::sequence(&names) {
+                    let matches = if name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
+                        context
+                            .perform_filesystem(FilesystemEffect::Wildcard(&name))
+                            .and_then(Result::ok)
+                            .unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    let paths = if matches.is_empty() {
+                        vec![name.to_vec()]
+                    } else {
+                        words(&matches).map(Vec::from).collect()
+                    };
+                    for path in paths {
+                        let result = context.read_include(&path).ok_or_else(|| ParseError {
+                            unlocated: false,
+                            location: location.clone(),
+                            message: "rmake: include requires a makefile reader".into(),
+                        })?;
+                        match result {
+                            Ok(included) => {
+                                if self.include_depth >= 128 {
+                                    return Err(ParseError {
+                                        unlocated: false,
+                                        location: location.clone(),
+                                        message: "rmake: makefile inclusion nesting limit exceeded"
+                                            .into(),
+                                    });
+                                }
+                                self.makefiles.push(Makefile {
+                                    name: included.name.clone(),
+                                    optional,
+                                    missing: false,
+                                    read_error: None,
+                                });
+                                self.variables
+                                    .append_literal_at(
+                                        b"MAKEFILE_LIST",
+                                        &included.name,
+                                        Origin::File,
+                                        &location,
+                                    )
+                                    .map_err(|error| ParseError {
+                                        unlocated: false,
+                                        location: location.clone(),
+                                        message: error.diagnostic(),
+                                    })?;
+                                self.include_depth += 1;
+                                let result = self.read_with(
+                                    &included.bytes,
+                                    &included.name,
+                                    context.reborrow(),
+                                );
+                                self.include_depth -= 1;
+                                result?;
+                            }
+                            Err(error) => {
+                                self.makefiles.push(Makefile {
+                                    name: path,
+                                    optional,
+                                    missing: true,
+                                    read_error: Some((location.clone(), error)),
+                                });
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            if [b"vpath".as_slice(), b"load"].contains(&keyword) {
                 declaration.finish(&mut self.warnings, context);
                 return Err(ParseError {
                     unlocated: false,

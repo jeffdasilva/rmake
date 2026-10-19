@@ -61,12 +61,22 @@ impl FilesystemError {
 type FilesystemReceiver<'a> =
     dyn FnMut(FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> + 'a;
 
+/// A makefile read is distinct from $(file <...): an absent file is recorded
+/// for the remake phase, and successful reads retain their resolved filename.
+pub struct IncludedFile {
+    pub name: Vec<u8>,
+    pub bytes: Vec<u8>,
+}
+
+type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, Vec<u8>> + 'a;
+
 /// Explicit caller context and output receiver. This is never stored in or
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
     pub location: Option<&'a Location>,
     output: Option<&'a mut dyn FnMut(Output<'_>)>,
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
+    includes: Option<&'a mut IncludeReceiver<'a>>,
 }
 
 impl<'a> ExpansionContext<'a> {
@@ -75,6 +85,7 @@ impl<'a> ExpansionContext<'a> {
             location,
             output: Some(output),
             filesystem: None,
+            includes: None,
         }
     }
 
@@ -84,12 +95,22 @@ impl<'a> ExpansionContext<'a> {
             location: None,
             output: None,
             filesystem: None,
+            includes: None,
         }
     }
 
     pub fn with_filesystem(mut self, filesystem: &'a mut FilesystemReceiver<'a>) -> Self {
         self.filesystem = Some(filesystem);
         self
+    }
+
+    pub fn with_includes(mut self, includes: &'a mut IncludeReceiver<'a>) -> Self {
+        self.includes = Some(includes);
+        self
+    }
+
+    pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, Vec<u8>>> {
+        self.includes.as_mut().map(|receiver| receiver(name))
     }
 
     pub fn perform_filesystem(
@@ -117,6 +138,10 @@ impl<'a> ExpansionContext<'a> {
             },
             filesystem: match &mut self.filesystem {
                 Some(filesystem) => Some(&mut **filesystem),
+                None => None,
+            },
+            includes: match &mut self.includes {
+                Some(includes) => Some(&mut **includes),
                 None => None,
             },
         }

@@ -1257,3 +1257,10 @@ for 10,000 targets, 4.691/4.568 ms for 5,000 assignments and 2.013/1.970 ms for
 no general speedup and lack confidence intervals or CPU/RSS/I/O coverage. Shell
 assignments, eval/includes/restarts, complete rules, parallel execution and full
 GNU compatibility remain unfinished.
+
+## Dynamic include and restart slice
+
+Added required/optional nested includes and makefile remake/restart staging.
+The corpus now has 1,824 cases: 1,792 required and 32 pending. Include support
+is partial: search directories and the full remake failure semantics remain.
+See [dynamic makefiles](dynamic-makefiles.md).
