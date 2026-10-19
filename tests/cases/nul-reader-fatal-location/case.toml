@@ -1,0 +1,11 @@
+id = "nul-reader-fatal-location"
+requirement = "syntax.reader"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original NUL-aware file-reader boundary: fatal location."
+provenance = "Independently authored exact bytes and expectations verified against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a206d61726b65722e202053746f702e0a"

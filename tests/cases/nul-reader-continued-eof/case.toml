@@ -1,0 +1,11 @@
+id = "nul-reader-continued-eof"
+requirement = "syntax.reader"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original NUL-aware file-reader boundary: continued eof."
+provenance = "Independently authored exact bytes and expectations verified against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a207761726e696e673a204e554c20636861726163746572207365656e3b2072657374206f66206c696e652069676e6f7265640a"

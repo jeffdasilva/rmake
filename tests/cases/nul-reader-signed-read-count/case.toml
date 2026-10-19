@@ -1,0 +1,11 @@
+id = "nul-reader-signed-read-count"
+requirement = "syntax.reader"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "A tiny NUL-bearing input grows GNU buffer capacity until the signed read-count conversion stops input. Candidate models the conversion without allocating the virtual buffer."
+provenance = "Original independently authored input and exact GNU Make 4.4.1 observations; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f20746172676574732e202053746f702e0a"

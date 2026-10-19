@@ -855,6 +855,14 @@ impl Database {
                 file: file.to_vec(),
                 line: line.line,
             };
+            for _ in 0..reader.take_nul_warnings() {
+                record_warning(
+                    &mut self.warnings,
+                    context,
+                    location.clone(),
+                    "warning: NUL character seen; rest of line ignored".into(),
+                );
+            }
             let active = conditions.last().is_none_or(|c| c.active);
             if line.recipe {
                 if active {
@@ -947,6 +955,7 @@ impl Database {
             if let Some(header) = directive(text, b"define") {
                 let mut body = Vec::new();
                 let mut depth = 1;
+                let mut warning_line = location.line;
                 loop {
                     let Some(part) = reader.next_line(prefix, false) else {
                         return Err(ParseError {
@@ -955,6 +964,18 @@ impl Database {
                             message: "missing 'endef', unterminated 'define'".into(),
                         });
                     };
+                    for _ in 0..reader.take_nul_warnings() {
+                        record_warning(
+                            &mut self.warnings,
+                            context,
+                            Location {
+                                file: file.to_vec(),
+                                line: warning_line,
+                            },
+                            "warning: NUL character seen; rest of line ignored".into(),
+                        );
+                    }
+                    warning_line += part.end_line - part.line + 1;
                     last_line = part.end_line;
                     let token = trim(&part.bytes);
                     if part.bytes.first() != Some(&prefix) {

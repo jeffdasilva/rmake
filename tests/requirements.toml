@@ -291,10 +291,10 @@ id = "syntax.reader"
 title = "Logical lines, comments and recipe syntax"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 6
+candidate_required = 39
 reference = "https://www.gnu.org/software/make/manual/html_node/Parsing-Makefiles.html"
-fixture_count = 7
-cases = ["syntax-comment-removal", "syntax-dollar-escape", "syntax-escaped-hash", "syntax-inline-recipe", "syntax-line-continuation", "syntax-reader-literal-nul-skips-physical-tail", "syntax-recipe-prefix"]
+fixture_count = 39
+cases = ["nul-reader-chunk-195", "nul-reader-chunk-196", "nul-reader-chunk-197", "nul-reader-chunk-198", "nul-reader-chunk-199", "nul-reader-chunk-200", "nul-reader-chunk-201", "nul-reader-chunk-395", "nul-reader-chunk-398", "nul-reader-chunk-399", "nul-reader-chunk-400", "nul-reader-chunk-795", "nul-reader-chunk-799", "nul-reader-chunk-800", "nul-reader-consecutive-warnings", "nul-reader-continued-eof", "nul-reader-continued-warning-location", "nul-reader-crlf-join", "nul-reader-deferred-tail", "nul-reader-define-continued-header", "nul-reader-define-second-warning", "nul-reader-define-warning-location", "nul-reader-eof-leading", "nul-reader-eof-middle", "nul-reader-fatal-location", "nul-reader-first-warns", "nul-reader-joined-warning-location", "nul-reader-middle-joins", "nul-reader-recipe-comment-merges", "nul-reader-recipe-prefix-merges", "nul-reader-retained-capacity", "nul-reader-signed-read-count", "syntax-comment-removal", "syntax-dollar-escape", "syntax-escaped-hash", "syntax-inline-recipe", "syntax-line-continuation", "syntax-reader-literal-nul-skips-physical-tail", "syntax-recipe-prefix"]
 
 [[requirements]]
 id = "variables.environment"
