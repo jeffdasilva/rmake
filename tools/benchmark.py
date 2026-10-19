@@ -55,6 +55,30 @@ def selected_workloads(suite):
         yield from workloads()
     if suite in ("word-spans", "all"):
         yield from span_workloads()
+    if suite in ("wildcard", "all"):
+        yield from wildcard_workloads()
+
+
+def wildcard_workloads():
+    for name, pattern, repeats in (
+        ('wildcard-cold', 'inputs/*.c', 1),
+        ('wildcard-warm', 'inputs/*.c', 200),
+        ('wildcard-complex', 'inputs/file[0-9][0-9][0-9][0-9].c', 200),
+        ('wildcard-literal', ' '.join(f'inputs/file{i:04d}.c' for i in range(1000)), 1),
+    ):
+        source = ''.join(f'V{i} := $(words $(wildcard {pattern}))\n' for i in range(repeats))
+        yield name, (source + f'$(info $(V{repeats-1}))\nall: ;\n').encode()
+
+
+def prepare_files(path, workload):
+    if not workload.startswith('wildcard-'):
+        return None
+    inputs = path / 'inputs'
+    inputs.mkdir(exist_ok=True)
+    for index in range(1000):
+        (inputs / f'file{index:04d}.c').write_bytes(b'original\n')
+    return {'files': 1000, 'pattern': 'inputs/file0000.c through inputs/file0999.c',
+            'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
 
 
 def paired_order(iteration, candidate):
@@ -72,7 +96,7 @@ def main():
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
@@ -102,6 +126,7 @@ def main():
         env = {"PATH": "/usr/bin:/bin", "LC_ALL": "C", "TZ": "UTC", "HOME": directory}
         alias = path / "make"
         for name, source in selected_workloads(args.suite):
+            fixture = prepare_files(path, name)
             (path / "Makefile").write_bytes(source)
             samples = {label: [] for label in executables}
             expected = None
@@ -123,6 +148,7 @@ def main():
                         samples[label].append(elapsed)
             record = {
                 "name": name, "source_sha256": hashlib.sha256(source).hexdigest(),
+                "input_fixture": fixture,
                 "measurements": {label: summary(values) for label, values in samples.items()},
             }
             if args.candidate:

@@ -13,10 +13,11 @@ with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
 Target-specific and pattern-specific variables support inheritance, private
 bindings, assignment timing, and export policies. Seeded graph tests check their
 interactions with shared prerequisites and recipe environments.
-The `file` and `realpath` functions use explicit Linux filesystem effects, with
-byte-preserving paths and tests for buffered I/O failures.
+The `file`, `realpath` and `wildcard` functions use explicit Linux filesystem
+effects, with byte-preserving paths, archive-member queries and tests for buffered
+I/O failures and directory-cache refresh timing.
 This is an experimental subset, **not yet a GNU Make replacement**. Includes,
-implicit rules, `wildcard`, process expansion effects,
+implicit rules, process expansion effects,
 parallel jobs and many compatibility details
 remain unimplemented. See [implementation progress](docs/progress.md) for exact
 scope, required fixtures and open milestone gates.
@@ -79,8 +80,12 @@ scale or replay that campaign. See [integer comparison notes](docs/intcmp.md).
 `make test-diagnostics` checks 206 fixed output-function scenarios with independent
 stream, status and filesystem expectations, including merged output ordering.
 `DIAGNOSTIC_CASE` replays one recorded cell. This is also part of `make ci`.
-`make test-filesystem` checks eleven Linux/glibc I/O fault scenarios, including
-partial reads and close failures; `FILESYSTEM_CASE` selects one for replay.
+`make test-filesystem` checks nineteen Linux/glibc scenarios, including partial
+reads, close failures and external directory mutations; `FILESYSTEM_CASE` selects
+one for replay. `make test-wildcards` runs 100 seeded filesystem query programs
+with independent matching and complete filesystem anchors. Use `WILDCARD_SEED`,
+`WILDCARD_CASES`, `WILDCARD_EXPRESSIONS` and `START_INDEX` to scale or replay them.
+See [wildcard semantics](docs/wildcard.md) for the implemented profile and limits.
 `make test-whitespace` checks pure-function whitespace, local bindings and effect
 ordering; `WHITESPACE_CASE` selects one case.
 `make test-word-index` checks `word` and `wordlist` integer boundaries, raw-byte
@@ -95,6 +100,9 @@ a general speed advantage.
 Use `BENCH_SUITE=word-spans` for six large-list workloads covering selected ranges,
 full scans, `let` remainders and literal `patsubst`; `BENCH_SUITE=all` includes both
 suites. The default `core` suite retains the original three workloads.
+`BENCH_SUITE=wildcard` measures cold, repeated, complex and literal queries over
+1,000 input files prepared outside the timed invocations.
+`BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The serial engine can drive the repository's `build` and `check-core` targets:
 

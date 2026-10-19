@@ -74,10 +74,21 @@ impl Rule {
 pub struct ParseError {
     pub location: Location,
     pub message: Diagnostic,
+    /// Keep syntax provenance while allowing GNU's program-only fatal messages.
+    pub unlocated: bool,
+}
+
+impl ParseError {
+    pub fn source_location(&self) -> Option<&Location> {
+        (!self.unlocated).then_some(&self.location)
+    }
 }
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.unlocated {
+            return write!(f, "{}", self.message);
+        }
         write!(
             f,
             "{}:{}: {}",
@@ -473,7 +484,11 @@ impl Database {
         self.variables
             .expand_with(bytes, context.at(Some(location)))
             .map_err(|err| ParseError {
-                location: err.diagnostic_location(Some(location)).unwrap().clone(),
+                unlocated: err.is_unlocated(),
+                location: err
+                    .diagnostic_location(Some(location))
+                    .unwrap_or(location)
+                    .clone(),
                 message: err.diagnostic(),
             })
     }
@@ -497,6 +512,7 @@ impl Database {
                 consumed = match bytes.get(start + 1) {
                     Some(b'(' | b'{') => {
                         reference_end(bytes, start + 1).map_err(|error| ParseError {
+                            unlocated: error.is_unlocated(),
                             location: location.clone(),
                             message: error.diagnostic(),
                         })? + 1
@@ -517,6 +533,7 @@ impl Database {
             };
             if expanded.len().saturating_add(part.len()) > MAX_OUTPUT {
                 return Err(ParseError {
+                    unlocated: false,
                     location: location.clone(),
                     message: ExpandError::ExpansionLimit.diagnostic(),
                 });
@@ -561,6 +578,7 @@ impl Database {
         let name = self.expand(spec.name, location, context)?;
         if name.is_empty() {
             return Err(ParseError {
+                unlocated: false,
                 location: location.clone(),
                 message: "empty variable name".into(),
             });
@@ -575,9 +593,10 @@ impl Database {
                 context.at(Some(evaluation_location)),
             )
             .map_err(|err| ParseError {
+                unlocated: err.is_unlocated(),
                 location: err
                     .diagnostic_location(Some(evaluation_location))
-                    .unwrap()
+                    .unwrap_or(evaluation_location)
                     .clone(),
                 message: err.diagnostic(),
             })?;
@@ -594,6 +613,7 @@ impl Database {
         let targets = words(targets).collect::<Vec<_>>();
         if targets.last().is_some_and(|target| target.ends_with(b"&")) {
             return Err(ParseError {
+                unlocated: false,
                 location: location.clone(),
                 message: "rmake: unsupported rule form".into(),
             });
@@ -614,7 +634,11 @@ impl Database {
                     context.at(Some(location)),
                 )
                 .map_err(|error| ParseError {
-                    location: error.diagnostic_location(Some(location)).unwrap().clone(),
+                    unlocated: error.is_unlocated(),
+                    location: error
+                        .diagnostic_location(Some(location))
+                        .unwrap_or(location)
+                        .clone(),
                     message: error.diagnostic(),
                 })?;
                 self.pattern_assignments
@@ -623,6 +647,7 @@ impl Database {
             }
             if !only_percent_escapes(target) {
                 return Err(ParseError {
+                    unlocated: false,
                     location: location.clone(),
                     message: "rmake: escaped target names are not implemented".into(),
                 });
@@ -633,11 +658,16 @@ impl Database {
             let name = parse_variables
                 .expand_with(assignment.spec.name, context.at(Some(location)))
                 .map_err(|error| ParseError {
-                    location: error.diagnostic_location(Some(location)).unwrap().clone(),
+                    unlocated: error.is_unlocated(),
+                    location: error
+                        .diagnostic_location(Some(location))
+                        .unwrap_or(location)
+                        .clone(),
                     message: error.diagnostic(),
                 })?;
             if name.is_empty() {
                 return Err(ParseError {
+                    unlocated: false,
                     location: location.clone(),
                     message: "empty variable name".into(),
                 });
@@ -655,7 +685,11 @@ impl Database {
                     context.at(Some(location)),
                 )
                 .map_err(|error| ParseError {
-                    location: error.diagnostic_location(Some(location)).unwrap().clone(),
+                    unlocated: error.is_unlocated(),
+                    location: error
+                        .diagnostic_location(Some(location))
+                        .unwrap_or(location)
+                        .clone(),
                     message: error.diagnostic(),
                 })?;
         }
@@ -673,6 +707,7 @@ impl Database {
                 let name = self.expand(name, location, context)?;
                 if words(&name).count() > 1 {
                     return Err(ParseError {
+                        unlocated: false,
                         location: location.clone(),
                         message: "invalid syntax in conditional".into(),
                     });
@@ -688,6 +723,7 @@ impl Database {
         for (keyword, negate) in [(b"ifeq".as_slice(), false), (b"ifneq", true)] {
             if let Some(args) = directive(bytes, keyword) {
                 let invalid = || ParseError {
+                    unlocated: false,
                     location: location.clone(),
                     message: "invalid syntax in conditional".into(),
                 };
@@ -857,12 +893,14 @@ impl Database {
             if let Some(rest) = directive(text, b"else") {
                 let Some(top) = conditions.last_mut() else {
                     return Err(ParseError {
+                        unlocated: false,
                         location,
                         message: "extraneous 'else'".into(),
                     });
                 };
                 if top.otherwise {
                     return Err(ParseError {
+                        unlocated: false,
                         location,
                         message: "only one 'else' per conditional".into(),
                     });
@@ -891,6 +929,7 @@ impl Database {
             if let Some(rest) = directive(text, b"endif") {
                 if conditions.pop().is_none() {
                     return Err(ParseError {
+                        unlocated: false,
                         location,
                         message: "extraneous 'endif'".into(),
                     });
@@ -911,6 +950,7 @@ impl Database {
                 loop {
                     let Some(part) = reader.next_line(prefix, false) else {
                         return Err(ParseError {
+                            unlocated: false,
                             location,
                             message: "missing 'endef', unterminated 'define'".into(),
                         });
@@ -1018,6 +1058,7 @@ impl Database {
                         self.variables
                             .define_at(name, b"", Assignment::Simple, Origin::File, &location)
                             .map_err(|error| ParseError {
+                                unlocated: error.is_unlocated(),
                                 location: location.clone(),
                                 message: error.diagnostic(),
                             })?;
@@ -1037,6 +1078,7 @@ impl Database {
             .contains(&keyword)
             {
                 return Err(ParseError {
+                    unlocated: false,
                     location,
                     message: format!(
                         "rmake: unsupported directive '{}'",
@@ -1047,6 +1089,7 @@ impl Database {
             }
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
                 return Err(ParseError {
+                    unlocated: false,
                     location,
                     message: "recipe commences before first target".into(),
                 });
@@ -1081,6 +1124,7 @@ impl Database {
             let mut expanded_line = prefix_expansion.expanded;
             if expanded_line.len().saturating_add(tail.len()) > MAX_OUTPUT {
                 return Err(ParseError {
+                    unlocated: false,
                     location,
                     message: ExpandError::ExpansionLimit.diagnostic(),
                 });
@@ -1106,6 +1150,7 @@ impl Database {
                     "missing separator"
                 };
                 return Err(ParseError {
+                    unlocated: false,
                     location,
                     message: message.into(),
                 });
@@ -1115,6 +1160,7 @@ impl Database {
                 || expanded[..colon].ends_with(b"&")
             {
                 return Err(ParseError {
+                    unlocated: false,
                     location,
                     message: "rmake: unsupported rule form".into(),
                 });
@@ -1124,12 +1170,14 @@ impl Database {
                 let pattern = Pattern::new(target);
                 if pattern.has_wildcard() {
                     return Err(ParseError {
+                        unlocated: false,
                         location,
                         message: "rmake: unsupported rule form".into(),
                     });
                 }
                 if !only_percent_escapes(target) {
                     return Err(ParseError {
+                        unlocated: false,
                         location,
                         message: "rmake: escaped target names are not implemented".into(),
                     });
@@ -1158,6 +1206,7 @@ impl Database {
                 self.variables
                     .define_literal(b".DEFAULT_GOAL", target, Origin::File)
                     .map_err(|err| ParseError {
+                        unlocated: err.is_unlocated(),
                         location: location.clone(),
                         message: err.diagnostic(),
                     })?;
@@ -1217,6 +1266,7 @@ impl Database {
         }
         if !conditions.is_empty() {
             return Err(ParseError {
+                unlocated: false,
                 location: Location {
                     file: file.to_vec(),
                     line: last_line + 1,

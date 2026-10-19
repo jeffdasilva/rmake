@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-dot-prefix"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "Original wildcard boundary: dot-prefix"
+provenance = "Independently authored inputs and GNU Make 4.4.1 oracle observations; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b2e2f4d616b6566696c65202e2f61202e2f612e63202e2f62202e2f622e63202e2f64202e2f6c696e6b202e2f7061747465726e202e2f782e685d0a"
+stderr_hex = ""

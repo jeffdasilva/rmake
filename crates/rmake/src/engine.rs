@@ -9,7 +9,8 @@ use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{Database, Location, Recipe, Rule, assignment, trim, words};
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
-use rmake_linux::filesystem::execute as filesystem_effect;
+use rmake_linux::filesystem::Runtime as FilesystemRuntime;
+use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
@@ -158,6 +159,7 @@ fn emit_output(program: &[u8], output: Output<'_>) {
 
 pub struct Engine {
     options: Options,
+    filesystem: RefCell<FilesystemRuntime>,
     database: Database,
     program: Vec<u8>,
     makelevel: u32,
@@ -177,6 +179,7 @@ impl Engine {
             std::env::set_current_dir(dir)
                 .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
         }
+        let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
         database
             .variables
@@ -244,7 +247,7 @@ impl Engine {
                 .expand_with(
                     spec.name,
                     ExpansionContext::new(None, &mut output)
-                        .with_filesystem(&mut filesystem_effect),
+                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect)),
                 )
                 .map_err(|e| e.diagnostic())?;
             database
@@ -256,7 +259,7 @@ impl Engine {
                     Origin::CommandLine,
                     None,
                     ExpansionContext::new(None, &mut output)
-                        .with_filesystem(&mut filesystem_effect),
+                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect)),
                 )
                 .map_err(|e| e.diagnostic())?;
             if automatic_export_name(&name) {
@@ -297,6 +300,7 @@ impl Engine {
         let initial_flags = options.flags();
         Ok(Self {
             options,
+            filesystem,
             database,
             program,
             makelevel,
@@ -320,7 +324,7 @@ impl Engine {
         variables.expand_with(
             bytes,
             ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut filesystem_effect),
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
         )
     }
 
@@ -408,9 +412,9 @@ impl Engine {
                 &bytes,
                 file.as_os_str().as_bytes(),
                 ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut filesystem_effect),
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
             ) {
-                self.fatal(Some(&err.location), err.message.as_bytes());
+                self.fatal(err.source_location(), err.message.as_bytes());
                 return 2;
             }
         }
@@ -736,7 +740,7 @@ impl Engine {
             target,
             &inherited,
             ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut filesystem_effect),
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect)),
         )?;
         self.target_contexts
             .insert(target.to_vec(), variables.clone());
@@ -1045,7 +1049,9 @@ impl Engine {
                         ExpansionContext::new(variable.definition(), &mut |event| {
                             emit_output(&self.program, event)
                         })
-                        .with_filesystem(&mut filesystem_effect),
+                        .with_filesystem(&mut |effect| {
+                            self.filesystem.borrow_mut().execute(effect)
+                        }),
                     ) {
                         Ok(value) => {
                             child.env(os(name), OsString::from_vec(value));
@@ -1073,6 +1079,7 @@ impl Engine {
             child.env("MAKELEVEL", self.makelevel.wrapping_add(1).to_string());
             let _ = io::stdout().flush();
             let result = launch_status(&program, &child);
+            self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();
             flow.attempted(launched);
             let failure_cleanup = if launched {

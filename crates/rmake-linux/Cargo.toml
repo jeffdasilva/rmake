@@ -12,7 +12,7 @@ authors.workspace = true
 rmake-core = { path = "../rmake-core" }
 
 # Semantic and application crates retain the workspace-wide forbid. Only the
-# private stdio adapter below may contain reviewed FFI.
+# private stdio and POSIX adapters may contain reviewed FFI.
 [lints.rust]
 unsafe_code = "deny"
 

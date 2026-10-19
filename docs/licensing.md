@@ -32,6 +32,9 @@ and export-policy source references used for the independently written scope
 implementation.
 The [filesystem-effect notes](filesystem-effects.md) identify the filesystem and
 recipe-command source references and the narrow Linux stdio interface.
+The [wildcard notes](wildcard.md) record GNU Make and glibc semantic references,
+the independently authored archive scanner and Linux ABI adapters. Upstream
+implementation files and tests are not included in the product or corpus.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.
