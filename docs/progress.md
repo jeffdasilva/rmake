@@ -885,8 +885,8 @@ reduce repeated work without suppressing expansion effects. The
 [wildcard notes](wildcard.md) record semantics, source references, safety limits
 and the still-open locale/profile validation.
 
-The corpus adds 122 original fixtures and promotes three prior cases: 1,268 total,
-with 1,217 required exact matches, 51 explicit pending mismatches and no failures
+The corpus adds 125 original fixtures and promotes three prior cases: 1,271 total,
+with 1,220 required exact matches, 51 explicit pending mismatches and no failures
 or unexpected passes. Full `make ci` passed with 344 Rust tests, 240 tooling tests,
 all prior gates and a selected wildcard self-host flow. `make test-wildcards`
 adds 100 independently modeled ASCII query programs to CI; an extended 1,000
@@ -903,14 +903,14 @@ libc results across raw-byte names, dot boundaries and slash cases.
 `BENCH_SUITE=wildcard` adds cold, repeated, complex and literal query workloads
 over 1,000 untimed input files. `BENCH_REPEAT` controls paired measured samples.
 In 31 alternating release trials after two warmups, oracle/rmake median times
-were 1.070/0.838 ms cold, 36.367/11.416 ms repeated, 39.832/15.072 ms complex and
-1.089/1.267 ms literal. Repeated and complex queries are faster in these local
+were 1.176/0.908 ms cold, 38.117/11.585 ms repeated, 40.955/15.544 ms complex and
+0.926/1.122 ms literal. Repeated and complex queries are faster in these local
 measurements; literal queries remain slower than GNU. Both engines also drove
 the benchmark target through the top-level Makefile.
 
 Against preceding implementation `add18bb`, 31 alternating core-workload pairs
-after three warmups had median paired after/before ratios of 1.003 for tiny no-op,
-0.987 for 10,000 explicit targets and 1.031 for 5,000 assignments. These unisolated
+after three warmups had median paired after/before ratios of 1.005 for tiny no-op,
+0.990 for 10,000 explicit targets and 1.005 for 5,000 assignments. These unisolated
 wall-time observations have no confidence intervals or CPU/RSS/I/O coverage and
 establish no general performance guarantee. Non-C profiles, process/eval effects,
 includes/restarts, complete rules, parallel execution, persistent caching and

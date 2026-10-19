@@ -1,0 +1,10 @@
+id = "wildcard-directory-backslash-escaped-separator"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "Quoted directory separators retain glob quoting stages."
+provenance = "Original fixture and GNU Make 4.4.1 oracle observation."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b645c2f665d0a"
+stderr_hex = ""

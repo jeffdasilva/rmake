@@ -205,6 +205,11 @@ impl Wildcard {
             Some(pos) => (&text[..pos], &text[pos + 1..], true),
         };
         let parents = if scanned(parent, false) {
+            let parent = if parent.iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1 {
+                &parent[..parent.len() - 1]
+            } else {
+                parent
+            };
             self.query(parent, true, false, depth + 1)?
         } else {
             vec![unquote(parent)]
