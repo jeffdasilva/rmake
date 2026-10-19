@@ -1176,8 +1176,17 @@ impl Expansion<'_, '_> {
         let mut result = Vec::new();
         let mut cursor = 0;
         while cursor < input.len() {
-            if input[cursor] != b'$' || cursor + 1 == input.len() {
-                push(&mut result, &input[cursor..cursor + 1])?;
+            if input[cursor] != b'$' {
+                let end = input[cursor..]
+                    .iter()
+                    .position(|byte| *byte == b'$')
+                    .map_or(input.len(), |offset| cursor + offset);
+                push(&mut result, &input[cursor..end])?;
+                cursor = end;
+                continue;
+            }
+            if cursor + 1 == input.len() {
+                push(&mut result, b"$")?;
                 cursor += 1;
                 continue;
             }
@@ -3410,6 +3419,45 @@ mod tests {
             store.expand(b"$(call loop)"),
             Err(ExpandError::ExpansionLimit)
         );
+    }
+
+    #[test]
+    fn expansion_limit_preserves_effect_order_and_terminal_dollar() {
+        let mut store = VariableStore::new();
+        store
+            .define_literal(b"BIG", &vec![b'x'; MAX_OUTPUT - 1], Origin::File)
+            .unwrap();
+        let mut messages = Vec::new();
+        let mut output = |event: Output<'_>| {
+            if let Output::Info(message) = event {
+                messages.push(message.to_vec());
+            }
+        };
+        let result = store
+            .expand_with(
+                b"$(info before)$(BIG)q$(info boundary)",
+                ExpansionContext::new(None, &mut output),
+            )
+            .unwrap();
+        assert_eq!(result.len(), MAX_OUTPUT);
+        assert_eq!(result.last(), Some(&b'q'));
+        assert_eq!(messages, [b"before".to_vec(), b"boundary".to_vec()]);
+        messages.clear();
+        assert_eq!(
+            store.expand_with(
+                b"$(info before)$(BIG)qr$(info forbidden)",
+                ExpansionContext::new(None, &mut |event| {
+                    if let Output::Info(message) = event {
+                        messages.push(message.to_vec());
+                    }
+                }),
+            ),
+            Err(ExpandError::ExpansionLimit)
+        );
+        assert_eq!(messages, [b"before".to_vec()]);
+        let result = store.expand(b"$(BIG)$").unwrap();
+        assert_eq!(result.len(), MAX_OUTPUT);
+        assert_eq!(result.last(), Some(&b'$'));
     }
 
     #[test]
