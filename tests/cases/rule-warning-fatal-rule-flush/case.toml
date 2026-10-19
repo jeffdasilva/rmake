@@ -1,0 +1,11 @@
+id = "rule-warning-fatal-rule-flush"
+requirement = "graph.rule-warning-timing"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+description = "Original rule-recording warning boundary: fatal rule flush."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a207461726765742027616c6c2720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a4d616b6566696c653a333a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

@@ -1,0 +1,11 @@
+id = "rule-warning-old-recipe-no-new-recipe"
+requirement = "graph.rule-warning-timing"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+description = "Original rule-recording warning boundary: old recipe no new recipe."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "3a0a"
+stderr_hex = ""

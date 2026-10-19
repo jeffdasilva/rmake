@@ -1,0 +1,11 @@
+id = "rule-warning-fatal-eof-condition-no-flush"
+requirement = "graph.rule-warning-timing"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+description = "Original rule-recording warning boundary: fatal eof condition no flush."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a206d697373696e672027656e646966272e202053746f702e0a"

@@ -391,7 +391,7 @@ id = "graph.merged-prerequisites"
 title = "Merged normal and order-only prerequisite occurrences"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 17
+candidate_required = 18
 reference = "https://www.gnu.org/software/make/manual/html_node/Multiple-Rules.html"
 fixture_count = 18
 cases = ["graph-merged-empty-recipe-prepends", "graph-merged-multiple-targets", "graph-merged-normal-before-order", "graph-merged-order-before-normal", "graph-merged-order-only-deduplicated", "graph-merged-promoted-position", "graph-merged-promotion-across-prepend", "graph-merged-recipe-block-prepends", "graph-merged-recipe-order-only-prepends", "graph-merged-repeated-normal-occurrences", "graph-merged-repeated-self-cycle", "graph-merged-single-declaration", "graph-repeated-missing-goal", "graph-repeated-missing-prerequisite", "graph-repeated-target-without-recipe-no-warning", "graph-special-ignore-order-only", "graph-special-phony-order-only", "graph-special-silent-order-only"]
@@ -555,3 +555,13 @@ candidate_required = 4
 reference = "https://www.gnu.org/software/make/manual/html_node/Environment.html"
 fixture_count = 4
 cases = ["startup-environment-ordinary-default-goal", "startup-environment-ordinary-explicit-goal", "startup-environment-override-default-goal", "startup-environment-override-explicit-goal"]
+
+[[requirements]]
+id = "graph.rule-warning-timing"
+title = "Recipe-dependent rule diagnostics at declaration boundaries"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 29
+reference = "https://www.gnu.org/software/make/manual/html_node/Multiple-Rules.html"
+fixture_count = 29
+cases = ["rule-warning-assignment-before-rhs", "rule-warning-blank-recipe", "rule-warning-block", "rule-warning-comments-between", "rule-warning-condition-before-first-recipe", "rule-warning-condition-before-flush", "rule-warning-continued-header", "rule-warning-define-before-body-warning", "rule-warning-export-before-names", "rule-warning-false-branch-keeps-warning-pending", "rule-warning-fatal-condition-no-flush", "rule-warning-fatal-eof-condition-no-flush", "rule-warning-fatal-next-header-effect", "rule-warning-fatal-rule-flush", "rule-warning-ignored-assignment-keeps-rule", "rule-warning-ignored-recipe", "rule-warning-inline", "rule-warning-inline-empty", "rule-warning-multiline-recipe-warns-once", "rule-warning-next-rule-before-prefix", "rule-warning-no-recipe", "rule-warning-nul-read-before-flush", "rule-warning-old-recipe-no-new-recipe", "rule-warning-override-deferred", "rule-warning-override-duplicate-order", "rule-warning-recipe-comment", "rule-warning-target-assignment-before-rhs", "rule-warning-undefine-before-name", "rule-warning-unterminated-define-flush"]

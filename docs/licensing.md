@@ -41,6 +41,8 @@ The [NUL reader notes](nul-reader.md) record GNU's file-buffer and diagnostic
 references for the independently authored stream model.
 The [command replay notes](command-replay.md) record GNU's startup, post-read
 decoding and binding-precedence references for the independently authored replay.
+The [rule warning notes](rule-warnings.md) record declaration-recording phases
+and warning predicates used by the independently authored parser follow-up.
 
 Inspect each reused file's actual terms. GNU Make's release can contain material
 with distinct notices, and the GNU manual has a separate documentation license.
