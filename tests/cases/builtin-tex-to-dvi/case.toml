@@ -1,0 +1,12 @@
+id = "builtin-tex-to-dvi"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-tex-to-dvi"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "74657820782e7465780a"
+stderr_hex = ""

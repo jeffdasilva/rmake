@@ -1,0 +1,12 @@
+id = "builtin-compiler-target-context"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-compiler-target-context"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765742d6363202d6c6f63616c2020202d63202d6f20782e6f20782e630a"
+stderr_hex = ""

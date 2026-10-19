@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 1988-2023 Free Software Foundation, Inc.
+# Observed and organized for rmake in 2026 by Jeff DaSilva.
+# Linux GNU Make 4.4.1 compatibility data observed with the pinned oracle.
+# Recipe and variable bytes are declarative compatibility data, not C source.
+AR = ar
+ARFLAGS = -rv
+AS = as
+CC = cc
+CHECKOUT,v = +$(if $(wildcard $@),,$(CO) $(COFLAGS) $< $@)
+CO = co
+COFLAGS = 
+COMPILE.C = $(COMPILE.cc)
+COMPILE.F = $(FC) $(FFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.S = $(CC) $(ASFLAGS) $(CPPFLAGS) $(TARGET_MACH) -c
+COMPILE.c = $(CC) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.cpp = $(COMPILE.cc)
+COMPILE.def = $(M2C) $(M2FLAGS) $(DEFFLAGS) $(TARGET_ARCH)
+COMPILE.f = $(FC) $(FFLAGS) $(TARGET_ARCH) -c
+COMPILE.m = $(OBJC) $(OBJCFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.mod = $(M2C) $(M2FLAGS) $(MODFLAGS) $(TARGET_ARCH)
+COMPILE.p = $(PC) $(PFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.r = $(FC) $(FFLAGS) $(RFLAGS) $(TARGET_ARCH) -c
+COMPILE.s = $(AS) $(ASFLAGS) $(TARGET_MACH)
+CPP = $(CC) -E
+CTANGLE = ctangle
+CWEAVE = cweave
+CXX = g++
+F77 = $(FC)
+F77FLAGS = $(FFLAGS)
+FC = f77
+GET = get
+LD = ld
+LEX = lex
+LEX.l = $(LEX) $(LFLAGS) -t
+LEX.m = $(LEX) $(LFLAGS) -t
+LINK.C = $(LINK.cc)
+LINK.F = $(FC) $(FFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.S = $(CC) $(ASFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_MACH)
+LINK.c = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.cpp = $(LINK.cc)
+LINK.f = $(FC) $(FFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.m = $(OBJC) $(OBJCFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.o = $(CC) $(LDFLAGS) $(TARGET_ARCH)
+LINK.p = $(PC) $(PFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.r = $(FC) $(FFLAGS) $(RFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+LINK.s = $(CC) $(ASFLAGS) $(LDFLAGS) $(TARGET_MACH)
+LINT = lint
+LINT.c = $(LINT) $(LINTFLAGS) $(CPPFLAGS) $(TARGET_ARCH)
+M2C = m2c
+MAKEINFO = makeinfo
+OBJC = cc
+OUTPUT_OPTION = -o $@
+PC = pc
+PREPROCESS.F = $(FC) $(FFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -F
+PREPROCESS.S = $(CPP) $(CPPFLAGS)
+PREPROCESS.r = $(FC) $(FFLAGS) $(RFLAGS) $(TARGET_ARCH) -F
+RM = rm -f
+TANGLE = tangle
+TEX = tex
+TEXI2DVI = texi2dvi
+WEAVE = weave
+YACC = yacc
+YACC.m = $(YACC) $(YFLAGS)
+YACC.y = $(YACC) $(YFLAGS)

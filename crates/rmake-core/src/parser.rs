@@ -180,7 +180,7 @@ pub struct Database {
     pub export_all: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
-    implicit_rules: Vec<(Pattern, Rule)>,
+    pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
     pub vpaths: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
     include_depth: usize,
     evaluation_depth: usize,

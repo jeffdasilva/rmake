@@ -1,0 +1,12 @@
+id = "builtin-l-to-c"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-l-to-c"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726d202d6620782e63200a6c657820202d7420782e6c203e20782e630a"
+stderr_hex = ""

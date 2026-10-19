@@ -1,0 +1,12 @@
+id = "builtin-custom-prereq-warning"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-custom-prereq-warning"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7375666669780a"
+stderr_hex = "4d616b6566696c653a333a207761726e696e673a2069676e6f72696e672070726572657175697369746573206f6e207375666669782072756c6520646566696e6974696f6e0a"

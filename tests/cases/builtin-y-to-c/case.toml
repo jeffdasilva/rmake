@@ -1,0 +1,12 @@
+id = "builtin-y-to-c"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-y-to-c"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "796163632020782e79200a6d76202d6620792e7461622e6320782e630a"
+stderr_hex = ""

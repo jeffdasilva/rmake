@@ -1,0 +1,12 @@
+id = "builtin-custom-no-variables"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-custom-no-variables"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-R", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "782e646573743a782e7372633a780a"
+stderr_hex = ""

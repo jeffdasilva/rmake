@@ -1,0 +1,12 @@
+id = "builtin-default-variable-env-override"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-default-variable-env-override"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "CC=custom"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "637573746f6d7c636f6d6d616e64206c696e650a"
+stderr_hex = ""

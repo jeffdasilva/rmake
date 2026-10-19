@@ -1,0 +1,12 @@
+id = "builtin-r-to-program"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-r-to-program"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6637372020202020782e722020202d6f20780a"
+stderr_hex = ""

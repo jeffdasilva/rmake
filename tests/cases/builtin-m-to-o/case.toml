@@ -1,0 +1,12 @@
+id = "builtin-m-to-o"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-m-to-o"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6363202020202d63202d6f20782e6f20782e6d0a"
+stderr_hex = ""

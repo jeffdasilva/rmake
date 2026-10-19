@@ -103,3 +103,10 @@ implementation and differential fixtures were authored for this project.
 The [implicit-chain notes](implicit-chains.md) record the GNU Make 4.4.1
 `src/implicit.c` and `src/file.c` references used for independently authored
 transactional resolution and intermediate lifecycle handling.
+
+The Linux default variable and recipe declarations in `crates/rmake-core/data/`
+are reproduced as compatibility data from GNU Make 4.4.1's public database output.
+They retain Free Software Foundation copyright attribution and the GPL grant.
+The [built-in notes](builtins.md) distinguish these declarations from the
+independently authored Rust conversion and extraction tools, and record the
+`src/rule.c` and `src/default.c` source references.

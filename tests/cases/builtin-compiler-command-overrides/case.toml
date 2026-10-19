@@ -1,0 +1,12 @@
+id = "builtin-compiler-command-overrides"
+requirement = "rules.suffix-metadata"
+candidate = "required"
+description = "builtin-compiler-command-overrides"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["--no-print-directory", "-n", "CC=custom", "CFLAGS=-fast", "CPPFLAGS=-Iinc", "TARGET_ARCH=-arch", "OUTPUT_OPTION=-object $@"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "637573746f6d202d66617374202d49696e63202d61726368202d63202d6f626a65637420782e6f20782e630a"
+stderr_hex = ""
