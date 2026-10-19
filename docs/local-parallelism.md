@@ -73,3 +73,7 @@ also leaks a PID-named FIFO. The corpus uses GNU's pipe style to keep that oracl
 observation reproducible. The pipe protocol option is now implemented; the GNU
 fatal-resumption diagnostic path remains pending. No leaked FIFO is reproduced or normalized away. Total corpus: 2,101
 cases, with 2,088 required passes and 13 pending mismatches.
+
+`.WAIT` prerequisite phase barriers are implemented. See
+[phase barriers](wait-barriers.md) for local-scope ordering, automatic-variable
+exclusion, diagnostic coverage and the remaining independent-branch scheduler gap.

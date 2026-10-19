@@ -834,7 +834,7 @@ impl Engine {
         }
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
-        for name in [b".POSIX".as_slice(), b".WAIT", b".LOW_RESOLUTION_TIME"] {
+        for name in [b".POSIX".as_slice(), b".LOW_RESOLUTION_TIME"] {
             if self.database.rules.contains_key(name) {
                 self.fatal(
                     None,
@@ -1028,6 +1028,9 @@ impl Engine {
         let mut stale = self.options.always;
         self.visiting.insert(target.to_vec());
         for dep in &rule.dependencies {
+            if dep.name == b".WAIT" {
+                continue;
+            }
             if self.visiting.contains(&dep.name) {
                 continue;
             }
@@ -1270,6 +1273,9 @@ impl Engine {
                 active.push(candidate.identity);
                 for dependency in &candidate.rule.dependencies {
                     let name = &dependency.name;
+                    if name == b".WAIT" {
+                        continue;
+                    }
                     let explicit = self.database.rules.contains_key(name)
                         || self.database.rules.get(target).is_some_and(|rule| {
                             rule.dependencies.iter().any(|dep| dep.name == *name)
@@ -1317,12 +1323,12 @@ impl Engine {
             }
             let normal: Vec<_> = dependencies
                 .iter()
-                .filter(|d| !d.order_only)
+                .filter(|d| !d.order_only && d.name != b".WAIT")
                 .map(|d| d.name.clone())
                 .collect();
             let order: Vec<_> = dependencies
                 .iter()
-                .filter(|d| d.order_only)
+                .filter(|d| d.order_only && d.name != b".WAIT")
                 .map(|d| d.name.clone())
                 .collect();
             for (name, value) in [
@@ -1505,8 +1511,24 @@ impl Engine {
         };
         // Visit occurrences in the merged declaration order. Completed nodes
         // are memoized, but every circular occurrence must still be diagnosed.
-        for occurrence in &rule.dependencies {
+        for (index, occurrence) in rule.dependencies.iter().enumerate() {
             let dependency = &occurrence.name;
+            if dependency == b".WAIT" {
+                for prior in &rule.dependencies[..index] {
+                    self.wait_target(&prior.name);
+                    if let Some(child) = self.done.get(&prior.name) {
+                        outcome.ran |= child.ran;
+                        outcome.failed |= child.failed;
+                        outcome.fatal |= child.fatal;
+                        outcome.blocked |= child.failed;
+                        outcome.question_outdated |= child.question_outdated;
+                    }
+                }
+                if outcome.fatal || (outcome.failed && !self.options.keep_going) {
+                    break;
+                }
+                continue;
+            }
             if self.visiting.contains(dependency) {
                 self.stderr(
                     &[
@@ -1554,7 +1576,7 @@ impl Engine {
         }
         for occurrence in &rule.dependencies {
             let dependency = &occurrence.name;
-            if dropped.contains(dependency) {
+            if dependency == b".WAIT" || dropped.contains(dependency) {
                 continue;
             }
             self.wait_target(dependency);

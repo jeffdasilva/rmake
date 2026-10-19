@@ -1,0 +1,14 @@
+id = "wait-special-warning-stream"
+requirement = "parallel.execution"
+candidate = "required"
+description = "wait-special-warning-stream"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j3"]
+timeout_seconds = 5
+
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "4d616b6566696c653a313a202e574149542073686f756c64206e6f74206861766520707265726571756973697465730a4d616b6566696c653a313a202e574149542073686f756c64206e6f74206861766520636f6d6d616e64730a726561640a616c6c0a"
+stderr_hex = ""
