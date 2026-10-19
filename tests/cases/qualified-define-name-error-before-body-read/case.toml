@@ -1,0 +1,11 @@
+id = "qualified-define-name-error-before-body-read"
+requirement = "variables.qualified-define"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original qualified definition/name/body phase: name error before body read."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206e616d652e202053746f702e0a"

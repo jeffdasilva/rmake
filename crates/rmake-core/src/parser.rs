@@ -624,9 +624,32 @@ impl Database {
                 message: "empty variable name".into(),
             });
         }
+        self.define_expanded(
+            AssignmentSpec {
+                name: &name,
+                value: spec.value,
+                kind: spec.kind,
+            },
+            origin,
+            location,
+            evaluation_location,
+            context,
+        )?;
+        Ok(name)
+    }
+
+    /// Store a definition after its name expansion, without evaluating it again.
+    fn define_expanded(
+        &mut self,
+        spec: AssignmentSpec<'_>,
+        origin: Origin,
+        location: &Location,
+        evaluation_location: &Location,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
         self.variables
             .define_with(
-                &name,
+                spec.name,
                 spec.value,
                 spec.kind,
                 origin,
@@ -640,8 +663,7 @@ impl Database {
                     .unwrap_or(evaluation_location)
                     .clone(),
                 message: err.diagnostic(),
-            })?;
-        Ok(name)
+            })
     }
 
     fn define_target_assignments(
@@ -1007,10 +1029,67 @@ impl Database {
                 }
                 continue;
             }
-            if let Some(header) = directive(text, b"define") {
-                if active {
-                    declaration.finish(&mut self.warnings, context);
+            let mut variable_text = text;
+            let mut origin = Origin::File;
+            let mut export = None;
+            let mut private = false;
+            let variable_assignment = loop {
+                // A modifier can itself be a variable name (`private = x`).
+                if let Some(spec) = assignment(variable_text) {
+                    break Some(spec);
+                } else if let Some(rest) = directive(variable_text, b"override") {
+                    origin = Origin::Override;
+                    variable_text = rest;
+                } else if let Some(rest) = directive(variable_text, b"private") {
+                    private = true;
+                    variable_text = rest;
+                } else if let Some(rest) = directive(variable_text, b"export") {
+                    export = Some(true);
+                    variable_text = rest;
+                } else if let Some(rest) = directive(variable_text, b"unexport") {
+                    export = Some(false);
+                    variable_text = rest;
+                } else {
+                    break None;
                 }
+            };
+            if variable_assignment.is_none()
+                && let Some(header) = directive(variable_text, b"define")
+            {
+                let definition = if active {
+                    declaration.finish(&mut self.warnings, context);
+                    let spec = assignment(header);
+                    if spec.as_ref().is_some_and(|spec| !spec.value.is_empty()) {
+                        record_warning(
+                            &mut self.warnings,
+                            context,
+                            location.clone(),
+                            "extraneous text after 'define' directive".into(),
+                        );
+                    }
+                    let (raw_name, kind) = spec.map_or((header, Assignment::Recursive), |spec| {
+                        (spec.name, spec.kind)
+                    });
+                    let mut name = self.expand(raw_name, &location, context)?;
+                    let start = name
+                        .iter()
+                        .position(|byte| !is_c_space(*byte))
+                        .unwrap_or(name.len());
+                    name.drain(..start);
+                    while name.last().is_some_and(|byte| matches!(byte, b' ' | b'\t')) {
+                        name.pop();
+                    }
+                    if name.is_empty() {
+                        return Err(ParseError {
+                            unlocated: false,
+                            location,
+                            message: "empty variable name".into(),
+                        });
+                    }
+                    Some((name, kind))
+                } else {
+                    None
+                };
                 let mut body = Vec::new();
                 let mut depth = 1;
                 let mut warning_line = location.line;
@@ -1080,17 +1159,14 @@ impl Database {
                 if body.last() == Some(&b'\n') {
                     body.pop();
                 }
-                if active {
-                    let spec = assignment(header);
-                    let (name, kind) =
-                        spec.map_or((trim(header), Assignment::Recursive), |s| (s.name, s.kind));
-                    self.define(
+                if let Some((name, kind)) = definition {
+                    self.define_expanded(
                         AssignmentSpec {
-                            name,
+                            name: &name,
                             value: &body,
                             kind,
                         },
-                        Origin::File,
+                        origin,
                         &location,
                         &Location {
                             file: file.to_vec(),
@@ -1098,35 +1174,28 @@ impl Database {
                         },
                         context,
                     )?;
+                    if private {
+                        self.variables.set_private(&name, true);
+                    }
+                    if let Some(export) = export {
+                        self.set_export(name, export);
+                    }
                 }
                 continue;
             }
             if !active {
                 continue;
             }
-            let mut variable_text = text;
-            let mut origin = Origin::File;
-            let mut export = None;
-            let mut private = false;
-            loop {
-                // A modifier can itself be a variable name (`private = x`).
-                if assignment(variable_text).is_some() {
-                    break;
-                } else if let Some(rest) = directive(variable_text, b"override") {
-                    origin = Origin::Override;
-                    variable_text = rest;
-                } else if let Some(rest) = directive(variable_text, b"private") {
-                    private = true;
-                    variable_text = rest;
-                } else if let Some(rest) = directive(variable_text, b"export") {
-                    export = Some(true);
-                    variable_text = rest;
-                } else if let Some(rest) = directive(variable_text, b"unexport") {
-                    export = Some(false);
-                    variable_text = rest;
-                } else {
-                    break;
+            if let Some(spec) = variable_assignment {
+                declaration.finish(&mut self.warnings, context);
+                let name = self.define(spec, origin, &location, &location, context)?;
+                if private {
+                    self.variables.set_private(&name, true);
                 }
+                if let Some(export) = export {
+                    self.set_export(name, export);
+                }
+                continue;
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
                 declaration.finish(&mut self.warnings, context);
@@ -1135,17 +1204,6 @@ impl Database {
                 if self.variables.undefine(name, origin) {
                     self.exports.remove(name);
                     self.unexports.remove(name);
-                }
-                continue;
-            }
-            if let Some(spec) = assignment(variable_text) {
-                declaration.finish(&mut self.warnings, context);
-                let name = self.define(spec, origin, &location, &location, context)?;
-                if private {
-                    self.variables.set_private(&name, true);
-                }
-                if let Some(export) = export {
-                    self.set_export(name, export);
                 }
                 continue;
             }

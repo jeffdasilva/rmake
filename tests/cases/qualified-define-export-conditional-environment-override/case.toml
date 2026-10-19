@@ -1,0 +1,14 @@
+id = "qualified-define-export-conditional-environment-override"
+requirement = "variables.qualified-define"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-e"]
+description = "Original qualified definition/name/body phase: export conditional environment override."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[environment]
+"X" = "imported"
+
+[expected]
+exit_code = 0
+stdout_hex = "7261773d3c696d706f727465643e7c656e7669726f6e6d656e747c7265637572736976650a657870616e6465643d3c696d706f727465643e0a6368696c643d3c696d706f727465643e7c70726573656e740a"
+stderr_hex = ""

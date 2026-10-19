@@ -35,8 +35,9 @@ The tranche adds 117 original fixtures and promotes the existing export-keyword
 vertical-tab case. A 160-program directive/body matrix, a 336-program skipped-body
 matrix and the 2,380-program modifier matrix match exact streams and statuses.
 An expanded 972-program keyword/operator/C-separator matrix also matches.
-General definition header
-grammar, qualified definitions, all conditional operand rules and dynamic input
+The later [qualified-definition slice](qualified-definitions.md) implements
+modifiers and header preparation, and the [conditional operand slice](conditional-whitespace.md)
+corrects name/operand whitespace. Shell/eval effects and dynamic input
 remain separate compatibility work; these results do not establish full parsing
 compatibility.
 

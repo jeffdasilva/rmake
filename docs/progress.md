@@ -1228,3 +1228,32 @@ ratios were 1.020, 0.993 and 1.014. These unisolated wall-time observations
 establish no performance improvement and lack confidence intervals or CPU/RSS/I/O
 measurements. General definition grammar, shell/eval effects, includes/restarts,
 complete rule resolution, parallel runtime and release validation remain open.
+
+## Qualified define and header/body phases — 2026-10-18
+
+Global modifiers now apply to definitions, including export/unexport, override
+and private policy. Assignment priority is retained after modifiers for variables
+named `define` and `undefine`. Definition headers warn about ignored extra text,
+expand and trim names once, and reject empty/error names before body reads.
+Prepared names then reach the shared definition path without re-expansion;
+immediate body evaluation retains its closing-line context and header provenance.
+Modifier lexing retains its borrowed assignment result instead of rescanning it.
+The [qualified-definition notes](qualified-definitions.md) record semantics,
+source references and remaining shell/eval/generated-input scope.
+
+Sixty original required fixtures were added. Final full `make ci` passed with
+351 Rust tests, 240 tooling tests and all generated, fault, stateful and self-host
+gates. The curated corpus contains 1,799 cases: 1,760 required exact matches and
+39 observed pending mismatches, with no failures or unexpected passes. A
+336-program modifier/header/origin matrix resolves 308 differences against the
+preceding binary and now matches exact streams/statuses. The previous
+2,380-program modifier fallback matrix also remains exact.
+
+Against source `342f446`, 31 alternating release pairs after three warmups
+measured before/after medians of 0.685/0.682 ms for tiny no-op, 21.066/20.833 ms
+for 10,000 targets, 4.691/4.568 ms for 5,000 assignments and 2.013/1.970 ms for
+2,000 ordinary simple definitions. Median paired after/before ratios were
+1.000, 0.990, 0.977 and 0.978. These unisolated wall-time observations establish
+no general speedup and lack confidence intervals or CPU/RSS/I/O coverage. Shell
+assignments, eval/includes/restarts, complete rules, parallel execution and full
+GNU compatibility remain unfinished.

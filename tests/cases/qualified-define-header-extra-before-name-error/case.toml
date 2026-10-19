@@ -1,0 +1,11 @@
+id = "qualified-define-header-extra-before-name-error"
+requirement = "variables.qualified-define"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Original qualified definition/name/body phase: header extra before name error."
+provenance = "Independently authored source and exact expectations checked against GNU Make 4.4.1; no upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a2065787472616e656f757320746578742061667465722027646566696e6527206469726563746976650a4d616b6566696c653a313a202a2a2a20656d707479207661726961626c65206e616d652e202053746f702e0a"

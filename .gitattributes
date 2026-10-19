@@ -18,3 +18,6 @@ tests/cases/bom-reader-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 
 # Conditional fixtures distinguish literal control bytes from expansion output.
 tests/cases/conditional-space-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Definition fixtures retain control bytes and header/body stream boundaries.
+tests/cases/qualified-define-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
