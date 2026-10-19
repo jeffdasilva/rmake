@@ -1394,3 +1394,13 @@ and shared ownership through all branches. Add twelve required differential
 cases and promote the previous double-colon sibling probe. Corpus: 2,233 cases,
 with 2,219 required and 14 pending. See
 [double-colon scheduling](double-colon-scheduling.md).
+
+## Nested-branch performance follow-up
+
+Add an optional `parallel-branches` benchmark suite and retain per-workload
+arguments in reports. Two 16-branch workloads at different dependency depths
+showed about 3.9x improvement against the previous optimized rmake, with exact
+outputs/statuses and 31 alternating measured samples. GNU remained slightly
+faster. No performance threshold or persistent graph cache is introduced. See
+[nested-branch measurements](branch-scheduling-performance.md) for limits,
+reproduction and binary identities. Default benchmark workloads are unchanged.

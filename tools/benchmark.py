@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Original no-op/expansion workloads; optional paired, output-checked comparison."""
+"""Original no-op/expansion/parallel workloads; optional paired, output-checked comparison."""
 
 import argparse
 import hashlib
@@ -61,6 +61,27 @@ def selected_workloads(suite):
         yield from binding_workloads()
     if suite in ("implicit-search", "all"):
         yield from implicit_search_workloads()
+    if suite in ("parallel-branches", "all"):
+        yield from parallel_branch_workloads()
+
+
+def parallel_branch_workloads():
+    """Nested independent branches, rebuilt every sample without file outputs."""
+    for depth in (1, 4):
+        branches = [f"branch{i}_0" for i in range(16)]
+        source = "all: " + " ".join(branches) + "\n"
+        for index in range(16):
+            for level in range(depth):
+                source += f"branch{index}_{level}: branch{index}_{level+1}\n"
+            source += f"branch{index}_{depth}:;@sleep .02\n"
+        yield f'parallel-branches-depth-{depth}', source.encode()
+
+
+def workload_arguments(name):
+    arguments = ["-rR", "--no-print-directory"]
+    if name.startswith('parallel-branches-'):
+        arguments += ["-j4", "--jobserver-style=pipe"]
+    return arguments
 
 
 def implicit_search_workloads():
@@ -124,7 +145,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
@@ -161,6 +182,7 @@ def main():
         for name, source in selected_workloads(args.suite):
             fixture = prepare_files(path, name)
             (path / "Makefile").write_bytes(source)
+            arguments = workload_arguments(name)
             samples = {label: [] for label in executables}
             expected = None
             for iteration in range(args.repeat + 2):
@@ -169,7 +191,7 @@ def main():
                     alias.symlink_to(executables[label])
                     start = time.perf_counter_ns()
                     result = subprocess.run(
-                        [str(alias), "-rR", "--no-print-directory"], cwd=path, env=env,
+                        [str(alias), *arguments], cwd=path, env=env,
                         capture_output=True, timeout=30, check=True,
                     )
                     elapsed = time.perf_counter_ns() - start
@@ -181,6 +203,7 @@ def main():
                         samples[label].append(elapsed)
             record = {
                 "name": name, "source_sha256": hashlib.sha256(source).hexdigest(),
+                "arguments": arguments,
                 "input_fixture": fixture,
                 "measurements": {label: summary(values) for label, values in samples.items()},
             }
