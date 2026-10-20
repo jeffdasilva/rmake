@@ -33,9 +33,28 @@ the pinned GNU Make 4.4.1 oracle with exact status, byte streams and filesystem
 observations; stateful tests also compare timestamp relations. No output
 normalization or GNU execution backend is used. No persistent cache is added.
 
-Independent overlapping `&::` declarations are not implemented in this slice.
+Independent overlapping `&::` declarations now have a separate completion
+identity shared by the per-target branches of each declaration. A running
+declaration reserves that identity; after prerequisites finish, suspended peers
+check ownership again before selecting commands. Completion of one group does
+not finish the other groups of a shared target. Initial double-colon timestamps
+remain available to later branches even after an earlier group creates a peer.
+Secondary expansion is retained in the appropriate declaration rather than
+replacing the file's whole branch list. Ordinary touch mode still visits each
+requested branch separately. Cycles preserve the different serial and parallel
+GNU outcomes. Named `.NOTPARALLEL` follows GNU 4.4.1's behavior on these branches;
+use explicit `.WAIT` barriers to order grouped double-colon prerequisites.
+
+Forty additional required fixtures cover overlapping/repeated declarations,
+three groups, command-line goals, shared contexts, prerequisite and expansion
+order, mixed ordinary double-colon declarations, cached missing timestamps,
+errors, precious flags, duplicates, modes, cycles, restarts and parallel
+continuations. Three additional stateful scenarios compare six invocations.
+The combined corpus has 2,368 cases, 2,356 required and 12 pending; the stateful
+gate covers 40 scenarios / 96 invocations.
+
 Archives, implicit secondary expansion, signal handling, load limits and output
-synchronization also remain outside completed compatibility. Required fixture
+synchronization remain outside completed compatibility. Required fixture
 counts are a regression contract, not proof of full GNU behavior.
 
 The implementation and fixtures are original work. The pinned GPL GNU Make

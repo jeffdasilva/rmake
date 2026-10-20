@@ -1,0 +1,12 @@
+id = "double-grouped-var"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: var."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "6669727374206120410a7365636f6e64206220420a"
+stderr_hex = ""

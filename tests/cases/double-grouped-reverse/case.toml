@@ -1,0 +1,12 @@
+id = "double-grouped-reverse"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: reverse."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "7365636f6e6420630a666972737420620a"
+stderr_hex = ""

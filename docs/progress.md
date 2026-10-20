@@ -1436,3 +1436,14 @@ add eight stateful scenarios covering 17 more invocations. The corpus now has
 2,328 cases: 2,316 required and 12 pending. Stateful coverage is 37 scenarios and
 90 invocations. Independent overlapping `&::` declarations remain a next slice.
 See [grouped outputs](grouped-targets.md) for boundaries and reference policy.
+
+## Independent grouped double-colon declarations
+
+Implement `&::` with separate declaration identities, completion and active-job
+ownership across shared targets. Retain each target's initial double-colon
+timestamp and each branch's expansion state; a peer completed by one declaration
+still visits its other declarations. Suspended peer frames recheck recipe
+ownership after shared prerequisites finish. Add 40 required original fixtures
+and three stateful scenarios with six invocations. Corpus: 2,368 cases, with
+2,356 required and 12 pending. Stateful coverage: 40 scenarios / 96 invocations.
+See [grouped output rules](grouped-targets.md) for remaining scope.

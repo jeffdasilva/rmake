@@ -52,6 +52,8 @@ pub struct Rule {
     /// Grouped outputs in declaration order, patterns until implicit selection.
     /// Per-rule membership survives independent recipe replacement.
     pub grouped_targets: Option<Vec<Vec<u8>>>,
+    /// One explicit &:: declaration shared by its per-target branches.
+    pub grouped_double_id: Option<usize>,
     /// Pattern identities survive output-name substitution for peer flags and
     /// prevent a multi-output rule from recurring through a sibling pattern.
     pub implicit_group_identity: Option<usize>,
@@ -82,6 +84,7 @@ struct RuleDeclaration {
     cancel_default: bool,
     grouped: bool,
     group_warnings: Vec<(Location, Diagnostic)>,
+    grouped_double_id: Option<usize>,
 }
 
 impl RuleDeclaration {
@@ -113,6 +116,7 @@ impl RuleDeclaration {
             record_warning(warnings, context, location, message);
         }
         self.grouped = false;
+        self.grouped_double_id = None;
         self.targets.clear();
         self.offsets.clear();
         self.branches.clear();
@@ -223,6 +227,7 @@ pub struct Database {
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
     pub vpaths: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
     include_depth: usize,
+    next_group_id: usize,
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
     recipe_expansion: bool,
@@ -1844,13 +1849,6 @@ impl Database {
             };
             let double_colon = expanded.get(colon + 1) == Some(&b':');
             let grouped = expanded[..colon].ends_with(b"&");
-            if grouped && double_colon {
-                return Err(ParseError {
-                    unlocated: false,
-                    location,
-                    message: "rmake: unsupported rule form".into(),
-                });
-            }
             if self.recipe_expansion {
                 return Err(ParseError {
                     unlocated: false,
@@ -1879,6 +1877,10 @@ impl Database {
             }
             if declaration.targets.is_empty() {
                 continue;
+            }
+            if grouped && double_colon && declaration.patterns.is_empty() {
+                declaration.grouped_double_id = Some(self.next_group_id);
+                self.next_group_id += 1;
             }
             let mut prereqs = &expanded[colon + 1 + usize::from(double_colon)..];
             let static_pattern = if let Some(second) = separator(prereqs, b':') {
@@ -2010,7 +2012,7 @@ impl Database {
                     }
                 };
                 if grouped || (declaration.patterns.len() > 1) {
-                    if grouped && rule.grouped_targets.is_some() {
+                    if grouped && !double_colon && rule.grouped_targets.is_some() {
                         declaration.group_warnings.push((
                             location.clone(),
                             [
@@ -2023,6 +2025,7 @@ impl Database {
                         ));
                     }
                     rule.grouped_targets = Some(declaration.targets.clone());
+                    rule.grouped_double_id = declaration.grouped_double_id;
                 }
                 rule.prerequisite_location = Some(location.clone());
                 if let Some(stem) = &stem {
@@ -2127,7 +2130,7 @@ impl Database {
                 ));
             }
             if !seen.insert(target) {
-                if !declaration.recipe_started {
+                if !declaration.recipe_started && declaration.grouped_double_id.is_none() {
                     declaration.warnings.push((
                         declaration.location.clone().expect("rule header location"),
                         [
