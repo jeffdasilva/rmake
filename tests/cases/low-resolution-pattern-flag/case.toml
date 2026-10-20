@@ -1,0 +1,12 @@
+id = "low-resolution-pattern-flag"
+requirement = "rules.timestamps"
+candidate = "required"
+description = "Original low-resolution timestamp compatibility probe: pattern-flag."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "782e6f75740a"
+stderr_hex = ""

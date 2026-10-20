@@ -1,0 +1,12 @@
+id = "low-resolution-newer-second-touch"
+requirement = "rules.timestamps"
+candidate = "required"
+description = "Original low-resolution timestamp compatibility probe: newer-second-touch."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206f75740a"
+stderr_hex = ""

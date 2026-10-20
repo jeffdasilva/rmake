@@ -1,0 +1,12 @@
+id = "low-resolution-next"
+requirement = "rules.timestamps"
+candidate = "required"
+description = "Original low-resolution timestamp compatibility probe: next."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "6f75743a696e7075740a"
+stderr_hex = ""

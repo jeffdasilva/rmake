@@ -1462,3 +1462,15 @@ grouped-output scenarios 40 times against two GNU executions, then 40 times
 against rmake, in fresh workspaces. Two tooling tests verify repetition's
 validation and exact outcome handling. The fixture corpus remains 2,356 required
 and 12 pending, with 40 stateful scenarios / 96 invocations.
+
+## Low-resolution timestamp comparisons
+
+Implement `.LOW_RESOLUTION_TIME` target-side comparisons through the last
+nanosecond of the timestamp's second. Preserve actual timestamps for
+prerequisite outcomes, no-op metadata and changed-output error cleanup. Match
+GNU's high-resolution warning timing, including no-command files, secondary
+expansion, double-colon branches and grouped peers. Pattern spelling and empty
+flag lists retain their literal GNU behavior. Add 33 required original cases
+and four stateful scenarios / ten invocations. Corpus: 2,401 cases, with 2,389
+required and 12 pending. Stateful coverage: 44 scenarios / 106 invocations.
+See [timestamp comparisons](timestamp-comparisons.md) for scope and limitations.

@@ -1,0 +1,12 @@
+id = "low-resolution-whole-second-no-input"
+requirement = "rules.timestamps"
+candidate = "required"
+description = "Original low-resolution timestamp compatibility probe: whole-second-no-input."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20276f75742720697320757020746f20646174652e0a"
+stderr_hex = ""
