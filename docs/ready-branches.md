@@ -44,3 +44,24 @@ synchronization also remain.
 
 The rule-frame implementation and all fixtures are original Rust/Makefile work;
 no upstream implementation or test material was copied for this change.
+
+## Completion during traversal
+
+A completion observed while visiting a later branch can make an earlier frame
+ready. The scheduler now compares the pass's epoch before choosing to block in
+both goal and per-target wait loops. If a completion changed it, another pass
+visits the newly ready work first. Without this rescan, a running recipe waiting
+for that work can stall until its bounded fixture timeout.
+
+`make test-graph-progress` repeats four original parallel barrier and grouped
+output cases in fresh workspaces. `PROGRESS_REPEAT` defaults to 40; the underlying
+`tools/conformance.py --repeat` accepts 1–1000 with exact case selection. Every
+iteration retains oracle expectation checks and compares exact status, streams
+and filesystem state. GNU self-comparisons precede candidate comparisons in CI.
+The campaign supplements the required corpus rather than treating repeated
+observations as new language features or guaranteeing absence of all races.
+
+The first local negative-control run reproduced the old failure once in 40
+replays. The fixed binary passed 160 consecutive replays of that case and the
+new four-case repeated gate. These observations support the regression fix;
+the bounded marker checks test progress, not machine-speed thresholds.

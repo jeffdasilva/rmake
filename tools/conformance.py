@@ -482,9 +482,15 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--candidate", type=Path)
     parser.add_argument("--cases", type=Path, default=ROOT / "tests/cases")
     parser.add_argument("--case", action="append", default=[], help="exact case ID; repeatable")
+    parser.add_argument("--repeat", type=int, default=1,
+                        help="repeat exactly selected cases in fresh workspaces (1-1000)")
     parser.add_argument("--artifacts", type=Path, default=ROOT / "artifacts/conformance")
     args = parser.parse_args(argv)
     try:
+        if not 1 <= args.repeat <= 1000:
+            raise HarnessError("repeat must be between 1 and 1000")
+        if args.repeat > 1 and not args.case:
+            raise HarnessError("repetition requires exact --case selection")
         profile = reference_oracle.verify(args.oracle.expanduser().resolve(), args.oracle_profile)
         oracle_identity = executable_identity(args.oracle, oracle=True)
         oracle_identity["profile"] = profile
@@ -508,24 +514,26 @@ def main(argv: list[str] | None = None) -> int:
         # Deliberately serial: the same alias/workspace is reset between engines.
         with tempfile.TemporaryDirectory(prefix="rmake-conformance-") as temporary:
             root = Path(temporary)
-            for case in cases:
-                reference = execute(case, root, oracle)
-                observed = execute(case, root, candidate)
-                expected_errors = expectation_errors(case, reference)
-                mismatch = differences(reference, observed)
-                if expected_errors or reference.limit or observed.limit or reference.leftover_processes or observed.leftover_processes:
-                    status = "FAIL"
-                elif args.self_test or case.candidate == "required":
-                    status = "FAIL" if mismatch else "PASS"
-                else:
-                    status = "PENDING" if mismatch else "XPASS"
-                totals[status] += 1
-                suffix = ", ".join(expected_errors + mismatch)
-                print(f"{status:7} {case.id}" + (f" ({suffix})" if suffix else ""))
-                if status != "PASS":
-                    artifact = save_artifact(args.artifacts, case, root, identities, reference,
-                                             observed, expected_errors + mismatch, status)
-                    print(f"        evidence: {artifact}")
+            for attempt in range(args.repeat):
+                for case in cases:
+                    reference = execute(case, root, oracle)
+                    observed = execute(case, root, candidate)
+                    expected_errors = expectation_errors(case, reference)
+                    mismatch = differences(reference, observed)
+                    if expected_errors or reference.limit or observed.limit or reference.leftover_processes or observed.leftover_processes:
+                        status = "FAIL"
+                    elif args.self_test or case.candidate == "required":
+                        status = "FAIL" if mismatch else "PASS"
+                    else:
+                        status = "PENDING" if mismatch else "XPASS"
+                    totals[status] += 1
+                    suffix = ", ".join(expected_errors + mismatch)
+                    repetition = f" (run {attempt + 1}/{args.repeat})" if args.repeat > 1 else ""
+                    print(f"{status:7} {case.id}{repetition}" + (f" ({suffix})" if suffix else ""))
+                    if status != "PASS":
+                        artifact = save_artifact(args.artifacts, case, root, identities, reference,
+                                                 observed, expected_errors + mismatch, status)
+                        print(f"        evidence: {artifact}")
         print("Results: " + ", ".join(f"{key.lower()}={value}" for key, value in totals.items()))
         if totals["PENDING"]:
             print("Pending cases are observed mismatches, not compatibility passes.")

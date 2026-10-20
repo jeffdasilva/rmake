@@ -295,20 +295,42 @@ class ReportingGateTests(unittest.TestCase):
         (self.case / "Makefile").write_text("all:\n")
         self.reference = runner.Observation(b"ok\n", b"", 0, None, {})
 
-    def run_gate(self, observed, candidate="pending", self_test=False):
+    def run_gate(self, observed, candidate="pending", self_test=False, repeat=1):
         (self.case / "case.toml").write_text(
             'id = "example"\nrequirement = "rule.explicit"\ncandidate = "' + candidate +
             '"\n[expected]\nexit_code = 0\nstdout = "ok\\n"\n')
         identity = {"path": "/bin/true", "sha256": "identity"}
         with mock.patch.object(runner.reference_oracle, "verify", return_value={"profile_id": "test"}), \
              mock.patch.object(runner, "executable_identity", return_value=identity), \
-             mock.patch.object(runner, "execute", side_effect=[self.reference, observed]), \
+             mock.patch.object(runner, "execute", side_effect=[self.reference, observed] * repeat), \
              mock.patch.object(runner, "save_artifact", return_value=self.root / "evidence"), \
              contextlib.redirect_stdout(io.StringIO()) as output:
             arguments = ["--cases", str(self.root)]
             arguments += ["--self-test"] if self_test else ["--candidate", "/bin/true"]
+            if repeat != 1:
+                arguments += ["--repeat", str(repeat), "--case", "example"]
             status = runner.main(arguments)
         return status, output.getvalue()
+
+    def test_repeated_observations_remain_independent_and_exact(self):
+        status, output = self.run_gate(copy.deepcopy(self.reference), candidate="required", repeat=3)
+        self.assertEqual(status, 0)
+        self.assertIn("pass=3", output)
+        self.assertIn("run 3/3", output)
+        changed = runner.Observation(b"wrong\n", b"", 0, None, {})
+        status, output = self.run_gate(changed, candidate="required", repeat=3)
+        self.assertEqual(status, 1)
+        self.assertIn("fail=3", output)
+
+    def test_repetition_budget_and_exact_selection_are_required(self):
+        for arguments in (["--repeat", "0"], ["--repeat", "1001"], ["--repeat", "2"]):
+            with self.subTest(arguments=arguments), \
+                 mock.patch.object(runner.reference_oracle, "verify") as verify, \
+                 mock.patch.object(runner, "execute") as execute, \
+                 contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(runner.main(["--self-test", *arguments]), 2)
+                verify.assert_not_called()
+                execute.assert_not_called()
 
     def test_direct_cli_rejects_unverified_oracle_profile(self):
         with mock.patch.object(runner.reference_oracle, "verify",

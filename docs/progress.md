@@ -1447,3 +1447,18 @@ ownership after shared prerequisites finish. Add 40 required original fixtures
 and three stateful scenarios with six invocations. Corpus: 2,368 cases, with
 2,356 required and 12 pending. Stateful coverage: 40 scenarios / 96 invocations.
 See [grouped output rules](grouped-targets.md) for remaining scope.
+
+## Ready-work rescan after observed completion
+
+A main-branch CI replay exposed an intermittent barrier stall: a child completed
+while a later dependency branch was being visited, but the scheduler blocked on
+another child before revisiting earlier newly ready work. Both outer-goal and
+per-target wait loops now rescan after an observed completion. This preserves
+the per-epoch sharing bound while allowing the ready branch to launch.
+
+Add bounded exact-case repetition to the independent conformance harness and
+`make test-graph-progress` to normal CI. Each gate runs four existing barrier and
+grouped-output scenarios 40 times against two GNU executions, then 40 times
+against rmake, in fresh workspaces. Two tooling tests verify repetition's
+validation and exact outcome handling. The fixture corpus remains 2,356 required
+and 12 pending, with 40 stateful scenarios / 96 invocations.

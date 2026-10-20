@@ -983,12 +983,17 @@ impl Engine {
         }
         while requested.iter().any(|(goal, _, _)| self.pending(goal)) {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
+            let pass_epoch = self.graph_epoch;
             for (goal, _, _) in &requested {
                 if self.graph_pending(goal) {
                     self.build(goal, None, 0);
                 }
             }
-            if requested.iter().any(|(goal, _, _)| self.pending(goal))
+            // A completion observed while walking a later branch may make an
+            // earlier one ready. Rescan that work before blocking on a child
+            // which can itself be waiting for the newly ready recipe.
+            if self.graph_epoch == pass_epoch
+                && requested.iter().any(|(goal, _, _)| self.pending(goal))
                 && !self.parallel_jobs.is_empty()
             {
                 self.reap_job();
@@ -1269,10 +1274,14 @@ impl Engine {
     fn wait_target(&mut self, target: &[u8]) {
         while self.pending(target) {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
+            let pass_epoch = self.graph_epoch;
             if self.graph_pending(target) {
                 self.build(target, None, 0);
             }
-            if self.pending(target) && !self.parallel_jobs.is_empty() {
+            if self.graph_epoch == pass_epoch
+                && self.pending(target)
+                && !self.parallel_jobs.is_empty()
+            {
                 self.reap_job();
             }
         }
