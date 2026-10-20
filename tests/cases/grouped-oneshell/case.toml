@@ -1,0 +1,12 @@
+id = "grouped-oneshell"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: oneshell."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "666972737420610a66696e616c20610a"
+stderr_hex = ""

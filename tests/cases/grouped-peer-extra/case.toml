@@ -1,0 +1,12 @@
+id = "grouped-peer-extra"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: peer-extra."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "626173650a65787472610a613a626173653a626173653a626173650a"
+stderr_hex = ""

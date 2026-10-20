@@ -1,0 +1,12 @@
+id = "grouped-ignore-error"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: ignore-error."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "6d616b653a205b4d616b6566696c653a323a20615d204572726f722037202869676e6f726564290a"

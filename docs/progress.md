@@ -1423,3 +1423,16 @@ parallel-policy lookup in the failure guard. The full corpus and gates are
 unchanged. A 101-sample paired local comparison improved the 10,000-target no-op
 workload by about 8%; tiny startup and expansion do not show meaningful speedup,
 and GNU remains faster. See [measurements and limits](ready-leaf-performance.md).
+
+## Grouped explicit and implicit outputs
+
+Implement explicit `&:` and implicit multi-output rules with shared recipe
+completion, peer readiness, automatic variables, timestamp comparison, secondary
+expansion, local barriers, override diagnostics and peer cleanup. Shared implicit
+rule identities prevent sibling patterns from recurring in a search chain;
+selected peer patterns retain `.PRECIOUS` and `.NOTINTERMEDIATE` flags.
+Add 83 original required differential cases, promote `chain-shared-middle`, and
+add eight stateful scenarios covering 17 more invocations. The corpus now has
+2,328 cases: 2,316 required and 12 pending. Stateful coverage is 37 scenarios and
+90 invocations. Independent overlapping `&::` declarations remain a next slice.
+See [grouped outputs](grouped-targets.md) for boundaries and reference policy.

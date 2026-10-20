@@ -1,0 +1,12 @@
+id = "implicit-peers-owner-same-mtime"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original implicit multi-output behavior probe: implicit-peers-owner-same-mtime."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "782e610a"
+stderr_hex = ""

@@ -1,0 +1,22 @@
+id = "grouped-implicit-missing-output"
+description = "Original grouped-output incremental and timestamp boundary probe."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = []
+
+[[steps]]
+name = "first"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = {  }
+expected = { "exit_code" = 0, "stdout" = "x.a\n", "stderr" = "Makefile:2: warning: pattern recipe did not update peer target 'x.b'.\n" }
+
+[[steps]]
+name = "peer-next-invocation"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["x.a"]
+mtime_order = []
+exact_mtime = {  }
+expected = { "exit_code" = 0, "stdout" = "x.b\n", "stderr" = "" }

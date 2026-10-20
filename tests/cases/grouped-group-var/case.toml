@@ -1,0 +1,12 @@
+id = "grouped-group-var"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: group-var."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "646f6e650a"
+stderr_hex = ""
