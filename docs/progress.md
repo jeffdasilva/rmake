@@ -1474,3 +1474,17 @@ flag lists retain their literal GNU behavior. Add 33 required original cases
 and four stateful scenarios / ten invocations. Corpus: 2,401 cases, with 2,389
 required and 12 pending. Stateful coverage: 44 scenarios / 106 invocations.
 See [timestamp comparisons](timestamp-comparisons.md) for scope and limitations.
+
+## Keeping ordinary rules small
+
+Move grouped-rule metadata and peer traversal state behind optional owned
+allocations, and cache the named `.NOTPARALLEL` decision per prerequisite phase.
+Ordinary rules no longer carry the unused peer vectors, declaration metadata or
+second recipe view inline. Leaf rules skip the serialization lookup. This changes
+storage and repeated pure policy lookup without caching expansions, filesystem
+state or graph semantics across invocations. The required corpus is unchanged.
+A 101-sample local comparison improves the 10,000-target no-op workload by about
+4% against the immediately preceding build; tiny startup is unchanged and
+expansion shows no improvement. GNU remains faster. See
+[rule storage measurements](rule-storage-performance.md) for exact evidence and
+limitations.
