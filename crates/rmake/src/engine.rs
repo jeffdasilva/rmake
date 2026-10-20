@@ -235,6 +235,7 @@ struct DoubleColonState {
 }
 
 struct GroupRun {
+    branch: Option<usize>,
     implicit: bool,
     location: Option<Location>,
     before: Option<SystemTime>,
@@ -261,6 +262,9 @@ pub struct Engine {
     pending_double_colon: HashMap<Vec<u8>, DoubleColonState>,
     active_peers: HashMap<Vec<u8>, Vec<u8>>,
     running_groups: HashMap<Vec<u8>, GroupRun>,
+    completed_group_branches: HashMap<usize, Outcome>,
+    active_group_branches: HashSet<usize>,
+    double_colon_before: HashMap<Vec<u8>, Option<SystemTime>>,
     inferred_peer_flags: HashMap<Vec<u8>, (bool, bool)>,
     graph_epoch: u64,
     graph_abort: Option<Status>,
@@ -526,6 +530,9 @@ impl Engine {
             pending_double_colon: HashMap::new(),
             active_peers: HashMap::new(),
             running_groups: HashMap::new(),
+            completed_group_branches: HashMap::new(),
+            active_group_branches: HashSet::new(),
+            double_colon_before: HashMap::new(),
             inferred_peer_flags: HashMap::new(),
             graph_epoch: 0,
             graph_abort: None,
@@ -669,6 +676,9 @@ impl Engine {
                 self.target_contexts.clear();
                 self.resolved_names.clear();
                 self.inferred_peer_flags.clear();
+                self.completed_group_branches.clear();
+                self.active_group_branches.clear();
+                self.double_colon_before.clear();
             }
             for file in &files {
                 let mut bytes = Vec::new();
@@ -1626,7 +1636,18 @@ impl Engine {
             };
         }
         let resolved = if phony { None } else { self.find_vpath(target) };
-        let before = resolved.as_ref().map(|(_, time)| *time);
+        let mut before = resolved.as_ref().map(|(_, time)| *time);
+        if self
+            .database
+            .rules
+            .get(target)
+            .is_some_and(|rule| rule.double_colon.is_some())
+        {
+            before = *self
+                .double_colon_before
+                .entry(target.to_vec())
+                .or_insert(before);
+        }
         if let Some((Some(resolved), _)) = resolved {
             self.resolved_names.insert(target.to_vec(), resolved);
         }
@@ -1740,6 +1761,25 @@ impl Engine {
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
+            if let Some(id) = branch.grouped_double_id {
+                if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
+                    // Commands executed for a previous goal must not suppress
+                    // this goal's up-to-date diagnostic.
+                    result.ran = false;
+                    merge_child(&mut state.combined, result);
+                    state.combined.time = if state.phony { None } else { modified(target) };
+                    if result.fatal || (result.failed && !self.options.keep_going) {
+                        state.branches.clear();
+                    }
+                    continue;
+                }
+                if self.active_group_branches.contains(&id) {
+                    state.branches.push_front(branch);
+                    let outcome = state.combined;
+                    self.pending_double_colon.insert(target.to_vec(), state);
+                    return outcome;
+                }
+            }
             self.build_rule(
                 target,
                 state.parent.as_deref(),
@@ -1750,6 +1790,44 @@ impl Engine {
                 true,
             );
             state.active = true;
+        }
+    }
+
+    fn drop_group_dependency(&mut self, owner: &[u8], branch: Option<usize>, name: &[u8]) {
+        if let Some(root) = self.database.rules.get_mut(owner) {
+            let rule = if let Some(id) = branch {
+                root.double_colon.as_mut().and_then(|branches| {
+                    branches
+                        .iter_mut()
+                        .find(|rule| rule.grouped_double_id == Some(id))
+                })
+            } else {
+                Some(root)
+            };
+            if let Some(rule) = rule {
+                rule.dependencies
+                    .retain(|dependency| dependency.name != name);
+            }
+        }
+    }
+
+    fn store_expanded_rule(&mut self, target: &[u8], rule: Rule) {
+        if let Some(id) = rule.grouped_double_id {
+            if let Some(branch) = self
+                .database
+                .rules
+                .get_mut(target)
+                .and_then(|root| root.double_colon.as_mut())
+                .and_then(|branches| {
+                    branches
+                        .iter_mut()
+                        .find(|branch| branch.grouped_double_id == Some(id))
+                })
+            {
+                *branch = rule;
+            }
+        } else {
+            self.database.rules.insert(target.to_vec(), rule);
         }
     }
 
@@ -1801,13 +1879,16 @@ impl Engine {
                     continue;
                 }
                 let peer_phony = self.special(b".PHONY", peer, false);
-                let time = if peer_phony {
+                let mut time = if peer_phony {
                     None
                 } else if peer == target {
                     before
                 } else {
                     self.find_vpath(peer).map(|(_, time)| time)
                 };
+                if rule.grouped_double_id.is_some() {
+                    time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
+                }
                 // A newly selected implicit rule adds its peers after GNU's
                 // initial timestamp comparison. Explicit groups already exist
                 // at that point and use their oldest output.
@@ -1817,9 +1898,10 @@ impl Engine {
                 members.push((peer.clone(), time, peer_phony));
             }
             // Expansion is per file, not once for every peer traversal.
-            self.database.rules.insert(target.to_vec(), rule.clone());
+            self.store_expanded_rule(target, rule.clone());
         }
         let group = rule.grouped_targets.as_ref().map(|_| GroupRun {
+            branch: rule.grouped_double_id,
             implicit: rule.implicit_pattern.is_some(),
             location: rule.recipe_location.clone(),
             before,
@@ -1897,7 +1979,22 @@ impl Engine {
                 let Some(peer) = state.peer_targets.pop_front() else {
                     break;
                 };
-                let mut peer_rule = self.database.rules.get(&peer).cloned().unwrap_or_default();
+                let mut peer_rule = self
+                    .database
+                    .rules
+                    .get(&peer)
+                    .and_then(|root| {
+                        if let Some(id) = state.rule.grouped_double_id {
+                            root.double_colon
+                                .as_ref()?
+                                .iter()
+                                .find(|branch| branch.grouped_double_id == Some(id))
+                        } else {
+                            Some(root)
+                        }
+                    })
+                    .cloned()
+                    .unwrap_or_default();
                 let peer_parent = self.scope_parents.get(target).cloned().flatten();
                 self.scope_parents
                     .entry(peer.clone())
@@ -1916,7 +2013,7 @@ impl Engine {
                     .rule
                     .dependencies
                     .extend(peer_rule.dependencies.clone());
-                self.database.rules.insert(peer, peer_rule);
+                self.store_expanded_rule(&peer, peer_rule);
                 continue;
             }
             if let Some(index) = state.serial_dependency {
@@ -1971,9 +2068,8 @@ impl Engine {
                     .iter()
                     .rev()
                     .find(|(start, _)| *start < state.next)
-                    && let Some(stored) = self.database.rules.get_mut(owner)
                 {
-                    stored.dependencies.retain(|dep| dep.name != *dependency);
+                    self.drop_group_dependency(owner, state.rule.grouped_double_id, dependency);
                 }
                 state.dropped.insert(dependency.clone());
                 continue;
@@ -1987,7 +2083,9 @@ impl Engine {
                 .rev()
                 .find(|(start, _)| *start <= index)
                 .map_or(target, |(_, owner)| owner.as_slice());
-            if self.special(b".NOTPARALLEL", dependency_owner, false) {
+            if state.rule.grouped_double_id.is_none()
+                && self.special(b".NOTPARALLEL", dependency_owner, false)
+            {
                 state.serial_dependency = Some(index);
             }
             if child.fatal
@@ -2097,6 +2195,25 @@ impl Engine {
     }
 
     fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
+        if self.parallel_graph()
+            && let Some(id) = state.rule.grouped_double_id
+        {
+            // Two peers may have suspended on the same prerequisite before
+            // either selected a recipe. Recheck ownership after that wait.
+            if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
+                result.ran = false;
+                result.time = if state.phony { None } else { modified(target) };
+                self.visiting.remove(target);
+                self.done.insert(target.to_vec(), result);
+                return result;
+            }
+            if self.active_group_branches.contains(&id) {
+                self.visiting.remove(target);
+                let outcome = state.outcome;
+                self.pending_rules.insert(target.to_vec(), state);
+                return outcome;
+            }
+        }
         let RuleState {
             rule,
             recipe_rule,
@@ -2201,9 +2318,13 @@ impl Engine {
                 if (!self.options.touch || recursive)
                     && let Some(group) = group
                 {
-                    for (peer, _, _) in &group.members {
-                        if peer != target {
-                            self.active_peers.insert(peer.clone(), target.to_vec());
+                    if let Some(id) = group.branch {
+                        self.active_group_branches.insert(id);
+                    } else {
+                        for (peer, _, _) in &group.members {
+                            if peer != target {
+                                self.active_peers.insert(peer.clone(), target.to_vec());
+                            }
                         }
                     }
                     self.running_groups.insert(target.to_vec(), group);
@@ -2226,13 +2347,6 @@ impl Engine {
                 before
             };
         }
-        if rule.grouped_targets.is_some()
-            && let Some(stored) = self.database.rules.get_mut(target)
-        {
-            stored
-                .dependencies
-                .retain(|dependency| !dropped.contains(&dependency.name));
-        }
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);
         if !self.parallel_jobs.contains_key(target) {
@@ -2245,6 +2359,11 @@ impl Engine {
         let Some(group) = self.running_groups.remove(target) else {
             return;
         };
+        if let Some(id) = group.branch {
+            self.active_group_branches.remove(&id);
+            self.completed_group_branches.insert(id, outcome);
+            return;
+        }
         let warn_missing =
             group.implicit && modified(target).is_some_and(|time| Some(time) > group.before);
         for (peer, _, phony) in group.members.into_iter().rev() {

@@ -1,0 +1,12 @@
+id = "double-grouped-mode-n"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: mode-n."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f20666972737420613b746f756368202d64204031303030303030303030206120620a6563686f207365636f6e6420623b746f756368202d64204031303030303030303030206220630a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "double-grouped-mode-q"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: mode-q."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

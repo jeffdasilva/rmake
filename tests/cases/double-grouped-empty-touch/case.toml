@@ -1,0 +1,12 @@
+id = "double-grouped-empty-touch"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: empty-touch."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820610a746f75636820620a746f75636820620a746f75636820630a"
+stderr_hex = ""

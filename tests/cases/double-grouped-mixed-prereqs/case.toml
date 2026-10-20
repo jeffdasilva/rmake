@@ -1,0 +1,12 @@
+id = "double-grouped-mixed-prereqs"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: mixed-prereqs."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "696e7075740a666972737420613a696e7075740a6f746865720a7365636f6e6420623a6f746865720a65787472610a706c61696e20623a65787472610a"
+stderr_hex = ""

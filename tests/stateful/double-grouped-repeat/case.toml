@@ -1,0 +1,22 @@
+id = "double-grouped-repeat"
+description = "Original grouped-output incremental and timestamp boundary probe."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = []
+
+[[steps]]
+name = "first"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = { "a" = 1600000000000000000, "b" = 1600000000000000000, "c" = 1600000000000000000 }
+expected = { "exit_code" = 0, "stdout" = "first a\nsecond b\n", "stderr" = "" }
+
+[[steps]]
+name = "next-invocation"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["a", "b", "c"]
+mtime_order = []
+exact_mtime = { "a" = 1600000000000000000, "b" = 1600000000000000000, "c" = 1600000000000000000 }
+expected = { "exit_code" = 0, "stdout" = "first a\nsecond b\n", "stderr" = "" }

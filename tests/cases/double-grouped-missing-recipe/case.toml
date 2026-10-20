@@ -1,0 +1,12 @@
+id = "double-grouped-missing-recipe"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original independent double-colon grouped declaration probe: missing-recipe."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a2067726f757065642074617267657473206d7573742070726f766964652061207265636970652e202053746f702e0a"
