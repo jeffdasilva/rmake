@@ -1,0 +1,12 @@
+id = "double-occurrence-grouped-query"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: grouped-query."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

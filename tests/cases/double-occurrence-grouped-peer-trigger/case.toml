@@ -1,0 +1,12 @@
+id = "double-occurrence-grouped-peer-trigger"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: grouped-peer-trigger."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "623a696e7075740a"
+stderr_hex = ""

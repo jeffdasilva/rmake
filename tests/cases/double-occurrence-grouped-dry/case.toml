@@ -1,0 +1,12 @@
+id = "double-occurrence-grouped-dry"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: grouped-dry."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820696e7075740a6563686f2022613a696e707574223b746f756368202d64204031303030303030303030206120620a"
+stderr_hex = ""

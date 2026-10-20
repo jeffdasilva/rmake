@@ -1488,3 +1488,17 @@ A 101-sample local comparison improves the 10,000-target no-op workload by about
 expansion shows no improvement. GNU remains faster. See
 [rule storage measurements](rule-storage-performance.md) for exact evidence and
 limitations.
+
+## Repeated double-colon target occurrences
+
+Keep each repeated target occurrence in ordinary `::` and grouped `&::`
+declarations as a separate branch. Recipes attach to each branch, while grouped
+completion remains shared by declaration. Peer cursors retain occurrence
+ordinals so secondary expansion and circular-edge removal address the correct
+branch. This prevents duplicated automatic prerequisites and lost expansion
+effects. Also scan surviving expanded prerequisite bytes for static-pattern
+colons with GNU's escape parity; literal escaped references do not hide them.
+Add 35 required original differential cases, including controls for ordinary
+single-colon and grouped single-colon duplication. Corpus: 2,436 cases, with
+2,424 required and 12 pending. Stateful coverage remains 44 scenarios / 106
+invocations.

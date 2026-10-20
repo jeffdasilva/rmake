@@ -235,8 +235,8 @@ struct DoubleColonState {
 /// Only grouped rules need a second recipe view and peer traversal cursor.
 struct GroupState {
     recipe_rule: Rule,
-    peer_segments: Vec<(usize, Vec<u8>)>,
-    peer_targets: std::collections::VecDeque<Vec<u8>>,
+    peer_segments: Vec<(usize, Vec<u8>, usize)>,
+    peer_targets: std::collections::VecDeque<(Vec<u8>, usize)>,
     run: GroupRun,
 }
 
@@ -1806,13 +1806,20 @@ impl Engine {
         }
     }
 
-    fn drop_group_dependency(&mut self, owner: &[u8], branch: Option<usize>, name: &[u8]) {
+    fn drop_group_dependency(
+        &mut self,
+        owner: &[u8],
+        branch: Option<usize>,
+        ordinal: usize,
+        name: &[u8],
+    ) {
         if let Some(root) = self.database.rules.get_mut(owner) {
             let rule = if let Some(id) = branch {
                 root.double_colon.as_mut().and_then(|branches| {
-                    branches
-                        .iter_mut()
-                        .find(|rule| rule.grouped_double_id() == Some(id))
+                    branches.iter_mut().find(|rule| {
+                        rule.grouped_double_id() == Some(id)
+                            && rule.grouped_double_ordinal() == ordinal
+                    })
                 })
             } else {
                 Some(root)
@@ -1826,15 +1833,17 @@ impl Engine {
 
     fn store_expanded_rule(&mut self, target: &[u8], rule: Rule) {
         if let Some(id) = rule.grouped_double_id() {
+            let ordinal = rule.grouped_double_ordinal();
             if let Some(branch) = self
                 .database
                 .rules
                 .get_mut(target)
                 .and_then(|root| root.double_colon.as_mut())
                 .and_then(|branches| {
-                    branches
-                        .iter_mut()
-                        .find(|branch| branch.grouped_double_id() == Some(id))
+                    branches.iter_mut().find(|branch| {
+                        branch.grouped_double_id() == Some(id)
+                            && branch.grouped_double_ordinal() == ordinal
+                    })
                 })
             {
                 *branch = rule;
@@ -1903,12 +1912,23 @@ impl Engine {
         let peer_targets =
             rule.grouped_targets()
                 .map_or_else(std::collections::VecDeque::new, |targets| {
-                    targets
-                        .iter()
-                        .rev()
-                        .filter(|peer| rule.implicit_pattern.is_none() || peer.as_slice() != target)
-                        .cloned()
-                        .collect()
+                    let mut seen = HashMap::<&[u8], usize>::new();
+                    let mut peers = Vec::new();
+                    for peer in targets {
+                        let ordinal = seen.entry(peer).or_default();
+                        if rule.implicit_pattern.is_none() || peer.as_slice() != target {
+                            peers.push((
+                                peer.clone(),
+                                if rule.grouped_double_id().is_some() {
+                                    *ordinal
+                                } else {
+                                    0
+                                },
+                            ));
+                        }
+                        *ordinal += 1;
+                    }
+                    peers.into_iter().rev().collect()
                 });
         if let Some(targets) = rule.grouped_targets() {
             let mut seen = HashSet::new();
@@ -1941,7 +1961,7 @@ impl Engine {
         let group = rule.grouped_targets().map(|_| {
             Box::new(GroupState {
                 recipe_rule: rule.clone(),
-                peer_segments: vec![(0, target.to_vec())],
+                peer_segments: vec![(0, target.to_vec(), rule.grouped_double_ordinal())],
                 peer_targets,
                 run: GroupRun {
                     branch: rule.grouped_double_id(),
@@ -2023,7 +2043,7 @@ impl Engine {
         let mut waiting = false;
         while !state.stopped && self.graph_abort.is_none() {
             if state.next == state.rule.dependencies.len() {
-                let Some(peer) = state
+                let Some((peer, ordinal)) = state
                     .group
                     .as_mut()
                     .and_then(|group| group.peer_targets.pop_front())
@@ -2036,10 +2056,10 @@ impl Engine {
                     .get(&peer)
                     .and_then(|root| {
                         if let Some(id) = state.rule.grouped_double_id() {
-                            root.double_colon
-                                .as_ref()?
-                                .iter()
-                                .find(|branch| branch.grouped_double_id() == Some(id))
+                            root.double_colon.as_ref()?.iter().find(|branch| {
+                                branch.grouped_double_id() == Some(id)
+                                    && branch.grouped_double_ordinal() == ordinal
+                            })
                         } else {
                             Some(root)
                         }
@@ -2064,7 +2084,7 @@ impl Engine {
                     .as_mut()
                     .expect("peer traversal has group state")
                     .peer_segments
-                    .push((state.rule.dependencies.len(), peer.clone()));
+                    .push((state.rule.dependencies.len(), peer.clone(), ordinal));
                 state
                     .rule
                     .dependencies
@@ -2119,14 +2139,19 @@ impl Engine {
                     ]
                     .concat(),
                 );
-                if let Some((_, owner)) = state.group.as_ref().and_then(|group| {
+                if let Some((_, owner, ordinal)) = state.group.as_ref().and_then(|group| {
                     group
                         .peer_segments
                         .iter()
                         .rev()
-                        .find(|(start, _)| *start < state.next)
+                        .find(|(start, _, _)| *start < state.next)
                 }) {
-                    self.drop_group_dependency(owner, state.rule.grouped_double_id(), dependency);
+                    self.drop_group_dependency(
+                        owner,
+                        state.rule.grouped_double_id(),
+                        *ordinal,
+                        dependency,
+                    );
                 }
                 state.dropped.insert(dependency.clone());
                 continue;

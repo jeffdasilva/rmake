@@ -1,0 +1,12 @@
+id = "double-occurrence-plain-failure"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: plain-failure."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-k"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a323a20615d204572726f7220370a6d616b653a202a2a2a205b4d616b6566696c653a323a20615d204572726f7220370a6d616b653a205461726765742027616c6c27206e6f742072656d6164652062656361757365206f66206572726f72732e0a"

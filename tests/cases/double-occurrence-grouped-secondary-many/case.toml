@@ -1,0 +1,12 @@
+id = "double-occurrence-grouped-secondary-many"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: grouped-secondary-many."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "657870616e6420610a696e7075740a657870616e6420620a657870616e6420610a657870616e6420620a613a696e7075740a"
+stderr_hex = ""

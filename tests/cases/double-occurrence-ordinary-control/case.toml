@@ -1,0 +1,12 @@
+id = "double-occurrence-ordinary-control"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: ordinary-control."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "613a696e70757420696e7075740a623a696e7075740a"
+stderr_hex = "4d616b6566696c653a323a207461726765742027612720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a"

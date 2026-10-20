@@ -59,6 +59,8 @@ pub struct RuleGroup {
     pub targets: Vec<Vec<u8>>,
     /// One explicit &:: declaration shared by its per-target branches.
     pub double_id: Option<usize>,
+    /// Distinguish repeated occurrences of one file inside a declaration.
+    pub ordinal: usize,
     /// A multi-output implicit rule cannot recur through a sibling pattern.
     pub implicit_identity: Option<usize>,
     pub implicit_peer_patterns: Vec<(Vec<u8>, Vec<u8>)>,
@@ -80,7 +82,7 @@ struct RuleDeclaration {
     offsets: HashMap<Vec<u8>, usize>,
     location: Option<Location>,
     recipe_started: bool,
-    branches: HashMap<Vec<u8>, usize>,
+    branches: HashMap<Vec<u8>, Vec<usize>>,
     patterns: HashMap<Vec<u8>, Pattern>,
     implicit: HashMap<Vec<u8>, usize>,
     implicit_group_identity: Option<usize>,
@@ -146,6 +148,10 @@ impl Rule {
 
     pub fn grouped_double_id(&self) -> Option<usize> {
         self.group.as_ref().and_then(|group| group.double_id)
+    }
+
+    pub fn grouped_double_ordinal(&self) -> usize {
+        self.group.as_ref().map_or(0, |group| group.ordinal)
     }
 
     pub fn normal_prerequisites(&self) -> impl Iterator<Item = &[u8]> {
@@ -642,6 +648,22 @@ fn separator(bytes: &[u8], needle: u8) -> Option<usize> {
             }
             b if closes.is_empty() && b == needle => return Some(i),
             _ => i += 1,
+        }
+    }
+    None
+}
+
+/// References that survive immediate expansion are literal prerequisite bytes
+/// at the static-pattern separator scan. Backslash parity still quotes colons.
+fn expanded_colon(bytes: &[u8]) -> Option<usize> {
+    let mut escaped = false;
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if escaped {
+            escaped = false;
+        } else if byte == b'\\' {
+            escaped = true;
+        } else if byte == b':' {
+            return Some(index);
         }
     }
     None
@@ -1896,7 +1918,7 @@ impl Database {
                 self.next_group_id += 1;
             }
             let mut prereqs = &expanded[colon + 1 + usize::from(double_colon)..];
-            let static_pattern = if let Some(second) = separator(prereqs, b':') {
+            let static_pattern = if let Some(second) = expanded_colon(prereqs) {
                 let patterns: Vec<_> = words(&prereqs[..second]).collect();
                 if patterns.len() != 1 || !Pattern::new(patterns[0]).has_wildcard() {
                     return Err(ParseError {
@@ -1978,6 +2000,7 @@ impl Database {
                 } else {
                     None
                 };
+                let mut group_ordinal = 0;
                 let rule = if let Some(pattern) = declaration.patterns.get(target) {
                     let index = *declaration
                         .implicit
@@ -2010,14 +2033,11 @@ impl Database {
                     }
                     if double_colon {
                         let branches = root.double_colon.get_or_insert_with(Vec::new);
-                        let index =
-                            *declaration
-                                .branches
-                                .entry(target.clone())
-                                .or_insert_with(|| {
-                                    branches.push(Rule::default());
-                                    branches.len() - 1
-                                });
+                        let index = branches.len();
+                        branches.push(Rule::default());
+                        let occurrences = declaration.branches.entry(target.clone()).or_default();
+                        group_ordinal = occurrences.len();
+                        occurrences.push(index);
                         &mut branches[index]
                     } else {
                         root
@@ -2039,6 +2059,7 @@ impl Database {
                     let group = rule.group.get_or_insert_with(Default::default);
                     group.targets = declaration.targets.clone();
                     group.double_id = declaration.grouped_double_id;
+                    group.ordinal = group_ordinal;
                     group.implicit_identity = declaration.implicit_group_identity;
                 }
                 rule.prerequisite_location = Some(location.clone());
@@ -2144,7 +2165,7 @@ impl Database {
                 ));
             }
             if !seen.insert(target) {
-                if !declaration.recipe_started && declaration.grouped_double_id.is_none() {
+                if !declaration.recipe_started && !declaration.branches.contains_key(target) {
                     declaration.warnings.push((
                         declaration.location.clone().expect("rule header location"),
                         [
@@ -2158,57 +2179,93 @@ impl Database {
                 }
                 continue;
             }
-            let rule = if let Some(index) = declaration.implicit.get(target) {
-                &mut self.implicit_rules[*index].1
+            let offset = declaration.offsets[target];
+            let recipe_started = declaration.recipe_started;
+            if let Some(index) = declaration.implicit.get(target) {
+                Self::attach_recipe(
+                    &mut self.implicit_rules[*index].1,
+                    target,
+                    offset,
+                    recipe_started,
+                    &mut declaration.warnings,
+                    &recipe,
+                );
             } else {
-                let rule = self
+                let root = self
                     .rules
                     .get_mut(target)
                     .expect("current targets were inserted");
-                if let Some(index) = declaration.branches.get(target) {
-                    &mut rule
+                if let Some(indices) = declaration.branches.get(target) {
+                    let branches = root
                         .double_colon
                         .as_mut()
-                        .expect("double colon declaration")[*index]
+                        .expect("double colon declaration");
+                    for index in indices {
+                        Self::attach_recipe(
+                            &mut branches[*index],
+                            target,
+                            offset,
+                            recipe_started,
+                            &mut declaration.warnings,
+                            &recipe,
+                        );
+                    }
                 } else {
-                    rule
+                    Self::attach_recipe(
+                        root,
+                        target,
+                        offset,
+                        recipe_started,
+                        &mut declaration.warnings,
+                        &recipe,
+                    );
                 }
-            };
-            if !declaration.recipe_started {
-                let count = rule.dependencies.len() - declaration.offsets[target];
-                rule.dependencies.rotate_right(count);
-                rule.recipe_dependency_count = count;
-                if let Some(previous) = &rule.recipe_location {
-                    declaration.warnings.push((
-                        recipe.location.clone(),
-                        [
-                            b"warning: overriding recipe for target '".as_slice(),
-                            target,
-                            b"'",
-                        ]
-                        .concat()
-                        .into(),
-                    ));
-                    declaration.warnings.push((
-                        previous.clone(),
-                        [
-                            b"warning: ignoring old recipe for target '".as_slice(),
-                            target,
-                            b"'",
-                        ]
-                        .concat()
-                        .into(),
-                    ));
-                }
-                rule.recipes = Some(Vec::new());
-                rule.recipe_location = Some(recipe.location.clone());
             }
-            rule.recipes
-                .as_mut()
-                .expect("recipe initialized")
-                .push(recipe.clone());
         }
         declaration.recipe_started = true;
+    }
+
+    fn attach_recipe(
+        rule: &mut Rule,
+        target: &[u8],
+        offset: usize,
+        recipe_started: bool,
+        warnings: &mut Vec<(Location, Diagnostic)>,
+        recipe: &Recipe,
+    ) {
+        if !recipe_started {
+            let count = rule.dependencies.len() - offset;
+            rule.dependencies.rotate_right(count);
+            rule.recipe_dependency_count = count;
+            if let Some(previous) = &rule.recipe_location {
+                warnings.push((
+                    recipe.location.clone(),
+                    [
+                        b"warning: overriding recipe for target '".as_slice(),
+                        target,
+                        b"'",
+                    ]
+                    .concat()
+                    .into(),
+                ));
+                warnings.push((
+                    previous.clone(),
+                    [
+                        b"warning: ignoring old recipe for target '".as_slice(),
+                        target,
+                        b"'",
+                    ]
+                    .concat()
+                    .into(),
+                ));
+            }
+            rule.recipes = Some(Vec::new());
+            rule.recipe_location = Some(recipe.location.clone());
+        }
+        rule.recipes
+            .as_mut()
+            .expect("recipe initialized")
+            .push(recipe.clone());
     }
 }
 
