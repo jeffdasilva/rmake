@@ -1,0 +1,12 @@
+id = "implicit-peers-dry-run"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original implicit multi-output behavior probe: implicit-peers-dry-run."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f20782e613b746f75636820782e6120782e620a"
+stderr_hex = ""

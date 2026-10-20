@@ -1,0 +1,12 @@
+id = "grouped-duplicate"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: duplicate."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "610a"
+stderr_hex = "4d616b6566696c653a323a207461726765742027612720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a4d616b6566696c653a323a207761726e696e673a206f766572726964696e672067726f7570206d656d6265727368697020666f7220746172676574202761270a"

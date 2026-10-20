@@ -202,6 +202,11 @@ struct RecipeState {
 /// interpreter owns these frames; effects and secondary expansion run once.
 struct RuleState {
     rule: Rule,
+    recipe_rule: Option<Rule>,
+    peer_segments: Vec<(usize, Vec<u8>)>,
+    peer_targets: std::collections::VecDeque<Vec<u8>>,
+    group: Option<GroupRun>,
+    comparison: Option<SystemTime>,
     last_epoch: Option<u64>,
     depth: usize,
     before: Option<SystemTime>,
@@ -229,6 +234,13 @@ struct DoubleColonState {
     combined: Outcome,
 }
 
+struct GroupRun {
+    implicit: bool,
+    location: Option<Location>,
+    before: Option<SystemTime>,
+    members: Vec<(Vec<u8>, Option<SystemTime>, bool)>,
+}
+
 type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
 
 pub struct Engine {
@@ -247,6 +259,9 @@ pub struct Engine {
     parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
     pending_rules: HashMap<Vec<u8>, RuleState>,
     pending_double_colon: HashMap<Vec<u8>, DoubleColonState>,
+    active_peers: HashMap<Vec<u8>, Vec<u8>>,
+    running_groups: HashMap<Vec<u8>, GroupRun>,
+    inferred_peer_flags: HashMap<Vec<u8>, (bool, bool)>,
     graph_epoch: u64,
     graph_abort: Option<Status>,
     completed_jobs: std::sync::mpsc::Receiver<JobResult>,
@@ -509,6 +524,9 @@ impl Engine {
             parallel_jobs: HashMap::new(),
             pending_rules: HashMap::new(),
             pending_double_colon: HashMap::new(),
+            active_peers: HashMap::new(),
+            running_groups: HashMap::new(),
+            inferred_peer_flags: HashMap::new(),
             graph_epoch: 0,
             graph_abort: None,
             completed_jobs,
@@ -650,6 +668,7 @@ impl Engine {
                 self.scope_parents.clear();
                 self.target_contexts.clear();
                 self.resolved_names.clear();
+                self.inferred_peer_flags.clear();
             }
             for file in &files {
                 let mut bytes = Vec::new();
@@ -1047,7 +1066,13 @@ impl Engine {
     }
 
     fn special_for_rule(&self, special: &[u8], target: &[u8]) -> bool {
-        self.special(special, target, false)
+        self.inferred_peer_flags
+            .get(target)
+            .is_some_and(|&(precious, notintermediate)| {
+                (special == b".PRECIOUS" && precious)
+                    || (special == b".NOTINTERMEDIATE" && notintermediate)
+            })
+            || self.special(special, target, false)
             || self
                 .database
                 .rules
@@ -1216,7 +1241,12 @@ impl Engine {
     }
 
     fn pending(&self, target: &[u8]) -> bool {
-        self.graph_pending(target) || self.parallel_jobs.contains_key(target)
+        self.graph_pending(target)
+            || self.parallel_jobs.contains_key(target)
+            || self
+                .active_peers
+                .get(target)
+                .is_some_and(|owner| self.parallel_jobs.contains_key(owner))
     }
 
     fn parallel_graph(&self) -> bool {
@@ -1308,7 +1338,10 @@ impl Engine {
         outcome.failed |= failed;
         self.record_graph_failure(outcome);
         outcome.time = if job.phony { None } else { modified(&target) };
-        self.done.insert(target, outcome);
+        self.done.insert(target.clone(), outcome);
+        if !self.parallel_jobs.contains_key(&target) {
+            self.finish_group(&target, outcome);
+        }
     }
 
     fn find_vpath(&self, target: &[u8]) -> Option<(Option<Vec<u8>>, SystemTime)> {
@@ -1347,6 +1380,13 @@ impl Engine {
         }
         if let Some(plan) = plan {
             for (name, mut rule) in plan {
+                for (peer, pattern) in &rule.implicit_peer_patterns {
+                    let precious = self.special(b".PRECIOUS", pattern, false);
+                    let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
+                    let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
+                    flags.0 |= precious;
+                    flags.1 |= notintermediate;
+                }
                 if let Some(explicit) = self.database.rules.get(&name) {
                     rule.dependencies.extend(explicit.dependencies.clone());
                     rule.deferred |= explicit.deferred;
@@ -1548,6 +1588,13 @@ impl Engine {
     }
 
     fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        if let Some(owner) = self.active_peers.get(target)
+            && owner != target
+        {
+            let mut outcome = self.done.get(owner).copied().unwrap_or_default();
+            outcome.time = modified(target);
+            return outcome;
+        }
         if self.pending_double_colon.contains_key(target) {
             return self.resume_double_colon(target);
         }
@@ -1733,12 +1780,66 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        let stale = before.is_none()
+        let mut comparison = before;
+        let mut members = Vec::new();
+        let recipe_rule = rule.grouped_targets.as_ref().map(|_| rule.clone());
+        let peer_targets =
+            rule.grouped_targets
+                .as_ref()
+                .map_or_else(std::collections::VecDeque::new, |targets| {
+                    targets
+                        .iter()
+                        .rev()
+                        .filter(|peer| rule.implicit_pattern.is_none() || peer.as_slice() != target)
+                        .cloned()
+                        .collect()
+                });
+        if let Some(targets) = &rule.grouped_targets {
+            let mut seen = HashSet::new();
+            for peer in targets {
+                if !seen.insert(peer.clone()) {
+                    continue;
+                }
+                let peer_phony = self.special(b".PHONY", peer, false);
+                let time = if peer_phony {
+                    None
+                } else if peer == target {
+                    before
+                } else {
+                    self.find_vpath(peer).map(|(_, time)| time)
+                };
+                // A newly selected implicit rule adds its peers after GNU's
+                // initial timestamp comparison. Explicit groups already exist
+                // at that point and use their oldest output.
+                if rule.implicit_pattern.is_none() {
+                    comparison = comparison.min(time);
+                }
+                members.push((peer.clone(), time, peer_phony));
+            }
+            // Expansion is per file, not once for every peer traversal.
+            self.database.rules.insert(target.to_vec(), rule.clone());
+        }
+        let group = rule.grouped_targets.as_ref().map(|_| GroupRun {
+            implicit: rule.implicit_pattern.is_some(),
+            location: rule.recipe_location.clone(),
+            before,
+            members,
+        });
+        let stale = comparison.is_none()
             || phony
             || self.options.always
             || (double_colon && rule.dependencies.is_empty());
         let state = RuleState {
             rule,
+            peer_segments: if recipe_rule.is_some() {
+                vec![(0, target.to_vec())]
+            } else {
+                Vec::new()
+            },
+            recipe_rule,
+            peer_targets,
+            group,
+            comparison,
             last_epoch: None,
             depth,
             before,
@@ -1757,7 +1858,7 @@ impl Engine {
         };
         // A leaf cannot suspend dependency traversal. Keep the same recipe
         // finalization path, without inserting and removing a graph frame.
-        if state.rule.dependencies.is_empty() {
+        if state.rule.dependencies.is_empty() && state.peer_targets.is_empty() {
             return self.finish_rule(target, state);
         }
         self.pending_rules.insert(target.to_vec(), state);
@@ -1790,12 +1891,34 @@ impl Engine {
         self.apply_graph_abort(&mut state.outcome);
         state.stopped |= self.graph_abort.is_some();
         self.visiting.insert(target.to_vec());
-        let serial = self.special(b".NOTPARALLEL", target, false);
         let mut waiting = false;
-        while !state.stopped
-            && self.graph_abort.is_none()
-            && state.next < state.rule.dependencies.len()
-        {
+        while !state.stopped && self.graph_abort.is_none() {
+            if state.next == state.rule.dependencies.len() {
+                let Some(peer) = state.peer_targets.pop_front() else {
+                    break;
+                };
+                let mut peer_rule = self.database.rules.get(&peer).cloned().unwrap_or_default();
+                let peer_parent = self.scope_parents.get(target).cloned().flatten();
+                self.scope_parents
+                    .entry(peer.clone())
+                    .or_insert(peer_parent);
+                if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule) {
+                    self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
+                    state.outcome.failed = true;
+                    state.outcome.fatal = true;
+                    state.stopped = true;
+                    break;
+                }
+                state
+                    .peer_segments
+                    .push((state.rule.dependencies.len(), peer.clone()));
+                state
+                    .rule
+                    .dependencies
+                    .extend(peer_rule.dependencies.clone());
+                self.database.rules.insert(peer, peer_rule);
+                continue;
+            }
             if let Some(index) = state.serial_dependency {
                 let (child, pending) = self.visit_prerequisite(target, &mut state, index, false);
                 merge_child(&mut state.outcome, child);
@@ -1843,13 +1966,28 @@ impl Engine {
                     ]
                     .concat(),
                 );
+                if let Some((_, owner)) = state
+                    .peer_segments
+                    .iter()
+                    .rev()
+                    .find(|(start, _)| *start < state.next)
+                    && let Some(stored) = self.database.rules.get_mut(owner)
+                {
+                    stored.dependencies.retain(|dep| dep.name != *dependency);
+                }
                 state.dropped.insert(dependency.clone());
                 continue;
             }
             let index = state.next - 1;
             let (child, _) = self.visit_prerequisite(target, &mut state, index, true);
             merge_child(&mut state.outcome, child);
-            if serial {
+            let dependency_owner = state
+                .peer_segments
+                .iter()
+                .rev()
+                .find(|(start, _)| *start <= index)
+                .map_or(target, |(_, owner)| owner.as_slice());
+            if self.special(b".NOTPARALLEL", dependency_owner, false) {
                 state.serial_dependency = Some(index);
             }
             if child.fatal
@@ -1877,7 +2015,7 @@ impl Engine {
                     && self
                         .done
                         .get(name)
-                        .is_some_and(|child| self.prerequisite_stale(state.before, *child))
+                        .is_some_and(|child| self.prerequisite_stale(state.comparison, *child))
             });
             self.apply_graph_abort(&mut state.outcome);
             if state.stale && !state.outcome.failed && !state.outcome.question_outdated {
@@ -1924,7 +2062,7 @@ impl Engine {
             let (child, pending) = self.check_intermediate(
                 dependency,
                 target,
-                state.before.expect("inspection has an existing parent"),
+                state.comparison.expect("inspection has an existing parent"),
                 state.depth + 1,
             );
             if pending {
@@ -1934,7 +2072,8 @@ impl Engine {
                 if !self.done.contains_key(dependency) {
                     state.deferred_intermediates.push(dependency.clone());
                 }
-                if !occurrence.order_only && (child.time.is_none() || child.time > state.before) {
+                if !occurrence.order_only && (child.time.is_none() || child.time > state.comparison)
+                {
                     state.stale = true;
                 }
             }
@@ -1960,6 +2099,9 @@ impl Engine {
     fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
         let RuleState {
             rule,
+            recipe_rule,
+            group,
+            comparison,
             before,
             phony,
             mut stale,
@@ -1967,7 +2109,8 @@ impl Engine {
             dropped,
             ..
         } = state;
-        let canonical = rule.canonical_dependencies();
+        let recipe_rule = recipe_rule.as_ref().unwrap_or(&rule);
+        let canonical = recipe_rule.canonical_dependencies();
         let normal: Vec<_> = canonical
             .iter()
             .filter(|d| !d.order_only)
@@ -1996,7 +2139,7 @@ impl Engine {
             outcome.blocked |= child.failed;
             outcome.question_outdated |= child.question_outdated;
             let order_only = !normal_names.contains(dependency.as_slice());
-            if !order_only && self.prerequisite_stale(before, child) {
+            if !order_only && self.prerequisite_stale(comparison, child) {
                 stale = true;
                 newer.push(dependency.clone());
             }
@@ -2013,7 +2156,7 @@ impl Engine {
                     .filter(|name| !dropped.contains(*name))
                     .cloned()
                     .collect();
-                let repeated: Vec<_> = rule
+                let repeated: Vec<_> = recipe_rule
                     .normal_prerequisites()
                     .filter(|name| !dropped.contains(*name))
                     .map(Vec::from)
@@ -2048,6 +2191,23 @@ impl Engine {
                     ),
                     (b"%", Vec::new()),
                 ];
+                let recursive = recipes.iter().any(|recipe| {
+                    has_force_prefix(&recipe.bytes)
+                        || recipe
+                            .bytes
+                            .windows(7)
+                            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
+                });
+                if (!self.options.touch || recursive)
+                    && let Some(group) = group
+                {
+                    for (peer, _, _) in &group.members {
+                        if peer != target {
+                            self.active_peers.insert(peer.clone(), target.to_vec());
+                        }
+                    }
+                    self.running_groups.insert(target.to_vec(), group);
+                }
                 let execution = self.execute(target, recipes, &autos, phony, before);
                 outcome.ran |= execution.ran;
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
@@ -2066,9 +2226,55 @@ impl Engine {
                 before
             };
         }
+        if rule.grouped_targets.is_some()
+            && let Some(stored) = self.database.rules.get_mut(target)
+        {
+            stored
+                .dependencies
+                .retain(|dependency| !dropped.contains(&dependency.name));
+        }
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);
+        if !self.parallel_jobs.contains_key(target) {
+            self.finish_group(target, outcome);
+        }
         outcome
+    }
+
+    fn finish_group(&mut self, target: &[u8], outcome: Outcome) {
+        let Some(group) = self.running_groups.remove(target) else {
+            return;
+        };
+        let warn_missing =
+            group.implicit && modified(target).is_some_and(|time| Some(time) > group.before);
+        for (peer, _, phony) in group.members.into_iter().rev() {
+            if peer == target {
+                continue;
+            }
+            self.active_peers.remove(&peer);
+            self.pending_rules.remove(&peer);
+            let mut completed = outcome;
+            completed.time = if phony {
+                None
+            } else {
+                self.find_vpath(&peer).map(|(_, time)| time)
+            };
+            if warn_missing && completed.time.is_none() {
+                emit_output(
+                    &self.program,
+                    Output::Warning {
+                        location: group.location.as_ref(),
+                        message: &[
+                            b"warning: pattern recipe did not update peer target '".as_slice(),
+                            &peer,
+                            b"'.",
+                        ]
+                        .concat(),
+                    },
+                );
+            }
+            self.done.insert(peer, completed);
+        }
     }
 
     /// Initialize each target once, from its first parent outwards. Pattern
@@ -2726,6 +2932,24 @@ impl Engine {
         phony: bool,
         cleanup: Cleanup,
     ) {
+        self.cleanup_one(target, before, phony, cleanup, None);
+        if let Some(group) = self.running_groups.get(target) {
+            for (peer, time, peer_phony) in group.members.iter().rev() {
+                if peer != target {
+                    self.cleanup_one(peer, *time, *peer_phony, cleanup, Some(target));
+                }
+            }
+        }
+    }
+
+    fn cleanup_one(
+        &self,
+        target: &[u8],
+        before: Option<SystemTime>,
+        phony: bool,
+        cleanup: Cleanup,
+        owner: Option<&[u8]>,
+    ) {
         if cleanup == Cleanup::None || phony || self.special_for_rule(b".PRECIOUS", target) {
             return;
         }
@@ -2746,7 +2970,17 @@ impl Engine {
         if cleanup == Cleanup::ChangedOnError && metadata.modified().ok() == before {
             return;
         }
-        self.stderr(&[b"*** Deleting file '".as_slice(), target, b"'"].concat());
+        let context = owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
+        self.stderr(
+            &[
+                b"*** ".as_slice(),
+                &context,
+                b"Deleting file '",
+                target,
+                b"'",
+            ]
+            .concat(),
+        );
         if let Err(error) = fs::remove_file(os(target))
             && error.kind() != io::ErrorKind::NotFound
         {

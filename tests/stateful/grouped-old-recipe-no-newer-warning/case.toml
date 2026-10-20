@@ -1,0 +1,22 @@
+id = "grouped-old-recipe-no-newer-warning"
+description = "Original grouped-output incremental and timestamp boundary probe."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = [{ "op" = "write", "path" = "source", "content" = "old\n", "mtime_ns" = 1600000000000000001 }, { "op" = "write", "path" = "x.a", "content" = "old\n", "mtime_ns" = 1600000000000000000 }]
+
+[[steps]]
+name = "unchanged-owner"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["x.a"]
+mtime_order = []
+exact_mtime = {  }
+expected = { "exit_code" = 0, "stdout" = "x.a\n", "stderr" = "" }
+
+[[steps]]
+name = "both-exist"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = {  }
+expected = { "exit_code" = 0, "stdout" = "x.a\n", "stderr" = "" }

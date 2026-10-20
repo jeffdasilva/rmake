@@ -1,0 +1,12 @@
+id = "grouped-implicit-replace-single"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: implicit-replace-single."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "7265706c6163656d656e7420782e610a"
+stderr_hex = ""

@@ -8,7 +8,7 @@ Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 ## Status
 
 The executable now reads Makefiles, expands core variables/functions, and builds
-explicit dependencies serially. An independent differential harness compares it
+explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
 Target-specific and pattern-specific variables support inheritance, private
 bindings, assignment timing, and export policies. Seeded graph tests check their
@@ -17,9 +17,8 @@ The `file`, `realpath` and `wildcard` functions use explicit Linux filesystem
 effects, with byte-preserving paths, archive-member queries and tests for buffered
 I/O failures and directory-cache refresh timing.
 This is an experimental subset, **not yet a GNU Make replacement**. Includes,
-implicit rules, process expansion effects,
-parallel jobs and many compatibility details
-remain unimplemented. See [implementation progress](docs/progress.md) for exact
+implicit rules, process expansion effects, recursive jobservers and grouped
+outputs have implemented slices; many compatibility details remain unfinished. See [implementation progress](docs/progress.md) for exact
 scope, required fixtures and open milestone gates.
 Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
 locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
@@ -120,6 +119,8 @@ without recursively invoking the full CI target. Simple commands use GNU's
 direct-execution path; commands
 requiring shell interpretation retain the selected shell and flags. Full process,
 signal and diagnostic compatibility remains under development.
+See [grouped output rules](docs/grouped-targets.md) for explicit `&:` and
+implicit multi-output behavior.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

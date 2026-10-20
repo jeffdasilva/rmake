@@ -49,6 +49,13 @@ pub struct Rule {
     /// The selected implicit pattern controls pattern-level special flags;
     /// explicit/static/default rules do not inherit arbitrary matching flags.
     pub implicit_pattern: Option<Vec<u8>>,
+    /// Grouped outputs in declaration order, patterns until implicit selection.
+    /// Per-rule membership survives independent recipe replacement.
+    pub grouped_targets: Option<Vec<Vec<u8>>>,
+    /// Pattern identities survive output-name substitution for peer flags and
+    /// prevent a multi-output rule from recurring through a sibling pattern.
+    pub implicit_group_identity: Option<usize>,
+    pub implicit_peer_patterns: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
 #[derive(Clone, Debug)]
@@ -70,8 +77,11 @@ struct RuleDeclaration {
     branches: HashMap<Vec<u8>, usize>,
     patterns: HashMap<Vec<u8>, Pattern>,
     implicit: HashMap<Vec<u8>, usize>,
+    implicit_group_identity: Option<usize>,
     warnings: Vec<(Location, Diagnostic)>,
     cancel_default: bool,
+    grouped: bool,
+    group_warnings: Vec<(Location, Diagnostic)>,
 }
 
 impl RuleDeclaration {
@@ -80,7 +90,14 @@ impl RuleDeclaration {
         rules: &mut HashMap<Vec<u8>, Rule>,
         warnings: &mut Vec<(Location, Diagnostic)>,
         context: &mut ExpansionContext<'_>,
-    ) {
+    ) -> Result<(), ParseError> {
+        if self.grouped && !self.recipe_started && !self.targets.is_empty() {
+            return Err(ParseError {
+                unlocated: false,
+                location: self.location.clone().expect("group header location"),
+                message: "grouped targets must provide a recipe".into(),
+            });
+        }
         if self.cancel_default
             && !self.recipe_started
             && let Some(rule) = rules.get_mut(b".DEFAULT".as_slice())
@@ -92,13 +109,19 @@ impl RuleDeclaration {
         for (location, message) in self.warnings.drain(..) {
             record_warning(warnings, context, location, message);
         }
+        for (location, message) in self.group_warnings.drain(..).rev() {
+            record_warning(warnings, context, location, message);
+        }
+        self.grouped = false;
         self.targets.clear();
         self.offsets.clear();
         self.branches.clear();
         self.patterns.clear();
         self.implicit.clear();
+        self.implicit_group_identity = None;
         self.location = None;
         self.recipe_started = false;
+        Ok(())
     }
 }
 
@@ -295,7 +318,8 @@ impl Database {
             .rposition(|byte| *byte == b'/')
             .map_or(b"".as_slice(), |slash| &target[..=slash]);
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
-            if active.contains(&index) {
+            let identity = rule.implicit_group_identity.unwrap_or(index);
+            if active.contains(&identity) {
                 continue;
             }
             let name = pattern.literal_bytes();
@@ -314,7 +338,20 @@ impl Database {
             if self.implicit_rules[index + 1..]
                 .iter()
                 .any(|(later_pattern, later_rule)| {
-                    pattern == later_pattern && rule.dependencies == later_rule.dependencies
+                    // GNU 4.4.1 replacement treats the old declaration as
+                    // matching only when all its output patterns are the same
+                    // as this one. Distinct-output declarations consequently
+                    // keep their original priority, even after a repeated group.
+                    pattern == later_pattern
+                        && rule
+                            .grouped_targets
+                            .as_ref()
+                            .is_none_or(|peers| peers.iter().all(|peer| peer == name))
+                        && rule
+                            .dependencies
+                            .iter()
+                            .map(|dep| &dep.name)
+                            .eq(later_rule.dependencies.iter().map(|dep| &dep.name))
                 })
             {
                 continue;
@@ -330,6 +367,17 @@ impl Database {
             } else {
                 stem.to_vec()
             });
+            if let Some(peers) = &mut candidate.grouped_targets {
+                for peer in peers {
+                    let pattern = peer.clone();
+                    *peer = Pattern::new(peer)
+                        .replace(candidate.stem.as_deref().unwrap_or_default())
+                        .expect("a parsed pattern can substitute its selected stem");
+                    candidate
+                        .implicit_peer_patterns
+                        .push((peer.clone(), pattern));
+                }
+            }
             let mut valid = true;
             for dependency in &mut candidate.dependencies {
                 let pattern = Pattern::new(&dependency.name);
@@ -345,7 +393,7 @@ impl Database {
             }
             if valid {
                 result.push(ImplicitCandidate {
-                    identity: index,
+                    identity,
                     match_anything: name == b"%",
                     rule: candidate,
                 });
@@ -1337,7 +1385,7 @@ impl Database {
             // branch. Recognition itself has no expansion effects.
             if let Some(spec) = assignment(text) {
                 if active {
-                    declaration.finish(&mut self.rules, &mut self.warnings, context);
+                    declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                     self.define(spec, Origin::File, &location, &location, context)?;
                 }
                 continue;
@@ -1435,7 +1483,7 @@ impl Database {
                 && let Some(header) = directive(variable_text, b"define")
             {
                 let definition = if active {
-                    declaration.finish(&mut self.rules, &mut self.warnings, context);
+                    declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                     let spec = assignment(header);
                     if spec.as_ref().is_some_and(|spec| !spec.value.is_empty()) {
                         record_warning(
@@ -1565,7 +1613,7 @@ impl Database {
                 continue;
             }
             if let Some(spec) = variable_assignment {
-                declaration.finish(&mut self.rules, &mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 let name = self.define(spec, origin, &location, &location, context)?;
                 if private {
                     self.variables.set_private(&name, true);
@@ -1576,7 +1624,7 @@ impl Database {
                 continue;
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
-                declaration.finish(&mut self.rules, &mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 let name = self.expand(rest, &location, context)?;
                 let name = trim(&name);
                 if self.variables.undefine(name, origin) {
@@ -1592,7 +1640,7 @@ impl Database {
                 .map(|names| (true, names))
                 .or_else(|| directive(text, b"unexport").map(|names| (false, names)));
             if let Some((export, text)) = export_list {
-                declaration.finish(&mut self.rules, &mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 // Only a syntactically empty directive changes export-all.
                 // An expression that expands to no names still has its effects,
                 // but does not become an empty directive after evaluation.
@@ -1620,7 +1668,7 @@ impl Database {
                 continue;
             }
             if [b"include".as_slice(), b"-include", b"sinclude"].contains(&keyword) {
-                declaration.finish(&mut self.rules, &mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 let names = self.expand(directive(text, keyword).unwrap(), &location, context)?;
                 let optional = keyword != b"include";
                 for name in crate::filenames::sequence(&names) {
@@ -1694,7 +1742,7 @@ impl Database {
                 continue;
             }
             if keyword == b"vpath" {
-                declaration.finish(&mut self.rules, &mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 let value = self.expand(directive(text, b"vpath").unwrap(), &location, context)?;
                 let mut names = words(&value);
                 if let Some(pattern) = names.next() {
@@ -1714,7 +1762,7 @@ impl Database {
                 continue;
             }
             if keyword == b"load" {
-                declaration.finish(&mut self.rules, &mut self.warnings, context);
+                declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -1725,7 +1773,7 @@ impl Database {
                     .into(),
                 });
             }
-            declaration.finish(&mut self.rules, &mut self.warnings, context);
+            declaration.finish(&mut self.rules, &mut self.warnings, context)?;
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
                 return Err(ParseError {
                     unlocated: false,
@@ -1743,7 +1791,9 @@ impl Database {
                 let tail = tail.strip_prefix(b":").unwrap_or(&tail);
                 if let Some(assignment) = target_assignment(tail) {
                     self.define_target_assignments(
-                        &prefix_expansion.expanded[..colon],
+                        prefix_expansion.expanded[..colon]
+                            .strip_suffix(b"&")
+                            .unwrap_or(&prefix_expansion.expanded[..colon]),
                         assignment,
                         &location,
                         context,
@@ -1793,7 +1843,8 @@ impl Database {
                 });
             };
             let double_colon = expanded.get(colon + 1) == Some(&b':');
-            if expanded[..colon].ends_with(b"&") {
+            let grouped = expanded[..colon].ends_with(b"&");
+            if grouped && double_colon {
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -1808,7 +1859,9 @@ impl Database {
                 });
             }
             declaration.location = Some(location.clone());
-            for target in words(&expanded[..colon]) {
+            declaration.grouped = grouped;
+            let target_end = colon - usize::from(grouped);
+            for target in words(&expanded[..target_end]) {
                 let pattern = Pattern::new(target);
                 if pattern.has_wildcard() {
                     declaration
@@ -1919,6 +1972,10 @@ impl Database {
                             self.implicit_rules.len() - 1
                         });
                     self.implicit_rules[index].1.terminal = double_colon;
+                    if declaration.patterns.len() > 1 {
+                        self.implicit_rules[index].1.implicit_group_identity =
+                            Some(*declaration.implicit_group_identity.get_or_insert(index));
+                    }
                     &mut self.implicit_rules[index].1
                 } else {
                     self.explicit_names.insert(target.clone());
@@ -1952,6 +2009,21 @@ impl Database {
                         root
                     }
                 };
+                if grouped || (declaration.patterns.len() > 1) {
+                    if grouped && rule.grouped_targets.is_some() {
+                        declaration.group_warnings.push((
+                            location.clone(),
+                            [
+                                b"warning: overriding group membership for target '".as_slice(),
+                                target,
+                                b"'",
+                            ]
+                            .concat()
+                            .into(),
+                        ));
+                    }
+                    rule.grouped_targets = Some(declaration.targets.clone());
+                }
                 rule.prerequisite_location = Some(location.clone());
                 if let Some(stem) = &stem {
                     rule.stem = Some(stem.clone());
@@ -2029,7 +2101,7 @@ impl Database {
                 message: "missing 'endif'".into(),
             });
         }
-        declaration.finish(&mut self.rules, &mut self.warnings, context);
+        declaration.finish(&mut self.rules, &mut self.warnings, context)?;
         Ok(())
     }
 

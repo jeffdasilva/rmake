@@ -1,0 +1,12 @@
+id = "grouped-peer-order-built"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original grouped-target behavior probe: peer-order-built."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "6f776e0a65787472610a6f776e3a6f776e3a0a"
+stderr_hex = ""
