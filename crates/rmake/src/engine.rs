@@ -202,10 +202,7 @@ struct RecipeState {
 /// interpreter owns these frames; effects and secondary expansion run once.
 struct RuleState {
     rule: Rule,
-    recipe_rule: Option<Rule>,
-    peer_segments: Vec<(usize, Vec<u8>)>,
-    peer_targets: std::collections::VecDeque<Vec<u8>>,
-    group: Option<GroupRun>,
+    group: Option<Box<GroupState>>,
     comparison: Option<SystemTime>,
     last_epoch: Option<u64>,
     depth: usize,
@@ -213,6 +210,7 @@ struct RuleState {
     phony: bool,
     next: usize,
     serial_dependency: Option<usize>,
+    serial_phase: bool,
     inspections: HashMap<usize, (u64, Outcome)>,
     stopped: bool,
     stale: bool,
@@ -232,6 +230,14 @@ struct DoubleColonState {
     active: bool,
     last_epoch: Option<u64>,
     combined: Outcome,
+}
+
+/// Only grouped rules need a second recipe view and peer traversal cursor.
+struct GroupState {
+    recipe_rule: Rule,
+    peer_segments: Vec<(usize, Vec<u8>)>,
+    peer_targets: std::collections::VecDeque<Vec<u8>>,
+    run: GroupRun,
 }
 
 struct GroupRun {
@@ -1394,12 +1400,14 @@ impl Engine {
         }
         if let Some(plan) = plan {
             for (name, mut rule) in plan {
-                for (peer, pattern) in &rule.implicit_peer_patterns {
-                    let precious = self.special(b".PRECIOUS", pattern, false);
-                    let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
-                    let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
-                    flags.0 |= precious;
-                    flags.1 |= notintermediate;
+                if let Some(group) = &rule.group {
+                    for (peer, pattern) in &group.implicit_peer_patterns {
+                        let precious = self.special(b".PRECIOUS", pattern, false);
+                        let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
+                        let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
+                        flags.0 |= precious;
+                        flags.1 |= notintermediate;
+                    }
                 }
                 if let Some(explicit) = self.database.rules.get(&name) {
                     rule.dependencies.extend(explicit.dependencies.clone());
@@ -1766,7 +1774,7 @@ impl Engine {
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
-            if let Some(id) = branch.grouped_double_id {
+            if let Some(id) = branch.grouped_double_id() {
                 if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
                     // Commands executed for a previous goal must not suppress
                     // this goal's up-to-date diagnostic.
@@ -1804,7 +1812,7 @@ impl Engine {
                 root.double_colon.as_mut().and_then(|branches| {
                     branches
                         .iter_mut()
-                        .find(|rule| rule.grouped_double_id == Some(id))
+                        .find(|rule| rule.grouped_double_id() == Some(id))
                 })
             } else {
                 Some(root)
@@ -1817,7 +1825,7 @@ impl Engine {
     }
 
     fn store_expanded_rule(&mut self, target: &[u8], rule: Rule) {
-        if let Some(id) = rule.grouped_double_id {
+        if let Some(id) = rule.grouped_double_id() {
             if let Some(branch) = self
                 .database
                 .rules
@@ -1826,7 +1834,7 @@ impl Engine {
                 .and_then(|branches| {
                     branches
                         .iter_mut()
-                        .find(|branch| branch.grouped_double_id == Some(id))
+                        .find(|branch| branch.grouped_double_id() == Some(id))
                 })
             {
                 *branch = rule;
@@ -1892,10 +1900,8 @@ impl Engine {
             return result;
         }
         let mut members = Vec::new();
-        let recipe_rule = rule.grouped_targets.as_ref().map(|_| rule.clone());
         let peer_targets =
-            rule.grouped_targets
-                .as_ref()
+            rule.grouped_targets()
                 .map_or_else(std::collections::VecDeque::new, |targets| {
                     targets
                         .iter()
@@ -1904,7 +1910,7 @@ impl Engine {
                         .cloned()
                         .collect()
                 });
-        if let Some(targets) = &rule.grouped_targets {
+        if let Some(targets) = rule.grouped_targets() {
             let mut seen = HashSet::new();
             for peer in targets {
                 if !seen.insert(peer.clone()) {
@@ -1918,7 +1924,7 @@ impl Engine {
                 } else {
                     self.find_vpath(peer).map(|(_, time)| time)
                 };
-                if rule.grouped_double_id.is_some() {
+                if rule.grouped_double_id().is_some() {
                     time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
                 }
                 // A newly selected implicit rule adds its peers after GNU's
@@ -1932,26 +1938,29 @@ impl Engine {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
         }
-        let group = rule.grouped_targets.as_ref().map(|_| GroupRun {
-            branch: rule.grouped_double_id,
-            implicit: rule.implicit_pattern.is_some(),
-            location: rule.recipe_location.clone(),
-            before,
-            members,
+        let group = rule.grouped_targets().map(|_| {
+            Box::new(GroupState {
+                recipe_rule: rule.clone(),
+                peer_segments: vec![(0, target.to_vec())],
+                peer_targets,
+                run: GroupRun {
+                    branch: rule.grouped_double_id(),
+                    implicit: rule.implicit_pattern.is_some(),
+                    location: rule.recipe_location.clone(),
+                    before,
+                    members,
+                },
+            })
         });
         let stale = comparison.is_none()
             || phony
             || self.options.always
             || (double_colon && rule.dependencies.is_empty());
+        let serial_phase = !rule.dependencies.is_empty()
+            && rule.grouped_double_id().is_none()
+            && self.special(b".NOTPARALLEL", target, false);
         let state = RuleState {
             rule,
-            peer_segments: if recipe_rule.is_some() {
-                vec![(0, target.to_vec())]
-            } else {
-                Vec::new()
-            },
-            recipe_rule,
-            peer_targets,
             group,
             comparison,
             last_epoch: None,
@@ -1960,6 +1969,7 @@ impl Engine {
             phony,
             next: 0,
             serial_dependency: None,
+            serial_phase,
             inspections: HashMap::new(),
             stopped: false,
             stale,
@@ -1972,7 +1982,12 @@ impl Engine {
         };
         // A leaf cannot suspend dependency traversal. Keep the same recipe
         // finalization path, without inserting and removing a graph frame.
-        if state.rule.dependencies.is_empty() && state.peer_targets.is_empty() {
+        if state.rule.dependencies.is_empty()
+            && state
+                .group
+                .as_ref()
+                .is_none_or(|group| group.peer_targets.is_empty())
+        {
             return self.finish_rule(target, state);
         }
         self.pending_rules.insert(target.to_vec(), state);
@@ -2008,7 +2023,11 @@ impl Engine {
         let mut waiting = false;
         while !state.stopped && self.graph_abort.is_none() {
             if state.next == state.rule.dependencies.len() {
-                let Some(peer) = state.peer_targets.pop_front() else {
+                let Some(peer) = state
+                    .group
+                    .as_mut()
+                    .and_then(|group| group.peer_targets.pop_front())
+                else {
                     break;
                 };
                 let mut peer_rule = self
@@ -2016,11 +2035,11 @@ impl Engine {
                     .rules
                     .get(&peer)
                     .and_then(|root| {
-                        if let Some(id) = state.rule.grouped_double_id {
+                        if let Some(id) = state.rule.grouped_double_id() {
                             root.double_colon
                                 .as_ref()?
                                 .iter()
-                                .find(|branch| branch.grouped_double_id == Some(id))
+                                .find(|branch| branch.grouped_double_id() == Some(id))
                         } else {
                             Some(root)
                         }
@@ -2038,7 +2057,12 @@ impl Engine {
                     state.stopped = true;
                     break;
                 }
+                state.serial_phase = state.rule.grouped_double_id().is_none()
+                    && self.special(b".NOTPARALLEL", &peer, false);
                 state
+                    .group
+                    .as_mut()
+                    .expect("peer traversal has group state")
                     .peer_segments
                     .push((state.rule.dependencies.len(), peer.clone()));
                 state
@@ -2095,13 +2119,14 @@ impl Engine {
                     ]
                     .concat(),
                 );
-                if let Some((_, owner)) = state
-                    .peer_segments
-                    .iter()
-                    .rev()
-                    .find(|(start, _)| *start < state.next)
-                {
-                    self.drop_group_dependency(owner, state.rule.grouped_double_id, dependency);
+                if let Some((_, owner)) = state.group.as_ref().and_then(|group| {
+                    group
+                        .peer_segments
+                        .iter()
+                        .rev()
+                        .find(|(start, _)| *start < state.next)
+                }) {
+                    self.drop_group_dependency(owner, state.rule.grouped_double_id(), dependency);
                 }
                 state.dropped.insert(dependency.clone());
                 continue;
@@ -2109,15 +2134,7 @@ impl Engine {
             let index = state.next - 1;
             let (child, _) = self.visit_prerequisite(target, &mut state, index, true);
             merge_child(&mut state.outcome, child);
-            let dependency_owner = state
-                .peer_segments
-                .iter()
-                .rev()
-                .find(|(start, _)| *start <= index)
-                .map_or(target, |(_, owner)| owner.as_slice());
-            if state.rule.grouped_double_id.is_none()
-                && self.special(b".NOTPARALLEL", dependency_owner, false)
-            {
+            if state.serial_phase {
                 state.serial_dependency = Some(index);
             }
             if child.fatal
@@ -2228,7 +2245,7 @@ impl Engine {
 
     fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
         if self.parallel_graph()
-            && let Some(id) = state.rule.grouped_double_id
+            && let Some(id) = state.rule.grouped_double_id()
         {
             // Two peers may have suspended on the same prerequisite before
             // either selected a recipe. Recheck ownership after that wait.
@@ -2248,7 +2265,6 @@ impl Engine {
         }
         let RuleState {
             rule,
-            recipe_rule,
             group,
             comparison,
             before,
@@ -2258,7 +2274,7 @@ impl Engine {
             dropped,
             ..
         } = state;
-        let recipe_rule = recipe_rule.as_ref().unwrap_or(&rule);
+        let recipe_rule = group.as_ref().map_or(&rule, |group| &group.recipe_rule);
         let canonical = recipe_rule.canonical_dependencies();
         let normal: Vec<_> = canonical
             .iter()
@@ -2350,6 +2366,7 @@ impl Engine {
                 if (!self.options.touch || recursive)
                     && let Some(group) = group
                 {
+                    let group = group.run;
                     if let Some(id) = group.branch {
                         self.active_group_branches.insert(id);
                     } else {

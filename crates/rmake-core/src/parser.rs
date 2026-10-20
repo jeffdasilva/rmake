@@ -49,14 +49,18 @@ pub struct Rule {
     /// The selected implicit pattern controls pattern-level special flags;
     /// explicit/static/default rules do not inherit arbitrary matching flags.
     pub implicit_pattern: Option<Vec<u8>>,
-    /// Grouped outputs in declaration order, patterns until implicit selection.
-    /// Per-rule membership survives independent recipe replacement.
-    pub grouped_targets: Option<Vec<Vec<u8>>>,
+    /// Rare multi-output metadata stays out of ordinary rule clones.
+    pub group: Option<Box<RuleGroup>>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct RuleGroup {
+    /// Declaration order, containing patterns until implicit selection.
+    pub targets: Vec<Vec<u8>>,
     /// One explicit &:: declaration shared by its per-target branches.
-    pub grouped_double_id: Option<usize>,
-    /// Pattern identities survive output-name substitution for peer flags and
-    /// prevent a multi-output rule from recurring through a sibling pattern.
-    pub implicit_group_identity: Option<usize>,
+    pub double_id: Option<usize>,
+    /// A multi-output implicit rule cannot recur through a sibling pattern.
+    pub implicit_identity: Option<usize>,
     pub implicit_peer_patterns: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
@@ -136,6 +140,14 @@ pub struct Dependency {
 }
 
 impl Rule {
+    pub fn grouped_targets(&self) -> Option<&[Vec<u8>]> {
+        self.group.as_ref().map(|group| group.targets.as_slice())
+    }
+
+    pub fn grouped_double_id(&self) -> Option<usize> {
+        self.group.as_ref().and_then(|group| group.double_id)
+    }
+
     pub fn normal_prerequisites(&self) -> impl Iterator<Item = &[u8]> {
         self.dependencies
             .iter()
@@ -323,7 +335,11 @@ impl Database {
             .rposition(|byte| *byte == b'/')
             .map_or(b"".as_slice(), |slash| &target[..=slash]);
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
-            let identity = rule.implicit_group_identity.unwrap_or(index);
+            let identity = rule
+                .group
+                .as_ref()
+                .and_then(|group| group.implicit_identity)
+                .unwrap_or(index);
             if active.contains(&identity) {
                 continue;
             }
@@ -349,8 +365,7 @@ impl Database {
                     // keep their original priority, even after a repeated group.
                     pattern == later_pattern
                         && rule
-                            .grouped_targets
-                            .as_ref()
+                            .grouped_targets()
                             .is_none_or(|peers| peers.iter().all(|peer| peer == name))
                         && rule
                             .dependencies
@@ -372,15 +387,13 @@ impl Database {
             } else {
                 stem.to_vec()
             });
-            if let Some(peers) = &mut candidate.grouped_targets {
-                for peer in peers {
+            if let Some(group) = &mut candidate.group {
+                for peer in &mut group.targets {
                     let pattern = peer.clone();
                     *peer = Pattern::new(peer)
                         .replace(candidate.stem.as_deref().unwrap_or_default())
                         .expect("a parsed pattern can substitute its selected stem");
-                    candidate
-                        .implicit_peer_patterns
-                        .push((peer.clone(), pattern));
+                    group.implicit_peer_patterns.push((peer.clone(), pattern));
                 }
             }
             let mut valid = true;
@@ -1975,8 +1988,7 @@ impl Database {
                         });
                     self.implicit_rules[index].1.terminal = double_colon;
                     if declaration.patterns.len() > 1 {
-                        self.implicit_rules[index].1.implicit_group_identity =
-                            Some(*declaration.implicit_group_identity.get_or_insert(index));
+                        declaration.implicit_group_identity.get_or_insert(index);
                     }
                     &mut self.implicit_rules[index].1
                 } else {
@@ -2012,7 +2024,7 @@ impl Database {
                     }
                 };
                 if grouped || (declaration.patterns.len() > 1) {
-                    if grouped && !double_colon && rule.grouped_targets.is_some() {
+                    if grouped && !double_colon && rule.group.is_some() {
                         declaration.group_warnings.push((
                             location.clone(),
                             [
@@ -2024,8 +2036,10 @@ impl Database {
                             .into(),
                         ));
                     }
-                    rule.grouped_targets = Some(declaration.targets.clone());
-                    rule.grouped_double_id = declaration.grouped_double_id;
+                    let group = rule.group.get_or_insert_with(Default::default);
+                    group.targets = declaration.targets.clone();
+                    group.double_id = declaration.grouped_double_id;
+                    group.implicit_identity = declaration.implicit_group_identity;
                 }
                 rule.prerequisite_location = Some(location.clone());
                 if let Some(stem) = &stem {
