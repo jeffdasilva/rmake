@@ -913,14 +913,9 @@ impl Engine {
         }
         // Reject special execution modes until their semantics are implemented,
         // rather than accidentally passing cases under serial defaults.
-        for name in [b".POSIX".as_slice(), b".LOW_RESOLUTION_TIME"] {
-            if self.database.rules.contains_key(name) {
-                self.fatal(
-                    None,
-                    &[b"rmake: unsupported special target ".as_slice(), name].concat(),
-                );
-                return 2;
-            }
+        if self.database.rules.contains_key(b".POSIX".as_slice()) {
+            self.fatal(None, b"rmake: unsupported special target .POSIX");
+            return 2;
         }
         let goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
@@ -1668,6 +1663,7 @@ impl Engine {
             .or_else(|| phony.then(Rule::default))
         else {
             if before.is_some() {
+                let _ = self.comparison_time(target, before);
                 let result = Outcome {
                     time: before,
                     ..Outcome::default()
@@ -1840,6 +1836,33 @@ impl Engine {
         }
     }
 
+    /// LOW_RESOLUTION_TIME changes only the target-side comparison. Retain
+    /// actual metadata for prerequisite outcomes and changed-file cleanup.
+    fn comparison_time(&self, target: &[u8], before: Option<SystemTime>) -> Option<SystemTime> {
+        let time = before?;
+        if !self.special(b".LOW_RESOLUTION_TIME", target, false) {
+            return before;
+        }
+        let nanos = match time.duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(duration) => duration.subsec_nanos(),
+            Err(error) => (1_000_000_000 - error.duration().subsec_nanos()) % 1_000_000_000,
+        };
+        if nanos != 0 {
+            self.stderr(
+                &[
+                    b"*** Warning: .LOW_RESOLUTION_TIME file '".as_slice(),
+                    target,
+                    b"' has a high resolution time stamp",
+                ]
+                .concat(),
+            );
+        }
+        time.checked_add(std::time::Duration::from_nanos(u64::from(
+            999_999_999 - nanos,
+        )))
+        .or(before)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn build_rule(
         &mut self,
@@ -1857,6 +1880,7 @@ impl Engine {
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| parent.map(Vec::from));
+        let mut comparison = self.comparison_time(target, before);
         if let Err(error) = self.expand_dependencies(target, &mut rule) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
@@ -1867,7 +1891,6 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        let mut comparison = before;
         let mut members = Vec::new();
         let recipe_rule = rule.grouped_targets.as_ref().map(|_| rule.clone());
         let peer_targets =

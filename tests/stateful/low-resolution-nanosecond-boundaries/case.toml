@@ -1,0 +1,31 @@
+id = "low-resolution-nanosecond-boundaries"
+description = "Original low-resolution timestamp comparison and cleanup probe."
+provenance = "Original rmake fixture; behavior independently checked against GNU Make 4.4.1."
+initial = [{ "op" = "write", "path" = "out", "content" = "old\n", "mtime_ns" = 1600000000000000000 }, { "op" = "write", "path" = "input", "content" = "old\n", "mtime_ns" = 1600000000000000001 }]
+
+[[steps]]
+name = "one-ns-same-second"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["out", "input"]
+mtime_order = []
+exact_mtime = {  }
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+
+[[steps]]
+name = "last-ns-same-second"
+actions = [{ "op" = "utime", "path" = "input", "mtime_ns" = 1600000000999999999 }]
+args = ["-rR", "--no-print-directory"]
+unchanged = ["out", "input"]
+mtime_order = []
+exact_mtime = {  }
+expected = { "exit_code" = 0, "stdout" = "make: 'out' is up to date.\n", "stderr" = "" }
+
+[[steps]]
+name = "next-second"
+actions = [{ "op" = "utime", "path" = "input", "mtime_ns" = 1600000001000000000 }]
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = { "out" = 1600000002000000000 }
+expected = { "exit_code" = 0, "stdout" = "build:input\n", "stderr" = "" }

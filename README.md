@@ -120,7 +120,8 @@ direct-execution path; commands
 requiring shell interpretation retain the selected shell and flags. Full process,
 signal and diagnostic compatibility remains under development.
 See [grouped output rules](docs/grouped-targets.md) for explicit `&:` and
-implicit multi-output behavior.
+implicit multi-output behavior. [Low-resolution timestamp comparisons](docs/timestamp-comparisons.md)
+preserve GNU rebuild decisions without changing stored file metadata.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup
