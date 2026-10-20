@@ -1,0 +1,12 @@
+id = "double-occurrence-grouped-repeated-input"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Original repeated-target occurrence probe: grouped-repeated-input."
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout_hex = "613a696e7075743a696e7075743a696e70757420696e7075743a696e7075740a"
+stderr_hex = ""

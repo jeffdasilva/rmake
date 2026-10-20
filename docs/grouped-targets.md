@@ -60,3 +60,26 @@ counts are a regression contract, not proof of full GNU behavior.
 The implementation and fixtures are original work. The pinned GPL GNU Make
 4.4.1 `read.c`, `remake.c`, `implicit.c`, `rule.c` and manual were consulted as references;
 no upstream code or test files were copied.
+
+## Repeated names inside a declaration
+
+Repeated names in `::` and `&::` declarations create distinct per-file branches,
+with independent prerequisite lists and secondary-expansion state. A grouped
+declaration still shares one completion identity. Each peer cursor carries its
+occurrence ordinal, so expanding or dropping a dependency in one branch does
+not overwrite another branch of the same file. Ordinary double-colon commands
+run for each eligible occurrence; grouped commands retain their shared
+completion behavior. Single-colon duplicate prerequisites and warnings remain
+as observed in GNU.
+
+Thirty-five additional required fixtures check these distinctions through
+automatic variables, repeated prerequisites, order-only inputs, secondary
+expansion, overlapping groups, cycles, errors, modes and parallel continuations.
+The same corpus checks that colons in references surviving immediate expansion
+are visible to GNU's static-pattern separator scan, including its diagnostics.
+Backslash parity quotes that separator; references evaluated immediately retain
+their existing expansion behavior. The pinned `read.c` was consulted as a
+behavioral reference; no upstream code or fixtures were copied.
+
+The current corpus has 2,436 cases: 2,424 required and 12 pending. These counts
+remain a regression contract rather than a complete compatibility inventory.
