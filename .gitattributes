@@ -5,6 +5,9 @@ tests/cases/span-*/input -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/wildcard-*/pattern -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/wildcard-*/*.a -text
 
+# Archive headers/payloads are byte fixtures, including those in subdirectories.
+tests/cases/archive-*/**/*.a -text -diff
+
 # Literal NUL and CRLF reader fixtures preserve their source bytes.
 tests/cases/nul-reader-*/Makefile -text
 tests/cases/rule-warning-*/Makefile -text
