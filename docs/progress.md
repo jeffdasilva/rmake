@@ -1664,3 +1664,14 @@ benchmark improves about 2.9x/5.5x over the preceding build; GNU remains faster,
 and the core/control results do not establish general speed parity. See
 [implicit secondary expansion](implicit-secondary-expansion.md) for behavior,
 measurements and the remaining M4 gates.
+
+## Failed-search observation invalidation
+
+Expire impossible-prerequisite observations using the filesystem runtime's shared
+generation after completed children and opened file writes. Preserve read-only,
+dry-skip and internal-touch behavior, and keep current-search cancellations local.
+Add 14 original required mutation/control fixtures and fix the blocked-goal
+summary under `-kn`. Corpus: 2,998 cases, with 2,986 required and 12 pending.
+Stateful coverage remains 51 scenarios / 140 invocations. A paired 101-sample
+comparison retains the prior rejection improvement with small local differences;
+GNU remains faster. See [search invalidation](implicit-search-invalidation.md).

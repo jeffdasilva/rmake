@@ -149,6 +149,8 @@ static stems, literal prerequisites, GNU traversal order and diagnostic context.
 [Implicit secondary expansion](docs/implicit-secondary-expansion.md) evaluates
 candidate words during search, preserving lazy effects, stem reconstruction,
 temporary chain contexts and prerequisite cleanup roles.
+Failed-search observations share the [filesystem invalidation boundaries](docs/implicit-search-invalidation.md)
+used by directory queries, so commands and writes can make a rejected input viable.
 `make test-secondary` runs a seeded graph campaign with mixed variable scopes.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
