@@ -1,0 +1,12 @@
+id = "include-search-metadata-cli"
+requirement = "includes.search"
+candidate = "required"
+description = "metadata-cli"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-Iinc", ".INCLUDE_DIRS=custom"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973743d5b4d616b6566696c6520696e632f73657474696e67732e6d6b5d0a646972733d5b637573746f6d5d3a636f6d6d616e64206c696e653a7265637572736976650a666c6167733d5b7252202d492d202d49696e63202d2d6e6f2d7072696e742d6469726563746f7279202d2d202e494e434c5544455f444952533d637573746f6d5d0a"
+stderr_hex = ""

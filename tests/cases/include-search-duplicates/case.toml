@@ -1,0 +1,12 @@
+id = "include-search-duplicates"
+requirement = "includes.search"
+candidate = "required"
+description = "duplicates"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-Iinc", "-Iinc", "--include-dir=inc"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973743d5b4d616b6566696c655d0a646972733d5b696e635d3a64656661756c743a73696d706c650a666c6167733d5b7252202d492d202d49696e63202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+stderr_hex = ""

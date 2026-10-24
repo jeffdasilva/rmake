@@ -1,0 +1,12 @@
+id = "include-search-recipe-eval"
+requirement = "includes.search"
+candidate = "required"
+description = "recipe-eval"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-Iinc"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7265636970650a"
+stderr_hex = ""

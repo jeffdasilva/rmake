@@ -10,6 +10,7 @@ use std::process::ExitCode;
 mod cli;
 mod command_variables;
 mod engine;
+mod makefiles;
 mod oneshell;
 mod process;
 mod recipe_flow;
@@ -46,6 +47,7 @@ fn main() -> ExitCode {
         println!("  --version  Show rmake version and compatibility target");
         println!("  -f FILE    Read the specified Makefile (may be repeated)");
         println!("  -C DIR     Change directory before reading Makefiles");
+        println!("  -I DIR     Search for included Makefiles; -I- resets the search path");
         println!("  -n / -s    Print commands without running / suppress command echo");
         println!("  -B / -q    Always rebuild / query whether recipes are needed");
         println!("  -i / -k    Ignore recipe errors / continue independent targets");
@@ -54,7 +56,7 @@ fn main() -> ExitCode {
         println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
         println!("\nDevelopment build: GNU Make compatibility is incomplete.");
         println!(
-            "Grouped outputs, output synchronization and complete signal handling remain unfinished."
+            "Archive rules, output synchronization and complete signal handling remain unfinished."
         );
         return ExitCode::SUCCESS;
     }

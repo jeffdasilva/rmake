@@ -14,6 +14,8 @@ pub struct Options {
     pub jobserver_pipe: bool,
     pub reset_jobserver: bool,
     pub directories: Vec<PathBuf>,
+    pub include_directories: Vec<PathBuf>,
+    pub include_assignment_positions: Vec<usize>,
     pub goals: Vec<Vec<u8>>,
     pub assignments: Vec<Vec<u8>>,
     pub dry_run: bool,
@@ -89,21 +91,14 @@ impl Options {
                         "option-like goals in inherited make flags are not implemented".into(),
                     );
                 }
-                // GNU omits these options when exporting MAKEFLAGS. Reject
-                // them here rather than reading a different file or directory.
-                if token.starts_with(b"--file")
-                    || token.starts_with(b"--makefile")
-                    || token.starts_with(b"--directory")
-                    || (token.starts_with(b"-")
-                        && !token.starts_with(b"--")
-                        && (token.contains(&b'f') || token.contains(&b'C')))
-                {
-                    return Err("inherited file/directory options are not implemented".into());
-                }
                 combined.push(OsString::from_vec(token));
             }
         }
         let inherited_options = Self::parse(combined.clone())?;
+        // Inspect parsed options: an -I argument can itself contain f or C.
+        if !inherited_options.files.is_empty() || !inherited_options.directories.is_empty() {
+            return Err("inherited file/directory options are not implemented".into());
+        }
         let inherited = inherited_options.jobs;
         let args: Vec<_> = args.into_iter().collect();
         let explicit_options = Self::parse(args.clone())?;
@@ -188,7 +183,7 @@ impl Options {
                         b"--no-print-directory" if value.is_none() => {
                             result.no_print_directory = true
                         }
-                        b"--file" | b"--makefile" | b"--directory" => {
+                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir" => {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
@@ -201,7 +196,9 @@ impl Options {
                                     )
                                 })?;
                             let path = PathBuf::from(OsString::from_vec(value));
-                            if name == b"--directory" {
+                            if name == b"--include-dir" {
+                                result.add_include_directory(path)?;
+                            } else if name == b"--directory" {
                                 result.directories.push(path);
                             } else {
                                 result.files.push(path);
@@ -249,7 +246,7 @@ impl Options {
                             result.no_variables = true;
                             result.no_rules = true;
                         }
-                        option @ (b'f' | b'C' | b'j') => {
+                        option @ (b'f' | b'C' | b'j' | b'I') => {
                             let value = if j + 1 < arg.len() {
                                 arg[j + 1..].to_vec()
                             } else if option == b'j'
@@ -264,7 +261,9 @@ impl Options {
                                     format!("option requires an argument -- '{}'", option as char)
                                 })?
                             };
-                            if option == b'j' {
+                            if option == b'I' {
+                                result.add_include_directory(OsString::from_vec(value).into())?;
+                            } else if option == b'j' {
                                 result.jobs = Some(job_count(&value)?);
                             } else if option == b'f' {
                                 result.files.push(OsString::from_vec(value).into());
@@ -287,6 +286,17 @@ impl Options {
         Ok(result)
     }
 
+    fn add_include_directory(&mut self, path: PathBuf) -> Result<(), String> {
+        if path.as_os_str().is_empty() {
+            return Err("the '-I' option requires a non-empty string argument".into());
+        }
+        // Runtime expansion observes only assignments preceding this option.
+        self.include_assignment_positions
+            .push(self.assignments.len());
+        self.include_directories.push(path);
+        Ok(())
+    }
+
     pub fn flags(&self) -> Vec<u8> {
         let mut flags = Vec::new();
         for (set, flag) in [
@@ -303,6 +313,15 @@ impl Options {
         ] {
             if set {
                 flags.push(flag);
+            }
+        }
+        for directory in &self.include_directories {
+            flags.extend_from_slice(b" -I");
+            for &byte in directory.as_os_str().as_bytes() {
+                if byte.is_ascii_whitespace() || byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(byte);
             }
         }
         if let Some(jobs) = self.jobs {
@@ -445,5 +464,37 @@ mod tests {
         .unwrap();
         assert!(inherited.no_print_directory);
         assert_eq!(inherited.flags(), b"rR --no-print-directory");
+    }
+
+    #[test]
+    fn include_options_preserve_raw_paths_and_quote_recursive_flags() {
+        let options = parse(&[
+            "-I-",
+            "-Ia/",
+            "-Ia",
+            "-Ia/",
+            "--include-dir=two words",
+            "-Iback\\slash",
+        ])
+        .unwrap();
+        assert_eq!(
+            options.flags(),
+            b" -I- -Ia/ -Ia -Ia/ -Itwo\\ words -Iback\\\\slash"
+        );
+        let inherited =
+            Options::with_environment([], Some(OsString::from_vec(options.flags())), None).unwrap();
+        assert_eq!(inherited.flags(), options.flags());
+        assert!(parse(&["--include-dir="]).is_err());
+        assert!(parse(&["-I"]).is_err());
+    }
+
+    #[test]
+    fn inherited_include_argument_is_not_scanned_as_short_options() {
+        let options =
+            Options::with_environment([], Some("-Iconfig -IConfig".into()), None).unwrap();
+        assert_eq!(options.include_directories.len(), 2);
+        assert!(Options::with_environment([], Some("-fconfig".into()), None).is_err());
+        let non_utf8 = Options::parse([OsString::from_vec(b"-I\xff".to_vec())]).unwrap();
+        assert_eq!(non_utf8.flags(), b" -I\xff");
     }
 }

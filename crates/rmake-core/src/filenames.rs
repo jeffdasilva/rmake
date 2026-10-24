@@ -3,6 +3,17 @@
 
 //! Filename sequences have blank separators, unlike ordinary function words.
 
+/// Remove only leading ./ components, without resolving symlinks or '..'.
+pub fn without_dot_prefix(mut name: &[u8]) -> &[u8] {
+    while let Some(rest) = name.strip_prefix(b"./") {
+        name = rest;
+        while name.starts_with(b"/") {
+            name = &name[1..];
+        }
+    }
+    if name.is_empty() { b"./" } else { name }
+}
+
 pub fn archive_parts(name: &[u8]) -> Option<(&[u8], &[u8])> {
     let open = name.iter().position(|&b| b == b'(')?;
     (open > 0 && name.ends_with(b")") && open + 2 < name.len())

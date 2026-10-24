@@ -5,8 +5,9 @@
 //! No persistent cache and no delegation to GNU Make are involved.
 
 use crate::cli::Options;
+use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludedFile, Output};
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
 };
@@ -253,6 +254,7 @@ type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
 pub struct Engine {
     options: Options,
     filesystem: RefCell<FilesystemRuntime>,
+    include_search: IncludeSearch,
     database: Database,
     program: Vec<u8>,
     makelevel: u32,
@@ -440,7 +442,27 @@ impl Engine {
             .set_export_policy(b"MAKEFLAGS", Some(true));
         let mut command_names = Vec::new();
         let mut seen_commands = HashSet::new();
-        for arg in &options.assignments {
+        let mut next_include = 0;
+        for index in 0..=options.assignments.len() {
+            while options.include_assignment_positions.get(next_include) == Some(&index) {
+                let directory = &mut options.include_directories[next_include];
+                next_include += 1;
+                *directory = crate::makefiles::prepare_argument(
+                    directory.as_os_str().as_bytes(),
+                    &mut database.variables,
+                    ExpansionContext::new(None, &mut output)
+                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
+                        .with_shell(&mut |request| {
+                            let result = crate::shell::run(request, &program, startup_level);
+                            filesystem.borrow_mut().child_completed();
+                            result
+                        }),
+                )
+                .map_err(|error| error.diagnostic())?;
+            }
+            let Some(arg) = options.assignments.get(index) else {
+                break;
+            };
             let spec = assignment(arg).expect("CLI identified assignment");
             if [b"MAKEFLAGS".as_slice(), b"GNUMAKEFLAGS"].contains(&trim(spec.name)) {
                 return Err("assigning make flags is not implemented yet".into());
@@ -482,6 +504,38 @@ impl Engine {
                 inherited_exports.insert(name);
             }
         }
+        let mut seen_include_arguments = HashSet::new();
+        options
+            .include_directories
+            .retain(|directory| seen_include_arguments.insert(directory.as_os_str().to_owned()));
+        let include_search = IncludeSearch::new(&options.include_directories);
+        database
+            .variables
+            .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
+            .map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .define_literal(b".INCLUDE_DIRS", b"", Origin::Default)
+            .map_err(|error| error.diagnostic())?;
+        for directory in include_search.directories() {
+            database
+                .variables
+                .define_with(
+                    b".INCLUDE_DIRS",
+                    directory,
+                    Assignment::Append,
+                    Origin::Default,
+                    None,
+                    ExpansionContext::new(None, &mut output)
+                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
+                        .with_shell(&mut |request| {
+                            let result = crate::shell::run(request, &program, startup_level);
+                            filesystem.borrow_mut().child_completed();
+                            result
+                        }),
+                )
+                .map_err(|error| error.diagnostic())?;
+        }
         let command_replay =
             crate::command_variables::prepare(&mut database.variables, &command_names)
                 .map_err(|error| error.diagnostic())?;
@@ -516,11 +570,24 @@ impl Engine {
             .variables
             .define_literal(b"GNUMAKEFLAGS", b"", Origin::Override)
             .map_err(|e| e.diagnostic())?;
-        let initial_flags = options.flags();
+        let mut initial_flags = options.flags();
+        if command_replay {
+            initial_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
+            database
+                .variables
+                .define(
+                    b"MAKEFLAGS",
+                    &initial_flags,
+                    Assignment::Recursive,
+                    Origin::File,
+                )
+                .map_err(|error| error.diagnostic())?;
+        }
         let (job_sender, completed_jobs) = std::sync::mpsc::channel();
         Ok(Self {
             options,
             filesystem,
+            include_search,
             database,
             program,
             makelevel,
@@ -573,7 +640,7 @@ impl Engine {
                     self.filesystem.borrow_mut().child_completed();
                     result
                 })
-                .with_includes(&mut read_include),
+                .with_includes(&mut |name| self.include_search.read(name)),
         )
     }
 
@@ -591,7 +658,7 @@ impl Engine {
                     self.filesystem.borrow_mut().child_completed();
                     result
                 })
-                .with_includes(&mut read_include),
+                .with_includes(&mut |name| self.include_search.read(name)),
         )
     }
 
@@ -749,14 +816,7 @@ impl Engine {
                             self.filesystem.borrow_mut().child_completed();
                             result
                         })
-                        .with_includes(&mut |name| {
-                            fs::read(os(name))
-                                .map(|bytes| IncludedFile {
-                                    name: name.to_vec(),
-                                    bytes,
-                                })
-                                .map_err(|error| os_error(&error).into_bytes())
-                        }),
+                        .with_includes(&mut |name| self.include_search.read(name)),
                 ) {
                     self.fatal(err.source_location(), err.message.as_bytes());
                     return 2;
@@ -766,8 +826,8 @@ impl Engine {
                 (b"MAKEFLAGS".as_slice(), self.initial_flags.clone()),
                 (b"GNUMAKEFLAGS", self.initial_gnu_flags.clone()),
             ] {
-                match self.expand_global(&[b"$(".as_slice(), name, b")"].concat(), None) {
-                    Ok(current) if current == initial => {}
+                match self.database.variables.get(name) {
+                    Some(current) if current.raw_value() == initial => {}
                     _ => {
                         self.fatal(
                             None,
@@ -2898,7 +2958,7 @@ impl Engine {
                                 self.filesystem.borrow_mut().child_completed();
                                 result
                             })
-                            .with_includes(&mut read_include),
+                            .with_includes(&mut |name| self.include_search.read(name)),
                         ) {
                             Ok(value) => {
                                 child.env(os(name), OsString::from_vec(value));
@@ -3188,15 +3248,6 @@ impl Engine {
             );
         }
     }
-}
-
-fn read_include(name: &[u8]) -> Result<IncludedFile, Vec<u8>> {
-    fs::read(os(name))
-        .map(|bytes| IncludedFile {
-            name: name.to_vec(),
-            bytes,
-        })
-        .map_err(|error| os_error(&error).into_bytes())
 }
 
 pub(crate) fn os_error(error: &io::Error) -> String {

@@ -1,0 +1,12 @@
+id = "include-search-parse-error"
+requirement = "includes.search"
+candidate = "required"
+description = "parse-error"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-Iinc"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "73657474696e67732e6d6b3a313a202a2a2a206f726967696e616c206661696c7572652e202053746f702e0a"

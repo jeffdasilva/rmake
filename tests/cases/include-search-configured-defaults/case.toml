@@ -1,0 +1,12 @@
+id = "include-search-configured-defaults"
+requirement = "includes.search"
+candidate = "required"
+description = "configured-defaults"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "64656661756c74733d696e636c7564657c2f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c7564650a6d657461646174613d64656661756c743a73696d706c650a"
+stderr_hex = ""

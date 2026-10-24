@@ -1,0 +1,2 @@
+include missing.mk
+all:;@:

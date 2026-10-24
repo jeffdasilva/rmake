@@ -1,0 +1,12 @@
+id = "include-search-directory-error"
+requirement = "includes.search"
+candidate = "required"
+description = "directory-error"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-Iinc"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20626c6f636b65642e6d6b3a2049732061206469726563746f72792e202053746f702e0a"

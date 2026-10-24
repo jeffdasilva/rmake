@@ -88,6 +88,9 @@ def cargo(args):
     if rust_version.split()[1] != TOOLCHAIN:
         raise RuntimeError(f"expected rustc {TOOLCHAIN}, got {rust_version.strip()}")
     env["RUSTC"] = compiler
+    # Match the repository's pinned GNU installation prefix. Ordinary cargo
+    # builds default to /usr/local/include; packagers can configure this value.
+    env.setdefault("RMAKE_INCLUDEDIR", str(TOOLS / "oracle" / "include"))
     # Exec preserves make's inherited pipe-jobserver descriptors. A subprocess
     # with Python's default close_fds would silently discard those descriptors.
     os.execvpe(executable, [executable, *args], env)

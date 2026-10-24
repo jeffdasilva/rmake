@@ -1,0 +1,12 @@
+id = "include-search-tilde-option"
+requirement = "includes.search"
+candidate = "required"
+description = "tilde-option"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-I~/../work/inc"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6469723d696e630a66696c653d73657474696e67732e6d6b0a"
+stderr_hex = ""
