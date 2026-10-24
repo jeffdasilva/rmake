@@ -55,9 +55,11 @@ Only retry GNU's older ought-to-exist policy after encountering a file mentioned
 elsewhere or as a command-line goal that does not qualify under normal selection. Record prerequisites
 whose recursive search proved impossible, and cancel affected candidate retries.
 Preserve unrelated mentioned files for compatibility search. These observations
-last for the invocation and clear on Makefile restart. They reproduce GNU's
-search behavior, including a later effect creating an already rejected file;
-they are not a persistent dependency cache or a cache of file timestamps.
+expire at the same filesystem-generation boundaries as directory observations,
+and clear on Makefile restart. See the
+[invalidation follow-up](implicit-search-invalidation.md) for command/write
+boundaries and preserved search-local cancellations. They are not a persistent
+dependency cache or a cache of file timestamps.
 
 ## Coverage and remaining scope
 
@@ -71,7 +73,7 @@ Four core tests exercise the independent lexer and stem-reference boundaries.
 A seven-step stateful scenario verifies no-op/query builds, anchored timestamps,
 removal/restoration of inputs and fresh candidate priority on each invocation.
 
-The corpus now contains 2,984 cases: 2,972 required matches and 12 existing
+At introduction, the corpus contained 2,984 cases: 2,972 required matches and 12 existing
 pending mismatches. Stateful coverage is 51 scenarios / 140 invocations. No
 upstream implementation or tests were copied; GNU 4.4.1 served as the behavioral
 reference. M4 remains open for GPATH/permanent renaming, wider file-record aliases,

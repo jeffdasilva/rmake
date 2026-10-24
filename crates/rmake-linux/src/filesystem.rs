@@ -20,6 +20,11 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// The same boundary expires both directory data and failed rule searches.
+    pub fn generation(&self) -> u64 {
+        self.wildcard.generation()
+    }
+
     pub fn execute(&mut self, effect: FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> {
         execute_with(effect, &mut self.wildcard)
     }

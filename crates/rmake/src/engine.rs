@@ -372,6 +372,7 @@ pub struct Engine {
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_pattern_scopes: HashMap<Vec<u8>, Option<TargetScope>>,
     impossible_prerequisites: HashSet<Vec<u8>>,
+    impossible_generation: u64,
     would_build: bool,
     parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
     pending_rules: HashMap<Vec<u8>, RuleState>,
@@ -715,6 +716,7 @@ impl Engine {
             target_contexts: HashMap::new(),
             implicit_pattern_scopes: HashMap::new(),
             impossible_prerequisites: HashSet::new(),
+            impossible_generation: 0,
             would_build: false,
             parallel_jobs: HashMap::new(),
             pending_rules: HashMap::new(),
@@ -1351,7 +1353,12 @@ impl Engine {
         if outcome.fatal {
             return;
         }
-        if outcome.failed && self.options.keep_going && outcome.blocked && !self.options.question {
+        if outcome.failed
+            && self.options.keep_going
+            && outcome.blocked
+            && !self.options.question
+            && !self.options.dry_run
+        {
             self.stderr(
                 &[
                     b"Target '".as_slice(),
@@ -1777,6 +1784,14 @@ impl Engine {
             || self.options.goals.iter().any(|goal| goal == target)
     }
 
+    fn refresh_impossible_prerequisites(&mut self) {
+        let generation = self.filesystem.borrow().generation();
+        if self.impossible_generation != generation {
+            self.impossible_prerequisites.clear();
+            self.impossible_generation = generation;
+        }
+    }
+
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
     fn resolve_implicit(&mut self, target: &[u8]) -> bool {
         let existing = match self.database.rules.get(target) {
@@ -1972,6 +1987,7 @@ impl Engine {
                         };
                         for dependency in names {
                             let name = &dependency.name;
+                            self.refresh_impossible_prerequisites();
                             if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
                                 cancelled.insert(ordinal);
                                 valid = false;
@@ -2004,6 +2020,7 @@ impl Engine {
                                         plan.extend(child);
                                     } else {
                                         if !self.implicit_known_file(name) {
+                                            self.refresh_impossible_prerequisites();
                                             self.impossible_prerequisites.insert(name.clone());
                                         }
                                         valid = false;

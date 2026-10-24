@@ -28,6 +28,7 @@ pub struct Wildcard {
     directories: HashMap<(u64, u64), Arc<Vec<Entry>>>,
     paths: HashMap<Vec<u8>, Arc<Vec<Entry>>>,
     bytes: usize,
+    generation: u64,
 }
 
 pub fn magic(pattern: &[u8]) -> bool {
@@ -206,9 +207,14 @@ impl Wildcard {
     }
 
     pub fn invalidate(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
         self.directories.clear();
         self.paths.clear();
         self.bytes = 0;
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     fn entries(&mut self, path: &[u8]) -> Result<Arc<Vec<Entry>>, Vec<u8>> {
