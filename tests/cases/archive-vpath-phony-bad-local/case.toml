@@ -1,0 +1,12 @@
+id = "archive-vpath-phony-bad-local"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-phony-bad-local"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b6c69622e615d20253d5b6f6e652e6f5d203c3d5b5d205e3d5b5d202b3d5b5d207c3d5b5d202a3d5b5d20563d5b5d0a"
+stderr_hex = ""

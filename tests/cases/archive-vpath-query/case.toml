@@ -1,0 +1,12 @@
+id = "archive-vpath-query"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-query"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

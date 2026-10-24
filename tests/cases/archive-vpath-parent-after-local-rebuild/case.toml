@@ -1,0 +1,12 @@
+id = "archive-vpath-parent-after-local-rebuild"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-parent-after-local-rebuild"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d656d6265722072656275696c740a"
+stderr_hex = ""

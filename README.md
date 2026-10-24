@@ -135,6 +135,8 @@ including explicit secondary expansion.
 names and GNU observation timing.
 The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
 header scan I/O while retaining fresh reads between effects.
+[Archive-first VPATH resolution](docs/archive-vpath.md) searches the archive name
+before checking members and preserves GNU search/rebuild observations.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

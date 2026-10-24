@@ -265,6 +265,12 @@ struct GroupRun {
 
 type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
 
+#[derive(Default)]
+struct ArchiveVpathReads {
+    members: HashSet<Vec<u8>>,
+    archives: HashSet<Vec<u8>>,
+}
+
 pub struct Engine {
     options: Options,
     filesystem: RefCell<FilesystemRuntime>,
@@ -298,6 +304,7 @@ pub struct Engine {
     optional_remake_failures: HashSet<Vec<u8>>,
     vpath_dirs: Vec<Vec<u8>>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
+    archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
@@ -638,6 +645,7 @@ impl Engine {
             optional_remake_failures: HashSet::new(),
             vpath_dirs: Vec::new(),
             resolved_names: HashMap::new(),
+            archive_vpath_reads: RefCell::new(None),
             makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
@@ -855,6 +863,7 @@ impl Engine {
                 self.scope_parents.clear();
                 self.target_contexts.clear();
                 self.resolved_names.clear();
+                *self.archive_vpath_reads.borrow_mut() = None;
                 self.inferred_peer_flags.clear();
                 self.completed_group_branches.clear();
                 self.active_group_branches.clear();
@@ -1271,6 +1280,16 @@ impl Engine {
                         .as_ref()
                         .is_some_and(|branches| branches.iter().any(|rule| rule.recipes.is_some()))
             }) && !self.special(b".PHONY", goal, false);
+            let reported_goal = self.resolved_names.get(goal).map_or(goal, Vec::as_slice);
+            // Rehashing into a file already entered by a declaration or CLI
+            // goal merges GNU's goal record; the old record has no summary.
+            if reported_goal != goal
+                && (self.database.explicit_names.contains(reported_goal)
+                    || self.options.goals.iter().any(|name| name == reported_goal))
+            {
+                return;
+            }
+            let goal = reported_goal;
             let body = if has_recipe {
                 [b"'".as_slice(), goal, b"' is up to date."].concat()
             } else {
@@ -1579,7 +1598,7 @@ impl Engine {
         // may temporarily leave a partial header while updating its archive.
         if !failed
             && !self.parallel_jobs.contains_key(&target)
-            && self.archive_metadata_error(&target)
+            && self.archive_metadata_error(&target, false)
         {
             failed = true;
             outcome.fatal = true;
@@ -1596,6 +1615,24 @@ impl Engine {
     }
 
     fn find_vpath(&self, target: &[u8]) -> Option<(Option<Vec<u8>>, SystemTime)> {
+        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
+            let path = self.archive_vpath(archive);
+            let time = rmake_linux::archive::modified(path.as_deref().unwrap_or(archive), member)
+                .ok()
+                .flatten()?;
+            return Some((
+                path.map(|path| [path.as_slice(), b"(", member, b")"].concat()),
+                time,
+            ));
+        }
+        if self
+            .archive_vpath_reads
+            .borrow()
+            .as_ref()
+            .is_some_and(|reads| reads.archives.contains(target))
+        {
+            return None;
+        }
         if let Some(time) = modified(target) {
             return Some((None, time));
         }
@@ -1608,6 +1645,42 @@ impl Engine {
                 let name = path.as_os_str().as_bytes();
                 modified(name).map(|time| (Some(name.to_vec()), time))
             })
+    }
+
+    /// Search the archive filename before reading a member. The first existing
+    /// archive wins even when it lacks that member; an existing local archive
+    /// similarly prevents falling through to a different archive in VPATH.
+    fn archive_vpath(&self, archive: &[u8]) -> Option<Vec<u8>> {
+        if (self.database.vpaths.is_empty() && self.vpath_dirs.is_empty())
+            || fs::metadata(os(archive)).is_ok()
+        {
+            return None;
+        }
+        self.database
+            .vpath_directories(archive)
+            .into_iter()
+            .chain(self.vpath_dirs.iter().cloned())
+            .find_map(|directory| {
+                let path = Path::new(os(&directory)).join(os(archive));
+                fs::metadata(&path)
+                    .ok()
+                    .map(|_| path.as_os_str().as_bytes().to_vec())
+            })
+    }
+
+    /// GNU's implicit viability probe does not perform the archive's own VPATH
+    /// search. Its VPATH test concerns the complete literal prerequisite name.
+    fn implicit_vpath_exists(&self, target: &[u8]) -> bool {
+        if rmake_core::filenames::archive_parts(target).is_none() {
+            return self.find_vpath(target).is_some();
+        }
+        modified(target).is_some()
+            || self
+                .database
+                .vpath_directories(target)
+                .into_iter()
+                .chain(self.vpath_dirs.iter().cloned())
+                .any(|directory| fs::metadata(Path::new(os(&directory)).join(os(target))).is_ok())
     }
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
@@ -1720,7 +1793,7 @@ impl Engine {
                                 rule.dependencies.iter().any(|dep| dep.name == *name)
                             });
                         if explicit
-                            || self.find_vpath(name).is_some()
+                            || self.implicit_vpath_exists(name)
                             || (compatibility && self.database.explicit_names.contains(name))
                         {
                             continue;
@@ -1880,11 +1953,23 @@ impl Engine {
         self.stderr(&message);
     }
 
-    fn archive_metadata_error(&self, target: &[u8]) -> bool {
+    fn archive_metadata_error(&self, target: &[u8], search: bool) -> bool {
         let Some((archive, member)) = rmake_core::filenames::archive_parts(target) else {
             return false;
         };
-        let message = if member.starts_with(b"(") && member.ends_with(b")") {
+        let symbol = member.starts_with(b"(") && member.ends_with(b")");
+        if !symbol
+            && (self.special(b".PHONY", target, false)
+                || (!search
+                    && self
+                        .archive_vpath_reads
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|reads| reads.members.contains(target))))
+        {
+            return false;
+        }
+        let message = if symbol {
             Some(
                 [
                     b"attempt to use unsupported feature: '".as_slice(),
@@ -1894,7 +1979,17 @@ impl Engine {
                 .concat(),
             )
         } else {
-            rmake_linux::archive::modified(archive, member)
+            let path = search.then(|| self.archive_vpath(archive)).flatten();
+            if path.is_some() {
+                // Reading a VPATH member observes the original archive as
+                // locally absent. GNU's original archive record keeps that
+                // observation if it is later traversed as a prerequisite.
+                let mut reads = self.archive_vpath_reads.borrow_mut();
+                let reads = reads.get_or_insert_with(Default::default);
+                reads.members.insert(target.to_vec());
+                reads.archives.insert(archive.to_vec());
+            }
+            rmake_linux::archive::modified(path.as_deref().unwrap_or(archive), member)
                 .err()
                 .map(|error| error.into_message())
         };
@@ -1913,7 +2008,7 @@ impl Engine {
         let mut outcome = if archive_target
             && !previously_done
             && !self.pending(target)
-            && self.archive_metadata_error(target)
+            && self.archive_metadata_error(target, true)
         {
             Outcome {
                 failed: true,
@@ -1928,7 +2023,7 @@ impl Engine {
             && !outcome.failed
             && outcome.ran
             && !self.pending(target)
-            && self.archive_metadata_error(target)
+            && self.archive_metadata_error(target, false)
         {
             outcome.failed = true;
             outcome.fatal = true;

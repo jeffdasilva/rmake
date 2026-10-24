@@ -1,0 +1,58 @@
+id = "archive-vpath-local-rebuild"
+description = "Original archive VPATH priority and rebuild scenario."
+provenance = "Independently authored archive bytes, fixed dates and expected outputs."
+initial = [{"op" = "write", "path" = "store/lib.a", "content" = "!<arch>\none.o/          1600000000  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "input", "content" = "input\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "replacement.a", "content" = "!<arch>\none.o/          1600000002  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "search-noop"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["store/lib.a", "input"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "make: 'store/lib.a(one.o)' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "newer-input-rebuilds-local"
+actions = [{"op" = "utime", "path" = "input", "mtime_ns" = 1600000001000000000}]
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "rebuilt\n", "stderr" = ""}
+
+[[steps]]
+name = "local-query-noop"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["lib.a", "store/lib.a", "input"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "newer-search-copy-ignored"
+actions = [{"op" = "write", "path" = "store/lib.a", "content" = "!<arch>\none.o/          1600000010  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["lib.a", "store/lib.a", "input"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "corrupt-local-detected-next-invocation"
+actions = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\none.o/          bad         0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["store/lib.a", "input"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** Invalid date for archive lib.a member one.o.  Stop.\n"}
+
+[[steps]]
+name = "remove-local-returns-to-search"
+actions = [{"op" = "remove", "path" = "lib.a"}]
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["store/lib.a", "input"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

@@ -40,8 +40,7 @@ for behavior; no upstream implementation or tests were copied.
 
 [Archive groups](archive-groups.md) now work in declarations and secondary
 expansion, and [archive rule wildcards](archive-rule-wildcards.md) now retain
-complete member names and observation timing. Remaining work includes archive-aware VPATH,
-GPATH, broader implicit secondary expansion and per-clause static stem state,
+complete member names and observation timing. Remaining work includes GPATH/permanent renaming, broader implicit secondary expansion and per-clause static stem state,
 and the remaining format/fault matrix. This does not complete M4 or the GNU
 compatibility gate. See [archive member metadata](archive-members.md) for the
 timestamp, touch, cleanup and performance baseline.
@@ -57,3 +56,6 @@ establish a general speed gain, and GNU remains faster. Raw samples are in the
 ignored `artifacts/bench/archive-implicit-core-101.json` and
 `artifacts/bench/archive-implicit-search-31.json`; the startup/cache/isolation
 limitations described in the metadata baseline apply.
+
+[Archive-first VPATH resolution](archive-vpath.md) is now implemented as a
+separate slice; GPATH/permanent renaming and the other remaining M4 gates are open.

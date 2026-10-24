@@ -1607,3 +1607,15 @@ payloads and add 26 original boundary/mutation/format required fixtures. Corpus:
 2,740 cases, with 2,728 required and 12 pending. Stateful coverage remains
 48 scenarios / 122 invocations. See
 [archive reader measurements](archive-reader-performance.md).
+
+## Archive-first VPATH resolution
+
+Search archive filenames before member lookup and stop at the first existing
+archive, including empty, missing-member and zero-date cases. Keep implicit
+viability's literal-name search separate. Preserve resolved automatic variables
+and goal summaries, local rebuild spelling, phony checks and GNU's per-invocation
+archive observations. Add 64 required original fixtures and two stateful scenarios
+with eleven invocations. Corpus: 2,804 cases, with 2,792 required and 12 pending.
+Stateful coverage is now 50 scenarios / 133 invocations. Full development gates
+and optimized conformance pass; paired core/archive checks show no general speed
+change. See [archive VPATH](archive-vpath.md) for behavior and remaining M4 gates.

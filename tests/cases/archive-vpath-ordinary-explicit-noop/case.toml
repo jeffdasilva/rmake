@@ -1,0 +1,12 @@
+id = "archive-vpath-ordinary-explicit-noop"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-ordinary-explicit-noop"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a202773746f72652f6f6e652e6f75742720697320757020746f20646174652e0a"
+stderr_hex = ""
