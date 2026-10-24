@@ -1,0 +1,15 @@
+id = "startup-makefiles-optional-failing-prerequisite"
+requirement = "includes.preload"
+candidate = "required"
+description = "optional-failing-prerequisite"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "pre.mk"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d61696e0a"
+stderr_hex = ""

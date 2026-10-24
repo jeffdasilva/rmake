@@ -1,0 +1,14 @@
+id = "startup-makefiles-export-if-set"
+requirement = "includes.preload"
+candidate = "required"
+description = "export-if-set"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+
+[expected]
+exit_code = 0
+stdout_hex = "6d657461646174613d64656661756c743a73696d706c650a6578706f727465643d756e7365743a7072652e6d6b0a"
+stderr_hex = ""

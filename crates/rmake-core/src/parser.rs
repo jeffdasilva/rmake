@@ -249,6 +249,7 @@ pub struct Database {
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
     recipe_expansion: bool,
+    suppress_default_goal: bool,
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
@@ -1265,6 +1266,20 @@ impl Database {
         self.read_at(bytes, file, None, context)
     }
 
+    /// MAKEFILES preloads and their includes do not select an implicit default
+    /// goal. Explicit .DEFAULT_GOAL assignments retain their ordinary effects.
+    pub fn read_preload_with(
+        &mut self,
+        bytes: &[u8],
+        file: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let previous = std::mem::replace(&mut self.suppress_default_goal, true);
+        let result = self.read_with(bytes, file, context);
+        self.suppress_default_goal = previous;
+        result
+    }
+
     pub fn expand_with(
         &mut self,
         bytes: &[u8],
@@ -1346,6 +1361,8 @@ impl Database {
             });
         }
         self.evaluation_depth += 1;
+        // GNU eval buffers select defaults even inside a MAKEFILES preload.
+        let suppress_default = std::mem::replace(&mut self.suppress_default_goal, false);
         let result = self
             .read_at(
                 &bytes[..bytes
@@ -1363,6 +1380,7 @@ impl Database {
                 error
             });
         self.evaluation_depth -= 1;
+        self.suppress_default_goal = suppress_default;
         result
     }
 
@@ -1982,10 +2000,11 @@ impl Database {
                 words(normal).next().is_none() && words(order).next().is_none();
             // Check the complete declaration before merging any target: a
             // .SUFFIXES target on this same line has not changed the list yet.
-            if self
-                .variables
-                .get(b".DEFAULT_GOAL")
-                .is_none_or(|v| v.raw_value().is_empty())
+            if !self.suppress_default_goal
+                && self
+                    .variables
+                    .get(b".DEFAULT_GOAL")
+                    .is_none_or(|v| v.raw_value().is_empty())
                 && let Some(target) = declaration.targets.iter().find(|target| {
                     (!target.starts_with(b".") || target.contains(&b'/'))
                         && !self.is_suffix_rule_name(target)

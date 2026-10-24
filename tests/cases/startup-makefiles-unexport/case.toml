@@ -1,0 +1,15 @@
+id = "startup-makefiles-unexport"
+requirement = "includes.preload"
+candidate = "required"
+description = "unexport"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "pre.mk"
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b5d206c6973743d5b6368696c642e6d6b5d20676f616c3d5b5d0a6d61696e0a"
+stderr_hex = ""

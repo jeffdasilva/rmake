@@ -1,0 +1,15 @@
+id = "startup-makefiles-optional-then-required"
+requirement = "includes.preload"
+candidate = "required"
+description = "optional-then-required"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "absent.mk"
+
+[expected]
+exit_code = 2
+stdout_hex = "76616c75653d5b5d206c6973743d5b4d616b6566696c655d20676f616c3d5b5d0a"
+stderr_hex = "6d616b653a20616273656e742e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027616273656e742e6d6b272e202053746f702e0a"

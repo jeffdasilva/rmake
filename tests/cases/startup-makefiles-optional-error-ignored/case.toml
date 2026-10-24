@@ -1,0 +1,15 @@
+id = "startup-makefiles-optional-error-ignored"
+requirement = "includes.preload"
+candidate = "required"
+description = "optional-error-ignored"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-i"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "pre.mk"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d61696e0a"
+stderr_hex = "6d616b653a205b4d616b6566696c653a323a207072652e6d6b5d204572726f722031202869676e6f726564290a"

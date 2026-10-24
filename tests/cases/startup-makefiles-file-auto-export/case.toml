@@ -1,0 +1,15 @@
+id = "startup-makefiles-file-auto-export"
+requirement = "includes.preload"
+candidate = "required"
+description = "file-auto-export"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b6368696c642d6c6f616465645d206c6973743d5b7072652e6d6b206368696c642e6d6b5d20676f616c3d5b5d0a6d61696e0a"
+stderr_hex = ""

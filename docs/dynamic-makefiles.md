@@ -16,7 +16,8 @@ remake loop. Dry-run, query and touch modes do not suppress makefile generation.
 
 Safety limits bound include nesting and restarts. There is no persistent cache.
 Search directories (`-I`) are covered by the [include search slice](include-search.md).
-`MAKEFILES`, remaining double-colon remake exceptions, and the
+Startup [MAKEFILES preloading](startup-makefiles.md) is also implemented.
+Remaining double-colon remake exceptions and the
 complete GNU error recovery rules remain follow-up compatibility work. These
 limits and remaining features are not claims of complete include compatibility.
 

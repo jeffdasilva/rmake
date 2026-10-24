@@ -130,6 +130,7 @@ The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup
 state, child exports and the still-incomplete command-line replay phase.
 
 Required/optional includes, [include search directories](docs/include-search.md),
+startup [MAKEFILES loading](docs/startup-makefiles.md),
 and generated makefile restarts are supported in the
 [current include slice](docs/dynamic-makefiles.md). Shell functions, `!=`, and
 `eval` now use explicit mutable interpreter state; see

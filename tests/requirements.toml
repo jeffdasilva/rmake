@@ -709,3 +709,66 @@ cases = [
   "include-search-tilde-option-cli-home",
   "include-search-trailing-slashes"
 ]
+
+[[requirements]]
+id = "includes.preload"
+title = "MAKEFILES startup reads, default selection and export"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 52
+reference = "https://www.gnu.org/software/make/manual/html_node/MAKEFILES-Variable.html"
+fixture_count = 52
+cases = [
+  "startup-makefiles-basic",
+  "startup-makefiles-cli-overrides-environment",
+  "startup-makefiles-creates-main-during-read",
+  "startup-makefiles-diagnostic-name",
+  "startup-makefiles-directory-error",
+  "startup-makefiles-duplicate",
+  "startup-makefiles-effect-list",
+  "startup-makefiles-eval-goal",
+  "startup-makefiles-expanded-list",
+  "startup-makefiles-explicit-file",
+  "startup-makefiles-explicit-goal",
+  "startup-makefiles-export-if-set",
+  "startup-makefiles-failing-generation",
+  "startup-makefiles-fatal-generation-expansion",
+  "startup-makefiles-file-assignment-not-reread",
+  "startup-makefiles-file-auto-export",
+  "startup-makefiles-freeze-list-effects",
+  "startup-makefiles-frozen-list",
+  "startup-makefiles-generates-main",
+  "startup-makefiles-generates-missing",
+  "startup-makefiles-generation-n",
+  "startup-makefiles-generation-q",
+  "startup-makefiles-generation-t",
+  "startup-makefiles-literal-backslash",
+  "startup-makefiles-literal-glob",
+  "startup-makefiles-nested",
+  "startup-makefiles-no-escaped-space",
+  "startup-makefiles-no-main-explicit-goal",
+  "startup-makefiles-no-main-no-goal",
+  "startup-makefiles-optional-error-ignored",
+  "startup-makefiles-optional-error-parallel",
+  "startup-makefiles-optional-error-parallel-ignored",
+  "startup-makefiles-optional-failing-generation",
+  "startup-makefiles-optional-failing-prerequisite",
+  "startup-makefiles-optional-missing",
+  "startup-makefiles-optional-missing-prerequisite",
+  "startup-makefiles-optional-nested-missing",
+  "startup-makefiles-optional-then-required",
+  "startup-makefiles-optional-then-required-generated",
+  "startup-makefiles-ordered",
+  "startup-makefiles-parallel-failed-goal",
+  "startup-makefiles-parallel-failing-prerequisite",
+  "startup-makefiles-parallel-generated-main",
+  "startup-makefiles-parallel-missing-prerequisite",
+  "startup-makefiles-parallel-regeneration",
+  "startup-makefiles-parse-error",
+  "startup-makefiles-redefine-auto-export",
+  "startup-makefiles-remakes-existing",
+  "startup-makefiles-required-nested-missing",
+  "startup-makefiles-search",
+  "startup-makefiles-target-export",
+  "startup-makefiles-unexport"
+]

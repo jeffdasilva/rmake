@@ -47,7 +47,8 @@ the ignored `artifacts/bench/include-search-core-final-101.json`. Measurements
 include process startup and warm OS caches, with no CPU pinning or confidence
 intervals; the previous source is `667b16f`.
 
-Remaining work includes MAKEFILES preloading, dynamic MAKEFLAGS changes,
+MAKEFILES preloading is covered by the [startup loading slice](startup-makefiles.md).
+Remaining work includes dynamic MAKEFLAGS changes,
 reconstructing the directory path after all flag/restart transitions, and the
 full GNU include-error recovery surface. The current reader and restart safety
 bounds remain documented in [dynamic makefiles](dynamic-makefiles.md).

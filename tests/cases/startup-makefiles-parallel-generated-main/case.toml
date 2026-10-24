@@ -1,0 +1,15 @@
+id = "startup-makefiles-parallel-generated-main"
+requirement = "includes.preload"
+candidate = "required"
+description = "parallel-generated-main"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "pre.mk"
+
+[expected]
+exit_code = 0
+stdout_hex = "67656e657261746564"
+stderr_hex = ""

@@ -280,9 +280,11 @@ pub struct Engine {
     job_sender: std::sync::mpsc::Sender<JobResult>,
     parallel_failed: bool,
     remaking: bool,
+    optional_remake: bool,
+    optional_remake_failures: HashSet<Vec<u8>>,
     vpath_dirs: Vec<Vec<u8>>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
-    makefile_error: RefCell<Option<(Location, Vec<u8>)>>,
+    makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
     intermediates: HashSet<Vec<u8>>,
@@ -405,6 +407,11 @@ impl Engine {
                 .map_err(|error| error.message)?;
         }
         define_automatic_variants(&mut database.variables).map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .define_literal(b"MAKEFILES", b"", Origin::Default)
+            .map_err(|error| error.diagnostic())?;
+        database.variables.set_export_if_set(b"MAKEFILES");
         for (name, value) in [
             (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
             (b".SHELLFLAGS", b"-c"),
@@ -613,6 +620,8 @@ impl Engine {
             job_sender,
             parallel_failed: false,
             remaking: false,
+            optional_remake: false,
+            optional_remake_failures: HashSet::new(),
             vpath_dirs: Vec::new(),
             resolved_names: HashMap::new(),
             makefile_error: RefCell::new(None),
@@ -667,7 +676,7 @@ impl Engine {
             emit_output(
                 &self.program,
                 Output::Warning {
-                    location: Some(&location),
+                    location: location.as_ref(),
                     message: &message,
                 },
             );
@@ -708,16 +717,100 @@ impl Engine {
         );
     }
 
-    pub fn run(mut self) -> u8 {
-        let mut files = self.options.files.clone();
-        if files.is_empty()
-            && let Some(file) = ["GNUmakefile", "makefile", "Makefile"]
-                .into_iter()
-                .find(|file| Path::new(file).is_file())
+    fn read_startup_makefiles(&mut self) -> Result<bool, ()> {
+        if self
+            .database
+            .variables
+            .get(b"MAKEFILES")
+            .is_none_or(|value| value.raw_value().is_empty())
         {
-            files.push(file.into());
+            return Ok(false);
         }
-        let found_makefile = !files.is_empty();
+        let names = match self.expand_global(b"$(MAKEFILES)", None) {
+            Ok(names) => names,
+            Err(error) => {
+                self.expansion_error(None, &error);
+                return Err(());
+            }
+        };
+        let mut found = false;
+        // MAKEFILES uses ordinary words: no globbing or backslash filename list
+        // decoding. Freeze the expanded list before any preload changes it.
+        for name in words(&names) {
+            let path = match crate::makefiles::prepare_argument(
+                name,
+                &mut self.database.variables,
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    }),
+            ) {
+                Ok(path) => path,
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return Err(());
+                }
+            };
+            let name = path.as_os_str().as_bytes();
+            let file = match self.include_search.read(name) {
+                Ok(file) => file,
+                Err(error) => {
+                    if error == b"Is a directory" {
+                        self.fatal(None, &[name, b": ", &error].concat());
+                        return Err(());
+                    }
+                    self.database.makefiles.push(Makefile {
+                        name: name.to_vec(),
+                        optional: true,
+                        missing: true,
+                        read_error: None,
+                    });
+                    continue;
+                }
+            };
+            found = true;
+            self.database.makefiles.push(Makefile {
+                name: file.name.clone(),
+                optional: true,
+                missing: false,
+                read_error: None,
+            });
+            if let Err(error) = self.database.variables.append_literal_at(
+                b"MAKEFILE_LIST",
+                &file.name,
+                Origin::File,
+                &Location {
+                    file: name.to_vec(),
+                    line: 1,
+                },
+            ) {
+                self.expansion_error(None, &error);
+                return Err(());
+            }
+            if let Err(error) = self.database.read_preload_with(
+                &file.bytes,
+                name,
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    })
+                    .with_includes(&mut |name| self.include_search.read(name)),
+            ) {
+                self.fatal(error.source_location(), error.message.as_bytes());
+                return Err(());
+            }
+        }
+        Ok(found)
+    }
+
+    pub fn run(mut self) -> u8 {
+        let mut found_makefile;
         // GNU initializes this metadata after command-line assignment expansion.
         // Higher-priority CLI/-e bindings remain intact and reject file appends.
         if let Err(error) =
@@ -752,7 +845,32 @@ impl Engine {
                 self.completed_group_branches.clear();
                 self.active_group_branches.clear();
                 self.double_colon_before.clear();
+                self.optional_remake_failures.clear();
             }
+            let startup_found = match self.read_startup_makefiles() {
+                Ok(found) => found,
+                Err(()) => return 2,
+            };
+            let mut files = self.options.files.clone();
+            if files.is_empty() {
+                if let Some(file) = ["GNUmakefile", "makefile", "Makefile"]
+                    .into_iter()
+                    .find(|file| Path::new(file).is_file())
+                {
+                    files.push(file.into());
+                } else {
+                    // Preloaded rules may generate a default main makefile.
+                    for name in [b"GNUmakefile".as_slice(), b"makefile", b"Makefile"] {
+                        self.database.makefiles.push(Makefile {
+                            name: name.to_vec(),
+                            optional: true,
+                            missing: true,
+                            read_error: None,
+                        });
+                    }
+                }
+            }
+            found_makefile = startup_found || !files.is_empty();
             for file in &files {
                 let mut bytes = Vec::new();
                 let read = if file == Path::new("-") {
@@ -913,7 +1031,13 @@ impl Engine {
             let mut changed = false;
             let mut failed = false;
             let mut seen = HashSet::new();
-            for makefile in self.database.makefiles.clone() {
+            let read_files = self.database.makefiles.clone();
+            let required_names: HashSet<_> = read_files
+                .iter()
+                .filter(|file| !file.optional)
+                .map(|file| file.name.clone())
+                .collect();
+            for mut makefile in read_files {
                 if !seen.insert(makefile.name.clone())
                     || self.special(b".PHONY", &makefile.name, false)
                     || self
@@ -929,6 +1053,11 @@ impl Engine {
                 {
                     continue;
                 }
+                let promoted_required =
+                    makefile.optional && required_names.contains(&makefile.name);
+                if promoted_required {
+                    makefile.optional = false;
+                }
                 if !self.resolve_implicit(&makefile.name) {
                     self.remove_intermediates();
                     return 2;
@@ -941,12 +1070,22 @@ impl Engine {
                 let before = modified(&makefile.name);
                 *self.makefile_error.borrow_mut() = if makefile.optional {
                     None
+                } else if promoted_required && makefile.missing && makefile.read_error.is_none() {
+                    Some((
+                        None,
+                        [makefile.name.as_slice(), b": No such file or directory"].concat(),
+                    ))
                 } else {
                     makefile.read_error.map(|(location, error)| {
-                        (location, [makefile.name.as_slice(), b": ", &error].concat())
+                        (
+                            Some(location),
+                            [makefile.name.as_slice(), b": ", &error].concat(),
+                        )
                     })
                 };
+                self.optional_remake = makefile.optional;
                 let result = self.build(&makefile.name, None, 0);
+                self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
                 failed |= result.failed && !makefile.optional;
                 changed |= !result.failed && modified(&makefile.name) != before;
@@ -1662,14 +1801,33 @@ impl Engine {
         }
     }
 
+    fn report_missing_rule(&self, target: &[u8], parent: Option<&[u8]>) {
+        let mut message = [b"*** No rule to make target '".as_slice(), target, b"'"].concat();
+        if let Some(parent) = parent {
+            message.extend_from_slice(&[b", needed by '".as_slice(), parent, b"'"].concat());
+        }
+        message.extend_from_slice(if self.options.keep_going {
+            b"."
+        } else {
+            b".  Stop."
+        });
+        self.stderr(&message);
+    }
+
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
         self.poll_jobs();
         let outcome = self.build_inner(target, parent, depth);
+        if self.optional_remake && outcome.failed && !outcome.fatal {
+            self.optional_remake_failures.insert(target.to_vec());
+        }
         self.record_graph_failure(outcome);
         outcome
     }
 
     fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        if !self.remaking && self.optional_remake_failures.remove(target) {
+            self.report_missing_rule(target, parent);
+        }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
         {
@@ -1739,17 +1897,10 @@ impl Engine {
                 self.done.insert(target.to_vec(), result);
                 return result;
             }
-            let mut message = [b"*** No rule to make target '".as_slice(), target, b"'"].concat();
-            if let Some(parent) = parent {
-                message.extend_from_slice(&[b", needed by '".as_slice(), parent, b"'"].concat());
+            if !self.optional_remake {
+                self.show_makefile_error();
+                self.report_missing_rule(target, parent);
             }
-            message.extend_from_slice(if self.options.keep_going {
-                b"."
-            } else {
-                b".  Stop."
-            });
-            self.show_makefile_error();
-            self.stderr(&message);
             let result = Outcome {
                 failed: true,
                 ..Outcome::default()
@@ -3097,7 +3248,7 @@ impl Engine {
                 if !ignore {
                     self.show_makefile_error();
                 }
-                if !ignore || !self.globally_silent() {
+                if (ignore || !self.optional_remake) && (!ignore || !self.globally_silent()) {
                     let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                     message.push(b'[');
                     message.extend_from_slice(&location_prefix(&recipe.location));

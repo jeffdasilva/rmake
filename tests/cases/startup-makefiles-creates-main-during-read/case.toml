@@ -1,0 +1,15 @@
+id = "startup-makefiles-creates-main-during-read"
+requirement = "includes.preload"
+candidate = "required"
+description = "creates-main-during-read"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "pre.mk"
+
+[expected]
+exit_code = 0
+stdout_hex = "637265617465640a"
+stderr_hex = ""
