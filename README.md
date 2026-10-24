@@ -106,6 +106,7 @@ without launching children. See [target context measurements](docs/target-contex
 `BENCH_SUITE=bindings` measures repeated reads of large simple global and local
 values, with eight references per assignment and five replacement assignments.
 `BENCH_SUITE=implicit-search` measures resolution with many irrelevant patterns.
+`BENCH_SUITE=archives` measures existing archive members with fixed historical dates.
 Set `BENCH_BASELINE=/absolute/path/to/previous/rmake` to compare a previous
 candidate in the same campaign. See the [implicit search measurements](docs/implicit-search-performance.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
@@ -124,6 +125,8 @@ signal and diagnostic compatibility remains under development.
 See [grouped output rules](docs/grouped-targets.md) for explicit `&:` and
 implicit multi-output behavior. [Low-resolution timestamp comparisons](docs/timestamp-comparisons.md)
 preserve GNU rebuild decisions without changing stored file metadata.
+See [archive members](docs/archive-members.md) for member timestamps, automatic
+variables, touch behavior and the remaining archive rule-resolution work.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

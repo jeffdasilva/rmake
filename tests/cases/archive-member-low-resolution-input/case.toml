@@ -1,0 +1,12 @@
+id = "archive-member-low-resolution-input"
+requirement = "archives.members"
+candidate = "required"
+description = "low-resolution-input"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20276c69622e61286f6e652e6f292720697320757020746f20646174652e0a"
+stderr_hex = ""

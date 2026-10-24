@@ -1,0 +1,12 @@
+id = "archive-member-cached-forced-copy"
+requirement = "archives.members"
+candidate = "required"
+description = "cached-forced-copy"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-B"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

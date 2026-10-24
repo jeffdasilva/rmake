@@ -1,0 +1,40 @@
+id = "archive-standalone-member"
+description = "Original archive state transition and timestamp probe."
+provenance = "Independently authored archive bytes and expectations checked against GNU Make 4.4.1."
+initial = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\none.o/          1600000000  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next.a", "content" = "!<arch>\none.o/          1600000002  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "one.o", "content" = "object\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "equal-date"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["lib.a", "one.o"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "make: Nothing to be done for 'all'.\n", "stderr" = ""}
+
+[[steps]]
+name = "same-second-nanoseconds"
+actions = [{"op" = "utime", "path" = "one.o", "mtime_ns" = 1600000000999999999}]
+args = ["-rR", "--no-print-directory"]
+unchanged = ["lib.a", "one.o"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "make: Nothing to be done for 'all'.\n", "stderr" = ""}
+
+[[steps]]
+name = "standalone-newer"
+actions = [{"op" = "utime", "path" = "one.o", "mtime_ns" = 1600000001000000000}]
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "rebuilt\n", "stderr" = ""}
+
+[[steps]]
+name = "then-noop"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["lib.a", "one.o"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "make: Nothing to be done for 'all'.\n", "stderr" = ""}

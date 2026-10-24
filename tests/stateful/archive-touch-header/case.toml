@@ -1,0 +1,40 @@
+id = "archive-touch-header"
+description = "Original archive state transition and timestamp probe."
+provenance = "Independently authored archive bytes and expectations checked against GNU Make 4.4.1."
+initial = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\none.o/          1600000000  0     0     644     1         `\nx\n", "mtime_ns" = 1600000100000000000}]
+
+[[steps]]
+name = "touch-first"
+actions = []
+args = ["-rR", "--no-print-directory", "-Bt"]
+unchanged = []
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "touch lib.a(one.o)\n", "stderr" = ""}
+
+[[steps]]
+name = "query-noop"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "touch-second"
+actions = [{"op" = "utime", "path" = "lib.a", "mtime_ns" = 1600000200000000000}]
+args = ["-rR", "--no-print-directory", "-Bt"]
+unchanged = []
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "touch lib.a(one.o)\n", "stderr" = ""}
+
+[[steps]]
+name = "query-again"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

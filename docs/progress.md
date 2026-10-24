@@ -1536,3 +1536,15 @@ export-if-set policy without freezing the untouched default's initial answer.
 Add 52 original required fixtures. Corpus: 2,542 cases, with 2,530 required and
 12 pending. Stateful coverage remains 44 scenarios / 106 invocations. See
 [startup makefiles](startup-makefiles.md) for exact boundaries.
+
+## Archive-member metadata and execution
+
+Share the existing Linux archive reader between wildcard queries and build
+metadata. Implement member dates, standalone-file freshness, one-second target
+comparison, archive/member automatic variables, header-only touch, and
+non-destructive failure cleanup. Validate completed recipes' headers without
+reading partial headers from running jobs or invalidating completed targets.
+Add 52 original required cases and three stateful scenarios / twelve invocations.
+Corpus: 2,594 cases, with 2,582 required and 12 pending. Stateful coverage is
+47 scenarios / 118 invocations. Add a Makefile-selectable archive benchmark.
+See [archive members](archive-members.md) for remaining resolution work.

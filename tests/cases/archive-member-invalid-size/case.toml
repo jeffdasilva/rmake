@@ -1,0 +1,12 @@
+id = "archive-member-invalid-size"
+requirement = "archives.members"
+candidate = "required"
+description = "invalid-size"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20496e76616c69642073697a6520666f722061726368697665206c69622e61206d656d626572206f6e652e6f2e202053746f702e0a"

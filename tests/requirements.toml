@@ -772,3 +772,66 @@ cases = [
   "startup-makefiles-target-export",
   "startup-makefiles-unexport"
 ]
+
+[[requirements]]
+id = "archives.members"
+title = "Archive member metadata and execution"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 52
+reference = "https://www.gnu.org/software/make/manual/html_node/Archives.html"
+fixture_count = 52
+cases = [
+  "archive-member-automatic",
+  "archive-member-automatic-directories",
+  "archive-member-bsd-long-name",
+  "archive-member-cached-completion-after-effect",
+  "archive-member-cached-forced-copy",
+  "archive-member-cached-forced-noop",
+  "archive-member-corrupt-after-recipe-parallel",
+  "archive-member-corrupt-after-recipe-serial",
+  "archive-member-default-recipe",
+  "archive-member-direct-existing",
+  "archive-member-duplicate-first-date",
+  "archive-member-duplicate-skips-zero",
+  "archive-member-empty-archive",
+  "archive-member-empty-member-is-literal",
+  "archive-member-existing",
+  "archive-member-failure-changed",
+  "archive-member-failure-precious",
+  "archive-member-failure-unchanged",
+  "archive-member-forced",
+  "archive-member-gnu-long-name",
+  "archive-member-invalid-archive",
+  "archive-member-invalid-date",
+  "archive-member-invalid-gid",
+  "archive-member-invalid-mode",
+  "archive-member-invalid-size",
+  "archive-member-invalid-uid",
+  "archive-member-local-member-newer",
+  "archive-member-local-member-older",
+  "archive-member-local-member-same-second",
+  "archive-member-low-resolution-input",
+  "archive-member-missing-archive",
+  "archive-member-missing-member",
+  "archive-member-newer-input",
+  "archive-member-partial-header-while-running",
+  "archive-member-phony",
+  "archive-member-prerequisite-projection",
+  "archive-member-query-existing",
+  "archive-member-query-zero",
+  "archive-member-secondary",
+  "archive-member-short-name-truncation",
+  "archive-member-short-path-match",
+  "archive-member-symbol-reference",
+  "archive-member-thin-is-invalid",
+  "archive-member-touch-dry-run",
+  "archive-member-touch-empty",
+  "archive-member-touch-existing",
+  "archive-member-touch-gnu",
+  "archive-member-touch-invalid",
+  "archive-member-touch-missing",
+  "archive-member-touch-missing-member",
+  "archive-member-touch-zero",
+  "archive-member-zero-date"
+]

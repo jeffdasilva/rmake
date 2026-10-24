@@ -50,7 +50,21 @@ fn unique(items: &[Vec<u8>]) -> Vec<Vec<u8>> {
 }
 
 fn modified(name: &[u8]) -> Option<SystemTime> {
-    fs::metadata(os(name)).and_then(|m| m.modified()).ok()
+    if let Some((archive, member)) = rmake_core::filenames::archive_parts(name) {
+        rmake_linux::archive::modified(archive, member)
+            .ok()
+            .flatten()
+    } else {
+        fs::metadata(os(name)).and_then(|m| m.modified()).ok()
+    }
+}
+
+fn prerequisite_variable_name(name: &[u8]) -> &[u8] {
+    rmake_core::filenames::archive_parts(name).map_or(name, |(_, member)| member)
+}
+
+fn target_variable_names(name: &[u8]) -> (&[u8], &[u8]) {
+    rmake_core::filenames::archive_parts(name).unwrap_or((name, b""))
 }
 
 fn location_prefix(location: &Location) -> Vec<u8> {
@@ -1552,6 +1566,15 @@ impl Engine {
             outcome.fatal |= execution.status == Status::Fatal;
             self.cleanup_target(&target, job.before, job.phony, execution.cleanup);
         }
+        // Inspect archive metadata only after the last command exits. A child
+        // may temporarily leave a partial header while updating its archive.
+        if !failed
+            && !self.parallel_jobs.contains_key(&target)
+            && self.archive_metadata_error(&target)
+        {
+            failed = true;
+            outcome.fatal = true;
+        }
         self.parallel_failed |= failed;
         outcome.ran = true;
         outcome.failed |= failed;
@@ -1730,12 +1753,30 @@ impl Engine {
                 .map(|d| d.name.clone())
                 .collect();
             for (name, value) in [
-                (b"@".as_slice(), target.to_vec()),
+                (b"@".as_slice(), target_variable_names(target).0.to_vec()),
                 (b"<", normal.first().cloned().unwrap_or_default()),
-                (b"^", joined(unique(&normal))),
-                (b"+", joined(&normal)),
-                (b"|", joined(unique(&order))),
+                (
+                    b"^",
+                    joined(
+                        unique(&normal)
+                            .iter()
+                            .map(|name| prerequisite_variable_name(name)),
+                    ),
+                ),
+                (
+                    b"+",
+                    joined(normal.iter().map(|name| prerequisite_variable_name(name))),
+                ),
+                (
+                    b"|",
+                    joined(
+                        unique(&order)
+                            .iter()
+                            .map(|name| prerequisite_variable_name(name)),
+                    ),
+                ),
                 (b"?", Vec::new()),
+                (b"%", target_variable_names(target).1.to_vec()),
                 (b"*", rule.stem.clone().unwrap_or_default()),
             ] {
                 variables.define_literal(name, &value, Origin::Automatic)?;
@@ -1814,9 +1855,59 @@ impl Engine {
         self.stderr(&message);
     }
 
+    fn archive_metadata_error(&self, target: &[u8]) -> bool {
+        let Some((archive, member)) = rmake_core::filenames::archive_parts(target) else {
+            return false;
+        };
+        let message = if member.starts_with(b"(") && member.ends_with(b")") {
+            Some(
+                [
+                    b"attempt to use unsupported feature: '".as_slice(),
+                    target,
+                    b"'",
+                ]
+                .concat(),
+            )
+        } else {
+            rmake_linux::archive::modified(archive, member)
+                .err()
+                .map(|error| error.into_message())
+        };
+        if let Some(message) = message {
+            self.fatal(None, &message);
+            true
+        } else {
+            false
+        }
+    }
+
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
         self.poll_jobs();
-        let outcome = self.build_inner(target, parent, depth);
+        let archive_target = rmake_core::filenames::archive_parts(target).is_some();
+        let previously_done = archive_target && self.done.contains_key(target);
+        let mut outcome = if archive_target
+            && !previously_done
+            && !self.pending(target)
+            && self.archive_metadata_error(target)
+        {
+            Outcome {
+                failed: true,
+                fatal: true,
+                ..Outcome::default()
+            }
+        } else {
+            self.build_inner(target, parent, depth)
+        };
+        if archive_target
+            && !previously_done
+            && !outcome.failed
+            && outcome.ran
+            && !self.pending(target)
+            && self.archive_metadata_error(target)
+        {
+            outcome.failed = true;
+            outcome.fatal = true;
+        }
         if self.optional_remake && outcome.failed && !outcome.fatal {
             self.optional_remake_failures.insert(target.to_vec());
         }
@@ -2068,7 +2159,9 @@ impl Engine {
     /// actual metadata for prerequisite outcomes and changed-file cleanup.
     fn comparison_time(&self, target: &[u8], before: Option<SystemTime>) -> Option<SystemTime> {
         let time = before?;
-        if !self.special(b".LOW_RESOLUTION_TIME", target, false) {
+        if rmake_core::filenames::archive_parts(target).is_none()
+            && !self.special(b".LOW_RESOLUTION_TIME", target, false)
+        {
             return before;
         }
         let nanos = match time.duration_since(SystemTime::UNIX_EPOCH) {
@@ -2571,26 +2664,44 @@ impl Engine {
                     .collect();
                 let newer: Vec<_> = newer.iter().map(|name| self.resolved_name(name)).collect();
                 let autos = [
-                    (b"@".as_slice(), target.to_vec()),
+                    (b"@".as_slice(), target_variable_names(target).0.to_vec()),
                     (
                         b"<",
                         if rule.default_recipe || target == b".DEFAULT" {
-                            target.to_vec()
+                            target_variable_names(target).0.to_vec()
                         } else {
                             repeated.first().cloned().unwrap_or_default()
                         },
                     ),
-                    (b"^", joined(&normal)),
-                    (b"+", joined(&repeated)),
-                    (b"?", joined(unique(&newer))),
-                    (b"|", joined(&order)),
+                    (
+                        b"^",
+                        joined(normal.iter().map(|name| prerequisite_variable_name(name))),
+                    ),
+                    (
+                        b"+",
+                        joined(repeated.iter().map(|name| prerequisite_variable_name(name))),
+                    ),
+                    (
+                        b"?",
+                        joined(
+                            unique(&newer)
+                                .iter()
+                                .map(|name| prerequisite_variable_name(name)),
+                        ),
+                    ),
+                    (
+                        b"|",
+                        joined(order.iter().map(|name| prerequisite_variable_name(name))),
+                    ),
                     (
                         b"*",
-                        rule.stem
-                            .clone()
-                            .unwrap_or_else(|| self.database.explicit_stem(target).to_vec()),
+                        rule.stem.clone().unwrap_or_else(|| {
+                            self.database
+                                .explicit_stem(prerequisite_variable_name(target))
+                                .to_vec()
+                        }),
                     ),
-                    (b"%", Vec::new()),
+                    (b"%", target_variable_names(target).1.to_vec()),
                 ];
                 let recursive = recipes.iter().any(|recipe| {
                     has_force_prefix(&recipe.bytes)
@@ -3294,6 +3405,15 @@ impl Engine {
         if self.options.dry_run {
             return Execution::success(true);
         }
+        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
+            return match rmake_linux::archive::touch(archive, member) {
+                Ok(()) => Execution::success(true),
+                Err(message) => {
+                    self.stderr(&message);
+                    Execution::failure(true, Cleanup::None)
+                }
+            };
+        }
         let file = match OpenOptions::new()
             .create(true)
             .write(true)
@@ -3363,6 +3483,29 @@ impl Engine {
                 .rules
                 .contains_key(b".DELETE_ON_ERROR".as_slice())
         {
+            return;
+        }
+        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
+            let date = rmake_linux::archive::date(archive, member)
+                .ok()
+                .flatten()
+                .and_then(|seconds| {
+                    SystemTime::UNIX_EPOCH.checked_add(std::time::Duration::from_secs(seconds))
+                });
+            if date != before {
+                let context =
+                    owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
+                self.stderr(
+                    &[
+                        b"*** ".as_slice(),
+                        &context,
+                        b"Archive member '",
+                        target,
+                        b"' may be bogus; not deleted",
+                    ]
+                    .concat(),
+                );
+            }
             return;
         }
         let Ok(metadata) = fs::metadata(os(target)) else {

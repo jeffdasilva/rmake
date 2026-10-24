@@ -65,6 +65,15 @@ def selected_workloads(suite):
         yield from parallel_branch_workloads()
     if suite in ("target-contexts", "all"):
         yield from target_context_workloads()
+    if suite in ("archives", "all"):
+        yield from archive_workloads()
+
+
+def archive_workloads():
+    """Existing members with fixed historical dates and no child launches."""
+    for count in (64, 256):
+        members = ' '.join(f'lib.a(member{index:04d}.o)' for index in range(count))
+        yield f'archive-noop-{count}', f'all: {members}\n'.encode()
 
 
 def target_context_workloads():
@@ -136,6 +145,16 @@ def wildcard_workloads():
 
 
 def prepare_files(path, workload):
+    if workload.startswith('archive-noop-'):
+        count = int(workload.removeprefix('archive-noop-'))
+        data = bytearray(b'!<arch>\n')
+        for index in range(count):
+            fields = (f'member{index:04d}.o/'.encode(), b'1600000000', b'0', b'0', b'644', b'1')
+            data.extend(b''.join(value.ljust(width, b' ') for value, width in
+                                 zip(fields, (16, 12, 6, 6, 8, 10))))
+            data.extend(b'`\nx\n')
+        (path / 'lib.a').write_bytes(data)
+        return {'members': count, 'archive_sha256': hashlib.sha256(data).hexdigest()}
     if not workload.startswith('wildcard-'):
         return None
     inputs = path / 'inputs'
@@ -164,7 +183,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
