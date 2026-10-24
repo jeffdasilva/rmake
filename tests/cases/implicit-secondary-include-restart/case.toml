@@ -1,0 +1,12 @@
+id = "implicit-secondary-include-restart"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "include restart"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "696e636c7564653d636f6e66696720726573746172743d0a696e636c7564653d636f6e66696720726573746172743d310a76616c75653d67656e65726174656420726573746172743d310a"
+stderr_hex = ""

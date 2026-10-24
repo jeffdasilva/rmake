@@ -1,0 +1,12 @@
+id = "implicit-secondary-mode-query"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "mode query"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = "7363616e3d6f6e650a"
+stderr_hex = ""

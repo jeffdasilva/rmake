@@ -11,7 +11,7 @@ use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, Rule, assignment, rule_filenames, trim, words,
 };
-use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
+use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, TargetScope, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::cell::RefCell;
@@ -65,6 +65,86 @@ fn prerequisite_variable_name(name: &[u8]) -> &[u8] {
 
 fn target_variable_names(name: &[u8]) -> (&[u8], &[u8]) {
     rmake_core::filenames::archive_parts(name).unwrap_or((name, b""))
+}
+
+fn secondary_automatic(
+    target: &[u8],
+    dependencies: &mut [Dependency],
+    ready: &[bool],
+    stem: Vec<u8>,
+    always: bool,
+) -> [(&'static [u8], Vec<u8>); 8] {
+    let normal = dependencies
+        .iter()
+        .zip(ready)
+        .filter(|(d, ready)| **ready && !d.order_only && d.name != b".WAIT")
+        .map(|(d, _)| d.name.as_slice());
+    let first_normal = normal.clone().next().unwrap_or_default().to_vec();
+    let plus = joined(normal.map(prerequisite_variable_name));
+    // GNU computes < and + before promoting duplicate order-only
+    // occurrences. Promotion survives into later clause expansions.
+    let mut first = HashMap::new();
+    let mut promotions = Vec::new();
+    for (index, (dependency, ready)) in dependencies.iter().zip(ready).enumerate() {
+        if !ready || dependency.name == b".WAIT" {
+            continue;
+        }
+        let (first_index, order_only) = first
+            .entry(dependency.name.as_slice())
+            .or_insert((index, dependency.order_only));
+        if *order_only != dependency.order_only {
+            promotions.extend([*first_index, index]);
+            *order_only = false;
+        }
+    }
+    for index in promotions {
+        dependencies[index].order_only = false;
+    }
+    let mut seen = HashSet::new();
+    let canonical: Vec<_> = dependencies
+        .iter()
+        .zip(ready)
+        .filter(|(d, ready)| **ready && d.name != b".WAIT" && seen.insert(d.name.as_slice()))
+        .map(|(d, _)| d)
+        .collect();
+    [
+        (b"@".as_slice(), target_variable_names(target).0.to_vec()),
+        (b"<", first_normal),
+        (
+            b"^",
+            joined(
+                canonical
+                    .iter()
+                    .filter(|d| !d.order_only)
+                    .map(|d| prerequisite_variable_name(&d.name)),
+            ),
+        ),
+        (b"+", plus),
+        (
+            b"|",
+            joined(
+                canonical
+                    .iter()
+                    .filter(|d| d.order_only)
+                    .map(|d| prerequisite_variable_name(&d.name)),
+            ),
+        ),
+        (
+            b"?",
+            if always {
+                joined(
+                    canonical
+                        .iter()
+                        .filter(|d| !d.order_only)
+                        .map(|d| prerequisite_variable_name(&d.name)),
+                )
+            } else {
+                Vec::new()
+            },
+        ),
+        (b"%", target_variable_names(target).1.to_vec()),
+        (b"*", stem),
+    ]
 }
 
 fn location_prefix(location: &Location) -> Vec<u8> {
@@ -237,7 +317,6 @@ struct RuleState {
 /// Double-colon branches remain sequential for one target, while their
 /// unfinished dependencies yield to unrelated targets in the enclosing graph.
 struct DoubleColonState {
-    parent: Option<Vec<u8>>,
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
@@ -271,6 +350,13 @@ struct ArchiveVpathReads {
     archives: HashSet<Vec<u8>>,
 }
 
+struct ImplicitSelection {
+    name: Vec<u8>,
+    rule: Rule,
+    pattern_scope: Option<Box<Option<TargetScope>>>,
+    explicit_names: Vec<Vec<u8>>,
+}
+
 pub struct Engine {
     options: Options,
     filesystem: RefCell<FilesystemRuntime>,
@@ -284,6 +370,8 @@ pub struct Engine {
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
+    implicit_pattern_scopes: HashMap<Vec<u8>, Option<TargetScope>>,
+    impossible_prerequisites: HashSet<Vec<u8>>,
     would_build: bool,
     parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
     pending_rules: HashMap<Vec<u8>, RuleState>,
@@ -625,6 +713,8 @@ impl Engine {
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
+            implicit_pattern_scopes: HashMap::new(),
+            impossible_prerequisites: HashSet::new(),
             would_build: false,
             parallel_jobs: HashMap::new(),
             pending_rules: HashMap::new(),
@@ -862,6 +952,8 @@ impl Engine {
                 self.visiting.clear();
                 self.scope_parents.clear();
                 self.target_contexts.clear();
+                self.implicit_pattern_scopes.clear();
+                self.impossible_prerequisites.clear();
                 self.resolved_names.clear();
                 *self.archive_vpath_reads.borrow_mut() = None;
                 self.inferred_peer_flags.clear();
@@ -1680,6 +1772,11 @@ impl Engine {
                 .any(|directory| fs::metadata(Path::new(os(directory)).join(os(target))).is_ok())
     }
 
+    fn implicit_known_file(&self, target: &[u8]) -> bool {
+        self.database.explicit_names.contains(target)
+            || self.options.goals.iter().any(|goal| goal == target)
+    }
+
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
     fn resolve_implicit(&mut self, target: &[u8]) -> bool {
         let existing = self.database.rules.get(target).cloned();
@@ -1690,17 +1787,33 @@ impl Engine {
             return true;
         }
         let mut budget = 100_000;
-        let mut plan = self.implicit_plan(target, &mut Vec::new(), false, &mut budget);
-        if plan.is_none() && budget != 0 {
-            budget = 100_000;
-            plan = self.implicit_plan(target, &mut Vec::new(), true, &mut budget);
-        }
+        let plan = match self.implicit_plan(target, &mut Vec::new(), false, &mut budget) {
+            Ok(plan) => plan,
+            Err(error) => {
+                self.expansion_error(None, &error);
+                return false;
+            }
+        };
         if plan.is_none() && budget == 0 {
             self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
             return false;
         }
         if let Some(plan) = plan {
-            for (name, mut rule) in plan {
+            for selection in &plan {
+                self.database
+                    .explicit_names
+                    .extend(selection.explicit_names.iter().cloned());
+            }
+            for selection in plan {
+                let ImplicitSelection {
+                    name,
+                    mut rule,
+                    pattern_scope,
+                    explicit_names: _,
+                } = selection;
+                if let Some(pattern) = pattern_scope {
+                    self.implicit_pattern_scopes.insert(name.clone(), *pattern);
+                }
                 if let Some(group) = &rule.group {
                     for (peer, pattern) in &group.implicit_peer_patterns {
                         let precious = self.special(b".PRECIOUS", pattern, false);
@@ -1742,77 +1855,293 @@ impl Engine {
     /// files intermediate. Rule identities, rather than names alone, prevent
     /// unbounded chains such as %.x: %.x.x.
     fn implicit_plan(
-        &self,
+        &mut self,
         target: &[u8],
         active: &mut Vec<usize>,
         compatibility: bool,
         budget: &mut usize,
-    ) -> Option<Vec<(Vec<u8>, Rule)>> {
+    ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         if active.len() >= 128 {
             *budget = 0;
         }
         if *budget == 0 {
-            return None;
+            return Ok(None);
         }
-        // Exhaust both normal search passes before omitting the archive path.
         for archive_search in [false, true] {
-            let candidates = if archive_search {
-                self.database
-                    .implicit_archive_candidates_excluding(target, active)
-            } else {
-                self.database.implicit_candidates_excluding(target, active)
-            };
-            for chain in [false, true] {
-                for candidate in &candidates {
-                    if *budget == 0 {
-                        return None;
-                    }
-                    *budget -= 1;
-                    if active.contains(&candidate.identity)
-                        || (chain && candidate.rule.terminal)
-                        || (!active.is_empty()
-                            && candidate.match_anything
-                            && !candidate.rule.terminal)
-                    {
-                        continue;
-                    }
-                    let mut plan = Vec::new();
-                    let mut valid = true;
-                    active.push(candidate.identity);
-                    for dependency in &candidate.rule.dependencies {
-                        let name = &dependency.name;
-                        if name == b".WAIT" {
-                            continue;
-                        }
-                        let explicit = self.database.rules.contains_key(name)
-                            || self.database.rules.get(target).is_some_and(|rule| {
-                                rule.dependencies.iter().any(|dep| dep.name == *name)
-                            });
-                        if explicit
-                            || self.implicit_vpath_exists(name)
-                            || (compatibility && self.database.explicit_names.contains(name))
-                        {
-                            continue;
-                        }
-                        if chain
-                            && let Some(child) =
-                                self.implicit_plan(name, active, compatibility, budget)
-                        {
-                            plan.extend(child);
+            if let Some(plan) =
+                self.implicit_search(target, active, compatibility, archive_search, budget)?
+            {
+                return Ok(Some(plan));
+            }
+        }
+        Ok(None)
+    }
+
+    fn implicit_search(
+        &mut self,
+        target: &[u8],
+        active: &mut Vec<usize>,
+        compatibility: bool,
+        archive_search: bool,
+        budget: &mut usize,
+    ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
+        let candidates = if archive_search {
+            self.database
+                .implicit_archive_candidates_excluding(target, active)
+        } else {
+            self.database.implicit_candidates_excluding(target, active)
+        };
+        let mut compatibility_needed = false;
+        let mut cancelled = HashSet::new();
+        let intermediate = !active.is_empty();
+        let mut variables = None;
+        let mut pattern_scope = None;
+        for chain in [false, true] {
+            for (ordinal, candidate) in candidates.iter().enumerate() {
+                if *budget == 0 {
+                    return Ok(None);
+                }
+                *budget -= 1;
+                if cancelled.contains(&ordinal)
+                    || active.contains(&candidate.identity)
+                    || (chain && candidate.rule.terminal)
+                    || (intermediate && candidate.match_anything && !candidate.rule.terminal)
+                {
+                    continue;
+                }
+                let mut plan = Vec::new();
+                let mut explicit_names = Vec::new();
+                let mut dependencies = Vec::new();
+                let mut valid = true;
+                let mut order_only = false;
+                let mut stem_set = false;
+                active.push(candidate.identity);
+                'prerequisites: for (index, occurrence) in
+                    candidate.rule.dependencies.iter().enumerate()
+                {
+                    let deferred =
+                        candidate.rule.secondary.as_ref().is_some_and(|clauses| {
+                            clauses.iter().any(|clause| clause.index == index)
+                        });
+                    let mut words = rmake_core::implicit::Words::new(&occurrence.name);
+                    let mut immediate = Some(occurrence.name.as_slice());
+                    while let Some(part) = if deferred {
+                        words.next()
+                    } else {
+                        immediate.take()
+                    } {
+                        let mut explicit_word = !candidate.stem_dependencies.contains(&index);
+                        let names = if deferred {
+                            if part == b"|" && !order_only {
+                                order_only = true;
+                                continue;
+                            }
+                            if variables.is_none() {
+                                let (context, prepared) = self.implicit_variables(
+                                    target,
+                                    intermediate,
+                                    candidate.rule.stem.clone().unwrap_or_default(),
+                                )?;
+                                pattern_scope = prepared;
+                                variables = Some(context);
+                            } else if !stem_set {
+                                variables.as_mut().unwrap().define_literal(
+                                    b"*",
+                                    candidate.rule.stem.as_deref().unwrap_or_default(),
+                                    Origin::Automatic,
+                                )?;
+                                stem_set = true;
+                            }
+                            let (rewritten, percent) = rmake_core::implicit::stem_references(
+                                part,
+                                candidate.secondary_directory.is_some(),
+                            );
+                            explicit_word = !percent;
+                            let value =
+                                self.expand(variables.as_mut().unwrap(), &rewritten, None)?;
+                            self.implicit_filenames(
+                                &value,
+                                &mut order_only,
+                                if percent {
+                                    candidate.secondary_directory.as_deref()
+                                } else {
+                                    None
+                                },
+                            )?
                         } else {
-                            valid = false;
-                            break;
+                            // Immediate prerequisite patterns were substituted in core.
+                            let mut role = occurrence.order_only;
+                            self.implicit_filenames(part, &mut role, None)?
+                        };
+                        for dependency in names {
+                            let name = &dependency.name;
+                            if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
+                                cancelled.insert(ordinal);
+                                valid = false;
+                                break 'prerequisites;
+                            }
+                            if explicit_word {
+                                explicit_names.push(name.clone());
+                            }
+                            let explicit = self.database.rules.contains_key(name)
+                                || self.database.rules.get(target).is_some_and(|rule| {
+                                    rule.dependencies.iter().enumerate().any(|(index, dep)| {
+                                        dep.name == *name
+                                            && !rule.secondary.as_ref().is_some_and(|clauses| {
+                                                clauses.iter().any(|clause| clause.index == index)
+                                            })
+                                    })
+                                });
+                            if name != b".WAIT" && !explicit && !self.implicit_vpath_exists(name) {
+                                if self.implicit_known_file(name) {
+                                    if compatibility {
+                                        dependencies.push(dependency);
+                                        continue;
+                                    }
+                                    compatibility_needed = true;
+                                }
+                                if chain {
+                                    if let Some(child) =
+                                        self.implicit_plan(name, active, compatibility, budget)?
+                                    {
+                                        plan.extend(child);
+                                    } else {
+                                        if !self.implicit_known_file(name) {
+                                            self.impossible_prerequisites.insert(name.clone());
+                                        }
+                                        valid = false;
+                                        break 'prerequisites;
+                                    }
+                                } else {
+                                    valid = false;
+                                    break 'prerequisites;
+                                }
+                            }
+                            dependencies.push(dependency);
                         }
                     }
-                    active.pop();
-                    if valid {
-                        plan.push((target.to_vec(), candidate.rule.clone()));
-                        return Some(plan);
-                    }
+                }
+                active.pop();
+                if valid {
+                    let mut selected = candidate.rule.clone();
+                    selected.dependencies = dependencies;
+                    selected.secondary = None;
+                    plan.push(ImplicitSelection {
+                        name: target.to_vec(),
+                        rule: selected,
+                        explicit_names,
+                        pattern_scope: (intermediate && variables.is_some())
+                            .then(|| Box::new(pattern_scope.clone())),
+                    });
+                    return Ok(Some(plan));
                 }
             }
         }
-        None
+        if compatibility_needed && !compatibility {
+            return self.implicit_search(target, active, true, archive_search, budget);
+        }
+        Ok(None)
+    }
+
+    fn implicit_variables(
+        &mut self,
+        target: &[u8],
+        intermediate: bool,
+        stem: Vec<u8>,
+    ) -> Result<(VariableStore, Option<TargetScope>), ExpandError> {
+        let (mut context, pattern_scope) = if intermediate {
+            let prepared = self.database.prepare_pattern_scope(
+                target,
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    }),
+            )?;
+            let context = match prepared.as_ref() {
+                Some(scope) => self.database.variables.with_target_scopes(&[scope]),
+                None => self.database.variables.with_target_scopes(&[]),
+            };
+            (context, prepared)
+        } else {
+            (self.target_variables(target)?, None)
+        };
+        let mut empty = Rule::default();
+        let explicit = if intermediate {
+            &mut empty
+        } else {
+            self.database.rules.get_mut(target).unwrap_or(&mut empty)
+        };
+        let mut ready = vec![true; explicit.dependencies.len()];
+        if let Some(clauses) = &explicit.secondary {
+            for clause in clauses.iter() {
+                ready[clause.index] = false;
+            }
+        }
+        for (name, value) in secondary_automatic(
+            target,
+            &mut explicit.dependencies,
+            &ready,
+            stem,
+            self.options.always,
+        ) {
+            context.define_literal(name, &value, Origin::Automatic)?;
+        }
+        Ok((context, pattern_scope))
+    }
+
+    fn implicit_filenames(
+        &self,
+        value: &[u8],
+        order_only: &mut bool,
+        directory: Option<&[u8]>,
+    ) -> Result<Vec<Dependency>, ExpandError> {
+        let mut result = Vec::new();
+        let split = if *order_only {
+            None
+        } else {
+            value.iter().position(|&b| b == b'|')
+        };
+        let (normal, order) = split.map_or((value, None), |index| {
+            (&value[..index], Some(&value[index + 1..]))
+        });
+        for (text, role) in [(normal, *order_only), (order.unwrap_or_default(), true)] {
+            for name in rmake_core::filenames::sequence(text) {
+                let name = rmake_core::filenames::without_dot_prefix(&name);
+                let name = directory.map_or_else(|| name.to_vec(), |dir| [dir, name].concat());
+                if !name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
+                    result.push(Dependency {
+                        name,
+                        order_only: role,
+                    });
+                    continue;
+                }
+                let bytes = self
+                    .filesystem
+                    .borrow_mut()
+                    .execute(rmake_core::diagnostic::FilesystemEffect::RuleGlob(&name))
+                    .map_err(|error| match error {
+                        rmake_core::diagnostic::FilesystemError::Caller(message) => {
+                            ExpandError::FileError(message)
+                        }
+                        rmake_core::diagnostic::FilesystemError::Unlocated(message) => {
+                            ExpandError::UnlocatedError(message)
+                        }
+                    })?;
+                for name in bytes.split(|&b| b == 0).filter(|name| !name.is_empty()) {
+                    result.push(Dependency {
+                        name: name.to_vec(),
+                        order_only: role,
+                    });
+                }
+            }
+        }
+        if order.is_some() {
+            *order_only = true;
+        }
+        Ok(result)
     }
 
     fn expand_dependencies(&mut self, target: &[u8], rule: &mut Rule) -> Result<(), ExpandError> {
@@ -1842,43 +2171,6 @@ impl Engine {
             } else {
                 rule.dependencies.len()
             };
-            let normal = rule.dependencies[..visible]
-                .iter()
-                .zip(&ready)
-                .filter(|(d, ready)| **ready && !d.order_only && d.name != b".WAIT")
-                .map(|(d, _)| d.name.as_slice());
-            let first_normal = normal.clone().next().unwrap_or_default().to_vec();
-            let plus = joined(normal.map(prerequisite_variable_name));
-            // GNU computes < and + before promoting duplicate order-only
-            // occurrences. Promotion survives into later clause expansions.
-            let mut first = HashMap::new();
-            let mut promotions = Vec::new();
-            for (index, (dependency, ready)) in
-                rule.dependencies[..visible].iter().zip(&ready).enumerate()
-            {
-                if !ready || dependency.name == b".WAIT" {
-                    continue;
-                }
-                let (first_index, order_only) = first
-                    .entry(dependency.name.as_slice())
-                    .or_insert((index, dependency.order_only));
-                if *order_only != dependency.order_only {
-                    promotions.extend([*first_index, index]);
-                    *order_only = false;
-                }
-            }
-            for index in promotions {
-                rule.dependencies[index].order_only = false;
-            }
-            let mut seen = HashSet::new();
-            let canonical: Vec<_> = rule.dependencies[..visible]
-                .iter()
-                .zip(&ready)
-                .filter(|(d, ready)| {
-                    **ready && d.name != b".WAIT" && seen.insert(d.name.as_slice())
-                })
-                .map(|(d, _)| d)
-                .collect();
             let stem = clause
                 .stem
                 .as_deref()
@@ -1886,45 +2178,15 @@ impl Engine {
                 .unwrap_or_else(|| {
                     self.database
                         .explicit_stem(prerequisite_variable_name(target))
-                });
-            for (name, value) in [
-                (b"@".as_slice(), target_variable_names(target).0.to_vec()),
-                (b"<", first_normal),
-                (
-                    b"^",
-                    joined(
-                        canonical
-                            .iter()
-                            .filter(|d| !d.order_only)
-                            .map(|d| prerequisite_variable_name(&d.name)),
-                    ),
-                ),
-                (b"+", plus),
-                (
-                    b"|",
-                    joined(
-                        canonical
-                            .iter()
-                            .filter(|d| d.order_only)
-                            .map(|d| prerequisite_variable_name(&d.name)),
-                    ),
-                ),
-                (
-                    b"?",
-                    if self.options.always {
-                        joined(
-                            canonical
-                                .iter()
-                                .filter(|d| !d.order_only)
-                                .map(|d| prerequisite_variable_name(&d.name)),
-                        )
-                    } else {
-                        Vec::new()
-                    },
-                ),
-                (b"%", target_variable_names(target).1.to_vec()),
-                (b"*", stem.to_vec()),
-            ] {
+                })
+                .to_vec();
+            for (name, value) in secondary_automatic(
+                target,
+                &mut rule.dependencies[..visible],
+                &ready,
+                stem,
+                self.options.always,
+            ) {
                 variables.define_literal(name, &value, Origin::Automatic)?;
             }
             let occurrence = &rule.dependencies[index];
@@ -2123,6 +2385,11 @@ impl Engine {
                 ..Outcome::default()
             };
         }
+        // Record first ownership before implicit secondary expansion can ask
+        // for this context. Pattern-scope activation itself remains lazy.
+        self.scope_parents
+            .entry(target.to_vec())
+            .or_insert_with(|| parent.map(Vec::from));
         let phony = self.special(b".PHONY", target, false);
         if !phony && !self.resolve_implicit(target) {
             return Outcome {
@@ -2178,7 +2445,6 @@ impl Engine {
             self.pending_double_colon.insert(
                 target.to_vec(),
                 DoubleColonState {
-                    parent: parent.map(Vec::from),
                     depth,
                     before,
                     phony,
@@ -2198,7 +2464,7 @@ impl Engine {
             }
             return outcome;
         }
-        self.build_rule(target, parent, depth, before, phony, rule, false)
+        self.build_rule(target, depth, before, phony, rule, false)
     }
 
     fn resume_double_colon(&mut self, target: &[u8]) -> Outcome {
@@ -2270,15 +2536,7 @@ impl Engine {
                     return outcome;
                 }
             }
-            self.build_rule(
-                target,
-                state.parent.as_deref(),
-                state.depth,
-                state.before,
-                state.phony,
-                branch,
-                true,
-            );
+            self.build_rule(target, state.depth, state.before, state.phony, branch, true);
             state.active = true;
         }
     }
@@ -2363,19 +2621,12 @@ impl Engine {
     fn build_rule(
         &mut self,
         target: &[u8],
-        parent: Option<&[u8]>,
         depth: usize,
         before: Option<SystemTime>,
         phony: bool,
         mut rule: Rule,
         double_colon: bool,
     ) -> Outcome {
-        // Scope activation is lazy: an up-to-date or empty-recipe target must
-        // not evaluate deferred pattern assignments. Record first ownership so
-        // a descendant's recipe can later initialize the ancestor contexts.
-        self.scope_parents
-            .entry(target.to_vec())
-            .or_insert_with(|| parent.map(Vec::from));
         let mut comparison = self.comparison_time(target, before);
         if let Err(error) = self.expand_dependencies(target, &mut rule) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
@@ -2982,17 +3233,22 @@ impl Engine {
         } else {
             self.database.variables.clone()
         };
-        let variables = self.database.variables_for_target_with(
-            target,
-            &inherited,
-            ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
-                    let result = crate::shell::run(request, &self.program, self.makelevel);
-                    self.filesystem.borrow_mut().child_completed();
-                    result
-                }),
-        )?;
+        let variables = if let Some(pattern) = self.implicit_pattern_scopes.remove(target) {
+            self.database
+                .variables_for_target_prepared(target, &inherited, pattern.as_ref())
+        } else {
+            self.database.variables_for_target_with(
+                target,
+                &inherited,
+                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    }),
+            )?
+        };
         self.target_contexts
             .insert(target.to_vec(), variables.clone());
         Ok(variables)

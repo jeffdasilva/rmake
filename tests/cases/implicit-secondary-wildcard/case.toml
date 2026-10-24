@@ -1,0 +1,12 @@
+id = "implicit-secondary-wildcard"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "wildcard"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5452590a6f6e65312e696e206f6e65322e696e0a"
+stderr_hex = ""

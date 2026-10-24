@@ -1,0 +1,12 @@
+id = "implicit-secondary-chain-context"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "chain context"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "4f55543d706172656e740a4f55543d706172656e740a4d49443d0a6d69640a6f75740a726d206f6e652e6d69640a"
+stderr_hex = ""

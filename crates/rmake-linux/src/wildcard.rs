@@ -130,6 +130,25 @@ fn literal(pattern: &[u8]) -> Option<Result<Vec<u8>, Vec<u8>>> {
 }
 
 impl Wildcard {
+    pub fn rule(&mut self, pattern: &[u8]) -> Result<Vec<u8>, FilesystemError> {
+        if rmake_core::filenames::archive_parts(pattern).is_some() {
+            return self.archive_rule(pattern);
+        }
+        let mut names = self.query(pattern, false, false, 0)?;
+        if names.is_empty() {
+            names.push(pattern.to_vec());
+        }
+        let mut output = Vec::new();
+        for name in names {
+            if output.len().saturating_add(name.len()).saturating_add(1) > MAX_OUTPUT {
+                return Err(LIMIT.to_vec().into());
+            }
+            output.extend_from_slice(&name);
+            output.push(0);
+        }
+        Ok(output)
+    }
+
     /// Rule declarations keep complete archive-member names, unlike GNU's
     /// non-interned wildcard function. NUL delimiters preserve filename bytes.
     pub fn archive_rule(&mut self, pattern: &[u8]) -> Result<Vec<u8>, FilesystemError> {

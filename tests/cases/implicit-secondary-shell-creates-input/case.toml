@@ -1,0 +1,12 @@
+id = "implicit-secondary-shell-creates-input"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "shell creates input"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b6f6e652e6f75745d202a3d5b6f6e655d203c3d5b6f6e652e696e5d205e3d5b6f6e652e696e5d202b3d5b6f6e652e696e5d207c3d5b5d20253d5b5d203f3d5b6f6e652e696e5d20563d5b5d0a"
+stderr_hex = ""

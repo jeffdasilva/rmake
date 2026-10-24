@@ -74,6 +74,10 @@ pub struct ImplicitCandidate {
     pub identity: usize,
     pub match_anything: bool,
     pub rule: Rule,
+    /// Only deferred prerequisites need directory reconstruction at runtime.
+    pub secondary_directory: Option<Vec<u8>>,
+    /// Immediate prerequisites which contain a stem pattern, before replacement.
+    pub stem_dependencies: Vec<usize>,
 }
 
 /// A declaration stays open across blank/comment and conditional lines. Rule
@@ -292,8 +296,20 @@ impl Database {
         &mut self,
         target: &[u8],
         parent: &VariableStore,
-        mut context: ExpansionContext<'_>,
+        context: ExpansionContext<'_>,
     ) -> Result<VariableStore, ExpandError> {
+        let pattern = self.prepare_pattern_scope(target, context)?;
+        Ok(self.variables_for_target_prepared(target, parent, pattern.as_ref()))
+    }
+
+    /// Activate matching pattern bindings separately from parent inheritance.
+    /// A temporary implicit-chain search has no parent or explicit bindings;
+    /// a selected chain reuses this activation when it later acquires a parent.
+    pub fn prepare_pattern_scope(
+        &mut self,
+        target: &[u8],
+        mut context: ExpansionContext<'_>,
+    ) -> Result<Option<TargetScope>, ExpandError> {
         let mut matching = self
             .pattern_assignments
             .iter()
@@ -342,16 +358,23 @@ impl Database {
                 }
             }
         }
+        Ok(pattern_scope)
+    }
+
+    pub fn variables_for_target_prepared(
+        &self,
+        target: &[u8],
+        parent: &VariableStore,
+        pattern: Option<&TargetScope>,
+    ) -> VariableStore {
         let mut parent = parent.clone();
         parent.refresh_globals(&self.variables);
-        Ok(
-            match (pattern_scope.as_ref(), self.target_scopes.get(target)) {
-                (Some(pattern), Some(scope)) => parent.with_target_scopes(&[pattern, scope]),
-                (Some(pattern), None) => parent.with_target_scopes(&[pattern]),
-                (None, Some(scope)) => parent.with_target_scopes(&[scope]),
-                (None, None) => parent.with_target_scopes(&[]),
-            },
-        )
+        match (pattern, self.target_scopes.get(target)) {
+            (Some(pattern), Some(scope)) => parent.with_target_scopes(&[pattern, scope]),
+            (Some(pattern), None) => parent.with_target_scopes(&[pattern]),
+            (None, Some(scope)) => parent.with_target_scopes(&[scope]),
+            (None, None) => parent.with_target_scopes(&[]),
+        }
     }
 
     pub fn has_vpaths(&self) -> bool {
@@ -478,16 +501,28 @@ impl Database {
                 }
             }
             let mut valid = true;
-            for dependency in &mut candidate.dependencies {
+            let mut stem_dependencies = Vec::new();
+            for (index, dependency) in candidate.dependencies.iter_mut().enumerate() {
+                if candidate
+                    .secondary
+                    .as_ref()
+                    .is_some_and(|clauses| clauses.iter().any(|clause| clause.index == index))
+                {
+                    continue;
+                }
                 let pattern = Pattern::new(&dependency.name);
+                if pattern.has_wildcard() {
+                    stem_dependencies.push(index);
+                }
                 let Ok(name) = pattern.replace(stem) else {
                     valid = false;
                     break;
                 };
+                let name = crate::filenames::without_dot_prefix(&name);
                 dependency.name = if stripped && pattern.has_wildcard() {
-                    [directory, &name].concat()
+                    [directory, name].concat()
                 } else {
-                    name
+                    name.to_vec()
                 };
             }
             if valid {
@@ -495,6 +530,11 @@ impl Database {
                     identity,
                     match_anything: name == b"%",
                     rule: candidate,
+                    secondary_directory: (rule.secondary.is_some()
+                        && stripped
+                        && !directory.is_empty())
+                    .then(|| directory.to_vec()),
+                    stem_dependencies,
                 });
             }
         }

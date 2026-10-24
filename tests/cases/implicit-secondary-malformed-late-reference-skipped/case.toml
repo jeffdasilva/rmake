@@ -1,0 +1,12 @@
+id = "implicit-secondary-malformed-late-reference-skipped"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "malformed late reference skipped"
+provenance = "Original rmake implicit candidate/context/lifetime fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "66697273740a66697273740a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276f6e652e6f7574272c206e65656465642062792027616c6c272e202053746f702e0a"

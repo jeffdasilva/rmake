@@ -1,0 +1,12 @@
+id = "implicit-secondary-ordering"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "ordering"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5452593d6f6e650a676f6f640a"
+stderr_hex = ""

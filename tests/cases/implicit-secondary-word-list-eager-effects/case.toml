@@ -1,0 +1,12 @@
+id = "implicit-secondary-word-list-eager-effects"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "word list eager effects"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "410a420a410a420a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276f6e652e6f7574272c206e65656465642062792027616c6c272e202053746f702e0a"

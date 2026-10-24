@@ -1,0 +1,12 @@
+id = "implicit-secondary-impossible-created-later"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "impossible created later"
+provenance = "Original rmake implicit candidate/context/lifetime fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-k"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "5452593d6f6e650a5452593d6f6e650a5452593d74776f0a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276f6e652e6f7574272c206e65656465642062792027616c6c272e0a6d616b653a205461726765742027616c6c27206e6f742072656d6164652062656361757365206f66206572726f72732e0a"

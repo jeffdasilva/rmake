@@ -1,0 +1,12 @@
+id = "implicit-secondary-order-generated"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "order generated"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6e652e696e3a6f72646572206c617465720a"
+stderr_hex = ""

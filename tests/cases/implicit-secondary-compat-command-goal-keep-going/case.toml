@@ -1,0 +1,12 @@
+id = "implicit-secondary-compat-command-goal-keep-going"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "Command goals count as known file records in compatibility fallback"
+provenance = "Original rmake CLI and implicit-search fixture; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-k", "one.out", "missing"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "5452593d6f6e650a5452593d6f6e650a5452593d6f6e650a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276d697373696e67272c206e656564656420627920276f6e652e6f7574272e0a6d616b653a2054617267657420276f6e652e6f757427206e6f742072656d6164652062656361757365206f66206572726f72732e0a"
