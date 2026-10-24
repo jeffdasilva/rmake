@@ -6,6 +6,7 @@
 #[cfg(not(target_os = "linux"))]
 compile_error!("rmake-linux requires Linux");
 
+pub mod archive;
 pub mod filesystem;
 // The public surface owns descriptors/tokens; only this adapter performs the
 // reviewed Linux FIFO, pipe, and fork/exec descriptor operations.

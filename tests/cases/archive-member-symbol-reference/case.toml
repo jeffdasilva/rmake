@@ -1,0 +1,12 @@
+id = "archive-member-symbol-reference"
+requirement = "archives.members"
+candidate = "required"
+description = "symbol-reference"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "7061727365640a"
+stderr_hex = "6d616b653a202a2a2a20617474656d707420746f2075736520756e737570706f7274656420666561747572653a20276c69622e61282873796d626f6c2929272e202053746f702e0a"

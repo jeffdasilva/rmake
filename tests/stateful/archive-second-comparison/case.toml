@@ -1,0 +1,40 @@
+id = "archive-second-comparison"
+description = "Original archive state transition and timestamp probe."
+provenance = "Independently authored archive bytes and expectations checked against GNU Make 4.4.1."
+initial = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\none.o/          1600000000  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next.a", "content" = "!<arch>\none.o/          1600000002  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "input", "content" = "input\n", "mtime_ns" = 1600000000999999999}]
+
+[[steps]]
+name = "same-second"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["lib.a", "input", "next.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "make: Nothing to be done for 'all'.\n", "stderr" = ""}
+
+[[steps]]
+name = "next-second"
+actions = [{"op" = "utime", "path" = "input", "mtime_ns" = 1600000001000000000}]
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "rebuilt\n", "stderr" = ""}
+
+[[steps]]
+name = "then-noop"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["lib.a", "input", "next.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "make: Nothing to be done for 'all'.\n", "stderr" = ""}
+
+[[steps]]
+name = "member-removed"
+actions = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "rebuilt\n", "stderr" = ""}

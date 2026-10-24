@@ -1,0 +1,12 @@
+id = "archive-member-touch-zero"
+requirement = "archives.members"
+candidate = "required"
+description = "touch-zero"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-Bt"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206c69622e61286f6e652e6f290a"
+stderr_hex = ""

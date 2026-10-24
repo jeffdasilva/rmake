@@ -1,0 +1,12 @@
+id = "archive-member-automatic-directories"
+requirement = "archives.members"
+candidate = "required"
+description = "automatic-directories"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6469727c6c69622e617c706174687c6f6e652e6f7c706174682f6f6e650a"
+stderr_hex = ""

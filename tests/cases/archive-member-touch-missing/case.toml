@@ -1,0 +1,12 @@
+id = "archive-member-touch-missing"
+requirement = "archives.members"
+candidate = "required"
+description = "touch-missing"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "746f756368206c69622e61286f6e652e6f290a"
+stderr_hex = "6d616b653a20746f7563683a204172636869766520276c69622e612720646f6573206e6f742065786973740a"

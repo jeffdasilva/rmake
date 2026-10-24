@@ -1,0 +1,12 @@
+id = "archive-member-partial-header-while-running"
+requirement = "archives.members"
+candidate = "required"
+description = "partial-header-while-running"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-B", "-j2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""
