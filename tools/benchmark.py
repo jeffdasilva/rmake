@@ -63,6 +63,25 @@ def selected_workloads(suite):
         yield from implicit_search_workloads()
     if suite in ("parallel-branches", "all"):
         yield from parallel_branch_workloads()
+    if suite in ("target-contexts", "all"):
+        yield from target_context_workloads()
+
+
+def target_context_workloads():
+    """Activate variable scopes and automatic values without launching children."""
+    names = [f"node{index}" for index in range(3000)]
+    for scope in ("none", "explicit", "pattern"):
+        source = "all: " + " ".join(names) + "\n"
+        if scope == "pattern":
+            source += "node%: VALUE = scoped\n"
+        for name in names:
+            if scope == "explicit":
+                source += name + ": VALUE = scoped\n"
+            source += name + ":;@$(if $(filter node%,$@),,$(error missing automatic target))"
+            if scope != "none":
+                source += "$(if $(filter scoped,$(VALUE)),,$(error missing scoped value))"
+            source += "$(if $(filter /%,$(abspath input)),,$(error missing directory))\n"
+        yield "target-context-" + scope, source.encode()
 
 
 def parallel_branch_workloads():
@@ -145,7 +164,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

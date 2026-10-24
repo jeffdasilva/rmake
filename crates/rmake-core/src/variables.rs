@@ -397,7 +397,7 @@ impl std::error::Error for ExpandError {}
 pub struct VariableStore {
     variables: Arc<BTreeMap<Vec<u8>, Variable>>,
     layers: Vec<VariableLayer>,
-    working_directory: Option<Vec<u8>>,
+    working_directory: Option<Arc<[u8]>>,
     environment_override: bool,
     scoped: bool,
 }
@@ -439,7 +439,7 @@ impl VariableStore {
     /// Set the actual invocation directory for `abspath`, independently of the
     /// overridable CURDIR variable. This performs no filesystem access.
     pub fn set_working_directory(&mut self, directory: &[u8]) {
-        self.working_directory = Some(directory.to_vec());
+        self.working_directory = Some(Arc::from(directory));
     }
 
     pub fn get(&self, name: &[u8]) -> Option<&Variable> {
@@ -563,7 +563,13 @@ impl VariableStore {
             pattern: layer.pattern,
         }));
         Self {
-            variables: Arc::default(),
+            // Empty local maps can share storage. Definitions use Arc::make_mut
+            // so writes in one target still leave parents and siblings intact.
+            variables: if self.variables.is_empty() {
+                Arc::clone(&self.variables)
+            } else {
+                Arc::default()
+            },
             layers,
             working_directory: self.working_directory.clone(),
             environment_override: false,

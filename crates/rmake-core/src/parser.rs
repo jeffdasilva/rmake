@@ -276,13 +276,18 @@ impl Database {
         // More fixed bytes mean a shorter stem, hence higher precedence.
         // Stable sorting preserves declaration order when stem lengths tie.
         matching.sort_by_key(|assignment| assignment.pattern.fixed_len());
-        let mut pattern_scope = TargetScope::default();
+        // Most targets have no matching pattern bindings. Do not allocate an
+        // empty scope for them; matching declarations still run in full order.
+        let mut pattern_scope = None;
         for assignment in matching {
-            if pattern_scope.apply_pattern_with(
-                &mut self.variables,
-                &assignment.variable,
-                context.reborrow(),
-            )? {
+            if pattern_scope
+                .get_or_insert_with(TargetScope::default)
+                .apply_pattern_with(
+                    &mut self.variables,
+                    &assignment.variable,
+                    context.reborrow(),
+                )?
+            {
                 // A suppressed conditional can return the global binding. Its
                 // modifiers then replace global export policy too.
                 let name = assignment.variable.name();
@@ -308,11 +313,14 @@ impl Database {
         }
         let mut parent = parent.clone();
         parent.refresh_globals(&self.variables);
-        Ok(if let Some(scope) = self.target_scopes.get(target) {
-            parent.with_target_scopes(&[&pattern_scope, scope])
-        } else {
-            parent.with_target_scopes(&[&pattern_scope])
-        })
+        Ok(
+            match (pattern_scope.as_ref(), self.target_scopes.get(target)) {
+                (Some(pattern), Some(scope)) => parent.with_target_scopes(&[pattern, scope]),
+                (Some(pattern), None) => parent.with_target_scopes(&[pattern]),
+                (None, Some(scope)) => parent.with_target_scopes(&[scope]),
+                (None, None) => parent.with_target_scopes(&[]),
+            },
+        )
     }
 
     pub fn vpath_directories(&self, target: &[u8]) -> Vec<Vec<u8>> {

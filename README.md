@@ -99,6 +99,8 @@ a general speed advantage.
 Use `BENCH_SUITE=word-spans` for six large-list workloads covering selected ranges,
 full scans, `let` remainders and literal `patsubst`. The default `core` suite
 retains the original three workloads; `BENCH_SUITE=all` includes every suite.
+`BENCH_SUITE=target-contexts` isolates variable-scope and automatic-value costs
+without launching children. See [target context measurements](docs/target-context-performance.md).
 `BENCH_SUITE=wildcard` measures cold, repeated, complex and literal queries over
 1,000 input files prepared outside the timed invocations.
 `BENCH_SUITE=bindings` measures repeated reads of large simple global and local

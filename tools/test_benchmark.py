@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -49,6 +49,18 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'.unused'), count)
             self.assertTrue(source.endswith(b'%.out:;\n'))
         self.assertEqual(list(benchmark.selected_workloads('implicit-search')), workloads)
+
+    def test_target_contexts_cover_automatic_values_and_both_scope_kinds(self):
+        workloads = list(benchmark.target_context_workloads())
+        self.assertEqual([name for name, _ in workloads], [
+            'target-context-none', 'target-context-explicit', 'target-context-pattern'])
+        self.assertEqual(workloads, list(benchmark.selected_workloads('target-contexts')))
+        for _, source in workloads:
+            self.assertEqual(source.count(b'missing automatic target'), 3000)
+            self.assertEqual(source.count(b'$(abspath input)'), 3000)
+            self.assertNotIn(b'$(shell', source)
+        self.assertEqual(workloads[1][1].count(b'VALUE = scoped'), 3000)
+        self.assertEqual(workloads[2][1].count(b'VALUE = scoped'), 1)
 
     def test_wildcard_suite_distinguishes_cold_cached_complex_and_literal_queries(self):
         import tempfile
