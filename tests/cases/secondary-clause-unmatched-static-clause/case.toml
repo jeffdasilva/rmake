@@ -1,0 +1,12 @@
+id = "secondary-clause-unmatched-static-clause"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "unmatched static clause"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "413d6974656d0a403d5b6974656d2e6f5d202a3d5b6974656d5d203c3d5b6f6e655d205e3d5b6f6e655d202b3d5b6f6e655d207c3d5b5d0a"
+stderr_hex = "4d616b6566696c653a323a2074617267657420276974656d2e6f2720646f65736e2774206d617463682074686520746172676574207061747465726e0a"

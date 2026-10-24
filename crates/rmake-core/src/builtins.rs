@@ -69,8 +69,7 @@ impl Database {
                 order_only: false,
             }]
         };
-        converted.deferred = false;
-        converted.recipe_dependency_count = converted.dependencies.len();
+        converted.secondary = None;
         converted.double_colon = None;
         self.append_pattern(Pattern::new(&[b"%", destination].concat()), converted);
     }
@@ -128,8 +127,7 @@ impl Database {
                             name: [b"%".as_slice(), source].concat(),
                             order_only: false,
                         }];
-                        archive.deferred = false;
-                        archive.recipe_dependency_count = 1;
+                        archive.secondary = None;
                         archive.double_colon = None;
                         self.append_pattern(Pattern::new(b"(%.o)"), archive);
                     }

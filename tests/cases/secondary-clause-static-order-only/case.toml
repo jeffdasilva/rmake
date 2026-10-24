@@ -1,0 +1,12 @@
+id = "secondary-clause-static-order-only"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "static order only"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "4220403d5b6974656d2e6f5d202a3d5b74656d5d203c3d5b5d205e3d5b5d202b3d5b5d207c3d5b5d203f3d5b5d0a4120403d5b6974656d2e6f5d202a3d5b6974656d5d203c3d5b74656d2e625d205e3d5b74656d2e625d202b3d5b74656d2e625d207c3d5b74776f5d203f3d5b5d0a403d5b6974656d2e6f5d202a3d5b74656d5d203c3d5b74656d2e625d205e3d5b74656d2e62206974656d2e615d202b3d5b74656d2e62206974656d2e615d207c3d5b74776f206f6e655d203f3d5b74656d2e62206974656d2e615d0a"
+stderr_hex = ""

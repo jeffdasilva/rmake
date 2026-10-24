@@ -1,0 +1,12 @@
+id = "secondary-clause-target-scope"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "target scope"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "423d7461726765742d74656d0a413d7461726765742d6974656d0a403d5b6974656d2e6f5d202a3d5b74656d5d203c3d5b74776f5d205e3d5b74776f206f6e655d202b3d5b74776f206f6e655d207c3d5b5d203f3d5b74776f206f6e655d0a"
+stderr_hex = ""

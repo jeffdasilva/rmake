@@ -1632,3 +1632,17 @@ and optimized conformance pass. A 101-sample paired run improves the selected
 lookup workloads by 1.2x-6.3x over the preceding build; three of four measured
 medians beat GNU, without establishing general performance parity. See
 [VPATH lookup measurements](vpath-search-performance.md).
+
+## Per-clause secondary expansion
+
+Preserve each deferred static clause's stem, recipe-first traversal order and
+all ready immediate prerequisites. Keep literal dollars intact, reproduce
+pairwise duplicate role promotion, and use GNU's selected recipe diagnostic
+context. Borrow ready names when producing automatic values. Add 69 original
+required fixtures (61 fail on the preceding build), a 100-graph mixed-scope
+secondary campaign in CI and a separate 100-graph/32-node local campaign.
+The top-level Makefile exposes `test-secondary` and a four-workload `secondary`
+benchmark suite. Corpus: 2,882 cases, with 2,870 required and 12 pending.
+Stateful coverage remains 50 scenarios / 133 invocations. See
+[secondary-expansion clauses](secondary-expansion.md) for behavior, measurements
+and the remaining M4 gates.

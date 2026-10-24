@@ -1,0 +1,12 @@
+id = "secondary-clause-wait-visible-later"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "wait visible later"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "4120403d5b616c6c5d202a3d5b5d203c3d5b74776f5d205e3d5b74776f2074687265655d202b3d5b74776f2074687265655d207c3d5b5d203f3d5b5d0a403d5b616c6c5d202a3d5b5d203c3d5b74776f5d205e3d5b74776f207468726565206f6e655d202b3d5b74776f207468726565206f6e655d207c3d5b5d203f3d5b74776f207468726565206f6e655d0a"
+stderr_hex = ""

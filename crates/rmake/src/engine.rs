@@ -1390,7 +1390,7 @@ impl Engine {
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
-        if rule.deferred {
+        if rule.secondary.is_some() {
             let outcome = self.build(target, Some(parent), depth);
             return (outcome, self.pending(target));
         }
@@ -1711,8 +1711,7 @@ impl Engine {
                     }
                 }
                 if let Some(explicit) = self.database.rules.get(&name) {
-                    rule.dependencies.extend(explicit.dependencies.clone());
-                    rule.deferred |= explicit.deferred;
+                    rule.append_prerequisites(explicit);
                 }
                 if name != target
                     && !self.database.explicit_names.contains(&name)
@@ -1817,60 +1816,118 @@ impl Engine {
     }
 
     fn expand_dependencies(&mut self, target: &[u8], rule: &mut Rule) -> Result<(), ExpandError> {
-        if !rule.deferred {
+        let Some(secondary) = rule.secondary.take() else {
             return Ok(());
-        }
+        };
         let mut variables = self.target_variables(target)?;
-        let mut dependencies: Vec<Dependency> = Vec::new();
-        let cut = rule.recipe_dependency_count.min(rule.dependencies.len());
-        let mut prior_count = 0;
-        for (index, occurrence) in rule.dependencies[cut..]
-            .iter()
-            .chain(&rule.dependencies[..cut])
-            .enumerate()
-        {
-            if index == rule.dependencies.len() - cut {
-                prior_count = dependencies.len();
+        // GNU attributes secondary-expansion messages to the selected recipe,
+        // including for prerequisite clauses read from other files.
+        rule.prerequisite_location = rule.recipe_location.clone();
+        // Ready occurrences include every immediate prerequisite, even those
+        // after this clause. Deferred placeholders stay invisible until their
+        // own expansion. Splicing preserves the parser's recipe-first order.
+        let mut ready = vec![true; rule.dependencies.len()];
+        for clause in secondary.iter() {
+            ready[clause.index] = false;
+        }
+        let mut ready_count = rule.dependencies.len() - secondary.len();
+        let mut original_next = 0;
+        let mut expanded_next = 0;
+        for clause in *secondary {
+            let index = expanded_next + clause.index - original_next;
+            // Empty deferred clauses cannot expose a prerequisite. Avoid
+            // repeatedly scanning all remaining placeholders in that case.
+            let visible = if ready_count == 0 {
+                0
+            } else {
+                rule.dependencies.len()
+            };
+            let normal = rule.dependencies[..visible]
+                .iter()
+                .zip(&ready)
+                .filter(|(d, ready)| **ready && !d.order_only && d.name != b".WAIT")
+                .map(|(d, _)| d.name.as_slice());
+            let first_normal = normal.clone().next().unwrap_or_default().to_vec();
+            let plus = joined(normal.map(prerequisite_variable_name));
+            // GNU computes < and + before promoting duplicate order-only
+            // occurrences. Promotion survives into later clause expansions.
+            let mut first = HashMap::new();
+            let mut promotions = Vec::new();
+            for (index, (dependency, ready)) in
+                rule.dependencies[..visible].iter().zip(&ready).enumerate()
+            {
+                if !ready || dependency.name == b".WAIT" {
+                    continue;
+                }
+                let (first_index, order_only) = first
+                    .entry(dependency.name.as_slice())
+                    .or_insert((index, dependency.order_only));
+                if *order_only != dependency.order_only {
+                    promotions.extend([*first_index, index]);
+                    *order_only = false;
+                }
             }
-            let normal: Vec<_> = dependencies
+            for index in promotions {
+                rule.dependencies[index].order_only = false;
+            }
+            let mut seen = HashSet::new();
+            let canonical: Vec<_> = rule.dependencies[..visible]
                 .iter()
-                .filter(|d| !d.order_only && d.name != b".WAIT")
-                .map(|d| d.name.clone())
+                .zip(&ready)
+                .filter(|(d, ready)| {
+                    **ready && d.name != b".WAIT" && seen.insert(d.name.as_slice())
+                })
+                .map(|(d, _)| d)
                 .collect();
-            let order: Vec<_> = dependencies
-                .iter()
-                .filter(|d| d.order_only && d.name != b".WAIT")
-                .map(|d| d.name.clone())
-                .collect();
+            let stem = clause
+                .stem
+                .as_deref()
+                .or(rule.stem.as_deref())
+                .unwrap_or_else(|| {
+                    self.database
+                        .explicit_stem(prerequisite_variable_name(target))
+                });
             for (name, value) in [
                 (b"@".as_slice(), target_variable_names(target).0.to_vec()),
-                (b"<", normal.first().cloned().unwrap_or_default()),
+                (b"<", first_normal),
                 (
                     b"^",
                     joined(
-                        unique(&normal)
+                        canonical
                             .iter()
-                            .map(|name| prerequisite_variable_name(name)),
+                            .filter(|d| !d.order_only)
+                            .map(|d| prerequisite_variable_name(&d.name)),
                     ),
                 ),
-                (
-                    b"+",
-                    joined(normal.iter().map(|name| prerequisite_variable_name(name))),
-                ),
+                (b"+", plus),
                 (
                     b"|",
                     joined(
-                        unique(&order)
+                        canonical
                             .iter()
-                            .map(|name| prerequisite_variable_name(name)),
+                            .filter(|d| d.order_only)
+                            .map(|d| prerequisite_variable_name(&d.name)),
                     ),
                 ),
-                (b"?", Vec::new()),
+                (
+                    b"?",
+                    if self.options.always {
+                        joined(
+                            canonical
+                                .iter()
+                                .filter(|d| !d.order_only)
+                                .map(|d| prerequisite_variable_name(&d.name)),
+                        )
+                    } else {
+                        Vec::new()
+                    },
+                ),
                 (b"%", target_variable_names(target).1.to_vec()),
-                (b"*", rule.stem.clone().unwrap_or_default()),
+                (b"*", stem.to_vec()),
             ] {
                 variables.define_literal(name, &value, Origin::Automatic)?;
             }
+            let occurrence = &rule.dependencies[index];
             let value = self.expand(
                 &mut variables,
                 &occurrence.name,
@@ -1881,23 +1938,24 @@ impl Engine {
                 self.filesystem.borrow_mut().execute(effect)
             };
             let mut context = ExpansionContext::pure().with_filesystem(&mut filesystem);
+            let mut expanded = Vec::new();
             for name in rule_filenames(&value, &mut context)? {
                 let name = name.as_ref();
                 if name == b"|" {
                     order_only = true;
                 } else {
-                    dependencies.push(Dependency {
+                    expanded.push(Dependency {
                         name: name.to_vec(),
                         order_only,
                     });
                 }
             }
+            original_next = clause.index + 1;
+            expanded_next = index + expanded.len();
+            ready_count += expanded.len();
+            ready.splice(index..=index, std::iter::repeat_n(true, expanded.len()));
+            rule.dependencies.splice(index..=index, expanded);
         }
-        if cut > 0 {
-            dependencies.rotate_left(prior_count);
-        }
-        rule.dependencies = dependencies;
-        rule.deferred = false;
         Ok(())
     }
 

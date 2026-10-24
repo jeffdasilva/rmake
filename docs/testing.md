@@ -216,6 +216,17 @@ ordered matching pattern declarations to the same graphs and runs a separate
 100-program CI campaign; `--patterns` is retained for exact replay. Effectful
 functions remain outside these generators' current scope.
 
+`make test-secondary` adds immediate/deferred ordinary and static-pattern
+prerequisite clauses to the same DAGs, combined with explicit and pattern scopes.
+Each deferred clause records its identity, stem and automatic variables.
+Independent anchors require each clause to expand exactly once and each node to
+produce its authored file. Exact ordering and automatic-variable values come
+from the verified oracle. The default CI campaign has 100 eight-node graphs;
+the graph overrides above control replay, and failure metadata retains
+`--secondary --patterns`. Broader implicit secondary expansion and parallel
+generated graphs remain outside this profile. The original graph profiles keep
+their existing Makefile bytes and seed identities.
+
 `make test-filesystem` adds eleven original Linux/glibc fault scenarios. A
 temporary C interposer injects interrupted opens/reads/path observations, partial
 reads, write errors and errors after actual close. The runner compares exact

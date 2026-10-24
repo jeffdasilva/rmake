@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -53,6 +53,7 @@ help:
 		'  test-graphs     Compare seeded explicit dependency graphs' \
 		'  test-scopes     Compare scoped variables across seeded dependency graphs' \
 		'  test-pattern-scopes Compare mixed pattern and explicit variable scopes' \
+		'  test-secondary  Compare seeded deferred/static clauses with mixed scopes' \
 		'  test-filesystem  Compare Linux filesystem effects under injected faults' \
 		'  test-whitespace  Compare pure-function whitespace and effect ordering' \
 		'  test-word-index  Compare word and wordlist numeric boundaries and errors' \
@@ -77,7 +78,7 @@ help:
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
 		'Wildcard overrides: WILDCARD_SEED, WILDCARD_CASES, WILDCARD_EXPRESSIONS, START_INDEX.' \
-		'Benchmark suite: BENCH_SUITE=core|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|all.' \
+		'Benchmark suite: BENCH_SUITE=core|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|secondary|all.' \
 		'Benchmark samples per engine: BENCH_REPEAT=15 (3-1000).' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'
@@ -147,6 +148,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WHITESPACE_CASE=let-final-remainder-0b test-whitespace
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WORD_INDEX_CASE=effect-wordlist-all-before-validation test-word-index
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WILDCARD_CASES=1 test-wildcards
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" GRAPH_CASES=1 test-secondary
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -163,6 +165,10 @@ test-scopes: build oracle-verify
 test-pattern-scopes: build oracle-verify
 	$(PYTHON) tools/graph_generated.py --patterns --oracle "$(ORACLE)" --self-test --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-pattern-scopes
 	$(PYTHON) tools/graph_generated.py --patterns --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-pattern-scopes
+
+test-secondary: build oracle-verify
+	$(PYTHON) tools/graph_generated.py --secondary --patterns --oracle "$(ORACLE)" --self-test --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-secondary
+	$(PYTHON) tools/graph_generated.py --secondary --patterns --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(GRAPH_SEED)" --cases "$(GRAPH_CASES)" --nodes "$(GRAPH_NODES)" --start-index "$(START_INDEX)" --artifacts artifacts/generated-secondary
 
 test-modes: build oracle-verify
 	$(PYTHON) tools/mode_matrix.py --oracle "$(ORACLE)" --self-test $(if $(MODE_CASE),--case "$(MODE_CASE)")
@@ -196,9 +202,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
 
 ci: check test-selfhost
 

@@ -1,0 +1,12 @@
+id = "secondary-clause-file-effect-clause-order"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "file effect clause order"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b616c6c5d202a3d5b5d203c3d5b5d205e3d5b5d202b3d5b5d207c3d5b5d0a"
+stderr_hex = ""
