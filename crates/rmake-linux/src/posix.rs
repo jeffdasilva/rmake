@@ -36,8 +36,9 @@ unsafe extern "C" {
 /// retries EINTR, which changes the observable archive fallback on this profile.
 pub fn open_archive(path: &[u8]) -> io::Result<File> {
     let path = CString::new(path).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-    // O_RDONLY is zero on Linux. No variadic mode argument is needed.
-    let descriptor = unsafe { open(path.as_ptr(), 0) };
+    // O_RDONLY is zero. Linux O_CLOEXEC atomically protects scans that overlap
+    // another worker's exec, without adding a retry or an fcntl race window.
+    let descriptor = unsafe { open(path.as_ptr(), 0x80000) };
     if descriptor < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -177,5 +178,55 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod archive_descriptor_tests {
+    use super::open_archive;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    #[test]
+    fn archive_descriptor_is_not_inherited_by_recipe_children() {
+        let name = format!(
+            "rmake-archive-descriptor-{}-{}.a",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let path = std::env::temp_dir().join(name);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        struct Remove(std::path::PathBuf);
+        impl Drop for Remove {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let _remove = Remove(path.clone());
+        let file = open_archive(path.as_os_str().as_bytes()).unwrap();
+        // A recipe worker may spawn while the interpreter is scanning another
+        // member. Observe inheritance through a real exec, while the scan lives.
+        let descriptor = format!("/proc/self/fd/{}", file.as_raw_fd());
+        let result = std::process::Command::new("/usr/bin/readlink")
+            .arg(descriptor)
+            .output()
+            .unwrap();
+        let mut leaked_path = std::fs::canonicalize(&path)
+            .unwrap()
+            .as_os_str()
+            .as_bytes()
+            .to_vec();
+        leaked_path.push(b'\n');
+        assert_ne!(
+            result.stdout, leaked_path,
+            "archive descriptor reached the child"
+        );
     }
 }
