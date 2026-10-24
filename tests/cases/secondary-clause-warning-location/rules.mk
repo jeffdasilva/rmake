@@ -1,0 +1,1 @@
+all: $$(warning clause-warning)

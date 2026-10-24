@@ -1,0 +1,12 @@
+id = "secondary-clause-archive-expanded-groups"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "archive expanded groups"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b6974656d2e6f5d202a3d5b74656d5d203c3d5b6c69622e612874656d2e737263295d205e3d5b74656d2e737263206974656d2e7372635d202b3d5b74656d2e737263206974656d2e7372635d0a"
+stderr_hex = ""

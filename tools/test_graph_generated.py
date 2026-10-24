@@ -32,6 +32,43 @@ def observation(program):
 
 
 class GenerationTests(unittest.TestCase):
+    def test_secondary_profile_is_replayable_and_keeps_the_authored_dag(self):
+        headers = set()
+        for index in range(20):
+            plain = graphs.generate_program(44109, index, 8, patterns=True)
+            program = graphs.generate_program(44109, index, 8, patterns=True, secondary=True)
+            self.assertEqual(plain.declarations, program.declarations)
+            self.assertEqual(plain.goals, program.goals)
+            self.assertEqual(program, graphs.generate_program(44109, index, 8,
+                                                             patterns=True, secondary=True))
+            self.assertNotEqual(plain.case_id, program.case_id)
+            self.assertEqual(graphs.reproduction(program)[-2:], ["--patterns", "--secondary"])
+            self.assertTrue(program.metadata()["secondary_expansion"])
+            for target, position in program.secondary_clauses:
+                self.assertEqual(program.declarations[position].target, target)
+                trace = f"$$(info secondary|{target}|{position}|".encode()
+                self.assertEqual(program.makefile.count(trace), 1)
+            headers.update(line.split(b": ", 1)[1].split(b":", 1)[0]
+                           for line in program.makefile.splitlines()
+                           if line.startswith(b"n") and b": " in line and line.count(b":") == 2)
+        self.assertIn(b"n%", headers)
+        self.assertIn(b"%", headers)
+        self.assertTrue(any(header.startswith(b"n") and header.endswith(b"%")
+                            and header != b"n%" for header in headers))
+
+    def test_secondary_traces_cannot_be_missing_duplicated_or_malformed(self):
+        program = graphs.generate_program(44109, 0, 8, secondary=True)
+        observed = observation(program)
+        traces = [f"secondary|{name}|{index}|stem|first|unique|plus|newer|order".encode()
+                  for name, index in program.secondary_clauses]
+        observed.stdout = observed.stdout.replace(graphs.FINISH, b"\n".join(traces + [graphs.FINISH]))
+        self.assertEqual(graphs.program_errors(program, observed), [])
+        for replacement in (b"", traces[0] + b"\n" + traces[0] + b"\n",
+                            b"secondary|malformed\n"):
+            mutant = copy.deepcopy(observed)
+            mutant.stdout = mutant.stdout.replace(traces[0] + b"\n", replacement, 1)
+            self.assertTrue(graphs.program_errors(program, mutant))
+
     def test_patterns_combine_with_explicit_scopes_without_changing_graphs(self):
         repeated_patterns = False
         for index in range(20):

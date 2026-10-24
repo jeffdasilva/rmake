@@ -1,0 +1,12 @@
+id = "secondary-clause-error-with-empty-recipe"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "error with empty recipe"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a202a2a2a20656d7074792d7265636970652e202053746f702e0a"

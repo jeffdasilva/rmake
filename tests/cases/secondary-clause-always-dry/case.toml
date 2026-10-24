@@ -1,0 +1,12 @@
+id = "secondary-clause-always-dry"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "Always-make populates secondary newer-prerequisite variables"
+provenance = "Original rmake secondary-expansion fixture; no upstream test material copied."
+args = ["-rR", "--no-print-directory", "-B", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "48455245202b3d5b6f6e652074776f5d203f3d5b6f6e652074776f5d205e3d5b6f6e652074776f5d207c3d5b5d0a6563686f20222b3d5b6f6e652074776f206f6e655d203f3d5b6f6e652074776f5d205e3d5b6f6e652074776f5d220a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "secondary-clause-include-restart"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "include restart"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "423d74656d20726573746172743d310a696e636c756465643d656d20726573746172743d310a413d6974656d20726573746172743d310a403d5b6974656d2e6f5d202a3d5b74656d5d203c3d5b74776f5d205e3d5b74776f207468726565206f6e655d202b3d5b74776f207468726565206f6e655d207c3d5b5d0a"
+stderr_hex = ""

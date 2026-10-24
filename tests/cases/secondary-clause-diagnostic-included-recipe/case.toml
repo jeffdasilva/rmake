@@ -1,0 +1,12 @@
+id = "secondary-clause-diagnostic-included-recipe"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "diagnostic included recipe"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "7265636970652e6d6b3a323a2073656c65637465642d6c6f636174696f6e0a7265636970652e6d6b3a323a202a2a2a206661696c7572652e202053746f702e0a"

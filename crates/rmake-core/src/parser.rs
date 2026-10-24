@@ -40,8 +40,9 @@ pub struct Rule {
     pub recipe_location: Option<Location>,
     pub stem: Option<Vec<u8>>,
     pub prerequisite_location: Option<Location>,
-    pub deferred: bool,
-    pub recipe_dependency_count: usize,
+    /// Only deferred occurrences need clause metadata. Ordinary dependencies
+    /// retain their compact representation and are never expanded again.
+    pub secondary: Option<Box<Vec<SecondaryPrerequisite>>>,
     pub double_colon: Option<Vec<Rule>>,
     /// Double-colon pattern rules cannot infer missing prerequisites.
     pub terminal: bool,
@@ -142,7 +143,26 @@ pub struct Dependency {
     pub order_only: bool,
 }
 
+#[derive(Clone, Debug)]
+pub struct SecondaryPrerequisite {
+    pub index: usize,
+    /// A static declaration's stem can differ from the target's final stem.
+    pub stem: Option<Vec<u8>>,
+}
+
 impl Rule {
+    pub fn append_prerequisites(&mut self, other: &Self) {
+        let offset = self.dependencies.len();
+        self.dependencies.extend(other.dependencies.iter().cloned());
+        if let Some(secondary) = &other.secondary {
+            self.secondary.get_or_insert_with(Default::default).extend(
+                secondary.iter().cloned().map(|mut clause| {
+                    clause.index += offset;
+                    clause
+                }),
+            );
+        }
+    }
     pub fn grouped_targets(&self) -> Option<&[Vec<u8>]> {
         self.group.as_ref().map(|group| group.targets.as_slice())
     }
@@ -2303,7 +2323,12 @@ impl Database {
                     continue;
                 }
                 if secondary {
-                    rule.deferred = true;
+                    rule.secondary.get_or_insert_with(Default::default).push(
+                        SecondaryPrerequisite {
+                            index: rule.dependencies.len(),
+                            stem: stem.clone(),
+                        },
+                    );
                     rule.dependencies.push(Dependency {
                         name: if stem.is_some() {
                             static_secondary_prerequisites(prereqs)
@@ -2323,6 +2348,7 @@ impl Database {
                     // Record offsets only after clearing, including repeated
                     // target names in the same declaration.
                     rule.dependencies.clear();
+                    rule.secondary = None;
                 }
                 declaration
                     .offsets
@@ -2479,7 +2505,13 @@ impl Database {
         if !recipe_started {
             let count = rule.dependencies.len() - offset;
             rule.dependencies.rotate_right(count);
-            rule.recipe_dependency_count = count;
+            if let Some(secondary) = &mut rule.secondary {
+                let length = rule.dependencies.len();
+                for clause in secondary.iter_mut() {
+                    clause.index = (clause.index + count) % length;
+                }
+                secondary.sort_by_key(|clause| clause.index);
+            }
             if let Some(previous) = &rule.recipe_location {
                 warnings.push((
                     recipe.location.clone(),

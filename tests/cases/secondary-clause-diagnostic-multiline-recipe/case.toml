@@ -1,0 +1,12 @@
+id = "secondary-clause-diagnostic-multiline-recipe"
+requirement = "resolution.secondary-clauses"
+candidate = "required"
+description = "diagnostic multiline recipe"
+provenance = "Original rmake secondary-expansion clause fixture; no upstream implementation or test material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a2073656c65637465642d6c6f636174696f6e0a4d616b6566696c653a343a202a2a2a206661696c7572652e202053746f702e0a"

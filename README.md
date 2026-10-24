@@ -112,6 +112,8 @@ candidate in the same campaign. See the [implicit search measurements](docs/impl
 `BENCH_SUITE=vpath-search` measures ordinary/archive search policy;
 [compiled VPATH measurements](docs/vpath-search-performance.md) record the current
 lookup optimization and its limits.
+`BENCH_SUITE=secondary` measures deferred clauses with large ready lists,
+empty clauses and many targets; see [secondary expansion](docs/secondary-expansion.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -140,6 +142,9 @@ The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
 header scan I/O while retaining fresh reads between effects.
 [Archive-first VPATH resolution](docs/archive-vpath.md) searches the archive name
 before checking members and preserves GNU search/rebuild observations.
+[Secondary-expansion clauses](docs/secondary-expansion.md) retain individual
+static stems, literal prerequisites, GNU traversal order and diagnostic context.
+`make test-secondary` runs a seeded graph campaign with mixed variable scopes.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

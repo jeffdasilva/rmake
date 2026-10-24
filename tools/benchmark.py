@@ -71,6 +71,23 @@ def selected_workloads(suite):
         yield from archive_sequence_workloads()
     if suite in ("vpath-search", "all"):
         yield from vpath_workloads()
+    if suite in ("secondary", "all"):
+        yield from secondary_workloads()
+
+
+def secondary_workloads():
+    """Ready lists and many small deferred clauses; no process launches."""
+    for count in (256, 1024):
+        names = ' '.join(f'secondary{index}' for index in range(count))
+        yield f'secondary-ready-{count}', (
+            '.SECONDEXPANSION:\nall: ' + names + '\n'
+            'all: $$(if $$(filter secondary0,$$^),,$$(error missing ready prerequisite)) ;\n'
+            + names + ': ;\n').encode()
+    yield 'secondary-empty-256', (
+        b'.SECONDEXPANSION:\n' + b'all: $$(strip)\n' * 256 + b'all: ;\n')
+    names = ' '.join(f'secondary{index}' for index in range(1000))
+    yield 'secondary-targets-1000', (
+        '.SECONDEXPANSION:\nall: ' + names + '\n' + names + ': $$(strip) ;\n').encode()
 
 
 def vpath_workloads():
@@ -228,7 +245,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
