@@ -1,0 +1,12 @@
+id = "archive-rule-glob-inactive-secondary"
+requirement = "archives.rule-wildcards"
+candidate = "required"
+description = "archive-rule-glob-inactive-secondary"
+provenance = "Original rmake archive wildcard fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6163746976650a"
+stderr_hex = ""

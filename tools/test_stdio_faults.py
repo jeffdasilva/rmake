@@ -48,8 +48,8 @@ class StdioFaultTests(unittest.TestCase):
             ast.parse(path.read_text(), feature_version=(3, 11))
 
     def test_inventory_covers_each_stage_and_is_bounded(self):
-        self.assertEqual(len(self.cells), 19)
-        self.assertEqual(len({cell.id for cell in self.cells}), 19)
+        self.assertEqual(len(self.cells), 21)
+        self.assertEqual(len({cell.id for cell in self.cells}), 21)
         self.assertEqual({cell.fault for cell in self.cells},
                          {'open-eintr', 'close-eio', 'read-eintr', 'read-eio',
                           'write-eio', 'realpath-eintr', 'stat-eintr',

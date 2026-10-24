@@ -1,0 +1,9 @@
+!<arch>
+two.o/          bad         0     0     644     1         `
+x
+one.o/          bad         0     0     644     1         `
+x
+other.txt/      bad         0     0     644     1         `
+x
+.hidden.o/      bad         0     0     644     1         `
+x

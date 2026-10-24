@@ -1,0 +1,12 @@
+id = "archive-rule-glob-inactive-ordinary-glob-control"
+requirement = "archives.rule-wildcards"
+candidate = "required"
+description = "archive-rule-glob-inactive-ordinary-glob-control"
+provenance = "Original rmake archive wildcard fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20496e76616c6964206461746520666f722061726368697665206c69622e61206d656d6265722074776f2e6f2e202053746f702e0a"

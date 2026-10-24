@@ -1,0 +1,12 @@
+id = "archive-rule-glob-static-prerequisite-before-stem"
+requirement = "archives.rule-wildcards"
+candidate = "required"
+description = "archive-rule-glob-static-prerequisite-before-stem"
+provenance = "Original rmake archive wildcard fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d656d6265723d5b6f6e652e6f325d0a403d5b6f6e652e6f75745d20253d5b5d203c3d5b6c69622e61286f6e652e6f32295d205e3d5b6f6e652e6f325d202b3d5b6f6e652e6f325d207c3d5b5d202a3d5b6f6e655d20563d5b5d0a"
+stderr_hex = ""

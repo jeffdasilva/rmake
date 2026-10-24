@@ -7,7 +7,7 @@
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
 pub use crate::diagnostic::Location;
-use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, Output};
+use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Output};
 use crate::reader::{Reader, strip_comment};
 use crate::variables::{
     Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
@@ -662,16 +662,64 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
         .filter(|word| !word.is_empty())
 }
 
-/// Archive groups are filename syntax, not function word syntax. Keep the
-/// ordinary rule path borrowed; only archive spellings need a filename pass.
-pub fn rule_words(bytes: &[u8]) -> impl Iterator<Item = Cow<'_, [u8]>> {
+/// Expand only archive rule globs through the runtime boundary. Keep ordinary
+/// filename words borrowed, and never reuse the wildcard function's archive
+/// output: GNU intentionally exposes different names through those two paths.
+pub fn rule_filenames<'a>(
+    bytes: &'a [u8],
+    context: &mut ExpansionContext<'_>,
+) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
     let archive = bytes.contains(&b'(');
-    let names = archive.then(|| crate::filenames::sequence(bytes));
-    names
+    let names = if archive {
+        let mut names = Vec::new();
+        let mut size = 0usize;
+        for name in crate::filenames::sequence(bytes) {
+            if crate::filenames::archive_parts(&name).is_some()
+                && name.iter().any(|b| matches!(b, b'*' | b'?' | b'['))
+            {
+                let result = context
+                    .perform_filesystem(FilesystemEffect::ArchiveGlob(&name))
+                    .ok_or_else(|| ExpandError::Unsupported(b"archive rule wildcard".to_vec()))?
+                    .map_err(|error| match error {
+                        FilesystemError::Caller(message) => ExpandError::FileError(message),
+                        FilesystemError::Unlocated(message) => ExpandError::UnlocatedError(message),
+                    })?;
+                for name in result.split(|&b| b == 0).filter(|name| !name.is_empty()) {
+                    size = size.saturating_add(name.len() + 1);
+                    if size > MAX_OUTPUT {
+                        return Err(ExpandError::ExpansionLimit);
+                    }
+                    names.push(name.to_vec());
+                }
+            } else {
+                size = size.saturating_add(name.len() + 1);
+                if size > MAX_OUTPUT {
+                    return Err(ExpandError::ExpansionLimit);
+                }
+                names.push(name);
+            }
+        }
+        Some(names)
+    } else {
+        None
+    };
+    Ok(names
         .into_iter()
         .flatten()
         .map(Cow::Owned)
-        .chain(words(if archive { b"" } else { bytes }).map(Cow::Borrowed))
+        .chain(words(if archive { b"" } else { bytes }).map(Cow::Borrowed)))
+}
+
+fn parsed_rule_filenames<'a>(
+    bytes: &'a [u8],
+    location: &Location,
+    context: &mut ExpansionContext<'_>,
+) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ParseError> {
+    rule_filenames(bytes, context).map_err(|error| ParseError {
+        unlocated: error.is_unlocated(),
+        location: location.clone(),
+        message: error.diagnostic(),
+    })
 }
 
 /// Percent quoting is shared with pattern matching. Other escaped filename
@@ -1094,7 +1142,7 @@ impl Database {
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let targets = rule_words(targets).collect::<Vec<_>>();
+        let targets = parsed_rule_filenames(targets, location, context)?.collect::<Vec<_>>();
         if targets.last().is_some_and(|target| target.ends_with(b"&")) {
             return Err(ParseError {
                 unlocated: false,
@@ -1959,6 +2007,23 @@ impl Database {
                     continue;
                 }
             }
+            // GNU observes target globs before expanding the prerequisite
+            // tail. A shell/file effect in that tail must not change which
+            // targets this declaration names. Ordinary words remain borrowed.
+            let archive_targets = if let Some(colon) = prefix_expansion.colon
+                && prefix_expansion.expanded[..colon].contains(&b'(')
+            {
+                let targets = prefix_expansion.expanded[..colon]
+                    .strip_suffix(b"&")
+                    .unwrap_or(&prefix_expansion.expanded[..colon]);
+                Some(
+                    parsed_rule_filenames(targets, &location, context)?
+                        .map(Cow::into_owned)
+                        .collect::<Vec<_>>(),
+                )
+            } else {
+                None
+            };
             let inline = separator(&line.bytes, b';')
                 .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
             let rule_end = separator(text, b';').unwrap_or(text.len());
@@ -2012,7 +2077,22 @@ impl Database {
             declaration.location = Some(location.clone());
             declaration.grouped = grouped;
             let target_end = colon - usize::from(grouped);
-            for target in rule_words(&expanded[..target_end]) {
+            let early_targets = archive_targets.is_some();
+            let targets =
+                archive_targets
+                    .into_iter()
+                    .flatten()
+                    .map(Cow::Owned)
+                    .chain(parsed_rule_filenames(
+                        if early_targets {
+                            b""
+                        } else {
+                            &expanded[..target_end]
+                        },
+                        &location,
+                        context,
+                    )?);
+            for target in targets {
                 let target = target.as_ref();
                 let pattern = Pattern::new(target);
                 if pattern.has_wildcard() {
@@ -2065,6 +2145,19 @@ impl Database {
                 .map_or((prereqs, &b""[..]), |i| (&prereqs[..i], &prereqs[i + 1..]));
             let empty_dependencies =
                 words(normal).next().is_none() && words(order).next().is_none();
+            // A declaration's wildcard observations occur once, before static
+            // stem replacement, and remain deferred with secondary expansion.
+            let prerequisite_names = if secondary || !prereqs.contains(&b'(') {
+                None
+            } else {
+                let mut names = Vec::new();
+                for (text, order_only) in [(normal, false), (order, true)] {
+                    for name in parsed_rule_filenames(text, &location, context)? {
+                        names.push((name, order_only));
+                    }
+                }
+                Some(names)
+            };
             // Check the complete declaration before merging any target: a
             // .SUFFIXES target on this same line has not changed the list yet.
             if !self.suppress_default_goal
@@ -2219,25 +2312,34 @@ impl Database {
                     .offsets
                     .entry(target.clone())
                     .or_insert(rule.dependencies.len());
-                for (names, order_only) in [(normal, false), (order, true)] {
-                    for name in rule_words(names) {
-                        let name = name.as_ref();
-                        let name = if let Some(stem) = &stem {
-                            Pattern::new(name)
-                                .replace(stem)
-                                .map_err(|error| ParseError {
-                                    unlocated: false,
-                                    location: location.clone(),
-                                    message: error.diagnostic(),
-                                })?
-                        } else {
-                            name.to_vec()
-                        };
-                        if !declaration.patterns.contains_key(target) {
-                            self.explicit_names.insert(name.clone());
-                        }
-                        rule.dependencies.push(Dependency { name, order_only });
+                let archive_prereqs = prerequisite_names.is_some();
+                let names = prerequisite_names
+                    .as_ref()
+                    .into_iter()
+                    .flatten()
+                    .map(|(name, order_only)| (name.as_ref(), *order_only))
+                    .chain(
+                        words(if archive_prereqs { b"" } else { normal }).map(|name| (name, false)),
+                    )
+                    .chain(
+                        words(if archive_prereqs { b"" } else { order }).map(|name| (name, true)),
+                    );
+                for (name, order_only) in names {
+                    let name = if let Some(stem) = &stem {
+                        Pattern::new(name)
+                            .replace(stem)
+                            .map_err(|error| ParseError {
+                                unlocated: false,
+                                location: location.clone(),
+                                message: error.diagnostic(),
+                            })?
+                    } else {
+                        name.to_vec()
+                    };
+                    if !declaration.patterns.contains_key(target) {
+                        self.explicit_names.insert(name.clone());
                     }
+                    rule.dependencies.push(Dependency { name, order_only });
                 }
             }
             let recipe = inline

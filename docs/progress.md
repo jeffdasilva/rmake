@@ -1582,3 +1582,15 @@ coverage remains 48 scenarios / 122 invocations. The 31-sample local workload
 comparison shows a specific 2.2x/8.2x improvement over the preceding build; a
 separate 101-sample core check shows no general speed gain. See
 [archive groups](archive-groups.md) for scope, measurements and remaining work.
+
+## Archive rule wildcards and default filename lookup
+
+Add a distinct filesystem effect for complete archive-member rule names, with
+NUL-separated transport preserving blanks, tabs and arbitrary bytes. Expand
+target globs before prerequisite effects, glob clauses once before static stem
+replacement, and defer secondary reads and errors until activation. Preserve the
+wildcard function's separate GNU output behavior. Look up complete known default
+filenames before splitting them. Add 50 original required cases and two injected
+archive-open fault cases. Corpus: 2,714 cases, with 2,702 required and 12 pending.
+Stateful coverage remains 48 scenarios / 122 invocations; the filesystem fault
+gate now has 21 cases. See [archive rule wildcards](archive-rule-wildcards.md).
