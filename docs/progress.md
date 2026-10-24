@@ -1524,3 +1524,15 @@ benchmark suite and its workload validation test. Full local CI and optimized
 conformance pass with unchanged corpus counts. Alternating 101-sample runs show
 small improvements in expansion and target-context workloads; GNU remains
 faster. See [measurements and limits](target-context-performance.md).
+
+## MAKEFILES preloads, main discovery and export — 2026-10-23
+
+Read a frozen expanded MAKEFILES list before discovering the main file. Suppress
+automatic default selection across preloads and their includes, while retaining
+explicit assignments and eval's GNU default-selection behavior. Discover main
+files created during startup and update missing default candidates. Preserve
+optional-remake failure handling and required-use promotion. Add binding-local
+export-if-set policy without freezing the untouched default's initial answer.
+Add 44 original required fixtures. Corpus: 2,534 cases, with 2,522 required and
+12 pending. Stateful coverage remains 44 scenarios / 106 invocations. See
+[startup makefiles](startup-makefiles.md) for exact boundaries.

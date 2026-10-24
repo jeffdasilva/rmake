@@ -129,6 +129,7 @@ struct ScopeMetadata {
     private: bool,
     export: ExportPolicy,
     export_default_reset: bool,
+    export_if_set: bool,
     append_outer: bool,
 }
 
@@ -206,7 +207,11 @@ impl Variable {
     }
 
     pub fn export_policy(&self) -> Option<bool> {
-        self.scope.export.get()
+        self.scope.export.get().or_else(|| {
+            self.scope
+                .export_if_set
+                .then_some(self.origin != Origin::Default)
+        })
     }
 
     /// A runtime alias reset global policy to GNU's default. The original
@@ -530,6 +535,18 @@ impl VariableStore {
         if let Some(variable) = Arc::make_mut(&mut self.variables).get_mut(name) {
             variable.scope.export.set(export);
             variable.scope.export_default_reset = export.is_none();
+            if export.is_none() {
+                variable.scope.export_if_set = false;
+            }
+        }
+    }
+
+    /// Startup policy for MAKEFILES: export once assigned, unless a later
+    /// explicit policy changes it. Undefine destroys this binding's policy.
+    pub fn set_export_if_set(&mut self, name: &[u8]) {
+        if let Some(variable) = Arc::make_mut(&mut self.variables).get_mut(name) {
+            variable.scope.export.set(None);
+            variable.scope.export_if_set = true;
         }
     }
 
@@ -619,7 +636,12 @@ impl VariableStore {
     pub fn export_policy(&self, name: &[u8]) -> Option<bool> {
         let mut start = 0;
         while let Some((index, value)) = self.lookup_from(name, start) {
-            if let Some(policy) = value.scope.export.get() {
+            if let Some(policy) = value.scope.export.get().or_else(|| {
+                value.scope.export_if_set.then(|| {
+                    self.get(name)
+                        .is_some_and(|selected| selected.origin != Origin::Default)
+                })
+            }) {
                 return Some(policy);
             }
             start = index + 1;
@@ -632,8 +654,13 @@ impl VariableStore {
     /// metadata changes when another target initializes later.
     pub fn resolve_export_policy(&self, name: &[u8]) -> Option<bool> {
         let policy = self.export_policy(name);
-        self.get(name)
-            .map_or(policy, |variable| variable.scope.export.resolve(policy))
+        self.get(name).map_or(policy, |variable| {
+            if variable.scope.export_if_set && variable.scope.export.get().is_none() {
+                policy
+            } else {
+                variable.scope.export.resolve(policy)
+            }
+        })
     }
 
     /// Define an already-expanded name. Conditional assignment skips an existing
