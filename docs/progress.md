@@ -1514,3 +1514,13 @@ merely to check whether the flags binding changed. Correct directory-read errors
 Add 54 required original fixtures and two CLI boundary tests. Corpus: 2,490
 cases, with 2,478 required and 12 pending. Stateful coverage remains 44 scenarios
 / 106 invocations. See [include search](include-search.md) for precise scope.
+
+## Target-variable context allocation — 2026-10-23
+
+Allocate pattern scopes only when a declaration matches; share empty local maps
+through copy-on-write and share immutable invocation-directory bytes. Keep all
+activation/effect ordering unchanged. Add a Makefile-selectable target-context
+benchmark suite and its workload validation test. Full local CI and optimized
+conformance pass with unchanged corpus counts. Alternating 101-sample runs show
+small improvements in expansion and target-context workloads; GNU remains
+faster. See [measurements and limits](target-context-performance.md).
