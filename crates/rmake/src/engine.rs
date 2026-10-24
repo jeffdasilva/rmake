@@ -1086,9 +1086,6 @@ impl Engine {
                 self.optional_remake = makefile.optional;
                 let result = self.build(&makefile.name, None, 0);
                 self.optional_remake = false;
-                if result.failed && !result.fatal && makefile.optional {
-                    self.optional_remake_failures.insert(makefile.name.clone());
-                }
                 self.makefile_error.borrow_mut().take();
                 failed |= result.failed && !makefile.optional;
                 changed |= !result.failed && modified(&makefile.name) != before;
@@ -3251,7 +3248,7 @@ impl Engine {
                 if !ignore {
                     self.show_makefile_error();
                 }
-                if !self.optional_remake && (!ignore || !self.globally_silent()) {
+                if (ignore || !self.optional_remake) && (!ignore || !self.globally_silent()) {
                     let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                     message.push(b'[');
                     message.extend_from_slice(&location_prefix(&recipe.location));

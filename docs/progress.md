@@ -1533,6 +1533,6 @@ explicit assignments and eval's GNU default-selection behavior. Discover main
 files created during startup and update missing default candidates. Preserve
 optional-remake failure handling and required-use promotion. Add binding-local
 export-if-set policy without freezing the untouched default's initial answer.
-Add 44 original required fixtures. Corpus: 2,534 cases, with 2,522 required and
+Add 52 original required fixtures. Corpus: 2,542 cases, with 2,530 required and
 12 pending. Stateful coverage remains 44 scenarios / 106 invocations. See
 [startup makefiles](startup-makefiles.md) for exact boundaries.

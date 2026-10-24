@@ -18,7 +18,8 @@ Makefile while being read, or define a rule that generates a missing default
 Makefile during remaking. Successfully regenerated files trigger normal database
 restarts. Preloaded files are optional remake goals: ordinary failed recipes and
 missing dependencies are quiet during that update, but fatal expansion errors
-remain fatal. If an optional file is also required, the required use wins. A
+remain fatal. Explicitly ignored errors retain their diagnostic unless silent
+mode suppresses it. If an optional file is also required, the required use wins. A
 later requested goal that failed as an optional remake receives GNU's missing-rule
 diagnostic instead of silently retaining the optional failure.
 
@@ -29,15 +30,16 @@ default binding's initial non-exported answer. Explicit unexport overrides the
 policy, and undefine destroys it; recreating the binding has ordinary export
 behavior. These rules use binding metadata, including inherited scope policy.
 
-The slice adds 44 original required differential cases. They cover ordered and
+The slice adds 52 original required differential cases. They cover ordered and
 duplicate reads, list expansion effects, CLI precedence, search paths, source
 diagnostics, missing/parse/directory errors, default suppression, eval, recursion,
 automatic export, main-file creation, successful and failed generation, duplicate
-required uses and -n/-q/-t modes. Expectations pin status and streams; the
+required uses, -n/-q/-t modes, and -j/-i error-policy interactions.
+Expectations pin status and streams; the
 independent runner also compares complete filesystem observations. Stateful
 multi-invocation tests remain a separate gate.
 
-Full local `make ci` and optimized conformance pass: 2,522 required cases,
+Full local `make ci` and optimized conformance pass: 2,530 required cases,
 12 existing pending mismatches, no unexpected failures. Six restart/export/eval
 cases also pass ten fresh-workspace repetitions each against GNU/GNU and
 GNU/rmake. A 101-sample paired core comparison against source `a24cca9` measured
