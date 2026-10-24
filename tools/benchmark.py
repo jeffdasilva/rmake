@@ -84,6 +84,11 @@ def archive_workloads():
     for count in (64, 256):
         members = ' '.join(f'lib.a(member{index:04d}.o)' for index in range(count))
         yield f'archive-noop-{count}', f'all: {members}\n'.encode()
+    # Real object payloads can make read-ahead more expensive than header-only
+    # seeks. Keep these separate from the dense one-byte member workloads.
+    for payload in (4096, 65536):
+        members = ' '.join(f'lib.a(member{index:04d}.o)' for index in range(64))
+        yield f'archive-payload-64-{payload}', f'all: {members}\n'.encode()
 
 
 def target_context_workloads():
@@ -155,16 +160,20 @@ def wildcard_workloads():
 
 
 def prepare_files(path, workload):
-    if workload.startswith('archive-noop-'):
-        count = int(workload.removeprefix('archive-noop-'))
+    if workload.startswith(('archive-noop-', 'archive-payload-')):
+        if workload.startswith('archive-noop-'):
+            count, payload = int(workload.removeprefix('archive-noop-')), 1
+        else:
+            count, payload = map(int, workload.removeprefix('archive-payload-').split('-'))
         data = bytearray(b'!<arch>\n')
         for index in range(count):
-            fields = (f'member{index:04d}.o/'.encode(), b'1600000000', b'0', b'0', b'644', b'1')
+            fields = (f'member{index:04d}.o/'.encode(), b'1600000000', b'0', b'0', b'644', str(payload).encode())
             data.extend(b''.join(value.ljust(width, b' ') for value, width in
                                  zip(fields, (16, 12, 6, 6, 8, 10))))
-            data.extend(b'`\nx\n')
+            data.extend(b'`\n' + b'x' * payload + (b'\n' if payload % 2 else b''))
         (path / 'lib.a').write_bytes(data)
-        return {'members': count, 'archive_sha256': hashlib.sha256(data).hexdigest()}
+        return {'members': count, 'member_bytes': payload,
+                'archive_sha256': hashlib.sha256(data).hexdigest()}
     if not workload.startswith('wildcard-'):
         return None
     inputs = path / 'inputs'

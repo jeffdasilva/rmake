@@ -1594,3 +1594,16 @@ filenames before splitting them. Add 50 original required cases and two injected
 archive-open fault cases. Corpus: 2,714 cases, with 2,702 required and 12 pending.
 Stateful coverage remains 48 scenarios / 122 invocations; the filesystem fault
 gate now has 21 cases. See [archive rule wildcards](archive-rule-wildcards.md).
+
+## Adaptive archive reader I/O
+
+Buffer dense small-member header runs within one scan; use direct header reads
+and payload seeks for larger members. Track logical offsets and restore the
+cursor when discarding read-ahead. Keep member data fresh across effects and
+retain absolute header-only touch offsets, open attempts and close-on-exec.
+An initial fixed-buffer experiment regressed realistic object payload scans and
+was replaced before publication. Extend archive benchmarks with 4 KiB/64 KiB
+payloads and add 26 original boundary/mutation/format required fixtures. Corpus:
+2,740 cases, with 2,728 required and 12 pending. Stateful coverage remains
+48 scenarios / 122 invocations. See
+[archive reader measurements](archive-reader-performance.md).

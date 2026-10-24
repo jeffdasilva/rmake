@@ -53,8 +53,9 @@ upstream test material was copied.
 
 Archive-member implicit search and suffix conversion are covered by the
 [archive resolution slice](archive-rule-resolution.md). Remaining M4 work includes
-archive-aware VPATH, archive-group and wildcard rule expansion,
-and broader format/fault coverage. This slice does not complete archive support
+archive-aware VPATH and broader format/fault coverage.
+[Archive groups](archive-groups.md) and
+[rule wildcard expansion](archive-rule-wildcards.md) are now implemented. This slice does not complete archive support
 or establish performance parity. `make bench-compare BENCH_SUITE=archives`
 measures original 64- and 256-member no-op workloads with fixed historical dates.
 
@@ -62,8 +63,9 @@ A local 101-sample paired core check against `e1f7861` measured tiny startup at
 0.711 ms versus 0.695 ms, large no-op at 29.941 ms versus 29.873 ms, and expansion
 at 4.935 ms versus 4.905 ms. These differences show no material core regression
 in this run. A 31-sample archive comparison measured 64 members at 1.589 ms
-(GNU 1.106 ms) and 256 members at 12.964 ms (GNU 6.686 ms). GNU remains faster;
-the new archive suite establishes a baseline rather than a speedup claim.
+(GNU 1.106 ms) and 256 members at 12.964 ms (GNU 6.686 ms). GNU was faster in that baseline. The subsequent
+[adaptive reader](archive-reader-performance.md) records the current scan policy
+and comparisons.
 Reports retain all samples and identities under the ignored
 `artifacts/bench/archive-members-core-101.json` and
 `artifacts/bench/archive-members-31.json`. Timings include startup and warm OS

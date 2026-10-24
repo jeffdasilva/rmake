@@ -59,6 +59,23 @@ class BenchmarkTests(unittest.TestCase):
             self.assertNotIn(b'$(shell', source)
             self.assertTrue(source.endswith(b'all:;\n'))
 
+    def test_archive_workloads_include_sparse_object_payloads(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.archive_workloads())
+        self.assertEqual([name for name, _ in workloads], [
+            'archive-noop-64', 'archive-noop-256', 'archive-payload-64-4096',
+            'archive-payload-64-65536'])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, source in workloads:
+                fixture = benchmark.prepare_files(root, name)
+                self.assertEqual(source.count(b'lib.a('), fixture['members'])
+                self.assertEqual((root / 'lib.a').stat().st_size,
+                                 8 + fixture['members'] * (60 + fixture['member_bytes']
+                                                          + fixture['member_bytes'] % 2))
+                self.assertNotIn(b'$(shell', source)
+
     def test_target_contexts_cover_automatic_values_and_both_scope_kinds(self):
         workloads = list(benchmark.target_context_workloads())
         self.assertEqual([name for name, _ in workloads], [
