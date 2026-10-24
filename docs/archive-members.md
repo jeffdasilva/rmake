@@ -44,8 +44,9 @@ is 47 scenarios / 118 invocations. Upstream read/scan, command-variable and
 remake code was consulted as a behavioral reference; no GNU implementation or
 upstream test material was copied.
 
-Remaining M4 work includes archive-member implicit search, archive suffix-rule
-conversion, archive-aware VPATH, archive-group and wildcard rule expansion,
+Archive-member implicit search and suffix conversion are covered by the
+[archive resolution slice](archive-rule-resolution.md). Remaining M4 work includes
+archive-aware VPATH, archive-group and wildcard rule expansion,
 and broader format/fault coverage. This slice does not complete archive support
 or establish performance parity. `make bench-compare BENCH_SUITE=archives`
 measures original 64- and 256-member no-op workloads with fixed historical dates.

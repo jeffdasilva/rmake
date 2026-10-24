@@ -127,6 +127,8 @@ implicit multi-output behavior. [Low-resolution timestamp comparisons](docs/time
 preserve GNU rebuild decisions without changing stored file metadata.
 See [archive members](docs/archive-members.md) for member timestamps, automatic
 variables, touch behavior and the remaining archive rule-resolution work.
+The [archive resolution slice](docs/archive-rule-resolution.md) supports member
+pattern search, archive suffix rules and the built-in archiver recipe.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

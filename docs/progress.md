@@ -1548,3 +1548,15 @@ Add 52 original required cases and three stateful scenarios / twelve invocations
 Corpus: 2,594 cases, with 2,582 required and 12 pending. Stateful coverage is
 47 scenarios / 118 invocations. Add a Makefile-selectable archive benchmark.
 See [archive members](archive-members.md) for remaining resolution work.
+
+## Archive implicit search and suffix conversion
+
+Search complete archive-member names before member-only candidates, retaining
+directory bytes and building the fallback list only when needed. Enable the
+built-in archiver recipe and intermediate chains, and generate archive and
+ordinary patterns from `.X.a` suffix rules. Preserve GNU's literal member-only
+peer names. Rewrite deferred static-pattern percents before activation, with
+non-archive controls for the shared behavior. Add 34 original required cases
+and a four-step deterministic-archive scenario. Corpus: 2,628 cases, with 2,616
+required and 12 pending. Stateful coverage: 48 scenarios / 122 invocations.
+See [archive rule resolution](archive-rule-resolution.md) for remaining M4 scope.

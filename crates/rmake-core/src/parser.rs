@@ -343,12 +343,45 @@ impl Database {
         target: &[u8],
         active: &[usize],
     ) -> Vec<ImplicitCandidate> {
+        self.implicit_candidates_in(
+            target,
+            active,
+            crate::filenames::archive_parts(target).is_some(),
+        )
+    }
+
+    /// The second archive search omits the archive path, but retains directory
+    /// bytes within the member stem. Search identities remain the originals.
+    pub fn implicit_archive_candidates_excluding(
+        &self,
+        target: &[u8],
+        active: &[usize],
+    ) -> Vec<ImplicitCandidate> {
+        let Some((_, member)) = crate::filenames::archive_parts(target) else {
+            return Vec::new();
+        };
+        let name = [b"(".as_slice(), member, b")"].concat();
+        // GNU keeps peer spellings from the member-only pattern. Inserting an
+        // archive prefix here would incorrectly share different member goals.
+        self.implicit_candidates_in(&name, active, true)
+    }
+
+    fn implicit_candidates_in(
+        &self,
+        target: &[u8],
+        active: &[usize],
+        archive: bool,
+    ) -> Vec<ImplicitCandidate> {
         let mut result = Vec::new();
         let mut specific = false;
-        let directory = target
-            .iter()
-            .rposition(|byte| *byte == b'/')
-            .map_or(b"".as_slice(), |slash| &target[..=slash]);
+        let directory = if archive {
+            b"".as_slice()
+        } else {
+            target
+                .iter()
+                .rposition(|byte| *byte == b'/')
+                .map_or(b"".as_slice(), |slash| &target[..=slash])
+        };
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
             let identity = rule
                 .group
@@ -492,6 +525,25 @@ impl Database {
             })
         })
     }
+}
+
+/// GNU's deferred static prerequisite pass rewrites the first percent in each
+/// whitespace-delimited word to a stem reference, even inside surviving syntax.
+fn static_secondary_prerequisites(bytes: &[u8]) -> Vec<u8> {
+    let mut rewritten = Vec::with_capacity(bytes.len());
+    let mut replaced = false;
+    for &byte in bytes {
+        if byte.is_ascii_whitespace() || byte == 0x0b {
+            replaced = false;
+        }
+        if byte == b'%' && !replaced {
+            rewritten.extend_from_slice(b"$*");
+            replaced = true;
+        } else {
+            rewritten.push(byte);
+        }
+    }
+    rewritten
 }
 
 #[cfg(test)]
@@ -2129,7 +2181,11 @@ impl Database {
                 if secondary {
                     rule.deferred = true;
                     rule.dependencies.push(Dependency {
-                        name: prereqs.to_vec(),
+                        name: if stem.is_some() {
+                            static_secondary_prerequisites(prereqs)
+                        } else {
+                            prereqs.to_vec()
+                        },
                         order_only: false,
                     });
                     declaration

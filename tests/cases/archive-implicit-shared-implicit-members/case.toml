@@ -1,0 +1,12 @@
+id = "archive-implicit-shared-implicit-members"
+requirement = "archives.implicit"
+candidate = "required"
+description = "archive-implicit-shared-implicit-members"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c69622e613a6f6e652e780a6c69622e613a6f6e652e790a"
+stderr_hex = ""

@@ -1676,50 +1676,61 @@ impl Engine {
         if *budget == 0 {
             return None;
         }
-        let candidates = self.database.implicit_candidates_excluding(target, active);
-        for chain in [false, true] {
-            for candidate in &candidates {
-                if *budget == 0 {
-                    return None;
-                }
-                *budget -= 1;
-                if active.contains(&candidate.identity)
-                    || (chain && candidate.rule.terminal)
-                    || (!active.is_empty() && candidate.match_anything && !candidate.rule.terminal)
-                {
-                    continue;
-                }
-                let mut plan = Vec::new();
-                let mut valid = true;
-                active.push(candidate.identity);
-                for dependency in &candidate.rule.dependencies {
-                    let name = &dependency.name;
-                    if name == b".WAIT" {
-                        continue;
+        // Exhaust both normal search passes before omitting the archive path.
+        for archive_search in [false, true] {
+            let candidates = if archive_search {
+                self.database
+                    .implicit_archive_candidates_excluding(target, active)
+            } else {
+                self.database.implicit_candidates_excluding(target, active)
+            };
+            for chain in [false, true] {
+                for candidate in &candidates {
+                    if *budget == 0 {
+                        return None;
                     }
-                    let explicit = self.database.rules.contains_key(name)
-                        || self.database.rules.get(target).is_some_and(|rule| {
-                            rule.dependencies.iter().any(|dep| dep.name == *name)
-                        });
-                    if explicit
-                        || self.find_vpath(name).is_some()
-                        || (compatibility && self.database.explicit_names.contains(name))
+                    *budget -= 1;
+                    if active.contains(&candidate.identity)
+                        || (chain && candidate.rule.terminal)
+                        || (!active.is_empty()
+                            && candidate.match_anything
+                            && !candidate.rule.terminal)
                     {
                         continue;
                     }
-                    if chain
-                        && let Some(child) = self.implicit_plan(name, active, compatibility, budget)
-                    {
-                        plan.extend(child);
-                    } else {
-                        valid = false;
-                        break;
+                    let mut plan = Vec::new();
+                    let mut valid = true;
+                    active.push(candidate.identity);
+                    for dependency in &candidate.rule.dependencies {
+                        let name = &dependency.name;
+                        if name == b".WAIT" {
+                            continue;
+                        }
+                        let explicit = self.database.rules.contains_key(name)
+                            || self.database.rules.get(target).is_some_and(|rule| {
+                                rule.dependencies.iter().any(|dep| dep.name == *name)
+                            });
+                        if explicit
+                            || self.find_vpath(name).is_some()
+                            || (compatibility && self.database.explicit_names.contains(name))
+                        {
+                            continue;
+                        }
+                        if chain
+                            && let Some(child) =
+                                self.implicit_plan(name, active, compatibility, budget)
+                        {
+                            plan.extend(child);
+                        } else {
+                            valid = false;
+                            break;
+                        }
                     }
-                }
-                active.pop();
-                if valid {
-                    plan.push((target.to_vec(), candidate.rule.clone()));
-                    return Some(plan);
+                    active.pop();
+                    if valid {
+                        plan.push((target.to_vec(), candidate.rule.clone()));
+                        return Some(plan);
+                    }
                 }
             }
         }

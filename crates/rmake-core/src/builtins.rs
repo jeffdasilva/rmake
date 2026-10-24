@@ -65,7 +65,7 @@ impl Database {
             Vec::new()
         } else {
             vec![Dependency {
-                name: [b"%", source].concat(),
+                name: [b"%".as_slice(), source].concat(),
                 order_only: false,
             }]
         };
@@ -121,6 +121,17 @@ impl Database {
                             location,
                             message: b"warning: ignoring prerequisites on suffix rule definition",
                         });
+                    }
+                    if destination == b".a" {
+                        let mut archive = rule.clone();
+                        archive.dependencies = vec![Dependency {
+                            name: [b"%".as_slice(), source].concat(),
+                            order_only: false,
+                        }];
+                        archive.deferred = false;
+                        archive.recipe_dependency_count = 1;
+                        archive.double_colon = None;
+                        self.append_pattern(Pattern::new(b"(%.o)"), archive);
                     }
                     self.append_suffix(source, destination, &rule);
                 }

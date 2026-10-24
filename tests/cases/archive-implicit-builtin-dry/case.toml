@@ -1,0 +1,12 @@
+id = "archive-implicit-builtin-dry"
+requirement = "archives.implicit"
+candidate = "required"
+description = "archive-implicit-builtin-dry"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "617220726344206c69622e61206f6e652e6f0a"
+stderr_hex = ""

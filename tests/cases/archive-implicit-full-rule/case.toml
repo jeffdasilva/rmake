@@ -1,0 +1,12 @@
+id = "archive-implicit-full-rule"
+requirement = "archives.implicit"
+candidate = "required"
+description = "archive-implicit-full-rule"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b6c69622e615d20253d5b6f6e652e6f5d203c3d5b6f6e652e7372635d202a3d5b6f6e655d0a"
+stderr_hex = ""

@@ -835,3 +835,48 @@ cases = [
   "archive-member-touch-zero",
   "archive-member-zero-date"
 ]
+
+[[requirements]]
+id = "archives.implicit"
+title = "Archive member rule resolution"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 34
+reference = "https://www.gnu.org/software/make/manual/html_node/Archive-Update.html"
+fixture_count = 34
+cases = [
+  "archive-implicit-archive-directory",
+  "archive-implicit-builtin-chain",
+  "archive-implicit-builtin-dry",
+  "archive-implicit-builtin-long-name",
+  "archive-implicit-builtin-ordinary",
+  "archive-implicit-builtin-parallel",
+  "archive-implicit-builtin-query",
+  "archive-implicit-full-archive-directory",
+  "archive-implicit-full-before-member",
+  "archive-implicit-full-chain-before-member",
+  "archive-implicit-full-grouped-members",
+  "archive-implicit-full-no-slash-stripping",
+  "archive-implicit-full-rule",
+  "archive-implicit-full-unusable-falls-back",
+  "archive-implicit-generic-full-wins",
+  "archive-implicit-generic-member",
+  "archive-implicit-member-cancel",
+  "archive-implicit-member-chain",
+  "archive-implicit-member-directory",
+  "archive-implicit-member-peer-literal",
+  "archive-implicit-member-rule",
+  "archive-implicit-member-terminal",
+  "archive-implicit-missing-input",
+  "archive-implicit-secondary-full-explicit",
+  "archive-implicit-shared-implicit-members",
+  "archive-implicit-static-rule",
+  "archive-implicit-static-secondary-control",
+  "archive-implicit-static-secondary-first-percent",
+  "archive-implicit-static-secondary-function",
+  "archive-implicit-suffix-archive",
+  "archive-implicit-suffix-file-still-works",
+  "archive-implicit-suffix-inactive-a",
+  "archive-implicit-suffix-o-archive",
+  "archive-implicit-suffix-user-pattern-first"
+]
