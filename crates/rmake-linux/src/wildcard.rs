@@ -130,6 +130,62 @@ fn literal(pattern: &[u8]) -> Option<Result<Vec<u8>, Vec<u8>>> {
 }
 
 impl Wildcard {
+    /// Rule declarations keep complete archive-member names, unlike GNU's
+    /// non-interned wildcard function. NUL delimiters preserve filename bytes.
+    pub fn archive_rule(&mut self, pattern: &[u8]) -> Result<Vec<u8>, FilesystemError> {
+        let Some((path, member)) = rmake_core::filenames::archive_parts(pattern) else {
+            return Ok(pattern.to_vec());
+        };
+        let mut paths = if path.iter().any(|b| matches!(b, b'*' | b'?' | b'[')) {
+            self.query(path, false, false, 0)?
+        } else {
+            vec![path.to_vec()]
+        };
+        if paths.is_empty() {
+            paths.push(path.to_vec());
+        }
+        let mut output = Vec::new();
+        for path in paths {
+            let mut names = Vec::new();
+            let mut bytes = 0usize;
+            if magic(member)
+                && let Ok(mut file) = posix::open_archive(&path)
+            {
+                crate::archive::scan(&mut file, &path, |entry| {
+                    if posix::matches(member, &entry.name) {
+                        bytes = bytes.saturating_add(path.len() + entry.name.len() + 3);
+                        if bytes > MAX_OUTPUT {
+                            return Err(LIMIT.to_vec().into());
+                        }
+                        names.push(entry.name);
+                    }
+                    Ok(None::<()>)
+                })?;
+            }
+            if names.is_empty() {
+                names.push(member.to_vec());
+            } else {
+                names.sort_unstable();
+            }
+            for member in names {
+                if output
+                    .len()
+                    .saturating_add(path.len())
+                    .saturating_add(member.len())
+                    .saturating_add(3)
+                    > MAX_OUTPUT
+                {
+                    return Err(LIMIT.to_vec().into());
+                }
+                output.extend_from_slice(&path);
+                output.push(b'(');
+                output.extend_from_slice(&member);
+                output.extend_from_slice(b")\0");
+            }
+        }
+        Ok(output)
+    }
+
     pub fn invalidate(&mut self) {
         self.directories.clear();
         self.paths.clear();

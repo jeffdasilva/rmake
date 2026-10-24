@@ -9,7 +9,7 @@ use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
-    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, rule_words, trim, words,
+    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, rule_filenames, trim, words,
 };
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
@@ -1150,12 +1150,21 @@ impl Engine {
             };
             match goal {
                 Ok(goal) if !trim(&goal).is_empty() => {
-                    let goals: Vec<_> = words(&goal).map(Vec::from).collect();
-                    if goals.len() != 1 {
-                        self.fatal(None, b".DEFAULT_GOAL contains more than one target");
-                        return 2;
+                    // GNU first looks up the complete spelling. An interned
+                    // filename from a glob can contain blanks without naming
+                    // multiple default goals.
+                    if self.database.rules.contains_key(&goal)
+                        || self.database.explicit_names.contains(&goal)
+                    {
+                        vec![goal]
+                    } else {
+                        let goals: Vec<_> = words(&goal).map(Vec::from).collect();
+                        if goals.len() != 1 {
+                            self.fatal(None, b".DEFAULT_GOAL contains more than one target");
+                            return 2;
+                        }
+                        goals
                     }
-                    goals
                 }
                 Ok(_) => {
                     self.fatal(
@@ -1798,7 +1807,11 @@ impl Engine {
                 rule.prerequisite_location.as_ref(),
             )?;
             let mut order_only = occurrence.order_only;
-            for name in rule_words(&value) {
+            let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+                self.filesystem.borrow_mut().execute(effect)
+            };
+            let mut context = ExpansionContext::pure().with_filesystem(&mut filesystem);
+            for name in rule_filenames(&value, &mut context)? {
                 let name = name.as_ref();
                 if name == b"|" {
                     order_only = true;

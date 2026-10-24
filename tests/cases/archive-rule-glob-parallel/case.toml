@@ -1,0 +1,12 @@
+id = "archive-rule-glob-parallel"
+requirement = "archives.rule-wildcards"
+candidate = "required"
+description = "archive-rule-glob-parallel"
+provenance = "Original rmake archive wildcard fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-Bj2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

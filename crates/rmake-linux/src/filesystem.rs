@@ -45,6 +45,7 @@ fn execute_with(
 ) -> Result<Vec<u8>, FilesystemError> {
     match effect {
         FilesystemEffect::Wildcard(pattern) => wildcard.expand(pattern),
+        FilesystemEffect::ArchiveGlob(pattern) => wildcard.archive_rule(pattern),
         FilesystemEffect::Tilde(name) => {
             let slash = name.iter().position(|&b| b == b'/').unwrap_or(name.len());
             let home = if slash == 1 {

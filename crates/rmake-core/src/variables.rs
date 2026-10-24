@@ -4404,7 +4404,9 @@ mod tests {
                 FilesystemEffect::ReadFile(path) => paths.push(path.to_vec()),
                 FilesystemEffect::WriteFile { path, .. } => paths.push(path.to_vec()),
                 FilesystemEffect::Realpath(path) => paths.push(path.to_vec()),
-                FilesystemEffect::Wildcard(_) | FilesystemEffect::Tilde(_) => {
+                FilesystemEffect::Wildcard(_)
+                | FilesystemEffect::ArchiveGlob(_)
+                | FilesystemEffect::Tilde(_) => {
                     panic!("unexpected wildcard")
                 }
             }

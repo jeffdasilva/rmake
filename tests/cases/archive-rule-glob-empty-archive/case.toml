@@ -1,0 +1,12 @@
+id = "archive-rule-glob-empty-archive"
+requirement = "archives.rule-wildcards"
+candidate = "required"
+description = "archive-rule-glob-empty-archive"
+provenance = "Original rmake archive wildcard fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c69622e613a2a2e6f0a"
+stderr_hex = ""

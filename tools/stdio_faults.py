@@ -97,6 +97,12 @@ def inventory() -> tuple[Cell, ...]:
                       b'$(info path=<$(wildcard effect-probe(*))>)',
                       b'begin\npath=<effect-probe(*)>\n', None, ARCHIVE,
                       b'interrupted\n', initial=ARCHIVE))
+    cells.append(Cell('archive-rule-open-eintr', 'archive-open-eintr',
+                      b'all: effect-probe(*)\n.DEFAULT:;@:',
+                      b'begin\n', None, ARCHIVE, b'interrupted\n', initial=ARCHIVE))
+    cells.append(Cell('archive-target-open-eintr', 'archive-open-eintr',
+                      b'effect-probe(*):;@:',
+                      b'begin\n', None, ARCHIVE, b'interrupted\n', initial=ARCHIVE))
     return tuple(cells)
 
 

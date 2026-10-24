@@ -131,6 +131,8 @@ The [archive resolution slice](docs/archive-rule-resolution.md) supports member
 pattern search, archive suffix rules and the built-in archiver recipe.
 [Archive groups](docs/archive-groups.md) work in rule and variable declarations,
 including explicit secondary expansion.
+[Archive rule wildcards](docs/archive-rule-wildcards.md) preserve complete member
+names and GNU observation timing.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

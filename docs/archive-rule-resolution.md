@@ -39,7 +39,8 @@ GNU 4.4.1 implicit, rule-conversion and dependency-expansion sources were consul
 for behavior; no upstream implementation or tests were copied.
 
 [Archive groups](archive-groups.md) now work in declarations and secondary
-expansion. Remaining work includes archive wildcard rule syntax, archive-aware VPATH,
+expansion, and [archive rule wildcards](archive-rule-wildcards.md) now retain
+complete member names and observation timing. Remaining work includes archive-aware VPATH,
 GPATH, broader implicit secondary expansion and per-clause static stem state,
 and the remaining format/fault matrix. This does not complete M4 or the GNU
 compatibility gate. See [archive member metadata](archive-members.md) for the

@@ -38,7 +38,8 @@ after an exploratory overlapping run. Raw reports are ignored artifacts:
 `artifacts/bench/archive-sequences-31.json` and
 `artifacts/bench/archive-groups-core-101.json`.
 
-Archive wildcard expansion in rule declarations, archive-aware VPATH/GPATH,
+[Archive wildcard expansion](archive-rule-wildcards.md) is now implemented.
+Archive-aware VPATH/GPATH,
 broader implicit secondary expansion, per-clause static stems and the remaining
 format/fault matrix are still open. General escaped rule filenames remain an
 explicit implementation limitation. This slice does not complete M4.

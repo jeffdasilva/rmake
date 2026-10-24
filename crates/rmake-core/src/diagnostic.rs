@@ -27,6 +27,9 @@ pub enum Output<'a> {
 #[derive(Clone, Copy, Debug)]
 pub enum FilesystemEffect<'a> {
     Wildcard(&'a [u8]),
+    /// Interned rule filenames differ from the wildcard function's archive
+    /// results. Return NUL-separated complete names to preserve member blanks.
+    ArchiveGlob(&'a [u8]),
     /// Account/environment fallback; make's nonempty HOME is expanded in core.
     Tilde(&'a [u8]),
     Realpath(&'a [u8]),

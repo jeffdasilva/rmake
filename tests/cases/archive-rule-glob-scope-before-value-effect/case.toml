@@ -1,0 +1,12 @@
+id = "archive-rule-glob-scope-before-value-effect"
+requirement = "archives.rule-wildcards"
+candidate = "required"
+description = "archive-rule-glob-scope-before-value-effect"
+provenance = "Original rmake archive wildcard fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""
