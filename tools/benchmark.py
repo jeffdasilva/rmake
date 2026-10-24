@@ -73,6 +73,17 @@ def selected_workloads(suite):
         yield from vpath_workloads()
     if suite in ("secondary", "all"):
         yield from secondary_workloads()
+    if suite in ("implicit-rejections", "all"):
+        yield from implicit_rejection_workloads()
+
+
+def implicit_rejection_workloads():
+    """Pure rejected searches: explicit empty targets keep the invocation valid."""
+    names = ' '.join(f'rejected{index}.out' for index in range(64))
+    for count in (64, 256):
+        source = 'all: ' + names + '\n' + names + ':\n'
+        source += ''.join(f'%.out: absent{index};\n' for index in range(count))
+        yield f'implicit-rejected-{count}', source.encode()
 
 
 def secondary_workloads():
@@ -245,7 +256,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

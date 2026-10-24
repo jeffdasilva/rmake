@@ -1,0 +1,12 @@
+id = "implicit-secondary-compat-created-after-query"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "compat created after query"
+provenance = "Original rmake implicit candidate/context/lifetime fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5452593d6f6e650a66616c6c6261636b0a5452593d6f6e650a403d5b6f6e652e6f75745d202a3d5b6f6e655d203c3d5b6d697373696e675d205e3d5b6d697373696e675d202b3d5b6d697373696e675d207c3d5b5d20563d5b5d0a"
+stderr_hex = ""

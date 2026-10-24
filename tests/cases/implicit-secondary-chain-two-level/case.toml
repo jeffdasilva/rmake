@@ -1,0 +1,12 @@
+id = "implicit-secondary-chain-two-level"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "chain two level"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "4f55543d6f6e650a4f55543d6f6e650a4d49443d6f6e650a4d49443d6f6e650a53544147453d6f6e650a73746167650a6d69640a6f75740a726d206f6e652e7374616765206f6e652e6d69640a"
+stderr_hex = ""

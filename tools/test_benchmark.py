@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -49,6 +49,17 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'.unused'), count)
             self.assertTrue(source.endswith(b'%.out:;\n'))
         self.assertEqual(list(benchmark.selected_workloads('implicit-search')), workloads)
+
+    def test_implicit_rejections_have_known_empty_goals_and_no_effects(self):
+        workloads = list(benchmark.implicit_rejection_workloads())
+        self.assertEqual(workloads, list(benchmark.selected_workloads("implicit-rejections")))
+        self.assertEqual([name for name, _ in workloads],
+                         ["implicit-rejected-64", "implicit-rejected-256"])
+        for (_, source), count in zip(workloads, (64, 256)):
+            self.assertEqual(source.count(b"%.out: absent"), count)
+            self.assertNotIn(b"$(", source)
+            self.assertNotIn(b"\t", source)
+            self.assertEqual(source.count(b"rejected63.out"), 2)
 
     def test_secondary_suite_covers_ready_lists_empty_clauses_and_many_targets(self):
         workloads = list(benchmark.secondary_workloads())

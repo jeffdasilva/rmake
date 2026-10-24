@@ -1,0 +1,12 @@
+id = "implicit-secondary-chain-dollar-stem-explicit"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "chain dollar stem explicit"
+provenance = "Original rmake implicit candidate/context/lifetime fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "4f55543d6f6e650a4f55543d6f6e650a4d49443d6f6e650a6d69640a6f75740a"
+stderr_hex = ""

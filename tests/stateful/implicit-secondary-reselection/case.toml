@@ -1,0 +1,60 @@
+id = "implicit-secondary-reselection"
+description = "Implicit secondary search repeats safely across no-op, query, mutation and priority changes"
+provenance = "Original rmake Makefile and fixed-time seven-step scenario; no upstream tests copied."
+initial = [{"op" = "write", "path" = "one.src", "content" = "primary\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "one.fallback", "content" = "fallback\n", "mtime_ns" = 1600000004000000000}]
+
+[[steps]]
+name = "initial-build"
+actions = []
+args = ["-rR", "--no-print-directory", "one.out"]
+unchanged = []
+exact_mtime = {"one.out" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "primary=one\n", "stderr" = ""}
+
+[[steps]]
+name = "unchanged-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "one.out"]
+unchanged = ["one.out"]
+exact_mtime = {"one.out" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "primary=one\n", "stderr" = ""}
+
+[[steps]]
+name = "newer-source-query"
+actions = [{"op" = "write", "path" = "one.src", "content" = "new primary\n", "mtime_ns" = 1600000002000000000}]
+args = ["-rR", "--no-print-directory", "-q", "one.out"]
+unchanged = ["one.out"]
+exact_mtime = {"one.out" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "primary=one\n", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-newer-source"
+actions = []
+args = ["-rR", "--no-print-directory", "one.out"]
+unchanged = []
+exact_mtime = {"one.out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "primary=one\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-primary-select-fallback"
+actions = [{"op" = "remove", "path" = "one.src"}]
+args = ["-rR", "--no-print-directory", "one.out"]
+unchanged = []
+exact_mtime = {"one.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "primary=one\nfallback=one\n", "stderr" = ""}
+
+[[steps]]
+name = "restore-primary-priority"
+actions = [{"op" = "write", "path" = "one.src", "content" = "restored\n", "mtime_ns" = 1600000006000000000}]
+args = ["-rR", "--no-print-directory", "one.out"]
+unchanged = []
+exact_mtime = {"one.out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "primary=one\n", "stderr" = ""}
+
+[[steps]]
+name = "all-inputs-removed"
+actions = [{"op" = "remove", "path" = "one.src"}, {"op" = "remove", "path" = "one.fallback"}, {"op" = "remove", "path" = "one.out"}]
+args = ["-rR", "--no-print-directory", "-q", "one.out"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 2, "stdout" = "primary=one\nfallback=one\nprimary=one\nfallback=one\n", "stderr" = "make: *** No rule to make target 'one.out'.  Stop.\n"}

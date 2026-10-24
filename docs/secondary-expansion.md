@@ -47,10 +47,11 @@ node execution and authored artifacts; the oracle determines exact trace values
 and order. Seeds, declarations, profile flags, source hashes and failures are
 retained for replay. A second local campaign also covers 100 graphs of 32 nodes.
 
-The curated corpus now has 2,882 cases: 2,870 required matches and 12 pre-existing
+At introduction, the curated corpus had 2,882 cases: 2,870 required matches and 12 pre-existing
 pending mismatches. Stateful coverage remains 50 scenarios / 133 invocations.
-This slice does not complete M4. Secondary expansion during implicit candidate
-viability, GPATH/permanent renaming, wider file-record alias behavior and the
+This slice does not complete M4. The subsequent
+[implicit search slice](implicit-secondary-expansion.md) adds candidate secondary
+expansion. GPATH/permanent renaming, wider file-record alias behavior and the
 remaining compatibility profiles still need work. No upstream implementation or
 tests were copied.
 

@@ -1,0 +1,12 @@
+id = "implicit-secondary-immediate-literal-chain"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "immediate literal chain"
+provenance = "Original rmake implicit candidate/context/lifetime fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d69640a6f75740a"
+stderr_hex = ""

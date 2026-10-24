@@ -1,0 +1,12 @@
+id = "implicit-secondary-mode-touch"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "mode touch"
+provenance = "Original rmake implicit-search and secondary-expansion fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7363616e3d6f6e650a746f756368206f6e652e6f75740a"
+stderr_hex = ""

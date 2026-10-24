@@ -30,6 +30,8 @@ pub enum FilesystemEffect<'a> {
     /// Interned rule filenames differ from the wildcard function's archive
     /// results. Return NUL-separated complete names to preserve member blanks.
     ArchiveGlob(&'a [u8]),
+    /// Rule search keeps unmatched patterns and transports names with NULs.
+    RuleGlob(&'a [u8]),
     /// Account/environment fallback; make's nonempty HOME is expanded in core.
     Tilde(&'a [u8]),
     Realpath(&'a [u8]),

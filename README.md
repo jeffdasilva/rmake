@@ -114,6 +114,8 @@ candidate in the same campaign. See the [implicit search measurements](docs/impl
 lookup optimization and its limits.
 `BENCH_SUITE=secondary` measures deferred clauses with large ready lists,
 empty clauses and many targets; see [secondary expansion](docs/secondary-expansion.md).
+`BENCH_SUITE=implicit-rejections` measures repeated rejected pattern searches;
+see [implicit secondary expansion](docs/implicit-secondary-expansion.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -144,6 +146,9 @@ header scan I/O while retaining fresh reads between effects.
 before checking members and preserves GNU search/rebuild observations.
 [Secondary-expansion clauses](docs/secondary-expansion.md) retain individual
 static stems, literal prerequisites, GNU traversal order and diagnostic context.
+[Implicit secondary expansion](docs/implicit-secondary-expansion.md) evaluates
+candidate words during search, preserving lazy effects, stem reconstruction,
+temporary chain contexts and prerequisite cleanup roles.
 `make test-secondary` runs a seeded graph campaign with mixed variable scopes.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
