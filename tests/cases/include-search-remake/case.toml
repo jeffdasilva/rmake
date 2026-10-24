@@ -1,0 +1,12 @@
+id = "include-search-remake"
+requirement = "includes.search"
+candidate = "required"
+description = "remake"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-I-", "-Iinc"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726573746172743d5b5d3a6f6c640a726573746172743d5b315d3a6e65770a"
+stderr_hex = ""

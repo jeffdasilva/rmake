@@ -1711,7 +1711,29 @@ impl Database {
                 declaration.finish(&mut self.rules, &mut self.warnings, context)?;
                 let names = self.expand(directive(text, keyword).unwrap(), &location, context)?;
                 let optional = keyword != b"include";
-                for name in crate::filenames::sequence(&names) {
+                for mut name in crate::filenames::sequence(&names) {
+                    name = crate::filenames::without_dot_prefix(&name).to_vec();
+                    if name.starts_with(b"~") {
+                        let expanded = if name.len() == 1 || name[1] == b'/' {
+                            let home = self.expand(b"$(HOME)", &location, context)?;
+                            if home.is_empty() {
+                                context
+                                    .perform_filesystem(FilesystemEffect::Tilde(&name))
+                                    .and_then(Result::ok)
+                                    .unwrap_or_default()
+                            } else {
+                                [home.as_slice(), &name[1..]].concat()
+                            }
+                        } else {
+                            context
+                                .perform_filesystem(FilesystemEffect::Tilde(&name))
+                                .and_then(Result::ok)
+                                .unwrap_or_default()
+                        };
+                        if !expanded.is_empty() {
+                            name = expanded;
+                        }
+                    }
                     let matches = if name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
                         context
                             .perform_filesystem(FilesystemEffect::Wildcard(&name))
@@ -1760,15 +1782,19 @@ impl Database {
                                         message: error.diagnostic(),
                                     })?;
                                 self.include_depth += 1;
-                                let result = self.read_with(
-                                    &included.bytes,
-                                    &included.name,
-                                    context.reborrow(),
-                                );
+                                let result =
+                                    self.read_with(&included.bytes, &path, context.reborrow());
                                 self.include_depth -= 1;
                                 result?;
                             }
                             Err(error) => {
+                                if error == b"Is a directory" {
+                                    return Err(ParseError {
+                                        unlocated: true,
+                                        location: location.clone(),
+                                        message: [path.as_slice(), b": ", &error].concat().into(),
+                                    });
+                                }
                                 self.makefiles.push(Makefile {
                                     name: path,
                                     optional,

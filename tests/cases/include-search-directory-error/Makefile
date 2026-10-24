@@ -1,0 +1,2 @@
+-include blocked.mk
+all:;@:

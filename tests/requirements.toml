@@ -644,3 +644,68 @@ candidate_required = 33
 reference = "https://www.gnu.org/software/make/manual/html_node/Special-Targets.html"
 fixture_count = 33
 cases = ["low-resolution-same", "low-resolution-lastns", "low-resolution-next", "low-resolution-fraction", "low-resolution-equal", "low-resolution-prerequisite", "low-resolution-no-rule", "low-resolution-phony", "low-resolution-dry-fraction", "low-resolution-query-fraction", "low-resolution-touch-fraction", "low-resolution-implicit", "low-resolution-pattern-flag", "low-resolution-group", "low-resolution-group-one", "low-resolution-double", "low-resolution-double-group", "low-resolution-zero-epoch", "low-resolution-duplicate-request", "low-resolution-whole-second-no-input", "low-resolution-empty-flag", "low-resolution-newer-second-query", "low-resolution-newer-second-touch", "low-resolution-silent-fraction", "low-resolution-always-fraction", "low-resolution-input-actual-time", "low-resolution-both-low", "low-resolution-secondary-warning", "low-resolution-secondary-error", "low-resolution-failure-restore-fraction", "low-resolution-failure-restore-whole", "low-resolution-missing", "low-resolution-order-only"]
+
+[[requirements]]
+id = "includes.search"
+title = "Included makefile search and recursive path options"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 54
+reference = "https://www.gnu.org/software/make/manual/html_node/Include.html"
+fixture_count = 54
+cases = [
+  "include-search-absolute-no-search",
+  "include-search-after-reset",
+  "include-search-backslash",
+  "include-search-basic",
+  "include-search-change-directory",
+  "include-search-configured-defaults",
+  "include-search-current-first",
+  "include-search-directory-error",
+  "include-search-directory-snapshot",
+  "include-search-dollar",
+  "include-search-dot",
+  "include-search-dot-directory",
+  "include-search-dot-prefix",
+  "include-search-double-read-fresh",
+  "include-search-duplicates",
+  "include-search-environment-path",
+  "include-search-eval",
+  "include-search-fallback",
+  "include-search-file-option-no-search",
+  "include-search-flags-job-order",
+  "include-search-generated-missing",
+  "include-search-generated-n",
+  "include-search-generated-q",
+  "include-search-generated-t",
+  "include-search-include-space-name",
+  "include-search-inherited-after-reset",
+  "include-search-inherited-flags",
+  "include-search-local-created-during-read",
+  "include-search-long-equals",
+  "include-search-long-separate",
+  "include-search-metadata-assignment",
+  "include-search-metadata-cli",
+  "include-search-nested",
+  "include-search-no-glob-in-search",
+  "include-search-no-relative-parent",
+  "include-search-non-directory",
+  "include-search-not-directory-stops",
+  "include-search-optional-missing",
+  "include-search-ordered",
+  "include-search-parse-error",
+  "include-search-recipe-eval",
+  "include-search-recursive",
+  "include-search-recursive-space",
+  "include-search-remake",
+  "include-search-repeat-reset",
+  "include-search-repeat-separator",
+  "include-search-required-missing",
+  "include-search-reset",
+  "include-search-short-separate",
+  "include-search-space",
+  "include-search-tilde-include",
+  "include-search-tilde-option",
+  "include-search-tilde-option-cli-home",
+  "include-search-trailing-slashes"
+]

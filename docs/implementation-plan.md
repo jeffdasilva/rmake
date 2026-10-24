@@ -9,6 +9,12 @@ Deliver vertical slices with original fixtures before implementation. Baseline
 performance throughout, establish compatibility before persistent graph caching,
 and keep extension work from changing the default GNU behavior.
 
+Current position (2026-10-23): the main feature focus is M4, with implemented
+slices of M3 and M5. These milestones have not met their full exit gates.
+Include search is the current M3 follow-up; archives, implicit secondary
+expansion and remaining runtime behavior still block the compatibility path.
+Early measured optimizations do not complete M8 or establish GNU speed parity.
+
 ## Milestones and exit criteria
 
 | Milestone | Deliverables | Exit gate |

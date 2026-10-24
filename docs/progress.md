@@ -1502,3 +1502,15 @@ Add 35 required original differential cases, including controls for ordinary
 single-colon and grouped single-colon duplication. Corpus: 2,436 cases, with
 2,424 required and 12 pending. Stateful coverage remains 44 scenarios / 106
 invocations.
+
+## Include search and recursive include-directory options — 2026-10-23
+
+Implement ordered `-I` / `--include-dir` search, resets, `.INCLUDE_DIRS`, configured
+default directories, recursive flag escaping, and runtime reader reuse across
+eval and recipes. Resolve directory arguments in command-line assignment order;
+preserve requested source names separately from resolved remake/list names.
+Expose command-variable overrides in startup MAKEFLAGS without expanding them
+merely to check whether the flags binding changed. Correct directory-read errors.
+Add 54 required original fixtures and two CLI boundary tests. Corpus: 2,490
+cases, with 2,478 required and 12 pending. Stateful coverage remains 44 scenarios
+/ 106 invocations. See [include search](include-search.md) for precise scope.
