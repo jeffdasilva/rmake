@@ -1,0 +1,12 @@
+id = "archive-implicit-missing-input"
+requirement = "archives.implicit"
+candidate = "required"
+description = "archive-implicit-missing-input"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276c69622e61286f6e652e6f29272c206e65656465642062792027616c6c272e202053746f702e0a"

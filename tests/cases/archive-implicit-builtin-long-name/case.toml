@@ -1,0 +1,12 @@
+id = "archive-implicit-builtin-long-name"
+requirement = "archives.implicit"
+candidate = "required"
+description = "archive-implicit-builtin-long-name"
+provenance = "Original rmake fixture; independently authored archive bytes and Makefile, without upstream implementation or test material."
+args = ["--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "617220726344206c69622e6120766572792d6c6f6e672d6f626a6563742d6d656d6265722d6e616d652e6f0a"
+stderr_hex = ""

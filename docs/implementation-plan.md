@@ -11,8 +11,10 @@ and keep extension work from changing the default GNU behavior.
 
 Current position (2026-10-23): the main feature focus is M4, with implemented
 slices of M3 and M5. These milestones have not met their full exit gates.
-Include search and MAKEFILES preloading are recent M3 follow-ups; archives, implicit secondary
-expansion and remaining runtime behavior still block the compatibility path.
+Include search and MAKEFILES preloading are recent M3 follow-ups. Archive member
+metadata and implicit/suffix rules are implemented slices of M4; archive groups,
+archive-aware VPATH, implicit secondary expansion and remaining runtime behavior
+still block the compatibility path.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria
