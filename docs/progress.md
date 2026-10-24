@@ -1560,3 +1560,12 @@ non-archive controls for the shared behavior. Add 34 original required cases
 and a four-step deterministic-archive scenario. Corpus: 2,628 cases, with 2,616
 required and 12 pending. Stateful coverage: 48 scenarios / 122 invocations.
 See [archive rule resolution](archive-rule-resolution.md) for remaining M4 scope.
+
+## Archive descriptor lifetime across recipe workers
+
+A regression test reproduces archive-descriptor inheritance while a scan remains
+open across a child exec. Open read descriptors with atomic close-on-exec, so a
+worker launching concurrently with an interpreter scan cannot inherit them.
+Preserve the single open attempt required by the archive EINTR profile. The
+functional corpus and stateful inventory remain unchanged; the new Rust test
+checks the actual child boundary rather than just the configured flag.

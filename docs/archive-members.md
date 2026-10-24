@@ -35,6 +35,13 @@ targets retain normal invocation-local completion behavior; later unrelated
 effects do not force a new validation of an already completed target. No archive
 contents, negative lookup or timestamp is cached across invocations.
 
+Archive read descriptors are opened atomically close-on-exec. Interpreter scans
+can overlap another recipe worker's process launch; a read descriptor must not
+escape into that child. The Linux adapter retains the single open attempt used
+by the interrupted-open profile. A regression test holds the scan descriptor
+open across a real child exec and checks its observed descriptor path. It
+reproduced inheritance before the flag was added.
+
 Validation adds 52 original required cases and three stateful scenarios covering
 twelve invocations. Tests cover formats, duplicate members, malformed fields,
 automatic variables, modes, timestamp boundaries, touch preservation, failures,
