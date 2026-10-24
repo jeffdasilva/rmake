@@ -244,7 +244,7 @@ pub struct Database {
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
-    pub vpaths: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
+    vpaths: Vec<Vpath>,
     include_depth: usize,
     next_group_id: usize,
     evaluation_depth: usize,
@@ -254,6 +254,15 @@ pub struct Database {
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
+}
+
+/// Compiled pure lookup policy, kept consistent by the directive reader.
+/// Filesystem observations and mutable Make variables are never stored here.
+#[derive(Clone)]
+struct Vpath {
+    key: Vec<u8>,
+    pattern: Pattern,
+    directories: Vec<Vec<u8>>,
 }
 
 impl Database {
@@ -325,12 +334,15 @@ impl Database {
         )
     }
 
-    pub fn vpath_directories(&self, target: &[u8]) -> Vec<Vec<u8>> {
+    pub fn has_vpaths(&self) -> bool {
+        !self.vpaths.is_empty()
+    }
+
+    pub fn vpath_directories<'a>(&'a self, target: &'a [u8]) -> impl Iterator<Item = &'a [u8]> {
         self.vpaths
             .iter()
-            .filter(|(pattern, _)| Pattern::new(pattern).matches(target).is_some())
-            .flat_map(|(_, paths)| paths.clone())
-            .collect()
+            .filter(move |path| path.pattern.matches(target).is_some())
+            .flat_map(|path| path.directories.iter().map(Vec::as_slice))
     }
 
     /// Produce candidates in stem-length and declaration order, without I/O.
@@ -1958,9 +1970,13 @@ impl Database {
                         .map(Vec::from)
                         .collect();
                     if directories.is_empty() {
-                        self.vpaths.retain(|(name, _)| name != pattern);
+                        self.vpaths.retain(|path| path.key != pattern);
                     } else {
-                        self.vpaths.push((pattern.to_vec(), directories));
+                        self.vpaths.push(Vpath {
+                            key: pattern.to_vec(),
+                            pattern: Pattern::new(pattern),
+                            directories,
+                        });
                     }
                 } else {
                     self.vpaths.clear();

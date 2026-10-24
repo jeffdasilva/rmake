@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -49,6 +49,28 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'.unused'), count)
             self.assertTrue(source.endswith(b'%.out:;\n'))
         self.assertEqual(list(benchmark.selected_workloads('implicit-search')), workloads)
+
+    def test_vpath_workloads_cover_repeated_selection_and_real_files(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.vpath_workloads())
+        self.assertEqual([name for name, _ in workloads], [
+            'vpath-unmatched-64', 'vpath-unmatched-256', 'vpath-first-hit-64',
+            'vpath-archive-64'])
+        self.assertEqual(workloads, list(benchmark.selected_workloads('vpath-search')))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for (name, source), rules in zip(workloads, (65, 257, 64, 65)):
+                self.assertEqual(source.count(b'vpath '), rules)
+                self.assertNotIn(b'$(shell', source)
+                fixture = benchmark.prepare_files(root, name)
+                if name == 'vpath-archive-64':
+                    self.assertEqual(source.count(b'vpath-lib.a('), fixture['members'])
+                    self.assertFalse((root / 'vpath-lib.a').exists())
+                    self.assertTrue((root / 'inputs/vpath-lib.a').read_bytes().startswith(b'!<arch>\n'))
+                else:
+                    self.assertEqual(fixture['files'], 1000)
+                    self.assertEqual((root / 'inputs/vpath-node0999.src').read_bytes(), b'original\n')
 
     def test_unclosed_archive_sequences_cover_two_input_sizes_without_effects(self):
         workloads = list(benchmark.archive_sequence_workloads())

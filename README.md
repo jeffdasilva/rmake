@@ -109,6 +109,9 @@ values, with eight references per assignment and five replacement assignments.
 `BENCH_SUITE=archives` measures existing archive members with fixed historical dates.
 Set `BENCH_BASELINE=/absolute/path/to/previous/rmake` to compare a previous
 candidate in the same campaign. See the [implicit search measurements](docs/implicit-search-performance.md).
+`BENCH_SUITE=vpath-search` measures ordinary/archive search policy;
+[compiled VPATH measurements](docs/vpath-search-performance.md) record the current
+lookup optimization and its limits.
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:

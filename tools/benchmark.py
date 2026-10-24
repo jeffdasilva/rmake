@@ -69,6 +69,20 @@ def selected_workloads(suite):
         yield from archive_workloads()
     if suite in ("archive-sequences", "all"):
         yield from archive_sequence_workloads()
+    if suite in ("vpath-search", "all"):
+        yield from vpath_workloads()
+
+
+def vpath_workloads():
+    """Repeated pure pattern selection plus fresh VPATH filesystem lookups."""
+    targets = ' '.join(f'vpath-node{index:04d}.src' for index in range(1000))
+    for count in (64, 256):
+        rules = ''.join(f'vpath ignored{index}%.unused inputs\n' for index in range(count))
+        yield f'vpath-unmatched-{count}', (rules + 'vpath %.src inputs\nall: ' + targets + '\n').encode()
+    yield 'vpath-first-hit-64', ('vpath %.src inputs\n' * 64 + 'all: ' + targets + '\n').encode()
+    members = ' '.join(f'vpath-lib.a(member{index:04d}.o)' for index in range(64))
+    rules = ''.join(f'vpath ignored{index}%.unused inputs\n' for index in range(64))
+    yield 'vpath-archive-64', (rules + 'vpath %.a inputs\nall: ' + members + '\n').encode()
 
 
 def archive_sequence_workloads():
@@ -159,21 +173,33 @@ def wildcard_workloads():
         yield name, (source + f'$(info $(V{repeats-1}))\nall: ;\n').encode()
 
 
+def prepare_archive(path, count, payload):
+    data = bytearray(b'!<arch>\n')
+    for index in range(count):
+        fields = (f'member{index:04d}.o/'.encode(), b'1600000000', b'0', b'0', b'644', str(payload).encode())
+        data.extend(b''.join(value.ljust(width, b' ') for value, width in
+                             zip(fields, (16, 12, 6, 6, 8, 10))))
+        data.extend(b'`\n' + b'x' * payload + (b'\n' if payload % 2 else b''))
+    path.write_bytes(data)
+    return {'members': count, 'member_bytes': payload,
+            'archive_sha256': hashlib.sha256(data).hexdigest()}
+
+
 def prepare_files(path, workload):
     if workload.startswith(('archive-noop-', 'archive-payload-')):
         if workload.startswith('archive-noop-'):
             count, payload = int(workload.removeprefix('archive-noop-')), 1
         else:
             count, payload = map(int, workload.removeprefix('archive-payload-').split('-'))
-        data = bytearray(b'!<arch>\n')
-        for index in range(count):
-            fields = (f'member{index:04d}.o/'.encode(), b'1600000000', b'0', b'0', b'644', str(payload).encode())
-            data.extend(b''.join(value.ljust(width, b' ') for value, width in
-                                 zip(fields, (16, 12, 6, 6, 8, 10))))
-            data.extend(b'`\n' + b'x' * payload + (b'\n' if payload % 2 else b''))
-        (path / 'lib.a').write_bytes(data)
-        return {'members': count, 'member_bytes': payload,
-                'archive_sha256': hashlib.sha256(data).hexdigest()}
+        return prepare_archive(path / 'lib.a', count, payload)
+    if workload.startswith('vpath-'):
+        inputs = path / 'inputs'
+        inputs.mkdir(exist_ok=True)
+        if workload == 'vpath-archive-64':
+            return prepare_archive(inputs / 'vpath-lib.a', 64, 1)
+        for index in range(1000):
+            (inputs / f'vpath-node{index:04d}.src').write_bytes(b'original\n')
+        return {'files': 1000, 'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if not workload.startswith('wildcard-'):
         return None
     inputs = path / 'inputs'
@@ -202,7 +228,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
