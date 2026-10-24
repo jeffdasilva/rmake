@@ -1569,3 +1569,16 @@ worker launching concurrently with an interpreter scan cannot inherit them.
 Preserve the single open attempt required by the archive EINTR profile. The
 functional corpus and stateful inventory remain unchanged; the new Rust test
 checks the actual child boundary rather than just the configured flag.
+
+## Archive groups and bounded filename recognition
+
+Expand archive member groups in explicit/static/pattern declarations, scoped
+variables and deferred explicit prerequisites. Preserve empty, incomplete and
+member-only forms, metadata projection and grouped completion. Reuse the shared
+filename parser and replace repeated suffix look-ahead with one reverse scan.
+Add 36 original required fixtures and a Makefile-selectable unclosed-sequence
+benchmark. Corpus: 2,664 cases, with 2,652 required and 12 pending. Stateful
+coverage remains 48 scenarios / 122 invocations. The 31-sample local workload
+comparison shows a specific 2.2x/8.2x improvement over the preceding build; a
+separate 101-sample core check shows no general speed gain. See
+[archive groups](archive-groups.md) for scope, measurements and remaining work.

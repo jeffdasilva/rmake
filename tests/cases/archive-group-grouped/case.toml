@@ -1,0 +1,12 @@
+id = "archive-group-grouped"
+requirement = "archives.groups"
+candidate = "required"
+description = "archive-group-grouped"
+provenance = "Original rmake archive group fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c69622e613a6f6e652e6f0a"
+stderr_hex = ""

@@ -38,7 +38,8 @@ and the existing scheduler/jobserver/self-hosting checks validate the change.
 GNU 4.4.1 implicit, rule-conversion and dependency-expansion sources were consulted
 for behavior; no upstream implementation or tests were copied.
 
-Remaining work includes archive-group/wildcard rule syntax, archive-aware VPATH,
+[Archive groups](archive-groups.md) now work in declarations and secondary
+expansion. Remaining work includes archive wildcard rule syntax, archive-aware VPATH,
 GPATH, broader implicit secondary expansion and per-clause static stem state,
 and the remaining format/fault matrix. This does not complete M4 or the GNU
 compatibility gate. See [archive member metadata](archive-members.md) for the

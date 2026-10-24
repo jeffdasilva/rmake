@@ -1,0 +1,12 @@
+id = "archive-group-both-blanks"
+requirement = "archives.groups"
+candidate = "required"
+description = "archive-group-both-blanks"
+provenance = "Original rmake archive group fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b616c6c5d20253d5b5d203c3d5b6c69622e61286f6e652e6f295d205e3d5b6f6e652e6f2074776f2e6f5d202b3d5b6f6e652e6f2074776f2e6f5d207c3d5b5d202a3d5b5d20563d5b5d0a"
+stderr_hex = ""

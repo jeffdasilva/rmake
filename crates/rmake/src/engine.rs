@@ -9,7 +9,7 @@ use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
-    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
+    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, rule_words, trim, words,
 };
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
@@ -1798,7 +1798,8 @@ impl Engine {
                 rule.prerequisite_location.as_ref(),
             )?;
             let mut order_only = occurrence.order_only;
-            for name in words(&value) {
+            for name in rule_words(&value) {
+                let name = name.as_ref();
                 if name == b"|" {
                     order_only = true;
                 } else {

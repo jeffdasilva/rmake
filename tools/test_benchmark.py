@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -49,6 +49,15 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'.unused'), count)
             self.assertTrue(source.endswith(b'%.out:;\n'))
         self.assertEqual(list(benchmark.selected_workloads('implicit-search')), workloads)
+
+    def test_unclosed_archive_sequences_cover_two_input_sizes_without_effects(self):
+        workloads = list(benchmark.archive_sequence_workloads())
+        self.assertEqual(workloads, list(benchmark.selected_workloads('archive-sequences')))
+        for (name, source), count in zip(workloads, (4096, 16384)):
+            self.assertEqual(name, f'archive-sequence-unclosed-{count}')
+            self.assertEqual(source.count(b'absent.a(member '), count)
+            self.assertNotIn(b'$(shell', source)
+            self.assertTrue(source.endswith(b'all:;\n'))
 
     def test_target_contexts_cover_automatic_values_and_both_scope_kinds(self):
         workloads = list(benchmark.target_context_workloads())

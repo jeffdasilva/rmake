@@ -13,6 +13,7 @@ use crate::variables::{
     Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
     VariableStore, reference_end,
 };
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
@@ -661,6 +662,18 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
         .filter(|word| !word.is_empty())
 }
 
+/// Archive groups are filename syntax, not function word syntax. Keep the
+/// ordinary rule path borrowed; only archive spellings need a filename pass.
+pub fn rule_words(bytes: &[u8]) -> impl Iterator<Item = Cow<'_, [u8]>> {
+    let archive = bytes.contains(&b'(');
+    let names = archive.then(|| crate::filenames::sequence(bytes));
+    names
+        .into_iter()
+        .flatten()
+        .map(Cow::Owned)
+        .chain(words(if archive { b"" } else { bytes }).map(Cow::Borrowed))
+}
+
 /// Percent quoting is shared with pattern matching. Other escaped filename
 /// syntax remains unsupported by this reader rather than being reinterpreted.
 fn only_percent_escapes(bytes: &[u8]) -> bool {
@@ -1081,7 +1094,7 @@ impl Database {
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let targets = words(targets).collect::<Vec<_>>();
+        let targets = rule_words(targets).collect::<Vec<_>>();
         if targets.last().is_some_and(|target| target.ends_with(b"&")) {
             return Err(ParseError {
                 unlocated: false,
@@ -1090,6 +1103,7 @@ impl Database {
             });
         }
         for target in targets {
+            let target = target.as_ref();
             let pattern = Pattern::new(target);
             if pattern.has_wildcard() {
                 let name = self.expand(assignment.spec.name, location, context)?;
@@ -1998,7 +2012,8 @@ impl Database {
             declaration.location = Some(location.clone());
             declaration.grouped = grouped;
             let target_end = colon - usize::from(grouped);
-            for target in words(&expanded[..target_end]) {
+            for target in rule_words(&expanded[..target_end]) {
+                let target = target.as_ref();
                 let pattern = Pattern::new(target);
                 if pattern.has_wildcard() {
                     declaration
@@ -2205,7 +2220,8 @@ impl Database {
                     .entry(target.clone())
                     .or_insert(rule.dependencies.len());
                 for (names, order_only) in [(normal, false), (order, true)] {
-                    for name in words(names) {
+                    for name in rule_words(names) {
+                        let name = name.as_ref();
                         let name = if let Some(stem) = &stem {
                             Pattern::new(name)
                                 .replace(stem)

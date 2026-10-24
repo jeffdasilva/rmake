@@ -1,0 +1,12 @@
+id = "archive-group-parallel"
+requirement = "archives.groups"
+candidate = "required"
+description = "archive-group-parallel"
+provenance = "Original rmake archive group fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

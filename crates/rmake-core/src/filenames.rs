@@ -64,13 +64,16 @@ pub fn sequence(input: &[u8]) -> Vec<Vec<u8>> {
     }
     let mut result = Vec::new();
     let mut group: Option<Vec<u8>> = None;
+    // Every possible opener asks the same suffix question. One reverse scan
+    // avoids quadratic work on lists containing many unclosed archive names.
+    let last_close = tokens.iter().rposition(|word| word.ends_with(b")"));
     for (index, token) in tokens.iter().enumerate() {
         let mut member = token.as_slice();
         if group.is_none()
             && token.first() != Some(&b'(')
             && !token.ends_with(b")")
             && let Some(open) = token.iter().position(|&b| b == b'(')
-            && tokens[index + 1..].iter().any(|word| word.ends_with(b")"))
+            && last_close.is_some_and(|close| close > index)
         {
             group = Some(token[..=open].to_vec());
             member = &token[open + 1..];
