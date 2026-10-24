@@ -133,6 +133,8 @@ pattern search, archive suffix rules and the built-in archiver recipe.
 including explicit secondary expansion.
 [Archive rule wildcards](docs/archive-rule-wildcards.md) preserve complete member
 names and GNU observation timing.
+The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
+header scan I/O while retaining fresh reads between effects.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.
 The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup

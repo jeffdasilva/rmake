@@ -1,0 +1,12 @@
+id = "archive-reader-dense-to-sparse"
+requirement = "archives.reader"
+candidate = "required"
+description = "archive-reader-dense-to-sparse"
+provenance = "Original rmake archive reader boundary fixture; independently authored archive bytes and Makefile; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d5b6c69622e61287461696c2e6f295d20616c6c3d5b7461696c2e6f5d0a"
+stderr_hex = ""

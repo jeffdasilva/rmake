@@ -1,0 +1,12 @@
+id = "archive-reader-fresh-after-replace"
+requirement = "archives.reader"
+candidate = "required"
+description = "archive-reader-fresh-after-replace"
+provenance = "Original rmake archive reader boundary fixture; independently authored archive bytes and Makefile; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6265666f72653d5b6c69622e61206c69622e61206c69622e61206c69622e61206c69622e61206c69622e61206c69622e61206c69622e61206c69622e61206c69622e615d2061667465723d5b6c69622e615d0a66697273743d5b6c69622e61286e657739392e6f295d20616c6c3d5b6e657739392e6f5d0a"
+stderr_hex = ""

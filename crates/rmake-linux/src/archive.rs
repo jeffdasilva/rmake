@@ -9,7 +9,7 @@ use rmake_core::diagnostic::FilesystemError;
 use rmake_core::variables::MAX_OUTPUT;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::time::{Duration, SystemTime};
 
@@ -83,11 +83,17 @@ pub(crate) fn scan<T>(
     path: &[u8],
     mut visit: impl FnMut(Member) -> Result<Option<T>, FilesystemError>,
 ) -> Result<Scan<T>, FilesystemError> {
+    // This buffer belongs to one scan and is dropped before any caller effect.
+    // Relative seeks retain unread header bytes without a persistent index or
+    // a mapping that could fault if another process truncates the archive.
+    let mut file = BufReader::with_capacity(0, file);
+    let mut buffered = false;
     let mut signature = [0; 8];
     if file.read_exact(&mut signature).is_err() || &signature != b"!<arch>\n" {
         return Ok(Scan::Invalid);
     }
     let mut offset = 8u64;
+    let mut cursor = 8u64;
     let mut table = Vec::new();
     let mut headers = 0;
     loop {
@@ -96,7 +102,16 @@ pub(crate) fn scan<T>(
             return Err(LIMIT.to_vec().into());
         }
         let mut header = [0; 60];
-        if file.seek(SeekFrom::Start(offset)).is_err() {
+        let seek = if buffered {
+            let relative = i128::from(offset) - i128::from(cursor);
+            match i64::try_from(relative) {
+                Ok(relative) => file.seek_relative(relative),
+                Err(_) => file.seek(SeekFrom::Start(offset)).map(|_| ()),
+            }
+        } else {
+            file.get_mut().seek(SeekFrom::Start(offset)).map(|_| ())
+        };
+        if seek.is_err() {
             return Ok(Scan::Invalid);
         }
         if file.read_exact(&mut header).is_err() {
@@ -109,6 +124,10 @@ pub(crate) fn scan<T>(
         if &header[58..] != b"`\n" {
             return Ok(Scan::Invalid);
         }
+        let Some(position) = offset.checked_add(60) else {
+            return Ok(Scan::Invalid);
+        };
+        cursor = position;
         let mut raw = &header[..16];
         while raw.last() == Some(&b' ') {
             raw = &raw[..raw.len() - 1];
@@ -144,6 +163,10 @@ pub(crate) fn scan<T>(
             if file.read_exact(&mut name).is_err() {
                 break;
             }
+            let Some(position) = cursor.checked_add(length) else {
+                break;
+            };
+            cursor = position;
             if let Some(nul) = name.iter().position(|&b| b == 0) {
                 name.truncate(nul);
             }
@@ -172,6 +195,10 @@ pub(crate) fn scan<T>(
             if file.read_exact(&mut table[..size as usize]).is_err() {
                 break;
             }
+            let Some(position) = cursor.checked_add(size) else {
+                break;
+            };
+            cursor = position;
             for pos in 0..size as usize {
                 if table[pos] == b'\n' {
                     table[pos] = 0;
@@ -181,6 +208,17 @@ pub(crate) fn scan<T>(
                 }
             }
             table[size as usize] = 0;
+        }
+        // Reading object payloads into a header buffer costs more than the
+        // seeks it saves. Enable read-ahead only after a small member, and
+        // restore the logical cursor before discarding any unread bytes.
+        let read_ahead = size < 256;
+        if read_ahead != buffered {
+            if buffered && file.seek(SeekFrom::Start(cursor)).is_err() {
+                return Ok(Scan::Invalid);
+            }
+            file = BufReader::with_capacity(if read_ahead { 8192 } else { 0 }, file.into_inner());
+            buffered = read_ahead;
         }
         let Some(next) = end.checked_add(size % 2) else {
             break;

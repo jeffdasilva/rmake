@@ -1,0 +1,12 @@
+id = "archive-reader-touch-boundary"
+requirement = "archives.reader"
+candidate = "required"
+description = "archive-reader-touch-boundary"
+provenance = "Original rmake archive reader boundary fixture; independently authored archive bytes and Makefile; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-Bt"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206c69622e61286d303133322e6f290a"
+stderr_hex = ""

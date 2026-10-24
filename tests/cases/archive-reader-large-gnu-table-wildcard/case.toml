@@ -1,0 +1,12 @@
+id = "archive-reader-large-gnu-table-wildcard"
+requirement = "archives.reader"
+candidate = "required"
+description = "archive-reader-large-gnu-table-wildcard"
+provenance = "Original rmake archive reader boundary fixture; independently authored archive bytes and Makefile; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d5b6c69622e61286c6f6e672d6d656d6265722d303539392d6e616d652e6f295d20616c6c3d5b6c6f6e672d6d656d6265722d303539392d6e616d652e6f5d0a"
+stderr_hex = ""
