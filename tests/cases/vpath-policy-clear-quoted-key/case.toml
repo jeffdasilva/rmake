@@ -1,0 +1,12 @@
+id = "vpath-policy-clear-quoted-key"
+requirement = "resolution.vpath-policy"
+candidate = "required"
+description = "vpath-policy-clear-quoted-key"
+provenance = "Original rmake VPATH directive and lookup fixture; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d5b6c6173742f66696c65252e7372635d20616c6c3d5b6c6173742f66696c65252e7372635d0a"
+stderr_hex = ""

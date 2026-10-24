@@ -1638,10 +1638,9 @@ impl Engine {
         }
         self.database
             .vpath_directories(target)
-            .into_iter()
-            .chain(self.vpath_dirs.iter().cloned())
+            .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .find_map(|directory| {
-                let path = Path::new(os(&directory)).join(os(target));
+                let path = Path::new(os(directory)).join(os(target));
                 let name = path.as_os_str().as_bytes();
                 modified(name).map(|time| (Some(name.to_vec()), time))
             })
@@ -1651,17 +1650,16 @@ impl Engine {
     /// archive wins even when it lacks that member; an existing local archive
     /// similarly prevents falling through to a different archive in VPATH.
     fn archive_vpath(&self, archive: &[u8]) -> Option<Vec<u8>> {
-        if (self.database.vpaths.is_empty() && self.vpath_dirs.is_empty())
+        if (!self.database.has_vpaths() && self.vpath_dirs.is_empty())
             || fs::metadata(os(archive)).is_ok()
         {
             return None;
         }
         self.database
             .vpath_directories(archive)
-            .into_iter()
-            .chain(self.vpath_dirs.iter().cloned())
+            .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .find_map(|directory| {
-                let path = Path::new(os(&directory)).join(os(archive));
+                let path = Path::new(os(directory)).join(os(archive));
                 fs::metadata(&path)
                     .ok()
                     .map(|_| path.as_os_str().as_bytes().to_vec())
@@ -1678,9 +1676,8 @@ impl Engine {
             || self
                 .database
                 .vpath_directories(target)
-                .into_iter()
-                .chain(self.vpath_dirs.iter().cloned())
-                .any(|directory| fs::metadata(Path::new(os(&directory)).join(os(target))).is_ok())
+                .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+                .any(|directory| fs::metadata(Path::new(os(directory)).join(os(target))).is_ok())
     }
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]

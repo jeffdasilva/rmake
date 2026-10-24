@@ -1,0 +1,12 @@
+id = "vpath-policy-eval-declaration"
+requirement = "resolution.vpath-policy"
+candidate = "required"
+description = "vpath-policy-eval-declaration"
+provenance = "Original rmake VPATH directive and lookup fixture; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d5b696e707574732f66696c652e7372635d20616c6c3d5b696e707574732f66696c652e7372635d0a"
+stderr_hex = ""

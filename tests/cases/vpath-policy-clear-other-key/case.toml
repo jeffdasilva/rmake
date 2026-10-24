@@ -1,0 +1,12 @@
+id = "vpath-policy-clear-other-key"
+requirement = "resolution.vpath-policy"
+candidate = "required"
+description = "vpath-policy-clear-other-key"
+provenance = "Original rmake VPATH directive and lookup fixture; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d5b66697273742f66696c652e7372635d20616c6c3d5b66697273742f66696c652e7372635d0a"
+stderr_hex = ""

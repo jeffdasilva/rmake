@@ -1619,3 +1619,16 @@ with eleven invocations. Corpus: 2,804 cases, with 2,792 required and 12 pending
 Stateful coverage is now 50 scenarios / 133 invocations. Full development gates
 and optimized conformance pass; paired core/archive checks show no general speed
 change. See [archive VPATH](archive-vpath.md) for behavior and remaining M4 gates.
+
+## Compiled VPATH lookup policy
+
+Compile each selective percent pattern when declared and borrow matching
+directories through a short-circuiting iterator. Keep original clearing keys and
+all filesystem observations/effect ordering unchanged. Add nine original required
+policy regressions and a Makefile-selectable VPATH benchmark suite with prepared
+ordinary files and an archive. Corpus: 2,813 cases, with 2,801 required and
+12 pending. Stateful coverage remains 50 scenarios / 133 invocations. Full gates
+and optimized conformance pass. A 101-sample paired run improves the selected
+lookup workloads by 1.2x-6.3x over the preceding build; three of four measured
+medians beat GNU, without establishing general performance parity. See
+[VPATH lookup measurements](vpath-search-performance.md).
