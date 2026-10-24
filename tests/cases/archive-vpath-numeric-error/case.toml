@@ -1,0 +1,12 @@
+id = "archive-vpath-numeric-error"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-numeric-error"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20496e76616c6964206461746520666f7220617263686976652073746f72652f6c69622e61206d656d626572206f6e652e6f2e202053746f702e0a"

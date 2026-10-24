@@ -1,0 +1,12 @@
+id = "archive-vpath-local-wrong-member-stops"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-local-wrong-member-stops"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276c69622e61286f6e652e6f29272c206e65656465642062792027616c6c272e202053746f702e0a"

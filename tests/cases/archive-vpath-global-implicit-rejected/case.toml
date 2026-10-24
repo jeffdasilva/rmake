@@ -1,0 +1,12 @@
+id = "archive-vpath-global-implicit-rejected"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-global-implicit-rejected"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276f6e652e6f7574272c206e65656465642062792027616c6c272e202053746f702e0a"

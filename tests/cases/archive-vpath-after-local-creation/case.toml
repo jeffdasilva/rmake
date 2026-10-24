@@ -1,0 +1,12 @@
+id = "archive-vpath-after-local-creation"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-after-local-creation"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276c69622e612874776f2e6f29272c206e656564656420627920277365636f6e64272e202053746f702e0a"

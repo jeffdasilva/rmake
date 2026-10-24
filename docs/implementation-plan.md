@@ -9,12 +9,13 @@ Deliver vertical slices with original fixtures before implementation. Baseline
 performance throughout, establish compatibility before persistent graph caching,
 and keep extension work from changing the default GNU behavior.
 
-Current position (2026-10-23): the main feature focus is M4, with implemented
+Current position (2026-10-24): the main feature focus is M4, with implemented
 slices of M3 and M5. These milestones have not met their full exit gates.
 Include search and MAKEFILES preloading are recent M3 follow-ups. Archive member
 metadata, implicit/suffix rules, groups and archive wildcard rules are implemented
-slices of M4; archive-aware VPATH, implicit secondary expansion and remaining runtime behavior
-still block the compatibility path.
+slices of M4, including archive-first VPATH resolution. GPATH/permanent renaming,
+implicit secondary expansion and remaining runtime behavior still block the
+compatibility path.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

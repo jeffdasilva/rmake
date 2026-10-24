@@ -33,7 +33,7 @@ existing descriptor-inheritance regression and parallel/self-hosting gates remai
 part of CI. No upstream implementation or tests were copied.
 
 These selected workloads do not establish broad performance parity or complete
-M4/M8. Archive-aware VPATH/GPATH, broader implicit secondary expansion, per-clause
+M4/M8. GPATH/permanent renaming, broader implicit secondary expansion, per-clause
 static stems, remaining formats/faults, and the full compatibility/performance
 acceptance gates remain open. Mixed member distributions and cold-cache resource
 profiles need broader measurement; these tests do not certify arbitrary concurrent
@@ -62,3 +62,6 @@ intervals. All raw samples and binary/profile identities are retained in ignored
 `artifacts/bench/archive-adaptive-final-101.json` and
 `artifacts/bench/archive-adaptive-core-101.json`. The initial fixed-buffer
 experiment is retained in `artifacts/bench/archive-buffered-8192-101.json`.
+
+[Archive-first VPATH resolution](archive-vpath.md) is now implemented as a
+separate slice; GPATH/permanent renaming and the other remaining M4 gates are open.

@@ -1,0 +1,49 @@
+id = "archive-vpath-priority"
+description = "Original archive VPATH priority and rebuild scenario."
+provenance = "Independently authored archive bytes, fixed dates and expected outputs."
+initial = [{"op" = "write", "path" = "first/lib.a", "content" = "!<arch>\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "second/lib.a", "content" = "!<arch>\none.o/          1600000000  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "first-archive-lacks-member"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = ["first/lib.a", "second/lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'lib.a(one.o)', needed by 'all'.  Stop.\n"}
+
+[[steps]]
+name = "first-gains-member"
+actions = [{"op" = "write", "path" = "first/lib.a", "content" = "!<arch>\none.o/          1600000000  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+unchanged = ["first/lib.a", "second/lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "first=[first/lib.a(one.o)]\n", "stderr" = ""}
+
+[[steps]]
+name = "first-removed"
+actions = [{"op" = "remove", "path" = "first/lib.a"}]
+args = ["-rR", "--no-print-directory"]
+unchanged = ["second/lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "first=[second/lib.a(one.o)]\n", "stderr" = ""}
+
+[[steps]]
+name = "local-archive-stops-search"
+actions = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+unchanged = ["lib.a", "second/lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'lib.a(one.o)', needed by 'all'.  Stop.\n"}
+
+[[steps]]
+name = "local-removed-query"
+actions = [{"op" = "remove", "path" = "lib.a"}]
+args = ["-rR", "--no-print-directory", "-q", "lib.a(one.o)"]
+unchanged = ["second/lib.a"]
+mtime_order = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

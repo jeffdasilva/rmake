@@ -53,7 +53,7 @@ upstream test material was copied.
 
 Archive-member implicit search and suffix conversion are covered by the
 [archive resolution slice](archive-rule-resolution.md). Remaining M4 work includes
-archive-aware VPATH and broader format/fault coverage.
+GPATH/permanent renaming and broader format/fault coverage.
 [Archive groups](archive-groups.md) and
 [rule wildcard expansion](archive-rule-wildcards.md) are now implemented. This slice does not complete archive support
 or establish performance parity. `make bench-compare BENCH_SUITE=archives`
@@ -70,3 +70,6 @@ Reports retain all samples and identities under the ignored
 `artifacts/bench/archive-members-core-101.json` and
 `artifacts/bench/archive-members-31.json`. Timings include startup and warm OS
 caches, without CPU pinning, confidence intervals or resource measurements.
+
+[Archive-first VPATH resolution](archive-vpath.md) is now implemented as a
+separate slice; GPATH/permanent renaming and the other remaining M4 gates are open.

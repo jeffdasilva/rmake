@@ -35,7 +35,7 @@ required matches and 12 pending. The filesystem fault gate has 21 cases; statefu
 coverage remains 48 scenarios / 122 invocations. No upstream code or tests were
 copied; GNU source was consulted for behavior.
 
-Archive-aware VPATH/GPATH, broader implicit secondary expansion, per-clause
+GPATH/permanent renaming, broader implicit secondary expansion, per-clause
 static stem metadata and the remaining format/fault matrix are open. General
 ordinary-file rule wildcards and escaped rule filenames are outside this slice.
 This does not complete M4 or establish performance parity.
@@ -50,3 +50,6 @@ OS caches are warm, with no CPU isolation, resource profile or confidence
 intervals. Raw samples are ignored artifacts:
 `artifacts/bench/archive-rule-wildcards-core-101.json` and
 `artifacts/bench/archive-rule-wildcards-archives-31.json`.
+
+[Archive-first VPATH resolution](archive-vpath.md) is now implemented as a
+separate slice; GPATH/permanent renaming and the other remaining M4 gates are open.

@@ -1,0 +1,12 @@
+id = "archive-vpath-archive-goal-before-member"
+requirement = "archives.vpath"
+candidate = "required"
+description = "archive-vpath-archive-goal-before-member"
+provenance = "Original rmake archive VPATH fixture; independently authored Makefile and archive bytes; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "lib.a", "lib.a(one.o)"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f72202773746f72652f6c69622e61272e0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f72202773746f72652f6c69622e61286f6e652e6f29272e0a"
+stderr_hex = ""

@@ -1,0 +1,1 @@
+vpath %.a store
