@@ -1,0 +1,12 @@
+id = "implicit-secondary-creates-target-dry"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+description = "Target metadata and low-resolution diagnostics precede search-time effects"
+provenance = "Original rmake fixed-time and effect-order fixture; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f207265636970650a"
+stderr_hex = ""

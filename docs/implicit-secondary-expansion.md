@@ -27,6 +27,13 @@ values. Preserve normal/order-only transitions, duplicate-role promotion and `-B
 behavior. Search diagnostics use GNU's program-level context, including for rules
 in included files; they do not use the candidate recipe's source line.
 
+Target metadata is observed before candidate expansion. A function creating or
+removing the target during search does not reverse GNU's earlier freshness
+observation. Low-resolution comparisons and warnings also precede those effects;
+recipe execution retains its existing timestamp refresh and cleanup behavior.
+Regression fixtures cover creation/removal, query/dry modes and warning/error
+ordering with anchored times.
+
 ## Scope and file lifecycle
 
 Root searches retain the first requesting parent's inherited variables. Temporary
@@ -54,17 +61,17 @@ they are not a persistent dependency cache or a cache of file timestamps.
 
 ## Coverage and remaining scope
 
-Add 96 original required fixtures for word/effect order, rejected/successful and
+Add 102 original required fixtures for word/effect order, rejected/successful and
 terminal candidates, multi-level chains, explicit/implicit automatic variables,
 private/inherited/target/pattern scopes, activated-scope lifetime, eval, shell,
 file writes, byte/dollar/directory stems, globs, archives, grouped peers, include
 restarts, execution modes, compatibility fallback and impossible-file reuse.
-The preceding main build fails 93 of these fixtures and passes three.
+The preceding main build fails 99 of these fixtures and passes three.
 Four core tests exercise the independent lexer and stem-reference boundaries.
 A seven-step stateful scenario verifies no-op/query builds, anchored timestamps,
 removal/restoration of inputs and fresh candidate priority on each invocation.
 
-The corpus now contains 2,978 cases: 2,966 required matches and 12 existing
+The corpus now contains 2,984 cases: 2,972 required matches and 12 existing
 pending mismatches. Stateful coverage is 51 scenarios / 140 invocations. No
 upstream implementation or tests were copied; GNU 4.4.1 served as the behavioral
 reference. M4 remains open for GPATH/permanent renaming, wider file-record aliases,
@@ -76,6 +83,7 @@ This ledger is not an exhaustive compatibility inventory.
 Avoid allocating boxed word iterators or cloning complete recipes for rejected
 candidates. The ordinary-rule path retains its compact dependency representation;
 only candidate construction records which immediate dependencies used a stem.
+Explicit rules with recipes return without an unnecessary clone.
 Shared explicit/implicit automatic-value preparation retains the existing
 empty-ready-list fast path.
 
@@ -87,18 +95,18 @@ against preceding main `e616601` measured:
 
 | Workload | rmake (ms) | Previous rmake (ms) | GNU 4.4.1 (ms) |
 | --- | ---: | ---: | ---: |
-| 64 rejected rules | 3.036 | 8.676 | 1.271 |
-| 256 rejected rules | 13.911 | 76.014 | 3.570 |
+| 64 rejected rules | 3.054 | 8.933 | 1.298 |
+| 256 rejected rules | 14.119 | 78.757 | 3.493 |
 
 These selected rejection workloads improve by about 2.9x/5.5x by avoiding
 unneeded compatibility retries and reusing GNU's impossible-file observations.
-GNU remains faster. Existing 400-target lookup controls measured 1.642/2.330 ms
-(previous 1.569/2.336 ms; GNU 0.928/1.433 ms). These small absolute costs remain
+GNU remains faster. Existing 400-target lookup controls measured 1.670/2.183 ms
+(previous 1.611/2.233 ms; GNU 0.942/1.373 ms). These small absolute costs remain
 visible; this change does not establish general lookup speed parity.
 
-A separate 101-sample core run measured startup at 0.721 ms (previous 0.699 ms),
-10,000 no-op targets at 29.106 ms (28.480 ms), and expansion at 4.711 ms
-(4.691 ms). GNU measured 0.642, 11.581 and 2.826 ms respectively. These small
+A separate 101-sample core run measured startup at 0.691 ms (previous 0.665 ms),
+10,000 no-op targets at 28.385 ms (28.578 ms), and expansion at 4.606 ms
+(4.605 ms). GNU measured 0.613, 11.600 and 2.762 ms respectively. These small
 core differences are not presented as improvements.
 
 All campaigns use alternating paired engine order, identical arguments/path/

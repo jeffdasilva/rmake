@@ -1656,8 +1656,9 @@ inheritance, retain selected pattern activation, and preserve explicit filename
 roles for cleanup. Add NUL-separated rule globs and GNU's bounded-lifetime
 impossible-file observations; retry compatibility search only when needed.
 Avoid boxed iterators and complete recipe clones on rejected branches.
-Add 96 original required fixtures, four lexer tests and a seven-step stateful
-scenario. Corpus: 2,978 cases, with 2,966 required and 12 pending. Stateful
+Observe target metadata and low-resolution diagnostics before search effects.
+Add 102 original required fixtures, four lexer tests and a seven-step stateful
+scenario. Corpus: 2,984 cases, with 2,972 required and 12 pending. Stateful
 coverage is 51 scenarios / 140 invocations. A paired 101-sample local rejection
 benchmark improves about 2.9x/5.5x over the preceding build; GNU remains faster,
 and the core/control results do not establish general speed parity. See

@@ -1779,13 +1779,10 @@ impl Engine {
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
     fn resolve_implicit(&mut self, target: &[u8]) -> bool {
-        let existing = self.database.rules.get(target).cloned();
-        if existing
-            .as_ref()
-            .is_some_and(|rule| rule.recipes.is_some() || rule.double_colon.is_some())
-        {
-            return true;
-        }
+        let existing = match self.database.rules.get(target) {
+            Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
+            rule => rule.cloned(),
+        };
         let mut budget = 100_000;
         let plan = match self.implicit_plan(target, &mut Vec::new(), false, &mut budget) {
             Ok(plan) => plan,
@@ -2391,6 +2388,20 @@ impl Engine {
             .entry(target.to_vec())
             .or_insert_with(|| parent.map(Vec::from));
         let phony = self.special(b".PHONY", target, false);
+        // Search-time expansion can create or remove this target. GNU decides
+        // freshness from the observation made before those effects occur.
+        let resolved = if phony { None } else { self.find_vpath(target) };
+        let mut before = resolved.as_ref().map(|(_, time)| *time);
+        let double_colon = self
+            .database
+            .rules
+            .get(target)
+            .is_some_and(|rule| rule.double_colon.is_some());
+        let comparison = if double_colon {
+            before
+        } else {
+            self.comparison_time(target, before)
+        };
         if !phony && !self.resolve_implicit(target) {
             return Outcome {
                 failed: true,
@@ -2398,8 +2409,6 @@ impl Engine {
                 ..Outcome::default()
             };
         }
-        let resolved = if phony { None } else { self.find_vpath(target) };
-        let mut before = resolved.as_ref().map(|(_, time)| *time);
         if self
             .database
             .rules
@@ -2422,7 +2431,6 @@ impl Engine {
             .or_else(|| phony.then(Rule::default))
         else {
             if before.is_some() {
-                let _ = self.comparison_time(target, before);
                 let result = Outcome {
                     time: before,
                     ..Outcome::default()
@@ -2464,7 +2472,7 @@ impl Engine {
             }
             return outcome;
         }
-        self.build_rule(target, depth, before, phony, rule, false)
+        self.build_rule(target, depth, before, comparison, phony, rule, false)
     }
 
     fn resume_double_colon(&mut self, target: &[u8]) -> Outcome {
@@ -2536,7 +2544,16 @@ impl Engine {
                     return outcome;
                 }
             }
-            self.build_rule(target, state.depth, state.before, state.phony, branch, true);
+            let comparison = self.comparison_time(target, state.before);
+            self.build_rule(
+                target,
+                state.depth,
+                state.before,
+                comparison,
+                state.phony,
+                branch,
+                true,
+            );
             state.active = true;
         }
     }
@@ -2623,11 +2640,11 @@ impl Engine {
         target: &[u8],
         depth: usize,
         before: Option<SystemTime>,
+        mut comparison: Option<SystemTime>,
         phony: bool,
         mut rule: Rule,
         double_colon: bool,
     ) -> Outcome {
-        let mut comparison = self.comparison_time(target, before);
         if let Err(error) = self.expand_dependencies(target, &mut rule) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
