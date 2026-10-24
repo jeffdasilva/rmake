@@ -67,6 +67,16 @@ def selected_workloads(suite):
         yield from target_context_workloads()
     if suite in ("archives", "all"):
         yield from archive_workloads()
+    if suite in ("archive-sequences", "all"):
+        yield from archive_sequence_workloads()
+
+
+def archive_sequence_workloads():
+    """Unclosed groups stress suffix recognition without matching any files."""
+    for count in (4096, 16384):
+        yield f'archive-sequence-unclosed-{count}', (
+            b'TEXT := ' + b'absent.a(member ' * count
+            + b'\n$(info $(words $(wildcard $(TEXT))))\nall:;\n')
 
 
 def archive_workloads():
@@ -183,7 +193,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

@@ -1,0 +1,12 @@
+id = "archive-group-query"
+requirement = "archives.groups"
+candidate = "required"
+description = "archive-group-query"
+provenance = "Original rmake archive group fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

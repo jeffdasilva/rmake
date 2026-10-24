@@ -880,3 +880,13 @@ cases = [
   "archive-implicit-suffix-o-archive",
   "archive-implicit-suffix-user-pattern-first"
 ]
+
+[[requirements]]
+id = "archives.groups"
+title = "Archive member groups in rule declarations and expansion"
+status = "fixture-ready"
+candidate_status = "partial"
+reference = "https://www.gnu.org/software/make/manual/html_node/Archive-Members.html"
+candidate_required = 36
+fixture_count = 36
+cases = ["archive-group-prerequisites", "archive-group-targets", "archive-group-default-goal", "archive-group-open-blank", "archive-group-close-blank", "archive-group-both-blanks", "archive-group-empty", "archive-group-empty-reference", "archive-group-unclosed", "archive-group-member-only", "archive-group-two-archives", "archive-group-mixed-literals", "archive-group-duplicates", "archive-group-order-only", "archive-group-order-promoted", "archive-group-variable-list", "archive-group-variable-targets", "archive-group-eval", "archive-group-include", "archive-group-secondary", "archive-group-secondary-generated", "archive-group-static", "archive-group-static-secondary", "archive-group-target-variable", "archive-group-pattern-variable", "archive-group-phony", "archive-group-double-colon", "archive-group-grouped", "archive-group-member-patterns", "archive-group-full-patterns", "archive-group-directories", "archive-group-query", "archive-group-dry-run", "archive-group-parallel", "archive-group-closing-after-unclosed", "archive-group-tab-members"]
