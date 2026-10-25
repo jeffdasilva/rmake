@@ -1,0 +1,12 @@
+id = "vpath-record-gpath-missing-scope"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: gpath-missing-scope"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420277372632f666f6f272c206e65656465642062792027616c6c272e202053746f702e0a"

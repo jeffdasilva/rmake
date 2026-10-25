@@ -1,0 +1,12 @@
+id = "vpath-record-searched-file-default"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: searched-file-default"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "64656661756c743d7372632f666f6f0a"
+stderr_hex = ""

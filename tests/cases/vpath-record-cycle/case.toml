@@ -1,0 +1,12 @@
+id = "vpath-record-cycle"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: cycle"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f666f6f0a616c6c3d7372632f666f6f2066697273743d7372632f666f6f0a"
+stderr_hex = "6d616b653a2043697263756c6172207372632f666f6f203c2d207372632f666f6f20646570656e64656e63792064726f707065642e0a6d616b653a2043697263756c6172207372632f666f6f203c2d207372632f666f6f20646570656e64656e63792064726f707065642e0a"

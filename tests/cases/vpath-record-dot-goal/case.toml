@@ -1,0 +1,12 @@
+id = "vpath-record-dot-goal"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: dot-goal"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "./foo"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "676f616c733d666f6f0a61637475616c3d7372632f666f6f0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "vpath-record-priority-ignored-mention-always"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: priority-ignored-mention-always"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-B", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6f63616c3d666f6f0a616c6c3d666f6f0a"
+stderr_hex = ""

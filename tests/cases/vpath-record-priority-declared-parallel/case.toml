@@ -1,0 +1,12 @@
+id = "vpath-record-priority-declared-parallel"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: priority-declared-parallel"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "73656c65637465643d7372632f666f6f0a616c6c3d7372632f666f6f0a"
+stderr_hex = ""

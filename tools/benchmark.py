@@ -82,6 +82,22 @@ def selected_workloads(suite):
         yield from intermediate_workloads()
     if suite in ("lazy-records", "all"):
         yield from lazy_record_workloads()
+    if suite in ("vpath-records", "all"):
+        yield from vpath_record_workloads()
+
+
+def vpath_record_workloads():
+    """Physical current inputs with declared searched records and no children."""
+    for kind, count in (('explicit', 1000), ('aliases', 1000), ('implicit', 400)):
+        names = [f'search-node{index:04d}' for index in range(count)]
+        targets = [name + '.out' if kind == 'implicit' else name + '.in' for name in names]
+        if kind == 'aliases':
+            targets = [target for name in names for target in (name + '.in', 'records/' + name + '.in')]
+        source = 'VPATH = records\nall: ' + ' '.join(targets) + ' ;\n'
+        source += ''.join('records/' + name + '.in: ;\n' for name in names)
+        if kind == 'implicit':
+            source += '%.out: %.in ;\n'
+        yield f'vpath-record-{kind}-{count}', source.encode()
 
 
 def lazy_record_workloads():
@@ -268,6 +284,20 @@ def prepare_archive(path, count, payload):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('vpath-record-'):
+        directory = path / 'records'
+        directory.mkdir(exist_ok=True)
+        count = 400 if workload == 'vpath-record-implicit-400' else 1000
+        for index in range(count):
+            files = [directory / f'search-node{index:04d}.in']
+            if workload == 'vpath-record-implicit-400':
+                files.append(path / f'search-node{index:04d}.out')
+            for filename in files:
+                filename.write_bytes(b'original\n')
+                os.utime(filename, ns=(1600000000000000000, 1600000000000000000))
+        return {'inputs': count, 'outputs': count if workload == 'vpath-record-implicit-400' else 0,
+                'mtime_ns': 1600000000000000000,
+                'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if workload.startswith('lazy-record-'):
         source = path / 'record-input'
         source.write_bytes(b'original\n')
@@ -352,7 +382,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

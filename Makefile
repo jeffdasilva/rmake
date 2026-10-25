@@ -78,7 +78,7 @@ help:
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
 		'Wildcard overrides: WILDCARD_SEED, WILDCARD_CASES, WILDCARD_EXPRESSIONS, START_INDEX.' \
-		'Benchmark suite: BENCH_SUITE=core|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|secondary|implicit-rejections|gpath|intermediates|lazy-records|all.' \
+		'Benchmark suite: BENCH_SUITE=core|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|secondary|implicit-rejections|gpath|intermediates|lazy-records|vpath-records|all.' \
 		'Benchmark samples per engine: BENCH_REPEAT=15 (3-1000).' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'
@@ -131,8 +131,8 @@ test-jobserver: build oracle-verify
 	$(PYTHON) tools/jobserver_interop.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
 test-graph-progress: build oracle-verify
-	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --self-test --repeat "$(PROGRESS_REPEAT)" --case graph-ready-two-barriers --case graph-ready-wait-nested --case grouped-parallel-queued-peer --case double-grouped-parallel-queued --case gpath-destination-built-parallel-first --case gpath-overlap-failure --case gpath-overlap-ignored-failure --case gpath-overlap-scope-refresh --case lazy-record-freshness-normal-parallel --case lazy-record-freshness-promoted-parallel --case lazy-record-double-first-new-parallel --case lazy-record-group-double-first-new-parallel
-	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --repeat "$(PROGRESS_REPEAT)" --case graph-ready-two-barriers --case graph-ready-wait-nested --case grouped-parallel-queued-peer --case double-grouped-parallel-queued --case gpath-destination-built-parallel-first --case gpath-overlap-failure --case gpath-overlap-ignored-failure --case gpath-overlap-scope-refresh --case lazy-record-freshness-normal-parallel --case lazy-record-freshness-promoted-parallel --case lazy-record-double-first-new-parallel --case lazy-record-group-double-first-new-parallel
+	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --self-test --repeat "$(PROGRESS_REPEAT)" --case graph-ready-two-barriers --case graph-ready-wait-nested --case grouped-parallel-queued-peer --case double-grouped-parallel-queued --case gpath-destination-built-parallel-first --case gpath-overlap-failure --case gpath-overlap-ignored-failure --case gpath-overlap-scope-refresh --case lazy-record-freshness-normal-parallel --case lazy-record-freshness-promoted-parallel --case lazy-record-double-first-new-parallel --case lazy-record-group-double-first-new-parallel --case vpath-record-overlap-scope-refresh --case vpath-record-overlap-failure --case vpath-record-overlap-ignored-failure --case vpath-record-destination-built-parallel-first
+	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --repeat "$(PROGRESS_REPEAT)" --case graph-ready-two-barriers --case graph-ready-wait-nested --case grouped-parallel-queued-peer --case double-grouped-parallel-queued --case gpath-destination-built-parallel-first --case gpath-overlap-failure --case gpath-overlap-ignored-failure --case gpath-overlap-scope-refresh --case lazy-record-freshness-normal-parallel --case lazy-record-freshness-promoted-parallel --case lazy-record-double-first-new-parallel --case lazy-record-group-double-first-new-parallel --case vpath-record-overlap-scope-refresh --case vpath-record-overlap-failure --case vpath-record-overlap-ignored-failure --case vpath-record-destination-built-parallel-first
 
 regenerate-builtins: oracle-verify
 	$(PYTHON) tools/builtin_data.py --oracle "$(ORACLE)" --write

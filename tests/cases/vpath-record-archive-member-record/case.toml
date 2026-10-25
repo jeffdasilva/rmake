@@ -1,0 +1,12 @@
+id = "vpath-record-archive-member-record"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: archive-member-record"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d656d6265723d7372632f6c69622e613a6d2e6f0a616c6c3d6d2e6f0a"
+stderr_hex = ""

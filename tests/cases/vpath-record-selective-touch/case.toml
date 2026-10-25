@@ -1,0 +1,12 @@
+id = "vpath-record-selective-touch"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: selective-touch"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-t", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368207372632f666f6f0a746f75636820616c6c0a"
+stderr_hex = ""

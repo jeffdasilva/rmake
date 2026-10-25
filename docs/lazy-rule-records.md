@@ -107,3 +107,7 @@ engine order with exact output/status checks. There is no CPU isolation,
 confidence interval, resource profile or performance acceptance threshold.
 GNU remains faster in these workloads; these mixed results do not establish a
 general speed advantage.
+
+A subsequent [declared VPATH record slice](vpath-file-records.md) covers missing
+searched records, ordinary path merges and goal/prerequisite merge phases.
+The wider M4 and profile gates remain open.

@@ -1,0 +1,100 @@
+id = "vpath-declared-record-transitions"
+description = "Declared search records across missing files, rebuilds, local precedence and fresh invocations"
+provenance = "Original rmake fixed-byte and timestamp scenario; no upstream tests copied."
+initial = [{"op" = "write", "path" = "src/.keep", "content" = "", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "input", "content" = "first\n", "mtime_ns" = 1600000002000000000}]
+
+[[steps]]
+name = "missing-record-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["input"]
+exact_mtime = {}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-declared-search-name"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out:source\nresult=src/foo.out:first\n", "stderr" = ""}
+
+[[steps]]
+name = "current-record-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"src/foo.out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-input-query"
+actions = [{"op" = "write", "path" = "input", "content" = "second\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"src/foo.out" = 1600000002000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-search-name"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out:source\nresult=src/foo.out:second\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-keeps-record-identity"
+actions = [{"op" = "remove", "path" = "src/foo.out"}]
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out:source\nresult=src/foo.out:second\n", "stderr" = ""}
+
+[[steps]]
+name = "missing-without-record"
+actions = [{"op" = "remove", "path" = "src/foo.out"}]
+args = ["-rR", "--no-print-directory", "-q", "RECORD=off", "foo.out"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'foo.out'.  Stop.\n"}
+
+[[steps]]
+name = "restore-record"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out:source\nresult=src/foo.out:second\n", "stderr" = ""}
+
+[[steps]]
+name = "local-file-wins"
+actions = [{"op" = "write", "path" = "foo.out", "content" = "local\n", "mtime_ns" = 1600000008000000000}, {"op" = "write", "path" = "input", "content" = "third\n", "mtime_ns" = 1600000006000000000}]
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["foo.out", "src/foo.out"]
+exact_mtime = {"foo.out" = 1600000008000000000, "src/foo.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "remove-local-reveals-stale-record"
+actions = [{"op" = "remove", "path" = "foo.out"}]
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"src/foo.out" = 1600000004000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-after-local-removal"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out:source\nresult=src/foo.out:third\n", "stderr" = ""}
+
+[[steps]]
+name = "final-current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"src/foo.out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

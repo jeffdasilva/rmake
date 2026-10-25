@@ -1,0 +1,12 @@
+id = "vpath-record-destination-prerequisites"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: destination-prerequisites"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6465703d64657374696e6174696f6e2d696e0a6465703d64657374696e6174696f6e2d6f726465720a6465703d736f757263652d696e0a6465703d736f757263652d6f726465720a7461726765743d7372632f666f6f206e6f726d616c3d64657374696e6174696f6e2d696e20736f757263652d696e206f726465723d64657374696e6174696f6e2d6f7264657220736f757263652d6f726465720a616c6c3d7372632f666f6f2066697273743d7372632f666f6f0a"
+stderr_hex = ""

@@ -454,7 +454,9 @@ struct ImplicitSelection {
     explicit_names: Vec<Vec<u8>>,
 }
 
-type PathObservation = Option<(Option<Vec<u8>>, SystemTime)>;
+// A selected Makefile record can name a file that does not exist yet.
+// Keep the search identity separate from its optional filesystem timestamp.
+type PathObservation = Option<(Option<Vec<u8>>, Option<SystemTime>)>;
 
 pub struct Engine {
     options: Options,
@@ -1998,14 +2000,15 @@ impl Engine {
             .is_some_and(|length| self.gpath_dirs.contains(&resolved[..length]))
     }
 
-    /// Observe and permanently name a searched file before rule or scope lookup.
+    /// Observe a searched file before rule or scope lookup. GPATH keeps a new
+    /// name permanently; any search can merge into an existing file record.
     /// The observation is consumed by build_inner, so alias preparation never
     /// repeats the search after expansion effects have run.
-    fn prepare_gpath(&mut self, target: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+    fn prepare_search_name(&mut self, target: &[u8]) -> Result<Option<Vec<u8>>, ()> {
         if self.aliases.contains(target) {
             return Ok(Some(self.aliases.resolve(target).to_vec()));
         }
-        if self.gpath_dirs.is_empty()
+        if (!self.database.has_vpaths() && self.vpath_dirs.is_empty())
             || self.makefile_names.contains(target)
             || self.path_observations.contains_key(target)
             || self.done.contains_key(target)
@@ -2017,25 +2020,25 @@ impl Engine {
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target)
             && let Some(path) = self.archive_vpath(archive)
-            && self.gpath_match(archive, &path)
+            && (self.gpath_match(archive, &path) || self.has_file_record(&path))
         {
             let archive_time = modified(&path);
-            self.rename_gpath(archive, &path)?;
+            self.rename_search_record(archive, &path)?;
             self.path_observations
                 .entry(path.clone())
-                .or_insert_with(|| archive_time.map(|time| (None, time)));
+                .or_insert(Some((None, archive_time)));
             let name = [path.as_slice(), b"(", member, b")"].concat();
             let observation = self.find_vpath(&name);
-            self.rename_gpath(target, &name)?;
+            self.rename_search_record(target, &name)?;
             self.path_observations.insert(name.clone(), observation);
             return Ok(Some(name));
         }
         let observation = self.find_vpath(target);
         if let Some((Some(name), _)) = &observation
-            && self.gpath_match(target, name)
+            && (self.gpath_match(target, name) || self.has_file_record(name))
         {
             let name = name.clone();
-            self.rename_gpath(target, &name)?;
+            self.rename_search_record(target, &name)?;
             self.path_observations
                 .insert(name.clone(), observation.map(|(_, time)| (None, time)));
             return Ok(Some(name));
@@ -2044,7 +2047,7 @@ impl Engine {
         Ok(None)
     }
 
-    fn rename_gpath(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
+    fn rename_search_record(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
         if from == to {
             return Ok(());
         }
@@ -2138,15 +2141,23 @@ impl Engine {
                     self.fatal(None, &message);
                     return Err(());
                 }
+                // File-record merging joins the head records, not the two
+                // double-colon chains. The destination retains its later
+                // branches; the source's later branches are not transferred.
+                let destination = match &mut destination.double_colon {
+                    Some(branches) => branches.first_mut().expect("double-colon head"),
+                    None => destination,
+                };
+                let source = match &mut source.double_colon {
+                    Some(branches) => branches.first_mut().expect("double-colon head"),
+                    None => &mut source,
+                };
                 if destination.recipes.is_none() {
                     destination.recipes = source.recipes.take();
                     destination.recipe_location = source.recipe_location.take();
                     destination.default_recipe = source.default_recipe;
                 }
-                destination.append_prerequisites(&source);
-                if let Some(branches) = source.double_colon.take() {
-                    destination.double_colon.as_mut().unwrap().extend(branches);
-                }
+                destination.append_prerequisites(source);
             } else {
                 // An existing filename record with no rule does not carry the
                 // source file's recipe stem through GNU's record merge.
@@ -2185,9 +2196,6 @@ impl Engine {
         if !merged && self.intermediates.remove(from) {
             self.intermediates.insert(to.to_vec());
         }
-        // The original file passed the already-considered check before GNU
-        // merges it into this record; its first visit must still be evaluated.
-        self.done.remove(to);
         self.intermediate_policy.renamed(from, to, merged);
         self.aliases.insert(from, to, merged);
         Ok(())
@@ -2200,7 +2208,28 @@ impl Engine {
             && !self.makefile_names.contains(target)
     }
 
-    fn find_vpath(&self, target: &[u8]) -> Option<(Option<Vec<u8>>, SystemTime)> {
+    fn has_file_record(&self, name: &[u8]) -> bool {
+        self.database.explicit_names.contains(name)
+            || self.database.rules.contains_key(name)
+            || self.database.target_scopes.contains_key(name)
+            || self.makefile_names.contains(name)
+            || self.options.goals.iter().any(|goal| goal == name)
+    }
+
+    fn record_is_target(&self, name: &[u8]) -> bool {
+        self.database.rules.contains_key(name) || self.special(b".PHONY", name, false)
+    }
+
+    /// Record lookup strips leading ./ but the searched hash spelling is
+    /// retained. An explicitly declared source requires a declared destination;
+    /// a non-target source can use any entered Makefile filename.
+    fn search_record_matches(&self, target: &[u8], name: &[u8]) -> bool {
+        let record = rmake_core::filenames::without_dot_prefix(name);
+        self.has_file_record(record)
+            && (!self.record_is_target(target) || self.record_is_target(record))
+    }
+
+    fn find_vpath(&self, target: &[u8]) -> PathObservation {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             let path = self.archive_vpath(archive);
             let time = rmake_linux::archive::modified(path.as_deref().unwrap_or(archive), member)
@@ -2208,7 +2237,7 @@ impl Engine {
                 .flatten()?;
             return Some((
                 path.map(|path| [path.as_slice(), b"(", member, b")"].concat()),
-                time,
+                Some(time),
             ));
         }
         if self
@@ -2220,7 +2249,7 @@ impl Engine {
             return None;
         }
         if let Some(time) = modified(target) {
-            return Some((None, time));
+            return Some((None, Some(time)));
         }
         if !self.vpath_searchable(target) {
             return None;
@@ -2230,7 +2259,9 @@ impl Engine {
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .find_map(|directory| {
                 let name = searched_name(directory, target);
-                modified(&name).map(|time| (Some(name), time))
+                let declared = self.search_record_matches(target, &name);
+                let time = modified(&name);
+                (declared || time.is_some()).then_some((Some(name), time))
             })
     }
 
@@ -2246,7 +2277,8 @@ impl Engine {
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .find_map(|directory| {
                 let path = searched_name(directory, archive);
-                fs::metadata(os(&path)).ok().map(|_| path)
+                let declared = self.search_record_matches(archive, &path);
+                (declared || fs::metadata(os(&path)).is_ok()).then_some(path)
             })
     }
 
@@ -2262,7 +2294,10 @@ impl Engine {
                     .database
                     .vpath_directories(target)
                     .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-                    .any(|directory| fs::metadata(os(&searched_name(directory, target))).is_ok()))
+                    .any(|directory| {
+                        let name = searched_name(directory, target);
+                        self.search_record_matches(target, &name) || fs::metadata(os(&name)).is_ok()
+                    }))
     }
 
     fn implicit_known_file(&self, target: &[u8]) -> bool {
@@ -2824,7 +2859,8 @@ impl Engine {
     }
 
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
-        let renamed = match self.prepare_gpath(target) {
+        let known_alias = self.aliases.contains(target);
+        let renamed = match self.prepare_search_name(target) {
             Ok(name) => name,
             Err(()) => {
                 return Outcome {
@@ -2834,6 +2870,13 @@ impl Engine {
                 };
             }
         };
+        if !known_alias && let Some(name) = &renamed {
+            // A goal reaches its timestamp lookup after the already-considered
+            // check. A newly merged goal gets a first evaluation even when the
+            // destination was completed earlier. Prerequisite/peer lookups run
+            // before that check and prepare their aliases before entering here.
+            self.done.remove(name);
+        }
         let target = renamed.as_deref().unwrap_or(target);
         self.poll_jobs();
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
@@ -2915,7 +2958,7 @@ impl Engine {
         } else {
             observed.unwrap_or_else(|| self.find_vpath(target))
         };
-        let mut before = resolved.as_ref().map(|(_, time)| *time);
+        let mut before = resolved.as_ref().and_then(|(_, time)| *time);
         let double_colon = self
             .database
             .rules
@@ -3190,14 +3233,14 @@ impl Engine {
         mut rule: Rule,
         double_colon: bool,
     ) -> Outcome {
-        if !self.gpath_dirs.is_empty()
+        if (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
             && let Some(group) = &mut rule.group
         {
             for peer in &mut group.targets {
                 if peer.as_slice() == target {
                     continue;
                 }
-                match self.prepare_gpath(peer) {
+                match self.prepare_search_name(peer) {
                     Ok(Some(name)) => *peer = name,
                     Ok(None) => {}
                     Err(()) => {
@@ -3258,7 +3301,7 @@ impl Engine {
                         .get(peer)
                         .cloned()
                         .unwrap_or_else(|| self.find_vpath(peer))
-                        .map(|(_, time)| time)
+                        .and_then(|(_, time)| time)
                 };
                 if rule.grouped_double_id().is_some() {
                     time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
@@ -3422,8 +3465,10 @@ impl Engine {
                     break;
                 }
             }
-            if !self.gpath_dirs.is_empty() && state.rule.dependencies[state.next].name != b".WAIT" {
-                match self.prepare_gpath(&state.rule.dependencies[state.next].name) {
+            if (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
+                && state.rule.dependencies[state.next].name != b".WAIT"
+            {
+                match self.prepare_search_name(&state.rule.dependencies[state.next].name) {
                     Ok(Some(name)) => state.rule.dependencies[state.next].name = name,
                     Ok(None) => {}
                     Err(()) => {
@@ -3827,7 +3872,7 @@ impl Engine {
             completed.time = if phony {
                 None
             } else {
-                self.find_vpath(&peer).map(|(_, time)| time)
+                self.find_vpath(&peer).and_then(|(_, time)| time)
             };
             if warn_missing && completed.time.is_none() {
                 emit_output(

@@ -279,7 +279,9 @@ impl Options {
             } else if rmake_core::parser::assignment(arg).is_some() {
                 result.assignments.push(arg.clone());
             } else {
-                result.goals.push(arg.clone());
+                result
+                    .goals
+                    .push(rmake_core::filenames::without_dot_prefix(arg).to_vec());
             }
             i += 1;
         }

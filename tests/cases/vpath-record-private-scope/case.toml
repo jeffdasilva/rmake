@@ -1,0 +1,12 @@
+id = "vpath-record-private-scope"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: private-scope"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d0a61637475616c3d7372632f666f6f3a68696464656e0a"
+stderr_hex = ""

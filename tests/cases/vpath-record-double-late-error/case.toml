@@ -1,0 +1,12 @@
+id = "vpath-record-double-late-error"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: double-late-error"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d7372632f666f6f3a696e7075740a7365636f6e643d7372632f666f6f3a0a"
+stderr_hex = ""

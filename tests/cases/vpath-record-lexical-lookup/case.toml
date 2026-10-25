@@ -1,0 +1,12 @@
+id = "vpath-record-lexical-lookup"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: lexical-lookup"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027666f6f272c206e65656465642062792027616c6c272e202053746f702e0a"

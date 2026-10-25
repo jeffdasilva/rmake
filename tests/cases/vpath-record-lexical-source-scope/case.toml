@@ -1,0 +1,12 @@
+id = "vpath-record-lexical-source-scope"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: lexical-source-scope"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f726967696e616c3d2e2f7372632f666f6f3a736f757263650a"
+stderr_hex = ""

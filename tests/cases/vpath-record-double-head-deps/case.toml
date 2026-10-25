@@ -1,0 +1,12 @@
+id = "vpath-record-double-head-deps"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: double-head-deps"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6465703d646573742d6f6e650a6465703d736f757263652d6f6e650a66697273743d7372632f666f6f3a646573742d6f6e6520736f757263652d6f6e650a6465703d646573742d74776f0a7365636f6e643d7372632f666f6f3a646573742d74776f0a"
+stderr_hex = ""

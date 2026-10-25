@@ -1,0 +1,12 @@
+id = "vpath-record-scopes-query"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: scopes-query"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""
