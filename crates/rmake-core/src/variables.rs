@@ -2104,7 +2104,9 @@ impl Expansion<'_, '_> {
                 };
                 result.map_err(|error| {
                     if error.unlocated {
-                        ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
+                        // Without a caller, an eval syntax/phase error still
+                        // inherits its enclosing binding's validation locus.
+                        ExpandError::FileError(error.message.as_bytes().to_vec())
                     } else {
                         ExpandError::Located {
                             location: Arc::new(error.location),

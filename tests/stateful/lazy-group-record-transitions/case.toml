@@ -1,0 +1,76 @@
+id = "lazy-group-record-transitions"
+description = "Lazy rule records across query, removal, timestamp restoration and materialization"
+provenance = "Original rmake fixed-time scenario; no upstream tests copied."
+initial = [{"op" = "write", "path" = "out", "content" = "output\n", "mtime_ns" = 1600000002000000000}, {"op" = "write", "path" = "first", "content" = "first\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "second", "content" = "second\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "peer.mid", "content" = "peer\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "lazy-owner-only"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out", "peer.mid"]
+exact_mtime = {"out" = 1600000002000000000, "peer.mid" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "owner=x.mid\nmake: 'out' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "new-peer-input-still-lazy"
+actions = [{"op" = "write", "path" = "second", "content" = "new peer\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out", "peer.mid"]
+exact_mtime = {"out" = 1600000002000000000, "peer.mid" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "owner=x.mid\nmake: 'out' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "new-owner-input-query"
+actions = [{"op" = "write", "path" = "first", "content" = "new first\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out", "peer.mid"]
+exact_mtime = {"out" = 1600000002000000000, "peer.mid" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "owner=x.mid\nowner=peer.mid\npeer=peer.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "materialize-owner-and-peer"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000004000000000, "x.mid" = 1600000004000000000, "peer.mid" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "owner=x.mid\nowner=peer.mid\npeer=peer.mid\ngroup=x.mid\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-owner-return-to-lazy"
+actions = [{"op" = "remove", "path" = "x.mid"}, {"op" = "write", "path" = "first", "content" = "old first\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out", "peer.mid"]
+exact_mtime = {"out" = 1600000004000000000, "peer.mid" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "owner=x.mid\nmake: 'out' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "newer-owner-materializes"
+actions = [{"op" = "write", "path" = "first", "content" = "newer first\n", "mtime_ns" = 1600000006000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000, "x.mid" = 1600000006000000000, "peer.mid" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "owner=x.mid\nowner=peer.mid\npeer=peer.mid\ngroup=x.mid\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-output-and-peers"
+actions = [{"op" = "remove", "path" = "out"}, {"op" = "remove", "path" = "x.mid"}, {"op" = "remove", "path" = "peer.mid"}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000, "x.mid" = 1600000006000000000, "peer.mid" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "owner=x.mid\nowner=peer.mid\npeer=peer.mid\ngroup=x.mid\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "late-leaf-missing-fails"
+actions = [{"op" = "remove", "path" = "first"}, {"op" = "remove", "path" = "x.mid"}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out", "peer.mid"]
+exact_mtime = {"out" = 1600000006000000000, "peer.mid" = 1600000006000000000}
+expected = {"exit_code" = 2, "stdout" = "owner=x.mid\n", "stderr" = "make: *** No rule to make target 'first', needed by 'x.mid'.  Stop.\n"}
+
+[[steps]]
+name = "forced-missing-leaf-fails"
+actions = []
+args = ["-rR", "--no-print-directory", "-B", "out"]
+unchanged = ["out", "peer.mid"]
+exact_mtime = {"out" = 1600000006000000000, "peer.mid" = 1600000006000000000}
+expected = {"exit_code" = 2, "stdout" = "owner=x.mid\n", "stderr" = "make: *** No rule to make target 'first', needed by 'x.mid'.  Stop.\n"}

@@ -273,7 +273,7 @@ pub struct Database {
     next_group_id: usize,
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
-    recipe_expansion: bool,
+    rules_frozen: bool,
     suppress_default_goal: bool,
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
@@ -1466,6 +1466,13 @@ impl Database {
         result
     }
 
+    /// After the initial dependency snapshot, global setup expansions share
+    /// recipe expansion's restriction on introducing new rules. A fresh
+    /// database on Makefile restart restores the reader phase.
+    pub fn freeze_rules(&mut self) {
+        self.rules_frozen = true;
+    }
+
     pub fn expand_with(
         &mut self,
         bytes: &[u8],
@@ -1488,9 +1495,9 @@ impl Database {
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         variables.refresh_globals(&self.variables);
-        let previous = std::mem::replace(&mut self.recipe_expansion, true);
+        let previous = std::mem::replace(&mut self.rules_frozen, true);
         let result = crate::variables::expand_scoped_database(self, variables, bytes, context);
-        self.recipe_expansion = previous;
+        self.rules_frozen = previous;
         result
     }
 
@@ -1501,9 +1508,9 @@ impl Database {
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         variables.refresh_globals(&self.variables);
-        let previous = std::mem::replace(&mut self.recipe_expansion, true);
+        let previous = std::mem::replace(&mut self.rules_frozen, true);
         let result = crate::variables::expand_environment_database(self, variables, name, context);
-        self.recipe_expansion = previous;
+        self.rules_frozen = previous;
         result
     }
 
@@ -2143,7 +2150,7 @@ impl Database {
             };
             let double_colon = expanded.get(colon + 1) == Some(&b':');
             let grouped = expanded[..colon].ends_with(b"&");
-            if self.recipe_expansion {
+            if self.rules_frozen {
                 return Err(ParseError {
                     unlocated: false,
                     location,

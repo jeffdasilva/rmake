@@ -1,0 +1,12 @@
+id = "lazy-record-setup-vpath-late-scope"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "Frozen dependency setup rejects rule definitions and retains late variable bindings"
+provenance = "Original rmake setup-phase rule-record fixture; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "6f776e65723d782e6d69640a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276669727374272c206e65656465642062792027782e6d6964272e202053746f702e0a"

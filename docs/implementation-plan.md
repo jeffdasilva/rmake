@@ -21,7 +21,9 @@ block the compatibility path. The GPATH slice adds 118 required cases and an
 eight-step rebuild scenario. The [intermediate policy slice](intermediate-policy.md)
 adds global/named precedence, conflict validation and lazy missing-file guards,
 with 183 original cases and two stateful scenarios totaling nineteen invocations.
-These do not complete M4.
+The [lazy rule-record slice](lazy-rule-records.md) adds grouped/double-colon
+inspection, per-parent rebuild evidence, cycle persistence and frozen setup rules,
+with 143 original cases and two more stateful scenarios. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

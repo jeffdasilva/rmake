@@ -80,6 +80,23 @@ def selected_workloads(suite):
         yield from gpath_workloads()
     if suite in ("intermediates", "all"):
         yield from intermediate_workloads()
+    if suite in ("lazy-records", "all"):
+        yield from lazy_record_workloads()
+
+
+def lazy_record_workloads():
+    """Grouped and first-double-colon records beneath current real outputs."""
+    names = [f'record-node{index:04d}' for index in range(1000)]
+    for kind in ('grouped', 'double'):
+        source = '.SECONDARY:\n.SECONDEXPANSION:\nall: ' + ' '.join(name + '.out' for name in names) + ' ;\n'
+        for name in names:
+            source += name + '.out: ' + name + '.mid ;\n'
+            if kind == 'grouped':
+                source += name + '.mid ' + name + '.peer &: $$(strip) record-input ;\n'
+            else:
+                source += name + '.mid:: $$(strip) record-input ;\n'
+                source += name + '.mid:: record-input ;\n'
+        yield 'lazy-record-' + kind + '-1000', source.encode()
 
 
 def intermediate_workloads():
@@ -251,6 +268,17 @@ def prepare_archive(path, count, payload):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('lazy-record-'):
+        source = path / 'record-input'
+        source.write_bytes(b'original\n')
+        os.utime(source, ns=(1600000000000000000, 1600000000000000000))
+        for index in range(1000):
+            output = path / f'record-node{index:04d}.out'
+            output.write_bytes(b'original\n')
+            os.utime(output, ns=(1600000002000000000, 1600000002000000000))
+        return {'outputs': 1000, 'input_mtime_ns': 1600000000000000000,
+                'output_mtime_ns': 1600000002000000000,
+                'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if workload.startswith('intermediate-'):
         source = path / 'lazy-input'
         source.write_bytes(b'original\n')
@@ -324,7 +352,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

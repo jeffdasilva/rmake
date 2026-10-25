@@ -1,0 +1,12 @@
+id = "lazy-record-group-first-new-query"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "group first new query"
+provenance = "Original rmake lazy rule-record fixture with fixed timestamps; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = "66697273743d782e6d69640a66697273743d706565722e6d69640a"
+stderr_hex = ""

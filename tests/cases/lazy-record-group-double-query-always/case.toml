@@ -1,0 +1,12 @@
+id = "lazy-record-group-double-query-always"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "Per-parent freshness evidence, query and materialization phase controls"
+provenance = "Original rmake rule-record boundary fixture; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-qB"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = "66697273743d782e6d69640a66697273743d706565722e6d69640a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "lazy-record-snapshot-immediate-variable"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "Global secondary flags follow read-time filename records, not late deferred names"
+provenance = "Original rmake file-record lifetime fixture; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""
