@@ -91,6 +91,13 @@ def gpath_workloads():
         yield 'gpath-aliases-1000' if aliases else 'gpath-explicit-1000', source.encode()
     yield 'gpath-implicit-400', (prelude + 'all: ' + ' '.join(names[:400])
                                 + ' ;\n%.out: %.in ;\n').encode()
+    ordinary = [f'ordinary-node{index:04d}.src' for index in range(1000)]
+    yield 'gpath-mixed-1000', (
+        'VPATH = inputs other\nGPATH = inputs\nall: ' + ' '.join(names + ordinary)
+        + '\n\t@$(if $(filter 2000,$(words $^)),,$(error missing prerequisites))'
+        + '$(if $(filter 1000,$(words $(filter inputs/%,$^))),,$(error missing permanent paths))'
+        + '$(if $(filter 1000,$(words $(filter other/%,$^))),,$(error missing tentative paths))\n'
+        + ''.join(name + ': ;\n' for name in names)).encode()
 
 
 def implicit_rejection_workloads():
@@ -245,7 +252,16 @@ def prepare_files(path, workload):
                 filename = inputs / f'gpath-node{index:04d}.{extension}'
                 filename.write_bytes(b'original\n')
                 os.utime(filename, ns=(1600000000000000000, 1600000000000000000))
-        return {'files': count * 2, 'mtime_ns': 1600000000000000000,
+        extra = 0
+        if workload == 'gpath-mixed-1000':
+            other = path / 'other'
+            other.mkdir(exist_ok=True)
+            extra = 1000
+            for index in range(extra):
+                filename = other / f'ordinary-node{index:04d}.src'
+                filename.write_bytes(b'original\n')
+                os.utime(filename, ns=(1600000000000000000, 1600000000000000000))
+        return {'files': count * 2 + extra, 'mtime_ns': 1600000000000000000,
                 'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if workload.startswith('vpath-'):
         inputs = path / 'inputs'

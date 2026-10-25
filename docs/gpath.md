@@ -108,3 +108,7 @@ The measured current release SHA256 is
 `2d8ee0fc457659730c23c3bbda7e47615923bb595fec76d32db0767730f241f1`;
 the preceding release SHA256 is
 `0ca32f8eb8264297145ea2e0204b0f67a1de8fd2c01c4256eed0551529995160`.
+
+The table above records the introduction build. A subsequent
+[filename storage cleanup](gpath-name-storage.md) removes duplicate permanent-name
+entries and adds a mixed permanent/tentative-path benchmark control.

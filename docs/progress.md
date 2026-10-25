@@ -1697,3 +1697,16 @@ Local paired no-op GPATH measurements show the added behavior costs up to about
 26%; core and parallel control differences are small, and GNU remains faster.
 See [GPATH behavior and measurements](gpath.md) for scope, safety, validation,
 measurement details and the open M4 gates.
+
+## Permanent filename storage cleanup
+
+Keep permanent GPATH filename pairs solely in the alias table. Resolve that
+identity before tentative VPATH names when reporting goals and projecting
+prerequisites. This removes two filename copies and one map entry per alias,
+without changing observation or invalidation policy. Extend the Makefile-driven
+GPATH benchmark with 1,000 permanent and 1,000 tentative files, checking both
+prefixes through automatic variables without child launches. The original
+3,104 required cases and 12 pending cases remain unchanged, as do the
+52 stateful scenarios / 148 invocations. A 101-sample local paired run shows
+about 3% gains on explicit/alias GPATH workloads, with implicit/mixed/core results
+close and GNU still faster. See [filename storage measurements](gpath-name-storage.md).
