@@ -491,6 +491,7 @@ pub struct Engine {
     makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
+    intermediate_policy: crate::intermediates::Policy,
     intermediates: HashSet<Vec<u8>>,
     created_intermediates: Vec<Vec<u8>>,
     jobserver: Option<Jobserver>,
@@ -841,6 +842,7 @@ impl Engine {
             makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
+            intermediate_policy: crate::intermediates::Policy::default(),
             intermediates: HashSet::new(),
             created_intermediates: Vec::new(),
             jobserver,
@@ -1214,6 +1216,13 @@ impl Engine {
                     return 2;
                 }
             }
+            self.intermediate_policy = match crate::intermediates::Policy::read(&self.database) {
+                Ok(policy) => policy,
+                Err(message) => {
+                    self.fatal(None, &message);
+                    return 2;
+                }
+            };
             let vpath = match self.expand_global(b"$(VPATH)", None) {
                 Ok(value) => value,
                 Err(error) => {
@@ -1545,6 +1554,16 @@ impl Engine {
     }
 
     fn special(&self, special: &[u8], target: &[u8], empty_means_all: bool) -> bool {
+        if let Some(names) = self.intermediate_policy.named(special) {
+            return (empty_means_all
+                && special == b".SECONDARY"
+                && self.intermediate_policy.all_secondary)
+                || names.contains(target)
+                || (!self.aliases.is_empty()
+                    && names
+                        .iter()
+                        .any(|name| self.aliases.resolve(name) == target));
+        }
         self.database.rules.get(special).is_some_and(|rule| {
             (empty_means_all && rule.dependencies.is_empty())
                 || rule
@@ -1555,20 +1574,22 @@ impl Engine {
     }
 
     fn intermediate(&self, target: &[u8]) -> bool {
-        !self
+        if self
             .options
             .goals
             .iter()
             .any(|goal| self.aliases.resolve(goal) == target)
-            && !self.special_for_rule(b".NOTINTERMEDIATE", target)
-            && !self
-                .database
-                .rules
-                .get(b".NOTINTERMEDIATE".as_slice())
-                .is_some_and(|rule| rule.dependencies.is_empty())
-            && (self.intermediates.contains(target)
-                || self.special(b".INTERMEDIATE", target, false)
-                || self.special(b".SECONDARY", target, false))
+        {
+            return false;
+        }
+        if self.special(b".INTERMEDIATE", target, false)
+            || self.special(b".SECONDARY", target, false)
+        {
+            return true;
+        }
+        !self.special_for_rule(b".NOTINTERMEDIATE", target)
+            && !self.intermediate_policy.no_intermediates
+            && (self.intermediate_policy.all_secondary || self.intermediates.contains(target))
     }
 
     fn special_for_rule(&self, special: &[u8], target: &[u8]) -> bool {
@@ -1588,11 +1609,16 @@ impl Engine {
     }
 
     fn remove_intermediates(&mut self) {
+        if self.intermediate_policy.all_secondary || self.intermediate_policy.no_intermediates {
+            self.created_intermediates.clear();
+            return;
+        }
         let mut removed = Vec::new();
         for target in std::mem::take(&mut self.created_intermediates) {
             if removed.contains(&target)
                 || self.special(b".SECONDARY", &target, true)
                 || self.special_for_rule(b".PRECIOUS", &target)
+                || self.special_for_rule(b".NOTINTERMEDIATE", &target)
                 || self.special(b".PHONY", &target, false)
             {
                 continue;
@@ -1632,16 +1658,48 @@ impl Engine {
             let outcome = self.build(target, Some(parent), depth);
             return (outcome, self.pending(target));
         }
-        let Some(rule) = self.database.rules.get(target).cloned() else {
-            let outcome = self.build(target, Some(parent), depth);
-            return (outcome, self.pending(target));
-        };
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
+        if !self.resolve_implicit(target) {
+            return (
+                Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..Outcome::default()
+                },
+                false,
+            );
+        }
+        let Some(mut rule) = self.database.rules.get(target).cloned() else {
+            // A missing intermediate without a recipe can remain absent while
+            // its existing parent is current. Materialization checks it again
+            // if another prerequisite makes the parent stale.
+            return (
+                Outcome {
+                    time: Some(time),
+                    ..Outcome::default()
+                },
+                false,
+            );
+        };
         if rule.secondary.is_some() {
-            let outcome = self.build(target, Some(parent), depth);
-            return (outcome, self.pending(target));
+            if rule.group.is_some() || rule.double_colon.is_some() {
+                let outcome = self.build(target, Some(parent), depth);
+                return (outcome, self.pending(target));
+            }
+            if let Err(error) = self.expand_dependencies(target, &mut rule) {
+                self.expansion_error(rule.prerequisite_location.as_ref(), &error);
+                return (
+                    Outcome {
+                        failed: true,
+                        fatal: true,
+                        ..Outcome::default()
+                    },
+                    false,
+                );
+            }
+            self.store_expanded_rule(target, rule.clone());
         }
         let mut result = Outcome {
             time: Some(time),

@@ -1,0 +1,12 @@
+id = "intermediate-policy-scope-only-not-retains"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "Mentioned and scope-only special filename records carry global intermediate policy"
+provenance = "Original rmake file-record policy fixture; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d69640a6f75740a"
+stderr_hex = ""

@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -103,6 +103,28 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'absent.a(member '), count)
             self.assertNotIn(b'$(shell', source)
             self.assertTrue(source.endswith(b'all:;\n'))
+
+    def test_intermediate_workloads_have_existing_outputs_and_missing_middles(self):
+        from pathlib import Path
+        import tempfile
+        workloads = list(benchmark.selected_workloads('intermediates'))
+        self.assertEqual([name for name, _ in workloads],
+                         ['intermediate-secondary-1000', 'intermediate-not-intermediate-1000'])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, source in workloads:
+                fixture = benchmark.prepare_files(root, name)
+                self.assertEqual((root / 'lazy-input').stat().st_mtime_ns,
+                                 fixture['input_mtime_ns'])
+                self.assertEqual((root / 'lazy-node0999.out').stat().st_mtime_ns,
+                                 fixture['output_mtime_ns'])
+                self.assertLess(fixture['input_mtime_ns'], fixture['output_mtime_ns'])
+                self.assertEqual(len(list(root.glob('*.out'))), fixture['outputs'])
+                self.assertEqual(list(root.glob('*.mid')), [])
+                self.assertNotIn(b'$(shell', source)
+                self.assertEqual(source.count(b': lazy-input ;'), 1000)
+        self.assertTrue(workloads[0][1].startswith(b'.SECONDARY:\n'))
+        self.assertTrue(workloads[1][1].startswith(b'.NOTINTERMEDIATE:\n.INTERMEDIATE:'))
 
     def test_gpath_inputs_are_real_noop_files_with_fixed_timestamps(self):
         from pathlib import Path

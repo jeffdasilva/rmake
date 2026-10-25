@@ -11,6 +11,7 @@ mod cli;
 mod command_variables;
 mod engine;
 mod file_aliases;
+mod intermediates;
 mod makefiles;
 mod oneshell;
 mod process;

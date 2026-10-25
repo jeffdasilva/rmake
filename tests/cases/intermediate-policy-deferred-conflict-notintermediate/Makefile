@@ -1,0 +1,4 @@
+.SECONDEXPANSION:
+.NOTINTERMEDIATE: $$(info deferred)mid
+.NOTINTERMEDIATE: mid
+all:;

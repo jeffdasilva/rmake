@@ -1,0 +1,12 @@
+id = "intermediate-policy-search-implicit-new-dry"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "Lazy inspection searches implicit rules and expands deferred clauses exactly once"
+provenance = "Original rmake lazy-search and expansion fixture; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f206d69643d782e6d69643b206370202d7020696e70757420782e6d69640a6563686f206f75743d6f75743b206370202d7020782e6d6964206f75740a"
+stderr_hex = ""

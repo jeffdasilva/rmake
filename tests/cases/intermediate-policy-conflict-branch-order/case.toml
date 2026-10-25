@@ -1,0 +1,12 @@
+id = "intermediate-policy-conflict-branch-order"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "conflict branch order"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a206c6173742063616e6e6f7420626520626f7468202e4e4f54494e5445524d45444941544520616e64202e494e5445524d4544494154452e202053746f702e0a"

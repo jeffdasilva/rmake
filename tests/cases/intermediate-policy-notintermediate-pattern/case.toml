@@ -1,0 +1,12 @@
+id = "intermediate-policy-notintermediate-pattern"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "notintermediate pattern"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

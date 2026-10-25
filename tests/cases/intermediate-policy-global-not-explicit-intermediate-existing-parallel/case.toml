@@ -1,0 +1,12 @@
+id = "intermediate-policy-global-not-explicit-intermediate-existing-parallel"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "global not explicit intermediate existing parallel"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d69643d6d69640a6f75743d6f75740a"
+stderr_hex = ""

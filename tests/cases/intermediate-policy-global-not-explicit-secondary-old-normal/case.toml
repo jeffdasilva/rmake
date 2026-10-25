@@ -1,0 +1,12 @@
+id = "intermediate-policy-global-not-explicit-secondary-old-normal"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "global not explicit secondary old normal"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

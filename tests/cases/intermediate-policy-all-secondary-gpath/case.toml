@@ -1,0 +1,12 @@
+id = "intermediate-policy-all-secondary-gpath"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "all secondary gpath"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d69643d7372632f6d69640a6f75743d6f75740a"
+stderr_hex = ""

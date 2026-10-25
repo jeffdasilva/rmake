@@ -1,0 +1,60 @@
+id = "intermediate-implicit-transitions"
+description = "Lazy implicit secondary search across no-op, query, source removal and forced materialization"
+provenance = "Original rmake seven-step fixed-time scenario; no upstream tests copied."
+initial = [{"op" = "write", "path" = "out", "content" = "output\n", "mtime_ns" = 1600000002000000000}, {"op" = "write", "path" = "input", "content" = "old\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "search-without-materialization"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "search=x.mid\nmake: 'out' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "new-input-query"
+actions = [{"op" = "write", "path" = "input", "content" = "new\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000002000000000}
+expected = {"exit_code" = 1, "stdout" = "search=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "materialize-selected-rule"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000004000000000, "x.mid" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "search=x.mid\nmid\nout\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-middle-and-leaf"
+actions = [{"op" = "remove", "path" = "x.mid"}, {"op" = "remove", "path" = "input"}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "search=x.mid\nsearch=x.mid\nmake: 'out' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "restored-newer-leaf"
+actions = [{"op" = "write", "path" = "input", "content" = "restored\n", "mtime_ns" = 1600000006000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000, "x.mid" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "search=x.mid\nmid\nout\n", "stderr" = ""}
+
+[[steps]]
+name = "forced-implicit-rebuild"
+actions = [{"op" = "remove", "path" = "x.mid"}]
+args = ["-rR", "--no-print-directory", "-B", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000, "x.mid" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "search=x.mid\nmid\nout\n", "stderr" = ""}
+
+[[steps]]
+name = "existing-middle-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out", "x.mid"]
+exact_mtime = {"out" = 1600000006000000000, "x.mid" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "search=x.mid\n", "stderr" = ""}

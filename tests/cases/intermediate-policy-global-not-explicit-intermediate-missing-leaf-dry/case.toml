@@ -1,0 +1,12 @@
+id = "intermediate-policy-global-not-explicit-intermediate-missing-leaf-dry"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "global not explicit intermediate missing leaf dry"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027696e707574272c206e656564656420627920276d6964272e202053746f702e0a"

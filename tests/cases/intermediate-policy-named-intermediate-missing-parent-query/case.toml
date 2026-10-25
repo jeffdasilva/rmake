@@ -1,0 +1,12 @@
+id = "intermediate-policy-named-intermediate-missing-parent-query"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "named intermediate missing parent query"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

@@ -78,6 +78,20 @@ def selected_workloads(suite):
         yield from implicit_rejection_workloads()
     if suite in ("gpath", "all"):
         yield from gpath_workloads()
+    if suite in ("intermediates", "all"):
+        yield from intermediate_workloads()
+
+
+def intermediate_workloads():
+    """Current outputs with missing middles; literal empty recipes launch no children."""
+    for policy in ('secondary', 'not-intermediate'):
+        names = [f'lazy-node{index:04d}.out' for index in range(1000)]
+        middles = [name.removesuffix('.out') + '.mid' for name in names]
+        prelude = '.SECONDARY:\n' if policy == 'secondary' else '.NOTINTERMEDIATE:\n.INTERMEDIATE: ' + ' '.join(middles) + '\n'
+        source = prelude + 'all: ' + ' '.join(names) + ' ;\n'
+        for name, middle in zip(names, middles):
+            source += name + ': ' + middle + ' ;\n' + middle + ': lazy-input ;\n'
+        yield 'intermediate-' + policy + '-1000', source.encode()
 
 
 def gpath_workloads():
@@ -237,6 +251,17 @@ def prepare_archive(path, count, payload):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('intermediate-'):
+        source = path / 'lazy-input'
+        source.write_bytes(b'original\n')
+        os.utime(source, ns=(1600000000000000000, 1600000000000000000))
+        for index in range(1000):
+            output = path / f'lazy-node{index:04d}.out'
+            output.write_bytes(b'original\n')
+            os.utime(output, ns=(1600000002000000000, 1600000002000000000))
+        return {'outputs': 1000, 'input_mtime_ns': 1600000000000000000,
+                'output_mtime_ns': 1600000002000000000,
+                'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if workload.startswith(('archive-noop-', 'archive-payload-')):
         if workload.startswith('archive-noop-'):
             count, payload = int(workload.removeprefix('archive-noop-')), 1
@@ -299,7 +324,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
