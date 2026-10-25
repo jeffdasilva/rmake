@@ -1,0 +1,12 @@
+id = "gpath-trailing-selects-alternate-file"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "GNU repeated-separator search spellings are checked before renaming"
+provenance = "Original rmake byte-spelling fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-B", "foo.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b7372632f2f6f6f2e6f75745d0a"
+stderr_hex = ""

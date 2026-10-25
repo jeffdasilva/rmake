@@ -1,0 +1,12 @@
+id = "gpath-precious-follows-file"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "precious follows file"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a383a207372632f666f6f2e6f75745d204572726f7220370a"

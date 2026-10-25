@@ -1,0 +1,12 @@
+id = "gpath-archive-ordinary-alias"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "archive ordinary alias"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b7372632f6c69622e615d202a3d5b5d203c3d5b696e7075745d205e3d5b696e7075745d202b3d5b696e7075745d207c3d5b5d20253d5b6f6e652e6f5d20563d5b5d0a403d5b616c6c5d202a3d5b5d203c3d5b7372632f6c69622e61286f6e652e6f295d205e3d5b6f6e652e6f207372632f6c69622e615d202b3d5b6f6e652e6f207372632f6c69622e61207372632f6c69622e615d207c3d5b5d20253d5b5d20563d5b5d0a"
+stderr_hex = ""

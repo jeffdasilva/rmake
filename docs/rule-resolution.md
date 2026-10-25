@@ -27,3 +27,7 @@ mismatches. The pending count is not an inventory of everything left to implemen
 Chained implicit intermediates, default built-in rules, full suffix conversion,
 grouped peers, GPATH and the complete deferred/implicit search algorithm remain
 follow-up work. This slice does not establish full GNU rule compatibility.
+
+Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
+selected alias/parallel interactions. Earlier corpus counts and open-work lists
+above describe this document's original slice; M4 still has broader open gates.

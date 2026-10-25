@@ -1,0 +1,12 @@
+id = "gpath-one-byte-trailing-directory"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "GNU repeated-separator search spellings are checked before renaming"
+provenance = "Original rmake byte-spelling fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-B", "x"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b7372632f2f5d0a"
+stderr_hex = ""

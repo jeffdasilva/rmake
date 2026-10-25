@@ -1,0 +1,12 @@
+id = "gpath-recipe-replaces-original-name"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "recipe replaces original name"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f666f6f2e6f75740a"
+stderr_hex = ""

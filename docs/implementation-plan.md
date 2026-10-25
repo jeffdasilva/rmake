@@ -14,9 +14,11 @@ slices of M3 and M5. These milestones have not met their full exit gates.
 Include search and MAKEFILES preloading are recent M3 follow-ups. Archive member
 metadata, implicit/suffix rules, groups and archive wildcard rules are implemented
 slices of M4, including archive-first VPATH resolution, per-clause explicit
-secondary expansion and implicit candidate secondary expansion. GPATH/permanent
-renaming, broader file-record behavior and remaining runtime profiles still block the
-compatibility path.
+secondary expansion, implicit candidate secondary expansion and
+[GPATH permanent filenames](gpath.md). Broader file-record and directory-cache
+behavior, the archive format/fault matrix and remaining runtime profiles still
+block the compatibility path. The GPATH slice adds 118 required cases and an
+eight-step rebuild scenario; it does not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

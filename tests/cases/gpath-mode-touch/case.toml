@@ -1,0 +1,12 @@
+id = "gpath-mode-touch"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "mode touch"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368207372632f666f6f2e6f75740a"
+stderr_hex = ""

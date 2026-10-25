@@ -93,3 +93,7 @@ identities remain in ignored `artifacts/bench/secondary-clauses-101.json` and
 `artifacts/bench/secondary-clauses-core-101.json`. These early measurements do not
 establish general performance parity or satisfy the full M8 resource/cold-cache
 gates.
+
+Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
+selected alias/parallel interactions. Earlier corpus counts and open-work lists
+above describe this document's original slice; M4 still has broader open gates.

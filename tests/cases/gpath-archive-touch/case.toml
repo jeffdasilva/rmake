@@ -1,0 +1,12 @@
+id = "gpath-archive-touch"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "archive touch"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368207372632f6c69622e61286f6e652e6f290a"
+stderr_hex = ""

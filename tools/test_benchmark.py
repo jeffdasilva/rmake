@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -103,6 +103,26 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'absent.a(member '), count)
             self.assertNotIn(b'$(shell', source)
             self.assertTrue(source.endswith(b'all:;\n'))
+
+    def test_gpath_inputs_are_real_noop_files_with_fixed_timestamps(self):
+        from pathlib import Path
+        import tempfile
+        workloads = list(benchmark.selected_workloads('gpath'))
+        self.assertEqual([name for name, _ in workloads],
+                         ['gpath-explicit-1000', 'gpath-aliases-1000', 'gpath-implicit-400'])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, source in workloads:
+                fixture = benchmark.prepare_files(root, name)
+                count = 400 if name == 'gpath-implicit-400' else 1000
+                self.assertEqual(fixture['files'], count * 2)
+                self.assertIn(b'GPATH = inputs\n', source)
+                for extension in ('out', 'in'):
+                    filename = root / 'inputs' / f'gpath-node{count - 1:04d}.{extension}'
+                    self.assertEqual(filename.read_bytes(), b'original\n')
+                    self.assertEqual(filename.stat().st_mtime_ns, fixture['mtime_ns'])
+        self.assertIn(b'inputs/gpath-node0999.out', workloads[1][1])
+        self.assertIn(b'%.out: %.in ;', workloads[2][1])
 
     def test_archive_workloads_include_sparse_object_payloads(self):
         import tempfile

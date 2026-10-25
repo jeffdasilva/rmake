@@ -1,0 +1,12 @@
+id = "gpath-ignore-follows-file"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "ignore follows file"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7372632f666f6f2e6f75740a"
+stderr_hex = "6d616b653a205b4d616b6566696c653a373a207372632f666f6f2e6f75745d204572726f722037202869676e6f726564290a"

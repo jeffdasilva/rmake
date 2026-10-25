@@ -1,0 +1,12 @@
+id = "gpath-mode-dry"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "mode dry"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e74662022403d5b25735d202a3d5b25735d203c3d5b25735d205e3d5b25735d202b3d5b25735d207c3d5b25735d20563d5b25735d5c6e2220227372632f666f6f2e6f7574222022222022696e707574222022696e707574222022696e707574222022222022220a"
+stderr_hex = ""

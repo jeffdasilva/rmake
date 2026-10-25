@@ -120,3 +120,7 @@ acceptance evidence. Raw samples and binary identities remain in ignored
 `artifacts/bench/implicit-secondary-core-101.json` and
 `artifacts/bench/implicit-secondary-search-101.json`. M8 remains unfinished;
 no persistent graph cache was introduced.
+
+Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
+selected alias/parallel interactions. Earlier corpus counts and open-work lists
+above describe this document's original slice; M4 still has broader open gates.

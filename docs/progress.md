@@ -217,7 +217,7 @@ using the list present before the current declaration is merged.
 
 Thirty new required suffix fixtures and the previously pending explicit-stem
 fixture match GNU. Two independent generated campaigns also matched: 100 suffix
-ordering programs (seed 44110) and 200 default-goal programs (seed 44111). Eight
+ordering programs (seed 44110) and 200 default-goal programs (seed 44118). Eight
 focused Rust regressions bring the Rust suite to 178 tests. This implements
 suffix metadata for explicit rules; implicit search and suffix-rule conversion
 remain unfinished.
@@ -1675,3 +1675,25 @@ summary under `-kn`. Corpus: 2,998 cases, with 2,986 required and 12 pending.
 Stateful coverage remains 51 scenarios / 140 invocations. A paired 101-sample
 comparison retains the prior rejection improvement with small local differences;
 GNU remains faster. See [search invalidation](implicit-search-invalidation.md).
+
+
+## GPATH permanent filenames
+
+Prepare permanent searched identities before rule resolution, secondary expansion
+and scope activation. Merge recipes, prerequisites and explicit variable scopes
+with GNU's destination precedence and diagnostics. Canonicalize duplicate roles,
+goals, cycles, special flags, grouped peers and archive container/member records.
+Keep pre-search metadata observations and GNU's lexical trailing-separator behavior.
+Exclude Makefile records from path search while retaining searched prerequisites
+and local include rebuilding/restarts.
+Track overlapping jobs by worker identity so alias merges preserve each command
+continuation, slot and token; refresh late direct bindings without replaying
+pattern effects. Four bounded overlap fixtures join the repeated CI stress flow.
+
+Add 118 original required fixtures (96 fail on the preceding release) and an
+eight-step exact-time rebuild-location scenario. Corpus: 3,116 cases, with 3,104
+required and 12 existing pending. Stateful: 52 scenarios / 148 invocations.
+Local paired no-op GPATH measurements show the added behavior costs up to about
+26%; core and parallel control differences are small, and GNU remains faster.
+See [GPATH behavior and measurements](gpath.md) for scope, safety, validation,
+measurement details and the open M4 gates.

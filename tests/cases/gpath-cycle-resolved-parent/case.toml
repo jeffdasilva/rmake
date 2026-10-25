@@ -1,0 +1,12 @@
+id = "gpath-cycle-resolved-parent"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "cycle resolved parent"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "403d5b7372632f666f6f2e6f75745d202a3d5b5d203c3d5b696e7075745d205e3d5b696e7075745d202b3d5b696e7075745d207c3d5b5d20563d5b5d0a"
+stderr_hex = "6d616b653a2043697263756c6172207372632f666f6f2e6f7574203c2d207372632f666f6f2e6f757420646570656e64656e63792064726f707065642e0a"

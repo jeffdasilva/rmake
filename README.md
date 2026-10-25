@@ -116,6 +116,8 @@ lookup optimization and its limits.
 empty clauses and many targets; see [secondary expansion](docs/secondary-expansion.md).
 `BENCH_SUITE=implicit-rejections` measures repeated rejected pattern searches;
 see [implicit secondary expansion](docs/implicit-secondary-expansion.md).
+`BENCH_SUITE=gpath` measures permanent filename lookup, aliases and implicit rules
+over fixed-time files; see [GPATH behavior and measurements](docs/gpath.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -144,6 +146,8 @@ The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
 header scan I/O while retaining fresh reads between effects.
 [Archive-first VPATH resolution](docs/archive-vpath.md) searches the archive name
 before checking members and preserves GNU search/rebuild observations.
+[GPATH permanent filenames](docs/gpath.md) retain searched rebuild paths and merge
+rule, scope and job identities, including overlapping parallel alias workers.
 [Secondary-expansion clauses](docs/secondary-expansion.md) retain individual
 static stems, literal prerequisites, GNU traversal order and diagnostic context.
 [Implicit secondary expansion](docs/implicit-secondary-expansion.md) evaluates

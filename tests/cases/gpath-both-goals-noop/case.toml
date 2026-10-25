@@ -1,0 +1,12 @@
+id = "gpath-both-goals-noop"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "both goals noop"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "foo.out", "src/foo.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20277372632f666f6f2e6f75742720697320757020746f20646174652e0a"
+stderr_hex = ""

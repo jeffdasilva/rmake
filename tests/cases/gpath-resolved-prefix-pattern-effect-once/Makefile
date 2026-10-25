@@ -1,0 +1,8 @@
+seed := $(shell touch -d @1600000000 src/foo.out input; touch -d @1600000002 input)
+VPATH=src
+GPATH=src
+src/%: V := base
+src/%: V += $(info activated)resolved
+all: foo.out
+foo.out: input
+	@echo "@=[$@] *=[$*] <=[$<] ^=[$^] +=[$+] |=[$|] %=[$%] V=[$(V)]"

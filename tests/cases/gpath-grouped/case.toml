@@ -1,0 +1,12 @@
+id = "gpath-grouped"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "grouped"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f776e65723d7372632f666f6f2e6f757420616c6c3d696e7075740a"
+stderr_hex = ""

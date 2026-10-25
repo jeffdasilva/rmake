@@ -1,0 +1,12 @@
+id = "gpath-mode-query"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "mode query"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

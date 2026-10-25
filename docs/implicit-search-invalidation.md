@@ -48,3 +48,7 @@ intervals or CPU/RSS/I/O profiling. Raw samples and identities remain in ignored
 `artifacts/bench/implicit-invalidation-101.json` and
 `artifacts/bench/implicit-invalidation-core-101.json`. There is no persistent
 cache or broad performance-parity claim.
+
+Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
+selected alias/parallel interactions. Earlier corpus counts and open-work lists
+above describe this document's original slice; M4 still has broader open gates.

@@ -5,6 +5,7 @@
 //! No persistent cache and no delegation to GNU Make are involved.
 
 use crate::cli::Options;
+use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
@@ -27,6 +28,43 @@ use std::time::SystemTime;
 
 fn os(bytes: &[u8]) -> &OsStr {
     OsStr::from_bytes(bytes)
+}
+
+/// GNU 4.4.1's directory-search spelling includes a historical trailing-slash
+/// quirk: with no filename directory prefix, restoring the separator replaces
+/// the first basename byte. Test existence using that spelling as GNU does.
+fn searched_name(directory: &[u8], target: &[u8]) -> Vec<u8> {
+    if target.starts_with(b"/") {
+        return target.to_vec();
+    }
+    let directory = if directory.len() > 1 && directory.ends_with(b"/") {
+        &directory[..directory.len() - 1]
+    } else {
+        directory
+    };
+    let slash = target
+        .iter()
+        .rposition(|&byte| byte == b'/')
+        .filter(|&index| index > 0);
+    let (prefix, basename) = slash.map_or((b"".as_slice(), target), |index| {
+        (&target[..index], &target[index + 1..])
+    });
+    let mut name = directory.to_vec();
+    if !prefix.is_empty() {
+        name.push(b'/');
+        name.extend_from_slice(prefix);
+    }
+    if name.last() != Some(&b'/') {
+        name.push(b'/');
+        name.extend_from_slice(basename);
+    } else {
+        let start = name.len();
+        name.extend_from_slice(basename);
+        if let Some(first) = name.get_mut(start) {
+            *first = b'/';
+        }
+    }
+    name
 }
 
 fn joined(items: impl IntoIterator<Item = impl AsRef<[u8]>>) -> Vec<u8> {
@@ -272,12 +310,60 @@ fn emit_output(program: &[u8], output: Output<'_>) {
 }
 
 struct ParallelJob {
+    identity: u64,
     program: Vec<u8>,
     location: Location,
     ignore: bool,
     before: Option<SystemTime>,
     phony: bool,
     continuation: RecipeState,
+}
+
+/// A rename can merge a newly visited file into one with a running recipe.
+/// Keep the common single-job case inline in the primary map; overlapping
+/// workers retain independent completion identities and continuations.
+#[derive(Default)]
+struct ParallelJobs {
+    primary: HashMap<Vec<u8>, ParallelJob>,
+    overlapping: HashMap<(Vec<u8>, u64), ParallelJob>,
+}
+
+impl ParallelJobs {
+    fn insert(&mut self, name: Vec<u8>, job: ParallelJob) {
+        match self.primary.entry(name) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(job);
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                self.overlapping
+                    .insert((entry.key().clone(), job.identity), job);
+            }
+        }
+    }
+
+    fn remove(&mut self, name: &[u8], identity: u64) -> Option<ParallelJob> {
+        if let Some(job) = self.primary.remove(name) {
+            if job.identity == identity {
+                return Some(job);
+            }
+            self.primary.insert(name.to_vec(), job);
+        }
+        self.overlapping.remove(&(name.to_vec(), identity))
+    }
+
+    fn contains_key(&self, name: &[u8]) -> bool {
+        self.primary.contains_key(name) || self.overlapping.keys().any(|(target, _)| target == name)
+    }
+
+    fn len(&self) -> usize {
+        self.primary.len() + self.overlapping.len()
+    }
+    fn is_empty(&self) -> bool {
+        self.primary.is_empty() && self.overlapping.is_empty()
+    }
+    fn values(&self) -> impl Iterator<Item = &ParallelJob> {
+        self.primary.values().chain(self.overlapping.values())
+    }
 }
 
 /// Interpreter-owned continuation. Workers receive only one prepared Command;
@@ -342,7 +428,7 @@ struct GroupRun {
     members: Vec<(Vec<u8>, Option<SystemTime>, bool)>,
 }
 
-type JobResult = (Vec<u8>, io::Result<std::process::ExitStatus>);
+type JobResult = (Vec<u8>, u64, io::Result<std::process::ExitStatus>);
 
 #[derive(Default)]
 struct ArchiveVpathReads {
@@ -356,6 +442,8 @@ struct ImplicitSelection {
     pattern_scope: Option<Box<Option<TargetScope>>>,
     explicit_names: Vec<Vec<u8>>,
 }
+
+type PathObservation = Option<(Option<Vec<u8>>, SystemTime)>;
 
 pub struct Engine {
     options: Options,
@@ -374,7 +462,8 @@ pub struct Engine {
     impossible_prerequisites: HashSet<Vec<u8>>,
     impossible_generation: u64,
     would_build: bool,
-    parallel_jobs: HashMap<Vec<u8>, ParallelJob>,
+    parallel_jobs: ParallelJobs,
+    next_job: u64,
     pending_rules: HashMap<Vec<u8>, RuleState>,
     pending_double_colon: HashMap<Vec<u8>, DoubleColonState>,
     active_peers: HashMap<Vec<u8>, Vec<u8>>,
@@ -388,10 +477,15 @@ pub struct Engine {
     completed_jobs: std::sync::mpsc::Receiver<JobResult>,
     job_sender: std::sync::mpsc::Sender<JobResult>,
     parallel_failed: bool,
+    waiting_reported: bool,
     remaking: bool,
     optional_remake: bool,
     optional_remake_failures: HashSet<Vec<u8>>,
     vpath_dirs: Vec<Vec<u8>>,
+    gpath_dirs: HashSet<Vec<u8>>,
+    makefile_names: HashSet<Vec<u8>>,
+    aliases: Aliases,
+    path_observations: HashMap<Vec<u8>, PathObservation>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
@@ -718,7 +812,8 @@ impl Engine {
             impossible_prerequisites: HashSet::new(),
             impossible_generation: 0,
             would_build: false,
-            parallel_jobs: HashMap::new(),
+            parallel_jobs: ParallelJobs::default(),
+            next_job: 0,
             pending_rules: HashMap::new(),
             pending_double_colon: HashMap::new(),
             active_peers: HashMap::new(),
@@ -732,10 +827,15 @@ impl Engine {
             completed_jobs,
             job_sender,
             parallel_failed: false,
+            waiting_reported: false,
             remaking: false,
             optional_remake: false,
             optional_remake_failures: HashSet::new(),
             vpath_dirs: Vec::new(),
+            gpath_dirs: HashSet::new(),
+            makefile_names: HashSet::new(),
+            aliases: Aliases::default(),
+            path_observations: HashMap::new(),
             resolved_names: HashMap::new(),
             archive_vpath_reads: RefCell::new(None),
             makefile_error: RefCell::new(None),
@@ -957,6 +1057,9 @@ impl Engine {
                 self.implicit_pattern_scopes.clear();
                 self.impossible_prerequisites.clear();
                 self.resolved_names.clear();
+                self.aliases.clear();
+                self.path_observations.clear();
+                self.waiting_reported = false;
                 *self.archive_vpath_reads.borrow_mut() = None;
                 self.inferred_peer_flags.clear();
                 self.completed_group_branches.clear();
@@ -1118,6 +1221,30 @@ impl Engine {
                     return 2;
                 }
             };
+            let gpath = if self.database.variables.get(b"GPATH").is_some() {
+                match self.expand_global(b"$(strip $(GPATH))", None) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.expansion_error(None, &error);
+                        return 2;
+                    }
+                }
+            } else {
+                Vec::new()
+            };
+            self.gpath_dirs = gpath
+                .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
+                .filter(|path| !path.is_empty())
+                .map(|path| {
+                    if path.len() > 1 && path.ends_with(b"/") {
+                        &path[..path.len() - 1]
+                    } else {
+                        path
+                    }
+                })
+                .filter(|path| *path != b".")
+                .map(Vec::from)
+                .collect();
             if let Err(error) = self.database.finalize_implicit_rules(
                 !self.options.no_rules,
                 &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
@@ -1129,6 +1256,12 @@ impl Engine {
                 .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
                 .filter(|path| !path.is_empty())
                 .map(Vec::from)
+                .collect();
+            self.makefile_names = self
+                .database
+                .makefiles
+                .iter()
+                .map(|file| file.name.clone())
                 .collect();
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
@@ -1292,7 +1425,8 @@ impl Engine {
         let mut requested = Vec::new();
         for goal in goals {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
-            let already_done = self.done.contains_key(&goal) || self.pending(&goal);
+            let already_done =
+                self.done.contains_key(self.aliases.resolve(&goal)) || self.pending(&goal);
             if already_done && !self.parallel_graph() {
                 self.wait_target(&goal);
             }
@@ -1326,7 +1460,11 @@ impl Engine {
             }
         }
         for (goal, already_done, initial) in requested {
-            let outcome = self.done.get(&goal).copied().unwrap_or(initial);
+            let outcome = self
+                .done
+                .get(self.aliases.resolve(&goal))
+                .copied()
+                .unwrap_or(initial);
             failed |= outcome.failed;
             self.report_goal(&goal, already_done, outcome);
         }
@@ -1372,7 +1510,8 @@ impl Engine {
             && !self.options.question
             && !self.globally_silent()
         {
-            let has_recipe = self.database.rules.get(goal).is_some_and(|rule| {
+            let identity = self.aliases.resolve(goal);
+            let has_recipe = self.database.rules.get(identity).is_some_and(|rule| {
                 rule.recipes.is_some()
                     || rule
                         .double_colon
@@ -1383,8 +1522,12 @@ impl Engine {
             // Rehashing into a file already entered by a declaration or CLI
             // goal merges GNU's goal record; the old record has no summary.
             if reported_goal != goal
-                && (self.database.explicit_names.contains(reported_goal)
-                    || self.options.goals.iter().any(|name| name == reported_goal))
+                && (if self.aliases.contains(goal) {
+                    self.aliases.merged(goal)
+                } else {
+                    self.database.explicit_names.contains(reported_goal)
+                        || self.options.goals.iter().any(|name| name == reported_goal)
+                })
             {
                 return;
             }
@@ -1404,12 +1547,16 @@ impl Engine {
                 || rule
                     .dependencies
                     .iter()
-                    .any(|dependency| dependency.name == target)
+                    .any(|dependency| self.aliases.resolve(&dependency.name) == target)
         })
     }
 
     fn intermediate(&self, target: &[u8]) -> bool {
-        !self.options.goals.iter().any(|goal| goal == target)
+        !self
+            .options
+            .goals
+            .iter()
+            .any(|goal| self.aliases.resolve(goal) == target)
             && !self.special_for_rule(b".NOTINTERMEDIATE", target)
             && !self
                 .database
@@ -1593,10 +1740,12 @@ impl Engine {
     }
 
     fn graph_pending(&self, target: &[u8]) -> bool {
+        let target = self.aliases.resolve(target);
         self.pending_rules.contains_key(target) || self.pending_double_colon.contains_key(target)
     }
 
     fn pending(&self, target: &[u8]) -> bool {
+        let target = self.aliases.resolve(target);
         self.graph_pending(target)
             || self.parallel_jobs.contains_key(target)
             || self
@@ -1628,6 +1777,13 @@ impl Engine {
         }
     }
 
+    fn notice_waiting_for_jobs(&mut self) {
+        if !self.waiting_reported {
+            self.stderr(b"*** Waiting for unfinished jobs....");
+            self.waiting_reported = true;
+        }
+    }
+
     fn wait_all_jobs(&mut self) {
         while !self.parallel_jobs.is_empty() {
             self.reap_job();
@@ -1648,11 +1804,11 @@ impl Engine {
         self.complete_job(result);
     }
 
-    fn complete_job(&mut self, (target, result): JobResult) {
+    fn complete_job(&mut self, (target, identity, result): JobResult) {
         self.graph_epoch = self.graph_epoch.wrapping_add(1);
         let mut job = self
             .parallel_jobs
-            .remove(&target)
+            .remove(&target, identity)
             .expect("reserved parallel target");
         self.filesystem.borrow_mut().child_completed();
         let launched = result.is_ok();
@@ -1685,6 +1841,9 @@ impl Engine {
         if failed && launched {
             self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnError);
         }
+        if failed && self.parallel_jobs.contains_key(&target) {
+            self.notice_waiting_for_jobs();
+        }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         if !failed {
             let execution =
@@ -1713,6 +1872,215 @@ impl Engine {
         }
     }
 
+    fn gpath_match(&self, original: &[u8], resolved: &[u8]) -> bool {
+        resolved
+            .len()
+            .checked_sub(original.len() + 1)
+            .is_some_and(|length| self.gpath_dirs.contains(&resolved[..length]))
+    }
+
+    /// Observe and permanently name a searched file before rule or scope lookup.
+    /// The observation is consumed by build_inner, so alias preparation never
+    /// repeats the search after expansion effects have run.
+    fn prepare_gpath(&mut self, target: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+        if self.aliases.contains(target) {
+            return Ok(Some(self.aliases.resolve(target).to_vec()));
+        }
+        if self.gpath_dirs.is_empty()
+            || self.makefile_names.contains(target)
+            || self.path_observations.contains_key(target)
+            || self.done.contains_key(target)
+            || self.pending(target)
+            || self.visiting.contains(target)
+            || self.special(b".PHONY", target, false)
+        {
+            return Ok(None);
+        }
+        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target)
+            && let Some(path) = self.archive_vpath(archive)
+            && self.gpath_match(archive, &path)
+        {
+            let archive_time = modified(&path);
+            self.rename_gpath(archive, &path)?;
+            self.path_observations
+                .entry(path.clone())
+                .or_insert_with(|| archive_time.map(|time| (None, time)));
+            let name = [path.as_slice(), b"(", member, b")"].concat();
+            let observation = self.find_vpath(&name);
+            self.rename_gpath(target, &name)?;
+            self.path_observations.insert(name.clone(), observation);
+            return Ok(Some(name));
+        }
+        let observation = self.find_vpath(target);
+        if let Some((Some(name), _)) = &observation
+            && self.gpath_match(target, name)
+        {
+            let name = name.clone();
+            self.rename_gpath(target, &name)?;
+            self.path_observations
+                .insert(name.clone(), observation.map(|(_, time)| (None, time)));
+            return Ok(Some(name));
+        }
+        self.path_observations.insert(target.to_vec(), observation);
+        Ok(None)
+    }
+
+    fn rename_gpath(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
+        if from == to {
+            return Ok(());
+        }
+        let merged = self.database.explicit_names.contains(to)
+            || self.database.target_scopes.contains_key(to)
+            || self.options.goals.iter().any(|goal| goal == to);
+        let source = self.database.rules.remove(from);
+        if let Some(mut source) = source {
+            if let Some(destination) = self.database.rules.get_mut(to) {
+                let source_commands = source
+                    .double_colon
+                    .as_ref()
+                    .and_then(|branches| branches.first())
+                    .unwrap_or(&source);
+                let destination_commands = destination
+                    .double_colon
+                    .as_ref()
+                    .and_then(|branches| branches.first())
+                    .unwrap_or(destination);
+                if source_commands.recipes.is_some()
+                    && destination_commands.recipes.is_some()
+                    && source_commands.recipe_location != destination_commands.recipe_location
+                {
+                    let location = source_commands.recipe_location.as_ref();
+                    let first = if let Some(location) = location {
+                        [
+                            b"Recipe was specified for file '".as_slice(),
+                            from,
+                            b"' at ",
+                            location.file.as_slice(),
+                            b":",
+                            location.line.to_string().as_bytes(),
+                            b",",
+                        ]
+                        .concat()
+                    } else {
+                        [
+                            b"Recipe for file '".as_slice(),
+                            from,
+                            b"' was found by implicit rule search,",
+                        ]
+                        .concat()
+                    };
+                    for message in [
+                        first,
+                        [
+                            b"but '".as_slice(),
+                            from,
+                            b"' is now considered the same file as '",
+                            to,
+                            b"'.",
+                        ]
+                        .concat(),
+                        [
+                            b"Recipe for '".as_slice(),
+                            from,
+                            b"' will be ignored in favor of the one for '",
+                            to,
+                            b"'.",
+                        ]
+                        .concat(),
+                    ] {
+                        emit_output(
+                            &self.program,
+                            Output::Warning {
+                                location,
+                                message: &message,
+                            },
+                        );
+                    }
+                }
+                if destination.double_colon.is_some() != source.double_colon.is_some() {
+                    let message = [
+                        b"can't rename ".as_slice(),
+                        if source.double_colon.is_some() {
+                            b"double-colon '"
+                        } else {
+                            b"single-colon '"
+                        },
+                        from,
+                        b"' to ",
+                        if destination.double_colon.is_some() {
+                            b"double-colon '"
+                        } else {
+                            b"single-colon '"
+                        },
+                        to,
+                        b"'",
+                    ]
+                    .concat();
+                    self.fatal(None, &message);
+                    return Err(());
+                }
+                if destination.recipes.is_none() {
+                    destination.recipes = source.recipes.take();
+                    destination.recipe_location = source.recipe_location.take();
+                    destination.default_recipe = source.default_recipe;
+                }
+                destination.append_prerequisites(&source);
+                if let Some(branches) = source.double_colon.take() {
+                    destination.double_colon.as_mut().unwrap().extend(branches);
+                }
+            } else {
+                // An existing filename record with no rule does not carry the
+                // source file's recipe stem through GNU's record merge.
+                if merged {
+                    source.stem = None;
+                }
+                self.database.rules.insert(to.to_vec(), source);
+            }
+        }
+        if let Some(scope) = self.database.target_scopes.remove(from) {
+            self.database
+                .target_scopes
+                .entry(to.to_vec())
+                .or_default()
+                .merge_missing(&scope);
+        }
+        if let Some(parent) = self.scope_parents.remove(from) {
+            self.scope_parents.entry(to.to_vec()).or_insert(parent);
+        }
+        if let Some(context) = self.target_contexts.remove(from) {
+            self.target_contexts.entry(to.to_vec()).or_insert(context);
+        }
+        if let Some(scope) = self.database.target_scopes.get(to)
+            && let Some(context) = self.target_contexts.get_mut(to)
+        {
+            context.refresh_target_scope(scope);
+        }
+        if let Some(scope) = self.implicit_pattern_scopes.remove(from) {
+            self.implicit_pattern_scopes
+                .entry(to.to_vec())
+                .or_insert(scope);
+        }
+        if self.database.explicit_names.contains(from) {
+            self.database.explicit_names.insert(to.to_vec());
+        }
+        if !merged && self.intermediates.remove(from) {
+            self.intermediates.insert(to.to_vec());
+        }
+        // The original file passed the already-considered check before GNU
+        // merges it into this record; its first visit must still be evaluated.
+        self.done.remove(to);
+        self.aliases.insert(from, to, merged);
+        self.resolved_names.insert(from.to_vec(), to.to_vec());
+        Ok(())
+    }
+
+    // Makefile records remain local even when optional reading failed. Their
+    // prerequisites can still use the ordinary VPATH/GPATH search policy.
+    fn vpath_searchable(&self, target: &[u8]) -> bool {
+        (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
+            && !self.makefile_names.contains(target)
+    }
+
     fn find_vpath(&self, target: &[u8]) -> Option<(Option<Vec<u8>>, SystemTime)> {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             let path = self.archive_vpath(archive);
@@ -1735,13 +2103,15 @@ impl Engine {
         if let Some(time) = modified(target) {
             return Some((None, time));
         }
+        if !self.vpath_searchable(target) {
+            return None;
+        }
         self.database
             .vpath_directories(target)
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .find_map(|directory| {
-                let path = Path::new(os(directory)).join(os(target));
-                let name = path.as_os_str().as_bytes();
-                modified(name).map(|time| (Some(name.to_vec()), time))
+                let name = searched_name(directory, target);
+                modified(&name).map(|time| (Some(name), time))
             })
     }
 
@@ -1749,19 +2119,15 @@ impl Engine {
     /// archive wins even when it lacks that member; an existing local archive
     /// similarly prevents falling through to a different archive in VPATH.
     fn archive_vpath(&self, archive: &[u8]) -> Option<Vec<u8>> {
-        if (!self.database.has_vpaths() && self.vpath_dirs.is_empty())
-            || fs::metadata(os(archive)).is_ok()
-        {
+        if !self.vpath_searchable(archive) || fs::metadata(os(archive)).is_ok() {
             return None;
         }
         self.database
             .vpath_directories(archive)
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .find_map(|directory| {
-                let path = Path::new(os(directory)).join(os(archive));
-                fs::metadata(&path)
-                    .ok()
-                    .map(|_| path.as_os_str().as_bytes().to_vec())
+                let path = searched_name(directory, archive);
+                fs::metadata(os(&path)).ok().map(|_| path)
             })
     }
 
@@ -1772,11 +2138,12 @@ impl Engine {
             return self.find_vpath(target).is_some();
         }
         modified(target).is_some()
-            || self
-                .database
-                .vpath_directories(target)
-                .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-                .any(|directory| fs::metadata(Path::new(os(directory)).join(os(target))).is_ok())
+            || (self.vpath_searchable(target)
+                && self
+                    .database
+                    .vpath_directories(target)
+                    .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+                    .any(|directory| fs::metadata(os(&searched_name(directory, target))).is_ok()))
     }
 
     fn implicit_known_file(&self, target: &[u8]) -> bool {
@@ -1985,7 +2352,11 @@ impl Engine {
                             let mut role = occurrence.order_only;
                             self.implicit_filenames(part, &mut role, None)?
                         };
-                        for dependency in names {
+                        for mut dependency in names {
+                            let identity = self.aliases.resolve(&dependency.name);
+                            if identity != dependency.name {
+                                dependency.name = identity.to_vec();
+                            }
                             let name = &dependency.name;
                             self.refresh_impossible_prerequisites();
                             if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
@@ -2255,7 +2626,7 @@ impl Engine {
         };
         if self.graph_abort.is_none() {
             if !self.parallel_jobs.is_empty() {
-                self.stderr(b"*** Waiting for unfinished jobs....");
+                self.notice_waiting_for_jobs();
             }
             self.graph_abort = Some(status);
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -2333,6 +2704,17 @@ impl Engine {
     }
 
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        let renamed = match self.prepare_gpath(target) {
+            Ok(name) => name,
+            Err(()) => {
+                return Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..Outcome::default()
+                };
+            }
+        };
+        let target = renamed.as_deref().unwrap_or(target);
         self.poll_jobs();
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
         let previously_done = archive_target && self.done.contains_key(target);
@@ -2407,7 +2789,12 @@ impl Engine {
         let phony = self.special(b".PHONY", target, false);
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
-        let resolved = if phony { None } else { self.find_vpath(target) };
+        let observed = self.path_observations.remove(target);
+        let resolved = if phony {
+            None
+        } else {
+            observed.unwrap_or_else(|| self.find_vpath(target))
+        };
         let mut before = resolved.as_ref().map(|(_, time)| *time);
         let double_colon = self
             .database
@@ -2662,6 +3049,26 @@ impl Engine {
         mut rule: Rule,
         double_colon: bool,
     ) -> Outcome {
+        if !self.gpath_dirs.is_empty()
+            && let Some(group) = &mut rule.group
+        {
+            for peer in &mut group.targets {
+                if peer.as_slice() == target {
+                    continue;
+                }
+                match self.prepare_gpath(peer) {
+                    Ok(Some(name)) => *peer = name,
+                    Ok(None) => {}
+                    Err(()) => {
+                        return Outcome {
+                            failed: true,
+                            fatal: true,
+                            ..Outcome::default()
+                        };
+                    }
+                }
+            }
+        }
         if let Err(error) = self.expand_dependencies(target, &mut rule) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
@@ -2706,7 +3113,11 @@ impl Engine {
                 } else if peer == target {
                     before
                 } else {
-                    self.find_vpath(peer).map(|(_, time)| time)
+                    self.path_observations
+                        .get(peer)
+                        .cloned()
+                        .unwrap_or_else(|| self.find_vpath(peer))
+                        .map(|(_, time)| time)
                 };
                 if rule.grouped_double_id().is_some() {
                     time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
@@ -2867,6 +3278,18 @@ impl Engine {
                 if state.outcome.fatal || (state.outcome.failed && !self.options.keep_going) {
                     state.stopped = true;
                     break;
+                }
+            }
+            if !self.gpath_dirs.is_empty() && state.rule.dependencies[state.next].name != b".WAIT" {
+                match self.prepare_gpath(&state.rule.dependencies[state.next].name) {
+                    Ok(Some(name)) => state.rule.dependencies[state.next].name = name,
+                    Ok(None) => {}
+                    Err(()) => {
+                        state.outcome.failed = true;
+                        state.outcome.fatal = true;
+                        state.stopped = true;
+                        break;
+                    }
                 }
             }
             let occurrence = &state.rule.dependencies[state.next];
@@ -3053,8 +3476,8 @@ impl Engine {
             }
         }
         let RuleState {
-            rule,
-            group,
+            mut rule,
+            mut group,
             comparison,
             before,
             phony,
@@ -3063,6 +3486,22 @@ impl Engine {
             dropped,
             ..
         } = state;
+        if !self.aliases.is_empty() {
+            for dependency in &mut rule.dependencies {
+                let name = self.aliases.resolve(&dependency.name);
+                if name != dependency.name {
+                    dependency.name = name.to_vec();
+                }
+            }
+            if let Some(group) = &mut group {
+                for dependency in &mut group.recipe_rule.dependencies {
+                    let name = self.aliases.resolve(&dependency.name);
+                    if name != dependency.name {
+                        dependency.name = name.to_vec();
+                    }
+                }
+            }
+        }
         let recipe_rule = group.as_ref().map_or(&rule, |group| &group.recipe_rule);
         let canonical = recipe_rule.canonical_dependencies();
         let normal: Vec<_> = canonical
@@ -3256,6 +3695,11 @@ impl Engine {
     /// conditionals can mutate globals, so cached contexts refresh that layer
     /// before reuse without replaying deferred assignment effects.
     fn target_variables(&mut self, target: &[u8]) -> Result<VariableStore, ExpandError> {
+        let alias = self
+            .aliases
+            .contains(target)
+            .then(|| self.aliases.resolve(target).to_vec());
+        let target = alias.as_deref().unwrap_or(target);
         if let Some(variables) = self.target_contexts.get(target) {
             let mut variables = variables.clone();
             variables.refresh_globals(&self.database.variables);
@@ -3407,6 +3851,10 @@ impl Engine {
                 }
             }
         }
+        let stdin_owner = !self
+            .parallel_jobs
+            .values()
+            .any(|job| job.continuation.stdin_owner);
         self.continue_recipe(
             target,
             RecipeState {
@@ -3415,10 +3863,7 @@ impl Engine {
                 flow,
                 ran: false,
                 one_shell,
-                stdin_owner: !self
-                    .parallel_jobs
-                    .values()
-                    .any(|job| job.continuation.stdin_owner),
+                stdin_owner,
                 environment: None,
                 permit,
             },
@@ -3732,6 +4177,8 @@ impl Engine {
             let _ = io::stdout().flush();
             if parallel {
                 let sender = self.job_sender.clone();
+                let identity = self.next_job;
+                self.next_job = self.next_job.wrapping_add(1);
                 let name = target.to_vec();
                 let executable = program.clone();
                 let first = stdin_owner;
@@ -3753,7 +4200,7 @@ impl Engine {
                             // its jobserver owner, so process exit cannot race
                             // the last FIFO unlink against thread teardown.
                             drop(jobserver);
-                            let _ = sender.send((name, result));
+                            let _ = sender.send((name, identity, result));
                         });
                 if let Err(error) = worker {
                     self.stderr(os_error(&error).as_bytes());
@@ -3762,6 +4209,7 @@ impl Engine {
                 self.parallel_jobs.insert(
                     target.to_vec(),
                     ParallelJob {
+                        identity,
                         program,
                         location: recipe.location.clone(),
                         ignore,
