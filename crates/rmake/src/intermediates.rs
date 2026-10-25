@@ -13,6 +13,10 @@ pub struct Policy {
     intermediate: HashSet<Vec<u8>>,
     secondary: HashSet<Vec<u8>>,
     not_intermediate: HashSet<Vec<u8>>,
+    // Only global .SECONDARY needs this read-time inventory. Keep other
+    // policies small rather than embedding another table in every engine.
+    #[allow(clippy::box_collection)]
+    secondary_files: Option<Box<HashSet<Vec<u8>>>>,
 }
 
 fn branches<'a>(database: &'a Database, name: &[u8]) -> &'a [Rule] {
@@ -70,7 +74,35 @@ impl Policy {
         if policy.all_secondary && policy.no_intermediates {
             return Err(b".NOTINTERMEDIATE and .SECONDARY are mutually exclusive".to_vec());
         }
+        policy.capture_files(database);
         Ok(policy)
+    }
+
+    /// Global secondary flags apply to records entered before dependencies
+    /// are frozen, not names introduced by later deferred expansion.
+    fn capture_files(&mut self, database: &Database) {
+        if self.all_secondary {
+            let mut names = database.explicit_names.clone();
+            names.extend(database.rules.keys().cloned());
+            names.extend(database.target_scopes.keys().cloned());
+            names.extend(database.makefiles.iter().map(|file| file.name.clone()));
+            self.secondary_files = Some(Box::new(names));
+        }
+    }
+
+    pub fn global_intermediate(&self, target: &[u8]) -> bool {
+        self.secondary_files
+            .as_ref()
+            .is_some_and(|names| names.contains(target))
+    }
+
+    pub fn renamed(&mut self, from: &[u8], to: &[u8], merged: bool) {
+        if !merged
+            && let Some(names) = &mut self.secondary_files
+            && names.contains(from)
+        {
+            names.insert(to.to_vec());
+        }
     }
 
     pub fn named(&self, special: &[u8]) -> Option<&HashSet<Vec<u8>>> {

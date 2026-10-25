@@ -1,0 +1,12 @@
+id = "lazy-record-double-late-error-required"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "double late error required"
+provenance = "Original rmake lazy rule-record fixture with fixed timestamps; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "66697273743d782e6d69640a66697273743d782e6d69640a"
+stderr_hex = "4d616b6566696c653a31303a202a2a2a206c6174652d6272616e63682e202053746f702e0a"

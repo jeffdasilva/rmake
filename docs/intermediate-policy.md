@@ -56,8 +56,9 @@ candidate matches and 12 pre-existing pending mismatches. Stateful coverage:
 54 scenarios / 167 invocations. No upstream implementation or tests were copied;
 GNU 4.4.1 source was consulted as a behavior reference.
 
-This is another M4 slice. Deferred grouped/double-colon middles retain their existing traversal path;
-broader lazy treatment remains open. Wider file-record aliases and metadata, directory-cache
+This is another M4 slice. The subsequent [lazy rule-record slice](lazy-rule-records.md)
+adds deferred grouped/double-colon inspection and read-time filename snapshots.
+Wider file-record aliases and metadata, directory-cache
 interactions, descendant scope refresh after late merges, intermediate lifecycle
 combinations, archive format/fault coverage and remaining runtime/compatibility
 profiles still need work. These test counts do not enumerate every remaining gap.

@@ -230,6 +230,14 @@ struct Outcome {
     blocked: bool,
 }
 
+/// Freshness is a per-parent decision, independent of the intermediate's final
+/// timestamp: a later branch can deliberately restore an older date.
+struct Inspection {
+    outcome: Outcome,
+    pending: bool,
+    needs_rebuild: bool,
+}
+
 fn merge_child(outcome: &mut Outcome, child: Outcome) {
     outcome.ran |= child.ran;
     outcome.failed |= child.failed;
@@ -393,6 +401,9 @@ struct RuleState {
     serial_dependency: Option<usize>,
     serial_phase: bool,
     inspections: HashMap<usize, (u64, Outcome)>,
+    // Rebuild evidence is rare; keep ordinary suspended graph frames compact.
+    #[allow(clippy::box_collection)]
+    intermediate_stale: Option<Box<HashSet<usize>>>,
     stopped: bool,
     stale: bool,
     outcome: Outcome,
@@ -1223,6 +1234,7 @@ impl Engine {
                     return 2;
                 }
             };
+            self.database.freeze_rules();
             let vpath = match self.expand_global(b"$(VPATH)", None) {
                 Ok(value) => value,
                 Err(error) => {
@@ -1574,6 +1586,7 @@ impl Engine {
     }
 
     fn intermediate(&self, target: &[u8]) -> bool {
+        let target = self.aliases.resolve(target);
         if self
             .options
             .goals
@@ -1589,7 +1602,8 @@ impl Engine {
         }
         !self.special_for_rule(b".NOTINTERMEDIATE", target)
             && !self.intermediate_policy.no_intermediates
-            && (self.intermediate_policy.all_secondary || self.intermediates.contains(target))
+            && (self.intermediate_policy.global_intermediate(target)
+                || self.intermediates.contains(target))
     }
 
     fn special_for_rule(&self, special: &[u8], target: &[u8]) -> bool {
@@ -1645,9 +1659,9 @@ impl Engine {
         &mut self,
         target: &[u8],
         parent: &[u8],
-        time: SystemTime,
+        time: Option<SystemTime>,
         depth: usize,
-    ) -> (Outcome, bool) {
+    ) -> Inspection {
         if depth >= 512
             || self.done.contains_key(target)
             || self.pending(target)
@@ -1656,89 +1670,133 @@ impl Engine {
             || self.special(b".PHONY", target, false)
         {
             let outcome = self.build(target, Some(parent), depth);
-            return (outcome, self.pending(target));
+            return Inspection {
+                needs_rebuild: self.prerequisite_stale(time, outcome),
+                outcome,
+                pending: self.pending(target),
+            };
         }
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
         if !self.resolve_implicit(target) {
-            return (
-                Outcome {
+            return Inspection {
+                outcome: Outcome {
                     failed: true,
                     fatal: true,
                     ..Outcome::default()
                 },
-                false,
-            );
+                pending: false,
+                needs_rebuild: false,
+            };
         }
-        let Some(mut rule) = self.database.rules.get(target).cloned() else {
+        let Some(stored) = self.database.rules.get(target) else {
             // A missing intermediate without a recipe can remain absent while
             // its existing parent is current. Materialization checks it again
             // if another prerequisite makes the parent stale.
-            return (
-                Outcome {
-                    time: Some(time),
+            return Inspection {
+                outcome: Outcome {
+                    time,
                     ..Outcome::default()
                 },
-                false,
-            );
+                pending: false,
+                needs_rebuild: false,
+            };
         };
+        // GNU inspects the first file record of a double-colon chain. Other
+        // branches and grouped peers are visited only if a build is required.
+        let double_colon = stored.double_colon.is_some();
+        let mut rule = stored
+            .double_colon
+            .as_ref()
+            .and_then(|branches| branches.first())
+            .unwrap_or(stored)
+            .clone();
         if rule.secondary.is_some() {
-            if rule.group.is_some() || rule.double_colon.is_some() {
-                let outcome = self.build(target, Some(parent), depth);
-                return (outcome, self.pending(target));
-            }
             if let Err(error) = self.expand_dependencies(target, &mut rule) {
                 self.expansion_error(rule.prerequisite_location.as_ref(), &error);
-                return (
-                    Outcome {
+                return Inspection {
+                    outcome: Outcome {
                         failed: true,
                         fatal: true,
                         ..Outcome::default()
                     },
-                    false,
-                );
+                    pending: false,
+                    needs_rebuild: false,
+                };
             }
-            self.store_expanded_rule(target, rule.clone());
+            self.store_inspected_rule(target, double_colon, rule.clone());
         }
         let mut result = Outcome {
-            time: Some(time),
+            time,
             ..Outcome::default()
         };
         let mut stale = self.options.always;
         let mut waiting = false;
         let serial = self.special(b".NOTPARALLEL", target, false);
         self.visiting.insert(target.to_vec());
-        for dep in &rule.dependencies {
+        let mut next = 0;
+        let mut dropped = false;
+        while next < rule.dependencies.len() {
+            let dep = &rule.dependencies[next];
             if dep.name == b".WAIT" {
                 if waiting {
                     break;
                 }
+                next += 1;
                 continue;
             }
             if self.visiting.contains(&dep.name) {
+                self.stderr(
+                    &[
+                        b"Circular ".as_slice(),
+                        target,
+                        b" <- ",
+                        &dep.name,
+                        b" dependency dropped.",
+                    ]
+                    .concat(),
+                );
+                rule.dependencies.remove(next);
+                dropped = true;
                 continue;
             }
-            let (child, pending) = self.check_intermediate(&dep.name, target, time, depth + 1);
+            next += 1;
+            let Inspection {
+                outcome: child,
+                pending,
+                needs_rebuild,
+            } = self.check_intermediate(&dep.name, target, time, depth + 1);
             merge_child(&mut result, child);
             waiting |= pending;
             // A running child has no final timestamp yet. Never materialize an
             // intermediate just because that provisional timestamp is absent.
             if !pending {
-                stale |= !dep.order_only && (child.time.is_none() || child.time > Some(time));
+                stale |= !dep.order_only && needs_rebuild;
             }
             if child.fatal || (child.failed && !self.options.keep_going) || (serial && pending) {
                 break;
             }
         }
+        if dropped {
+            self.store_inspected_rule(target, double_colon, rule);
+        }
         self.visiting.remove(target);
         if waiting {
-            (result, true)
-        } else if stale && !result.failed {
-            let outcome = self.build(target, Some(parent), depth);
-            (outcome, self.pending(target))
+            Inspection {
+                outcome: result,
+                pending: true,
+                needs_rebuild: stale,
+            }
         } else {
-            (result, false)
+            // Inspection never executes an intermediate recipe. The owning
+            // frame materializes required middles after all prerequisite and
+            // grouped-peer inspection phases have completed.
+            Inspection {
+                outcome: result,
+                pending: false,
+                needs_rebuild: stale,
+            }
         }
     }
 
@@ -2130,6 +2188,7 @@ impl Engine {
         // The original file passed the already-considered check before GNU
         // merges it into this record; its first visit must still be evaluated.
         self.done.remove(to);
+        self.intermediate_policy.renamed(from, to, merged);
         self.aliases.insert(from, to, merged);
         Ok(())
     }
@@ -2978,7 +3037,9 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 self.record_graph_failure(result);
                 state.active = false;
-                if result.fatal || (result.failed && !self.options.keep_going) {
+                if result.fatal
+                    || ((result.failed || result.question_outdated) && !self.options.keep_going)
+                {
                     state.branches.clear();
                 }
             }
@@ -2987,6 +3048,7 @@ impl Engine {
                 state.branches.clear();
             }
             let Some(branch) = state.branches.pop_front() else {
+                state.combined.time = if state.phony { None } else { modified(target) };
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
@@ -3045,6 +3107,24 @@ impl Engine {
                 rule.dependencies
                     .retain(|dependency| dependency.name != name);
             }
+        }
+    }
+
+    /// An inspection updates just the head record, preserving the later
+    /// double-colon branches for their own expansion and command contexts.
+    fn store_inspected_rule(&mut self, target: &[u8], double_colon: bool, rule: Rule) {
+        if double_colon {
+            if let Some(first) = self
+                .database
+                .rules
+                .get_mut(target)
+                .and_then(|root| root.double_colon.as_mut())
+                .and_then(|branches| branches.first_mut())
+            {
+                *first = rule;
+            }
+        } else {
+            self.store_expanded_rule(target, rule);
         }
     }
 
@@ -3227,6 +3307,7 @@ impl Engine {
             serial_dependency: None,
             serial_phase,
             inspections: HashMap::new(),
+            intermediate_stale: None,
             stopped: false,
             stale,
             outcome: Outcome {
@@ -3473,18 +3554,21 @@ impl Engine {
         let occurrence = &state.rule.dependencies[index];
         let dependency = &occurrence.name;
         let inspect = state.inspections.contains_key(&index)
-            || (first
-                && !state.stale
-                && self.intermediate(dependency)
-                && modified(dependency).is_none());
+            || (first && self.intermediate(dependency) && modified(dependency).is_none());
         if inspect {
             let epoch = self.graph_epoch;
-            let (child, pending) = self.check_intermediate(
-                dependency,
-                target,
-                state.comparison.expect("inspection has an existing parent"),
-                state.depth + 1,
-            );
+            let Inspection {
+                outcome: child,
+                pending,
+                needs_rebuild,
+            } = self.check_intermediate(dependency, target, state.comparison, state.depth + 1);
+            if needs_rebuild {
+                state
+                    .intermediate_stale
+                    .get_or_insert_default()
+                    .insert(index);
+                state.stale |= !occurrence.order_only;
+            }
             if pending {
                 state.inspections.insert(index, (epoch, child));
             } else {
@@ -3545,6 +3629,7 @@ impl Engine {
             mut stale,
             mut outcome,
             dropped,
+            intermediate_stale,
             ..
         } = state;
         if !self.aliases.is_empty() {
@@ -3578,7 +3663,7 @@ impl Engine {
         self.apply_graph_abort(&mut outcome);
         let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
         let mut newer = Vec::new();
-        for occurrence in &rule.dependencies {
+        for (index, occurrence) in rule.dependencies.iter().enumerate() {
             let dependency = &occurrence.name;
             if dependency == b".WAIT" || dropped.contains(dependency) {
                 continue;
@@ -3593,9 +3678,19 @@ impl Engine {
             outcome.blocked |= child.failed;
             outcome.question_outdated |= child.question_outdated;
             let order_only = !normal_names.contains(dependency.as_slice());
-            if !order_only && self.prerequisite_stale(comparison, child) {
-                stale = true;
-                newer.push(dependency.clone());
+            let inspected_stale = intermediate_stale
+                .as_ref()
+                .is_some_and(|edges| edges.contains(&index));
+            if !order_only {
+                stale |= inspected_stale;
+                // GNU's serial path retains the missing-middle changed bit;
+                // parallel completion projects $? from the final timestamp.
+                if self.prerequisite_stale(comparison, child)
+                    || (inspected_stale && !self.parallel_graph())
+                {
+                    stale = true;
+                    newer.push(dependency.clone());
+                }
             }
         }
         if stale && !outcome.failed && !outcome.question_outdated {

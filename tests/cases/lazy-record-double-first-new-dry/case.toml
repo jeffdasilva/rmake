@@ -1,0 +1,12 @@
+id = "lazy-record-double-first-new-dry"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "double first new dry"
+provenance = "Original rmake lazy rule-record fixture with fixed timestamps; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d782e6d69640a6563686f2066697273743d782e6d69643b206370202d7020666972737420782e6d69640a7365636f6e643d782e6d69640a6563686f207365636f6e643d782e6d69643b206370202d70207365636f6e6420782e6d69640a6563686f206f75743d6f75743b206370202d7020782e6d6964206f75740a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "lazy-record-group-double-restored-time-auto"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "Per-parent freshness evidence, query and materialization phase controls"
+provenance = "Original rmake rule-record boundary fixture; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d782e6d69640a66697273743d706565722e6d69640a66697273743d782e6d69640a7365636f6e643d782e6d69640a7365636f6e643d706565722e6d69640a7365636f6e643d782e6d69640a6f75743d6f7574206368616e6765643d782e6d69640a"
+stderr_hex = ""

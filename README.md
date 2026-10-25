@@ -120,6 +120,8 @@ see [implicit secondary expansion](docs/implicit-secondary-expansion.md).
 over fixed-time files; see [GPATH behavior and measurements](docs/gpath.md).
 `BENCH_SUITE=intermediates` measures lazy inspection of missing intermediates
 with current outputs; see [intermediate-file policy](docs/intermediate-policy.md).
+`BENCH_SUITE=lazy-records` measures grouped and double-colon intermediate
+inspection; see [lazy rule records](docs/lazy-rule-records.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -159,6 +161,8 @@ Failed-search observations share the [filesystem invalidation boundaries](docs/i
 used by directory queries, so commands and writes can make a rejected input viable.
 [Intermediate-file policy](docs/intermediate-policy.md) handles global/named
 secondary and not-intermediate precedence, conflicts and lazy missing-file checks.
+[Lazy rule records](docs/lazy-rule-records.md) preserve grouped peer phases,
+double-colon head inspection, cycle removal and parent rebuild evidence.
 `make test-secondary` runs a seeded graph campaign with mixed variable scopes.
 See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
 empty-shell behavior and the remaining newline/complex-flag boundaries.

@@ -1,0 +1,12 @@
+id = "lazy-record-group-parent-scope"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "group parent scope"
+provenance = "Original rmake lazy rule-record fixture with fixed timestamps; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a383a202a2a2a206d756c7469706c6520746172676574207061747465726e732e202053746f702e0a"

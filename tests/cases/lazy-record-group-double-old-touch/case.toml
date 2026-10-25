@@ -1,0 +1,12 @@
+id = "lazy-record-group-double-old-touch"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "group double old touch"
+provenance = "Original rmake lazy rule-record fixture with fixed timestamps; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d782e6d69640a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

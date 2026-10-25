@@ -1,0 +1,12 @@
+id = "lazy-record-cycle-single-parallel"
+requirement = "rules.lazy-records"
+candidate = "required"
+description = "cycle single parallel"
+provenance = "Original rmake lazy rule-record fixture with fixed timestamps; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-j2"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d782e6d69640a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = "6d616b653a2043697263756c6172206e657874203c2d20782e6d696420646570656e64656e63792064726f707065642e0a"

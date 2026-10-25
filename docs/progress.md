@@ -1733,3 +1733,22 @@ lower elapsed medians on these workloads. Core startup/no-op controls are close;
 an expansion control is about 5% slower in both 101- and 201-sample runs and
 needs profiling. GNU remains faster. See [intermediate policy](intermediate-policy.md)
 for behavior, measurements and the open M4 gates.
+
+
+## Lazy grouped and double-colon rule records
+
+Separate inspection from materialization across missing/forced parents and
+peer phases. Inspect only the triggering group record or head double-colon
+branch, retain its expansion without replacing siblings, and persist cycle
+removal. Keep per-parent rebuild evidence even when later recipes restore old
+timestamps; preserve GNU's serial/parallel `$?` distinction and query stopping.
+Refresh final double-colon timestamps. Snapshot global secondary file records,
+freeze rule definitions before path setup, and preserve eval diagnostic loci.
+
+Add 143 original required cases (101 fail on preceding main), two stateful
+scenarios totaling nineteen invocations, and four repeated parallel freshness
+cases in CI. Corpus: 3,442 cases, with 3,430 required and 12 existing pending.
+Stateful: 56 scenarios / 186 invocations. The Makefile-driven `lazy-records`
+benchmark shows about 30% lower grouped elapsed time, about 22% higher double-colon
+cost from required work, and small core differences. GNU remains faster. See
+[lazy rule records](lazy-rule-records.md) for measurements and remaining M4 gates.

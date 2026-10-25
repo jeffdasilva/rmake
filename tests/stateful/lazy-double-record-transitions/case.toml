@@ -1,0 +1,84 @@
+id = "lazy-double-record-transitions"
+description = "Lazy rule records across query, removal, timestamp restoration and materialization"
+provenance = "Original rmake fixed-time scenario; no upstream tests copied."
+initial = [{"op" = "write", "path" = "out", "content" = "output\n", "mtime_ns" = 1600000002000000000}, {"op" = "write", "path" = "first", "content" = "first\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "second", "content" = "second\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "inspect-head-only"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\nmake: 'out' is up to date.\n", "stderr" = ""}
+
+[[steps]]
+name = "late-branch-newer-ignored"
+actions = [{"op" = "write", "path" = "second", "content" = "new second\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "head-newer-query"
+actions = [{"op" = "write", "path" = "first", "content" = "new first\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000002000000000}
+expected = {"exit_code" = 1, "stdout" = "first=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "materialize-all-branches"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000004000000000, "x.mid" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\nfirst\nsecond=x.mid\nsecond\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "existing-middle-final-time"
+actions = [{"op" = "write", "path" = "first", "content" = "newer first\n", "mtime_ns" = 1600000006000000000}, {"op" = "write", "path" = "second", "content" = "old second\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000, "x.mid" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\nfirst\nsecond=x.mid\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "missing-middle-restores-old-date"
+actions = [{"op" = "remove", "path" = "x.mid"}, {"op" = "write", "path" = "first", "content" = "newest first\n", "mtime_ns" = 1600000008000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000000000000000, "x.mid" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\nfirst\nsecond=x.mid\nsecond\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "restored-old-date-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out", "x.mid"]
+exact_mtime = {"out" = 1600000000000000000, "x.mid" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "first=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "existing-middle-rebuild"
+actions = []
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000008000000000, "x.mid" = 1600000008000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\nfirst\nsecond=x.mid\nout changed=x.mid\n", "stderr" = ""}
+
+[[steps]]
+name = "late-head-source-missing-fails"
+actions = [{"op" = "remove", "path" = "first"}, {"op" = "remove", "path" = "x.mid"}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000008000000000}
+expected = {"exit_code" = 2, "stdout" = "first=x.mid\n", "stderr" = "make: *** No rule to make target 'first', needed by 'x.mid'.  Stop.\n"}
+
+[[steps]]
+name = "restore-head-input"
+actions = [{"op" = "write", "path" = "first", "content" = "restored\n", "mtime_ns" = 1600000010000000000}]
+args = ["-rR", "--no-print-directory", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000000000000000, "x.mid" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "first=x.mid\nfirst\nsecond=x.mid\nsecond\nout changed=x.mid\n", "stderr" = ""}
