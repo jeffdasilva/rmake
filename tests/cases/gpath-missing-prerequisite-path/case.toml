@@ -1,0 +1,12 @@
+id = "gpath-missing-prerequisite-path"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "missing prerequisite path"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027616273656e74272c206e656564656420627920277372632f666f6f2e6f7574272e202053746f702e0a"

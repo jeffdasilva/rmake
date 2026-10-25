@@ -10,6 +10,7 @@ use std::process::ExitCode;
 mod cli;
 mod command_variables;
 mod engine;
+mod file_aliases;
 mod makefiles;
 mod oneshell;
 mod process;

@@ -6,6 +6,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import statistics
@@ -75,6 +76,21 @@ def selected_workloads(suite):
         yield from secondary_workloads()
     if suite in ("implicit-rejections", "all"):
         yield from implicit_rejection_workloads()
+    if suite in ("gpath", "all"):
+        yield from gpath_workloads()
+
+
+def gpath_workloads():
+    """Permanent path lookup and alias reuse, with real no-op input files."""
+    names = [f'gpath-node{index:04d}.out' for index in range(1000)]
+    prelude = 'VPATH = inputs\nGPATH = inputs\n'
+    for aliases in (False, True):
+        goals = names + (['inputs/' + name for name in names] if aliases else [])
+        source = prelude + 'all: ' + ' '.join(goals) + ' ;\n'
+        source += ''.join(name + ': ;\n' for name in names)
+        yield 'gpath-aliases-1000' if aliases else 'gpath-explicit-1000', source.encode()
+    yield 'gpath-implicit-400', (prelude + 'all: ' + ' '.join(names[:400])
+                                + ' ;\n%.out: %.in ;\n').encode()
 
 
 def implicit_rejection_workloads():
@@ -220,6 +236,17 @@ def prepare_files(path, workload):
         else:
             count, payload = map(int, workload.removeprefix('archive-payload-').split('-'))
         return prepare_archive(path / 'lib.a', count, payload)
+    if workload.startswith('gpath-'):
+        inputs = path / 'inputs'
+        inputs.mkdir(exist_ok=True)
+        count = 400 if workload == 'gpath-implicit-400' else 1000
+        for index in range(count):
+            for extension in ('out', 'in'):
+                filename = inputs / f'gpath-node{index:04d}.{extension}'
+                filename.write_bytes(b'original\n')
+                os.utime(filename, ns=(1600000000000000000, 1600000000000000000))
+        return {'files': count * 2, 'mtime_ns': 1600000000000000000,
+                'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if workload.startswith('vpath-'):
         inputs = path / 'inputs'
         inputs.mkdir(exist_ok=True)
@@ -256,7 +283,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

@@ -1,0 +1,68 @@
+id = "gpath-rebuild-location"
+description = "GPATH rebuild placement across no-op, query, missing search results, local precedence and policy changes"
+provenance = "Original rmake Makefile and fixed-time eight-step scenario; no upstream tests copied."
+initial = [{"op" = "write", "path" = "src/foo.out", "content" = "old\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "input", "content" = "first\n", "mtime_ns" = 1600000002000000000}]
+
+[[steps]]
+name = "build-searched-file"
+actions = []
+args = ["-rR", "--no-print-directory", "foo.out"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out\n", "stderr" = ""}
+
+[[steps]]
+name = "unchanged-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"src/foo.out" = 1600000002000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "newer-input-query"
+actions = [{"op" = "write", "path" = "input", "content" = "second\n", "mtime_ns" = 1600000004000000000}]
+args = ["-rR", "--no-print-directory", "-q", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"src/foo.out" = 1600000002000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-searched-file"
+actions = []
+args = ["-rR", "--no-print-directory", "foo.out"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out\n", "stderr" = ""}
+
+[[steps]]
+name = "missing-search-result-builds-local"
+actions = [{"op" = "remove", "path" = "src/foo.out"}]
+args = ["-rR", "--no-print-directory", "foo.out"]
+unchanged = []
+exact_mtime = {"foo.out" = 1600000004000000000}
+expected = {"exit_code" = 0, "stdout" = "built=foo.out\n", "stderr" = ""}
+
+[[steps]]
+name = "local-target-wins"
+actions = [{"op" = "write", "path" = "src/foo.out", "content" = "restored old\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "input", "content" = "third\n", "mtime_ns" = 1600000006000000000}]
+args = ["-rR", "--no-print-directory", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"foo.out" = 1600000006000000000, "src/foo.out" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "built=foo.out\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-local-returns-to-gpath"
+actions = [{"op" = "remove", "path" = "foo.out"}]
+args = ["-rR", "--no-print-directory", "foo.out"]
+unchanged = []
+exact_mtime = {"src/foo.out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "built=src/foo.out\n", "stderr" = ""}
+
+[[steps]]
+name = "clear-policy-builds-local"
+actions = [{"op" = "write", "path" = "input", "content" = "fourth\n", "mtime_ns" = 1600000008000000000}]
+args = ["-rR", "--no-print-directory", "GPATH=", "foo.out"]
+unchanged = ["src/foo.out"]
+exact_mtime = {"foo.out" = 1600000008000000000, "src/foo.out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "built=foo.out\n", "stderr" = ""}

@@ -594,6 +594,28 @@ impl VariableStore {
         }
     }
 
+    /// A file rename can merge explicit bindings after its pattern scope was
+    /// activated. Replace only that explicit layer, without replaying effects.
+    pub fn refresh_target_scope(&mut self, scope: &TargetScope) {
+        if let Some(layer) = self
+            .layers
+            .iter_mut()
+            .find(|layer| !layer.inherited && !layer.global && !layer.pattern)
+        {
+            layer.variables = Arc::clone(&scope.variables);
+        } else if !scope.variables.is_empty() {
+            self.layers.insert(
+                0,
+                VariableLayer {
+                    variables: Arc::clone(&scope.variables),
+                    inherited: false,
+                    global: false,
+                    pattern: false,
+                },
+            );
+        }
+    }
+
     /// Rebase a saved traversal context after an activation changed global
     /// metadata. Explicit scope snapshots remain independent of global changes.
     pub fn refresh_globals(&mut self, globals: &VariableStore) {
@@ -1178,6 +1200,16 @@ impl PatternVariable {
 }
 
 impl TargetScope {
+    /// File-record merging retains bindings already present on the destination.
+    pub fn merge_missing(&mut self, other: &Self) {
+        let variables = Arc::make_mut(&mut self.variables);
+        for (name, value) in other.variables.iter() {
+            variables
+                .entry(name.clone())
+                .or_insert_with(|| value.clone());
+        }
+    }
+
     /// The read context sees this target's earlier declarations over the current
     /// global definitions. Ancestors do not exist until dependency traversal.
     pub fn context(&self, globals: &VariableStore) -> VariableStore {

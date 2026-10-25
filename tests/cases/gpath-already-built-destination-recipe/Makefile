@@ -1,0 +1,7 @@
+seed := $(shell touch -d @1600000000 src/foo.out input; touch -d @1600000002 input)
+VPATH=src
+GPATH=src
+foo.out: input
+	@echo original=$@
+src/foo.out: input
+	@echo resolved=$@

@@ -1,0 +1,12 @@
+id = "gpath-global-expansion-fatal"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "global expansion fatal"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a207365617263682d706f6c6963792e202053746f702e0a"

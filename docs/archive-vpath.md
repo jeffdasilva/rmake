@@ -56,3 +56,7 @@ alias and directory-cache behavior, implicit secondary expansion, per-clause
 static stems and the remaining archive format/fault matrix are still open.
 Persistent dependency-graph caching remains deferred until its invalidation
 contract can be validated.
+
+Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
+selected alias/parallel interactions. Earlier corpus counts and open-work lists
+above describe this document's original slice; M4 still has broader open gates.

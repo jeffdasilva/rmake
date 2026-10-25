@@ -1,0 +1,12 @@
+id = "gpath-child-inherits-moved-scope"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "child inherits moved scope"
+provenance = "Original rmake GPATH alias, lifecycle and archive fixture; independently authored bytes, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d6d6f7665640a403d5b7372632f666f6f2e6f75745d202a3d5b5d203c3d5b6368696c645d205e3d5b6368696c645d202b3d5b6368696c645d207c3d5b5d20253d5b5d20563d5b6d6f7665645d0a"
+stderr_hex = ""

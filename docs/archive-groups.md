@@ -46,3 +46,7 @@ explicit implementation limitation. This slice does not complete M4.
 
 [Archive-first VPATH resolution](archive-vpath.md) is now implemented as a
 separate slice; GPATH/permanent renaming and the other remaining M4 gates are open.
+
+Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
+selected alias/parallel interactions. Earlier corpus counts and open-work lists
+above describe this document's original slice; M4 still has broader open gates.

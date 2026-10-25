@@ -1,0 +1,12 @@
+id = "gpath-delete-on-error"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "delete on error"
+provenance = "Original rmake GPATH file-identity fixture with fixed timestamps; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a373a207372632f666f6f2e6f75745d204572726f7220370a6d616b653a202a2a2a2044656c6574696e672066696c6520277372632f666f6f2e6f7574270a"
