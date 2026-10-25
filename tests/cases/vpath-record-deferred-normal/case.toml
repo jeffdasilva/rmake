@@ -1,0 +1,12 @@
+id = "vpath-record-deferred-normal"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: deferred-normal"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "64657374696e6174696f6e3d7372632f666f6f2f2f2f6f726967696e616c2f61637475616c0a736f757263653d7372632f666f6f2f696e7075742f696e7075740a6275696c643d7372632f666f6f3a696e7075740a616c6c3d7372632f666f6f2066697273743d7372632f666f6f0a"
+stderr_hex = ""

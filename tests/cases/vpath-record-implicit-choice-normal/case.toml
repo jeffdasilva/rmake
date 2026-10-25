@@ -1,0 +1,12 @@
+id = "vpath-record-implicit-choice-normal"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: implicit-choice-normal"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6561663d7372632f6974656d2e6561726c790a6561726c793d6974656d2e6f75743a7372632f6974656d2e6561726c790a"
+stderr_hex = ""

@@ -114,3 +114,7 @@ independently authored Rust conversion and extraction tools, and record the
 The [default-recipe notes](default-recipes.md) record the GNU Make 4.4.1
 `src/implicit.c` reference used to clarify selected-pattern special flags.
 The Rust implementation and default-recipe differential fixtures are original.
+
+The [declared VPATH record notes](vpath-file-records.md) record eligibility,
+lookup spelling, record merging and traversal-phase references used for the
+independently authored Rust follow-up and original fixtures.

@@ -23,7 +23,10 @@ controls exercise both missing candidates and an existing alternate filename.
 
 ## File records and parallel jobs
 
-Permanent aliases are separate from tentative VPATH names. Renaming moves a
+File-record aliases are separate from tentative VPATH names. A subsequent
+[declared-record slice](vpath-file-records.md) also permits ordinary VPATH searches
+to merge into existing filename records. GPATH additionally keeps new identities.
+Renaming moves a
 rule's dependencies, recipe metadata, explicit filename role and variable scope.
 Merging into an existing record retains its recipe and bindings, appends source
 prerequisites and fills missing bindings. Recipe conflicts produce GNU's three
@@ -33,7 +36,9 @@ flags have dedicated fixtures. Canonical names reach duplicate prerequisite
 projection, cycle detection, goals and automatic values.
 
 An already visited destination can be evaluated again when a newly visited
-original name merges into it. GNU can even start another recipe while the
+command-line goal merges into it. Prerequisite/peer merges occur before the
+already-considered check and reuse completed destinations, as clarified by the
+[declared-record follow-up](vpath-file-records.md). GNU can even start another recipe while the
 first recipe for that resulting name is running. Each worker now has a private
 completion identity and continuation. A primary table serves ordinary jobs; a
 separate table retains overlapping workers only when needed. Slot accounting,

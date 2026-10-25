@@ -1,0 +1,12 @@
+id = "vpath-record-source-mention-only-control-parallel"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: source-mention-only-control-parallel"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f726967696e616c3d666f6f0a616c6c3d666f6f2066697273743d666f6f0a"
+stderr_hex = ""

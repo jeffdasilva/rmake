@@ -1,0 +1,12 @@
+id = "vpath-record-secondary-implicit-chain"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: secondary-implicit-chain"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6561663d7372632f6974656d2e696e0a6d6964646c653d6974656d2e6d69643a7372632f6974656d2e696e0a66696e616c3d6974656d2e6f75743a6974656d2e6d69640a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "vpath-record-grouped-normal"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: grouped-normal"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "67726f75703d7372632f666f6f3a696e7075740a616c6c3d7372632f666f6f206261720a"
+stderr_hex = ""

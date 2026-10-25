@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -103,6 +103,28 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'absent.a(member '), count)
             self.assertNotIn(b'$(shell', source)
             self.assertTrue(source.endswith(b'all:;\n'))
+
+    def test_vpath_records_prepare_current_inputs_and_separate_outputs(self):
+        from pathlib import Path
+        import tempfile
+        workloads = list(benchmark.selected_workloads('vpath-records'))
+        self.assertEqual([name for name, _ in workloads],
+                         ['vpath-record-explicit-1000', 'vpath-record-aliases-1000',
+                          'vpath-record-implicit-400'])
+        for name, source in workloads:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory)
+                fixture = benchmark.prepare_files(path, name)
+                files = list((path / 'records').iterdir())
+                outputs = list(path.glob('*.out'))
+                self.assertEqual(len(files), fixture['inputs'])
+                self.assertEqual(len(outputs), fixture['outputs'])
+                self.assertTrue(all(file.read_bytes() == b'original\n'
+                                    and file.stat().st_mtime_ns == fixture['mtime_ns']
+                                    for file in files + outputs))
+                self.assertFalse(list(path.glob('*.in')))
+                self.assertEqual(source.count(b'.in: ;'), fixture['inputs'])
+                self.assertNotIn(b'$(shell', source)
 
     def test_lazy_record_inputs_keep_outputs_current_and_peers_absent(self):
         from pathlib import Path

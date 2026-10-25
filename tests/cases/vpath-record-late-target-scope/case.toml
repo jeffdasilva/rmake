@@ -1,0 +1,12 @@
+id = "vpath-record-late-target-scope"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: late-target-scope"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f666f6f3a6c6174650a"
+stderr_hex = ""

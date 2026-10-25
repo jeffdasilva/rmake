@@ -1752,3 +1752,27 @@ Stateful: 56 scenarios / 186 invocations. The Makefile-driven `lazy-records`
 benchmark shows about 30% lower grouped elapsed time, about 22% higher double-colon
 cost from required work, and small core differences. GNU remains faster. See
 [lazy rule records](lazy-rule-records.md) for measurements and remaining M4 gates.
+
+
+## Declared VPATH file records
+
+Select eligible Makefile records even when their physical files are missing.
+Apply source/destination target eligibility before search priority, and merge
+ordinary VPATH results into existing records before rule/scope lookup. Retain
+searched identity separately from an optional timestamp, including archive
+container selection. Preserve lexical lookup/hash spelling differences and strip
+leading dot components from rule names, prerequisites and command-line goals.
+
+Merge double-colon heads without transferring the source's later branches.
+Distinguish goal-phase alias reevaluation from prerequisite/peer reuse of already
+completed destinations. Cover ordinary VPATH overlapping workers, ignored and
+fatal failures, merged bindings, automatic variables and diagnostics.
+
+Add 160 original required cases (137 fail on the preceding main), four bounded
+parallel cases in the repeated CI gate, and a twelve-step stateful scenario with
+byte and timestamp anchors. Corpus: 3,602 cases, with 3,590 required matches and
+12 existing pending mismatches. Stateful: 57 scenarios / 198 invocations.
+The `vpath-records` benchmark shows about 4% lower alias-pair elapsed time, about
+16%/12% higher explicit/implicit lookup time and close core controls. GNU remains
+faster. See [declared VPATH records](vpath-file-records.md) for source references,
+measurement limits and the remaining M4 gates.

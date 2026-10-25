@@ -1,0 +1,12 @@
+id = "vpath-record-selective-dry"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: selective-dry"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f2073656c65637465643d7372632f666f6f0a6563686f20616c6c3d7372632f666f6f0a"
+stderr_hex = ""

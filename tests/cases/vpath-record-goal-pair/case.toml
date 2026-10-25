@@ -1,0 +1,12 @@
+id = "vpath-record-goal-pair"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: goal-pair"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "foo", "src/foo"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f666f6f0a6d616b653a20277372632f666f6f2720697320757020746f20646174652e0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "vpath-record-implicit-leaf-dry"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: implicit-leaf-dry"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f2061637475616c3d7372632f6974656d2e696e3b206370202d7020696e707574207372632f6974656d2e696e0a6563686f20696d706c696369743d6974656d2e6f75743a7372632f6974656d2e696e3b206370202d70207372632f6974656d2e696e206974656d2e6f75740a"
+stderr_hex = ""

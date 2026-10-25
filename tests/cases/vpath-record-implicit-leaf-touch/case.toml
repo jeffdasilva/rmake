@@ -1,0 +1,12 @@
+id = "vpath-record-implicit-leaf-touch"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: implicit-leaf-touch"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-t", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368207372632f6974656d2e696e0a746f756368206974656d2e6f75740a"
+stderr_hex = ""

@@ -779,7 +779,20 @@ pub fn rule_filenames<'a>(
         .into_iter()
         .flatten()
         .map(Cow::Owned)
-        .chain(words(if archive { b"" } else { bytes }).map(Cow::Borrowed)))
+        .chain(words(if archive { b"" } else { bytes }).map(Cow::Borrowed))
+        .map(|name| match name {
+            Cow::Borrowed(bytes) => Cow::Borrowed(crate::filenames::without_dot_prefix(bytes)),
+            Cow::Owned(mut bytes) => {
+                let normalized = crate::filenames::without_dot_prefix(&bytes);
+                if bytes.ends_with(normalized) {
+                    let skip = bytes.len() - normalized.len();
+                    bytes.drain(..skip);
+                } else {
+                    bytes = normalized.to_vec();
+                }
+                Cow::Owned(bytes)
+            }
+        }))
 }
 
 fn parsed_rule_filenames<'a>(
@@ -2424,6 +2437,11 @@ impl Database {
                             })?
                     } else {
                         name.to_vec()
+                    };
+                    let name = if name.is_empty() || name.starts_with(b"./") {
+                        crate::filenames::without_dot_prefix(&name).to_vec()
+                    } else {
+                        name
                     };
                     if !declaration.patterns.contains_key(target) {
                         self.explicit_names.insert(name.clone());

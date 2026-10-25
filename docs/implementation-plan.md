@@ -23,7 +23,10 @@ adds global/named precedence, conflict validation and lazy missing-file guards,
 with 183 original cases and two stateful scenarios totaling nineteen invocations.
 The [lazy rule-record slice](lazy-rule-records.md) adds grouped/double-colon
 inspection, per-parent rebuild evidence, cycle persistence and frozen setup rules,
-with 143 original cases and two more stateful scenarios. These do not complete M4.
+with 143 original cases and two more stateful scenarios. The
+[declared VPATH record slice](vpath-file-records.md) adds missing-output selection,
+ordinary record merges and phase-specific alias reuse, with 160 original cases
+and a twelve-step stateful scenario. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

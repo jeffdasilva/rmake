@@ -1,0 +1,12 @@
+id = "vpath-record-aliases-duplicate"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: aliases-duplicate"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f666f6f0a6e6f726d616c3d7372632f666f6f20706c75733d7372632f666f6f207372632f666f6f207372632f666f6f2066697273743d7372632f666f6f0a"
+stderr_hex = ""

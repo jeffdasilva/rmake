@@ -1,0 +1,12 @@
+id = "vpath-record-implicit-leaf-always"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: implicit-leaf-always"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-B", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f6974656d2e696e0a696d706c696369743d6974656d2e6f75743a7372632f6974656d2e696e0a"
+stderr_hex = ""

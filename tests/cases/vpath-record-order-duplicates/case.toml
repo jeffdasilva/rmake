@@ -1,0 +1,12 @@
+id = "vpath-record-order-duplicates"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH record boundary: order-duplicates"
+provenance = "Original rmake file-record boundary fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61637475616c3d7372632f666f6f0a6e6f726d616c3d7372632f666f6f20706c75733d7372632f666f6f206f726465723d0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "vpath-record-absent-directory-record"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: absent directory still has a declared record"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "73656c65637465643d6e6f77686572652f666f6f0a"
+stderr_hex = ""

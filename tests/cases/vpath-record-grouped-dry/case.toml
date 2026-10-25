@@ -1,0 +1,12 @@
+id = "vpath-record-grouped-dry"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Declared VPATH file-record lookup: grouped-dry"
+provenance = "Original rmake file-record fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f2067726f75703d7372632f666f6f3a696e7075743b206370202d7020696e707574207372632f666f6f3b206370202d7020696e707574206261720a6563686f20616c6c3d7372632f666f6f206261720a"
+stderr_hex = ""
