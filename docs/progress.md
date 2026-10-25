@@ -1722,11 +1722,14 @@ not-intermediate settings, while preserving cleanup protection. Skip a missing
 no-rule intermediate only while its existing parent remains current; a later
 required materialization still diagnoses missing inputs.
 
-Add 155 original required cases (51 fail on preceding main) and a twelve-step
-fixed-time scenario. Corpus: 3,271 cases, with 3,259 required and 12 existing
-pending. Stateful: 53 scenarios / 160 invocations. The top-level Makefile adds
+Add 183 original required cases (64 fail on preceding main) and a twelve-step
+fixed-time scenario, plus a seven-step implicit-secondary search scenario.
+Inspection performs rule search and retains expanded ordinary clauses to avoid
+replaying effects when materialization becomes necessary. Corpus: 3,299 cases,
+with 3,287 required and 12 existing pending. Stateful: 54 scenarios / 167 invocations. The top-level Makefile adds
 an `intermediates` benchmark suite over current physical outputs and missing
-middles, with no child recipes. A 101-sample paired run shows roughly 18-20%
-lower elapsed medians on these workloads, small core differences and GNU still
-faster. See [intermediate policy](intermediate-policy.md)
+middles, with no child recipes. A 101-sample paired run shows about 19%
+lower elapsed medians on these workloads. Core startup/no-op controls are close;
+an expansion control is about 5% slower in both 101- and 201-sample runs and
+needs profiling. GNU remains faster. See [intermediate policy](intermediate-policy.md)
 for behavior, measurements and the open M4 gates.

@@ -20,8 +20,8 @@ behavior, the archive format/fault matrix and remaining runtime profiles still
 block the compatibility path. The GPATH slice adds 118 required cases and an
 eight-step rebuild scenario. The [intermediate policy slice](intermediate-policy.md)
 adds global/named precedence, conflict validation and lazy missing-file guards,
-with 155 original cases and a twelve-step stateful scenario. These do not
-complete M4.
+with 183 original cases and two stateful scenarios totaling nineteen invocations.
+These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

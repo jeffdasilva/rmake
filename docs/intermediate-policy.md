@@ -27,6 +27,12 @@ and enable its global setting. Original fixtures cover these forms and their
 conflicts. Deferred special-target prerequisites retain GNU's read-time flag
 behavior without executing skipped secondary-expansion effects.
 
+Lazy inspection still searches implicit candidates in the first parent's scope
+and evaluates ordinary deferred prerequisites. Expanded clauses are retained so
+a subsequent required build does not replay their effects. A separate seven-step
+stateful scenario checks implicit secondary search, query, removal, restoration
+and forced rebuilding.
+
 The policy module owns invocation-local name indexes and booleans. It does not
 cache graph freshness, expansion results or filesystem observations. Lazy visits
 leave unmaterialized files available for a later required build. Existing graph
@@ -36,8 +42,8 @@ Make and rmake.
 
 ## Validation and remaining work
 
-There are 155 new original required cases under `rules.intermediate-policy`.
-The preceding `5440bff` release fails 51 and passes 104. Fixtures cover old/new/
+There are 183 new original required cases under `rules.intermediate-policy`.
+The preceding `5440bff` release fails 64 and passes 119. Fixtures cover old/new/
 missing inputs and outputs, no-rule leaves, named/global precedence, normal/dry/
 query/touch/always/parallel modes, errors and effect order, double-colon branches,
 includes/restarts, pattern and GPATH controls, and special-name records.
@@ -45,12 +51,13 @@ includes/restarts, pattern and GPATH controls, and special-name records.
 The twelve-step `intermediate-policy-transitions` stateful scenario independently
 checks bytes and exact timestamps across no-op/query runs, missing leaves, forced
 failure, new input, materialization, removal and changes of policy between runs.
-It is part of `make test-stateful` and CI. Corpus: 3,271 cases, with 3,259 required
+Both stateful scenarios are part of `make test-stateful` and CI. Corpus: 3,299 cases, with 3,287 required
 candidate matches and 12 pre-existing pending mismatches. Stateful coverage:
-53 scenarios / 160 invocations. No upstream implementation or tests were copied;
+54 scenarios / 167 invocations. No upstream implementation or tests were copied;
 GNU 4.4.1 source was consulted as a behavior reference.
 
-This is another M4 slice. Wider file-record aliases and metadata, directory-cache
+This is another M4 slice. Deferred grouped/double-colon middles retain their existing traversal path;
+broader lazy treatment remains open. Wider file-record aliases and metadata, directory-cache
 interactions, descendant scope refresh after late merges, intermediate lifecycle
 combinations, archive format/fault coverage and remaining runtime/compatibility
 profiles still need work. These test counts do not enumerate every remaining gap.
@@ -68,24 +75,30 @@ extra attempted work produces the same streams/status and leaves these files
 unchanged, so the three engines can be compared; this convergence does not imply
 that the previous implementation had correct policy semantics.
 
-A local 101-sample alternating paired comparison against `5440bff` measured:
+A local alternating paired comparison against `5440bff` used 101 samples for
+intermediate workloads and 201 for the core controls:
 
 | Workload | Current rmake (ms) | Previous rmake (ms) | GNU 4.4.1 (ms) |
 | --- | ---: | ---: | ---: |
-| 1,000 missing secondary middles | 8.477 | 10.602 | 3.753 |
-| 1,000 named middles with global not-intermediate | 8.742 | 10.602 | 3.796 |
-| Startup | 0.718 | 0.724 | 0.666 |
-| 10,000 ordinary no-op targets | 33.876 | 33.791 | 12.190 |
-| 5,000 expansion assignments | 5.859 | 5.806 | 3.725 |
+| 1,000 missing secondary middles | 7.697 | 9.522 | 3.265 |
+| 1,000 named middles with global not-intermediate | 7.967 | 9.783 | 3.395 |
+| Startup | 0.716 | 0.712 | 0.639 |
+| 10,000 ordinary no-op targets | 31.055 | 31.001 | 11.908 |
+| 5,000 expansion assignments | 5.139 | 4.901 | 3.016 |
 
-The selected lazy workloads have roughly 18-20% lower elapsed medians; ordinary
-core differences are small. Current release SHA256:
-`a5ddded3ca1f1bda9f56c206a920629c9246c0b8fc7c987ec61916db8eda343d`. Previous release SHA256:
+The selected lazy workloads have about 19% lower elapsed medians. Startup and
+ordinary no-op results are close; the expansion control is about 5% slower.
+An initial 101-sample core run also showed a similar expansion cost (5.058 ms
+current versus 4.809 ms previous); the 201-sample follow-up retains that concern.
+This mixed result needs profiling and does not establish a general performance
+improvement. Current release SHA256:
+`73169175d4ea74fa042bc316ff06a604a98192b4596440b8214e796fbf7e6ef5`. Previous release SHA256:
 `c2494df18874ddb25fc8a4eab4bf567ec89b2298980951459ddb6064a30383b2`.
 
 Reports retain raw samples, source hashes, arguments, profile and executable
 identities. They are ignored artifacts `artifacts/bench/intermediate-policy-101.json`
-and `artifacts/bench/intermediate-policy-core-101.json`. Measurements include
+and `artifacts/bench/intermediate-policy-core-201.json`, with the first core run
+retained as `intermediate-policy-core-initial-101.json` in that directory. Measurements include
 startup, two warmups per engine, warm OS caches and alternating engine order,
 with exact output/status checks. There is no CPU isolation, confidence interval,
 CPU/RSS/I/O profile or performance acceptance threshold. GNU remains faster on

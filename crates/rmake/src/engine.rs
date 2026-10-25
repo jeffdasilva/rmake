@@ -1658,7 +1658,20 @@ impl Engine {
             let outcome = self.build(target, Some(parent), depth);
             return (outcome, self.pending(target));
         }
-        let Some(rule) = self.database.rules.get(target).cloned() else {
+        self.scope_parents
+            .entry(target.to_vec())
+            .or_insert_with(|| Some(parent.to_vec()));
+        if !self.resolve_implicit(target) {
+            return (
+                Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..Outcome::default()
+                },
+                false,
+            );
+        }
+        let Some(mut rule) = self.database.rules.get(target).cloned() else {
             // A missing intermediate without a recipe can remain absent while
             // its existing parent is current. Materialization checks it again
             // if another prerequisite makes the parent stale.
@@ -1670,12 +1683,23 @@ impl Engine {
                 false,
             );
         };
-        self.scope_parents
-            .entry(target.to_vec())
-            .or_insert_with(|| Some(parent.to_vec()));
         if rule.secondary.is_some() {
-            let outcome = self.build(target, Some(parent), depth);
-            return (outcome, self.pending(target));
+            if rule.group.is_some() || rule.double_colon.is_some() {
+                let outcome = self.build(target, Some(parent), depth);
+                return (outcome, self.pending(target));
+            }
+            if let Err(error) = self.expand_dependencies(target, &mut rule) {
+                self.expansion_error(rule.prerequisite_location.as_ref(), &error);
+                return (
+                    Outcome {
+                        failed: true,
+                        fatal: true,
+                        ..Outcome::default()
+                    },
+                    false,
+                );
+            }
+            self.store_expanded_rule(target, rule.clone());
         }
         let mut result = Outcome {
             time: Some(time),
