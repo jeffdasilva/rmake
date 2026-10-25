@@ -1,0 +1,9 @@
+seed := $(shell touch -d @1600000000 out; touch -d @1600000000 src/mid; touch -d @1600000002 input)
+VPATH=src
+GPATH=src
+.SECONDARY:
+all: out
+out: mid
+	@echo out=$@; cp -p $< $@
+mid: input
+	@echo mid=$@; cp -p $< $@

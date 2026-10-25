@@ -1,0 +1,12 @@
+id = "intermediate-policy-empty-intermediate-control-query"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "empty intermediate control query"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

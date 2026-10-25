@@ -1,0 +1,12 @@
+id = "intermediate-policy-ordinary-control-normal"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "ordinary control normal"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d69643d6d69640a"
+stderr_hex = ""

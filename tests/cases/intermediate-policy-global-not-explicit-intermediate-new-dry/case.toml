@@ -1,0 +1,12 @@
+id = "intermediate-policy-global-not-explicit-intermediate-new-dry"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "global not explicit intermediate new dry"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f206d69643d6d69643b206370202d7020696e707574206d69640a6563686f206f75743d6f75743b206370202d70206d6964206f75740a"
+stderr_hex = ""

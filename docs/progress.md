@@ -1710,3 +1710,23 @@ prefixes through automatic variables without child launches. The original
 52 stateful scenarios / 148 invocations. A 101-sample local paired run shows
 about 3% gains on explicit/alias GPATH workloads, with implicit/mixed/core results
 close and GNU still faster. See [filename storage measurements](gpath-name-storage.md).
+
+
+## Intermediate-file policy and lazy missing files
+
+Compile named and global intermediate policy once after each Makefile read,
+including double-colon branches and special filename records entered by mentions
+or scoped assignments. Diagnose incompatible flags before VPATH/GPATH expansion.
+Honor global secondary lazy inspection and named precedence over global
+not-intermediate settings, while preserving cleanup protection. Skip a missing
+no-rule intermediate only while its existing parent remains current; a later
+required materialization still diagnoses missing inputs.
+
+Add 155 original required cases (51 fail on preceding main) and a twelve-step
+fixed-time scenario. Corpus: 3,271 cases, with 3,259 required and 12 existing
+pending. Stateful: 53 scenarios / 160 invocations. The top-level Makefile adds
+an `intermediates` benchmark suite over current physical outputs and missing
+middles, with no child recipes. A 101-sample paired run shows roughly 18-20%
+lower elapsed medians on these workloads, small core differences and GNU still
+faster. See [intermediate policy](intermediate-policy.md)
+for behavior, measurements and the open M4 gates.

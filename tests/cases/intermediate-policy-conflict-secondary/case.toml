@@ -1,0 +1,12 @@
+id = "intermediate-policy-conflict-secondary"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "conflict secondary"
+provenance = "Original rmake fixed-time intermediate-policy fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20756e757365642063616e6e6f7420626520626f7468202e4e4f54494e5445524d45444941544520616e64202e5345434f4e444152592e202053746f702e0a"
