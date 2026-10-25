@@ -1,0 +1,12 @@
+id = "gpath-include-optional-goal"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "Makefile records bypass path search; rebuilt includes restart with fresh GPATH policy"
+provenance = "Original rmake Makefile-path and restart fixture, no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027636f6e6669672e6d6b272c206e65656465642062792027616c6c272e202053746f702e0a"

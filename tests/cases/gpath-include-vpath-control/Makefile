@@ -1,0 +1,4 @@
+seed := $(shell touch -d @1600000000 src/config.mk)
+VPATH=src
+include config.mk
+all:;@echo value=$(VALUE) restarts=$(MAKE_RESTARTS)

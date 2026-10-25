@@ -17,7 +17,7 @@ slices of M4, including archive-first VPATH resolution, per-clause explicit
 secondary expansion, implicit candidate secondary expansion and
 [GPATH permanent filenames](gpath.md). Broader file-record and directory-cache
 behavior, the archive format/fault matrix and remaining runtime profiles still
-block the compatibility path. The GPATH slice adds 111 required cases and an
+block the compatibility path. The GPATH slice adds 118 required cases and an
 eight-step rebuild scenario; it does not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 

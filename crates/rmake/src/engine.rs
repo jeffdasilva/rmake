@@ -483,6 +483,7 @@ pub struct Engine {
     optional_remake_failures: HashSet<Vec<u8>>,
     vpath_dirs: Vec<Vec<u8>>,
     gpath_dirs: HashSet<Vec<u8>>,
+    makefile_names: HashSet<Vec<u8>>,
     aliases: Aliases,
     path_observations: HashMap<Vec<u8>, PathObservation>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
@@ -832,6 +833,7 @@ impl Engine {
             optional_remake_failures: HashSet::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
+            makefile_names: HashSet::new(),
             aliases: Aliases::default(),
             path_observations: HashMap::new(),
             resolved_names: HashMap::new(),
@@ -1254,6 +1256,12 @@ impl Engine {
                 .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
                 .filter(|path| !path.is_empty())
                 .map(Vec::from)
+                .collect();
+            self.makefile_names = self
+                .database
+                .makefiles
+                .iter()
+                .map(|file| file.name.clone())
                 .collect();
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
@@ -1879,6 +1887,7 @@ impl Engine {
             return Ok(Some(self.aliases.resolve(target).to_vec()));
         }
         if self.gpath_dirs.is_empty()
+            || self.makefile_names.contains(target)
             || self.path_observations.contains_key(target)
             || self.done.contains_key(target)
             || self.pending(target)
@@ -2065,6 +2074,13 @@ impl Engine {
         Ok(())
     }
 
+    // Makefile records remain local even when optional reading failed. Their
+    // prerequisites can still use the ordinary VPATH/GPATH search policy.
+    fn vpath_searchable(&self, target: &[u8]) -> bool {
+        (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
+            && !self.makefile_names.contains(target)
+    }
+
     fn find_vpath(&self, target: &[u8]) -> Option<(Option<Vec<u8>>, SystemTime)> {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             let path = self.archive_vpath(archive);
@@ -2087,6 +2103,9 @@ impl Engine {
         if let Some(time) = modified(target) {
             return Some((None, time));
         }
+        if !self.vpath_searchable(target) {
+            return None;
+        }
         self.database
             .vpath_directories(target)
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
@@ -2100,9 +2119,7 @@ impl Engine {
     /// archive wins even when it lacks that member; an existing local archive
     /// similarly prevents falling through to a different archive in VPATH.
     fn archive_vpath(&self, archive: &[u8]) -> Option<Vec<u8>> {
-        if (!self.database.has_vpaths() && self.vpath_dirs.is_empty())
-            || fs::metadata(os(archive)).is_ok()
-        {
+        if !self.vpath_searchable(archive) || fs::metadata(os(archive)).is_ok() {
             return None;
         }
         self.database
@@ -2121,11 +2138,12 @@ impl Engine {
             return self.find_vpath(target).is_some();
         }
         modified(target).is_some()
-            || self
-                .database
-                .vpath_directories(target)
-                .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-                .any(|directory| fs::metadata(os(&searched_name(directory, target))).is_ok())
+            || (self.vpath_searchable(target)
+                && self
+                    .database
+                    .vpath_directories(target)
+                    .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+                    .any(|directory| fs::metadata(os(&searched_name(directory, target))).is_ok()))
     }
 
     fn implicit_known_file(&self, target: &[u8]) -> bool {
