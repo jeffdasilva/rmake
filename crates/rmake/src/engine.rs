@@ -1518,7 +1518,10 @@ impl Engine {
                         .as_ref()
                         .is_some_and(|branches| branches.iter().any(|rule| rule.recipes.is_some()))
             }) && !self.special(b".PHONY", goal, false);
-            let reported_goal = self.resolved_names.get(goal).map_or(goal, Vec::as_slice);
+            let reported_goal = self
+                .resolved_names
+                .get(identity)
+                .map_or(identity, Vec::as_slice);
             // Rehashing into a file already entered by a declaration or CLI
             // goal merges GNU's goal record; the old record has no summary.
             if reported_goal != goal
@@ -2070,7 +2073,6 @@ impl Engine {
         // merges it into this record; its first visit must still be evaluated.
         self.done.remove(to);
         self.aliases.insert(from, to, merged);
-        self.resolved_names.insert(from.to_vec(), to.to_vec());
         Ok(())
     }
 
@@ -2607,6 +2609,7 @@ impl Engine {
     }
 
     fn resolved_name(&self, name: &[u8]) -> Vec<u8> {
+        let name = self.aliases.resolve(name);
         self.resolved_names
             .get(name)
             .cloned()

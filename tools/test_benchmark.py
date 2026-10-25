@@ -109,13 +109,18 @@ class BenchmarkTests(unittest.TestCase):
         import tempfile
         workloads = list(benchmark.selected_workloads('gpath'))
         self.assertEqual([name for name, _ in workloads],
-                         ['gpath-explicit-1000', 'gpath-aliases-1000', 'gpath-implicit-400'])
+                         ['gpath-explicit-1000', 'gpath-aliases-1000', 'gpath-implicit-400', 'gpath-mixed-1000'])
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name, source in workloads:
                 fixture = benchmark.prepare_files(root, name)
                 count = 400 if name == 'gpath-implicit-400' else 1000
-                self.assertEqual(fixture['files'], count * 2)
+                extra = 1000 if name == 'gpath-mixed-1000' else 0
+                self.assertEqual(fixture['files'], count * 2 + extra)
+                if extra:
+                    filename = root / 'other' / 'ordinary-node0999.src'
+                    self.assertEqual(filename.read_bytes(), b'original\n')
+                    self.assertEqual(filename.stat().st_mtime_ns, fixture['mtime_ns'])
                 self.assertIn(b'GPATH = inputs\n', source)
                 for extension in ('out', 'in'):
                     filename = root / 'inputs' / f'gpath-node{count - 1:04d}.{extension}'
@@ -123,6 +128,8 @@ class BenchmarkTests(unittest.TestCase):
                     self.assertEqual(filename.stat().st_mtime_ns, fixture['mtime_ns'])
         self.assertIn(b'inputs/gpath-node0999.out', workloads[1][1])
         self.assertIn(b'%.out: %.in ;', workloads[2][1])
+        self.assertIn(b'$(filter inputs/%,$^)', workloads[3][1])
+        self.assertIn(b'$(filter other/%,$^)', workloads[3][1])
 
     def test_archive_workloads_include_sparse_object_payloads(self):
         import tempfile
