@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -24,6 +24,7 @@ MODE_CASE ?=
 DIAGNOSTIC_CASE ?=
 FILESYSTEM_CASE ?=
 WHITESPACE_CASE ?=
+ARCHIVE_TIME_CASE ?=
 SYMLINK_CASE ?=
 WORD_INDEX_CASE ?=
 WILDCARD_SEED ?= 441031
@@ -57,6 +58,7 @@ help:
 		'  test-secondary  Compare seeded deferred/static clauses with mixed scopes' \
 		'  test-filesystem  Compare Linux filesystem effects under injected faults' \
 		'  test-symlink-times  Compare default/-L timestamp observations under syscall faults' \
+		'  test-archive-times  Compare archive metadata, scan and completion I/O faults' \
 		'  test-directory-search  Compare shared directory/search observations and I/O faults' \
 		'  test-whitespace  Compare pure-function whitespace and effect ordering' \
 		'  test-word-index  Compare word and wordlist numeric boundaries and errors' \
@@ -152,6 +154,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FILESYSTEM_CASE=close-eio-write test-filesystem
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_CASE=stream-limit-and-exec test-directory-search
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SYMLINK_CASE=readlink-eintr-normal test-symlink-times
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" ARCHIVE_TIME_CASE=local-container-default-touch-read-header-eio test-archive-times
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WHITESPACE_CASE=let-final-remainder-0b test-whitespace
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WORD_INDEX_CASE=effect-wordlist-all-before-validation test-word-index
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WILDCARD_CASES=1 test-wildcards
@@ -201,6 +204,10 @@ test-symlink-times: build oracle-verify
 	$(PYTHON) tools/symlink_times.py --oracle "$(ORACLE)" --self-test $(if $(SYMLINK_CASE),--case "$(SYMLINK_CASE)")
 	$(PYTHON) tools/symlink_times.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(SYMLINK_CASE),--case "$(SYMLINK_CASE)")
 
+test-archive-times: build oracle-verify
+	$(PYTHON) tools/archive_times.py --oracle "$(ORACLE)" --self-test $(if $(ARCHIVE_TIME_CASE),--case "$(ARCHIVE_TIME_CASE)")
+	$(PYTHON) tools/archive_times.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(ARCHIVE_TIME_CASE),--case "$(ARCHIVE_TIME_CASE)")
+
 test-directory-search: build oracle-verify
 	$(PYTHON) tools/directory_search.py --oracle "$(ORACLE)" --self-test $(if $(DIRECTORY_CASE),--case "$(DIRECTORY_CASE)")
 	$(PYTHON) tools/directory_search.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(DIRECTORY_CASE),--case "$(DIRECTORY_CASE)")
@@ -217,9 +224,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-graph-progress
 
 ci: check test-selfhost
 

@@ -5,7 +5,6 @@
 import contextlib
 import copy
 import io
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -14,11 +13,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-SPEC = importlib.util.spec_from_file_location("conformance", Path(__file__).with_name("conformance.py"))
-assert SPEC and SPEC.loader
-runner = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = runner
-SPEC.loader.exec_module(runner)
+import conformance as runner
 
 
 class ManifestTests(unittest.TestCase):

@@ -159,3 +159,8 @@ The [library resolution notes](library-resolution.md) identify reader/file/searc
 references used by the independently written Rust and original tests. The pinned
 `.LIBPATTERNS` declaration extends the existing public database extraction under
 its FSF/GPL data attribution; no upstream implementation or tests were copied.
+
+The [archive observation notes](archive-observations.md) identify the GNU
+timestamp, header-I/O, hash-record and cleanup sources consulted for the
+independent implementation and original anchored/fault/stateful tests. No GNU
+implementation or upstream test code was incorporated.

@@ -2010,3 +2010,17 @@ fixtures and sixteen stateful invocations: 4,601 curated cases / 4,590 required 
 eleven historical pending, and 66 stateful scenarios / 303 invocations. M4 remains
 open for archive observation/recording, recursive HOME scratch behavior and its
 combined acceptance audit.
+
+## M4 archive observation and lifecycle follow-up
+
+Separate initial, candidate, completion and cleanup archive observations; retain
+unknown versus known-absent timestamps and serial/parallel parent behavior.
+Rehash temporary VPATH keys without changing recipe names; preserve collisions,
+growth and archive-container insertion/merge phases. Retry interrupted seek/read,
+propagate fatal cleanup metadata, and guard touch against pathname replacement.
+
+Add 38 required cases, 2,600 independent archive fault cells and a 14-step
+stateful transition scenario. Inventory is 4,639 curated / 4,628 required /
+eleven historical pending, 67 stateful scenarios / 317 invocations, 390 Rust /
+293 tooling tests. See [archive observations](archive-observations.md). M4
+continues with recursive HOME scratch behavior and its combined acceptance audit.

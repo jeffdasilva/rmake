@@ -6,6 +6,8 @@
 //! The fingerprint is the Jenkins three-lane string permutation used by the
 //! pinned Linux oracle. Numeric vectors are observations, not upstream tests.
 
+use std::collections::HashMap;
+
 #[derive(Clone)]
 pub struct FileRecords {
     // None is unused; an empty owned name is a deletion marker. Make filenames
@@ -13,6 +15,7 @@ pub struct FileRecords {
     slots: Vec<Option<Box<[u8]>>>,
     live: usize,
     empty: usize,
+    rehashed_names: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl Default for FileRecords {
@@ -21,6 +24,7 @@ impl Default for FileRecords {
             slots: vec![None; 1024],
             live: 0,
             empty: 1024,
+            rehashed_names: HashMap::new(),
         }
     }
 }
@@ -79,16 +83,61 @@ impl FileRecords {
         }
     }
 
-    pub fn rename(&mut self, from: &[u8], to: &[u8]) {
-        if from == to || from.is_empty() || to.is_empty() {
-            return;
+    /// Lookup spelling and recipe/cleanup spelling differ for tentative VPATH.
+    pub fn logical_name(&self, key: &[u8]) -> Option<&[u8]> {
+        self.rehashed_names.get(key).map(Vec::as_slice)
+    }
+
+    fn current_key(&self, name: &[u8]) -> Vec<u8> {
+        if self.contains(name) {
+            return name.to_vec();
         }
+        self.rehashed_names
+            .iter()
+            .find(|(_, original)| original.as_slice() == name)
+            .map_or_else(|| name.to_vec(), |(key, _)| key.clone())
+    }
+
+    fn move_key(&mut self, from: &[u8], to: &[u8]) {
         let (position, found) = self.position(from);
         if found {
             self.slots[position] = Some(Box::default());
             self.live -= 1;
         }
         self.insert(to);
+    }
+
+    pub fn rehash(&mut self, from: &[u8], to: &[u8]) {
+        if from == to || from.is_empty() || to.is_empty() {
+            return;
+        }
+        let key = self.current_key(from);
+        if key == to || self.contains(to) {
+            return;
+        }
+        let original = self
+            .rehashed_names
+            .remove(&key)
+            .unwrap_or_else(|| from.to_vec());
+        self.move_key(&key, to);
+        self.rehashed_names.insert(to.to_vec(), original);
+    }
+
+    pub fn rename(&mut self, from: &[u8], to: &[u8]) {
+        if from == to || from.is_empty() || to.is_empty() {
+            return;
+        }
+        let key = self.current_key(from);
+        if key == to {
+            self.rehashed_names.remove(to);
+            return;
+        }
+        let destination = self.contains(to);
+        self.rehashed_names.remove(&key);
+        self.move_key(&key, to);
+        if !destination {
+            self.rehashed_names.remove(to);
+        }
     }
 
     pub fn slots_len(&self) -> usize {
@@ -106,6 +155,7 @@ impl FileRecords {
         self.slots
             .iter()
             .filter_map(|name| name.as_deref().filter(|name| !name.is_empty()))
+            .map(|key| self.logical_name(key).unwrap_or(key))
     }
 }
 
@@ -165,6 +215,28 @@ mod tests {
         ] {
             assert_eq!(fingerprint(name), expected, "{name:?}");
         }
+    }
+
+    #[test]
+    fn tentative_keys_keep_recipe_names_until_a_permanent_rename() {
+        let mut records = FileRecords::default();
+        records.insert(b"input");
+        records.insert(b"other");
+        records.rehash(b"input", b"d/input");
+        assert!(!records.contains(b"input"));
+        assert!(records.contains(b"d/input"));
+        assert_eq!(records.logical_name(b"d/input"), Some(b"input".as_slice()));
+        assert!(records.names().any(|name| name == b"input"));
+        let snapshot = records.clone();
+        records.rename(b"input", b"d/input");
+        assert_eq!(records.logical_name(b"d/input"), None);
+        assert!(records.names().any(|name| name == b"d/input"));
+        assert_eq!(snapshot.logical_name(b"d/input"), Some(b"input".as_slice()));
+        records.rehash(b"other", b"d/other");
+        records.rename(b"other", b"d/input");
+        assert!(!records.contains(b"d/other"));
+        assert_eq!(records.names().count(), 1);
+        assert_eq!(records.logical_name(b"d/input"), None);
     }
 
     #[test]

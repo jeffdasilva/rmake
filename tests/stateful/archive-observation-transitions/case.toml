@@ -1,0 +1,102 @@
+id = "archive-observation-transitions"
+description = "Archive member/container replacement, standalone timestamps, GPATH and hidden secondary edges"
+provenance = "Original scripts, archive bytes, fixed timestamp transitions and independent status/stream anchors; no upstream tests copied."
+initial = [{"op" = "write", "path" = "config.mk", "content" = "VPATH=store\nDEPS=archive.a(member)\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "store/archive.a", "content" = "!<arch>\nmember/         1600000020  0     0     100644  8         `\npayload\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "member", "content" = "standalone\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "out", "content" = "original output\n", "mtime_ns" = 1600000040000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000060000000000", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "remote-old-query"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = []
+unchanged = ["out"]
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "remote-newer-query"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "write", "path" = "store/archive.a", "content" = "!<arch>\nmember/         1600000050  0     0     100644  8         `\npayload\n", "mtime_ns" = 1600000000000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "remote-newer-build"
+args = ["-rR", "--no-print-directory", "-j2"]
+actions = []
+unchanged = []
+expected = {"exit_code" = 0, "stdout" = "built=[member|store/archive.a(member)]\n", "stderr" = ""}
+
+[[steps]]
+name = "remote-cached-query"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = []
+unchanged = ["out"]
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "standalone-newer-fails"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "utime", "path" = "member", "mtime_ns" = 1600000055000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'archive.a(member)', needed by 'out'.  Stop.\n"}
+
+[[steps]]
+name = "restore-standalone"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "utime", "path" = "member", "mtime_ns" = 1600000000000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "replace-malformed"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "write", "path" = "store/archive.a", "content" = "!<arch>\nmember/         bad         0     0     100644  8         `\npayload\n", "mtime_ns" = 1600000000000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** Invalid date for archive store/archive.a member member.  Stop.\n"}
+
+[[steps]]
+name = "restore-with-gpath"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "write", "path" = "store/archive.a", "content" = "!<arch>\nmember/         1600000050  0     0     100644  8         `\npayload\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "config.mk", "content" = "GPATH=store\nVPATH=store\nDEPS=archive.a(member)\n", "mtime_ns" = 1600000000000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "hidden-newer-query"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "GPATH=store\nVPATH=store\nDEPS=\nout:.EXTRA_PREREQS=archive.a(member)\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "store/archive.a", "content" = "!<arch>\nmember/         1600000070  0     0     100644  8         `\npayload\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000080000000000", "mtime_ns" = 1600000000000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "hidden-parallel-build"
+args = ["-rR", "--no-print-directory", "-j2"]
+actions = []
+unchanged = []
+expected = {"exit_code" = 0, "stdout" = "built=[|]\n", "stderr" = ""}
+
+[[steps]]
+name = "hidden-noop-query"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = []
+unchanged = ["out"]
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "local-takes-priority"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "write", "path" = "archive.a", "content" = "!<arch>\nmember/         1600000090  0     0     100644  8         `\npayload\n", "mtime_ns" = 1600000000000000000}]
+unchanged = ["out"]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "local-hidden-build"
+args = ["-rR", "--no-print-directory"]
+actions = [{"op" = "write", "path" = "next-time", "content" = "1600000100000000000", "mtime_ns" = 1600000000000000000}]
+unchanged = []
+expected = {"exit_code" = 0, "stdout" = "built=[|]\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-local-falls-back"
+args = ["-rR", "--no-print-directory", "-q"]
+actions = [{"op" = "remove", "path" = "archive.a"}]
+unchanged = ["out"]
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

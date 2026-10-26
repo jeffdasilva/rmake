@@ -24,7 +24,8 @@ and member automatic values too.
 
 `-t` updates the selected header date to the archive's timestamp observed before
 the write, matching GNU. It does not create missing archives or members. The
-implementation scans and writes through one owned descriptor and overwrites only
+implementation scans before acquiring write access, verifies descriptor identity
+and overwrites only
 the twelve date bytes, preserving all other header, name-table and payload bytes.
 Recipe-failure cleanup preserves archives and emits GNU's changed-member warning
 instead of unlinking them. Precious-member policy still applies.

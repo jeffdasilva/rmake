@@ -1,0 +1,12 @@
+id = "archive-order-vpath-16-forward-temporary"
+requirement = "archives.observation-order"
+candidate = "required"
+description = "Original archive lifecycle or tentative-key ordering boundary: archive-order-vpath-16-forward-temporary."
+provenance = "Independently authored Makefile, archive bytes, table phase model and exact stream/status anchors. No upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 30
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a726d206974656d303030332e6d6964206974656d303031302e6d6964206974656d303031312e6d6964206974656d303030372e6d6964206974656d303030352e6d6964206974656d303030322e6d6964206974656d303030342e6d6964206974656d303031342e6d6964206974656d303030362e6d6964206974656d303031332e6d6964206974656d303031352e6d6964206974656d303030312e6d6964206974656d303030382e6d6964206974656d303031322e6d6964206974656d303030302e6d6964206974656d303030392e6d69640a"
+stderr_hex = ""

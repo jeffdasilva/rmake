@@ -1,0 +1,12 @@
+id = "archive-order-recipe-info-parallel"
+requirement = "archives.observation-order"
+candidate = "required"
+description = "Original archive lifecycle or tentative-key ordering boundary: archive-order-recipe-info-parallel."
+provenance = "Independently authored Makefile, archive bytes, table phase model and exact stream/status anchors. No upstream tests copied."
+args = ["-rR", "--no-print-directory", "-j2"]
+timeout_seconds = 30
+
+[expected]
+exit_code = 2
+stdout_hex = "6f627365727665640a"
+stderr_hex = "6d616b653a202a2a2a20496e76616c6964206461746520666f72206172636869766520617263686976652e61206d656d626572206d656d6265722e202053746f702e0a"
