@@ -124,3 +124,7 @@ GNU Make 4.4.1 `src/vpath.c` (`selective_vpath_search`), `src/file.c`
 (`file_exists_p`, `dir_contents_file_exists_p`) were consulted for eligibility,
 lookup spelling, record merging and traversal phases. Directory-cache integration
 remains an open follow-up. Rust changes and fixture inputs are original.
+
+A subsequent [shared-directory slice](shared-directory-search.md) connects rule
+search membership to wildcard observations and covers stream/error timing and
+post-command GPATH discovery. The wider metadata/profile gates remain open.

@@ -1,0 +1,12 @@
+id = "directory-search-gpath-slash-both-dry"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: gpath-slash-both-dry"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f2073656c65637465643d642f2f6f6f2e696e0a"
+stderr_hex = ""

@@ -25,6 +25,12 @@ impl Runtime {
         self.wildcard.generation()
     }
 
+    /// Rule searches share directory membership with wildcard queries. This
+    /// does not perform a fresh stat or interpret archive-member syntax.
+    pub fn file_exists(&mut self, path: &[u8]) -> Result<bool, FilesystemError> {
+        self.wildcard.file_exists(path)
+    }
+
     pub fn execute(&mut self, effect: FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> {
         execute_with(effect, &mut self.wildcard)
     }

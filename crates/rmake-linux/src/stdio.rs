@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
-//! Owned libc streams. This module is the only unsafe boundary in this crate.
+//! Owned libc file streams behind the filesystem effect boundary.
 //! No stream pointer or borrowed C buffer escapes the safe interface.
 
 use std::ffi::{CStr, CString, c_char, c_int, c_void};

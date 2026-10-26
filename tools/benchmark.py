@@ -84,6 +84,19 @@ def selected_workloads(suite):
         yield from lazy_record_workloads()
     if suite in ("vpath-records", "all"):
         yield from vpath_record_workloads()
+    if suite in ("directory-search", "all"):
+        yield from directory_search_workloads()
+
+
+def directory_search_workloads():
+    """Cached implicit membership and repeated negative VPATH probes."""
+    outputs = ' '.join(f'cache-node{index:04d}.out' for index in range(1000))
+    yield 'directory-search-implicit-1000', (
+        'all: ' + outputs + ' ;\n%.out: inputs/%.in ;\n').encode()
+    missing = ' '.join(f'cache-missing{index:04d}.dat' for index in range(1000))
+    yield 'directory-search-vpath-misses-1000', (
+        'VPATH=' + ':'.join('d' + str(index) for index in range(8))
+        + '\nall: ' + missing + ' ;\n.DEFAULT: ;\n').encode()
 
 
 def vpath_record_workloads():
@@ -284,6 +297,23 @@ def prepare_archive(path, count, payload):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('directory-search-'):
+        files = []
+        if workload == 'directory-search-implicit-1000':
+            (path / 'inputs').mkdir(exist_ok=True)
+            for index in range(1000):
+                files.extend((path / f'cache-node{index:04d}.out',
+                              path / 'inputs' / f'cache-node{index:04d}.in'))
+        else:
+            for index in range(8):
+                directory = path / ('d' + str(index))
+                directory.mkdir(exist_ok=True)
+                files.extend(directory / f'unused{item:04d}.in' for item in range(64))
+        for filename in files:
+            filename.write_bytes(b'original\n')
+            os.utime(filename, ns=(1600000000000000000, 1600000000000000000))
+        return {'files': len(files), 'mtime_ns': 1600000000000000000,
+                'content_sha256': hashlib.sha256(b'original\n').hexdigest()}
     if workload.startswith('vpath-record-'):
         directory = path / 'records'
         directory.mkdir(exist_ok=True)
@@ -382,7 +412,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

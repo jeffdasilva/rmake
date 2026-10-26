@@ -26,7 +26,10 @@ inspection, per-parent rebuild evidence, cycle persistence and frozen setup rule
 with 143 original cases and two more stateful scenarios. The
 [declared VPATH record slice](vpath-file-records.md) adds missing-output selection,
 ordinary record merges and phase-specific alias reuse, with 160 original cases
-and a twelve-step stateful scenario. These do not complete M4.
+and a twelve-step stateful scenario. The
+[shared directory slice](shared-directory-search.md) connects wildcard and rule
+probes, preserves stream/error and group/update phases, and adds 56 curated
+cases plus 176 independently anchored search programs. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

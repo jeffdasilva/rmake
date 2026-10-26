@@ -1,0 +1,12 @@
+id = "directory-search-recipe-create-dry"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: recipe-create-dry"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f2066616c6c6261636b3d6561726c792e6f75740a637020696e70757420642f6e65772e696e0a6563686f2066616c6c6261636b3d6c617465722e6f75740a"
+stderr_hex = ""

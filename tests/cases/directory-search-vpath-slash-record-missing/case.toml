@@ -1,0 +1,12 @@
+id = "directory-search-vpath-slash-record-missing"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: vpath-slash-record-missing"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66616c6c6261636b3d666f6f2e696e0a73656c65637465643d666f6f2e696e0a"
+stderr_hex = ""
