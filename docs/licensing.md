@@ -122,3 +122,8 @@ independently authored Rust follow-up and original fixtures.
 The [shared-directory notes](shared-directory-search.md) record GNU directory,
 VPATH and update-phase source references and the Linux/glibc directory interface
 used by the independently authored Rust adapter and original test hooks.
+
+
+The [archive name-encoding notes](archive-name-encodings.md) record the GNU
+`arscan.c`, `misc.c` and `ar.c` references used for the independently written
+conversion/lifetime follow-up and original archive/Makefile/stateful fixtures.

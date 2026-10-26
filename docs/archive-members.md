@@ -77,3 +77,8 @@ separate slice; GPATH/permanent renaming and the other remaining M4 gates are op
 Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
 selected alias/parallel interactions. Earlier corpus counts and open-work lists
 above describe this document's original slice; M4 still has broader open gates.
+
+
+The later [archive name-encoding slice](archive-name-encodings.md) adds signed and
+wrapped long-name conversions, NUL-marker recognition and borrowed scan views,
+with original boundary cases and full-byte touch/replacement verification.

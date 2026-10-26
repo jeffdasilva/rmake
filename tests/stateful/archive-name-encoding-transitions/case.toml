@@ -1,0 +1,100 @@
+id = "archive-name-encoding-transitions"
+description = "GNU/BSD encoded names across touch, duplicate members, replacement and fresh reads"
+provenance = "Original fixed archive bytes and independently authored full-byte/timestamp expectations; no upstream tests copied."
+initial = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\n//\u0000raw-tail     0           0     0     644     21        `\nalpha-long-member.o/\n\n/+0             0           0     0     644     6         `\nfirst!/4294967296     1600000002  0     0     644     6         `\nsecond", "mtime_ns" = 1600000100000000000}]
+
+[[steps]]
+name = "gnu-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "lib.a(alpha-long-member.o)"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "gnu-touch-first-duplicate"
+actions = []
+args = ["-rR", "--no-print-directory", "-Bt", "lib.a(alpha-long-member.o)"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "touch lib.a(alpha-long-member.o)\n", "stderr" = ""}
+
+[[steps]]
+name = "gnu-verify-every-byte"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "archive bytes=ok\n", "stderr" = ""}
+
+[[steps]]
+name = "gnu-current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "lib.a(alpha-long-member.o)"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "bsd-replace-query"
+actions = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\n#1/-4294967272  0           0     0     644     30        `\nalpha-long-member.o\u0000tailfirst!#1/+19          1600000003  0     0     644     25        `\nalpha-long-member.osecond\n", "mtime_ns" = 1600000200000000000}]
+args = ["-rR", "--no-print-directory", "-q", "lib.a(alpha-long-member.o)"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "bsd-touch-first-duplicate"
+actions = []
+args = ["-rR", "--no-print-directory", "-Bt", "lib.a(alpha-long-member.o)"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "touch lib.a(alpha-long-member.o)\n", "stderr" = ""}
+
+[[steps]]
+name = "bsd-verify-inline-padding"
+actions = []
+args = ["-rR", "--no-print-directory", "VERIFY=bsd", "verify"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "archive bytes=ok\n", "stderr" = ""}
+
+[[steps]]
+name = "bsd-current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "lib.a(alpha-long-member.o)"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "trailing-control-is-not-a-member"
+actions = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\n#1/19\t          1600000000  0     0     644     26        `\nalpha-long-member.opayload", "mtime_ns" = 1600000200000000000}]
+args = ["-rR", "--no-print-directory", "-q", "lib.a(alpha-long-member.o)"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "restore-and-retouch"
+actions = [{"op" = "write", "path" = "lib.a", "content" = "!<arch>\n//\u0000raw-tail     0           0     0     644     21        `\nalpha-long-member.o/\n\n/+0             0           0     0     644     6         `\nfirst!/4294967296     1600000002  0     0     644     6         `\nsecond", "mtime_ns" = 1600000300000000000}]
+args = ["-rR", "--no-print-directory", "-Bt", "lib.a(alpha-long-member.o)"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "touch lib.a(alpha-long-member.o)\n", "stderr" = ""}
+
+[[steps]]
+name = "verify-restored-archive"
+actions = []
+args = ["-rR", "--no-print-directory", "VERIFY=next", "verify"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "archive bytes=ok\n", "stderr" = ""}
+
+[[steps]]
+name = "restored-current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "lib.a(alpha-long-member.o)"]
+unchanged = ["lib.a"]
+exact_mtime = {}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

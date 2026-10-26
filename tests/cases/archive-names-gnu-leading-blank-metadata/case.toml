@@ -1,0 +1,12 @@
+id = "archive-names-gnu-leading-blank-metadata"
+requirement = "archives.name-encodings"
+candidate = "required"
+description = "gnu-leading-blank-metadata"
+provenance = "Original byte-level archive and Makefile with independently authored expected streams/status; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "73656c65637465643d5b6c69622e6128616c7068612d6c6f6e672d6d656d6265722e6f295d0a"
+stderr_hex = ""

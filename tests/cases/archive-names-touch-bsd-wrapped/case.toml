@@ -1,0 +1,12 @@
+id = "archive-names-touch-bsd-wrapped"
+requirement = "archives.name-encodings"
+candidate = "required"
+description = "touch-bsd-wrapped"
+provenance = "Original byte-level archive and Makefile with independently authored expected streams/status; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-Bt"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206c69622e6128616c7068612d6c6f6e672d6d656d6265722e6f290a"
+stderr_hex = ""

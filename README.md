@@ -127,6 +127,8 @@ inspection; see [lazy rule records](docs/lazy-rule-records.md).
 see [declared VPATH file records](docs/vpath-file-records.md).
 `BENCH_SUITE=directory-search` measures shared input probes and repeated VPATH misses;
 see [shared directory observations](docs/shared-directory-search.md).
+`BENCH_SUITE=archive-names` measures GNU/BSD long names and repeated archive wildcards;
+see [archive name encodings and borrowed scans](docs/archive-name-encodings.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -153,6 +155,8 @@ including explicit secondary expansion.
 names and GNU observation timing.
 The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
 header scan I/O while retaining fresh reads between effects.
+[Archive member-name encodings](docs/archive-name-encodings.md) preserve signed/wrapped
+indexes, inline lengths and NUL-terminated markers while avoiding unnecessary name copies.
 [Archive-first VPATH resolution](docs/archive-vpath.md) searches the archive name
 before checking members and preserves GNU search/rebuild observations.
 [GPATH permanent filenames](docs/gpath.md) retain searched rebuild paths and merge

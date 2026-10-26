@@ -1,6 +1,6 @@
 # Stateful timestamp fixtures
 
-These 23 original scenarios make 61 serial invocations per engine. Every case is required; there is no pending classification. They cover incremental rebuilds and no-ops, deletion, equal and adjacent nanosecond timestamps, order-only prerequisites, a rebuilt child restoring its old timestamp, dry-run propagation, question mode, always-make automatic variables, and touch mode.
+The current 58 original scenarios make 210 serial invocations per engine. Every case is required; there is no pending classification. They cover incremental rebuilds and no-ops, deletion, equal and adjacent nanosecond timestamps, order-only prerequisites, a rebuilt child restoring its old timestamp, dry-run propagation, question mode, always-make automatic variables, and touch mode.
 
 Eight lifecycle scenarios add forced-command touch completion, dry-run timestamp preservation, query continuation deletion, optimized colon commands, precious/phony protection, and changed-content targets with restored timestamps. They were independently authored after the [source-informed behavior investigation](../../docs/forced-touch.md); no upstream tests or implementation text were copied. Exact timestamp and unchanged-file expectations distinguish normal failure cleanup from continuation cleanup. Later verification steps independently check preserved content, deletion, and absence of forbidden recipe output.
 
@@ -17,3 +17,9 @@ The same alias and workspace path are used for both engines. Steps preserve work
 Snapshots compare bytes, exit status, file types, modes, symlink destinations and hard-link topology exactly. File timestamps are compared against deterministic anchors, against the file's own pre-invocation timestamp, and through declared ordering predicates. Unrelated wall-clock writes are not required to have identical absolute timestamps or distinct clock ticks. Failure reports retain the exact input tree, mutations, arguments, environment, executable/profile digests, raw timestamp values, per-step output bytes, partial observations on execution errors, and a replay command.
 
 This is trusted-fixture process containment, **not a filesystem or network security sandbox**. Do not run unreviewed Makefiles. Observations are taken at invocation boundaries; writes that restore both bytes and mtime are not visible. Directory times, atime, ctime, process-event traces and timestamps outside the controlled roots remain outside this suite's coverage.
+
+
+The archive-name-encoding scenario adds twelve invocations across GNU/BSD name
+encodings, duplicate members, query, touch, replacement and restoration. Its
+verification recipes compare the complete archive bytes against independently
+authored anchors, including NUL padding, metadata fields and payloads.

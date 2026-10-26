@@ -29,7 +29,10 @@ ordinary record merges and phase-specific alias reuse, with 160 original cases
 and a twelve-step stateful scenario. The
 [shared directory slice](shared-directory-search.md) connects wildcard and rule
 probes, preserves stream/error and group/update phases, and adds 56 curated
-cases plus 176 independently anchored search programs. These do not complete M4.
+cases plus 176 independently anchored search programs. The
+[archive name-encoding slice](archive-name-encodings.md) adds 176 required cases,
+a twelve-step archive transition scenario and borrowed member views that avoid
+unnecessary name copies. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

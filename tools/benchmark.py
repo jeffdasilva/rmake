@@ -86,6 +86,18 @@ def selected_workloads(suite):
         yield from vpath_record_workloads()
     if suite in ("directory-search", "all"):
         yield from directory_search_workloads()
+    if suite in ("archive-names", "all"):
+        yield from archive_name_workloads()
+
+
+def archive_name_workloads():
+    """Canonical long names accepted by both old and current scanners."""
+    for kind in ('gnu', 'bsd'):
+        members = ' '.join(f'lib.a(long-archive-member-{index:04d}.o)' for index in range(128))
+        yield f'archive-names-{kind}-128', f'all: {members}\n'.encode()
+    yield 'archive-names-glob-256', (
+        ''.join(f'V{index} := $(words $(wildcard lib.a(*.o)))\n' for index in range(64))
+        + '$(info $(V63))\nall: ;\n').encode()
 
 
 def directory_search_workloads():
@@ -296,7 +308,35 @@ def prepare_archive(path, count, payload):
             'archive_sha256': hashlib.sha256(data).hexdigest()}
 
 
+def prepare_archive_names(path, kind, count):
+    names = [f'long-archive-member-{index:04d}.o'.encode() for index in range(count)]
+    data = bytearray(b'!<arch>\n')
+
+    def append(name, payload):
+        fields = (name, b'1600000000', b'0', b'0', b'644', str(len(payload)).encode())
+        assert all(len(value) <= width for value, width in zip(fields, (16, 12, 6, 6, 8, 10)))
+        data.extend(b''.join(value.ljust(width, b' ') for value, width in
+                             zip(fields, (16, 12, 6, 6, 8, 10))))
+        data.extend(b'`\n' + payload + (b'\n' if len(payload) % 2 else b''))
+
+    if kind == 'gnu':
+        append(b'//', b''.join(name + b'/\n' for name in names))
+        offset = 0
+        for name in names:
+            append(b'/' + str(offset).encode(), b'x')
+            offset += len(name) + 2
+    else:
+        for name in names:
+            append(b'#1/' + str(len(name)).encode(), name + b'x')
+    path.write_bytes(data)
+    return {'members': count, 'format': kind,
+            'archive_sha256': hashlib.sha256(data).hexdigest()}
+
+
 def prepare_files(path, workload):
+    if workload.startswith('archive-names-'):
+        _, _, kind, count = workload.split('-')
+        return prepare_archive_names(path / 'lib.a', 'gnu' if kind == 'glob' else kind, int(count))
     if workload.startswith('directory-search-'):
         files = []
         if workload == 'directory-search-implicit-1000':
@@ -412,7 +452,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

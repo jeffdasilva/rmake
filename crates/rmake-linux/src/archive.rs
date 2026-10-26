@@ -15,8 +15,10 @@ use std::time::{Duration, SystemTime};
 
 const LIMIT: &[u8] = b"variable expansion resource limit exceeded";
 
-pub(crate) struct Member {
-    pub name: Vec<u8>,
+/// A view valid only during the visitor call. Callers copy names they retain;
+/// metadata-only scans allocate no name for ordinary or table-backed members.
+pub(crate) struct Member<'a> {
+    pub name: &'a [u8],
     pub date: u64,
     pub offset: u64,
     truncated: bool,
@@ -28,17 +30,34 @@ pub(crate) enum Scan<T> {
     Invalid,
 }
 
-fn decimal(bytes: &[u8]) -> Option<u64> {
-    let bytes = bytes.trim_ascii();
-    if bytes.is_empty() {
+/// Name indexes and BSD inline lengths use GNU's unsigned-int conversion,
+/// separately from the strictly checked numeric header fields. The fixed name
+/// field bounds the magnitude below u64::MAX on the supported Linux profile.
+fn name_number(bytes: &[u8]) -> Option<u32> {
+    let start = bytes
+        .iter()
+        .position(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))?;
+    let (negative, digits) = match bytes[start] {
+        b'-' => (true, &bytes[start + 1..]),
+        b'+' => (false, &bytes[start + 1..]),
+        _ => (false, &bytes[start..]),
+    };
+    if digits.is_empty() {
         return None;
     }
-    bytes.iter().try_fold(0u64, |n, &b| {
+    // Leading C whitespace and one sign are allowed; every remaining byte
+    // must be a digit. In particular, trailing control whitespace is invalid.
+    let number = digits.iter().try_fold(0u64, |n, &b| {
         if b.is_ascii_digit() {
             n.checked_mul(10)?.checked_add(u64::from(b - b'0'))
         } else {
             None
         }
+    })? as u32;
+    Some(if negative {
+        number.wrapping_neg()
+    } else {
+        number
     })
 }
 
@@ -81,7 +100,7 @@ fn archive_field(
 pub(crate) fn scan<T>(
     file: &mut File,
     path: &[u8],
-    mut visit: impl FnMut(Member) -> Result<Option<T>, FilesystemError>,
+    mut visit: impl for<'entry> FnMut(Member<'entry>) -> Result<Option<T>, FilesystemError>,
 ) -> Result<Scan<T>, FilesystemError> {
     // This buffer belongs to one scan and is dropped before any caller effect.
     // Relative seeks retain unread header bytes without a persistent index or
@@ -95,6 +114,7 @@ pub(crate) fn scan<T>(
     let mut offset = 8u64;
     let mut cursor = 8u64;
     let mut table = Vec::new();
+    let mut inline_name = Vec::new();
     let mut headers = 0;
     loop {
         headers += 1;
@@ -133,13 +153,14 @@ pub(crate) fn scan<T>(
             raw = &raw[..raw.len() - 1];
         }
         let mut truncated = true;
-        let mapping = matches!(raw, b"//" | b"ARFILENAMES/");
-        let mut name = raw.strip_suffix(b"/").unwrap_or(raw).to_vec();
-        if let Some(nul) = name.iter().position(|&b| b == 0) {
-            name.truncate(nul);
-        }
+        // Marker recognition uses the terminated string before the optional
+        // final slash is removed, including a NUL inside the fixed field.
+        let nul = raw.iter().position(|&byte| byte == 0).unwrap_or(raw.len());
+        let mapping = matches!(&raw[..nul], b"//" | b"ARFILENAMES/");
+        let short_length = raw.len() - usize::from(raw.last() == Some(&b'/'));
+        let mut name = &raw[..nul.min(short_length)];
         if !mapping && !table.is_empty() && matches!(name.first(), Some(b' ' | b'/')) {
-            let Some(reference) = decimal(&name[1..]) else {
+            let Some(reference) = name_number(&name[1..]) else {
                 break;
             };
             let Some(entry) = table
@@ -152,30 +173,33 @@ pub(crate) fn scan<T>(
             if end == 0 {
                 break;
             }
-            name = entry[..end].to_vec();
+            name = &entry[..end];
             truncated = false;
         } else if let Some(inline) = name.strip_prefix(b"#1/") {
-            let Some(length) = decimal(inline).filter(|&n| n > 0 && n < 4096) else {
+            let Some(length) = name_number(inline).filter(|&n| n > 0 && n < 4096) else {
                 break;
             };
+            let length = u64::from(length);
             truncated = false;
-            name = vec![0; length as usize];
-            if file.read_exact(&mut name).is_err() {
+            inline_name.resize(length as usize, 0);
+            if file.read_exact(&mut inline_name).is_err() {
                 break;
             }
             let Some(position) = cursor.checked_add(length) else {
                 break;
             };
             cursor = position;
-            if let Some(nul) = name.iter().position(|&b| b == 0) {
-                name.truncate(nul);
-            }
+            let nul = inline_name
+                .iter()
+                .position(|&byte| byte == 0)
+                .unwrap_or(inline_name.len());
+            name = &inline_name[..nul];
         }
-        archive_field(&header[40..48], 8, u32::MAX as u64, b"mode", path, &name)?;
-        let size = archive_field(&header[48..58], 10, i64::MAX as u64, b"size", path, &name)?;
-        let date = archive_field(&header[16..28], 10, i64::MAX as u64, b"date", path, &name)?;
-        archive_field(&header[28..34], 10, i32::MAX as u64, b"uid", path, &name)?;
-        archive_field(&header[34..40], 10, i32::MAX as u64, b"gid", path, &name)?;
+        archive_field(&header[40..48], 8, u32::MAX as u64, b"mode", path, name)?;
+        let size = archive_field(&header[48..58], 10, i64::MAX as u64, b"size", path, name)?;
+        let date = archive_field(&header[16..28], 10, i64::MAX as u64, b"date", path, name)?;
+        archive_field(&header[28..34], 10, i32::MAX as u64, b"uid", path, name)?;
+        archive_field(&header[34..40], 10, i32::MAX as u64, b"gid", path, name)?;
         if let Some(result) = visit(Member {
             name,
             date,
@@ -228,13 +252,13 @@ pub(crate) fn scan<T>(
     Ok(Scan::Invalid)
 }
 
-fn matches(member: &Member, requested: &[u8]) -> bool {
+fn matches(member: &Member<'_>, requested: &[u8]) -> bool {
     let requested = requested
         .rsplit(|&byte| byte == b'/')
         .next()
         .unwrap_or(requested);
     if member.truncated {
-        requested.get(..15).unwrap_or(requested) == member.name.get(..15).unwrap_or(&member.name)
+        requested.get(..15).unwrap_or(requested) == member.name.get(..15).unwrap_or(member.name)
     } else {
         requested == member.name
     }

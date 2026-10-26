@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -220,6 +220,31 @@ class BenchmarkTests(unittest.TestCase):
         self.assertIn(b'%.out: %.in ;', workloads[2][1])
         self.assertIn(b'$(filter inputs/%,$^)', workloads[3][1])
         self.assertIn(b'$(filter other/%,$^)', workloads[3][1])
+
+    def test_archive_name_workloads_prepare_both_formats_and_wildcard_control(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.selected_workloads('archive-names'))
+        self.assertEqual([name for name, _ in workloads], [
+            'archive-names-gnu-128', 'archive-names-bsd-128', 'archive-names-glob-256'])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, source in workloads:
+                fixture = benchmark.prepare_files(root, name)
+                data = (root / 'lib.a').read_bytes()
+                self.assertTrue(data.startswith(b'!<arch>\n'))
+                self.assertEqual(hashlib.sha256(data).hexdigest(), fixture['archive_sha256'])
+                self.assertIn(b'long-archive-member-0127.o', data)
+                self.assertNotIn(b'$(shell', source)
+                if fixture['format'] == 'bsd':
+                    self.assertEqual(data.count(b'#1/26'), 128)
+                else:
+                    self.assertEqual(data[8:24], b'//              ')
+                if name.endswith('128'):
+                    self.assertEqual(source.count(b'lib.a('), fixture['members'])
+                else:
+                    self.assertEqual(source.count(b'$(wildcard'), 64)
+                    self.assertEqual(fixture['members'], 256)
 
     def test_archive_workloads_include_sparse_object_payloads(self):
         import tempfile
