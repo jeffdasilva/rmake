@@ -1,0 +1,92 @@
+id = "symlink-archive-second-boundaries"
+description = "Archive member link timestamps use integer seconds across rebuilds and mode changes"
+provenance = "Original fixed bytes, symlink timestamps and independently authored expectations; no upstream tests or implementation copied."
+initial = [{"op" = "write", "path" = "phase", "content" = "0\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "lib.a", "content" = "!<arch>\none.o/          1600000020  0     0     644     1         `\nx\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "older-link-current"
+actions = []
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000000000000000, "one.o" = 1600000019999999999}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "same-second-current"
+actions = [{"op" = "write", "path" = "phase", "content" = "1\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000000000000000, "one.o" = 1600000020999999999}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "next-second-outdated"
+actions = [{"op" = "write", "path" = "phase", "content" = "2\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000000000000000, "one.o" = 1600000021000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "default-mode-still-current"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000000000000000, "one.o" = 1600000021000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-first-header"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"lib.a" = 1600000030000000000, "one.o" = 1600000021000000000}
+expected = {"exit_code" = 0, "stdout" = "archive=2\n", "stderr" = ""}
+
+[[steps]]
+name = "verify-first-bytes"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000030000000000, "one.o" = 1600000021000000000}
+expected = {"exit_code" = 0, "stdout" = "date=1600000022\n", "stderr" = ""}
+
+[[steps]]
+name = "rebuilt-same-second-current"
+actions = [{"op" = "write", "path" = "phase", "content" = "3\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000030000000000, "one.o" = 1600000022999999999}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "later-link-outdated"
+actions = [{"op" = "write", "path" = "phase", "content" = "4\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000030000000000, "one.o" = 1600000023000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-second-header"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"lib.a" = 1600000040000000000, "one.o" = 1600000023000000000}
+expected = {"exit_code" = 0, "stdout" = "archive=4\n", "stderr" = ""}
+
+[[steps]]
+name = "verify-second-bytes"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000040000000000, "one.o" = 1600000023000000000}
+expected = {"exit_code" = 0, "stdout" = "date=1600000024\n", "stderr" = ""}
+
+[[steps]]
+name = "current-final-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["lib.a"]
+exact_mtime = {"lib.a" = 1600000040000000000, "one.o" = 1600000023000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

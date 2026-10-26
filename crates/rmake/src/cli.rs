@@ -23,6 +23,7 @@ pub struct Options {
     pub always: bool,
     pub ignore_errors: bool,
     pub keep_going: bool,
+    pub check_symlink_times: bool,
     pub question: bool,
     pub touch: bool,
     pub environment_override: bool,
@@ -137,6 +138,7 @@ impl Options {
                     b"--always-make" => Some(&mut result.always),
                     b"--ignore-errors" => Some(&mut result.ignore_errors),
                     b"--keep-going" => Some(&mut result.keep_going),
+                    b"--check-symlink-times" => Some(&mut result.check_symlink_times),
                     b"--question" => Some(&mut result.question),
                     b"--touch" => Some(&mut result.touch),
                     b"--environment-overrides" => Some(&mut result.environment_override),
@@ -238,6 +240,7 @@ impl Options {
                         b'i' => result.ignore_errors = true,
                         b'k' => result.keep_going = true,
                         b'S' => result.keep_going = false,
+                        b'L' => result.check_symlink_times = true,
                         b'q' => result.question = true,
                         b't' => result.touch = true,
                         b'e' => result.environment_override = true,
@@ -306,6 +309,7 @@ impl Options {
             (self.environment_override, b'e'),
             (self.ignore_errors, b'i'),
             (self.keep_going, b'k'),
+            (self.check_symlink_times, b'L'),
             (self.dry_run, b'n'),
             (self.question, b'q'),
             (self.no_rules, b'r'),
@@ -466,6 +470,20 @@ mod tests {
         .unwrap();
         assert!(inherited.no_print_directory);
         assert_eq!(inherited.flags(), b"rR --no-print-directory");
+    }
+
+    #[test]
+    fn symlink_time_options_round_trip_in_gnu_flag_order() {
+        let options = parse(&["-sBikLntq", "-rR", "--no-print-directory"]).unwrap();
+        assert!(options.check_symlink_times);
+        assert_eq!(options.flags(), b"BikLnqrRst --no-print-directory");
+        let inherited =
+            Options::with_environment([], Some(OsString::from_vec(options.flags())), None).unwrap();
+        assert!(inherited.check_symlink_times);
+        assert_eq!(inherited.flags(), options.flags());
+        let long = parse(&["--check-symlink-times", "-LL"]).unwrap();
+        assert_eq!(long.flags(), b"L");
+        assert!(parse(&["--check-symlink-times=yes"]).is_err());
     }
 
     #[test]

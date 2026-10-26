@@ -1,0 +1,12 @@
+id = "symlink-times-vpath-physical-live"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "vpath-physical-live"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "73656c65637465643d5b7372632f6974656d5d0a"
+stderr_hex = ""

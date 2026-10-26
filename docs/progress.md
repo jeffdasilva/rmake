@@ -1832,3 +1832,31 @@ about 6%; core controls are mixed, including about 4% higher expansion time.
 See [archive name encodings](archive-name-encodings.md) for values, provenance,
 limits and open M4 gates. These results do not complete M4/M8 or establish
 general speed parity.
+
+
+## Linux symlink timestamps and archive matcher reuse
+
+Support `-L` / `--check-symlink-times` from CLI/startup environment and recursive
+flags. Observe the latest final-component link/referent timestamp, including
+dangling chains; preserve raw relative/absolute spellings and GNU stat/lstat/
+readlink retry, error and fallback boundaries. Apply link-aware timestamps to
+build/lifecycle/Makefile checks, VPATH/GPATH eligibility and integer-second
+standalone archive-member comparisons. Keep an owned pathname only for an actual
+link walk; bound raced topology walks without a persistent metadata cache.
+
+Compile archive member matchers once per opened scan. Match borrowed names
+without per-member C-string allocations for simple stars, retain native complex
+matching and validate every header before visiting. Keep shared predicates
+inlined and test both entry points independently against libc.
+
+Add 77 required Makefiles (67 fail on preceding main), 52 independently anchored
+syscall-fault programs and three stateful scenarios totaling 31 invocations.
+Add the Makefile/CI flow and a self-host smoke case. Corpus: 3,911 cases, with
+3,899 required matches and 12 unchanged pending mismatches. Stateful coverage:
+61 scenarios / 241 invocations. Internal checks: 380 Rust / 278 tooling tests.
+
+Paired measurements show about 18% lower repeated archive wildcard time with
+close default core and ordinary wildcard controls. The new `-L` workloads remain
+slower than GNU. The development-prototype pathname-allocation comparison shows
+no clear elapsed-time gain. See [symlink timestamps](symlink-timestamps.md) for
+all values, executable identities, limits and open M4/M8 gates.

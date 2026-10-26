@@ -32,7 +32,10 @@ probes, preserves stream/error and group/update phases, and adds 56 curated
 cases plus 176 independently anchored search programs. The
 [archive name-encoding slice](archive-name-encodings.md) adds 176 required cases,
 a twelve-step archive transition scenario and borrowed member views that avoid
-unnecessary name copies. These do not complete M4.
+unnecessary name copies. The [symlink-time slice](symlink-timestamps.md) adds
+`-L`, link-aware timestamps, 77 required Makefiles, 52 syscall-fault programs
+and three stateful scenarios totaling 31 invocations. It also reuses archive
+matchers per scan. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

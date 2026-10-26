@@ -1,0 +1,12 @@
+id = "symlink-times-option-order"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "option-order"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-sBikLntq"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "666c6167733d5b42696b4c6e7172527374202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+stderr_hex = ""

@@ -1,0 +1,76 @@
+id = "symlink-chain-transitions"
+description = "Link/hop/referent time changes, dangling and restored chains, query and rebuild"
+provenance = "Original fixed bytes, symlink timestamps and independently authored expectations; no upstream tests or implementation copied."
+initial = [{"op" = "write", "path" = "phase", "content" = "0\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "out", "content" = "old\n", "mtime_ns" = 1600000010000000000}]
+
+[[steps]]
+name = "old-links-current"
+actions = []
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000005000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000010000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-link-outdated"
+actions = [{"op" = "write", "path" = "phase", "content" = "1\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000020000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000010000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "default-mode-ignores-new-link"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000020000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000010000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-from-new-link"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"link" = 1600000020000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000030000000000}
+expected = {"exit_code" = 0, "stdout" = "built phase=1 newer=link\n", "stderr" = ""}
+
+[[steps]]
+name = "current-after-new-link"
+actions = []
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000020000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000030000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-hop-outdated"
+actions = [{"op" = "write", "path" = "phase", "content" = "2\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000020000000000, "hop" = 1600000035000000000, "input" = 1600000000000000000, "out" = 1600000030000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-from-new-hop"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"link" = 1600000020000000000, "hop" = 1600000035000000000, "input" = 1600000000000000000, "out" = 1600000040000000000}
+expected = {"exit_code" = 0, "stdout" = "built phase=2 newer=link\n", "stderr" = ""}
+
+[[steps]]
+name = "new-referent-without-l"
+actions = [{"op" = "write", "path" = "phase", "content" = "3\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000000000000000, "hop" = 1600000000000000000, "input" = 1600000050000000000, "out" = 1600000040000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-from-referent"
+actions = []
+args = ["-rR", "--no-print-directory"]
+unchanged = []
+exact_mtime = {"link" = 1600000000000000000, "hop" = 1600000000000000000, "input" = 1600000050000000000, "out" = 1600000060000000000}
+expected = {"exit_code" = 0, "stdout" = "built phase=3 newer=link\n", "stderr" = ""}

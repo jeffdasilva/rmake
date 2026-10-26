@@ -156,3 +156,7 @@ diagnostics and group/update phases. The dirent64 interface was checked against
 the system Linux/glibc declarations and native ownership/byte tests. This slice's
 Rust implementation, C test hooks and Makefiles are original; no GNU
 implementation or tests were copied.
+
+
+The later [symlink-time slice](symlink-timestamps.md) adds `-L` observations,
+search/standalone-member timestamp boundaries and per-scan archive matcher reuse.

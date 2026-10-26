@@ -1,0 +1,12 @@
+id = "symlink-times-self-loop"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "self-loop"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a20737461743a206c696e6b3a20546f6f206d616e79206c6576656c73206f662073796d626f6c6963206c696e6b730a6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276c696e6b272c206e656564656420627920276f7574272e202053746f702e0a"

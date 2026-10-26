@@ -1,0 +1,12 @@
+id = "symlink-times-gpath-physical-dangling"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "gpath-physical-dangling"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276974656d272c206e65656465642062792027616c6c272e202053746f702e0a"

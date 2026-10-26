@@ -1,0 +1,12 @@
+id = "symlink-times-new-link-dry"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "new-link-dry"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620226275696c643d5b25735d206e657765723d5b25735d5c6e2220226f75742220226c696e6b220a"
+stderr_hex = ""

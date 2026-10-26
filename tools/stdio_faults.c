@@ -59,6 +59,26 @@ static int interrupt_once(const char *path, const char *mode) {
     return 0;
 }
 
+static int symlink_fault(const char *path, const char *operation) {
+    const char *mode = getenv("RMAKE_STDIO_FAULT");
+    if (!selected(path) || !mode || strncmp(mode, "symlink-", 8) || interrupted)
+        return 0;
+    const char *kind = mode + 8;
+    size_t length = strlen(operation);
+    if (strncmp(kind, operation, length) || kind[length] != '-') return 0;
+    kind += length + 1;
+    int error = !strcmp(kind, "eintr") ? EINTR
+        : !strcmp(kind, "eio") ? EIO
+        : !strcmp(kind, "eacces") ? EACCES
+        : !strcmp(kind, "enoent") ? ENOENT
+        : !strcmp(kind, "enotdir") ? ENOTDIR : 0;
+    if (!error) return 0;
+    interrupted = 1;
+    note("symlink-fault\n");
+    errno = error;
+    return 1;
+}
+
 int open(const char *path, int flags, ...) {
     int (*next)(const char *, int, ...) = symbol("open");
     mode_t mode = 0;
@@ -337,6 +357,7 @@ int stat(const char *path, struct stat *out) {
     int (*next)(const char *, struct stat *) = symbol("stat");
     if (interrupt_once(path, "stat-eintr"))
         return -1;
+    if (symlink_fault(path, "stat")) return -1;
     return next(path, out);
 }
 
@@ -344,18 +365,21 @@ int stat64(const char *path, struct stat64 *out) {
     int (*next)(const char *, struct stat64 *) = symbol("stat64");
     if (interrupt_once(path, "stat-eintr"))
         return -1;
+    if (symlink_fault(path, "stat")) return -1;
     return next(path, out);
 }
 
 int lstat(const char *path, struct stat *out) {
     int (*next)(const char *, struct stat *) = symbol("lstat");
     if (interrupt_once(path, "stat-eintr")) return -1;
+    if (symlink_fault(path, "lstat")) return -1;
     return next(path, out);
 }
 
 int lstat64(const char *path, struct stat64 *out) {
     int (*next)(const char *, struct stat64 *) = symbol("lstat64");
     if (interrupt_once(path, "stat-eintr")) return -1;
+    if (symlink_fault(path, "lstat")) return -1;
     return next(path, out);
 }
 
@@ -363,5 +387,12 @@ int statx(int dir, const char *path, int flags, unsigned mask, struct statx *out
     int (*next)(int, const char *, int, unsigned, struct statx *) = symbol("statx");
     if (interrupt_once(path, "stat-eintr"))
         return -1;
+    if (symlink_fault(path, (flags & AT_SYMLINK_NOFOLLOW) ? "lstat" : "stat")) return -1;
     return next(dir, path, flags, mask, out);
+}
+
+ssize_t readlink(const char *path, char *out, size_t length) {
+    ssize_t (*next)(const char *, char *, size_t) = symbol("readlink");
+    if (symlink_fault(path, "readlink")) return -1;
+    return next(path, out, length);
 }

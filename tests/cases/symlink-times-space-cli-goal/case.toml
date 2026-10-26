@@ -1,0 +1,12 @@
+id = "symlink-times-space-cli-goal"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "A command-line goal preserves a space-containing symlink pathname"
+provenance = "Original byte-preserving symlink and independently authored Makefile/time/output anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory", "-L", "two words"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f72202774776f20776f726473272e0a"
+stderr_hex = ""

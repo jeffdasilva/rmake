@@ -24,7 +24,7 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::Command;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 fn os(bytes: &[u8]) -> &OsStr {
     OsStr::from_bytes(bytes)
@@ -1369,7 +1369,7 @@ impl Engine {
                 {
                     continue;
                 }
-                let before = modified(&makefile.name);
+                let before = self.modified(&makefile.name);
                 *self.makefile_error.borrow_mut() = if makefile.optional {
                     None
                 } else if promoted_required && makefile.missing && makefile.read_error.is_none() {
@@ -1390,7 +1390,7 @@ impl Engine {
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
                 failed |= result.failed && !makefile.optional;
-                changed |= !result.failed && modified(&makefile.name) != before;
+                changed |= !result.failed && self.modified(&makefile.name) != before;
                 if result.fatal {
                     failed = true;
                     break;
@@ -1697,7 +1697,7 @@ impl Engine {
             || self.done.contains_key(target)
             || self.pending(target)
             || !self.intermediate(target)
-            || modified(target).is_some()
+            || self.modified(target).is_some()
             || self.special(b".PHONY", target, false)
         {
             let mut outcome = self.build(target, Some(parent), depth);
@@ -2018,7 +2018,11 @@ impl Engine {
         outcome.ran = true;
         outcome.failed |= failed;
         self.record_graph_failure(outcome);
-        outcome.time = if job.phony { None } else { modified(&target) };
+        outcome.time = if job.phony {
+            None
+        } else {
+            self.modified(&target)
+        };
         outcome.search_after_update = self.update_search_pending(&target, job.phony, true);
         self.done.insert(target.clone(), outcome);
         if !self.parallel_jobs.contains_key(&target) {
@@ -2057,7 +2061,7 @@ impl Engine {
                 .map_err(|error| self.expansion_error(None, &error))?
             && (self.gpath_match(archive, &path) || self.has_file_record(&path))
         {
-            let archive_time = modified(&path);
+            let archive_time = self.modified(&path);
             self.rename_search_record(archive, &path)?;
             self.path_observations
                 .entry(path.clone())
@@ -2268,6 +2272,50 @@ impl Engine {
             && (!self.record_is_target(target) || self.record_is_target(record))
     }
 
+    fn name_time(&self, name: &[u8]) -> Option<SystemTime> {
+        let observed = rmake_linux::timestamp::observe(name, true);
+        for issue in observed.issues {
+            self.stderr(
+                &[
+                    issue.operation,
+                    issue.path.as_slice(),
+                    b": ",
+                    os_error(&issue.error).as_bytes(),
+                ]
+                .concat(),
+            );
+        }
+        observed.time
+    }
+
+    fn archive_time(
+        &self,
+        archive: &[u8],
+        member: &[u8],
+        member_time: Option<SystemTime>,
+    ) -> Option<SystemTime> {
+        self.name_time(archive)?;
+        let date = rmake_linux::archive::date(archive, member).ok().flatten()?;
+        if member_time
+            .and_then(|time| time.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .is_some_and(|duration| duration.as_secs() > date)
+        {
+            return None;
+        }
+        SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(date))
+    }
+
+    fn modified(&self, name: &[u8]) -> Option<SystemTime> {
+        if !self.options.check_symlink_times {
+            return modified(name);
+        }
+        if let Some((archive, member)) = rmake_core::filenames::archive_parts(name) {
+            self.archive_time(archive, member, self.name_time(member))
+        } else {
+            self.name_time(name)
+        }
+    }
+
     fn directory_member(&self, name: &[u8]) -> Result<bool, ExpandError> {
         self.filesystem
             .borrow_mut()
@@ -2297,8 +2345,13 @@ impl Engine {
             if declared || self.directory_member(&membership)? {
                 // A cached name gates the probe, but VPATH must still reject
                 // a stale positive when a fresh stat no longer finds it.
-                let time = modified(&name);
-                if declared || time.is_some() {
+                let physical = modified(&name);
+                if declared || physical.is_some() {
+                    let time = if self.options.check_symlink_times {
+                        self.name_time(&name)
+                    } else {
+                        physical
+                    };
                     return Ok(Some((Some(name), time)));
                 }
             }
@@ -2308,10 +2361,20 @@ impl Engine {
 
     fn find_vpath(&self, target: &[u8]) -> Result<PathObservation, ExpandError> {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
+            // The standalone member is observed before container search.
+            let member_time = self
+                .options
+                .check_symlink_times
+                .then(|| self.name_time(member));
             let path = self.archive_vpath(archive)?;
-            let time = rmake_linux::archive::modified(path.as_deref().unwrap_or(archive), member)
-                .ok()
-                .flatten();
+            let archive = path.as_deref().unwrap_or(archive);
+            let time = if let Some(member_time) = member_time {
+                self.archive_time(archive, member, member_time)
+            } else {
+                rmake_linux::archive::modified(archive, member)
+                    .ok()
+                    .flatten()
+            };
             return Ok(time.map(|time| {
                 (
                     path.map(|path| [path.as_slice(), b"(", member, b")"].concat()),
@@ -2329,7 +2392,7 @@ impl Engine {
         }
         // Build timestamps use fresh metadata. Only implicit viability's
         // local-name test uses cached directory membership instead.
-        if let Some(time) = modified(target) {
+        if let Some(time) = self.modified(target) {
             return Ok(Some((None, Some(time))));
         }
         self.searched_file(target)
@@ -2338,7 +2401,17 @@ impl Engine {
     /// Select the archive container before inspecting a member. Cached
     /// directory membership and a fresh stat gate non-declared candidates.
     fn archive_vpath(&self, archive: &[u8]) -> Result<Option<Vec<u8>>, ExpandError> {
-        if !self.vpath_searchable(archive) || fs::metadata(os(archive)).is_ok() {
+        if !self.vpath_searchable(archive) {
+            return Ok(None);
+        }
+        let local = if self.options.check_symlink_times {
+            rmake_linux::timestamp::observe(archive, true)
+                .time
+                .is_some()
+        } else {
+            fs::metadata(os(archive)).is_ok()
+        };
+        if local {
             return Ok(None);
         }
         for directory in self
@@ -2369,7 +2442,7 @@ impl Engine {
         }
         // Archive viability scans the local archive freshly, then searches
         // the complete literal member name (not the archive container).
-        if modified(target).is_some() {
+        if self.modified(target).is_some() {
             return Ok(true);
         }
         if self.vpath_searchable(target) {
@@ -3055,7 +3128,7 @@ impl Engine {
             && owner != target
         {
             let mut outcome = self.done.get(owner).copied().unwrap_or_default();
-            outcome.time = modified(target);
+            outcome.time = self.modified(target);
             return outcome;
         }
         if self.pending_double_colon.contains_key(target) {
@@ -3238,7 +3311,11 @@ impl Engine {
                 state.branches.clear();
             }
             let Some(branch) = state.branches.pop_front() else {
-                state.combined.time = if state.phony { None } else { modified(target) };
+                state.combined.time = if state.phony {
+                    None
+                } else {
+                    self.modified(target)
+                };
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
@@ -3248,7 +3325,11 @@ impl Engine {
                     // this goal's up-to-date diagnostic.
                     result.ran = false;
                     merge_child(&mut state.combined, result);
-                    state.combined.time = if state.phony { None } else { modified(target) };
+                    state.combined.time = if state.phony {
+                        None
+                    } else {
+                        self.modified(target)
+                    };
                     if result.fatal || (result.failed && !self.options.keep_going) {
                         state.branches.clear();
                     }
@@ -3771,7 +3852,7 @@ impl Engine {
         let occurrence = &state.rule.dependencies[index];
         let dependency = &occurrence.name;
         let inspect = state.inspections.contains_key(&index)
-            || (first && self.intermediate(dependency) && modified(dependency).is_none());
+            || (first && self.intermediate(dependency) && self.modified(dependency).is_none());
         if inspect {
             let epoch = self.graph_epoch;
             let Inspection {
@@ -3831,7 +3912,11 @@ impl Engine {
             // either selected a recipe. Recheck ownership after that wait.
             if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
                 result.ran = false;
-                result.time = if state.phony { None } else { modified(target) };
+                result.time = if state.phony {
+                    None
+                } else {
+                    self.modified(target)
+                };
                 self.visiting.remove(target);
                 self.done.insert(target.to_vec(), result);
                 return result;
@@ -4018,7 +4103,7 @@ impl Engine {
             outcome.time = if phony {
                 None
             } else if rule.recipes.is_some() {
-                modified(target)
+                self.modified(target)
             } else {
                 before
             };
@@ -4040,8 +4125,10 @@ impl Engine {
             self.completed_group_branches.insert(id, outcome);
             return;
         }
-        let warn_missing =
-            group.implicit && modified(target).is_some_and(|time| Some(time) > group.before);
+        let warn_missing = group.implicit
+            && self
+                .modified(target)
+                .is_some_and(|time| Some(time) > group.before);
         for (peer, _, phony) in group.members.into_iter().rev() {
             if peer == target {
                 continue;
@@ -4050,7 +4137,7 @@ impl Engine {
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
             completed.search_after_update = false;
-            completed.time = if phony { None } else { modified(&peer) };
+            completed.time = if phony { None } else { self.modified(&peer) };
             if warn_missing && completed.time.is_none() {
                 emit_output(
                     &self.program,

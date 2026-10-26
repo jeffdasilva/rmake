@@ -117,3 +117,7 @@ The verified GNU Make 4.4.1 source archive was consulted for `src/arscan.c`
 used to explain independently observed behavior. The Rust implementation,
 archive bytes, Makefiles, stateful anchors and benchmarks are original; no
 upstream implementation or tests were copied.
+
+
+The later [symlink-time slice](symlink-timestamps.md) adds `-L` observations,
+search/standalone-member timestamp boundaries and per-scan archive matcher reuse.

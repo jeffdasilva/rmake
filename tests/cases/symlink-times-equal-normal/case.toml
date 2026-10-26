@@ -1,0 +1,12 @@
+id = "symlink-times-equal-normal"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "equal-normal"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20276f75742720697320757020746f20646174652e0a"
+stderr_hex = ""
