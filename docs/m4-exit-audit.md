@@ -2,7 +2,7 @@
 
 Audit date: 2026-10-26. **M4 is open.** A green development CI run protects
 implemented behavior; it does not satisfy M4's complete rule-resolution gate.
-The twelve historical pending fixture IDs are not an inventory of all missing
+The eleven historical pending fixture IDs are not an inventory of all missing
 features. The observations below use the pinned GNU Make 4.4.1 oracle.
 
 ## Covered families
@@ -27,9 +27,9 @@ filesystem edge cases match across every rule family.
 | Area | Direct evidence | Required follow-up |
 | --- | --- | --- |
 | Hidden-prerequisite combinations | The [hidden-prerequisite slice](extra-prerequisites.md) implements the probe below, snapshot phases and edge roles. | Retain strict archive/alias/secondary combinations in the final audit. |
-| File-record cross-effects | The [file-record slice](file-record-order.md) resolves `chain-two-roots` and covered collision/growth/lifecycle paths. | Hidden-prerequisite recording is covered by its slice; finish archive-container recording and combination checks. |
+| File-record cross-effects | The [file-record slice](file-record-order.md) resolves `chain-two-roots` and covered collision/growth/lifecycle paths. | Hidden-prerequisite recording is covered by its slice; archive-container recording and temporary hash names are covered by the [archive follow-up](archive-observations.md); retain combination checks. |
 | Recursive HOME filename queries | The [tilde notes](rule-tilde.md) preserve a probe where GNU's shared scratch buffer yields `earlyarker`. | Resolve the compatibility/safety boundary explicitly. Do not introduce unsafe memory corruption or count it as matching. |
-| Archive observations | Earlier slices retain standalone-member/container timestamp and metadata-error ordering gaps. | Expand the I/O/error matrix and file-record timing tests before claiming completeness. |
+| Archive observations | The [archive follow-up](archive-observations.md) covers standalone/container ordering, initial/completion/cleanup phases and 2,600 fault cells. | Retain the strict combined acceptance gate before claiming completeness. |
 
 The hidden-prerequisite and historical library probes now pass and have required
 coverage in their slices. GNU is never a product implementation fallback.

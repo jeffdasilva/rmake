@@ -11,6 +11,7 @@ use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
 use std::time::{Duration, SystemTime};
 
 const LIMIT: &[u8] = b"variable expansion resource limit exceeded";
@@ -122,7 +123,7 @@ pub(crate) fn scan<T>(
             return Err(LIMIT.to_vec().into());
         }
         let mut header = [0; 60];
-        let seek = if buffered {
+        let mut seek = if buffered {
             let relative = i128::from(offset) - i128::from(cursor);
             match i64::try_from(relative) {
                 Ok(relative) => file.seek_relative(relative),
@@ -131,15 +132,27 @@ pub(crate) fn scan<T>(
         } else {
             file.get_mut().seek(SeekFrom::Start(offset)).map(|_| ())
         };
+        while seek
+            .as_ref()
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::Interrupted)
+        {
+            // Retry at an absolute position so a buffered seek's interrupted
+            // fallback cannot apply the relative displacement twice.
+            seek = file.seek(SeekFrom::Start(offset)).map(|_| ());
+        }
         if seek.is_err() {
             return Ok(Scan::Invalid);
         }
-        if file.read_exact(&mut header).is_err() {
-            return Ok(if file.stream_position().ok() == Some(offset) {
-                Scan::Absent
-            } else {
-                Scan::Invalid
-            });
+        if let Err(error) = file.read_exact(&mut header) {
+            return Ok(
+                if error.kind() == std::io::ErrorKind::UnexpectedEof
+                    && file.stream_position().ok() == Some(offset)
+                {
+                    Scan::Absent
+                } else {
+                    Scan::Invalid
+                },
+            );
         }
         if &header[58..] != b"`\n" {
             return Ok(Scan::Invalid);
@@ -294,28 +307,22 @@ pub fn modified(archive: &[u8], member: &[u8]) -> Result<Option<SystemTime>, Fil
     Ok(SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(date)))
 }
 
-/// Update only the selected date field through the descriptor that was scanned.
-/// Keep every other header/payload byte, including long-name tables, untouched.
-pub fn touch(archive: &[u8], member: &[u8]) -> Result<(), Vec<u8>> {
-    let mut file = match OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(OsStr::from_bytes(archive))
-    {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Err([b"touch: Archive '".as_slice(), archive, b"' does not exist"].concat());
-        }
-        Err(error) => return Err(io_message(archive, error)),
-    };
-    let found = scan(&mut file, archive, |entry| {
+/// Scan before acquiring write access, preserving metadata/error order.
+/// The write descriptor must identify the scanned inode before any mutation.
+pub fn touch(archive: &[u8], member: &[u8]) -> Result<(), FilesystemError> {
+    let mut scanned = posix::open_archive(archive)
+        .map_err(|_| [b"touch: Archive '".as_slice(), archive, b"' does not exist"].concat())?;
+    let found = scan(&mut scanned, archive, |entry| {
         Ok(matches(&entry, member).then_some(entry.offset))
-    })
-    .map_err(|error| error.into_message())?;
+    })?;
     let offset = match found {
         Scan::Found(offset) => offset,
         Scan::Invalid => {
-            return Err([b"touch: '".as_slice(), archive, b"' is not a valid archive"].concat());
+            return Err(
+                [b"touch: '".as_slice(), archive, b"' is not a valid archive"]
+                    .concat()
+                    .into(),
+            );
         }
         Scan::Absent => {
             return Err([
@@ -325,9 +332,30 @@ pub fn touch(archive: &[u8], member: &[u8]) -> Result<(), Vec<u8>> {
                 archive,
                 b"'",
             ]
-            .concat());
+            .concat()
+            .into());
         }
     };
+    let identity = scanned
+        .metadata()
+        .map_err(|error| io_message(archive, error))?;
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(OsStr::from_bytes(archive))
+        .map_err(|error| io_message(archive, error))?;
+    let writable = file
+        .metadata()
+        .map_err(|error| io_message(archive, error))?;
+    if (identity.dev(), identity.ino()) != (writable.dev(), writable.ino()) {
+        return Err([
+            b"touch: archive changed while opening '".as_slice(),
+            archive,
+            b"'",
+        ]
+        .concat()
+        .into());
+    }
     let time = file
         .metadata()
         .and_then(|metadata| metadata.modified())
@@ -338,13 +366,13 @@ pub fn touch(archive: &[u8], member: &[u8]) -> Result<(), Vec<u8>> {
         .as_secs()
         .to_string();
     if seconds.len() >= 12 {
-        return Err(b"touch: archive timestamp out of range".to_vec());
+        return Err(b"touch: archive timestamp out of range".to_vec().into());
     }
     let mut date = [b' '; 12];
     date[..seconds.len()].copy_from_slice(seconds.as_bytes());
     file.seek(SeekFrom::Start(offset + 16))
         .and_then(|_| file.write_all(&date))
-        .map_err(|error| io_message(archive, error))
+        .map_err(|error| io_message(archive, error).into())
 }
 
 fn io_message(archive: &[u8], error: std::io::Error) -> Vec<u8> {

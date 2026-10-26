@@ -91,7 +91,9 @@ stream, status and filesystem expectations, including merged output ordering.
 reads, close failures and external directory mutations; `FILESYSTEM_CASE` selects
 one for replay. `make test-directory-search` checks 176 original shared-cache and
 I/O programs; `DIRECTORY_CASE` selects one. `make test-symlink-times` checks 112
-ordinary/link/library timestamp syscall-fault programs; `SYMLINK_CASE` selects one. `make test-wildcards` runs 100 seeded filesystem query programs
+ordinary/link/library timestamp syscall-fault programs; `SYMLINK_CASE` selects one. `make test-archive-times` checks 2,600 original archive timestamp, read/seek and
+completion fault programs; `ARCHIVE_TIME_CASE` selects one. See
+[archive observations](docs/archive-observations.md). `make test-wildcards` runs 100 seeded filesystem query programs
 with independent matching and complete filesystem anchors. Use `WILDCARD_SEED`,
 `WILDCARD_CASES`, `WILDCARD_EXPRESSIONS` and `START_INDEX` to scale or replay them.
 See [wildcard semantics](docs/wildcard.md) for the implemented profile and limits.

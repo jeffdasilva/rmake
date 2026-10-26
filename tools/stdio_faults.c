@@ -60,6 +60,7 @@ static int interrupt_once(const char *path, const char *mode) {
 }
 
 static int symlink_fault(const char *path, const char *operation) {
+    if (getenv("RMAKE_ARCHIVE_ARMED") && access("arm.marker", F_OK) != 0) return 0;
     const char *mode = getenv("RMAKE_STDIO_FAULT");
     if (!selected(path) || !mode || strncmp(mode, "symlink-", 8) || interrupted)
         return 0;
@@ -79,6 +80,81 @@ static int symlink_fault(const char *path, const char *operation) {
     return 1;
 }
 
+// Archive read/seek probes select real descriptors by their fixture inode path.
+// Read faults occur at byte offsets, independent of read sizes or call counts.
+static int selected_descriptor(int descriptor) {
+    char link[64], path[4096];
+    int length = snprintf(link, sizeof link, "/proc/self/fd/%d", descriptor);
+    if (length < 0 || (size_t)length >= sizeof link) return 0;
+    ssize_t (*next)(const char *, char *, size_t) = symbol("readlink");
+    ssize_t size = next(link, path, sizeof path - 1);
+    if (size < 0) return 0;
+    path[size] = 0;
+    return selected(path);
+}
+
+static int archive_seek_fault(int descriptor, off64_t offset, int whence) {
+    const char *mode = getenv("RMAKE_STDIO_FAULT");
+    if (getenv("RMAKE_ARCHIVE_ARMED") && access("arm.marker", F_OK) != 0) return 0;
+    if (interrupted || !mode || strncmp(mode, "archive-seek-", 13)
+        || offset != 8 || whence != SEEK_SET || !selected_descriptor(descriptor)) return 0;
+    const char *kind = mode + 13;
+    int error = !strcmp(kind, "eintr") ? EINTR : !strcmp(kind, "eio") ? EIO : 0;
+    if (!error) return 0;
+    interrupted = 1;
+    note("archive-seek-fault\n");
+    errno = error;
+    return 1;
+}
+
+off_t lseek(int descriptor, off_t offset, int whence) {
+    off_t (*next)(int, off_t, int) = symbol("lseek");
+    if (archive_seek_fault(descriptor, offset, whence)) return -1;
+    return next(descriptor, offset, whence);
+}
+
+off64_t lseek64(int descriptor, off64_t offset, int whence) {
+    off64_t (*next)(int, off64_t, int) = symbol("lseek64");
+    if (archive_seek_fault(descriptor, offset, whence)) return -1;
+    return next(descriptor, offset, whence);
+}
+
+ssize_t read(int descriptor, void *buffer, size_t length) {
+    ssize_t (*next)(int, void *, size_t) = symbol("read");
+    const char *mode = getenv("RMAKE_STDIO_FAULT");
+    if ((!getenv("RMAKE_ARCHIVE_ARMED") || access("arm.marker", F_OK) == 0)
+        && !interrupted && mode && !strncmp(mode, "archive-read-", 13)
+        && selected_descriptor(descriptor)) {
+        off64_t (*position)(int, off64_t, int) = symbol("lseek64");
+        off64_t offset = position(descriptor, 0, SEEK_CUR);
+        const char *phase = mode + 13, *kind = NULL;
+        off64_t boundary = -1;
+        if (!strncmp(phase, "signature-", 10)) { boundary = 0; kind = phase + 10; }
+        if (!strncmp(phase, "header-", 7)) { boundary = 8; kind = phase + 7; }
+        if (!strncmp(phase, "next-", 5)) { boundary = 76; kind = phase + 5; }
+        if (boundary >= 0 && offset >= 0 && offset < boundary
+            && length > (size_t)(boundary - offset)) length = (size_t)(boundary - offset);
+        if (kind && offset == boundary) {
+            interrupted = 1;
+            note("archive-read-fault\n");
+            if (!strcmp(kind, "eintr")) { errno = EINTR; return -1; }
+            if (!strcmp(kind, "eio")) { errno = EIO; return -1; }
+            if (!strcmp(kind, "eof")) return 0;
+            if (!strcmp(kind, "short") && length > 3) length = 3;
+        }
+    }
+    return next(descriptor, buffer, length);
+}
+
+static void archive_write_replacement(const char *path, int flags) {
+    if (!interrupted && selected(path) && mode_is("archive-touch-replace")
+        && (flags & O_ACCMODE) == O_RDWR && access("arm.marker", F_OK) == 0) {
+        interrupted = 1;
+        if (rename("replacement.a", path) != 0) _exit(123);
+        note("archive-replaced\n");
+    }
+}
+
 int open(const char *path, int flags, ...) {
     int (*next)(const char *, int, ...) = symbol("open");
     mode_t mode = 0;
@@ -89,6 +165,21 @@ int open(const char *path, int flags, ...) {
         va_end(args);
     }
     if (interrupt_once(path, "archive-open-eintr")) return -1;
+    archive_write_replacement(path, flags);
+    return next(path, flags, mode);
+}
+
+int open64(const char *path, int flags, ...) {
+    int (*next)(const char *, int, ...) = symbol("open64");
+    mode_t mode = 0;
+    if ((flags & O_CREAT) || ((flags & O_TMPFILE) == O_TMPFILE)) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, mode_t);
+        va_end(args);
+    }
+    if (interrupt_once(path, "archive-open-eintr")) return -1;
+    archive_write_replacement(path, flags);
     return next(path, flags, mode);
 }
 

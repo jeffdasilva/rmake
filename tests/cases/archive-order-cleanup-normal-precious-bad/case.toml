@@ -1,0 +1,12 @@
+id = "archive-order-cleanup-normal-precious-bad"
+requirement = "archives.observation-order"
+candidate = "required"
+description = "Original archive lifecycle or tentative-key ordering boundary: archive-order-cleanup-normal-precious-bad."
+provenance = "Independently authored Makefile, archive bytes, table phase model and exact stream/status anchors. No upstream tests copied."
+args = ["-rR", "--no-print-directory", "-B"]
+timeout_seconds = 30
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a363a20617263686976652e61286d656d626572295d204572726f7220310a"

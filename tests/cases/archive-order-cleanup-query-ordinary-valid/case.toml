@@ -1,0 +1,12 @@
+id = "archive-order-cleanup-query-ordinary-valid"
+requirement = "archives.observation-order"
+candidate = "required"
+description = "Original archive lifecycle or tentative-key ordering boundary: archive-order-cleanup-query-ordinary-valid."
+provenance = "Independently authored Makefile, archive bytes, table phase model and exact stream/status anchors. No upstream tests copied."
+args = ["-rR", "--no-print-directory", "-B", "-q"]
+timeout_seconds = 30
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a2041726368697665206d656d6265722027617263686976652e61286d656d6265722927206d617920626520626f6775733b206e6f742064656c657465640a"

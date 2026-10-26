@@ -260,6 +260,7 @@ enum CompletionTime {
     Preserve,
     AssumeNew,
     Refresh,
+    ArchiveUnknown,
 }
 
 impl CompletionTime {
@@ -496,6 +497,20 @@ type JobResult = (Vec<u8>, u64, io::Result<std::process::ExitStatus>);
 struct ArchiveVpathReads {
     members: HashSet<Vec<u8>>,
     archives: HashSet<Vec<u8>>,
+    paths: HashMap<Vec<u8>, Vec<u8>>,
+}
+
+#[derive(Clone, Copy)]
+struct ArchiveCompletion {
+    time: Option<SystemTime>,
+    known: bool,
+}
+
+struct ArchiveLocation {
+    refresh: bool,
+    member_time: Option<SystemTime>,
+    container_time: Option<SystemTime>,
+    path: Option<Vec<u8>>,
 }
 
 struct ImplicitSelection {
@@ -553,6 +568,7 @@ pub struct Engine {
     path_observations: HashMap<Vec<u8>, PathObservation>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
+    archive_completion_times: HashMap<Vec<u8>, ArchiveCompletion>,
     makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
@@ -908,6 +924,7 @@ impl Engine {
             path_observations: HashMap::new(),
             resolved_names: HashMap::new(),
             archive_vpath_reads: RefCell::new(None),
+            archive_completion_times: HashMap::new(),
             makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
@@ -1133,6 +1150,7 @@ impl Engine {
                 self.path_observations.clear();
                 self.waiting_reported = false;
                 *self.archive_vpath_reads.borrow_mut() = None;
+                self.archive_completion_times.clear();
                 self.inferred_peer_flags.clear();
                 self.completed_group_branches.clear();
                 self.active_group_branches.clear();
@@ -1746,6 +1764,9 @@ impl Engine {
     }
 
     fn remove_intermediates(&mut self) {
+        if self.created_intermediates.is_empty() {
+            return;
+        }
         if self.intermediate_policy.all_secondary || self.intermediate_policy.no_intermediates {
             self.created_intermediates.clear();
             return;
@@ -1814,6 +1835,29 @@ impl Engine {
         }
     }
 
+    fn intermediate_time(&mut self, target: &[u8]) -> Result<Option<SystemTime>, ()> {
+        if rmake_core::filenames::archive_parts(target).is_none() {
+            return Ok(self.modified(target));
+        }
+        if self.special(b".PHONY", target, false) {
+            return Ok(None);
+        }
+        let prepared = self.prepare_search_name(target)?;
+        let target = prepared.as_deref().unwrap_or(target);
+        if let Some(outcome) = self.done.get(target) {
+            return Ok(outcome.time);
+        }
+        if !self.path_observations.contains_key(target) && self.archive_metadata_error(target, true)
+        {
+            return Err(());
+        }
+        Ok(self
+            .path_observations
+            .get(target)
+            .and_then(|observation| observation.as_ref())
+            .and_then(|(_, time)| *time))
+    }
+
     /// Missing intermediate files do not by themselves make a parent stale.
     /// Update their real inputs first, and materialize the chain only if an
     /// input is newer than the parent (or another prerequisite requires it).
@@ -1824,13 +1868,49 @@ impl Engine {
         time: Option<SystemTime>,
         depth: usize,
     ) -> Inspection {
-        if depth >= 512
+        let prepared = if rmake_core::filenames::archive_parts(target).is_some() {
+            match self.prepare_search_name(target) {
+                Ok(prepared) => prepared,
+                Err(()) => {
+                    return Inspection {
+                        outcome: Outcome {
+                            failed: true,
+                            fatal: true,
+                            ..Outcome::default()
+                        },
+                        pending: false,
+                        needs_rebuild: false,
+                    };
+                }
+            }
+        } else {
+            None
+        };
+        let target = prepared.as_deref().unwrap_or(target);
+        let direct = depth >= 512
             || self.done.contains_key(target)
             || self.pending(target)
             || !self.intermediate(target)
-            || self.modified(target).is_some()
-            || self.special(b".PHONY", target, false)
-        {
+            || self.special(b".PHONY", target, false);
+        let present = if direct {
+            false
+        } else {
+            match self.intermediate_time(target) {
+                Ok(time) => time.is_some(),
+                Err(()) => {
+                    return Inspection {
+                        outcome: Outcome {
+                            failed: true,
+                            fatal: true,
+                            ..Outcome::default()
+                        },
+                        pending: false,
+                        needs_rebuild: false,
+                    };
+                }
+            }
+        };
+        if direct || present {
             let mut outcome = self.build(target, Some(parent), depth);
             if !self.pending(target) {
                 outcome = self.observe_updated(target, outcome);
@@ -2122,19 +2202,25 @@ impl Engine {
             .concat();
             self.stderr(&message);
         }
+        let mut cleanup_fatal = false;
         if failed && launched {
-            self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnError);
+            cleanup_fatal =
+                self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnError);
         }
         if failed && self.parallel_jobs.contains_key(&target) {
             self.notice_waiting_for_jobs();
         }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
+        outcome.fatal |= cleanup_fatal;
         if !failed {
             let execution =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
             failed |= matches!(execution.status, Status::Failure | Status::Fatal);
             outcome.fatal |= execution.status == Status::Fatal;
-            self.cleanup_target(&target, job.before, job.phony, execution.cleanup);
+            if self.cleanup_target(&target, job.before, job.phony, execution.cleanup) {
+                failed = true;
+                outcome.fatal = true;
+            }
         }
         // Inspect archive metadata only after the last command exits. A child
         // may temporarily leave a partial header while updating its archive.
@@ -2144,6 +2230,13 @@ impl Engine {
         {
             failed = true;
             outcome.fatal = true;
+        }
+        if self
+            .archive_completion_times
+            .get(&target)
+            .is_some_and(|stamp| !stamp.known)
+        {
+            outcome.completion = CompletionTime::ArchiveUnknown;
         }
         self.parallel_failed |= failed;
         outcome.ran = true;
@@ -2188,36 +2281,80 @@ impl Engine {
         {
             return Ok(None);
         }
-        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target)
-            && let Some(path) = self
-                .archive_vpath(archive)
-                .map_err(|error| self.expansion_error(None, &error))?
-            && (self.gpath_match(archive, &path) || self.has_file_record(&path))
-        {
-            let archive_time = self.modified(&path);
-            self.rename_search_record(archive, &path)?;
-            self.path_observations
-                .entry(path.clone())
-                .or_insert(Some((None, archive_time)));
-            let name = [path.as_slice(), b"(", member, b")"].concat();
-            let observation = self
-                .find_vpath(&name)
+        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
+            let location = self
+                .archive_location(target)
                 .map_err(|error| self.expansion_error(None, &error))?;
-            self.rename_search_record(target, &name)?;
-            self.path_observations.insert(name.clone(), observation);
-            return Ok(Some(name));
+            if let Some(path) = &location.path
+                && self.has_file_record(archive)
+                && self.database.file_records.logical_name(path) == Some(archive)
+            {
+                // enter_file recreated the original container key. Merging
+                // it back into its own tentative record keeps its local name.
+                self.database.file_records.rename(archive, path);
+            }
+            if let Some(path) = &location.path
+                && (self.gpath_match(archive, path) || self.other_file_record(path, archive))
+            {
+                self.rename_search_record(archive, path)?;
+                self.path_observations
+                    .entry(path.clone())
+                    .or_insert(Some((None, location.container_time)));
+                let name = [path.as_slice(), b"(", member, b")"].concat();
+                self.rename_search_record(target, &name)?;
+                let observation = self
+                    .archive_observation_at(target, &location)
+                    .map_err(|error| self.expansion_error(None, &error))?;
+                if location.container_time.is_some() {
+                    self.path_observations
+                        .insert(name.clone(), observation.map(|(_, time)| (None, time)));
+                }
+                return Ok(Some(name));
+            }
+            if let Some(path) = &location.path {
+                if !self.has_file_record(path) {
+                    self.database.file_records.rehash(archive, path);
+                }
+                let name = [path.as_slice(), b"(", member, b")"].concat();
+                if self.other_file_record(&name, target) {
+                    self.rename_search_record(target, &name)?;
+                    let observation = self
+                        .archive_observation_at(target, &location)
+                        .map_err(|error| self.expansion_error(None, &error))?;
+                    if location.container_time.is_some() {
+                        self.path_observations
+                            .insert(name.clone(), observation.map(|(_, time)| (None, time)));
+                    }
+                    return Ok(Some(name));
+                }
+                if !self.has_file_record(&name) {
+                    self.database.file_records.rehash(target, &name);
+                }
+            }
+            let observation = self
+                .archive_observation_at(target, &location)
+                .map_err(|error| self.expansion_error(None, &error))?;
+            if location.container_time.is_some() {
+                self.path_observations.insert(target.to_vec(), observation);
+            }
+            return Ok(None);
         }
         let observation = self
             .find_vpath(target)
             .map_err(|error| self.expansion_error(None, &error))?;
         if let Some((Some(name), _)) = &observation
-            && (self.gpath_match(target, name) || self.has_file_record(name))
+            && (self.gpath_match(target, name) || self.other_file_record(name, target))
         {
             let name = name.clone();
             self.rename_search_record(target, &name)?;
             self.path_observations
                 .insert(name.clone(), observation.map(|(_, time)| (None, time)));
             return Ok(Some(name));
+        }
+        if let Some((Some(name), _)) = &observation
+            && !self.has_file_record(name)
+        {
+            self.database.file_records.rehash(target, name);
         }
         self.path_observations.insert(target.to_vec(), observation);
         Ok(None)
@@ -2226,6 +2363,19 @@ impl Engine {
     fn rename_search_record(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
         if from == to {
             return Ok(());
+        }
+        if self.has_file_record(from) && self.database.file_records.logical_name(to) == Some(from) {
+            // A fresh lookup of the original archive spelling can meet its
+            // older rehashed record. They share the logical runtime data;
+            // remove the new hash entry without renaming that runtime name.
+            self.database.file_records.rename(from, to);
+            return Ok(());
+        }
+        let completion = self.archive_completion_times.remove(from);
+        self.archive_completion_times.remove(to);
+        if let Some(completion) = completion {
+            self.archive_completion_times
+                .insert(to.to_vec(), completion);
         }
         self.database.file_records.rename(from, to);
         let merged = self.database.explicit_names.contains(to)
@@ -2401,7 +2551,19 @@ impl Engine {
         self.database.file_records.contains(name)
     }
 
+    fn other_file_record(&self, key: &[u8], target: &[u8]) -> bool {
+        key != target
+            && self.has_file_record(key)
+            && (self.has_file_record(target)
+                || self.database.file_records.logical_name(key).unwrap_or(key) != target)
+    }
+
     fn record_is_target(&self, name: &[u8]) -> bool {
+        let name = self
+            .database
+            .file_records
+            .logical_name(name)
+            .unwrap_or(name);
         self.database
             .rules
             .get(name)
@@ -2452,6 +2614,9 @@ impl Engine {
     }
 
     fn modified(&self, name: &[u8]) -> Option<SystemTime> {
+        if let Some(cached) = self.archive_completion_times.get(name) {
+            return cached.time;
+        }
         if !self.options.check_symlink_times && rmake_core::filenames::archive_parts(name).is_some()
         {
             return modified(name);
@@ -2507,28 +2672,123 @@ impl Engine {
         Ok(None)
     }
 
+    fn archive_location(&mut self, target: &[u8]) -> Result<ArchiveLocation, ExpandError> {
+        self.archive_location_for(target, false)
+    }
+
+    fn archive_location_for(
+        &mut self,
+        target: &[u8],
+        refresh: bool,
+    ) -> Result<ArchiveLocation, ExpandError> {
+        let (archive, member) =
+            rmake_core::filenames::archive_parts(target).expect("archive reference");
+        if member.starts_with(b"(") && member.ends_with(b")") {
+            return Err(ExpandError::UnlocatedError(
+                [
+                    b"attempt to use unsupported feature: '".as_slice(),
+                    target,
+                    b"'",
+                ]
+                .concat(),
+            ));
+        }
+        let member_time = self.name_time(member);
+        self.database.file_records.insert(archive);
+        let container = self
+            .database
+            .file_records
+            .logical_name(archive)
+            .unwrap_or(archive)
+            .to_vec();
+        let local_time = self.name_time(&container);
+        let path = if local_time.is_none() {
+            self.archive_remote_vpath(&container)?
+        } else {
+            None
+        };
+        let container_time = if let Some(path) = &path {
+            self.name_time(path)
+        } else {
+            local_time
+        };
+        if let Some(path) = &path {
+            let mut reads = self.archive_vpath_reads.borrow_mut();
+            let reads = reads.get_or_insert_with(Default::default);
+            reads.members.insert(target.to_vec());
+            reads.archives.insert(archive.to_vec());
+            reads
+                .paths
+                .entry(target.to_vec())
+                .or_insert_with(|| path.clone());
+        }
+        Ok(ArchiveLocation {
+            refresh,
+            member_time,
+            container_time,
+            path,
+        })
+    }
+
+    fn archive_observation_at(
+        &self,
+        target: &[u8],
+        location: &ArchiveLocation,
+    ) -> Result<PathObservation, ExpandError> {
+        let (archive, member) =
+            rmake_core::filenames::archive_parts(target).expect("archive reference");
+        let resolved = location
+            .path
+            .as_ref()
+            .map(|path| [path.as_slice(), b"(", member, b")"].concat());
+        if location.container_time.is_none() {
+            return Ok(resolved.map(|name| (Some(name), None)));
+        }
+        // A rebuilt archive member retains its prior hash filename. The local
+        // container timestamp is refreshed, but its member date can still be
+        // read from the archive chosen before the commands ran.
+        let previous = location
+            .refresh
+            .then(|| {
+                self.archive_vpath_reads
+                    .borrow()
+                    .as_ref()
+                    .and_then(|reads| reads.paths.get(target).cloned())
+            })
+            .flatten();
+        let path = previous
+            .as_deref()
+            .or(location.path.as_deref())
+            .unwrap_or(archive);
+        let date = rmake_linux::archive::date(path, member)
+            .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?;
+        let time = date
+            .filter(|date| {
+                location
+                    .member_time
+                    .and_then(|time| time.duration_since(SystemTime::UNIX_EPOCH).ok())
+                    .is_none_or(|duration| duration.as_secs() <= *date)
+            })
+            .and_then(|date| {
+                SystemTime::UNIX_EPOCH.checked_add(std::time::Duration::from_secs(date))
+            });
+        Ok(Some((resolved, time)))
+    }
+
+    fn archive_observation(
+        &mut self,
+        target: &[u8],
+    ) -> Result<(PathObservation, bool), ExpandError> {
+        let location = self.archive_location(target)?;
+        self.archive_observation_at(target, &location)
+            .map(|observation| (observation, location.container_time.is_some()))
+    }
+
     fn find_vpath(&mut self, target: &[u8]) -> Result<PathObservation, ExpandError> {
-        if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
-            // The standalone member is observed before container search.
-            let member_time = self
-                .options
-                .check_symlink_times
-                .then(|| self.name_time(member));
-            let path = self.archive_vpath(archive)?;
-            let archive = path.as_deref().unwrap_or(archive);
-            let time = if let Some(member_time) = member_time {
-                self.archive_time(archive, member, member_time)
-            } else {
-                rmake_linux::archive::modified(archive, member)
-                    .ok()
-                    .flatten()
-            };
-            return Ok(time.map(|time| {
-                (
-                    path.map(|path| [path.as_slice(), b"(", member, b")"].concat()),
-                    Some(time),
-                )
-            }));
+        if rmake_core::filenames::archive_parts(target).is_some() {
+            return self
+                .archive_observation(target)
+                .map(|(observation, _)| observation);
         }
         if self
             .archive_vpath_reads
@@ -2624,20 +2884,8 @@ impl Engine {
         }))
     }
 
-    /// Select the archive container before inspecting a member. Cached
-    /// directory membership and a fresh stat gate non-declared candidates.
-    fn archive_vpath(&self, archive: &[u8]) -> Result<Option<Vec<u8>>, ExpandError> {
+    fn archive_remote_vpath(&self, archive: &[u8]) -> Result<Option<Vec<u8>>, ExpandError> {
         if !self.vpath_searchable(archive) {
-            return Ok(None);
-        }
-        let local = if self.options.check_symlink_times {
-            rmake_linux::timestamp::observe(archive, true)
-                .time
-                .is_some()
-        } else {
-            fs::metadata(os(archive)).is_ok()
-        };
-        if local {
             return Ok(None);
         }
         for directory in self
@@ -2659,7 +2907,7 @@ impl Engine {
 
     /// Local implicit prerequisites use directory membership without a fresh
     /// stat. VPATH candidates still require its positive-name stat check.
-    fn implicit_vpath_exists(&self, target: &[u8]) -> Result<bool, ExpandError> {
+    fn implicit_vpath_exists(&mut self, target: &[u8]) -> Result<bool, ExpandError> {
         if rmake_core::filenames::archive_parts(target).is_none() {
             return if self.directory_member(target)? {
                 Ok(true)
@@ -2667,9 +2915,29 @@ impl Engine {
                 Ok(self.searched_file(target)?.is_some())
             };
         }
-        // Archive viability scans the local archive freshly, then searches
-        // the complete literal member name (not the archive container).
-        if self.modified(target).is_some() {
+        // Viability uses the archive date alone. Standalone-member freshness
+        // belongs to the later build timestamp phase. Existing containers enter
+        // the filename table even if the candidate is eventually rejected.
+        let (archive, member) =
+            rmake_core::filenames::archive_parts(target).expect("archive reference");
+        if member.starts_with(b"(") && member.ends_with(b")") {
+            return Err(ExpandError::UnlocatedError(
+                [
+                    b"attempt to use unsupported feature: '".as_slice(),
+                    target,
+                    b"'",
+                ]
+                .concat(),
+            ));
+        }
+        if self.database.file_records.contains(archive) || self.directory_member(archive)? {
+            self.database.file_records.insert(archive);
+            self.name_time(archive);
+        }
+        if rmake_linux::archive::date(archive, member)
+            .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?
+            .is_some()
+        {
             return Ok(true);
         }
         if self.vpath_searchable(target) {
@@ -2701,12 +2969,21 @@ impl Engine {
         if !outcome.search_after_update || outcome.fatal {
             return outcome;
         }
+        if let Some(stamp) = self.archive_completion_times.get(target) {
+            outcome.time = stamp.time;
+            if !stamp.known {
+                outcome.completion = CompletionTime::ArchiveUnknown;
+            }
+            outcome.search_after_update = false;
+            self.done.insert(target.to_vec(), outcome);
+            return outcome;
+        }
         outcome.search_after_update = false;
         match self.find_vpath(target) {
             Ok(observation) => {
                 outcome.time = observation.as_ref().and_then(|(_, time)| *time);
                 if let Some((Some(name), _)) = observation
-                    && (self.gpath_match(target, &name) || self.has_file_record(&name))
+                    && (self.gpath_match(target, &name) || self.other_file_record(&name, target))
                 {
                     if self.rename_search_record(target, &name).is_err() {
                         outcome.failed = true;
@@ -2992,7 +3269,8 @@ impl Engine {
                             {
                                 intermediate_names.push(name.clone());
                             }
-                            let explicit = self.record_is_target(name)
+                            let explicit = (self.has_file_record(name)
+                                && self.record_is_target(name))
                                 || self.database.rules.get(target).is_some_and(|rule| {
                                     rule.dependencies.iter().enumerate().any(|(index, dep)| {
                                         dep.name == *name
@@ -3329,61 +3607,57 @@ impl Engine {
         self.stderr(&message);
     }
 
-    fn archive_metadata_error(&self, target: &[u8], search: bool) -> bool {
-        let Some((archive, member)) = rmake_core::filenames::archive_parts(target) else {
+    fn archive_metadata_error(&mut self, target: &[u8], search: bool) -> bool {
+        let Some((_, member)) = rmake_core::filenames::archive_parts(target) else {
             return false;
         };
         let symbol = member.starts_with(b"(") && member.ends_with(b")");
-        if !symbol
-            && (self.special(b".PHONY", target, false)
-                || (!search
-                    && self
-                        .archive_vpath_reads
-                        .borrow()
-                        .as_ref()
-                        .is_some_and(|reads| reads.members.contains(target))))
-        {
+        if !symbol && self.special(b".PHONY", target, false) {
             return false;
         }
-        let message = if symbol {
-            Some(
-                [
-                    b"attempt to use unsupported feature: '".as_slice(),
-                    target,
-                    b"'",
-                ]
-                .concat(),
-            )
-        } else {
-            let path = if search {
-                match self.archive_vpath(archive) {
-                    Ok(path) => path,
-                    Err(error) => {
-                        self.expansion_error(None, &error);
-                        return true;
-                    }
-                }
-            } else {
-                None
-            };
-            if path.is_some() {
-                // Reading a VPATH member observes the original archive as
-                // locally absent. GNU's original archive record keeps that
-                // observation if it is later traversed as a prerequisite.
-                let mut reads = self.archive_vpath_reads.borrow_mut();
-                let reads = reads.get_or_insert_with(Default::default);
-                reads.members.insert(target.to_vec());
-                reads.archives.insert(archive.to_vec());
+        if search && self.path_observations.contains_key(target) {
+            return false;
+        }
+        if !search && self.archive_completion_times.contains_key(target) {
+            return false;
+        }
+        let location = match self.archive_location_for(target, !search) {
+            Ok(location) => location,
+            Err(error) => {
+                self.expansion_error(None, &error);
+                return true;
             }
-            rmake_linux::archive::modified(path.as_deref().unwrap_or(archive), member)
-                .err()
-                .map(|error| error.into_message())
         };
-        if let Some(message) = message {
-            self.fatal(None, &message);
-            true
-        } else {
-            false
+        match self.archive_observation_at(target, &location) {
+            Ok(observation) => {
+                if search {
+                    if location.container_time.is_some() {
+                        self.path_observations.insert(target.to_vec(), observation);
+                    }
+                } else {
+                    self.archive_completion_times.insert(
+                        target.to_vec(),
+                        ArchiveCompletion {
+                            time: observation.as_ref().and_then(|(_, time)| *time),
+                            known: location.container_time.is_some(),
+                        },
+                    );
+                }
+                false
+            }
+            Err(error) => {
+                if !search {
+                    self.archive_completion_times.insert(
+                        target.to_vec(),
+                        ArchiveCompletion {
+                            time: None,
+                            known: true,
+                        },
+                    );
+                }
+                self.expansion_error(None, &error);
+                true
+            }
         }
     }
 
@@ -3426,7 +3700,10 @@ impl Engine {
         if archive_target
             && !previously_done
             && !outcome.failed
-            && outcome.ran
+            && matches!(
+                outcome.completion,
+                CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+            )
             && !self.pending(target)
             && self.archive_metadata_error(target, false)
         {
@@ -3457,8 +3734,35 @@ impl Engine {
         if self.pending_rules.contains_key(target) {
             return self.resume_rule(target);
         }
-        if let Some(outcome) = self.done.get(target) {
-            return *outcome;
+        if let Some(mut outcome) = self.done.get(target).copied() {
+            if outcome.completion == CompletionTime::ArchiveUnknown
+                && rmake_core::filenames::archive_parts(target).is_some()
+            {
+                match self.archive_observation(target) {
+                    Ok((observation, known)) => {
+                        outcome.time = observation.as_ref().and_then(|(_, time)| *time);
+                        outcome.completion = if known {
+                            CompletionTime::Refresh
+                        } else {
+                            CompletionTime::ArchiveUnknown
+                        };
+                        self.archive_completion_times.insert(
+                            target.to_vec(),
+                            ArchiveCompletion {
+                                time: outcome.time,
+                                known,
+                            },
+                        );
+                    }
+                    Err(error) => {
+                        self.expansion_error(None, &error);
+                        outcome.failed = true;
+                        outcome.fatal = true;
+                    }
+                }
+                self.done.insert(target.to_vec(), outcome);
+            }
+            return outcome;
         }
         if self.graph_abort.is_some() {
             let mut outcome = Outcome::default();
@@ -4173,8 +4477,24 @@ impl Engine {
         }
         let occurrence = &state.rule.dependencies[index];
         let dependency = &occurrence.name;
-        let inspect = state.inspections.contains_key(&index)
-            || (first && self.intermediate(dependency) && self.modified(dependency).is_none());
+        let missing_middle = if first && self.intermediate(dependency) {
+            match self.intermediate_time(dependency) {
+                Ok(time) => time.is_none(),
+                Err(()) => {
+                    return (
+                        Outcome {
+                            failed: true,
+                            fatal: true,
+                            ..Outcome::default()
+                        },
+                        false,
+                    );
+                }
+            }
+        } else {
+            false
+        };
+        let inspect = state.inspections.contains_key(&index) || missing_middle;
         if inspect {
             let epoch = self.graph_epoch;
             let Inspection {
@@ -4203,7 +4523,12 @@ impl Engine {
             }
             (child, pending)
         } else {
-            let child = if first || self.graph_pending(dependency) {
+            let unknown_archive = self
+                .done
+                .get(dependency)
+                .is_some_and(|child| child.completion == CompletionTime::ArchiveUnknown)
+                && rmake_core::filenames::archive_parts(dependency).is_some();
+            let child = if first || self.graph_pending(dependency) || unknown_archive {
                 self.build(dependency, Some(target), state.depth + 1)
             } else {
                 self.done.get(dependency).copied().unwrap_or_default()
@@ -4214,6 +4539,12 @@ impl Engine {
             } else {
                 self.observe_updated(dependency, child)
             };
+            if first
+                && child.completion == CompletionTime::ArchiveUnknown
+                && rmake_core::filenames::archive_parts(dependency).is_some()
+            {
+                state.stale |= !occurrence.order_only;
+            }
             (child, pending)
         }
     }
@@ -4426,6 +4757,7 @@ impl Engine {
                     }
                     self.running_groups.insert(target.to_vec(), group);
                 }
+                self.archive_completion_times.remove(target);
                 let execution = self.execute(target, recipes, &autos, phony, before);
                 outcome.ran |= execution.ran;
                 outcome.completion =
@@ -4448,7 +4780,10 @@ impl Engine {
                 if self.intermediate(target) && before.is_none() {
                     self.created_intermediates.push(target.to_vec());
                 }
-                self.cleanup_target(target, before, phony, execution.cleanup);
+                if self.cleanup_target(target, before, phony, execution.cleanup) {
+                    outcome.failed = true;
+                    outcome.fatal = true;
+                }
             } else if rule.record_only && !phony {
                 if !self.optional_remake {
                     self.show_makefile_error();
@@ -4459,6 +4794,21 @@ impl Engine {
                     self.report_missing_rule(target, parent);
                 }
                 outcome.failed = true;
+            }
+            if !outcome.failed
+                && outcome.completion == CompletionTime::Refresh
+                && !self.pending(target)
+                && self.archive_metadata_error(target, false)
+            {
+                outcome.failed = true;
+                outcome.fatal = true;
+            }
+            if self
+                .archive_completion_times
+                .get(target)
+                .is_some_and(|stamp| !stamp.known)
+            {
+                outcome.completion = CompletionTime::ArchiveUnknown;
             }
             outcome.time = if phony {
                 None
@@ -5139,10 +5489,10 @@ impl Engine {
         for pass in 0..passes {
             let mut touched = self.touch_target(target);
             ran |= touched.ran;
-            if touched.status == Status::Failure {
+            if matches!(touched.status, Status::Failure | Status::Fatal) {
                 // Only dispatch completion can fail before a continuation owner
                 // performs cleanup. The owner's final completion has no such step.
-                if pass == 0 && passes > 1 {
+                if pass == 0 && passes > 1 && touched.status != Status::Fatal {
                     touched.cleanup = flow.continuation_cleanup();
                 }
                 touched.ran |= ran;
@@ -5162,7 +5512,11 @@ impl Engine {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             return match rmake_linux::archive::touch(archive, member) {
                 Ok(()) => Execution::success(true),
-                Err(message) => {
+                Err(rmake_core::diagnostic::FilesystemError::Unlocated(message)) => {
+                    self.archive_recipe_fatal(&message);
+                    Execution::fatal(true)
+                }
+                Err(rmake_core::diagnostic::FilesystemError::Caller(message)) => {
                     self.stderr(&message);
                     Execution::failure(true, Cleanup::None)
                 }
@@ -5203,21 +5557,32 @@ impl Engine {
         Execution::success(true)
     }
 
+    fn archive_recipe_fatal(&self, message: &[u8]) {
+        self.fatal(None, message);
+        self.stderr(b"*** Waiting for unfinished jobs....");
+        self.fatal(None, b"wait: No child processes");
+    }
+
     fn cleanup_target(
         &self,
         target: &[u8],
         before: Option<SystemTime>,
         phony: bool,
         cleanup: Cleanup,
-    ) {
-        self.cleanup_one(target, before, phony, cleanup, None);
+    ) -> bool {
+        if self.cleanup_one(target, before, phony, cleanup, None) {
+            return true;
+        }
         if let Some(group) = self.running_groups.get(target) {
             for (peer, time, peer_phony) in group.members.iter().rev() {
-                if peer != target {
-                    self.cleanup_one(peer, *time, *peer_phony, cleanup, Some(target));
+                if peer != target
+                    && self.cleanup_one(peer, *time, *peer_phony, cleanup, Some(target))
+                {
+                    return true;
                 }
             }
         }
+        false
     }
 
     fn cleanup_one(
@@ -5227,9 +5592,9 @@ impl Engine {
         phony: bool,
         cleanup: Cleanup,
         owner: Option<&[u8]>,
-    ) {
+    ) -> bool {
         if cleanup == Cleanup::None || phony || self.special_for_rule(b".PRECIOUS", target) {
-            return;
+            return false;
         }
         if cleanup == Cleanup::ChangedOnError
             && !self
@@ -5237,16 +5602,19 @@ impl Engine {
                 .rules
                 .contains_key(b".DELETE_ON_ERROR".as_slice())
         {
-            return;
+            return false;
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
-            let date = rmake_linux::archive::date(archive, member)
-                .ok()
-                .flatten()
-                .and_then(|seconds| {
+            let date = match rmake_linux::archive::date(archive, member) {
+                Ok(date) => date.and_then(|seconds| {
                     SystemTime::UNIX_EPOCH.checked_add(std::time::Duration::from_secs(seconds))
-                });
-            if date != before {
+                }),
+                Err(error) => {
+                    self.archive_recipe_fatal(&error.into_message());
+                    return true;
+                }
+            };
+            if cleanup == Cleanup::ExistingAfterContinuation || date != before {
                 let context =
                     owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
                 self.stderr(
@@ -5260,16 +5628,16 @@ impl Engine {
                     .concat(),
                 );
             }
-            return;
+            return false;
         }
         let Ok(metadata) = fs::metadata(os(target)) else {
-            return;
+            return false;
         };
         if !metadata.is_file() {
-            return;
+            return false;
         }
         if cleanup == Cleanup::ChangedOnError && metadata.modified().ok() == before {
-            return;
+            return false;
         }
         let context = owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
         self.stderr(
@@ -5295,6 +5663,7 @@ impl Engine {
                 .concat(),
             );
         }
+        false
     }
 }
 
