@@ -88,6 +88,18 @@ def selected_workloads(suite):
         yield from directory_search_workloads()
     if suite in ("archive-names", "all"):
         yield from archive_name_workloads()
+    if suite in ("symlink-times", "all"):
+        yield from symlink_time_workloads()
+
+
+def symlink_time_workloads():
+    """Existing fixed-time outputs; link-aware checks launch no children."""
+    yield 'symlink-times-plain-2000', (
+        'all: ' + ' '.join(f'sym-plain-{index:04d}' for index in range(2000)) + ' ;\n').encode()
+    for kind, count in (('links', 1000), ('chain', 500), ('dangling', 1000)):
+        source = 'all: ' + ' '.join(f'sym-{index:04d}.out' for index in range(count)) + ' ;\n'
+        source += ''.join(f'sym-{index:04d}.out: sym-links/in-{index:04d} ;\n' for index in range(count))
+        yield f'symlink-times-{kind}-{count}', source.encode()
 
 
 def archive_name_workloads():
@@ -259,6 +271,8 @@ def parallel_branch_workloads():
 
 def workload_arguments(name):
     arguments = ["-rR", "--no-print-directory"]
+    if name.startswith('symlink-times-'):
+        arguments.append('-L')
     if name.startswith('parallel-branches-'):
         arguments += ["-j4", "--jobserver-style=pipe"]
     return arguments
@@ -334,6 +348,54 @@ def prepare_archive_names(path, kind, count):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('symlink-times-'):
+        _, _, kind, count = workload.split('-')
+        count = int(count)
+        # Each workload owns this namespace inside a disposable campaign root.
+        # Clear previous live links so dangling and chain controls stay distinct.
+        for pattern in ('sym-*.out', 'sym-plain-*'):
+            for previous in path.glob(pattern):
+                previous.unlink()
+        for directory in (path / 'sym-links', path / 'sym-inputs'):
+            if directory.is_dir():
+                for previous in directory.iterdir():
+                    previous.unlink()
+        if kind == 'plain':
+            for index in range(count):
+                target = path / f'sym-plain-{index:04d}'
+                target.write_bytes(b'original\n')
+                os.utime(target, ns=(1600000000000000000,) * 2)
+            return {'regular_files': count, 'links': 0, 'mtime_ns': 1600000000000000000}
+        links = path / 'sym-links'
+        inputs = path / 'sym-inputs'
+        links.mkdir(exist_ok=True)
+        inputs.mkdir(exist_ok=True)
+        for index in range(count):
+            output = path / f'sym-{index:04d}.out'
+            output.write_bytes(b'original\n')
+            os.utime(output, ns=(1600000020000000000,) * 2)
+            link = links / f'in-{index:04d}'
+            link.unlink(missing_ok=True)
+            if kind == 'chain':
+                hop = links / f'hop-{index:04d}'
+                hop.unlink(missing_ok=True)
+                hop.symlink_to(f'../sym-inputs/in-{index:04d}')
+                os.utime(hop, ns=(1600000015000000000,) * 2, follow_symlinks=False)
+                link.symlink_to(hop.name)
+            else:
+                link.symlink_to(f'../sym-inputs/in-{index:04d}')
+            os.utime(link, ns=(1600000010000000000,) * 2, follow_symlinks=False)
+            leaf = inputs / link.name
+            if kind == 'dangling':
+                leaf.unlink(missing_ok=True)
+            else:
+                leaf.write_bytes(b'original\n')
+                os.utime(leaf, ns=(1600000000000000000,) * 2)
+        return {'outputs': count, 'links': count * (2 if kind == 'chain' else 1),
+                'referents': 0 if kind == 'dangling' else count,
+                'output_mtime_ns': 1600000020000000000,
+                'link_mtime_ns': 1600000010000000000,
+                'hop_mtime_ns': 1600000015000000000 if kind == 'chain' else None}
     if workload.startswith('archive-names-'):
         _, _, kind, count = workload.split('-')
         return prepare_archive_names(path / 'lib.a', 'gnu' if kind == 'glob' else kind, int(count))
@@ -452,7 +514,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

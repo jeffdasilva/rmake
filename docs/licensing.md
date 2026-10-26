@@ -127,3 +127,8 @@ used by the independently authored Rust adapter and original test hooks.
 The [archive name-encoding notes](archive-name-encodings.md) record the GNU
 `arscan.c`, `misc.c` and `ar.c` references used for the independently written
 conversion/lifetime follow-up and original archive/Makefile/stateful fixtures.
+
+
+The [symlink-time notes](symlink-timestamps.md) record GNU `remake.c` / `main.c`
+and Linux/glibc interface references for the independently written timestamp
+observer, option handling, matcher reuse and original test programs.

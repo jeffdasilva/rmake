@@ -209,8 +209,12 @@ impl Wildcard {
             if magic(member)
                 && let Ok(mut file) = posix::open_archive(&path)
             {
+                let matcher = posix::Matcher::new(member);
                 crate::archive::scan(&mut file, &path, |entry| {
-                    if posix::matches(member, entry.name) {
+                    if matcher
+                        .as_ref()
+                        .is_some_and(|matcher| matcher.matches_bytes(entry.name))
+                    {
                         bytes = bytes.saturating_add(path.len() + entry.name.len() + 3);
                         if bytes > MAX_OUTPUT {
                             return Err(LIMIT.to_vec().into());
@@ -647,9 +651,13 @@ fn archive_matches(path: &[u8], pattern: &[u8]) -> Result<usize, FilesystemError
     let Ok(mut file) = posix::open_archive(path) else {
         return Ok(0);
     };
+    let matcher = posix::Matcher::new(pattern);
     let mut count = 0;
     crate::archive::scan(&mut file, path, |member| {
-        if posix::matches(pattern, member.name) {
+        if matcher
+            .as_ref()
+            .is_some_and(|matcher| matcher.matches_bytes(member.name))
+        {
             count += 1;
             if count > MAX_OUTPUT / (path.len() + 1) {
                 return Err(LIMIT.to_vec().into());

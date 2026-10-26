@@ -1,0 +1,12 @@
+id = "symlink-times-backslash-target"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "backslash-target"
+provenance = "Original byte-preserving symlink and independently authored Makefile/time/output anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory", "-L"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6275696c643d5b6f75745d206e657765723d5b6c696e6b5d0a"
+stderr_hex = ""

@@ -1,0 +1,92 @@
+id = "symlink-dangling-transitions"
+description = "Dangling and restored chains across flag changes, deletion, rebuild and exact output verification"
+provenance = "Original fixed bytes, symlink timestamps and independently authored expectations; no upstream tests or implementation copied."
+initial = [{"op" = "write", "path" = "phase", "content" = "4\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "out", "content" = "phase=3\n", "mtime_ns" = 1600000060000000000}]
+
+[[steps]]
+name = "dangling-chain-outdated"
+actions = [{"op" = "write", "path" = "phase", "content" = "4\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000065000000000, "hop" = 1600000070000000000, "input" = 1600000000000000000, "out" = 1600000060000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "dangling-default-is-missing"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000065000000000, "hop" = 1600000070000000000, "input" = 1600000000000000000, "out" = 1600000060000000000}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'link', needed by 'out'.  Stop.\n"}
+
+[[steps]]
+name = "build-from-dangling-link"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"link" = 1600000065000000000, "hop" = 1600000070000000000, "input" = 1600000000000000000, "out" = 1600000080000000000}
+expected = {"exit_code" = 0, "stdout" = "built phase=4 newer=link\n", "stderr" = ""}
+
+[[steps]]
+name = "verify-dangling-build-content"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000065000000000, "hop" = 1600000070000000000, "input" = 1600000000000000000, "out" = 1600000080000000000}
+expected = {"exit_code" = 0, "stdout" = "phase=4\n", "stderr" = ""}
+
+[[steps]]
+name = "restored-chain-outdated"
+actions = [{"op" = "write", "path" = "phase", "content" = "5\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000085000000000, "hop" = 1600000090000000000, "input" = 1600000000000000000, "out" = 1600000080000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-restored-chain"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"link" = 1600000085000000000, "hop" = 1600000090000000000, "input" = 1600000000000000000, "out" = 1600000100000000000}
+expected = {"exit_code" = 0, "stdout" = "built phase=5 newer=link\n", "stderr" = ""}
+
+[[steps]]
+name = "older-chain-current"
+actions = [{"op" = "write", "path" = "phase", "content" = "6\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000005000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000100000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "older-default-current"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000005000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000100000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "deleted-output-outdated"
+actions = [{"op" = "remove", "path" = "out"}]
+args = ["-rR", "--no-print-directory", "-L", "-q"]
+unchanged = []
+exact_mtime = {"link" = 1600000005000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "rebuild-deleted-output"
+actions = []
+args = ["-rR", "--no-print-directory", "-L"]
+unchanged = []
+exact_mtime = {"link" = 1600000005000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000100000000000}
+expected = {"exit_code" = 0, "stdout" = "built phase=6 newer=link\n", "stderr" = ""}
+
+[[steps]]
+name = "verify-final-content"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["out"]
+exact_mtime = {"link" = 1600000005000000000, "hop" = 1600000003000000000, "input" = 1600000000000000000, "out" = 1600000100000000000}
+expected = {"exit_code" = 0, "stdout" = "phase=6\n", "stderr" = ""}

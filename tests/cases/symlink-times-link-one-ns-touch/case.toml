@@ -1,0 +1,12 @@
+id = "symlink-times-link-one-ns-touch"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "link-one-ns-touch"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206f75740a"
+stderr_hex = ""

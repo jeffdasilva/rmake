@@ -1,0 +1,12 @@
+id = "symlink-times-archive-older"
+requirement = "filesystem.symlink-times"
+candidate = "required"
+description = "archive-older"
+provenance = "Original fixed-time symlinks, Makefile and independently authored stream/status anchors; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory", "-L"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "73656c65637465643d5b6c69622e61286f6e652e6f295d0a"
+stderr_hex = ""

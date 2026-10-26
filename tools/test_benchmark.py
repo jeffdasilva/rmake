@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -220,6 +220,39 @@ class BenchmarkTests(unittest.TestCase):
         self.assertIn(b'%.out: %.in ;', workloads[2][1])
         self.assertIn(b'$(filter inputs/%,$^)', workloads[3][1])
         self.assertIn(b'$(filter other/%,$^)', workloads[3][1])
+
+    def test_symlink_time_workloads_pin_arguments_links_and_noop_dates(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.selected_workloads('symlink-times'))
+        self.assertEqual([name for name, _ in workloads], [
+            'symlink-times-plain-2000', 'symlink-times-links-1000',
+            'symlink-times-chain-500', 'symlink-times-dangling-1000'])
+        with tempfile.TemporaryDirectory() as temporary:
+            for index, (name, source) in enumerate(workloads):
+                root = Path(temporary) / str(index)
+                root.mkdir()
+                fixture = benchmark.prepare_files(root, name)
+                self.assertEqual(benchmark.workload_arguments(name), ['-rR', '--no-print-directory', '-L'])
+                self.assertNotIn(b'$(shell', source)
+                if 'plain' in name:
+                    self.assertEqual(len(list(root.iterdir())), fixture['regular_files'])
+                    self.assertEqual((root / 'sym-plain-1999').stat().st_mtime_ns, fixture['mtime_ns'])
+                    continue
+                link = root / 'sym-links/in-0000'
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(link.lstat().st_mtime_ns, fixture['link_mtime_ns'])
+                self.assertEqual((root / 'sym-0000.out').stat().st_mtime_ns, fixture['output_mtime_ns'])
+                self.assertGreater(fixture['output_mtime_ns'], fixture['link_mtime_ns'])
+                if 'dangling' in name:
+                    self.assertFalse(link.exists())
+                    self.assertEqual(fixture['referents'], 0)
+                else:
+                    self.assertTrue(link.is_file())
+                    self.assertLess(link.stat().st_mtime_ns, fixture['output_mtime_ns'])
+                if 'chain' in name:
+                    self.assertEqual(link.readlink(), Path('hop-0000'))
+                    self.assertEqual((root / 'sym-links/hop-0000').lstat().st_mtime_ns, fixture['hop_mtime_ns'])
 
     def test_archive_name_workloads_prepare_both_formats_and_wildcard_control(self):
         import tempfile

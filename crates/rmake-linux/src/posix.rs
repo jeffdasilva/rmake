@@ -66,28 +66,42 @@ impl Matcher {
         })
     }
 
+    #[inline(always)]
+    fn simple_match(&self, name: &[u8]) -> Option<bool> {
+        let star = self.simple_star?;
+        if name.contains(&b'/') {
+            return None;
+        }
+        let pattern = self.pattern.as_bytes();
+        Some(
+            (name.first() != Some(&b'.') || pattern.first() == Some(&b'.'))
+                && name.len() >= pattern.len() - 1
+                && name.starts_with(&pattern[..star])
+                && name.ends_with(&pattern[star + 1..]),
+        )
+    }
+
     pub fn matches(&self, name: &CStr) -> bool {
-        if let Some(star) = self.simple_star {
-            let name = name.to_bytes();
-            let pattern = self.pattern.as_bytes();
-            if !name.contains(&b'/') {
-                return (name.first() != Some(&b'.') || pattern.first() == Some(&b'.'))
-                    && name.len() >= pattern.len() - 1
-                    && name.starts_with(&pattern[..star])
-                    && name.ends_with(&pattern[star + 1..]);
-            }
+        if let Some(result) = self.simple_match(name.to_bytes()) {
+            return result;
         }
         // Both immutable terminated strings live throughout the call. Linux's
         // PATHNAME and PERIOD flags prevent implicit slash/dot matching.
         unsafe { fnmatch(self.pattern.as_ptr(), name.as_ptr(), 1 | 4) == 0 }
     }
-}
 
-pub fn matches(pattern: &[u8], name: &[u8]) -> bool {
-    let (Some(pattern), Ok(name)) = (Matcher::new(pattern), CString::new(name)) else {
-        return false;
-    };
-    pattern.matches(&name)
+    pub fn matches_bytes(&self, name: &[u8]) -> bool {
+        if name.contains(&0) {
+            return false;
+        }
+        if let Some(result) = self.simple_match(name) {
+            return result;
+        }
+        let Ok(name) = CString::new(name) else {
+            return false;
+        };
+        self.matches(&name)
+    }
 }
 
 pub fn home(user: Option<&[u8]>) -> Option<Vec<u8>> {
@@ -153,7 +167,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn simple_star_fast_path_agrees_with_libc_for_raw_names_and_dot_boundaries() {
+    fn compiled_matcher_paths_agree_with_libc_for_raw_names_and_dot_boundaries() {
         for bytes in [
             b"*".as_slice(),
             b"a*",
@@ -162,6 +176,10 @@ mod tests {
             b".*",
             b"*\xff",
             b"\xff*",
+            b"a?b",
+            b"[a-c]*.o",
+            b"a\\*b",
+            b"dir/*",
         ] {
             let matcher = Matcher::new(bytes).unwrap();
             for first in 1..=255u8 {
@@ -175,8 +193,19 @@ mod tests {
                         native,
                         "pattern={bytes:?}, name={name:?}"
                     );
+                    assert_eq!(matcher.matches_bytes(name.as_bytes()), native);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn byte_matcher_rejects_nul_in_names_and_patterns() {
+        assert!(Matcher::new(b"*\0tail").is_none());
+        for pattern in [b"*".as_slice(), b"*.o", b"[ab]*"] {
+            let matcher = Matcher::new(pattern).unwrap();
+            assert!(!matcher.matches_bytes(b"a\0.o"));
+            assert!(!matcher.matches_bytes(b"a.o\0"));
         }
     }
 }
