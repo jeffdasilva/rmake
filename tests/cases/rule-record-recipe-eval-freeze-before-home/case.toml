@@ -1,0 +1,11 @@
+id = "rule-record-recipe-eval-freeze-before-home"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: recipe-eval-freeze-before-home."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = "434f4e444954494f4e414c0a"
+stderr_hex = "4d616b6566696c653a383a202a2a2a20707265726571756973697465732063616e6e6f7420626520646566696e656420696e20726563697065732e202053746f702e0a"

@@ -90,6 +90,7 @@ struct RuleDeclaration {
     recipe_started: bool,
     branches: HashMap<Vec<u8>, Vec<usize>>,
     patterns: HashMap<Vec<u8>, Pattern>,
+    target_patterns: Vec<bool>,
     implicit: HashMap<Vec<u8>, usize>,
     implicit_group_identity: Option<usize>,
     warnings: Vec<(Location, Diagnostic)>,
@@ -97,19 +98,14 @@ struct RuleDeclaration {
     grouped: bool,
     group_warnings: Vec<(Location, Diagnostic)>,
     grouped_double_id: Option<usize>,
-    pending: Option<Box<PendingPrerequisites>>,
+    header: Option<RuleHeader>,
+    prerequisites: Vec<u8>,
+    recipes: Vec<Recipe>,
 }
 
-enum PendingAddress {
-    Explicit(Vec<u8>),
-    Double(Vec<u8>, usize),
-    Implicit(usize),
-}
-
-struct PendingPrerequisites {
-    normal: Vec<u8>,
-    order: Vec<u8>,
-    targets: Vec<(PendingAddress, Option<Vec<u8>>)>,
+struct RuleHeader {
+    static_pattern: Option<Pattern>,
+    double_colon: bool,
 }
 
 impl RuleDeclaration {
@@ -119,7 +115,11 @@ impl RuleDeclaration {
         warnings: &mut Vec<(Location, Diagnostic)>,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        if self.grouped && !self.recipe_started && !self.targets.is_empty() {
+        if self.grouped
+            && !self.recipe_started
+            && self.recipes.is_empty()
+            && !self.targets.is_empty()
+        {
             return Err(ParseError {
                 unlocated: false,
                 location: self.location.clone().expect("group header location"),
@@ -146,6 +146,7 @@ impl RuleDeclaration {
         self.offsets.clear();
         self.branches.clear();
         self.patterns.clear();
+        self.target_patterns.clear();
         self.implicit.clear();
         self.implicit_group_identity = None;
         self.location = None;
@@ -288,6 +289,7 @@ pub struct Database {
     pub(crate) evaluation_scope: Option<VariableStore>,
     rules_frozen: bool,
     suppress_default_goal: bool,
+    second_expansion: bool,
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
@@ -2311,13 +2313,6 @@ impl Database {
             };
             let double_colon = expanded.get(colon + 1) == Some(&b':');
             let grouped = expanded[..colon].ends_with(b"&");
-            if self.rules_frozen {
-                return Err(ParseError {
-                    unlocated: false,
-                    location,
-                    message: "prerequisites cannot be defined in recipes".into(),
-                });
-            }
             declaration.location = Some(location.clone());
             declaration.grouped = grouped;
             let target_end = colon - usize::from(grouped);
@@ -2335,6 +2330,7 @@ impl Database {
             for target in targets {
                 let target = target.as_ref();
                 let pattern = Pattern::new(target);
+                declaration.target_patterns.push(pattern.has_wildcard());
                 if pattern.has_wildcard() {
                     declaration
                         .patterns
@@ -2344,10 +2340,6 @@ impl Database {
             }
             if declaration.targets.is_empty() {
                 continue;
-            }
-            if grouped && double_colon && declaration.patterns.is_empty() {
-                declaration.grouped_double_id = Some(self.next_group_id);
-                self.next_group_id += 1;
             }
             let mut prereqs = &expanded[colon + 1 + usize::from(double_colon)..];
             let static_pattern = if let Some(second) = expanded_colon(prereqs) {
@@ -2373,41 +2365,6 @@ impl Database {
             } else {
                 None
             };
-            let prereqs = crate::filenames::unquote_colons(prereqs);
-            let prereqs = prereqs.as_ref();
-            let secondary =
-                self.rules.contains_key(b".SECONDEXPANSION".as_slice()) && prereqs.contains(&b'$');
-            let (normal, order) = crate::filenames::split_order(prereqs);
-            let normal = normal.as_ref();
-            let order = order.unwrap_or_default();
-            let empty_dependencies = crate::filenames::words(normal).next().is_none()
-                && crate::filenames::words(order).next().is_none();
-            let pending = !secondary && prereqs.contains(&b'~');
-            if pending {
-                declaration.pending = Some(Box::new(PendingPrerequisites {
-                    normal: normal.to_vec(),
-                    order: order.to_vec(),
-                    targets: Vec::new(),
-                }));
-            }
-            // A declaration's wildcard observations occur once, before static
-            // stem replacement, and remain deferred with secondary expansion.
-            let prerequisite_names = if secondary
-                || pending
-                || !prereqs
-                    .iter()
-                    .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'['))
-            {
-                None
-            } else {
-                let mut names = Vec::new();
-                for (text, order_only) in [(normal, false), (order, true)] {
-                    for name in self.parsed_rule_filenames(text, &location, context)? {
-                        names.push((name, order_only));
-                    }
-                }
-                Some(names)
-            };
             // Check the complete declaration before merging any target: a
             // .SUFFIXES target on this same line has not changed the list yet.
             if !self.suppress_default_goal
@@ -2415,11 +2372,15 @@ impl Database {
                     .variables
                     .get(b".DEFAULT_GOAL")
                     .is_none_or(|v| v.raw_value().is_empty())
-                && let Some(target) = declaration.targets.iter().find(|target| {
-                    (!target.starts_with(b".") || target.contains(&b'/'))
-                        && !self.is_suffix_rule_name(target)
-                        && !declaration.patterns.contains_key(target.as_slice())
-                })
+                && let Some(target) = declaration
+                    .targets
+                    .iter()
+                    .take_while(|target| !target.contains(&b'%'))
+                    .find(|target| {
+                        (!target.starts_with(b".") || target.contains(&b'/'))
+                            && !self.is_suffix_rule_name(target)
+                            && !declaration.patterns.contains_key(target.as_slice())
+                    })
             {
                 self.variables
                     .define_literal(b".DEFAULT_GOAL", target, Origin::File)
@@ -2429,202 +2390,15 @@ impl Database {
                         message: err.diagnostic(),
                     })?;
             }
-            for target in &declaration.targets {
-                if target == b".DEFAULT" && empty_dependencies {
-                    declaration.cancel_default = true;
-                }
-                if target == b".WAIT" && !empty_dependencies && self.wait_warnings & 1 == 0 {
-                    self.wait_warnings |= 1;
-                    declaration.warnings.push((
-                        location.clone(),
-                        ".WAIT should not have prerequisites".into(),
-                    ));
-                }
-                let mut unmatched = false;
-                let stem = if let Some(pattern) = &static_pattern {
-                    if pattern.matches(target).is_none() {
-                        record_warning(
-                            &mut self.warnings,
-                            context,
-                            location.clone(),
-                            [
-                                b"target '".as_slice(),
-                                target,
-                                b"' doesn't match the target pattern",
-                            ]
-                            .concat()
-                            .into(),
-                        );
-                        unmatched = true;
-                    }
-                    Some(static_stem(pattern, target))
-                } else {
-                    None
-                };
-                let mut group_ordinal = 0;
-                let rule = if let Some(pattern) = declaration.patterns.get(target) {
-                    let index = *declaration
-                        .implicit
-                        .entry(target.clone())
-                        .or_insert_with(|| {
-                            self.implicit_rules.push((pattern.clone(), Rule::default()));
-                            self.implicit_rules.len() - 1
-                        });
-                    self.implicit_rules[index].1.terminal = double_colon;
-                    if declaration.patterns.len() > 1 {
-                        declaration.implicit_group_identity.get_or_insert(index);
-                    }
-                    &mut self.implicit_rules[index].1
-                } else {
-                    self.explicit_names.insert(target.clone());
-                    let occupied = self.rules.contains_key(target);
-                    let root = self.rules.entry(target.clone()).or_default();
-                    if occupied && root.double_colon.is_some() != double_colon {
-                        return Err(ParseError {
-                            unlocated: false,
-                            location: location.clone(),
-                            message: [
-                                b"target file '".as_slice(),
-                                target,
-                                b"' has both : and :: entries",
-                            ]
-                            .concat()
-                            .into(),
-                        });
-                    }
-                    if double_colon {
-                        let branches = root.double_colon.get_or_insert_with(Vec::new);
-                        let index = branches.len();
-                        branches.push(Rule::default());
-                        let occurrences = declaration.branches.entry(target.clone()).or_default();
-                        group_ordinal = occurrences.len();
-                        occurrences.push(index);
-                        &mut branches[index]
-                    } else {
-                        root
-                    }
-                };
-                if grouped || (declaration.patterns.len() > 1) {
-                    if grouped && !double_colon && rule.group.is_some() {
-                        declaration.group_warnings.push((
-                            location.clone(),
-                            [
-                                b"warning: overriding group membership for target '".as_slice(),
-                                target,
-                                b"'",
-                            ]
-                            .concat()
-                            .into(),
-                        ));
-                    }
-                    let group = rule.group.get_or_insert_with(Default::default);
-                    group.targets = declaration.targets.clone();
-                    group.double_id = declaration.grouped_double_id;
-                    group.ordinal = group_ordinal;
-                    group.implicit_identity = declaration.implicit_group_identity;
-                }
-                rule.prerequisite_location = Some(location.clone());
-                if let Some(stem) = &stem {
-                    rule.stem = Some(stem.clone());
-                }
-                if unmatched {
-                    declaration
-                        .offsets
-                        .entry(target.clone())
-                        .or_insert(rule.dependencies.len());
-                    continue;
-                }
-                if pending {
-                    declaration
-                        .offsets
-                        .entry(target.clone())
-                        .or_insert(rule.dependencies.len());
-                    let address = if let Some(index) = declaration.implicit.get(target) {
-                        PendingAddress::Implicit(*index)
-                    } else if let Some(branches) = declaration.branches.get(target) {
-                        PendingAddress::Double(target.clone(), *branches.last().unwrap())
-                    } else {
-                        PendingAddress::Explicit(target.clone())
-                    };
-                    declaration
-                        .pending
-                        .as_mut()
-                        .unwrap()
-                        .targets
-                        .push((address, stem.clone()));
-                    continue;
-                }
-                if secondary {
-                    rule.secondary.get_or_insert_with(Default::default).push(
-                        SecondaryPrerequisite {
-                            index: rule.dependencies.len(),
-                            stem: stem.clone(),
-                        },
-                    );
-                    rule.dependencies.push(Dependency {
-                        name: if stem.is_some() {
-                            static_secondary_prerequisites(prereqs)
-                        } else {
-                            prereqs.to_vec()
-                        },
-                        order_only: false,
-                    });
-                    declaration
-                        .offsets
-                        .entry(target.clone())
-                        .or_insert(rule.dependencies.len() - 1);
-                    continue;
-                }
-                if target == b".SUFFIXES" && empty_dependencies {
-                    // Clearing suffix metadata retains its recipe and location.
-                    // Record offsets only after clearing, including repeated
-                    // target names in the same declaration.
-                    rule.dependencies.clear();
-                    rule.secondary = None;
-                }
-                declaration
-                    .offsets
-                    .entry(target.clone())
-                    .or_insert(rule.dependencies.len());
-                let observed_prereqs = prerequisite_names.is_some();
-                let names = prerequisite_names
-                    .as_ref()
-                    .into_iter()
-                    .flatten()
-                    .map(|(name, order_only)| (Cow::Borrowed(name.as_ref()), *order_only))
-                    .chain(
-                        crate::filenames::words(if observed_prereqs { b"" } else { normal })
-                            .map(|name| (name, false)),
-                    )
-                    .chain(
-                        crate::filenames::words(if observed_prereqs { b"" } else { order })
-                            .map(|name| (name, true)),
-                    );
-                for (name, order_only) in names {
-                    let name = if let Some(stem) = &stem {
-                        static_prerequisite(&name, stem).map_err(|error| ParseError {
-                            unlocated: false,
-                            location: location.clone(),
-                            message: error.diagnostic(),
-                        })?
-                    } else {
-                        name.into_owned()
-                    };
-                    // Static replacement can erase the entire prerequisite.
-                    if name.is_empty() {
-                        continue;
-                    }
-                    let name = if name.starts_with(b"./") {
-                        crate::filenames::without_dot_prefix(&name).to_vec()
-                    } else {
-                        name
-                    };
-                    if !declaration.patterns.contains_key(target) {
-                        self.explicit_names.insert(name.clone());
-                    }
-                    rule.dependencies.push(Dependency { name, order_only });
-                }
-            }
+            self.second_expansion |= declaration
+                .targets
+                .iter()
+                .any(|target| target == b".SECONDEXPANSION");
+            declaration.prerequisites.extend_from_slice(prereqs);
+            declaration.header = Some(RuleHeader {
+                static_pattern,
+                double_colon,
+            });
             let recipe = inline
                 .map(|i| line.bytes[i + 1..].to_vec())
                 .or_else(|| expanded_inline.map(|i| expanded_line[i + 1..].to_vec()));
@@ -2667,83 +2441,316 @@ impl Database {
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let missing_group =
-            declaration.grouped && !declaration.recipe_started && !declaration.targets.is_empty();
-        if declaration.pending.is_some() && !missing_group {
-            self.finish_tilde_prerequisites(declaration, location, context)?;
+        if declaration.header.is_some() && self.rules_frozen {
+            return Err(ParseError {
+                unlocated: false,
+                location: declaration.location.clone().expect("rule header location"),
+                message: "prerequisites cannot be defined in recipes".into(),
+            });
+        }
+        let missing_group = declaration.grouped
+            && declaration.recipes.is_empty()
+            && !declaration.targets.is_empty();
+        if declaration.header.is_some() && !missing_group {
+            self.record_declaration(declaration, location, context)?;
         }
         declaration.finish(&mut self.rules, &mut self.warnings, context)
     }
 
-    fn finish_tilde_prerequisites(
+    fn record_declaration(
         &mut self,
         declaration: &mut RuleDeclaration,
-        location: &Location,
+        closing_location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let pending = declaration
-            .pending
-            .take()
-            .expect("pending filename declaration");
-        let mut dependencies = Vec::new();
-        for (text, order_only) in [(&pending.normal, false), (&pending.order, true)] {
-            for name in self.parsed_rule_filenames(text, location, context)? {
-                dependencies.push(Dependency {
-                    name: name.into_owned(),
-                    order_only,
-                });
+        let header = declaration.header.take().expect("open rule header");
+        let location = declaration.location.clone().expect("rule header location");
+        let double_colon = header.double_colon;
+        let grouped = declaration.grouped;
+        let static_pattern = header.static_pattern;
+        let mut prerequisite_text = std::mem::take(&mut declaration.prerequisites);
+        let prereqs = crate::filenames::unquote_colons(&prerequisite_text);
+        let prereqs = prereqs.as_ref();
+        let secondary = self.second_expansion && prereqs.contains(&b'$');
+        let (normal, order) = crate::filenames::split_order(prereqs);
+        let normal = normal.as_ref();
+        let order = order.unwrap_or_default();
+        let empty_dependencies = crate::filenames::words(normal).next().is_none()
+            && crate::filenames::words(order).next().is_none();
+        // The expanded text is frozen at the header. Filename observations
+        // wait for the complete declaration, including conditional effects.
+        let prerequisite_names = if secondary
+            || !prereqs
+                .iter()
+                .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'[' | b'~'))
+        {
+            None
+        } else {
+            let mut names = Vec::new();
+            for (text, order_only) in [(normal, false), (order, true)] {
+                for name in self.parsed_rule_filenames(text, closing_location, context)? {
+                    names.push((name, order_only));
+                }
             }
+            Some(names)
+        };
+        let implicit = declaration.target_patterns[0];
+        if implicit && static_pattern.is_some() {
+            return Err(ParseError {
+                unlocated: false,
+                location,
+                message: "mixed implicit and static pattern rules".into(),
+            });
         }
-        let count = pending.targets.len();
-        for (index, (address, stem)) in pending.targets.into_iter().enumerate() {
-            let implicit = matches!(address, PendingAddress::Implicit(_));
-            // A single consumer can own the resolved names immediately; with
-            // several targets, only the earlier consumers need copies.
-            let mut expanded = if index + 1 == count {
-                std::mem::take(&mut dependencies)
+        if implicit && declaration.target_patterns.iter().any(|pattern| !pattern) {
+            return Err(ParseError {
+                unlocated: false,
+                location,
+                message: "mixed implicit and normal rules".into(),
+            });
+        }
+        // GNU classifies the declaration by its first target. Subsequent
+        // percent names in an explicit declaration are literal file records.
+        if !implicit {
+            declaration.patterns.clear();
+        }
+        if grouped && double_colon && declaration.patterns.is_empty() {
+            declaration.grouped_double_id = Some(self.next_group_id);
+            self.next_group_id += 1;
+        }
+        let mut recipe_targets = HashSet::new();
+        for (ordinal, target) in declaration.targets.iter().enumerate() {
+            if ordinal != 0 && !implicit && declaration.target_patterns[ordinal] {
+                record_warning(
+                    &mut self.warnings,
+                    context,
+                    location.clone(),
+                    "*** mixed implicit and normal rules: deprecated syntax".into(),
+                );
+            }
+            if target == b".DEFAULT" && empty_dependencies {
+                declaration.cancel_default = true;
+            }
+            let mut unmatched = false;
+            let stem = if let Some(pattern) = &static_pattern {
+                if pattern.matches(target).is_none() {
+                    record_warning(
+                        &mut self.warnings,
+                        context,
+                        location.clone(),
+                        [
+                            b"target '".as_slice(),
+                            target,
+                            b"' doesn't match the target pattern",
+                        ]
+                        .concat()
+                        .into(),
+                    );
+                    unmatched = true;
+                }
+                Some(static_stem(pattern, target))
             } else {
-                dependencies.clone()
+                None
             };
+            let mut group_ordinal = 0;
+            let rule = if let Some(pattern) = declaration.patterns.get(target) {
+                let index = *declaration
+                    .implicit
+                    .entry(target.clone())
+                    .or_insert_with(|| {
+                        self.implicit_rules.push((pattern.clone(), Rule::default()));
+                        self.implicit_rules.len() - 1
+                    });
+                self.implicit_rules[index].1.terminal = double_colon;
+                if declaration.patterns.len() > 1 {
+                    declaration.implicit_group_identity.get_or_insert(index);
+                }
+                &mut self.implicit_rules[index].1
+            } else {
+                self.explicit_names.insert(target.clone());
+                let occupied = self.rules.contains_key(target);
+                let root = self.rules.entry(target.clone()).or_default();
+                if occupied && root.double_colon.is_some() != double_colon {
+                    return Err(ParseError {
+                        unlocated: false,
+                        location: location.clone(),
+                        message: [
+                            b"target file '".as_slice(),
+                            target,
+                            b"' has both : and :: entries",
+                        ]
+                        .concat()
+                        .into(),
+                    });
+                }
+                if double_colon {
+                    let branches = root.double_colon.get_or_insert_with(Vec::new);
+                    let index = branches.len();
+                    branches.push(Rule::default());
+                    let occurrences = declaration.branches.entry(target.clone()).or_default();
+                    group_ordinal = occurrences.len();
+                    occurrences.push(index);
+                    &mut branches[index]
+                } else {
+                    root
+                }
+            };
+            if grouped || (declaration.patterns.len() > 1) {
+                if grouped && !double_colon && rule.group.is_some() {
+                    declaration.group_warnings.push((
+                        location.clone(),
+                        [
+                            b"warning: overriding group membership for target '".as_slice(),
+                            target,
+                            b"'",
+                        ]
+                        .concat()
+                        .into(),
+                    ));
+                }
+                let group = rule.group.get_or_insert_with(Default::default);
+                group.targets = declaration.targets.clone();
+                group.double_id = declaration.grouped_double_id;
+                group.ordinal = group_ordinal;
+                group.implicit_identity = declaration.implicit_group_identity;
+            }
+            rule.prerequisite_location = Some(location.clone());
             if let Some(stem) = &stem {
-                for dependency in &mut expanded {
-                    dependency.name =
-                        static_prerequisite(&dependency.name, stem).map_err(|error| {
-                            ParseError {
-                                unlocated: error.is_unlocated(),
+                rule.stem = Some(stem.clone());
+            }
+            if unmatched {
+                declaration
+                    .offsets
+                    .entry(target.clone())
+                    .or_insert(rule.dependencies.len());
+            }
+            if !unmatched {
+                if secondary {
+                    rule.secondary.get_or_insert_with(Default::default).push(
+                        SecondaryPrerequisite {
+                            index: rule.dependencies.len(),
+                            stem: stem.clone(),
+                        },
+                    );
+                    rule.dependencies.push(Dependency {
+                        name: if stem.is_some() {
+                            static_secondary_prerequisites(prereqs)
+                        } else {
+                            prereqs.to_vec()
+                        },
+                        order_only: false,
+                    });
+                    declaration
+                        .offsets
+                        .entry(target.clone())
+                        .or_insert(rule.dependencies.len() - 1);
+                } else {
+                    if target == b".SUFFIXES" && empty_dependencies {
+                        // Clearing suffix metadata retains its recipe and location.
+                        // Record offsets only after clearing, including repeated
+                        // target names in the same declaration.
+                        rule.dependencies.clear();
+                        rule.secondary = None;
+                    }
+                    declaration
+                        .offsets
+                        .entry(target.clone())
+                        .or_insert(rule.dependencies.len());
+                    let observed_prereqs = prerequisite_names.is_some();
+                    let names = prerequisite_names
+                        .as_ref()
+                        .into_iter()
+                        .flatten()
+                        .map(|(name, order_only)| (Cow::Borrowed(name.as_ref()), *order_only))
+                        .chain(
+                            crate::filenames::words(if observed_prereqs { b"" } else { normal })
+                                .map(|name| (name, false)),
+                        )
+                        .chain(
+                            crate::filenames::words(if observed_prereqs { b"" } else { order })
+                                .map(|name| (name, true)),
+                        );
+                    for (name, order_only) in names {
+                        let name = if let Some(stem) = &stem {
+                            static_prerequisite(&name, stem).map_err(|error| ParseError {
+                                unlocated: false,
                                 location: location.clone(),
                                 message: error.diagnostic(),
-                            }
-                        })?;
+                            })?
+                        } else {
+                            name.into_owned()
+                        };
+                        // Static replacement can erase the entire prerequisite.
+                        if name.is_empty() {
+                            continue;
+                        }
+                        let name = if !observed_prereqs && name.starts_with(b"./") {
+                            crate::filenames::without_dot_prefix(&name).to_vec()
+                        } else {
+                            name
+                        };
+                        if !declaration.patterns.contains_key(target) {
+                            self.explicit_names.insert(name.clone());
+                        }
+                        rule.dependencies.push(Dependency { name, order_only });
+                    }
                 }
-                expanded.retain(|dependency| !dependency.name.is_empty());
             }
-            if !implicit {
-                self.explicit_names
-                    .extend(expanded.iter().map(|dependency| dependency.name.clone()));
-            }
-            let rule = match address {
-                PendingAddress::Explicit(name) => self.rules.get_mut(&name).unwrap(),
-                PendingAddress::Double(name, index) => &mut self
-                    .rules
-                    .get_mut(&name)
-                    .unwrap()
-                    .double_colon
-                    .as_mut()
-                    .unwrap()[index],
-                PendingAddress::Implicit(index) => &mut self.implicit_rules[index].1,
-            };
-            let index = if declaration.recipe_started {
-                0
+            let duplicate = !declaration.recipes.is_empty()
+                && !double_colon
+                && !implicit
+                && !recipe_targets.insert(target.as_slice());
+            if duplicate && !declaration.recipes.is_empty() {
+                declaration.warnings.push((
+                    location.clone(),
+                    [
+                        b"target '".as_slice(),
+                        target,
+                        b"' given more than once in the same rule",
+                    ]
+                    .concat()
+                    .into(),
+                ));
             } else {
-                rule.dependencies.len()
-            };
-            if let Some(secondary) = &mut rule.secondary {
-                for clause in secondary.iter_mut().filter(|clause| clause.index >= index) {
-                    clause.index += expanded.len();
+                let offset = declaration.offsets[target];
+                for (index, recipe) in declaration.recipes.iter().enumerate() {
+                    Self::attach_recipe(
+                        rule,
+                        target,
+                        offset,
+                        index != 0,
+                        &mut declaration.warnings,
+                        recipe,
+                    );
                 }
             }
-            rule.dependencies.splice(index..index, expanded);
+            if target == b".WAIT" {
+                for (mask, present, message) in [
+                    (
+                        1,
+                        !rule.dependencies.is_empty(),
+                        ".WAIT should not have prerequisites",
+                    ),
+                    (2, rule.recipes.is_some(), ".WAIT should not have commands"),
+                ] {
+                    if present && self.wait_warnings & mask == 0 {
+                        self.wait_warnings |= mask;
+                        declaration
+                            .warnings
+                            .push((location.clone(), message.into()));
+                    }
+                }
+            }
+            // A later target can fail after this one has emitted warnings.
+            for (location, message) in declaration.warnings.drain(..) {
+                record_warning(&mut self.warnings, context, location, message);
+            }
         }
+        drop(prerequisite_names);
+        prerequisite_text.clear();
+        declaration.prerequisites = prerequisite_text;
+        declaration.recipe_started = !declaration.recipes.is_empty();
+        declaration.recipes.clear();
         Ok(())
     }
 
@@ -2759,74 +2766,7 @@ impl Database {
     }
 
     fn add_recipe(&mut self, declaration: &mut RuleDeclaration, recipe: Recipe) {
-        let mut seen = HashSet::new();
-        for target in &declaration.targets {
-            if target == b".WAIT" && self.wait_warnings & 2 == 0 {
-                self.wait_warnings |= 2;
-                declaration.warnings.push((
-                    declaration.location.clone().expect("rule header location"),
-                    ".WAIT should not have commands".into(),
-                ));
-            }
-            if !seen.insert(target) {
-                if !declaration.recipe_started && !declaration.branches.contains_key(target) {
-                    declaration.warnings.push((
-                        declaration.location.clone().expect("rule header location"),
-                        [
-                            b"target '".as_slice(),
-                            target,
-                            b"' given more than once in the same rule",
-                        ]
-                        .concat()
-                        .into(),
-                    ));
-                }
-                continue;
-            }
-            let offset = declaration.offsets[target];
-            let recipe_started = declaration.recipe_started;
-            if let Some(index) = declaration.implicit.get(target) {
-                Self::attach_recipe(
-                    &mut self.implicit_rules[*index].1,
-                    target,
-                    offset,
-                    recipe_started,
-                    &mut declaration.warnings,
-                    &recipe,
-                );
-            } else {
-                let root = self
-                    .rules
-                    .get_mut(target)
-                    .expect("current targets were inserted");
-                if let Some(indices) = declaration.branches.get(target) {
-                    let branches = root
-                        .double_colon
-                        .as_mut()
-                        .expect("double colon declaration");
-                    for index in indices {
-                        Self::attach_recipe(
-                            &mut branches[*index],
-                            target,
-                            offset,
-                            recipe_started,
-                            &mut declaration.warnings,
-                            &recipe,
-                        );
-                    }
-                } else {
-                    Self::attach_recipe(
-                        root,
-                        target,
-                        offset,
-                        recipe_started,
-                        &mut declaration.warnings,
-                        &recipe,
-                    );
-                }
-            }
-        }
-        declaration.recipe_started = true;
+        declaration.recipes.push(recipe);
     }
 
     fn attach_recipe(
@@ -3765,7 +3705,9 @@ mod tests {
         db.read(b"a\\%b.o:X=literal\na\\%b.o:;\n", b"m").unwrap();
         assert!(db.pattern_assignments.is_empty());
         assert!(db.rules.contains_key(b"a%b.o".as_slice()));
-        assert_eq!(db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(), b"a%b.o");
+        // GNU rejects a percent-containing name during automatic default-goal
+        // selection even when quoting makes its file record explicit.
+        assert_eq!(db.variables.expand(b"$(.DEFAULT_GOAL)").unwrap(), b"");
         assert_eq!(
             target_variables(&mut db, b"a%b.o").expand(b"$(X)").unwrap(),
             b"literal"

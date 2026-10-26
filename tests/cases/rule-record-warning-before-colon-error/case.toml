@@ -1,0 +1,11 @@
+id = "rule-record-warning-before-colon-error"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: warning-before-colon-error."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a207761726e696e673a206f766572726964696e672072656369706520666f72207461726765742027706c61696e270a4d616b6566696c653a313a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f72207461726765742027706c61696e270a4d616b6566696c653a333a202a2a2a207461726765742066696c65202778272068617320626f7468203a20616e64203a3a20656e74726965732e202053746f702e0a"

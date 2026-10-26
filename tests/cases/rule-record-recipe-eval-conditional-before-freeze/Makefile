@@ -1,0 +1,6 @@
+define R
+out:
+ifeq ($(info CONDITIONAL),)
+endif
+endef
+all:;@printf '%s' '$(eval $(value R))'

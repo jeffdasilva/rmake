@@ -1,0 +1,11 @@
+id = "rule-record-mixed-percent-no-inference"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: mixed-percent-no-inference."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "x.out"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d6978656420696d706c6963697420616e64206e6f726d616c2072756c65733a20646570726563617465642073796e7461780a6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027782e6f7574272e202053746f702e0a"

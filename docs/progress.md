@@ -1911,3 +1911,28 @@ See [rule tilde expansion](rule-tilde.md) for behavior, reference provenance,
 measurements and concrete remaining gaps, including GNU recursive filename
 scratch-buffer corruption. These changes do not complete M4/M8 or establish
 GNU performance parity.
+
+
+## 2026-10-26: declaration-close rule recording
+
+Move rule registration, recipe attachment and prerequisite filename observations
+to the closing statement. Conditional file/shell/eval effects can now affect
+ordinary globs and archive groups before recording; nested declarations merge
+before their outer rule. Preserve header expansion and earlier target globs,
+per-target warning/error order, first-target rule-family classification, quoted
+percent provenance and secondary-expansion activation timing. Reuse declaration
+buffers and retain borrowed ordinary filename parsing.
+
+Add 73 original required Makefiles with independent stream/status anchors; the
+preceding main passes 13 and fails 60. Correct one older internal default-goal
+assertion against new GNU black-box evidence; all existing required fixture
+inputs, expectations and pending classifications remain unchanged. Corpus:
+4,169 cases, 4,157 required matches and 12 unchanged pending fixtures. Stateful:
+64 scenarios / 273 invocations per engine. Internal suites: 385 Rust / 280 tooling.
+
+Full local CI, optimized top-level differential/stateful flows and repeated
+parallel controls pass. Four paired 101-sample suites record mixed or close
+controls, including about 4% lower large-no-op median and 3% higher expansion
+median. GNU remains faster in the selected workloads. See
+[declaration recording](declaration-recording.md) for exact evidence, identities,
+source references and remaining concrete M4 failures. M4/M8 stay open.
