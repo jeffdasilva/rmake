@@ -24,6 +24,27 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(first[1][1].count(b": ;"), 10000)
         self.assertEqual(first[2][1].count(b"$(subst"), 5000)
 
+    def test_filename_suite_keeps_raw_blanks_and_needs_no_recipe_processes(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.rule_filename_workloads())
+        self.assertEqual(workloads, list(benchmark.selected_workloads('rule-filenames')))
+        self.assertEqual([name for name, _ in workloads], [
+            'rule-filenames-quoted-2000', 'rule-filenames-glob-1000',
+            'rule-filenames-secondary-1000', 'rule-filenames-implicit-500'])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, source in workloads:
+                fixture = benchmark.prepare_files(root, name)
+                self.assertEqual(fixture['recipe_subprocesses'], 0)
+                self.assertNotIn(b'$(shell', source)
+                self.assertNotIn(b'\t', source)
+                if 'implicit' in name:
+                    self.assertEqual(len(list(root.glob('rule *.in'))), 500)
+                elif fixture['files']:
+                    self.assertEqual(len(list((root / 'rule-inputs').glob('input *.in'))), 1000)
+                self.assertEqual(benchmark.workload_arguments(name), ['-rR', '--no-print-directory'])
+
     def test_raw_samples_and_extremes_are_retained(self):
         self.assertEqual(benchmark.summary([5, 1, 3]), {
             "samples_ns": [5, 1, 3], "median_ns": 3, "min_ns": 1, "max_ns": 5})
@@ -37,7 +58,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):

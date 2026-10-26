@@ -1,0 +1,84 @@
+id = "filename-glob-transitions"
+description = "Quoted names and fresh dependency observations across build modes and mutations"
+provenance = "Original Makefile, script, complete output anchors and fixed byte/timestamp transitions; no upstream material copied."
+initial = [{"op" = "write", "path" = "inputs/a one.in", "content" = "a\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "missing-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = []
+exact_mtime = {"inputs/a one.in" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "first-build"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out file:inputs/a one.in:inputs/a one.in\ninputs/a one.in\n", "stderr" = ""}
+
+[[steps]]
+name = "current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-match"
+actions = [{"op" = "write", "path" = "inputs/b two.in", "content" = "b\n", "mtime_ns" = 1600000010000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000, "inputs/b two.in" = 1600000010000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "dry-new-match"
+actions = []
+args = ["-rR", "--no-print-directory", "-n", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "python3 build.py 'out file' 'inputs/a one.in inputs/b two.in' 'inputs/b two.in'\n", "stderr" = ""}
+
+[[steps]]
+name = "parallel-new-match"
+actions = []
+args = ["-rR", "--no-print-directory", "-j2", "verify"]
+unchanged = []
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out file:inputs/a one.in inputs/b two.in:inputs/b two.in\ninputs/a one.in inputs/b two.in\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-old-match"
+actions = [{"op" = "remove", "path" = "inputs/a one.in"}]
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "unchanged-stored-output"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "inputs/a one.in inputs/b two.in\n", "stderr" = ""}
+
+[[steps]]
+name = "force-new-membership"
+actions = []
+args = ["-rR", "--no-print-directory", "-B", "verify"]
+unchanged = []
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out file:inputs/b two.in:inputs/b two.in\ninputs/b two.in\n", "stderr" = ""}
+
+[[steps]]
+name = "fresh-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

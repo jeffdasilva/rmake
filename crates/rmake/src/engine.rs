@@ -2701,9 +2701,17 @@ impl Engine {
                                 },
                             )?
                         } else {
-                            // Immediate prerequisite patterns were substituted in core.
-                            let mut role = occurrence.order_only;
-                            self.implicit_filenames(part, &mut role, None)?
+                            // ONEWORD parsing preserves blanks and pipes from a
+                            // stem, but still expands newly introduced globs.
+                            let start = part
+                                .iter()
+                                .position(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
+                                .unwrap_or(part.len());
+                            if start == part.len() {
+                                Vec::new()
+                            } else {
+                                self.implicit_filename(&part[start..], occurrence.order_only, None)?
+                            }
                         };
                         for mut dependency in names {
                             let identity = self.aliases.resolve(&dependency.name);
@@ -2830,6 +2838,39 @@ impl Engine {
         Ok((context, pattern_scope))
     }
 
+    fn implicit_filename(
+        &self,
+        name: &[u8],
+        order_only: bool,
+        directory: Option<&[u8]>,
+    ) -> Result<Vec<Dependency>, ExpandError> {
+        let name = rmake_core::filenames::without_dot_prefix(name);
+        let name = directory.map_or_else(|| name.to_vec(), |dir| [dir, name].concat());
+        if !name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
+            return Ok(vec![Dependency { name, order_only }]);
+        }
+        let bytes = self
+            .filesystem
+            .borrow_mut()
+            .execute(rmake_core::diagnostic::FilesystemEffect::RuleGlob(&name))
+            .map_err(|error| match error {
+                rmake_core::diagnostic::FilesystemError::Caller(message) => {
+                    ExpandError::FileError(message)
+                }
+                rmake_core::diagnostic::FilesystemError::Unlocated(message) => {
+                    ExpandError::UnlocatedError(message)
+                }
+            })?;
+        Ok(bytes
+            .split(|&byte| byte == 0)
+            .filter(|name| !name.is_empty())
+            .map(|name| Dependency {
+                name: name.to_vec(),
+                order_only,
+            })
+            .collect())
+    }
+
     fn implicit_filenames(
         &self,
         value: &[u8],
@@ -2837,43 +2878,17 @@ impl Engine {
         directory: Option<&[u8]>,
     ) -> Result<Vec<Dependency>, ExpandError> {
         let mut result = Vec::new();
-        let split = if *order_only {
-            None
+        let (normal, order) = if *order_only {
+            (std::borrow::Cow::Borrowed(value), None)
         } else {
-            value.iter().position(|&b| b == b'|')
+            rmake_core::filenames::split_order(value)
         };
-        let (normal, order) = split.map_or((value, None), |index| {
-            (&value[..index], Some(&value[index + 1..]))
-        });
-        for (text, role) in [(normal, *order_only), (order.unwrap_or_default(), true)] {
+        for (text, role) in [
+            (normal.as_ref(), *order_only),
+            (order.unwrap_or_default(), true),
+        ] {
             for name in rmake_core::filenames::sequence(text) {
-                let name = rmake_core::filenames::without_dot_prefix(&name);
-                let name = directory.map_or_else(|| name.to_vec(), |dir| [dir, name].concat());
-                if !name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
-                    result.push(Dependency {
-                        name,
-                        order_only: role,
-                    });
-                    continue;
-                }
-                let bytes = self
-                    .filesystem
-                    .borrow_mut()
-                    .execute(rmake_core::diagnostic::FilesystemEffect::RuleGlob(&name))
-                    .map_err(|error| match error {
-                        rmake_core::diagnostic::FilesystemError::Caller(message) => {
-                            ExpandError::FileError(message)
-                        }
-                        rmake_core::diagnostic::FilesystemError::Unlocated(message) => {
-                            ExpandError::UnlocatedError(message)
-                        }
-                    })?;
-                for name in bytes.split(|&b| b == 0).filter(|name| !name.is_empty()) {
-                    result.push(Dependency {
-                        name: name.to_vec(),
-                        order_only: role,
-                    });
-                }
+                result.extend(self.implicit_filename(&name, role, directory)?);
             }
         }
         if order.is_some() {
@@ -2933,20 +2948,25 @@ impl Engine {
                 &occurrence.name,
                 rule.prerequisite_location.as_ref(),
             )?;
-            let mut order_only = occurrence.order_only;
+            let order_only = occurrence.order_only;
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
             let mut context = ExpansionContext::pure().with_filesystem(&mut filesystem);
             let mut expanded = Vec::new();
-            for name in rule_filenames(&value, &mut context)? {
-                let name = name.as_ref();
-                if name == b"|" {
-                    order_only = true;
-                } else {
+            let (normal, order) = if order_only {
+                (std::borrow::Cow::Borrowed(value.as_slice()), None)
+            } else {
+                rmake_core::filenames::split_order(&value)
+            };
+            for (text, role) in [
+                (normal.as_ref(), order_only),
+                (order.unwrap_or_default(), true),
+            ] {
+                for name in rule_filenames(text, &mut context)? {
                     expanded.push(Dependency {
-                        name: name.to_vec(),
-                        order_only,
+                        name: name.into_owned(),
+                        order_only: role,
                     });
                 }
             }

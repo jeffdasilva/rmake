@@ -1,0 +1,84 @@
+id = "filename-quoted-rebuilds"
+description = "Quoted names and fresh dependency observations across build modes and mutations"
+provenance = "Original Makefile, script, complete output anchors and fixed byte/timestamp transitions; no upstream material copied."
+initial = [{"op" = "write", "path" = "in file", "content" = "first\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "order file", "content" = "order\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "missing-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = []
+exact_mtime = {"in file" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "first-build"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"in file" = 1600000000000000000, "out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out file:in file:in file\nfirst\n", "stderr" = ""}
+
+[[steps]]
+name = "current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-order-only"
+actions = [{"op" = "write", "path" = "order file", "content" = "order2\n", "mtime_ns" = 1600000020000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000, "order file" = 1600000020000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-input-query"
+actions = [{"op" = "write", "path" = "in file", "content" = "second\n", "mtime_ns" = 1600000010000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000, "in file" = 1600000010000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "dry-command"
+actions = []
+args = ["-rR", "--no-print-directory", "-n", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "python3 build.py 'out file' 'in file' 'in file'\n", "stderr" = ""}
+
+[[steps]]
+name = "parallel-rebuild"
+actions = []
+args = ["-rR", "--no-print-directory", "-j2", "verify"]
+unchanged = []
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out file:in file:in file\nsecond\n", "stderr" = ""}
+
+[[steps]]
+name = "missing-input"
+actions = [{"op" = "remove", "path" = "in file"}]
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000011000000000}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'in file', needed by 'out file'.  Stop.\n"}
+
+[[steps]]
+name = "restore-older"
+actions = [{"op" = "write", "path" = "in file", "content" = "third\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = ["out file"]
+exact_mtime = {"out file" = 1600000011000000000, "in file" = 1600000000000000000}
+expected = {"exit_code" = 0, "stdout" = "second\n", "stderr" = ""}
+
+[[steps]]
+name = "forced-restored"
+actions = []
+args = ["-rR", "--no-print-directory", "-B", "verify"]
+unchanged = []
+exact_mtime = {"out file" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out file:in file:in file\nthird\n", "stderr" = ""}

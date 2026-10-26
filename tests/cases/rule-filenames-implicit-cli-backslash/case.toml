@@ -1,0 +1,12 @@
+id = "rule-filenames-implicit-cli-backslash"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "implicit-cli-backslash"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory", "a\\b.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c615c622e6f75743e2066697273743d3c615c622e696e3e20616c6c3d3c615c622e696e3e206f726465723d3c3e207374656d3d3c615c623e0a"
+stderr_hex = ""

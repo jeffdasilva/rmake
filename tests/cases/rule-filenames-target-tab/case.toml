@@ -1,0 +1,12 @@
+id = "rule-filenames-target-tab"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "target-tab"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202774776f09776f726473272c206e65656465642062792027616c6c272e202053746f702e0a"

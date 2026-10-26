@@ -1,0 +1,12 @@
+id = "rule-filenames-function-word-control"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "function-word-control"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b327c615c7c625d0a7461726765743d3c616c6c3e2066697273743d3c6120623e20616c6c3d3c6120623e206f726465723d3c3e207374656d3d3c3e0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "rule-filenames-scope-space"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "scope-space"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b74776f20776f7264737c6c6f63616c5d0a"
+stderr_hex = ""

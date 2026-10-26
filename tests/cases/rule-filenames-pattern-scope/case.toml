@@ -1,0 +1,12 @@
+id = "rule-filenames-pattern-scope"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "pattern-scope"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b74776f20776f7264732e6f75747c7061747465726e5d0a"
+stderr_hex = ""

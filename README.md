@@ -132,6 +132,8 @@ see [shared directory observations](docs/shared-directory-search.md).
 see [archive name encodings and borrowed scans](docs/archive-name-encodings.md).
 `BENCH_SUITE=symlink-times` measures `-L` over ordinary files and live/dangling chains;
 see [symlink timestamps](docs/symlink-timestamps.md).
+`BENCH_SUITE=rule-filenames` measures quoted declarations, ordinary/deferred
+globs and implicit names with spaces; see [rule filename sequences](docs/rule-filenames.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -156,6 +158,8 @@ pattern search, archive suffix rules and the built-in archiver recipe.
 including explicit secondary expansion.
 [Archive rule wildcards](docs/archive-rule-wildcards.md) preserve complete member
 names and GNU observation timing.
+[Rule filename sequences](docs/rule-filenames.md) add quoted blank/colon/pipe
+handling, ordinary rule globs and preserved static/implicit filename boundaries.
 The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
 header scan I/O while retaining fresh reads between effects.
 [Archive member-name encodings](docs/archive-name-encodings.md) preserve signed/wrapped

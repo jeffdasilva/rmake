@@ -1,0 +1,12 @@
+id = "rule-filenames-target-colon-boundary-2"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "target-colon-boundary-2"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory", "ending\\"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c656e64696e675c3e2066697273743d3c3e20616c6c3d3c3e206f726465723d3c3e207374656d3d3c3e0a"
+stderr_hex = ""

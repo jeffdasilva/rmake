@@ -1,0 +1,12 @@
+id = "rule-filenames-current-query"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "current-query"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory", "-q", "out file"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""
