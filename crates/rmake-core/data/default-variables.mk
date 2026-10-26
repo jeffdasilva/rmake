@@ -3,6 +3,7 @@
 # Observed and organized for rmake in 2026 by Jeff DaSilva.
 # Linux GNU Make 4.4.1 compatibility data observed with the pinned oracle.
 # Recipe and variable bytes are declarative compatibility data, not C source.
+.LIBPATTERNS = lib%.so lib%.a
 AR = ar
 ARFLAGS = -rv
 AS = as

@@ -403,6 +403,29 @@ impl Database {
             .flat_map(|path| path.directories.iter().map(Vec::as_slice))
     }
 
+    /// Library selection compares path positions across different patterns.
+    /// Keep the index of nonmatching declarations so ranks remain comparable.
+    pub fn ranked_vpath_directories<'a>(
+        &'a self,
+        target: &'a [u8],
+    ) -> impl Iterator<Item = ((usize, usize), &'a [u8])> {
+        self.vpaths
+            .iter()
+            .enumerate()
+            .filter(move |(_, path)| path.pattern.matches(target).is_some())
+            .flat_map(|(group, path)| {
+                path.directories
+                    .iter()
+                    .filter(|directory| directory.as_slice() != b".")
+                    .enumerate()
+                    .map(move |(index, directory)| ((group, index), directory.as_slice()))
+            })
+    }
+
+    pub fn vpath_group_count(&self) -> usize {
+        self.vpaths.len()
+    }
+
     /// Produce candidates in stem-length and declaration order, without I/O.
     /// The runtime checks prerequisites and commits only a viable candidate.
     pub fn implicit_candidates(&self, target: &[u8]) -> Vec<ImplicitCandidate> {

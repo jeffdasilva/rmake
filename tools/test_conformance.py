@@ -42,6 +42,14 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(case.expected["stdout"], "ok\n")
         self.assertEqual(case.candidate, "pending")
 
+    def test_dot_make_variable_environment_retains_reserved_name_guards(self):
+        self.write('[environment]\n".LIBPATTERNS" = "lib%.a"\n')
+        self.assertEqual(runner.load_case(self.case).environment, {'.LIBPATTERNS': 'lib%.a'})
+        for key in ('HOME', 'PATH', 'LC_ALL', 'name=bad', 'bad-name', '1bad'):
+            self.write('[environment]\n' + json.dumps(key) + ' = "x"\n')
+            with self.assertRaises(runner.HarnessError):
+                runner.load_case(self.case)
+
     def test_hex_expectations_preserve_json_safe_strings(self):
         self.write('[expected]\nstdout_hex = "00fF80"\nstderr_hex = ""\n')
         case = runner.load_case(self.case)

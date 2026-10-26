@@ -1,0 +1,11 @@
+id = "library-non-pattern-warning-touch"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-non-pattern-warning-touch."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820616c6c0a"
+stderr_hex = "6d616b653a202e4c49425041545445524e5320656c656d656e742027706c61696e27206973206e6f742061207061747465726e0a"

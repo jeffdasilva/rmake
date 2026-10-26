@@ -14,6 +14,9 @@ lazy records, quoted filenames, tilde resolution and declaration recording.
 The [progress record](progress.md) and individual slice notes identify exact
 case counts and limits. Default stat faults and simulated-completion state are
 covered by the [timestamp follow-up](stat-timestamps.md).
+The [library slice](library-resolution.md) now implements `-l` / `.LIBPATTERNS`
+lookup, ranked paths and record merging; its original failing probe below now
+matches GNU.
 
 These are implemented slices. Their combined tests are necessary but insufficient
 for the exit requirement that search priority, automatic variables, lifecycle and
@@ -24,14 +27,13 @@ filesystem edge cases match across every rule family.
 | Area | Direct evidence | Required follow-up |
 | --- | --- | --- |
 | `.EXTRA_PREREQS` | GNU executes the hidden prerequisite below; rmake does not. | Add hidden dependency records and GNU expansion/scope/recording phases; keep them out of automatic variables while retaining update/failure effects. |
-| `-l` library lookup / `.LIBPATTERNS` | GNU selects `libdemo.a` below; rmake reports a missing `-ldemo`. | Add pattern priority, local/VPATH/system searches, record renaming, variables, diagnostics and invalidation tests. |
 | Intermediate cleanup ordering | Existing `chain-two-roots` is pending: GNU emits `rm b.mid a.mid`. | Model file-record table order, including insertion/collisions/resizing/renaming; sorting just the removed names is insufficient. |
 | Recursive HOME filename queries | The [tilde notes](rule-tilde.md) preserve a probe where GNU's shared scratch buffer yields `earlyarker`. | Resolve the compatibility/safety boundary explicitly. Do not introduce unsafe memory corruption or count it as matching. |
 | Archive observations | Earlier slices retain standalone-member/container timestamp and metadata-error ordering gaps. | Expand the I/O/error matrix and file-record timing tests before claiming completeness. |
 
-The two new minimal feature probes were executed against the GNU oracle and the
-optimized timestamp build. They are documented failures, not passing cases or new
-pending exemptions. Neither prototype is used as a product implementation fallback.
+The hidden-prerequisite probe remains a documented failure, not a passing case or
+new pending exemption. The historical library probe now passes and has required
+coverage in the library slice. GNU is never a product implementation fallback.
 
 ### Hidden prerequisites
 
@@ -62,7 +64,7 @@ all: -ldemo;@printf '[%s|%s]\n' '$<' '$^'
 ```
 
 Under `-rR --no-print-directory`, GNU prints `[libdemo.a|libdemo.a]` and returns
-zero. rmake returns two and reports no rule for `-ldemo`. The explicit
+zero. rmake now matches this result. The explicit
 `.LIBPATTERNS` matters: `-R` removes the default definition, so a probe without
 that assignment fails on GNU as well and would not establish this gap.
 

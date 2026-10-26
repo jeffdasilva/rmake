@@ -30,7 +30,7 @@ import oracle
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_NS = 1_600_000_000_000_000_000
-MAX_CASES = 64
+MAX_CASES = 128
 MAX_STEPS = 16
 MAX_ACTIONS = 32
 MAX_MANIFEST = 65_536

@@ -34,7 +34,7 @@ def extract(text: str) -> dict[str, str]:
         value = lines[index + 1]
         if line == "# default" and "=" in value:
             name = value.split("=", 1)[0].strip().removesuffix(":").strip()
-            if not name.startswith(".") and name not in excluded:
+            if (not name.startswith(".") or name == ".LIBPATTERNS") and name not in excluded:
                 variables.append(value)
     implicit, files = text.split("# Implicit Rules\n", 1)[1].split("# Files\n", 1)
     suffixes = []

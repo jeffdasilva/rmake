@@ -1,0 +1,11 @@
+id = "library-declared-absent-dry"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original declared absent library selection: dry."
+provenance = "Independent source and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e74662027646573743d5b25735d5c6e272027642f6c696264656d6f2e61270a7072696e74662027616c6c3d5b25735d5c6e272027642f6c696264656d6f2e61270a"
+stderr_hex = ""

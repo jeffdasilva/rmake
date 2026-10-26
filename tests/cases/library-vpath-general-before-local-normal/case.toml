@@ -1,0 +1,11 @@
+id = "library-vpath-general-before-local-normal"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-vpath-general-before-local-normal."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d5b616c6c5d2066697273743d5b6c696264656d6f2e736f5d20616c6c3d5b6c696264656d6f2e736f5d206e657765723d5b6c696264656d6f2e736f5d0a"
+stderr_hex = ""

@@ -1966,3 +1966,27 @@ See [stat timestamps](stat-timestamps.md) for exact evidence, identities and lim
 The [M4 exit audit](m4-exit-audit.md) records additional confirmed missing hidden
 prerequisites and library lookup, alongside ordering/archive/safety work. M4/M8
 remain open; the pending-case count is not a completion checklist.
+
+
+## 2026-10-26: Linux library prerequisites
+
+Add `-l` / `.LIBPATTERNS` lookup with local, ranked selective/general VPATH and
+configured system-directory searches. Preserve literal-name priority, global
+expansion/effects, default/env/CLI precedence, percent quoting and byte filenames.
+Reuse record merges and preserve pre-merge physical timestamps even when a later
+phony flag is present. Add the pinned default variable through the existing
+attributed declarative-data extractor; configure the library prefix at build time.
+
+Add 160 original required Makefiles (previous main fails 131), forty anchored
+stat-fault programs and a fourteen-step library selection/rebuild scenario.
+Retain existing required expectations and all twelve pending classifications.
+Corpus: 4,421 cases / 4,409 required / 12 pending; stateful: 65 scenarios / 287
+invocations per engine; 385 Rust / 285 tooling tests. Expand the bounded stateful
+scenario pool to 128 and accept dotted GNU environment names without removing
+reserved-name guards. Top-level developer and CI flows include the new coverage.
+
+Full local CI, optimized top-level flows and paired 101-sample library/core/VPATH
+measurements pass. Core controls are mixed/close; GNU remains faster in the selected
+workloads. See [library resolution](library-resolution.md) for exact evidence,
+identities, attribution and all medians. M4 continues with hidden prerequisites,
+file-record order and remaining archive/safety gates; this is not an M4 exit claim.

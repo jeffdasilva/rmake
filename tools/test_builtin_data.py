@@ -15,6 +15,13 @@ class ExtractionTests(unittest.TestCase):
         data = builtin_data.extract(text)
         self.assertEqual(data['default-variables.mk'], builtin_data.HEADER + 'CC = cc\n')
 
+    def test_library_patterns_are_defaults_but_runtime_dot_variables_are_not(self):
+        text = ("# default\n.LIBPATTERNS = lib%.so lib%.a\n"
+                "# default\n.FEATURES := metadata\n"
+                "# Implicit Rules\n(%): %\n\tarchive\n# Files\n")
+        self.assertEqual(builtin_data.extract(text)['default-variables.mk'],
+                         builtin_data.HEADER + '.LIBPATTERNS = lib%.so lib%.a\n')
+
     def test_tabs_spaces_empty_lines_and_terminal_colons_are_preserved(self):
         text = ("# Implicit Rules\n%.src:\n\n(%): %\n# builtin\n\tarchive \n\n"
                 "%:: %,v\n\t+checkout\n\n# Files\n# builtin\n"

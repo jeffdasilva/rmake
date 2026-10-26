@@ -24,6 +24,8 @@ Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
 locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
 [`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
 gaps are documented in [diagnostic notes](docs/diagnostics.md).
+The [library lookup notes](docs/library-resolution.md) describe `-l` prerequisites,
+pattern/directory priorities and record merging.
 The [rule declaration notes](docs/declaration-recording.md) explain when rules,
 prerequisite filename observations and nested evaluations enter the database.
 The [assignment syntax notes](docs/assignment-syntax.md) explain lexical token
@@ -84,8 +86,8 @@ stream, status and filesystem expectations, including merged output ordering.
 `make test-filesystem` checks twenty-one Linux/glibc scenarios, including partial
 reads, close failures and external directory mutations; `FILESYSTEM_CASE` selects
 one for replay. `make test-directory-search` checks 176 original shared-cache and
-I/O programs; `DIRECTORY_CASE` selects one. `make test-symlink-times` checks 72
-ordinary/link timestamp syscall-fault programs; `SYMLINK_CASE` selects one. `make test-wildcards` runs 100 seeded filesystem query programs
+I/O programs; `DIRECTORY_CASE` selects one. `make test-symlink-times` checks 112
+ordinary/link/library timestamp syscall-fault programs; `SYMLINK_CASE` selects one. `make test-wildcards` runs 100 seeded filesystem query programs
 with independent matching and complete filesystem anchors. Use `WILDCARD_SEED`,
 `WILDCARD_CASES`, `WILDCARD_EXPRESSIONS` and `START_INDEX` to scale or replay them.
 See [wildcard semantics](docs/wildcard.md) for the implemented profile and limits.

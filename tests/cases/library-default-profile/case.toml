@@ -1,0 +1,11 @@
+id = "library-default-profile"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-default-profile."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-r", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6c696264656d6f2e617c64656661756c747c7265637572736976655d0a"
+stderr_hex = ""

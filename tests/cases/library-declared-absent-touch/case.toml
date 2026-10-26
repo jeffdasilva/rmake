@@ -1,0 +1,11 @@
+id = "library-declared-absent-touch"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original declared absent library selection: touch."
+provenance = "Independent source and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820642f6c696264656d6f2e610a746f75636820616c6c0a"
+stderr_hex = ""

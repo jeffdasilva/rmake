@@ -94,6 +94,18 @@ def selected_workloads(suite):
         yield from rule_filename_workloads()
     if suite in ("rule-tilde", "all"):
         yield from rule_tilde_workloads()
+    if suite in ("libraries", "all"):
+        yield from library_workloads()
+
+
+def library_workloads():
+    """No-child library lookup, including cross-pattern directory priority."""
+    for kind, count in (("local", 512), ("remote", 512), ("ranked", 256)):
+        patterns = b'bench-library-%.so bench-library-%.a' if kind == 'ranked' else b'bench-library-%.a'
+        path = b'' if kind == 'local' else b'VPATH=library-first' + (b':library-second' if kind == 'ranked' else b'') + b'\n'
+        source = b'.LIBPATTERNS=' + patterns + b'\n' + path
+        source += ('all: ' + ' '.join(f'-l{index:04d}' for index in range(count)) + ' ;\n').encode()
+        yield f'libraries-{kind}-{count}', source
 
 
 def rule_tilde_workloads():
@@ -375,6 +387,26 @@ def prepare_archive_names(path, kind, count):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('libraries-'):
+        _, kind, count = workload.split('-')
+        count = int(count)
+        for previous in path.glob('bench-library-*'):
+            previous.unlink()
+        directories = [path / 'library-first', path / 'library-second']
+        for directory in directories:
+            directory.mkdir(exist_ok=True)
+            for previous in directory.iterdir():
+                previous.unlink()
+        locations = [(path if kind == 'local' else directories[0], '.a')]
+        if kind == 'ranked':
+            locations.append((directories[1], '.so'))
+        for directory, suffix in locations:
+            for index in range(count):
+                target = directory / f'bench-library-{index:04d}{suffix}'
+                target.write_bytes(b'input\n')
+                os.utime(target, ns=(1600000000000000000,) * 2)
+        return {'libraries': count, 'files': count * len(locations), 'kind': kind,
+                'recipe_subprocesses': 0}
     if workload.startswith('rule-tilde-'):
         count = int(workload.rsplit('-', 1)[1])
         directory = path / 'tilde-inputs'
@@ -570,7 +602,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

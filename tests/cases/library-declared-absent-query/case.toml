@@ -1,0 +1,11 @@
+id = "library-declared-absent-query"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original declared absent library selection: query."
+provenance = "Independent source and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""
