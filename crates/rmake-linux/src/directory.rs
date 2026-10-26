@@ -83,18 +83,23 @@ impl Stream {
             let Some(capacity) = length.checked_sub(offset).filter(|length| *length > 0) else {
                 return Err(io::Error::from(io::ErrorKind::InvalidData));
             };
-            // SAFETY: the record contains record_length bytes. Bound the
-            // borrowed region to its name field and copy before another read.
-            let bytes = unsafe {
-                std::slice::from_raw_parts(
-                    std::ptr::addr_of!((*pointer).name).cast::<u8>(),
-                    capacity.min(256),
-                )
-            };
-            let Some(end) = bytes.iter().position(|byte| *byte == 0) else {
+            let name_pointer = unsafe { std::ptr::addr_of!((*pointer).name).cast::<u8>() };
+            let mut end = None;
+            for index in 0..capacity.min(256) {
+                // SAFETY: libc initializes the name through its terminating
+                // NUL. Read only that prefix, never the record's padding.
+                if unsafe { name_pointer.add(index).read() } == 0 {
+                    end = Some(index);
+                    break;
+                }
+            }
+            let Some(end) = end else {
                 return Err(io::Error::from(io::ErrorKind::InvalidData));
             };
-            let name = CString::new(&bytes[..end]).expect("bounded prefix has no NUL");
+            // SAFETY: the bounded scan established this initialized prefix;
+            // copy it before another read can reuse libc's directory buffer.
+            let bytes = unsafe { std::slice::from_raw_parts(name_pointer, end) };
+            let name = CString::new(bytes).expect("bounded prefix has no NUL");
             let kind = unsafe { std::ptr::addr_of!((*pointer).kind).read() };
             return Ok(Some(Entry {
                 name,

@@ -1799,9 +1799,9 @@ flow and a self-host case. The repeated graph gate now runs 720 comparisons per
 engine. Corpus: 3,658 cases, with 3,646 required matches and 12 unchanged pending
 mismatches. Stateful coverage remains 57 scenarios / 198 invocations.
 
-A paired benchmark shows about 14% lower repeated VPATH-miss time.
+A paired benchmark shows about 15% lower repeated VPATH-miss time.
 Core controls are close; other controls have mixed costs, including roughly
-5% higher warm wildcard time and up to 10% higher declared-record lookup
+4% higher warm wildcard time and up to 9% higher declared-record lookup
 time. See [shared directory search](shared-directory-search.md) for all values,
 source references, measurement limits and open M4 gates. These do not establish
 general speed parity or complete M4/M8.

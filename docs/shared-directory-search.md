@@ -114,23 +114,23 @@ with 201 for the wildcard controls:
 
 | Workload | Current rmake (ms) | Previous rmake (ms) | GNU 4.4.1 (ms) |
 | --- | ---: | ---: | ---: |
-| 1,000 implicit input probes | 6.075 | 5.971 | 3.193 |
-| 1,000 misses across eight VPATH directories | 4.544 | 5.276 | 3.129 |
-| Startup | 0.700 | 0.700 | 0.621 |
-| 10,000 ordinary no-op targets | 30.221 | 30.081 | 11.524 |
-| 5,000 expansion assignments | 4.681 | 4.806 | 2.918 |
-| Cold wildcard over 1,000 files | 0.957 | 0.958 | 1.186 |
-| 200 repeated wildcard queries | 11.771 | 11.244 | 37.508 |
-| 200 complex wildcard queries | 15.447 | 15.024 | 39.923 |
-| 1,000 literal wildcard names | 1.193 | 1.176 | 1.061 |
-| 1,000 declared searched records | 5.590 | 5.260 | 2.576 |
-| 1,000 original/searched pairs | 6.415 | 6.040 | 2.812 |
-| 400 implicit searched records | 4.204 | 3.821 | 2.138 |
+| 1,000 implicit input probes | 6.318 | 6.100 | 3.228 |
+| 1,000 misses across eight VPATH directories | 4.781 | 5.606 | 3.347 |
+| Startup | 0.718 | 0.710 | 0.625 |
+| 10,000 ordinary no-op targets | 31.720 | 31.697 | 12.021 |
+| 5,000 expansion assignments | 4.986 | 5.061 | 3.066 |
+| Cold wildcard over 1,000 files | 1.036 | 1.068 | 1.263 |
+| 200 repeated wildcard queries | 12.230 | 11.785 | 39.225 |
+| 200 complex wildcard queries | 15.860 | 15.479 | 41.207 |
+| 1,000 literal wildcard names | 1.288 | 1.258 | 1.140 |
+| 1,000 declared searched records | 5.742 | 5.396 | 2.619 |
+| 1,000 original/searched pairs | 7.048 | 6.686 | 3.052 |
+| 400 implicit searched records | 4.515 | 4.148 | 2.321 |
 
-Repeated VPATH misses use about 14% less elapsed time. The direct
-implicit control costs about 2% more. Core controls are close in
-this run. Warm wildcard time is about 5% higher; the declared-record
-controls cost about 6% / 6% / 10% more.
+Repeated VPATH misses use about 15% less elapsed time. The direct
+implicit control costs about 4% more. Core controls are close in
+this run. Warm wildcard time is about 4% higher; the declared-record
+controls cost about 6% / 5% / 9% more.
 Required negative searches now populate directories that the old build only
 stat'd. Avoidable sorting/hash work was removed, but the remaining regressions
 need further profiling. GNU is faster in the rule-search controls; rmake is
@@ -143,7 +143,7 @@ ignored `artifacts/bench/directory-search-101.json`, `directory-search-core-101.
 They include startup, two warmups per engine and warm OS caches, with alternating
 engine order and exact output/status checks. There is no CPU isolation,
 confidence interval, CPU/RSS/I/O profile or performance acceptance threshold.
-Current release SHA256: `82f185490b64ef80d7269e213f33bb7b6791a626f242074371bab02ba42ebf23`.
+Current release SHA256: `4676cac3873a7ebcf7bf18744f118feddf38addcbaf79fcbb029f892b90b9387`.
 Previous release SHA256: `eaeea3a97b6b19c8d21fe5b6cf12bb078b7413bd6ea0979e8c4cc433576eb77e`.
 
 ## Reference use
