@@ -1,0 +1,12 @@
+id = "rule-tilde-static-pattern-literal"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-static-pattern-literal"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c686f7573652f612e6f75743e2066697273743d3c3e20616c6c3d3c3e206f726465723d3c3e207374656d3d3c686f7573652f612e6f75743e0a"
+stderr_hex = "4d616b6566696c653a353a207461726765742027686f7573652f612e6f75742720646f65736e2774206d617463682074686520746172676574207061747465726e0a"

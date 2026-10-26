@@ -137,3 +137,7 @@ The [rule filename notes](rule-filenames.md) identify the GNU 4.4.1 reader,
 prerequisite and implicit-search phases consulted for the independently written
 filename scanner and rule-expansion follow-up. No upstream code or tests were
 incorporated.
+
+The [rule tilde notes](rule-tilde.md) record the GNU reader, declaration-close,
+implicit-search and default-goal source references used for the independently
+written tilde-expansion and deferred-prerequisite follow-up.

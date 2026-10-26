@@ -1,0 +1,12 @@
+id = "rule-tilde-warning-eof"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-warning-eof"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c616c6c3e2066697273743d3c686f7573652f613e20616c6c3d3c686f7573652f613e206f726465723d3c3e207374656d3d3c3e0a"
+stderr_hex = "4d616b6566696c653a363a20686f6d650a"

@@ -1,0 +1,12 @@
+id = "rule-tilde-secondary-error"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-secondary-error"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a202a2a2a20686f6d652e202053746f702e0a"

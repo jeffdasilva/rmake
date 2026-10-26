@@ -1,0 +1,12 @@
+id = "rule-tilde-named-account"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-named-account"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6163636f756e742d686f6d652d6f6b0a"
+stderr_hex = ""

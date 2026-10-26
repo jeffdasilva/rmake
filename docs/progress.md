@@ -1885,3 +1885,29 @@ elapsed-time gain.
 See [rule filename sequences](rule-filenames.md) for behavior, source references,
 measurement evidence and open gates. These changes do not complete M4/M8 or
 establish general speed parity.
+
+
+## Rule tilde expansion and declaration-close effects
+
+Expand rule filename tildes using global/eval HOME bindings, original environment
+and existing account lookup boundaries. Preserve byte paths, globbing and the
+separate target/prerequisite, static-pattern and post-read diagnostic phases.
+Defer tilde-containing immediate prerequisites until declaration close, maintain
+recipe-first and secondary-clause positions, and move resolved names into the
+final consumer. Keep ordinary declarations on their existing path.
+
+Use the same filename resolver after complete default-goal lookup, including
+quoted blanks, tildes, globs and leading-dot handling. Add 76 original required
+Makefiles (69 fail on preceding main), two bounded core tests and a twelve-step
+stateful HOME/glob transition scenario. Corpus: 4,096 cases, 4,084 required
+matches and 12 unchanged pending fixtures. Stateful: 64 scenarios / 273
+invocations. Internal checks: 385 Rust / 280 tooling tests.
+
+Paired 101-sample controls remain close to previous main, including a largest
+selected control cost around 2%. GNU is faster in all four new tilde workloads.
+No general speedup or parity is established.
+
+See [rule tilde expansion](rule-tilde.md) for behavior, reference provenance,
+measurements and concrete remaining gaps, including GNU recursive filename
+scratch-buffer corruption. These changes do not complete M4/M8 or establish
+GNU performance parity.

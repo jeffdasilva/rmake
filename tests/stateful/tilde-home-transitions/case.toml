@@ -1,0 +1,100 @@
+id = "tilde-home-transitions"
+description = "Fresh HOME selection, wildcard membership and order-only times across incremental modes"
+provenance = "Original script, Makefile, exact output/byte anchors and fixed nanosecond transitions; no upstream material copied."
+initial = [{"op" = "write", "path" = "config.mk", "content" = "HOME=alpha\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "alpha/a.in", "content" = "a\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "alpha/order", "content" = "order\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "beta dir/b.in", "content" = "b\n", "mtime_ns" = 1600000005000000000}, {"op" = "write", "path" = "beta dir/order", "content" = "order\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "missing-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = []
+exact_mtime = {"alpha/a.in" = 1600000000000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-alpha"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:alpha/a.in:alpha/a.in\nalpha/a.in\n", "stderr" = ""}
+
+[[steps]]
+name = "current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "switch-home"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=beta dir\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000001000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-beta"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:beta dir/b.in:beta dir/b.in\nbeta dir/b.in\n", "stderr" = ""}
+
+[[steps]]
+name = "old-home-ignored"
+actions = [{"op" = "write", "path" = "alpha/a.in", "content" = "unrelated\n", "mtime_ns" = 1600000030000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-order-only"
+actions = [{"op" = "write", "path" = "beta dir/order", "content" = "new-order\n", "mtime_ns" = 1600000021000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "new-match"
+actions = [{"op" = "write", "path" = "beta dir/c.in", "content" = "c\n", "mtime_ns" = 1600000010000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "dry-new-match"
+actions = []
+args = ["-rR", "--no-print-directory", "-n", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "python3 build.py 'out' 'beta dir/b.in beta dir/c.in' 'beta dir/c.in' 'beta dir'\n", "stderr" = ""}
+
+[[steps]]
+name = "parallel-new-match"
+actions = []
+args = ["-rR", "--no-print-directory", "-j2", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:beta dir/b.in beta dir/c.in:beta dir/c.in\nbeta dir/b.in beta dir/c.in\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-old-match"
+actions = [{"op" = "remove", "path" = "beta dir/b.in"}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "forced-membership"
+actions = []
+args = ["-rR", "--no-print-directory", "-B", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:beta dir/c.in:beta dir/c.in\nbeta dir/c.in\n", "stderr" = ""}

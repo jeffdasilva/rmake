@@ -1,0 +1,12 @@
+id = "rule-tilde-grouped-no-recipe"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-grouped-no-recipe"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a2067726f757065642074617267657473206d7573742070726f766964652061207265636970652e202053746f702e0a"

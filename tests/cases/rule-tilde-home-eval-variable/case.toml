@@ -1,0 +1,12 @@
+id = "rule-tilde-home-eval-variable"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-home-eval-variable"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b686f7573652f617c7365656e5d0a"
+stderr_hex = ""

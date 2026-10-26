@@ -1,0 +1,12 @@
+id = "rule-tilde-current-query"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-current-query"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory", "-q", "out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

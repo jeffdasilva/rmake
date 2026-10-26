@@ -9,7 +9,7 @@ Deliver vertical slices with original fixtures before implementation. Baseline
 performance throughout, establish compatibility before persistent graph caching,
 and keep extension work from changing the default GNU behavior.
 
-Current position (2026-10-25): the main feature focus is M4, with implemented
+Current position (2026-10-26): the main feature focus is M4, with implemented
 slices of M3 and M5. These milestones have not met their full exit gates.
 Include search and MAKEFILES preloading are recent M3 follow-ups. Archive member
 metadata, implicit/suffix rules, groups and archive wildcard rules are implemented
@@ -38,7 +38,10 @@ and three stateful scenarios totaling 31 invocations. It also reuses archive
 matchers per scan. The [rule filename slice](rule-filenames.md) adds quoted
 blank/colon/pipe semantics, ordinary rule globs, preserved implicit filename
 boundaries and GNU static-stem substitution, with 109 required Makefiles and
-two stateful scenarios totaling twenty invocations. These do not complete M4.
+two stateful scenarios totaling twenty invocations. The [rule tilde follow-up](rule-tilde.md)
+adds declaration-close HOME evaluation, named/environment fallback and default-goal
+filename parsing, with 76 required cases and twelve stateful invocations.
+These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

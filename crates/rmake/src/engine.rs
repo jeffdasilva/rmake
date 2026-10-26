@@ -10,7 +10,7 @@ use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
-    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, rule_filenames, trim, words,
+    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
 };
 use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, TargetScope, VariableStore};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
@@ -1437,16 +1437,42 @@ impl Engine {
                 Some(variable) => self.expand_global(variable.raw_value(), None),
             };
             match goal {
-                Ok(goal) if !trim(&goal).is_empty() => {
+                Ok(mut goal) if !trim(&goal).is_empty() => {
                     // GNU first looks up the complete spelling. An interned
                     // filename from a glob can contain blanks without naming
                     // multiple default goals.
-                    if self.database.rules.contains_key(&goal)
-                        || self.database.explicit_names.contains(&goal)
+                    let lookup = rmake_core::filenames::without_dot_prefix(&goal);
+                    if self.database.rules.contains_key(lookup)
+                        || self.database.explicit_names.contains(lookup)
                     {
+                        if goal.starts_with(b"./") {
+                            goal = lookup.to_vec();
+                        }
                         vec![goal]
                     } else {
-                        let goals: Vec<_> = words(&goal).map(Vec::from).collect();
+                        let names = self.database.rule_filenames(
+                            &goal,
+                            &mut ExpansionContext::new(None, &mut |event| {
+                                emit_output(&self.program, event)
+                            })
+                            .with_filesystem(&mut |effect| {
+                                self.filesystem.borrow_mut().execute(effect)
+                            })
+                            .with_shell(&mut |request| {
+                                let result =
+                                    crate::shell::run(request, &self.program, self.makelevel);
+                                self.filesystem.borrow_mut().child_completed();
+                                result
+                            })
+                            .with_includes(&mut |name| self.include_search.read(name)),
+                        );
+                        let goals: Vec<_> = match names {
+                            Ok(names) => names.map(std::borrow::Cow::into_owned).collect(),
+                            Err(error) => {
+                                self.expansion_error(None, &error);
+                                return 2;
+                            }
+                        };
                         if goals.len() != 1 {
                             self.fatal(None, b".DEFAULT_GOAL contains more than one target");
                             return 2;
@@ -2839,12 +2865,28 @@ impl Engine {
     }
 
     fn implicit_filename(
-        &self,
+        &mut self,
         name: &[u8],
         order_only: bool,
         directory: Option<&[u8]>,
     ) -> Result<Vec<Dependency>, ExpandError> {
         let name = rmake_core::filenames::without_dot_prefix(name);
+        let name = if name.starts_with(b"~") {
+            self.database.rule_tilde(
+                name,
+                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    })
+                    .with_includes(&mut |name| self.include_search.read(name)),
+            )?
+        } else {
+            std::borrow::Cow::Borrowed(name)
+        };
+        let name = name.as_ref();
         let name = directory.map_or_else(|| name.to_vec(), |dir| [dir, name].concat());
         if !name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
             return Ok(vec![Dependency { name, order_only }]);
@@ -2872,7 +2914,7 @@ impl Engine {
     }
 
     fn implicit_filenames(
-        &self,
+        &mut self,
         value: &[u8],
         order_only: &mut bool,
         directory: Option<&[u8]>,
@@ -2952,7 +2994,17 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut context = ExpansionContext::pure().with_filesystem(&mut filesystem);
+            let mut emit = |event: Output<'_>| emit_output(&self.program, event);
+            let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+                let result = crate::shell::run(request, &self.program, self.makelevel);
+                self.filesystem.borrow_mut().child_completed();
+                result
+            };
+            let mut includes = |name: &[u8]| self.include_search.read(name);
+            let mut context = ExpansionContext::new(None, &mut emit)
+                .with_filesystem(&mut filesystem)
+                .with_shell(&mut shell)
+                .with_includes(&mut includes);
             let mut expanded = Vec::new();
             let (normal, order) = if order_only {
                 (std::borrow::Cow::Borrowed(value.as_slice()), None)
@@ -2963,7 +3015,7 @@ impl Engine {
                 (normal.as_ref(), order_only),
                 (order.unwrap_or_default(), true),
             ] {
-                for name in rule_filenames(text, &mut context)? {
+                for name in self.database.rule_filenames(text, &mut context)? {
                     expanded.push(Dependency {
                         name: name.into_owned(),
                         order_only: role,

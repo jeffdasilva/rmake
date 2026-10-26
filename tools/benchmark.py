@@ -92,6 +92,19 @@ def selected_workloads(suite):
         yield from symlink_time_workloads()
     if suite in ("rule-filenames", "all"):
         yield from rule_filename_workloads()
+    if suite in ("rule-tilde", "all"):
+        yield from rule_tilde_workloads()
+
+
+def rule_tilde_workloads():
+    """Global HOME at read/search time, fixed existing inputs and no children."""
+    prelude = b'unexport HOME\nHOME=tilde-inputs\n'
+    names = ' '.join(f'~/file{index:04d}.in' for index in range(2000))
+    yield 'rule-tilde-literal-2000', prelude + ('all: ' + names + ' ;\n').encode()
+    yield 'rule-tilde-glob-1000', prelude + b'all: ~/*.in ;\n'
+    yield 'rule-tilde-secondary-1000', (prelude + b'.SECONDEXPANSION:\nP=~/*.in\nall: $$(P) ;\n')
+    targets = ' '.join(f'file{index:04d}.out' for index in range(500))
+    yield 'rule-tilde-implicit-500', prelude + ('all: ' + targets + ' ;\n%.out: ~/%.in ;\n').encode()
 
 
 def rule_filename_workloads():
@@ -362,6 +375,18 @@ def prepare_archive_names(path, kind, count):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('rule-tilde-'):
+        count = int(workload.rsplit('-', 1)[1])
+        directory = path / 'tilde-inputs'
+        directory.mkdir(exist_ok=True)
+        for previous in directory.iterdir():
+            previous.unlink()
+        for index in range(count):
+            target = directory / f'file{index:04d}.in'
+            target.write_bytes(b'input\n')
+            os.utime(target, ns=(1600000000000000000,) * 2)
+        return {'files': count, 'home': 'tilde-inputs', 'recipe_subprocesses': 0,
+                'content_sha256': hashlib.sha256(b'input\n').hexdigest()}
     if workload.startswith('rule-filenames-'):
         kind, count = workload.removeprefix('rule-filenames-').rsplit('-', 1)
         count = int(count)
@@ -545,7 +570,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

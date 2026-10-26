@@ -134,6 +134,8 @@ see [archive name encodings and borrowed scans](docs/archive-name-encodings.md).
 see [symlink timestamps](docs/symlink-timestamps.md).
 `BENCH_SUITE=rule-filenames` measures quoted declarations, ordinary/deferred
 globs and implicit names with spaces; see [rule filename sequences](docs/rule-filenames.md).
+`BENCH_SUITE=rule-tilde` measures literal/deferred tilde prerequisites and implicit search;
+see [rule tilde expansion](docs/rule-tilde.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -160,6 +162,8 @@ including explicit secondary expansion.
 names and GNU observation timing.
 [Rule filename sequences](docs/rule-filenames.md) add quoted blank/colon/pipe
 handling, ordinary rule globs and preserved static/implicit filename boundaries.
+[Rule tilde expansion](docs/rule-tilde.md) adds global HOME evaluation, declaration-close
+prerequisite timing, account/environment fallback and default-goal filename parsing.
 The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
 header scan I/O while retaining fresh reads between effects.
 [Archive member-name encodings](docs/archive-name-encodings.md) preserve signed/wrapped

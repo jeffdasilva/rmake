@@ -1,0 +1,12 @@
+id = "rule-tilde-static-prereq"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-static-prereq"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c686f7573652f612e6f75743e2066697273743d3c686f7573652f612e696e3e20616c6c3d3c686f7573652f612e696e3e206f726465723d3c3e207374656d3d3c613e0a"
+stderr_hex = ""
