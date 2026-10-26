@@ -1,0 +1,12 @@
+id = "home-scratch-long-dot-touch"
+requirement = "rules.recursive-home"
+candidate = "required"
+description = "Original recursive HOME byte-overwrite and phase boundary: home-scratch-long-dot-touch."
+provenance = "Independently authored Makefile, bounded byte-write model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206561726c792f6d61726b65720a"
+stderr_hex = ""

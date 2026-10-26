@@ -3,11 +3,12 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release m4-acceptance test check ci bench bench-compare clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
+M4_RELEASE ?= $(CURDIR)/target/release/rmake
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
 BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
@@ -69,6 +70,8 @@ help:
 		'  test-stateful   Compare incremental builds and timestamp boundaries' \
 		'  test-graph-progress Stress repeated parallel barriers, groups and aliases' \
 		'  test-jobserver  Compare mixed GNU/rmake FIFO and pipe jobserver trees' \
+		'  m4-acceptance  Run development and optimized rule-resolution gates' \
+		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
 		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  bench           Record original GNU oracle workload baselines' \
 		'  bench-compare   Compare release rmake and GNU with paired timings' \
@@ -159,6 +162,18 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WORD_INDEX_CASE=effect-wordlist-all-before-validation test-word-index
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" WILDCARD_CASES=1 test-wildcards
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" GRAPH_CASES=1 test-secondary
+
+# Keep the two phases sequential, including when the outer driver uses -j.
+m4-acceptance:
+	+$(MAKE) --no-print-directory ci
+	+$(MAKE) --no-print-directory test-m4-release
+
+test-m4-release: release oracle-verify
+	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/archive_times.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	+$(MAKE) --no-print-directory "CANDIDATE=$(M4_RELEASE)" test-selfhost test-graph-progress
+
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"

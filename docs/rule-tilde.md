@@ -152,14 +152,10 @@ Consulted the verified GNU Make **4.4.1** release archive, SHA-256
 The Rust implementation, Makefiles, scripts and anchors are independently
 written. No upstream implementation or tests are copied or translated.
 
-A known additional gap is GNU's shared filename scratch buffer: recursive
-filename-sequence functions inside `HOME` can overwrite the name being parsed.
-For example, a manually probed target-specific binding using
-`HOME=$(if $(wildcard marker),late,early)` and an immediate value that creates
-`marker` records the unexpected target `earlyarker` in the pinned GNU profile.
-Owned Rust filenames do not reproduce that corruption. Wider recursive-query
-and allocator/profile behavior remains open; this is not counted as a passing
-compatibility case or hidden behind a new pending exemption.
+The [recursive HOME follow-up](recursive-home-names.md) now models the pinned
+profile's shared filename byte writes safely. Its required `earlyarker` probe,
+nested queries, archive groups and include transitions replace the earlier known
+gap. Arbitrary undefined allocator behavior is not emulated with unsafe pointers.
 
 Target-specific assignment RHS `eval` is another existing M3 gap. Broader
 escaped-semicolon reading, post-read MAKEFLAGS replay, warning-option/NSS/locale

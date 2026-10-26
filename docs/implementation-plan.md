@@ -9,57 +9,28 @@ Deliver vertical slices with original fixtures before implementation. Baseline
 performance throughout, establish compatibility before persistent graph caching,
 and keep extension work from changing the default GNU behavior.
 
-The [M4 exit audit](m4-exit-audit.md) records concrete remaining rule failures,
-including hidden prerequisites and cleanup ordering, rather than treating the
-pending fixture count as a completion checklist.
+The [M4 exit audit](m4-exit-audit.md) records the implemented rule families,
+closed blockers, strict combined acceptance gate and remaining profile limits.
 
-Current position (2026-10-26): the main feature focus is M4, with implemented
-slices of M3 and M5. These milestones have not met their full exit gates.
-Include search and MAKEFILES preloading are recent M3 follow-ups. Archive member
-metadata, implicit/suffix rules, groups and archive wildcard rules are implemented
-slices of M4, including archive-first VPATH resolution, per-clause explicit
-secondary expansion, implicit candidate secondary expansion and
-[GPATH permanent filenames](gpath.md). Broader file-record and directory-cache
-behavior, the archive format/fault matrix and remaining runtime profiles still
-block the compatibility path. The GPATH slice adds 118 required cases and an
-eight-step rebuild scenario. The [intermediate policy slice](intermediate-policy.md)
-adds global/named precedence, conflict validation and lazy missing-file guards,
-with 183 original cases and two stateful scenarios totaling nineteen invocations.
-The [lazy rule-record slice](lazy-rule-records.md) adds grouped/double-colon
-inspection, per-parent rebuild evidence, cycle persistence and frozen setup rules,
-with 143 original cases and two more stateful scenarios. The
-[declared VPATH record slice](vpath-file-records.md) adds missing-output selection,
-ordinary record merges and phase-specific alias reuse, with 160 original cases
-and a twelve-step stateful scenario. The
-[shared directory slice](shared-directory-search.md) connects wildcard and rule
-probes, preserves stream/error and group/update phases, and adds 56 curated
-cases plus 176 independently anchored search programs. The
-[archive name-encoding slice](archive-name-encodings.md) adds 176 required cases,
-a twelve-step archive transition scenario and borrowed member views that avoid
-unnecessary name copies. The [symlink-time slice](symlink-timestamps.md) adds
-`-L`, link-aware timestamps, 77 required Makefiles, 52 syscall-fault programs
-and three stateful scenarios totaling 31 invocations. It also reuses archive
-matchers per scan. The [rule filename slice](rule-filenames.md) adds quoted
-blank/colon/pipe semantics, ordinary rule globs, preserved implicit filename
-boundaries and GNU static-stem substitution, with 109 required Makefiles and
-two stateful scenarios totaling twenty invocations. The [rule tilde follow-up](rule-tilde.md)
-adds declaration-close HOME evaluation, named/environment fallback and default-goal
-filename parsing, with 76 required cases and twelve stateful invocations.
-The [declaration-recording slice](declaration-recording.md) defers rule records,
-ordinary globs and archive groups to the closing statement, preserves nested eval
-precedence, and adds 73 required cases for phase and diagnostic boundaries.
-The [ordinary stat follow-up](stat-timestamps.md) adds interrupted/error observation
-and explicit completion-time state, with 92 required cases and twenty additional
-anchored fault programs. The [library slice](library-resolution.md) adds Linux
-`-l` lookup, ranked pattern/VPATH searches, record merges, 160 required cases,
-forty fault programs and a fourteen-step incremental scenario.
-The [file-record slice](file-record-order.md) adds deterministic cleanup order,
-collision/growth/rename policy, static/deferred registration and expansion-only
-intermediate cleanup, with 35 required cases and the promotion of `chain-two-roots`.
-The [hidden-prerequisite slice](extra-prerequisites.md) adds `.EXTRA_PREREQS`,
-snapshot/effect/edge-role behavior, 145 required cases and a sixteen-step
-incremental scenario. These do not complete M4.
-Early measured optimizations do not complete M8 or establish GNU speed parity.
+Current position (2026-10-26): M4's rule-resolution implementation is complete on
+the pinned Linux development profile, with mandatory development and optimized
+acceptance in GitHub CI. Acceptance requires green checks on the exact proposed
+commit. M3 and M5 have implemented slices but retain their own open exit gates;
+complete GNU compatibility, broad runtime/profile acceptance and general speed
+parity remain future milestones.
+
+M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
+secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
+timestamps and errors; intermediate/special-target policy; hidden prerequisites;
+file-record phases/order; filename queries and safe recursive HOME byte effects.
+The ledger has 32 rule/archive/resolution families and 2,599 required cases, with
+no pending exemptions in those families. The full corpus and cross-family,
+stateful, fault, parallel and self-hosted suites also gate the milestone.
+
+Earlier progress records describe the slices and measurements at their original
+points in time; the current [acceptance audit](m4-exit-audit.md) supersedes their
+historical M4-open statements. The overall requirement inventory remains
+incomplete, because the complete compatibility contract extends beyond M4.
 
 ## Milestones and exit criteria
 

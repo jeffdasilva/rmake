@@ -1,0 +1,76 @@
+id = "recursive-home-transitions"
+description = "Recursive HOME names across wildcard membership, modes and reentrant include records"
+provenance = "Independently authored Makefile and fixed-timestamp actions with exact stream/status anchors; no upstream tests copied."
+initial = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(if $(wildcard marker),late,early)\nGOAL=earlyarker\n", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "missing-query-selects-early"
+actions = []
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[earlyarker|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "create-marker-selects-late"
+actions = [{"op" = "write", "path" = "marker", "content" = "present\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "config.mk", "content" = "HOME=$(if $(wildcard marker),late,early)\nGOAL=latearker\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[latearker|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "remove-marker-no-stale-scope"
+actions = [{"op" = "remove", "path" = "marker"}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[latearker|]\n", "stderr" = ""}
+
+[[steps]]
+name = "restored-early-dry"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(if $(wildcard marker),late,early)\nGOAL=earlyarker\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-n"]
+expected = {"exit_code" = 0, "stdout" = "printf '[%s|%s]\\n' 'earlyarker' 'value'\n", "stderr" = ""}
+
+[[steps]]
+name = "query-still-outdated"
+actions = []
+args = ["-rR", "--no-print-directory", "-q"]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "parallel-early"
+actions = []
+args = ["-rR", "--no-print-directory", "-j2"]
+expected = {"exit_code" = 0, "stdout" = "[earlyarker|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "multiple-inner-names"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(if $(wildcard first second),late,early)\nGOAL=earlyecond\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[earlyecond|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "empty-inner-keeps-original"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(if $(wildcard ),late,early)\nGOAL=early/target\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[early/target|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "empty-group-close-write"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(if $(wildcard missing( a b )),late,early)\nGOAL=earlyissing()\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[earlyissing()|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "missing-optional-include"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(eval -include scratch.mk)early\nGOAL=earlycratch.mk\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[earlycratch.mk|value]\n", "stderr" = ""}
+
+[[steps]]
+name = "include-rule-overwrites-name"
+actions = [{"op" = "write", "path" = "scratch.mk", "content" = "another:;\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[earlycratch.mk|]\n", "stderr" = ""}
+
+[[steps]]
+name = "select-include-rule-name"
+actions = [{"op" = "write", "path" = "config.mk", "content" = "HOME=$(eval -include scratch.mk)early\nGOAL=earlynother\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory"]
+expected = {"exit_code" = 0, "stdout" = "[earlynother|value]\n", "stderr" = ""}

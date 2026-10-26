@@ -1,0 +1,12 @@
+id = "home-scratch-slash-nested-query"
+requirement = "rules.recursive-home"
+candidate = "required"
+description = "Original recursive HOME byte-overwrite and phase boundary: home-scratch-slash-nested-query."
+provenance = "Independently authored Makefile, bounded byte-write model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

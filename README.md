@@ -7,6 +7,10 @@ Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 
 ## Status
 
+M4's rule-resolution implementation is complete for the pinned Linux development
+profile. The [M4 acceptance audit](docs/m4-exit-audit.md) records its combined
+CI gate and limits. M3/M5 and broader compatibility/performance work remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
@@ -243,3 +247,9 @@ It is distributed without any warranty, including the implied warranties of
 merchantability or fitness for a particular purpose. See [LICENSE](LICENSE) for
 the full terms and [licensing and provenance](docs/licensing.md) for the
 source-reference policy and historical license information.
+
+`make m4-acceptance` runs development CI followed by optimized rule-resolution
+regressions. `make test-m4-release` runs the optimized corpus, stateful and archive
+fault suites, repeated parallel cases and self-hosted flows. The
+[recursive HOME notes](docs/recursive-home-names.md) describe the safe byte model
+and [M4 audit](docs/m4-exit-audit.md) records milestone acceptance and open work.

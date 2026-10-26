@@ -2024,3 +2024,20 @@ stateful transition scenario. Inventory is 4,639 curated / 4,628 required /
 eleven historical pending, 67 stateful scenarios / 317 invocations, 390 Rust /
 293 tooling tests. See [archive observations](archive-observations.md). M4
 continues with recursive HOME scratch behavior and its combined acceptance audit.
+
+## M4 recursive HOME and combined acceptance
+
+Implement owned filename sessions for nested wildcard/eval/include writes,
+archive-group offsets and retained NUL bytes. Preserve environment fallback
+suffixes without interpreting them as account names; release state on errors.
+Add 253 required cases and twelve stateful transitions. Inventory: 4,892 curated /
+4,881 required / eleven historical pending; 68 scenarios / 329 invocations;
+393 Rust / 294 tooling tests. All 32 mapped rule/archive/resolution families have
+required coverage, with a tooling gate preventing pending exemptions.
+
+`make m4-acceptance` runs development CI followed by optimized corpus, stateful,
+archive-fault, parallel and self-hosted checks. GitHub runs both phases; exact-head
+green checks are required before merge. The [current M4 audit](m4-exit-audit.md)
+records acceptance criteria, resolved blockers and separate open milestones.
+This completes the M4 implementation tranche; full compatibility and general
+performance parity remain open. Earlier slice notes retain historical results.

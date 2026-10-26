@@ -1,0 +1,12 @@
+id = "home-scratch-target-quoted-dry"
+requirement = "rules.recursive-home"
+candidate = "required"
+description = "Original recursive HOME byte-overwrite and phase boundary: home-scratch-target-quoted-dry."
+provenance = "Independently authored Makefile, bounded byte-write model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620275b25737c25735d5c6e2720276561726c79206227202776616c7565270a"
+stderr_hex = ""

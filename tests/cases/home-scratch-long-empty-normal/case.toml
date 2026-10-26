@@ -1,0 +1,12 @@
+id = "home-scratch-long-empty-normal"
+requirement = "rules.recursive-home"
+candidate = "required"
+description = "Original recursive HOME byte-overwrite and phase boundary: home-scratch-long-empty-normal."
+provenance = "Independently authored Makefile, bounded byte-write model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6561726c792f6c6f6e677461726765746e616d657c76616c75655d0a"
+stderr_hex = ""
