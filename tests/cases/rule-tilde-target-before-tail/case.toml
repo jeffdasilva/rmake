@@ -1,0 +1,12 @@
+id = "rule-tilde-target-before-tail"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-target-before-tail"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c6561726c792f7461726765743e2066697273743d3c6c6174652f613e20616c6c3d3c6c6174652f613e206f726465723d3c3e207374656d3d3c3e0a"
+stderr_hex = ""

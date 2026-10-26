@@ -1,0 +1,12 @@
+id = "rule-tilde-environment-undefined"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-environment-undefined"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "656e7669726f6e6d656e742d686f6d652d6f6b0a"
+stderr_hex = ""

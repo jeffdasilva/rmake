@@ -1,0 +1,12 @@
+id = "rule-tilde-target-scope-before-rhs"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "rule-tilde-target-scope-before-rhs"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6561726c792f7461726765747c6f6b5d0a"
+stderr_hex = ""

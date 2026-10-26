@@ -1,0 +1,12 @@
+id = "rule-tilde-target-dot-default"
+requirement = "rules.tilde-expansion"
+candidate = "required"
+description = "target-dot-default"
+provenance = "Original Makefile, byte paths, effects and independently authored output/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027686f7573652f746172676574272e202053746f702e0a"

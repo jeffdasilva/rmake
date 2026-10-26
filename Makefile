@@ -83,7 +83,7 @@ help:
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
 		'Wildcard overrides: WILDCARD_SEED, WILDCARD_CASES, WILDCARD_EXPRESSIONS, START_INDEX.' \
-		'Benchmark suite: BENCH_SUITE=core|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|secondary|implicit-rejections|gpath|intermediates|lazy-records|vpath-records|directory-search|archive-names|symlink-times|rule-filenames|all.' \
+		'Benchmark suite: BENCH_SUITE=core|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|secondary|implicit-rejections|gpath|intermediates|lazy-records|vpath-records|directory-search|archive-names|symlink-times|rule-filenames|rule-tilde|all.' \
 		'Benchmark samples per engine: BENCH_REPEAT=15 (3-1000).' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
 		'GNU compatibility is incomplete.'

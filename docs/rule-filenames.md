@@ -164,3 +164,7 @@ phase interactions, archive/runtime/locale/profile matrices, release-scale
 compatibility and persistent-cache correctness. This slice supplies selected
 filename and glob cases, not a claim that every filename/reader interaction
 matches GNU. M4 and M8 remain open, and general GNU speed parity is unproven.
+
+The later [tilde-expansion slice](rule-tilde.md) adds selected rule/default-goal
+HOME behavior, declaration-close effects and account/environment fallbacks.
+Its notes retain known recursive-query and broader reader/profile gaps.
