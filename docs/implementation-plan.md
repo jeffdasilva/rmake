@@ -9,6 +9,10 @@ Deliver vertical slices with original fixtures before implementation. Baseline
 performance throughout, establish compatibility before persistent graph caching,
 and keep extension work from changing the default GNU behavior.
 
+The [M4 exit audit](m4-exit-audit.md) records concrete remaining rule failures,
+including hidden prerequisites and library lookup, rather than treating the
+pending fixture count as a completion checklist.
+
 Current position (2026-10-26): the main feature focus is M4, with implemented
 slices of M3 and M5. These milestones have not met their full exit gates.
 Include search and MAKEFILES preloading are recent M3 follow-ups. Archive member
@@ -44,7 +48,9 @@ filename parsing, with 76 required cases and twelve stateful invocations.
 The [declaration-recording slice](declaration-recording.md) defers rule records,
 ordinary globs and archive groups to the closing statement, preserves nested eval
 precedence, and adds 73 required cases for phase and diagnostic boundaries.
-These do not complete M4.
+The [ordinary stat follow-up](stat-timestamps.md) adds interrupted/error observation
+and explicit completion-time state, with 76 required cases and twenty additional
+anchored fault programs. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

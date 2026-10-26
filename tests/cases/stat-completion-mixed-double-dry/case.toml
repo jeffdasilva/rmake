@@ -1,0 +1,11 @@
+id = "stat-completion-mixed-double-dry"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original mixed recursive double-colon completion: dry."
+provenance = "Independent Makefile, fixed timestamps and byte-exact anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 0
+stdout_hex = "3a0a"
+stderr_hex = ""

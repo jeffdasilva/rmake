@@ -56,7 +56,7 @@ help:
 		'  test-pattern-scopes Compare mixed pattern and explicit variable scopes' \
 		'  test-secondary  Compare seeded deferred/static clauses with mixed scopes' \
 		'  test-filesystem  Compare Linux filesystem effects under injected faults' \
-		'  test-symlink-times  Compare -L timestamp observations under syscall faults' \
+		'  test-symlink-times  Compare default/-L timestamp observations under syscall faults' \
 		'  test-directory-search  Compare shared directory/search observations and I/O faults' \
 		'  test-whitespace  Compare pure-function whitespace and effect ordering' \
 		'  test-word-index  Compare word and wordlist numeric boundaries and errors' \

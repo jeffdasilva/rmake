@@ -1,0 +1,82 @@
+# M4 exit audit: rule resolution
+
+Audit date: 2026-10-26. **M4 is open.** A green development CI run protects
+implemented behavior; it does not satisfy M4's complete rule-resolution gate.
+The twelve historical pending fixture IDs are not an inventory of all missing
+features. The observations below use the pinned GNU Make 4.4.1 oracle.
+
+## Covered families
+
+Required ledger coverage exists for explicit/static/implicit/suffix/grouped and
+double-colon rules, built-in declarations, candidate secondary expansion,
+VPATH/GPATH, archive members/groups/name encodings, intermediate policies,
+lazy records, quoted filenames, tilde resolution and declaration recording.
+The [progress record](progress.md) and individual slice notes identify exact
+case counts and limits. Default stat faults and simulated-completion state are
+covered by the [timestamp follow-up](stat-timestamps.md).
+
+These are implemented slices. Their combined tests are necessary but insufficient
+for the exit requirement that search priority, automatic variables, lifecycle and
+filesystem edge cases match across every rule family.
+
+## Confirmed blockers
+
+| Area | Direct evidence | Required follow-up |
+| --- | --- | --- |
+| `.EXTRA_PREREQS` | GNU executes the hidden prerequisite below; rmake does not. | Add hidden dependency records and GNU expansion/scope/recording phases; keep them out of automatic variables while retaining update/failure effects. |
+| `-l` library lookup / `.LIBPATTERNS` | GNU selects `libdemo.a` below; rmake reports a missing `-ldemo`. | Add pattern priority, local/VPATH/system searches, record renaming, variables, diagnostics and invalidation tests. |
+| Intermediate cleanup ordering | Existing `chain-two-roots` is pending: GNU emits `rm b.mid a.mid`. | Model file-record table order, including insertion/collisions/resizing/renaming; sorting just the removed names is insufficient. |
+| Recursive HOME filename queries | The [tilde notes](rule-tilde.md) preserve a probe where GNU's shared scratch buffer yields `earlyarker`. | Resolve the compatibility/safety boundary explicitly. Do not introduce unsafe memory corruption or count it as matching. |
+| Archive observations | Earlier slices retain standalone-member/container timestamp and metadata-error ordering gaps. | Expand the I/O/error matrix and file-record timing tests before claiming completeness. |
+
+The two new minimal feature probes were executed against the GNU oracle and the
+optimized timestamp build. They are documented failures, not passing cases or new
+pending exemptions. Neither prototype is used as a product implementation fallback.
+
+### Hidden prerequisites
+
+```make
+.EXTRA_PREREQS=hidden
+all: normal;@printf '[%s|%s|%s|%s]\n' '$<' '$^' '$+' '$?'
+normal:;@printf 'normal\n'
+hidden:;@printf 'hidden\n'
+```
+
+Under `-rR --no-print-directory`, GNU prints:
+
+```text
+hidden
+normal
+[normal|normal|normal|normal]
+```
+
+rmake omits `hidden`. Both return zero and have empty stderr. This is a build
+ordering/dependency omission despite the identical automatic-variable line.
+
+### Library lookup
+
+```make
+.LIBPATTERNS=lib%.a
+$(file >libdemo.a,original library probe)
+all: -ldemo;@printf '[%s|%s]\n' '$<' '$^'
+```
+
+Under `-rR --no-print-directory`, GNU prints `[libdemo.a|libdemo.a]` and returns
+zero. rmake returns two and reports no rule for `-ldemo`. The explicit
+`.LIBPATTERNS` matters: `-R` removes the default definition, so a probe without
+that assignment fails on GNU as well and would not establish this gap.
+
+## Remaining acceptance work
+
+After the confirmed failures are implemented, audit combinations rather than
+checking only individual switches: scoped/secondary/implicit rules with hidden
+prerequisites and libraries; grouped/double-colon lifecycle and errors; alias and
+directory-cache transitions; archive formats, faults and raw names. Retain exact
+streams, status and filesystem effects, and add stateful transition scenarios.
+Promote the existing rule-resolution pending case only after its implementation
+and strict comparisons pass. Run the combined development and self-hosted gates
+on the exact proposed commit before marking M4 complete.
+
+M3 reader/dynamic-option gaps and M5/M6 runtime, locale and extension profiles also
+remain on the full compatibility path. Persistent-cache correctness and general
+GNU performance parity have separate M8 gates; neither is a substitute for M4.

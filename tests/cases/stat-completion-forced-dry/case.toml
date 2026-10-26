@@ -1,0 +1,11 @@
+id = "stat-completion-forced-dry"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original completion timestamp control: forced, dry."
+provenance = "Independent original source, fixed timestamps and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 0
+stdout_hex = "3a0a"
+stderr_hex = ""

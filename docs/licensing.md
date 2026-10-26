@@ -146,3 +146,7 @@ The [declaration-recording notes](declaration-recording.md) identify the GNU
 reader/file references used to establish recording, rule-family and diagnostic
 phases. The Rust refactor and its 73 anchored Makefiles are independently authored;
 no upstream implementation or tests were copied or translated.
+
+The [ordinary stat notes](stat-timestamps.md) record the GNU timestamp and
+completion references used for independently written error/retry and execution
+state changes, original kernel-error Makefiles and anchored syscall programs.
