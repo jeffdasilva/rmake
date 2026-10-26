@@ -1,0 +1,11 @@
+id = "stat-parallel-recipe-default-always"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original parallel target observation timing: stat-parallel-recipe-default-always."
+provenance = "Independently authored loop/repair source and byte-exact diagnostic anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory", "-B", "-j4"]
+
+[expected]
+exit_code = 0
+stdout_hex = "6275696c64"
+stderr_hex = "6d616b653a20737461743a206c6f6f703a20546f6f206d616e79206c6576656c73206f662073796d626f6c6963206c696e6b730a6d616b653a20737461743a206c6f6f703a20546f6f206d616e79206c6576656c73206f662073796d626f6c6963206c696e6b730a"

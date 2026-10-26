@@ -2064,6 +2064,8 @@ impl Engine {
         self.record_graph_failure(outcome);
         outcome.time = if job.phony {
             None
+        } else if self.parallel_jobs.contains_key(&target) {
+            outcome.time
         } else {
             self.modified(&target)
         };
@@ -4208,7 +4210,10 @@ impl Engine {
             }
             outcome.time = if phony {
                 None
-            } else if rule.recipes.is_some() && !outcome.completion.preserves() {
+            } else if rule.recipes.is_some()
+                && !outcome.completion.preserves()
+                && !self.parallel_jobs.contains_key(target)
+            {
                 self.modified(target)
             } else {
                 before

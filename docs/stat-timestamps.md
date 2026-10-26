@@ -25,17 +25,21 @@ requires refresh takes precedence over an assumed-new branch. Grouped empty
 recipes can preserve the old timestamp. Real execution keeps fresh filesystem
 observations; simulated completion avoids the extra stat and duplicate error.
 This is invocation-local rule state, with no persistent cache or effect suppression.
+Parallel dispatch and intermediate recipe continuations also retain the previous
+timestamp until the final child completes; they cannot inspect a partially
+rewritten target or duplicate its stat diagnostic.
 The former dry-run shortcut based only on whether any command was processed is
 removed: it incorrectly treated forced recursive no-ops as synthetic updates.
 
 ## Original tests
 
-The slice adds 76 required Makefiles with independently authored exact output,
+The slice adds 92 required Makefiles with independently authored exact output,
 status and filesystem comparisons:
 
 - Real symlink loops and ENAMETOOLONG paths, with/without `-L`, in ordinary,
   dry-run, query and touch modes. Missing prerequisites, explicit recipes, empty
   recipes, repair commands and silent ENOTDIR controls are separate cases.
+- Sixteen parallel loop/repair controls with `-B`, `-k` and `-L` interactions.
 - Fixed-timestamp dependent graphs covering ordinary empty recipes, grouped empty
   recipes, forced no-ops, double-colon branches and mixed recursive branches.
 
@@ -46,7 +50,7 @@ EIO, EACCES, ENOENT and ENOTDIR across four execution modes. A tooling regressio
 checks that ordinary programs disable `-L` and retain retry/missing-file anchors.
 
 Existing required fixtures and the twelve pending classifications are unchanged.
-The curated inventory is **4,245 cases / 4,233 required / 12 pending**. Stateful
+The curated inventory is **4,261 cases / 4,249 required / 12 pending**. Stateful
 coverage remains **64 scenarios / 273 invocations per engine**. Internal coverage
 is **385 Rust / 281 tooling tests**. `test-symlink-times`, `test-diff`, `check`
 and `ci` include this coverage through the existing top-level Makefile.
@@ -54,12 +58,19 @@ and `ci` include this coverage through the existing top-level Makefile.
 ## Validation and measurements
 
 Full local `make ci` passed with the immutable final debug executable:
-4,233 required curated matches, all 64 stateful scenarios, 72 timestamp-fault
+4,249 required curated matches, all 64 stateful scenarios, 72 timestamp-fault
 programs per engine, existing generated/fault suites, 61 jobserver programs,
 720 parallel comparisons per engine, 385 Rust/281 tooling tests and self-hosting.
+An additional 1,216 strict combined-flag comparisons match GNU. They combine
+`-n`, `-q`, `-t`, `-B`, `-k` and `-j4` across the original timestamp inputs.
+The sixteen parallel failures found in that campaign have dedicated required
+fixtures, rather than new pending exemptions. The exploratory report remains in
+ignored `artifacts/research/completion-matrix/report.json`; it is additional
+evidence and is not added to the curated fixture count.
+
 The optimized executable drove top-level differential/stateful flows and
-216 parallel comparisons per engine successfully. Previous main fails 42 of the
-76 new curated cases and twelve of the twenty new ordinary stat-fault programs.
+216 parallel comparisons per engine successfully. Previous main fails 58 of the
+92 new curated cases and twelve of the twenty new ordinary stat-fault programs.
 
 Four alternating paired suites ran after functional validation with 101 samples
 per engine, two warmups, warm OS caches and exact stream/status checks. Times
@@ -69,29 +80,29 @@ threshold.
 
 | Workload | Current rmake (ms) | Previous main (ms) | GNU 4.4.1 (ms) |
 | --- | ---: | ---: | ---: |
-| tiny-noop | 0.718 | 0.705 | 0.652 |
-| large-noop | 31.145 | 30.484 | 11.787 |
-| expansion | 4.804 | 4.961 | 2.956 |
-| symlink-times-plain-2000 | 4.385 | 4.325 | 2.768 |
-| symlink-times-links-1000 | 6.766 | 6.738 | 3.331 |
-| symlink-times-chain-500 | 3.899 | 3.839 | 2.116 |
-| symlink-times-dangling-1000 | 6.490 | 6.443 | 3.150 |
-| lazy-record-grouped-1000 | 11.780 | 11.733 | 5.562 |
-| lazy-record-double-1000 | 12.090 | 12.006 | 5.754 |
-| secondary-ready-256 | 1.336 | 1.304 | 0.746 |
-| secondary-ready-1024 | 3.675 | 3.562 | 1.433 |
-| secondary-empty-256 | 1.067 | 1.065 | 0.969 |
-| secondary-targets-1000 | 4.547 | 4.480 | 2.978 |
+| tiny-noop | 0.671 | 0.652 | 0.563 |
+| large-noop | 30.200 | 29.446 | 11.425 |
+| expansion | 4.712 | 4.794 | 2.839 |
+| symlink-times-plain-2000 | 4.388 | 4.300 | 2.724 |
+| symlink-times-links-1000 | 6.765 | 6.711 | 3.277 |
+| symlink-times-chain-500 | 3.924 | 3.768 | 2.137 |
+| symlink-times-dangling-1000 | 6.368 | 6.329 | 3.115 |
+| lazy-record-grouped-1000 | 11.852 | 11.947 | 5.578 |
+| lazy-record-double-1000 | 12.285 | 12.288 | 6.117 |
+| secondary-ready-256 | 1.449 | 1.430 | 0.829 |
+| secondary-ready-1024 | 3.813 | 3.719 | 1.546 |
+| secondary-empty-256 | 1.099 | 1.095 | 0.980 |
+| secondary-targets-1000 | 4.595 | 4.589 | 3.063 |
 
-Results are close or mixed: about 2% higher large-no-op time and 3% lower
-expansion time, with selected secondary controls up to about 3% higher. This
+Results are close or mixed: about 3% higher large-no-op time and 2% lower
+expansion time, with the link-chain control about 4% higher. This
 correctness change does not establish a general speedup or GNU parity. GNU is
 faster in these workloads. All raw values, input and executable identities are
 retained under ignored
-`artifacts/bench/stat-timestamps-{core,symlink,lazy,secondary}-101.json`.
+`artifacts/bench/stat-timestamps-final-{core,symlink,lazy,secondary}-101.json`.
 
 Final release SHA-256:
-`e7156e043d9ef4edb9cbc75672645915471f3ea9f50d9969c7e0569da8aa18d4`.
+`623d49911893b31051b58932bcdbb62d52e044de09bbaebb3f326943df733425`.
 Previous main release SHA-256:
 `2679de9f5c1fa7460620831c4040c951cb0dcc49a93c9be1cc04881ef67dd847`.
 

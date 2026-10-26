@@ -1947,18 +1947,21 @@ including grouped empty recipes and recursive/double-colon precedence. Avoid
 post-simulation metadata probes and use assumed-new state for dependent freshness
 and automatic variables instead of a dry-run command-count shortcut.
 
-Add 76 independently anchored required Makefiles; preceding main fails 42.
+Add 92 independently anchored required Makefiles; preceding main fails 58.
 Retain all 52 link-aware fault programs and add twenty default stat programs,
 with independent journal, symlink, input and protected-file anchors; preceding
 main fails twelve of those twenty. Add a tooling test for the default-mode
 inventory and retry/miss anchors. Required fixture expectations and the twelve
-pending classifications remain unchanged. Corpus: 4,245 cases / 4,233 required /
+pending classifications remain unchanged. Corpus: 4,261 cases / 4,249 required /
 12 pending; 64 stateful scenarios / 273 invocations per engine; 385 Rust and 281
 tooling tests.
 
-Full local CI and optimized top-level differential/stateful/parallel flows pass.
-Four paired 101-sample suites show close/mixed controls, including about 2% higher
-large-no-op and 3% lower expansion medians. GNU remains faster in these controls.
+Defer metadata inspection across pending parallel commands and continuations.
+All 1,216 additional combined-mode comparisons pass; the sixteen observed
+parallel failures are now required fixtures. Full local CI and optimized
+top-level differential/stateful/parallel flows pass.
+Four paired 101-sample suites show close/mixed controls, including about 3% higher
+large-no-op and 2% lower expansion medians. GNU remains faster in these controls.
 See [stat timestamps](stat-timestamps.md) for exact evidence, identities and limits.
 The [M4 exit audit](m4-exit-audit.md) records additional confirmed missing hidden
 prerequisites and library lookup, alongside ordering/archive/safety work. M4/M8

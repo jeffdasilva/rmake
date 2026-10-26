@@ -49,7 +49,7 @@ The [declaration-recording slice](declaration-recording.md) defers rule records,
 ordinary globs and archive groups to the closing statement, preserves nested eval
 precedence, and adds 73 required cases for phase and diagnostic boundaries.
 The [ordinary stat follow-up](stat-timestamps.md) adds interrupted/error observation
-and explicit completion-time state, with 76 required cases and twenty additional
+and explicit completion-time state, with 92 required cases and twenty additional
 anchored fault programs. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
