@@ -1,0 +1,11 @@
+id = "library-pattern-error-dry"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-pattern-error-dry."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a205041545445524e532e202053746f702e0a"

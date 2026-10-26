@@ -10,7 +10,7 @@ performance throughout, establish compatibility before persistent graph caching,
 and keep extension work from changing the default GNU behavior.
 
 The [M4 exit audit](m4-exit-audit.md) records concrete remaining rule failures,
-including hidden prerequisites and library lookup, rather than treating the
+including hidden prerequisites and cleanup ordering, rather than treating the
 pending fixture count as a completion checklist.
 
 Current position (2026-10-26): the main feature focus is M4, with implemented
@@ -50,7 +50,10 @@ ordinary globs and archive groups to the closing statement, preserves nested eva
 precedence, and adds 73 required cases for phase and diagnostic boundaries.
 The [ordinary stat follow-up](stat-timestamps.md) adds interrupted/error observation
 and explicit completion-time state, with 92 required cases and twenty additional
-anchored fault programs. These do not complete M4.
+anchored fault programs. The [library slice](library-resolution.md) adds Linux
+`-l` lookup, ranked pattern/VPATH searches, record merges, 160 required cases,
+forty fault programs and a fourteen-step incremental scenario.
+These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

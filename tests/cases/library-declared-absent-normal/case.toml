@@ -1,0 +1,11 @@
+id = "library-declared-absent-normal"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original declared absent library selection: normal."
+provenance = "Independent source and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "646573743d5b642f6c696264656d6f2e615d0a616c6c3d5b642f6c696264656d6f2e615d0a"
+stderr_hex = ""

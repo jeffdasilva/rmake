@@ -91,6 +91,7 @@ def cargo(args):
     # Match the repository's pinned GNU installation prefix. Ordinary cargo
     # builds default to /usr/local/include; packagers can configure this value.
     env.setdefault("RMAKE_INCLUDEDIR", str(TOOLS / "oracle" / "include"))
+    env.setdefault("RMAKE_LIBDIR", str(TOOLS / "oracle" / "lib"))
     # Exec preserves make's inherited pipe-jobserver descriptors. A subprocess
     # with Python's default close_fds would silently discard those descriptors.
     os.execvpe(executable, [executable, *args], env)

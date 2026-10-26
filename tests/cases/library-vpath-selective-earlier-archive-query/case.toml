@@ -1,0 +1,11 @@
+id = "library-vpath-selective-earlier-archive-query"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-vpath-selective-earlier-archive-query."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

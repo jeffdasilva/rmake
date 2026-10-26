@@ -1,0 +1,11 @@
+id = "library-vpath-archive-normal"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-vpath-archive-normal."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d5b616c6c5d2066697273743d5b642f6c696264656d6f2e615d20616c6c3d5b642f6c696264656d6f2e615d206e657765723d5b642f6c696264656d6f2e615d0a"
+stderr_hex = ""

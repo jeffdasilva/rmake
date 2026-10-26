@@ -1,0 +1,11 @@
+id = "library-patterns-reversed-touch"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-patterns-reversed-touch."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820616c6c0a"
+stderr_hex = ""

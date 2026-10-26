@@ -1,0 +1,11 @@
+id = "library-explicit-library-goal-touch"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-explicit-library-goal-touch."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220276c696264656d6f2e61272e0a"
+stderr_hex = ""

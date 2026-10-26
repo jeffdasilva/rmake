@@ -74,7 +74,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -315,6 +315,25 @@ class BenchmarkTests(unittest.TestCase):
                 else:
                     self.assertEqual(source.count(b'$(wildcard'), 64)
                     self.assertEqual(fixture['members'], 256)
+
+    def test_library_workloads_are_fixed_existing_inputs_without_children(self):
+        import tempfile
+        from pathlib import Path
+        workloads = list(benchmark.library_workloads())
+        self.assertEqual(len(workloads), 3)
+        self.assertEqual(workloads, list(benchmark.selected_workloads('libraries')))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, source in workloads:
+                fixture = benchmark.prepare_files(root, name)
+                self.assertEqual(source.count(b'-l'), fixture['libraries'] + source.count(b'bench-library-'))
+                self.assertNotIn(b'$(shell', source)
+                self.assertNotIn(b'\t', source)
+                self.assertEqual(fixture['recipe_subprocesses'], 0)
+                self.assertEqual(len(list(root.rglob('bench-library-*'))), fixture['files'])
+                for file in root.rglob('bench-library-*'):
+                    self.assertEqual(file.read_bytes(), b'input\n')
+                    self.assertEqual(file.stat().st_mtime_ns, 1600000000000000000)
 
     def test_archive_workloads_include_sparse_object_payloads(self):
         import tempfile

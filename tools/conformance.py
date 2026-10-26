@@ -140,7 +140,7 @@ def load_case(path: Path) -> Case:
     if not isinstance(environment, dict):
         raise HarnessError(f"environment must be a table: {manifest}")
     for key, value in environment.items():
-        if (not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", key) or key in ENV_PROTECTED
+        if (not re.fullmatch(r"[A-Za-z_.][A-Za-z_0-9.]*", key) or key in ENV_PROTECTED
                 or not isinstance(value, str) or "\0" in value):
             raise HarnessError(f"invalid or reserved environment entry {key}: {manifest}")
     expected = data.get("expected", {})

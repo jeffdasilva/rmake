@@ -1,0 +1,11 @@
+id = "library-record-phony-always"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-record-phony-always."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-B"]
+
+[expected]
+exit_code = 0
+stdout_hex = "646573743d5b6c696264656d6f2e615d0a5b6c696264656d6f2e615d0a"
+stderr_hex = ""

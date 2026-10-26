@@ -150,3 +150,8 @@ no upstream implementation or tests were copied or translated.
 The [ordinary stat notes](stat-timestamps.md) record the GNU timestamp and
 completion references used for independently written error/retry and execution
 state changes, original kernel-error Makefiles and anchored syscall programs.
+
+The [library resolution notes](library-resolution.md) identify reader/file/search
+references used by the independently written Rust and original tests. The pinned
+`.LIBPATTERNS` declaration extends the existing public database extraction under
+its FSF/GPL data attribution; no upstream implementation or tests were copied.

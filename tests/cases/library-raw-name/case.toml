@@ -1,0 +1,11 @@
+id = "library-raw-name"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-raw-name."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6c6962ff64656d6f2e615d0a"
+stderr_hex = ""

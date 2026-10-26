@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ARGS = ('-rR', '--no-print-directory', '-L')
 SOURCE = (b'$(shell python3 setup.py)\nout: effect-probe\n'
           b"\t@printf 'build=%s\\n' '$?'\n")
+LIBRARY_SOURCE = SOURCE.replace(b'out: effect-probe', b'.LIBPATTERNS=%\nout: -leffect-probe')
 SETUP = (b'import os\n'
          b'for name, seconds in [("input", 0), ("out", 10), ("effect-probe", 20)]:\n'
          b'    os.utime(name, ns=((1600000000 + seconds) * 10**9,) * 2, follow_symlinks=False)\n')
@@ -39,6 +40,7 @@ class Cell:
     stderr: bytes
     status: int
     symlinks: bool = True
+    library: bool = False
 
 
 def inventory() -> tuple[Cell, ...]:
@@ -83,11 +85,17 @@ def inventory() -> tuple[Cell, ...]:
             cells.append(Cell('default-stat-' + kind + '-' + mode,
                               'symlink-stat-' + kind, flags, stdout, stderr,
                               0 if kind == 'eintr' else 2, False))
+    ordinary_and_link_stats = [cell for cell in cells
+                               if cell.id.startswith(('stat-', 'default-stat-'))]
+    for cell in ordinary_and_link_stats:
+        cells.append(dataclasses.replace(
+            cell, id='library-' + cell.id, library=True,
+            stderr=cell.stderr.replace(b"target 'effect-probe', needed", b"target '-leffect-probe', needed")))
     return tuple(cells)
 
 
-def inputs() -> dict:
-    return {'Makefile': faults.regular_file(SOURCE), 'setup.py': faults.regular_file(SETUP),
+def inputs(cell: Cell | None = None) -> dict:
+    return {'Makefile': faults.regular_file(LIBRARY_SOURCE if cell and cell.library else SOURCE), 'setup.py': faults.regular_file(SETUP),
             'input': faults.regular_file(b'input\n'), 'out': faults.regular_file(b'old\n'),
             'effect-probe': {'type': 'symlink', 'mode': 0o777, 'target': 'input'},
             'protected.txt': faults.regular_file(PROTECTED)}
@@ -96,7 +104,7 @@ def inputs() -> dict:
 def materialize(cell: Cell, parent: Path, library: Path) -> harness.Case:
     path = parent / cell.id
     path.mkdir(parents=True)
-    for name, entry in inputs().items():
+    for name, entry in inputs(cell).items():
         target = path / name
         if entry['type'] == 'symlink':
             target.symlink_to(entry['target'])
@@ -109,7 +117,7 @@ def materialize(cell: Cell, parent: Path, library: Path) -> harness.Case:
 
 def expected(cell: Cell) -> harness.Observation:
     files = {name: {'type': 'directory', 'mode': 0o755} for name in ('home', 'tmp', 'work')}
-    files.update({'work/' + name: entry for name, entry in inputs().items()})
+    files.update({'work/' + name: entry for name, entry in inputs(cell).items()})
     files['work/fault.log'] = faults.regular_file(b'symlink-fault\n')
     return harness.Observation(cell.stdout, cell.stderr, cell.status, None, files)
 

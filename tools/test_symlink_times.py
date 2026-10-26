@@ -42,8 +42,8 @@ class SymlinkTimeTests(unittest.TestCase):
         return status, report, calls
 
     def test_inventory_covers_operations_errors_and_four_modes(self):
-        self.assertEqual(len(self.cells), 72)
-        self.assertEqual(len({cell.id for cell in self.cells}), 72)
+        self.assertEqual(len(self.cells), 112)
+        self.assertEqual(len({cell.id for cell in self.cells}), 112)
         self.assertEqual(self.cells, runner.inventory())
         self.assertEqual({cell.status for cell in self.cells}, {0, 1, 2})
         self.assertEqual({cell.flags for cell in self.cells}, {(), ('-n',), ('-q',), ('-t',)})
@@ -66,7 +66,7 @@ class SymlinkTimeTests(unittest.TestCase):
         self.assertFalse((case.path / 'fault.log').exists())
 
     def test_default_stat_cells_disable_link_walk_and_anchor_retry_and_missing(self):
-        cells = [cell for cell in self.cells if not cell.symlinks]
+        cells = [cell for cell in self.cells if not cell.symlinks and not cell.library]
         self.assertEqual(len(cells), 20)
         for cell in cells:
             case = runner.materialize(cell, self.root / 'default', self.root / 'helper.so')
@@ -80,7 +80,22 @@ class SymlinkTimeTests(unittest.TestCase):
             else:
                 self.assertEqual(cell.status, 2)
                 self.assertIn(b'No rule to make target', cell.stderr)
-        self.assertEqual(sum(cell.symlinks for cell in self.cells), 52)
+        self.assertEqual(sum(cell.symlinks and not cell.library for cell in self.cells), 52)
+
+    def test_library_fault_programs_preserve_flags_and_protected_input_anchors(self):
+        cells = [cell for cell in self.cells if cell.library]
+        self.assertEqual(len(cells), 40)
+        self.assertEqual(sum(cell.symlinks for cell in cells), 20)
+        for cell in cells:
+            case = runner.materialize(cell, self.root / 'libraries', self.root / 'helper.so')
+            self.assertEqual((case.path / 'Makefile').read_bytes(), runner.LIBRARY_SOURCE)
+            self.assertEqual('-L' in case.args, cell.symlinks)
+            self.assertEqual(runner.expected(cell).filesystem['work/Makefile'],
+                             faults.regular_file(runner.LIBRARY_SOURCE))
+            self.assertEqual(runner.expected(cell).filesystem['work/protected.txt'],
+                             faults.regular_file(runner.PROTECTED))
+            if cell.status == 2:
+                self.assertIn(b"target '-leffect-probe'", cell.stderr)
 
     def test_success_uses_same_workspace_and_retains_helper_and_anchors(self):
         status, report, calls = self.campaign()

@@ -12,7 +12,9 @@ use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
 };
-use rmake_core::variables::{Assignment, ExpandError, Flavor, Origin, TargetScope, VariableStore};
+use rmake_core::variables::{
+    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
+};
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::cell::RefCell;
@@ -2091,7 +2093,7 @@ impl Engine {
         if self.aliases.contains(target) {
             return Ok(Some(self.aliases.resolve(target).to_vec()));
         }
-        if (!self.database.has_vpaths() && self.vpath_dirs.is_empty())
+        if (!self.database.has_vpaths() && self.vpath_dirs.is_empty() && !target.starts_with(b"-l"))
             || self.makefile_names.contains(target)
             || self.path_observations.contains_key(target)
             || self.done.contains_key(target)
@@ -2385,6 +2387,7 @@ impl Engine {
             .database
             .vpath_directories(target)
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+            .filter(|directory| *directory != b".")
         {
             let name = searched_name(directory, target);
             let (lookup, membership) = search_probe_names(directory, target, &name);
@@ -2406,7 +2409,7 @@ impl Engine {
         Ok(None)
     }
 
-    fn find_vpath(&self, target: &[u8]) -> Result<PathObservation, ExpandError> {
+    fn find_vpath(&mut self, target: &[u8]) -> Result<PathObservation, ExpandError> {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             // The standalone member is observed before container search.
             let member_time = self
@@ -2442,7 +2445,85 @@ impl Engine {
         if let Some(time) = self.modified(target) {
             return Ok(Some((None, Some(time))));
         }
-        self.searched_file(target)
+        let searched = self.searched_file(target)?;
+        if searched.is_some() || !target.starts_with(b"-l") || self.makefile_names.contains(target)
+        {
+            return Ok(searched);
+        }
+        self.library_search(&target[2..])
+    }
+
+    fn library_search(&mut self, library: &[u8]) -> Result<PathObservation, ExpandError> {
+        let patterns = self.expand_global(b"$(.LIBPATTERNS)", None)?;
+        let mut selected: Option<((usize, usize), Vec<u8>)> = None;
+        for text in words(&patterns) {
+            let pattern = Pattern::new(text);
+            if !pattern.has_wildcard() {
+                self.stderr(
+                    &[
+                        b".LIBPATTERNS element '".as_slice(),
+                        pattern.literal_bytes(),
+                        b"' is not a pattern",
+                    ]
+                    .concat(),
+                );
+                continue;
+            }
+            let name = pattern.replace(library)?;
+            if self.name_time(&name).is_some() {
+                selected = Some(((0, 0), name));
+                break;
+            }
+            let paths = self.database.ranked_vpath_directories(&name).chain(
+                self.vpath_dirs
+                    .iter()
+                    .filter(|path| path.as_slice() != b".")
+                    .enumerate()
+                    .map(|(index, path)| {
+                        ((self.database.vpath_group_count(), index), path.as_slice())
+                    }),
+            );
+            for (rank, directory) in paths {
+                let path = searched_name(directory, &name);
+                let (lookup, membership) = search_probe_names(directory, &name, &path);
+                let declared = self.search_record_matches(&name, &lookup);
+                if declared || (self.directory_member(&membership)? && modified(&path).is_some()) {
+                    if selected
+                        .as_ref()
+                        .is_none_or(|(previous, _)| rank < *previous)
+                    {
+                        selected = Some((rank, path));
+                    }
+                    break;
+                }
+            }
+            for (index, directory) in [
+                b"/lib".as_slice(),
+                b"/usr/lib",
+                option_env!("RMAKE_LIBDIR")
+                    .unwrap_or("/usr/local/lib")
+                    .as_bytes(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                // Standard directories concatenate rather than interpreting
+                // an absolute pattern as a replacement for the directory.
+                let path = [directory, b"/", &name].concat();
+                let rank = (usize::MAX - 3 + index, 0);
+                if self.name_time(&path).is_some()
+                    && selected
+                        .as_ref()
+                        .is_none_or(|(previous, _)| rank < *previous)
+                {
+                    selected = Some((rank, path));
+                }
+            }
+        }
+        Ok(selected.map(|(_, name)| {
+            let time = self.name_time(&name);
+            (Some(name), time)
+        }))
     }
 
     /// Select the archive container before inspecting a member. Cached
@@ -2465,6 +2546,7 @@ impl Engine {
             .database
             .vpath_directories(archive)
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+            .filter(|directory| *directory != b".")
         {
             let path = searched_name(directory, archive);
             let (lookup, membership) = search_probe_names(directory, archive, &path);
@@ -3255,7 +3337,7 @@ impl Engine {
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
         let observed = self.path_observations.remove(target);
-        let resolved = if phony {
+        let resolved = if phony && observed.is_none() {
             None
         } else {
             match observed.map(Ok).unwrap_or_else(|| self.find_vpath(target)) {
@@ -3681,7 +3763,6 @@ impl Engine {
             })
         });
         let stale = comparison.is_none()
-            || phony
             || self.options.always
             || (double_colon && rule.dependencies.is_empty());
         let serial_phase = !rule.dependencies.is_empty()

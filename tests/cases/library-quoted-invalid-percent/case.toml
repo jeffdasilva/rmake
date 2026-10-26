@@ -1,0 +1,11 @@
+id = "library-quoted-invalid-percent"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-quoted-invalid-percent."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202e4c49425041545445524e5320656c656d656e7420276c6962252e6127206973206e6f742061207061747465726e0a6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420272d6c64656d6f272c206e65656465642062792027616c6c272e202053746f702e0a"

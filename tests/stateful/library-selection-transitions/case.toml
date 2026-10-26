@@ -1,0 +1,116 @@
+id = "library-selection-transitions"
+description = "Library pattern and directory selection, timestamp freshness, modes and restoration"
+provenance = "Independently authored Makefile, script, fixed nanosecond transitions and exact byte/output anchors; no upstream material copied."
+initial = [{"op" = "write", "path" = "config.mk", "content" = ".LIBPATTERNS=lib%.so lib%.a\nVPATH=one:two\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "one/libdemo.a", "content" = "a\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "two/libdemo.so", "content" = "so\n", "mtime_ns" = 1600000005000000000}]
+
+[[steps]]
+name = "missing-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "first-directory-beats-pattern"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:one/libdemo.a:one/libdemo.a\none/libdemo.a\n", "stderr" = ""}
+
+[[steps]]
+name = "current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000001000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "earlier-pattern-created"
+actions = [{"op" = "write", "path" = "one/libdemo.so", "content" = "new so\n", "mtime_ns" = 1600000005000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000001000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-shared"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:one/libdemo.so:one/libdemo.so\none/libdemo.so\n", "stderr" = ""}
+
+[[steps]]
+name = "older-fallback-stays-current"
+actions = [{"op" = "remove", "path" = "one/libdemo.so"}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "fallback-becomes-newer"
+actions = [{"op" = "write", "path" = "one/libdemo.a", "content" = "new a\n", "mtime_ns" = 1600000010000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "dry-fallback"
+actions = []
+args = ["-rR", "--no-print-directory", "-n", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "python3 build.py 'out' 'one/libdemo.a' 'one/libdemo.a'\n", "stderr" = ""}
+
+[[steps]]
+name = "parallel-fallback"
+actions = []
+args = ["-rR", "--no-print-directory", "-j4", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000011000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:one/libdemo.a:one/libdemo.a\none/libdemo.a\n", "stderr" = ""}
+
+[[steps]]
+name = "search-priority-switch"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".LIBPATTERNS=lib%.so lib%.a\nVPATH=two:one\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "two/libdemo.so", "content" = "new remote\n", "mtime_ns" = 1600000020000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000011000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "build-second-directory"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000021000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:two/libdemo.so:two/libdemo.so\ntwo/libdemo.so\n", "stderr" = ""}
+
+[[steps]]
+name = "removed-library-older-fallback"
+actions = [{"op" = "remove", "path" = "two/libdemo.so"}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000021000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "invalid-pattern"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".LIBPATTERNS=bad\nVPATH=two:one\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000021000000000}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: .LIBPATTERNS element 'bad' is not a pattern\nmake: *** No rule to make target '-ldemo', needed by 'out'.  Stop.\n"}
+
+[[steps]]
+name = "restore-and-refresh"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".LIBPATTERNS=lib%.so lib%.a\nVPATH=one:two\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "one/libdemo.a", "content" = "final\n", "mtime_ns" = 1600000030000000000}]
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000031000000000}
+expected = {"exit_code" = 0, "stdout" = "built=out:one/libdemo.a:one/libdemo.a\none/libdemo.a\n", "stderr" = ""}

@@ -1,0 +1,14 @@
+id = "library-environment-patterns"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-environment-patterns."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[environment]
+".LIBPATTERNS" = "lib%.a"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6c696264656d6f2e617c656e7669726f6e6d656e747c7265637572736976655d0a"
+stderr_hex = ""

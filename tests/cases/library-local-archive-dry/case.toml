@@ -1,0 +1,11 @@
+id = "library-local-archive-dry"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Original library resolution boundary: library-local-archive-dry."
+provenance = "Independently authored Makefiles, byte paths, effects and exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620277461726765743d5b25735d2066697273743d5b25735d20616c6c3d5b25735d206e657765723d5b25735d5c6e272027616c6c2720276c696264656d6f2e612720276c696264656d6f2e612720276c696264656d6f2e61270a"
+stderr_hex = ""
