@@ -1,0 +1,12 @@
+id = "archive-names-rule-glob-gnu-plus"
+requirement = "archives.name-encodings"
+candidate = "required"
+description = "rule-glob-gnu-plus"
+provenance = "Original archive bytes, Makefile and independently authored numeric-error/glob expectations; no upstream tests or implementation copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d656d626572733d5b616c7068612d6c6f6e672d6d656d6265722e6f5d0a"
+stderr_hex = ""

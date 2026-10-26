@@ -1805,3 +1805,30 @@ Core controls are close; other controls have mixed costs, including roughly
 time. See [shared directory search](shared-directory-search.md) for all values,
 source references, measurement limits and open M4 gates. These do not establish
 general speed parity or complete M4/M8.
+
+
+## Archive member-name encodings and borrowed scans
+
+Match the pinned Linux profile's signed/whitespace-prefixed and unsigned-32-bit
+narrowing of GNU name-table indexes and BSD inline lengths. Reject trailing
+control whitespace, retain strict metadata-field conversion and diagnostic order,
+and recognize mapping markers through their first NUL before slash removal.
+
+Borrow member names for each scan visitor. Short/header and GNU/table names no
+longer allocate per visit; BSD names share a reusable scan-local buffer. Copy
+only retained wildcard results. Rust lifetimes prevent borrowed names escaping;
+no unsafe code, persistent index or change to fresh-scan boundaries is added.
+
+Add 176 original required cases (93 fail on preceding main), including strict
+metadata-error and rule-wildcard controls. Add a twelve-invocation stateful
+scenario with full-byte archive anchors, duplicate selection, touch, replacement,
+invalid names and restored queries. Corpus: 3,834 cases, with 3,822 required
+matches and 12 unchanged pending mismatches. Stateful: 58 scenarios / 210
+invocations. Internal checks: 378 Rust tests and 271 tooling tests.
+
+A paired 101-sample benchmark measures about 7% / 13% / 7% lower GNU-long-name,
+BSD-inline-name and repeated archive-wildcard time. Dense short-name scans improve
+about 6%; core controls are mixed, including about 4% higher expansion time.
+See [archive name encodings](archive-name-encodings.md) for values, provenance,
+limits and open M4 gates. These results do not complete M4/M8 or establish
+general speed parity.

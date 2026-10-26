@@ -1,0 +1,12 @@
+id = "archive-names-early-stop-trailing-tab"
+requirement = "archives.name-encodings"
+candidate = "required"
+description = "early-stop-trailing-tab"
+provenance = "Original byte-level archive and Makefile with independently authored expected streams/status; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6561726c790a"
+stderr_hex = ""

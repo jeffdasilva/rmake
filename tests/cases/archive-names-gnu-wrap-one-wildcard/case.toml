@@ -1,0 +1,12 @@
+id = "archive-names-gnu-wrap-one-wildcard"
+requirement = "archives.name-encodings"
+candidate = "required"
+description = "gnu-wrap-one-wildcard"
+provenance = "Original byte-level archive and Makefile with independently authored expected streams/status; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d65733d5b6c69622e615d0a"
+stderr_hex = ""
