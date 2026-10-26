@@ -191,17 +191,40 @@ pub fn split_order(input: &[u8]) -> (std::borrow::Cow<'_, [u8]>, Option<&[u8]>) 
 /// blank consumes one quoting backslash after collapsing pairs at that blank.
 /// Archive groups produce individual references before tilde/glob processing.
 pub fn sequence(input: &[u8]) -> Vec<Vec<u8>> {
+    let mut result = Vec::new();
+    visit_sequence(input, |name, emit, _offset| {
+        if emit {
+            result.push(name);
+        }
+    });
+    result
+}
+
+/// Include the writes for empty archive-group members. They produce no
+/// filename but can overwrite a name held by a recursive HOME expansion.
+pub(crate) fn sequence_events(input: &[u8]) -> Vec<(Vec<u8>, bool, usize)> {
+    let mut result = Vec::new();
+    visit_sequence(input, |name, emit, offset| {
+        result.push((name, emit, offset))
+    });
+    result
+}
+
+fn visit_sequence(input: &[u8], mut visit: impl FnMut(Vec<u8>, bool, usize)) {
     let tokens: Vec<_> = words(input).map(std::borrow::Cow::into_owned).collect();
     if tokens.len() < 2 || !tokens.iter().any(|token| token.contains(&b'(')) {
-        return tokens;
+        for token in tokens {
+            visit(token, true, 0);
+        }
+        return;
     }
-    let mut result = Vec::new();
     let mut group: Option<Vec<u8>> = None;
     // Every possible opener asks the same suffix question. One reverse scan
     // avoids quadratic work on lists containing many unclosed archive names.
     let last_close = tokens.iter().rposition(|word| word.ends_with(b")"));
     for (index, token) in tokens.iter().enumerate() {
         let mut member = token.as_slice();
+        let offset = group.as_ref().map_or(0, Vec::len);
         if group.is_none()
             && token.first() != Some(&b'(')
             && !token.ends_with(b")")
@@ -218,17 +241,18 @@ pub fn sequence(input: &[u8]) -> Vec<Vec<u8>> {
             if !closes {
                 name.push(b')');
             }
-            if !member.is_empty() && member != b")" {
-                result.push(name);
+            if member.is_empty() {
+                visit(prefix.clone(), false, offset);
+            } else {
+                visit(name, member != b")", offset);
             }
             if closes {
                 group = None;
             }
         } else {
-            result.push(token.clone());
+            visit(token.clone(), true, 0);
         }
     }
-    result
 }
 
 #[cfg(test)]

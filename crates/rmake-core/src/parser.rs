@@ -314,6 +314,10 @@ pub struct Database {
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
+    // Active only while parsing a potentially recursive HOME filename. Owned
+    // bytes preserve shared-name overwrites without aliased or dangling pointers.
+    filename_scratch: Option<Vec<u8>>,
+    filename_session_depth: usize,
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -852,6 +856,52 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
 }
 
 impl Database {
+    pub(crate) fn begin_filename_session(&mut self, needed: bool) -> bool {
+        if self.filename_scratch.is_none() {
+            if !needed {
+                return false;
+            }
+            self.filename_scratch = Some(Vec::new());
+        }
+        self.filename_session_depth += 1;
+        true
+    }
+
+    pub(crate) fn end_filename_session(&mut self, active: bool) {
+        if active {
+            self.filename_session_depth -= 1;
+            if self.filename_session_depth == 0 {
+                self.filename_scratch = None;
+            }
+        }
+    }
+
+    pub(crate) fn write_filename(&mut self, name: &[u8], offset: usize) -> Vec<u8> {
+        let Some(scratch) = &mut self.filename_scratch else {
+            return name.to_vec();
+        };
+        if scratch.len() <= name.len() {
+            scratch.resize(name.len() + 1, 0);
+        }
+        let offset = offset.min(name.len());
+        scratch[offset..name.len()].copy_from_slice(&name[offset..]);
+        scratch[name.len()] = 0;
+        let end = scratch
+            .iter()
+            .position(|&byte| byte == 0)
+            .unwrap_or(scratch.len());
+        scratch[..end].to_vec()
+    }
+
+    pub(crate) fn filename_suffix(&self, fallback: &[u8]) -> Vec<u8> {
+        let name = self.filename_scratch.as_deref().unwrap_or(fallback);
+        let end = name
+            .iter()
+            .position(|&byte| byte == 0)
+            .unwrap_or(name.len());
+        name.get(1..end).unwrap_or_default().to_vec()
+    }
+
     /// Tilde expansion belongs to filename processing, after ordinary make
     /// expansion. Use global/eval bindings here, never a target's later scope.
     pub fn rule_tilde<'a>(
@@ -862,39 +912,62 @@ impl Database {
         if !name.starts_with(b"~") {
             return Ok(Cow::Borrowed(name));
         }
+        let mut observed = None;
         let home = if name.len() == 1 || name[1] == b'/' {
-            self.expand_with(b"$(HOME)", context.reborrow())
-                .map_err(|error| {
-                    if context.location.is_some() {
-                        return error;
-                    }
-                    // This expansion finished outside a file context. Freeze its
-                    // selected diagnostic before a recipe/search caller handles it.
-                    let message = error.diagnostic().as_bytes().to_vec();
-                    match error.diagnostic_location(None) {
-                        Some(location) => ExpandError::Located {
-                            location: std::sync::Arc::new(location.clone()),
-                            error: Box::new(ExpandError::FileError(message)),
-                        },
-                        None => ExpandError::UnlocatedError(message),
-                    }
-                })?
+            let session = self.begin_filename_session(true);
+            self.write_filename(name, 0);
+            let result = self.expand_with(b"$(HOME)", context.reborrow());
+            observed = Some(self.filename_suffix(name));
+            self.end_filename_session(session);
+            result.map_err(|error| {
+                if context.location.is_some() {
+                    return error;
+                }
+                // This expansion finished outside a file context. Freeze its
+                // selected diagnostic before a recipe/search caller handles it.
+                let message = error.diagnostic().as_bytes().to_vec();
+                match error.diagnostic_location(None) {
+                    Some(location) => ExpandError::Located {
+                        location: std::sync::Arc::new(location.clone()),
+                        error: Box::new(ExpandError::FileError(message)),
+                    },
+                    None => ExpandError::UnlocatedError(message),
+                }
+            })?
         } else {
             Vec::new()
         };
+        let suffix = observed.as_deref().unwrap_or(&name[1..]);
+        let fallback;
+        let opaque_suffix = observed.is_some() && !suffix.is_empty() && suffix[0] != b'/';
+        let fallback_name = if opaque_suffix {
+            b"~".as_slice()
+        } else if observed.is_some() {
+            fallback = [b"~".as_slice(), suffix].concat();
+            fallback.as_slice()
+        } else {
+            name
+        };
         let expanded = if home.is_empty() {
-            context
-                .perform_filesystem(FilesystemEffect::Tilde(name))
+            let mut expanded = context
+                .perform_filesystem(FilesystemEffect::Tilde(fallback_name))
                 .ok_or_else(|| ExpandError::Unsupported(b"tilde expansion".to_vec()))?
                 .map_err(|error| match error {
                     FilesystemError::Caller(message) => ExpandError::FileError(message),
                     FilesystemError::Unlocated(message) => ExpandError::UnlocatedError(message),
-                })?
+                })?;
+            if opaque_suffix && !expanded.is_empty() {
+                if expanded.len().saturating_add(suffix.len()) > MAX_OUTPUT {
+                    return Err(ExpandError::ExpansionLimit);
+                }
+                expanded.extend_from_slice(suffix);
+            }
+            expanded
         } else {
-            if home.len().saturating_add(name.len() - 1) > MAX_OUTPUT {
+            if home.len().saturating_add(suffix.len()) > MAX_OUTPUT {
                 return Err(ExpandError::ExpansionLimit);
             }
-            [home.as_slice(), &name[1..]].concat()
+            [home.as_slice(), suffix].concat()
         };
         if expanded.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
@@ -917,76 +990,92 @@ impl Database {
         let scan = bytes
             .iter()
             .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'[' | b'~'));
-        let names = if scan {
-            let mut names = Vec::new();
-            let mut size = 0usize;
-            for mut name in crate::filenames::sequence(bytes) {
-                let skip = name.len() - crate::filenames::without_dot_prefix(&name).len();
-                name.drain(..skip);
-                if name.starts_with(b"~") {
-                    name = self.rule_tilde(&name, context)?.into_owned();
+        let session = self.begin_filename_session(scan && bytes.contains(&b'~'));
+        let result = (|| {
+            if !scan && self.filename_scratch.is_some() {
+                for name in crate::filenames::words(bytes) {
+                    self.write_filename(crate::filenames::without_dot_prefix(&name), 0);
                 }
-                let glob = name.iter().any(|b| matches!(b, b'*' | b'?' | b'['));
-                if glob {
-                    let effect = if crate::filenames::archive_parts(&name).is_some() {
-                        FilesystemEffect::ArchiveGlob(&name)
-                    } else {
-                        FilesystemEffect::RuleGlob(&name)
-                    };
-                    let result = context
-                        .perform_filesystem(effect)
-                        .ok_or_else(|| ExpandError::Unsupported(b"rule wildcard".to_vec()))?
-                        .map_err(|error| match error {
-                            FilesystemError::Caller(message) => ExpandError::FileError(message),
-                            FilesystemError::Unlocated(message) => {
-                                ExpandError::UnlocatedError(message)
+            }
+            let names = if scan {
+                let mut names = Vec::new();
+                let mut size = 0usize;
+                for (mut name, emit, offset) in crate::filenames::sequence_events(bytes) {
+                    let skip = name.len() - crate::filenames::without_dot_prefix(&name).len();
+                    name.drain(..skip);
+                    if session {
+                        name = self.write_filename(&name, offset.saturating_sub(skip));
+                    }
+                    if !emit {
+                        continue;
+                    }
+                    if name.starts_with(b"~") {
+                        name = self.rule_tilde(&name, context)?.into_owned();
+                    }
+                    let glob = name.iter().any(|b| matches!(b, b'*' | b'?' | b'['));
+                    if glob {
+                        let effect = if crate::filenames::archive_parts(&name).is_some() {
+                            FilesystemEffect::ArchiveGlob(&name)
+                        } else {
+                            FilesystemEffect::RuleGlob(&name)
+                        };
+                        let result = context
+                            .perform_filesystem(effect)
+                            .ok_or_else(|| ExpandError::Unsupported(b"rule wildcard".to_vec()))?
+                            .map_err(|error| match error {
+                                FilesystemError::Caller(message) => ExpandError::FileError(message),
+                                FilesystemError::Unlocated(message) => {
+                                    ExpandError::UnlocatedError(message)
+                                }
+                            })?;
+                        for name in result.split(|&b| b == 0).filter(|name| !name.is_empty()) {
+                            size = size.saturating_add(name.len() + 1);
+                            if size > MAX_OUTPUT {
+                                return Err(ExpandError::ExpansionLimit);
                             }
-                        })?;
-                    for name in result.split(|&b| b == 0).filter(|name| !name.is_empty()) {
+                            names.push(name.to_vec());
+                        }
+                    } else {
                         size = size.saturating_add(name.len() + 1);
                         if size > MAX_OUTPUT {
                             return Err(ExpandError::ExpansionLimit);
                         }
-                        names.push(name.to_vec());
+                        names.push(name);
                     }
-                } else {
-                    size = size.saturating_add(name.len() + 1);
-                    if size > MAX_OUTPUT {
-                        return Err(ExpandError::ExpansionLimit);
-                    }
-                    names.push(name);
                 }
-            }
-            Some(names)
-        } else {
-            None
-        };
-        Ok(names
-            .into_iter()
-            .flatten()
-            .map(Cow::Owned)
-            .chain(crate::filenames::words(if scan { b"" } else { bytes }))
-            .map(move |name| {
-                if scan {
-                    name
-                } else {
-                    match name {
-                        Cow::Borrowed(bytes) => {
-                            Cow::Borrowed(crate::filenames::without_dot_prefix(bytes))
-                        }
-                        Cow::Owned(mut bytes) => {
-                            let normalized = crate::filenames::without_dot_prefix(&bytes);
-                            if bytes.ends_with(normalized) {
-                                let skip = bytes.len() - normalized.len();
-                                bytes.drain(..skip);
-                            } else {
-                                bytes = normalized.to_vec();
+                Some(names)
+            } else {
+                None
+            };
+            Ok(names
+                .into_iter()
+                .flatten()
+                .map(Cow::Owned)
+                .chain(crate::filenames::words(if scan { b"" } else { bytes }))
+                .map(move |name| {
+                    if scan {
+                        name
+                    } else {
+                        match name {
+                            Cow::Borrowed(bytes) => {
+                                Cow::Borrowed(crate::filenames::without_dot_prefix(bytes))
                             }
-                            Cow::Owned(bytes)
+                            Cow::Owned(mut bytes) => {
+                                let normalized = crate::filenames::without_dot_prefix(&bytes);
+                                if bytes.ends_with(normalized) {
+                                    let skip = bytes.len() - normalized.len();
+                                    bytes.drain(..skip);
+                                } else {
+                                    bytes = normalized.to_vec();
+                                }
+                                Cow::Owned(bytes)
+                            }
                         }
                     }
-                }
-            }))
+                }))
+        })();
+        self.end_filename_session(session);
+        result
     }
 
     fn parsed_rule_filenames<'a>(
@@ -2260,26 +2349,21 @@ impl Database {
                 let optional = keyword != b"include";
                 for mut name in crate::filenames::sequence(&names) {
                     name = crate::filenames::without_dot_prefix(&name).to_vec();
+                    if self.filename_scratch.is_some() {
+                        self.write_filename(&name, 0);
+                    }
                     if name.starts_with(b"~") {
-                        let expanded = if name.len() == 1 || name[1] == b'/' {
-                            let home = self.expand(b"$(HOME)", &location, context)?;
-                            if home.is_empty() {
-                                context
-                                    .perform_filesystem(FilesystemEffect::Tilde(&name))
-                                    .and_then(Result::ok)
-                                    .unwrap_or_default()
-                            } else {
-                                [home.as_slice(), &name[1..]].concat()
-                            }
-                        } else {
-                            context
-                                .perform_filesystem(FilesystemEffect::Tilde(&name))
-                                .and_then(Result::ok)
-                                .unwrap_or_default()
-                        };
-                        if !expanded.is_empty() {
-                            name = expanded;
-                        }
+                        name = self
+                            .rule_tilde(&name, &mut context.at(Some(&location)))
+                            .map_err(|error| ParseError {
+                                unlocated: error.is_unlocated(),
+                                location: error
+                                    .diagnostic_location(Some(&location))
+                                    .unwrap_or(&location)
+                                    .clone(),
+                                message: error.diagnostic(),
+                            })?
+                            .into_owned();
                     }
                     let matches = if name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
                         context
@@ -4818,5 +4902,57 @@ mod rule_tilde_tests {
             ),
             Err(ExpandError::ExpansionLimit)
         ));
+    }
+}
+
+#[cfg(test)]
+mod recursive_home_tests {
+    use super::*;
+
+    #[test]
+    fn nested_filename_query_replaces_the_suffix_with_owned_bytes() {
+        let mut db = Database::default();
+        db.read(b"HOME=$(if $(wildcard marker),late,early)\n", b"Makefile")
+            .unwrap();
+        let mut filesystem = |_effect: FilesystemEffect<'_>| Ok(Vec::new());
+        let mut context = ExpansionContext::pure().with_filesystem(&mut filesystem);
+        assert_eq!(
+            db.rule_tilde(b"~/target", &mut context).unwrap(),
+            b"earlyarker".as_slice()
+        );
+        assert!(db.filename_scratch.is_none());
+    }
+
+    #[test]
+    fn a_nested_failure_releases_the_filename_session() {
+        let mut db = Database::default();
+        db.read(b"HOME=$(wildcard marker)$(error stop)\n", b"Makefile")
+            .unwrap();
+        let mut filesystem = |_effect: FilesystemEffect<'_>| Ok(Vec::new());
+        let mut output = |_output: Output<'_>| {};
+        let mut context = ExpansionContext::new(None, &mut output).with_filesystem(&mut filesystem);
+        assert!(db.rule_filenames(b"~/target", &mut context).is_err());
+        assert!(db.filename_scratch.is_none());
+        db.read(b"HOME=ordinary\n", b"later.mk").unwrap();
+        assert_eq!(
+            db.rule_tilde(b"~/next", &mut context).unwrap(),
+            b"ordinary/next".as_slice()
+        );
+        assert!(db.filename_scratch.is_none());
+    }
+
+    #[test]
+    fn a_group_continuation_observes_the_prior_nul_and_retained_prefix() {
+        let mut db = Database::default();
+        db.read(b"HOME=$(wildcard x)early\n", b"Makefile").unwrap();
+        let mut filesystem = |_effect: FilesystemEffect<'_>| Ok(Vec::new());
+        let mut context = ExpansionContext::pure().with_filesystem(&mut filesystem);
+        let names: Vec<Vec<u8>> = db
+            .rule_filenames(b"~/lib(a b)", &mut context)
+            .unwrap()
+            .map(Cow::into_owned)
+            .collect();
+        assert_eq!(names, [b"early".to_vec(), b"x".to_vec()]);
+        assert!(db.filename_scratch.is_none());
     }
 }

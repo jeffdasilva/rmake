@@ -164,3 +164,8 @@ The [archive observation notes](archive-observations.md) identify the GNU
 timestamp, header-I/O, hash-record and cleanup sources consulted for the
 independent implementation and original anchored/fault/stateful tests. No GNU
 implementation or upstream test code was incorporated.
+
+The [recursive HOME notes](recursive-home-names.md) identify filename-parser,
+tilde and function-query reference paths used to understand reproducible shared
+scratch effects. The bounded Rust byte model and all tests are independently
+written; no GNU implementation or upstream tests were incorporated.

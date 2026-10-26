@@ -1388,6 +1388,40 @@ impl std::ops::Deref for StoreAccess<'_> {
 }
 
 impl StoreAccess<'_> {
+    fn begin_filename_session(&mut self, needed: bool) -> bool {
+        match self {
+            Self::Database(db) | Self::Scoped { database: db, .. } => {
+                db.begin_filename_session(needed)
+            }
+            _ => false,
+        }
+    }
+
+    fn end_filename_session(&mut self, active: bool) {
+        match self {
+            Self::Database(db) | Self::Scoped { database: db, .. } => {
+                db.end_filename_session(active)
+            }
+            _ => {}
+        }
+    }
+
+    fn write_filename(&mut self, name: &[u8], offset: usize) -> Vec<u8> {
+        match self {
+            Self::Database(db) | Self::Scoped { database: db, .. } => {
+                db.write_filename(name, offset)
+            }
+            _ => name.to_vec(),
+        }
+    }
+
+    fn filename_suffix(&self, fallback: &[u8]) -> Vec<u8> {
+        match self {
+            Self::Database(db) | Self::Scoped { database: db, .. } => db.filename_suffix(fallback),
+            _ => fallback.get(1..).unwrap_or_default().to_vec(),
+        }
+    }
+
     fn writable(&mut self) -> Option<&mut VariableStore> {
         match self {
             Self::Read(_) => None,
@@ -2120,47 +2154,65 @@ impl Expansion<'_, '_> {
             }
 
             b"wildcard" => {
-                let mut output = Vec::new();
-                for mut pattern in crate::filenames::sequence(first) {
-                    if pattern.starts_with(b"~") {
-                        let expanded = if pattern.len() == 1 || pattern[1] == b'/' {
-                            let home = self.variable(b"HOME")?;
-                            if home.is_empty() {
-                                self.filesystem(name, FilesystemEffect::Tilde(&pattern))?
+                let session = self.store.begin_filename_session(first.contains(&b'~'));
+                let result = (|| {
+                    let mut output = Vec::new();
+                    for (mut pattern, emit, offset) in crate::filenames::sequence_events(first) {
+                        if session {
+                            pattern = self.store.write_filename(&pattern, offset);
+                        }
+                        if !emit {
+                            continue;
+                        }
+                        if pattern.starts_with(b"~") {
+                            let expanded = if pattern.len() == 1 || pattern[1] == b'/' {
+                                let home = self.variable(b"HOME")?;
+                                let suffix = self.store.filename_suffix(&pattern);
+                                if home.is_empty() {
+                                    let mut expanded =
+                                        self.filesystem(name, FilesystemEffect::Tilde(b"~"))?;
+                                    if !expanded.is_empty() {
+                                        push(&mut expanded, &suffix)?;
+                                    }
+                                    expanded
+                                } else {
+                                    let mut expanded = home;
+                                    push(&mut expanded, &suffix)?;
+                                    expanded
+                                }
                             } else {
-                                let mut expanded = home;
-                                push(&mut expanded, &pattern[1..])?;
-                                expanded
+                                self.filesystem(name, FilesystemEffect::Tilde(&pattern))?
+                            };
+                            if !expanded.is_empty() {
+                                pattern = expanded;
                             }
-                        } else {
-                            self.filesystem(name, FilesystemEffect::Tilde(&pattern))?
-                        };
-                        if !expanded.is_empty() {
-                            pattern = expanded;
+                        }
+                        if let Some((_, member)) = crate::filenames::archive_parts(&pattern)
+                            && member.starts_with(b"(")
+                            && member.ends_with(b")")
+                        {
+                            return Err(ExpandError::UnlocatedError(
+                                [
+                                    b"attempt to use unsupported feature: '".as_slice(),
+                                    &pattern,
+                                    b"'",
+                                ]
+                                .concat(),
+                            ));
+                        }
+                        let matches =
+                            self.filesystem(name, FilesystemEffect::Wildcard(&pattern))?;
+                        if !matches.is_empty() {
+                            if !output.is_empty() {
+                                push(&mut output, b" ")?;
+                            }
+                            push(&mut output, &matches)?;
                         }
                     }
-                    if let Some((_, member)) = crate::filenames::archive_parts(&pattern)
-                        && member.starts_with(b"(")
-                        && member.ends_with(b")")
-                    {
-                        return Err(ExpandError::UnlocatedError(
-                            [
-                                b"attempt to use unsupported feature: '".as_slice(),
-                                &pattern,
-                                b"'",
-                            ]
-                            .concat(),
-                        ));
-                    }
-                    let matches = self.filesystem(name, FilesystemEffect::Wildcard(&pattern))?;
-                    if !matches.is_empty() {
-                        if !output.is_empty() {
-                            push(&mut output, b" ")?;
-                        }
-                        push(&mut output, &matches)?;
-                    }
-                }
-                Ok(output)
+                    Ok(output)
+                })();
+                self.store.end_filename_session(session);
+                result
             }
             b"file" => {
                 let (offset, read, append) = match first {

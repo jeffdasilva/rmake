@@ -1,0 +1,12 @@
+id = "home-scratch-slash-empty-parallel"
+requirement = "rules.recursive-home"
+candidate = "required"
+description = "Original recursive HOME byte-overwrite and phase boundary: home-scratch-slash-empty-parallel."
+provenance = "Independently authored Makefile, bounded byte-write model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-j2"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

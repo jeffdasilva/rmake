@@ -32,6 +32,24 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(set(cases), set(mapped))
         self.assertTrue(all(count == 1 for count in mapped.values()))
 
+    def test_m4_rule_families_have_required_cases_without_pending_exemptions(self):
+        ledger = tomllib.loads((ROOT / "tests/requirements.toml").read_text())
+        families = {item["id"]: item for item in ledger["requirements"]
+                    if item["id"].startswith(("rules.", "archives.", "resolution."))}
+        self.assertTrue({"rules.explicit", "rules.implicit", "rules.suffix-metadata",
+                         "rules.grouped", "rules.intermediate-policy", "rules.libraries",
+                         "rules.extra-prerequisites", "rules.file-records",
+                         "rules.recursive-home", "archives.observation-order",
+                         "resolution.vpath-records", "resolution.implicit-secondary"}
+                        <= families.keys())
+        for name, family in families.items():
+            with self.subTest(requirement=name):
+                self.assertGreater(family["fixture_count"], 0)
+                self.assertEqual(family["candidate_required"], family["fixture_count"])
+                for case_id in family["cases"]:
+                    case = conformance.load_case(ROOT / "tests/cases" / case_id)
+                    self.assertEqual(case.candidate, "required")
+
     def test_every_fixture_has_independent_expectations(self):
         for path in (ROOT / "tests/cases").iterdir():
             if path.is_dir():
