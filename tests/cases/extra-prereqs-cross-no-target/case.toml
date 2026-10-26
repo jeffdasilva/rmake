@@ -1,0 +1,11 @@
+id = "extra-prereqs-cross-no-target"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: cross-no-target."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory", "-rR"]
+
+[expected]
+exit_code = 2
+stdout_hex = "68696464656e0a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027696e707574272c206e65656465642062792027616c6c272e202053746f702e0a"

@@ -56,7 +56,9 @@ forty fault programs and a fourteen-step incremental scenario.
 The [file-record slice](file-record-order.md) adds deterministic cleanup order,
 collision/growth/rename policy, static/deferred registration and expansion-only
 intermediate cleanup, with 35 required cases and the promotion of `chain-two-roots`.
-These do not complete M4.
+The [hidden-prerequisite slice](extra-prerequisites.md) adds `.EXTRA_PREREQS`,
+snapshot/effect/edge-role behavior, 145 required cases and a sixteen-step
+incremental scenario. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

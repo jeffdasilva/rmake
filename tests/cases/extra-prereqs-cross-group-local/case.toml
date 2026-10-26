@@ -1,0 +1,11 @@
+id = "extra-prereqs-cross-group-local"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: cross-group-local."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory", "-rR"]
+
+[expected]
+exit_code = 0
+stdout_hex = "780a790a67726f75703d5b7c5d0a"
+stderr_hex = ""

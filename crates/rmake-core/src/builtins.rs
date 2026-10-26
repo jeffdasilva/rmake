@@ -53,6 +53,7 @@ impl Database {
         defaults.read(SUFFIX_RULES, b"<builtin>")?;
         for (name, mut rule) in defaults.rules {
             builtin_location(&mut rule);
+            rule.record_only = true;
             self.rules.entry(name).or_insert(rule);
         }
         Ok(())
@@ -78,6 +79,7 @@ impl Database {
             vec![Dependency {
                 name: [b"%".as_slice(), source].concat(),
                 order_only: false,
+                hidden: false,
             }]
         };
         converted.secondary = None;
@@ -137,6 +139,7 @@ impl Database {
                         archive.dependencies = vec![Dependency {
                             name: [b"%".as_slice(), source].concat(),
                             order_only: false,
+                            hidden: false,
                         }];
                         archive.secondary = None;
                         archive.double_colon = None;

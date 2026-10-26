@@ -1,0 +1,11 @@
+id = "extra-prereqs-secondary-autos-hidden"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: secondary-autos-hidden."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "5345434f4e445b7c7c7c5d0a68696464656e0a6e6f726d616c0a646f6e650a"
+stderr_hex = ""

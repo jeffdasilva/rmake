@@ -1,0 +1,11 @@
+id = "extra-prereqs-cross-secondary-role"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: cross-secondary-role."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory", "-rR"]
+
+[expected]
+exit_code = 0
+stdout_hex = "46495253545b6e6f726d616c7c6e6f726d616c7c6e6f726d616c7c68696464656e5d0a68696464656e0a6e6f726d616c0a646f6e650a"
+stderr_hex = ""

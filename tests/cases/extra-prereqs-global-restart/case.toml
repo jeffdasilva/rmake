@@ -1,0 +1,11 @@
+id = "extra-prereqs-global-restart"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: global-restart."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "475b5d0a475b5d0a475b315d0a475b315d0a6e6f726d616c0a5b6e6f726d616c7c6e6f726d616c7c6e6f726d616c7c6e6f726d616c7c5d0a"
+stderr_hex = ""

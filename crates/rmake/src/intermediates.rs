@@ -90,6 +90,12 @@ impl Policy {
         }
     }
 
+    pub fn capture_extra_records(&mut self, records: Vec<Vec<u8>>) {
+        if let Some(files) = &mut self.secondary_files {
+            files.extend(records);
+        }
+    }
+
     pub fn global_intermediate(&self, target: &[u8]) -> bool {
         self.secondary_files
             .as_ref()

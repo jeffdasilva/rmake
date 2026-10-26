@@ -1,0 +1,11 @@
+id = "extra-prereqs-global-secondary-touch"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: global-secondary-touch."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "746f7563682068696464656e0a746f756368206e6f726d616c0a746f75636820616c6c0a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "extra-prereqs-cross-global-default"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: cross-global-default."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory", "-rR"]
+
+[expected]
+exit_code = 0
+stdout_hex = "64656661756c743d5b616c6c7c5d0a"
+stderr_hex = ""

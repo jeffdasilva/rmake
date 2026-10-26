@@ -1,0 +1,11 @@
+id = "extra-prereqs-cross-wait"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: cross-wait."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory", "-rR", "-j4"]
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6e650a74776f0a616c6c0a"
+stderr_hex = ""

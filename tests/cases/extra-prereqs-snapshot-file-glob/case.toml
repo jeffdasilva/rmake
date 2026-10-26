@@ -1,0 +1,11 @@
+id = "extra-prereqs-snapshot-file-glob"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: snapshot-file-glob."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "5b7c5d0a"
+stderr_hex = ""

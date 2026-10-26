@@ -1,6 +1,6 @@
 # Stateful timestamp fixtures
 
-The current 65 original scenarios make 287 serial invocations per engine. Every case is required; there is no pending classification. They cover incremental rebuilds and no-ops, deletion, equal and adjacent nanosecond timestamps, order-only prerequisites, a rebuilt child restoring its old timestamp, dry-run propagation, question mode, always-make automatic variables, and touch mode.
+The current 66 original scenarios make 303 serial invocations per engine. Every case is required; there is no pending classification. They cover incremental rebuilds and no-ops, deletion, equal and adjacent nanosecond timestamps, order-only prerequisites, a rebuilt child restoring its old timestamp, dry-run propagation, question mode, always-make automatic variables, and touch mode.
 
 Eight lifecycle scenarios add forced-command touch completion, dry-run timestamp preservation, query continuation deletion, optimized colon commands, precious/phony protection, and changed-content targets with restored timestamps. They were independently authored after the [source-informed behavior investigation](../../docs/forced-touch.md); no upstream tests or implementation text were copied. Exact timestamp and unchanged-file expectations distinguish normal failure cleanup from continuation cleanup. Later verification steps independently check preserved content, deletion, and absence of forbidden recipe output.
 
@@ -37,3 +37,8 @@ and fixed nanosecond output timestamps.
 `tilde-home-transitions` adds twelve invocations changing HOME through an include,
 with space-containing home directories, fresh glob membership, order-only changes
 and exact output bytes/timestamps through query, dry, parallel and forced builds.
+
+The hidden-prerequisite scenario adds sixteen invocations: normal hidden edges
+trigger freshness without appearing in recipe automatic variables; order-only
+edges still require existence; local and unrelated bindings suppress global extras.
+Fixed-time dry/parallel transitions verify rebuilds and retained output contents.

@@ -1,0 +1,11 @@
+id = "extra-prereqs-local-global-context-dry"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: local-global-context-dry."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620276e6f726d616c5c6e270a7072696e7466202768696464656e5c6e270a7072696e746620275b25737c25737c25737c25737c25735d5c6e2720276e6f726d616c2720276e6f726d616c2720276e6f726d616c2720276e6f726d616c272027270a"
+stderr_hex = ""

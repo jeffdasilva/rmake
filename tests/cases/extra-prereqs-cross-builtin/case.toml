@@ -1,0 +1,11 @@
+id = "extra-prereqs-cross-builtin"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: cross-builtin."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "68696464656e0a636f6d70696c650a616c6c3d64656d6f2e6f0a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "extra-prereqs-global-query"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: global-query."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

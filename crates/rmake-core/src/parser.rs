@@ -48,6 +48,8 @@ pub struct Rule {
     pub terminal: bool,
     /// Runtime-selected .DEFAULT commands use the target itself as $<.
     pub default_recipe: bool,
+    /// A filename carrying metadata/dependencies without a target declaration.
+    pub record_only: bool,
     /// The selected implicit pattern controls pattern-level special flags;
     /// explicit/static/default rules do not inherit arbitrary matching flags.
     pub implicit_pattern: Option<Vec<u8>>,
@@ -159,6 +161,8 @@ impl RuleDeclaration {
 pub struct Dependency {
     pub name: Vec<u8>,
     pub order_only: bool,
+    /// Participates in traversal and freshness, but not recipe/secondary autos.
+    pub hidden: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -204,16 +208,32 @@ impl Rule {
     /// normal occurrence promoting the name from order-only to normal. The raw
     /// occurrences remain available for <, + and repeated circular diagnostics.
     pub fn canonical_dependencies(&self) -> Vec<Dependency> {
-        let normal: HashSet<_> = self.normal_prerequisites().collect();
+        self.canonical(false)
+    }
+
+    pub fn automatic_dependencies(&self) -> Vec<Dependency> {
+        self.canonical(true)
+    }
+
+    fn canonical(&self, visible_only: bool) -> Vec<Dependency> {
+        let normal: HashSet<_> = self
+            .dependencies
+            .iter()
+            .filter(|dep| !dep.order_only && (!visible_only || !dep.hidden))
+            .map(|dep| dep.name.as_slice())
+            .collect();
         let mut seen = HashSet::new();
         self.dependencies
             .iter()
             .filter(|dependency| {
-                dependency.name != b".WAIT" && seen.insert(dependency.name.as_slice())
+                dependency.name != b".WAIT"
+                    && (!visible_only || !dependency.hidden)
+                    && seen.insert(dependency.name.as_slice())
             })
             .map(|dependency| Dependency {
                 name: dependency.name.clone(),
                 order_only: !normal.contains(dependency.name.as_slice()),
+                hidden: dependency.hidden,
             })
             .collect()
     }
@@ -598,10 +618,12 @@ impl Database {
             self.rules
                 .entry(b".SUFFIXES".to_vec())
                 .or_insert_with(|| Rule {
+                    record_only: true,
                     dependencies: words(suffixes)
                         .map(|name| Dependency {
                             name: name.to_vec(),
                             order_only: false,
+                            hidden: false,
                         })
                         .collect(),
                     ..Rule::default()
@@ -1655,6 +1677,123 @@ impl Database {
         result
     }
 
+    /// Expand a selected raw extra-prerequisite binding in global context.
+    /// Even simple values are rescanned at this phase, as GNU does.
+    pub fn extra_prerequisites(
+        &mut self,
+        raw: Option<&[u8]>,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<Vec<Dependency>, ExpandError> {
+        let Some(raw) = raw else {
+            return Ok(Vec::new());
+        };
+        let value = self.expand_with(raw, context.reborrow())?;
+        let (normal, order) = crate::filenames::split_order(&value);
+        let mut dependencies = Vec::new();
+        for (text, order_only) in [(normal.as_ref(), false), (order.unwrap_or_default(), true)] {
+            for name in self.rule_filenames(text, context)? {
+                dependencies.push(Dependency {
+                    name: name.into_owned(),
+                    order_only,
+                    hidden: true,
+                });
+            }
+        }
+        for dependency in &dependencies {
+            if dependency.name != b".WAIT" {
+                self.file_records.insert(&dependency.name);
+            }
+        }
+        Ok(dependencies)
+    }
+
+    pub fn snap_extra_prerequisites(
+        &mut self,
+        capture_records: bool,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<Vec<Vec<u8>>, ExpandError> {
+        let raw = self
+            .variables
+            .get(b".EXTRA_PREREQS")
+            .map(|variable| variable.raw_value().to_vec());
+        if raw.is_none()
+            && !self
+                .target_scopes
+                .values()
+                .any(|scope| scope.get(b".EXTRA_PREREQS").is_some())
+        {
+            return Ok(Vec::new());
+        }
+        let global = self.extra_prerequisites(raw.as_deref(), context)?;
+        // Capture special flags before appending hidden inputs. A bare phony
+        // prerequisite is a target record even without a normal rule header.
+        let phony: HashSet<_> = self
+            .rules
+            .get(b".PHONY".as_slice())
+            .into_iter()
+            .flat_map(|root| {
+                root.double_colon
+                    .as_deref()
+                    .unwrap_or_else(|| std::slice::from_ref(root))
+            })
+            .flat_map(|rule| &rule.dependencies)
+            .map(|dep| dep.name.clone())
+            .collect();
+        let mut captured = Vec::new();
+        let slots = self.file_records.slots_len();
+        for index in 0..slots {
+            let Some(name) = self.file_records.name_in_slot(index).map(Vec::from) else {
+                continue;
+            };
+            if capture_records {
+                captured.push(name.clone());
+            }
+            let extras = if let Some(scope) = self.target_scopes.get(&name) {
+                let raw = scope
+                    .get(b".EXTRA_PREREQS")
+                    .map(|variable| variable.raw_value().to_vec());
+                self.extra_prerequisites(raw.as_deref(), context)?
+            } else if self.rules.get(&name).is_some_and(|rule| !rule.record_only)
+                || phony.contains(&name)
+            {
+                global.clone()
+            } else {
+                continue;
+            };
+            // Any self occurrence cancels the entire extra list. Names were
+            // already entered by expansion, preserving observable table order.
+            if extras.is_empty() || extras.iter().any(|dep| dep.name == name) {
+                continue;
+            }
+            let root = self.rules.entry(name).or_insert_with(|| Rule {
+                record_only: true,
+                ..Rule::default()
+            });
+            let head = if let Some(branches) = &mut root.double_colon {
+                branches.first_mut().expect("double-colon head")
+            } else {
+                root
+            };
+            head.dependencies.extend(extras);
+        }
+        Ok(captured)
+    }
+
+    pub fn snap_implicit_extra_prerequisites(
+        &mut self,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        let raw = self
+            .variables
+            .get(b".EXTRA_PREREQS")
+            .map(|variable| variable.raw_value().to_vec());
+        let global = self.extra_prerequisites(raw.as_deref(), context)?;
+        for (_, rule) in &mut self.implicit_rules {
+            rule.dependencies.extend(global.iter().cloned());
+        }
+        Ok(())
+    }
+
     /// After the initial dependency snapshot, global setup expansions share
     /// recipe expansion's restriction on introducing new rules. A fresh
     /// database on Makefile restart restores the reader phase.
@@ -2607,6 +2746,7 @@ impl Database {
                 self.explicit_names.insert(target.clone());
                 let occupied = self.rules.contains_key(target);
                 let root = self.rules.entry(target.clone()).or_default();
+                root.record_only = false;
                 if occupied && root.double_colon.is_some() != double_colon {
                     return Err(ParseError {
                         unlocated: false,
@@ -2676,6 +2816,7 @@ impl Database {
                             prereqs.to_vec()
                         },
                         order_only: false,
+                        hidden: false,
                     });
                     declaration
                         .offsets
@@ -2729,7 +2870,11 @@ impl Database {
                         if !declaration.patterns.contains_key(target) && stem.is_none() {
                             self.explicit_names.insert(name.clone());
                         }
-                        rule.dependencies.push(Dependency { name, order_only });
+                        rule.dependencies.push(Dependency {
+                            name,
+                            order_only,
+                            hidden: false,
+                        });
                     }
                 }
             }

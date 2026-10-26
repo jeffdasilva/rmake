@@ -47,8 +47,8 @@ class ManifestTests(FixtureTest):
     def test_original_inventory_is_required_and_bounded(self):
         paths = sorted(p for p in (runner.ROOT / "tests/stateful").iterdir() if p.is_dir())
         cases = [runner.load_scenario(p) for p in paths]
-        self.assertEqual(len(cases), 65)
-        self.assertEqual(sum(len(s.steps) for s in cases), 287)
+        self.assertEqual(len(cases), 66)
+        self.assertEqual(sum(len(s.steps) for s in cases), 303)
         self.assertTrue(all(s.case.candidate == "required" for s in cases))
         self.assertTrue(all(s.case.timeout == 5 for s in cases))
         self.assertTrue(all(s.steps and s.anchors for s in cases))

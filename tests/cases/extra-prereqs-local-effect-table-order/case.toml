@@ -1,0 +1,11 @@
+id = "extra-prereqs-local-effect-table-order"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: local-effect-table-order."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "44454c54410a4554410a455053494c4f4e0a5a4554410a424554410a54484554410a47414d4d410a414c5048410a646f6e650a"
+stderr_hex = ""
