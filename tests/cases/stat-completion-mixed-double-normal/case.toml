@@ -1,0 +1,11 @@
+id = "stat-completion-mixed-double-normal"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original mixed recursive double-colon completion: normal."
+provenance = "Independent Makefile, fixed timestamps and byte-exact anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

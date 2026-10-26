@@ -42,8 +42,8 @@ class SymlinkTimeTests(unittest.TestCase):
         return status, report, calls
 
     def test_inventory_covers_operations_errors_and_four_modes(self):
-        self.assertEqual(len(self.cells), 52)
-        self.assertEqual(len({cell.id for cell in self.cells}), 52)
+        self.assertEqual(len(self.cells), 72)
+        self.assertEqual(len({cell.id for cell in self.cells}), 72)
         self.assertEqual(self.cells, runner.inventory())
         self.assertEqual({cell.status for cell in self.cells}, {0, 1, 2})
         self.assertEqual({cell.flags for cell in self.cells}, {(), ('-n',), ('-q',), ('-t',)})
@@ -64,6 +64,23 @@ class SymlinkTimeTests(unittest.TestCase):
         self.assertEqual((case.path / 'out').read_bytes(), b'old\n')
         self.assertEqual((case.path / 'setup.py').read_bytes(), runner.SETUP)
         self.assertFalse((case.path / 'fault.log').exists())
+
+    def test_default_stat_cells_disable_link_walk_and_anchor_retry_and_missing(self):
+        cells = [cell for cell in self.cells if not cell.symlinks]
+        self.assertEqual(len(cells), 20)
+        for cell in cells:
+            case = runner.materialize(cell, self.root / 'default', self.root / 'helper.so')
+            self.assertNotIn('-L', case.args)
+            self.assertEqual(case.args, runner.ARGS[:-1] + cell.flags)
+            self.assertEqual(runner.expected(cell).filesystem['work/fault.log'],
+                             faults.regular_file(b'symlink-fault\n'))
+            if 'eintr' in cell.id:
+                self.assertEqual(cell.status, 0)
+                self.assertEqual(cell.stderr, b'')
+            else:
+                self.assertEqual(cell.status, 2)
+                self.assertIn(b'No rule to make target', cell.stderr)
+        self.assertEqual(sum(cell.symlinks for cell in self.cells), 52)
 
     def test_success_uses_same_workspace_and_retains_helper_and_anchors(self):
         status, report, calls = self.campaign()

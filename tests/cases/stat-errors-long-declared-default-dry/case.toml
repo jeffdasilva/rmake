@@ -1,0 +1,11 @@
+id = "stat-errors-long-declared-default-dry"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original Linux timestamp observation: stat-errors-long-declared-default-dry."
+provenance = "Independently authored kernel-error programs and byte-exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+
+[expected]
+exit_code = 0
+stdout_hex = "3a0a7072696e7466206275696c640a"
+stderr_hex = "6d616b653a20737461743a206e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e3a2046696c65206e616d6520746f6f206c6f6e670a"

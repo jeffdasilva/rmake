@@ -1936,3 +1936,33 @@ controls, including about 4% lower large-no-op median and 3% higher expansion
 median. GNU remains faster in the selected workloads. See
 [declaration recording](declaration-recording.md) for exact evidence, identities,
 source references and remaining concrete M4 failures. M4/M8 stay open.
+
+
+## 2026-10-26: ordinary stat faults and completion-time state
+
+Use the Linux timestamp observer for default-mode target metadata as well as
+`-L`: retry EINTR, preserve silent ENOENT/ENOTDIR misses and emit other stat
+errors. Represent actual, preserved and assumed-new completion separately,
+including grouped empty recipes and recursive/double-colon precedence. Avoid
+post-simulation metadata probes and use assumed-new state for dependent freshness
+and automatic variables instead of a dry-run command-count shortcut.
+
+Add 92 independently anchored required Makefiles; preceding main fails 58.
+Retain all 52 link-aware fault programs and add twenty default stat programs,
+with independent journal, symlink, input and protected-file anchors; preceding
+main fails twelve of those twenty. Add a tooling test for the default-mode
+inventory and retry/miss anchors. Required fixture expectations and the twelve
+pending classifications remain unchanged. Corpus: 4,261 cases / 4,249 required /
+12 pending; 64 stateful scenarios / 273 invocations per engine; 385 Rust and 281
+tooling tests.
+
+Defer metadata inspection across pending parallel commands and continuations.
+All 1,216 additional combined-mode comparisons pass; the sixteen observed
+parallel failures are now required fixtures. Full local CI and optimized
+top-level differential/stateful/parallel flows pass.
+Four paired 101-sample suites show close/mixed controls, including about 3% higher
+large-no-op and 2% lower expansion medians. GNU remains faster in these controls.
+See [stat timestamps](stat-timestamps.md) for exact evidence, identities and limits.
+The [M4 exit audit](m4-exit-audit.md) records additional confirmed missing hidden
+prerequisites and library lookup, alongside ordering/archive/safety work. M4/M8
+remain open; the pending-case count is not a completion checklist.

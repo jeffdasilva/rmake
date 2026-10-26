@@ -1,0 +1,11 @@
+id = "stat-completion-group-touch"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original completion timestamp control: group, touch."
+provenance = "Independent original source, fixed timestamps and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "746f75636820610a746f75636820620a746f756368206f75740a"
+stderr_hex = ""

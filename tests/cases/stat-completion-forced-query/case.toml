@@ -1,0 +1,11 @@
+id = "stat-completion-forced-query"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original completion timestamp control: forced, query."
+provenance = "Independent original source, fixed timestamps and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

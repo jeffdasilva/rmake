@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva.
-"""Original anchored -L stat/lstat/readlink fault programs on Linux/glibc.
+"""Original anchored default/-L stat/lstat/readlink fault programs on Linux/glibc.
 
 Trusted bounded inputs and a syscall interposer; not a security sandbox.
 """
@@ -38,6 +38,7 @@ class Cell:
     stdout: bytes
     stderr: bytes
     status: int
+    symlinks: bool = True
 
 
 def inventory() -> tuple[Cell, ...]:
@@ -68,6 +69,20 @@ def inventory() -> tuple[Cell, ...]:
                                       'touch': b'touch out\n'}[mode], 0
                 cells.append(Cell(operation + '-' + kind + '-' + mode,
                                   'symlink-' + operation + '-' + kind, flags, stdout, stderr, status))
+    # Ordinary stat errors use the same real input and protected filesystem
+    # anchors, with link-time traversal disabled. Only EINTR is retried;
+    # ENOENT/ENOTDIR are silent misses, all other errors are diagnosed.
+    for kind in ('eintr', 'eio', 'eacces', 'enoent', 'enotdir'):
+        stderr = b''
+        if kind in ('eio', 'eacces'):
+            stderr = b'make: stat: effect-probe: ' + errors[kind] + b'\n'
+        if kind != 'eintr':
+            stderr += b"make: *** No rule to make target 'effect-probe', needed by 'out'.  Stop.\n"
+        for mode, flags in (('normal', ()), ('dry', ('-n',)), ('query', ('-q',)), ('touch', ('-t',))):
+            stdout = b"make: 'out' is up to date.\n" if kind == 'eintr' and mode != 'query' else b''
+            cells.append(Cell('default-stat-' + kind + '-' + mode,
+                              'symlink-stat-' + kind, flags, stdout, stderr,
+                              0 if kind == 'eintr' else 2, False))
     return tuple(cells)
 
 
@@ -88,7 +103,7 @@ def materialize(cell: Cell, parent: Path, library: Path) -> harness.Case:
         else:
             target.write_bytes(base64.b64decode(entry['content']))
             target.chmod(0o644)
-    return harness.Case(path, cell.id, 'filesystem.symlink-times', 'required', ARGS + cell.flags,
+    return harness.Case(path, cell.id, 'filesystem.symlink-times', 'required', (ARGS if cell.symlinks else ARGS[:-1]) + cell.flags,
                         5, {'LD_PRELOAD': str(library), 'RMAKE_STDIO_FAULT': cell.fault}, {})
 
 

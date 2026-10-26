@@ -247,6 +247,23 @@ fn define_automatic_variants(variables: &mut VariableStore) -> Result<(), Expand
     Ok(())
 }
 
+/// Only completion changes this policy: initial cached timestamps stay distinct
+/// from simulated updates. A real double-colon branch dominates assumed-new.
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum CompletionTime {
+    #[default]
+    Unchanged,
+    Preserve,
+    AssumeNew,
+    Refresh,
+}
+
+impl CompletionTime {
+    fn preserves(self) -> bool {
+        matches!(self, Self::Preserve | Self::AssumeNew)
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 struct Outcome {
     time: Option<SystemTime>,
@@ -257,6 +274,7 @@ struct Outcome {
     blocked: bool,
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
+    completion: CompletionTime,
 }
 
 /// Freshness is a per-parent decision, independent of the intermediate's final
@@ -2046,6 +2064,8 @@ impl Engine {
         self.record_graph_failure(outcome);
         outcome.time = if job.phony {
             None
+        } else if self.parallel_jobs.contains_key(&target) {
+            outcome.time
         } else {
             self.modified(&target)
         };
@@ -2299,7 +2319,7 @@ impl Engine {
     }
 
     fn name_time(&self, name: &[u8]) -> Option<SystemTime> {
-        let observed = rmake_linux::timestamp::observe(name, true);
+        let observed = rmake_linux::timestamp::observe(name, self.options.check_symlink_times);
         for issue in observed.issues {
             self.stderr(
                 &[
@@ -2332,7 +2352,8 @@ impl Engine {
     }
 
     fn modified(&self, name: &[u8]) -> Option<SystemTime> {
-        if !self.options.check_symlink_times {
+        if !self.options.check_symlink_times && rmake_core::filenames::archive_parts(name).is_some()
+        {
             return modified(name);
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(name) {
@@ -3370,6 +3391,7 @@ impl Engine {
                 state.combined.blocked |= result.blocked;
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.search_after_update |= result.search_after_update;
+                state.combined.completion = state.combined.completion.max(result.completion);
                 self.record_graph_failure(result);
                 state.active = false;
                 if result.fatal
@@ -3385,6 +3407,8 @@ impl Engine {
             let Some(branch) = state.branches.pop_front() else {
                 state.combined.time = if state.phony {
                     None
+                } else if state.combined.completion.preserves() {
+                    state.combined.time
                 } else {
                     self.modified(target)
                 };
@@ -3970,10 +3994,10 @@ impl Engine {
 
     fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
         self.options.always
+            || child.completion == CompletionTime::AssumeNew
             || before.is_none()
             || child.time.is_none()
             || child.time > before
-            || (self.options.dry_run && child.ran)
     }
 
     fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
@@ -4162,6 +4186,18 @@ impl Engine {
                 }
                 let execution = self.execute(target, recipes, &autos, phony, before);
                 outcome.ran |= execution.ran;
+                outcome.completion =
+                    if (self.options.dry_run || self.options.question || self.options.touch)
+                        && !execution.all_recursive
+                    {
+                        if rule.grouped_targets().is_none() || execution.ran {
+                            CompletionTime::AssumeNew
+                        } else {
+                            CompletionTime::Preserve
+                        }
+                    } else {
+                        CompletionTime::Refresh
+                    };
                 outcome.search_after_update = execution.ran
                     && self.update_search_pending(target, phony, execution.all_recursive);
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
@@ -4174,7 +4210,10 @@ impl Engine {
             }
             outcome.time = if phony {
                 None
-            } else if rule.recipes.is_some() {
+            } else if rule.recipes.is_some()
+                && !outcome.completion.preserves()
+                && !self.parallel_jobs.contains_key(target)
+            {
                 self.modified(target)
             } else {
                 before
@@ -4198,10 +4237,11 @@ impl Engine {
             return;
         }
         let warn_missing = group.implicit
+            && !outcome.completion.preserves()
             && self
                 .modified(target)
                 .is_some_and(|time| Some(time) > group.before);
-        for (peer, _, phony) in group.members.into_iter().rev() {
+        for (peer, before, phony) in group.members.into_iter().rev() {
             if peer == target {
                 continue;
             }
@@ -4209,7 +4249,13 @@ impl Engine {
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
             completed.search_after_update = false;
-            completed.time = if phony { None } else { self.modified(&peer) };
+            completed.time = if phony {
+                None
+            } else if outcome.completion.preserves() {
+                before
+            } else {
+                self.modified(&peer)
+            };
             if warn_missing && completed.time.is_none() {
                 emit_output(
                     &self.program,

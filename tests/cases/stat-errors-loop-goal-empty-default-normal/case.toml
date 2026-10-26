@@ -1,0 +1,11 @@
+id = "stat-errors-loop-goal-empty-default-normal"
+requirement = "filesystem.stat-errors"
+candidate = "required"
+description = "Original Linux timestamp observation: stat-errors-loop-goal-empty-default-normal."
+provenance = "Independently authored kernel-error programs and byte-exact stream/status anchors; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20276c6f6f702720697320757020746f20646174652e0a"
+stderr_hex = "6d616b653a20737461743a206c6f6f703a20546f6f206d616e79206c6576656c73206f662073796d626f6c6963206c696e6b730a6d616b653a20737461743a206c6f6f703a20546f6f206d616e79206c6576656c73206f662073796d626f6c6963206c696e6b730a"
