@@ -310,3 +310,61 @@ fn ffi_rejects_interior_nul_without_panicking() {
         .ends_with(b"NUL byte in file text")
     );
 }
+
+#[test]
+fn rule_membership_shares_complete_glob_names_and_read_refresh_boundaries() {
+    let temporary = Directory::new();
+    let directory = temporary.0.join("d");
+    fs::create_dir(&directory).unwrap();
+    fs::write(directory.join("old"), b"old").unwrap();
+    symlink("d", temporary.0.join("link")).unwrap();
+    let path = |name: &str| temporary.0.join(name).as_os_str().as_bytes().to_vec();
+    let mut runtime = Runtime::default();
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&path("d/*")))
+            .unwrap(),
+        path("d/old")
+    );
+    fs::remove_file(directory.join("old")).unwrap();
+    fs::write(directory.join("new"), b"new").unwrap();
+    assert!(runtime.file_exists(&path("link/old")).unwrap());
+    assert!(!runtime.file_exists(&path("link/new")).unwrap());
+    assert_eq!(
+        runtime
+            .execute(FilesystemEffect::Wildcard(&path("d/new")))
+            .unwrap(),
+        path("d/new")
+    );
+    runtime
+        .execute(FilesystemEffect::ReadFile(&path("d/new")))
+        .unwrap();
+    assert!(!runtime.file_exists(&path("d/new")).unwrap());
+    runtime
+        .execute(FilesystemEffect::WriteFile {
+            path: &path("d/new"),
+            text: None,
+            append: true,
+        })
+        .unwrap();
+    assert!(runtime.file_exists(&path("link/new")).unwrap());
+    assert!(!runtime.file_exists(&path("link/old")).unwrap());
+}
+
+#[test]
+fn missing_directory_membership_expires_after_a_completed_child() {
+    let temporary = Directory::new();
+    let name = temporary
+        .0
+        .join("missing/new")
+        .as_os_str()
+        .as_bytes()
+        .to_vec();
+    let mut runtime = Runtime::default();
+    assert!(!runtime.file_exists(&name).unwrap());
+    fs::create_dir(temporary.0.join("missing")).unwrap();
+    fs::write(temporary.0.join("missing/new"), b"new").unwrap();
+    assert!(!runtime.file_exists(&name).unwrap());
+    runtime.child_completed();
+    assert!(runtime.file_exists(&name).unwrap());
+}

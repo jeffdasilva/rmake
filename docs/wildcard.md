@@ -24,7 +24,9 @@ raw-byte, program-only fatal diagnostics through parsing and recipe expansion.
 
 ## Cache lifetime and performance
 
-Directory observations have both path and device/inode keys. Missing-directory
+The [shared-directory follow-up](shared-directory-search.md) also connects these
+observations to implicit and VPATH probes, using incremental streams and lazy
+generation refresh. Directory observations have both path and device/inode keys. Missing-directory
 observations are cached too. Successful file-write opens and completed recipe
 launches invalidate the observations. Reads and realpath calls do not. External
 mutations without those events can leave wildcard names stale while ordinary
@@ -84,3 +86,7 @@ GNU Make 4.4.1 `src/read.c` (`parse_file_seq`, `find_map_unquote`, `tilde_expand
 boundary was checked against glibc 2.39 `posix/glob.c`. Rust code and fixture
 inputs are independently authored; no upstream implementation files or tests
 are incorporated.
+
+The shared-directory follow-up moves native directory reads into a small owned
+libc adapter, preserving dot entries, stream position, EINTR and fatal readdir
+errors. Its independent gate also checks the stream cap and descriptor lifetime.

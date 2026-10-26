@@ -5,6 +5,7 @@
 // that a requested fault happened; it preserves errno and uses no stdio calls.
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -71,7 +72,151 @@ int open(const char *path, int flags, ...) {
     return next(path, flags, mode);
 }
 
+// Directory probes are test-only and restricted to d / d<number>. Track
+// actual libc streams; never return synthesized entries or rule decisions.
+struct watched_directory {
+    DIR *stream;
+    unsigned active, eof, seen_name;
+    char name[32];
+};
+static struct watched_directory watched[32];
+static unsigned watched_count;
+
+static int directory_mode(void) {
+    const char *mode = getenv("RMAKE_STDIO_FAULT");
+    return mode && strncmp(mode, "directory-", 10) == 0;
+}
+
+static int selected_directory(const char *path) {
+    const char *name = strrchr(path, '/');
+    name = name ? name + 1 : path;
+    if (*name++ != 'd') return 0;
+    while (*name >= '0' && *name <= '9') ++name;
+    return *name == 0;
+}
+
+static struct watched_directory *directory_record(DIR *stream) {
+    for (unsigned index = 0; index < watched_count; ++index)
+        if (watched[index].stream == stream && watched[index].active)
+            return &watched[index];
+    return NULL;
+}
+
+DIR *opendir(const char *path) {
+    DIR *(*next)(const char *) = symbol("opendir");
+    int selected = directory_mode() && selected_directory(path);
+    if (selected && mode_is("directory-open-eintr") && !interrupted) {
+        interrupted = 1;
+        note("interrupted\n");
+        errno = EINTR;
+        return NULL;
+    }
+    if (selected && mode_is("directory-open-eacces")) {
+        note("open-denied\n");
+        errno = EACCES;
+        return NULL;
+    }
+    DIR *stream = next(path);
+    if (selected && stream) {
+        unsigned index;
+        for (index = 0; index < watched_count; ++index)
+            if (!watched[index].active) break;
+        if (index == watched_count) {
+            if (watched_count == 32) _exit(128);
+            ++watched_count;
+        }
+        struct watched_directory *entry = &watched[index];
+        memset(entry, 0, sizeof(*entry));
+        entry->stream = stream;
+        entry->active = 1;
+        const char *name = strrchr(path, '/');
+        snprintf(entry->name, sizeof(entry->name), "%s", name ? name + 1 : path);
+    }
+    return stream;
+}
+
+static int directory_read_fault(struct watched_directory *entry) {
+    if (!entry || interrupted) return 0;
+    if (mode_is("directory-read-eintr")) {
+        interrupted = 1;
+        note("interrupted\n");
+        errno = EINTR;
+        return 1;
+    }
+    if (mode_is("directory-read-eio")
+        || (mode_is("directory-read-tail-eio") && entry->seen_name)) {
+        interrupted = 1;
+        note("read-fault\n");
+        errno = EIO;
+        return 1;
+    }
+    return 0;
+}
+
+struct dirent *readdir(DIR *stream) {
+    struct dirent *(*next)(DIR *) = symbol("readdir");
+    struct watched_directory *entry = directory_record(stream);
+    if (directory_read_fault(entry)) return NULL;
+    struct dirent *result = next(stream);
+    if (entry) {
+        if (!result && errno == 0) entry->eof = 1;
+        if (result && strcmp(result->d_name, ".") && strcmp(result->d_name, ".."))
+            entry->seen_name = 1;
+    }
+    return result;
+}
+
+struct dirent64 *readdir64(DIR *stream) {
+    struct dirent64 *(*next)(DIR *) = symbol("readdir64");
+    struct watched_directory *entry = directory_record(stream);
+    if (directory_read_fault(entry)) return NULL;
+    struct dirent64 *result = next(stream);
+    if (entry) {
+        if (!result && errno == 0) entry->eof = 1;
+        if (result && strcmp(result->d_name, ".") && strcmp(result->d_name, ".."))
+            entry->seen_name = 1;
+    }
+    return result;
+}
+
+int closedir(DIR *stream) {
+    int (*next)(DIR *) = symbol("closedir");
+    struct watched_directory *entry = directory_record(stream);
+    if (entry) entry->active = 0;
+    int result = next(stream);
+    if (entry && mode_is("directory-close-eio")) {
+        note("closed-once\n");
+        errno = EIO;
+        return -1;
+    }
+    return result;
+}
+
+static void directory_proof(void) {
+    if (mode_is("directory-limit")) {
+        unsigned active = 0, complete = 0;
+        for (unsigned index = 0; index < watched_count; ++index) {
+            active += watched[index].active;
+            if (!strcmp(watched[index].name, "d9")) complete = watched[index].eof;
+        }
+        char text[64];
+        snprintf(text, sizeof(text), "open=%u last=%s\n", active, complete ? "complete" : "partial");
+        note(text);
+    } else {
+        const char *state = "unseen\n";
+        for (unsigned index = 0; index < watched_count; ++index) {
+            if (!strcmp(watched[index].name, "d"))
+                state = watched[index].eof ? "complete\n" : "partial\n";
+        }
+        note(state);
+    }
+}
+
 static void external_mutation(void) {
+    if (mode_is("directory-partial") || mode_is("directory-complete") || mode_is("directory-limit")) {
+        directory_proof();
+        return;
+    }
     const char *file = "b.t";
     if (mode_is("wildcard-files")) {
         if (unlink("a.t")) _exit(126);

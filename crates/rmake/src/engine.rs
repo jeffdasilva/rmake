@@ -67,6 +67,33 @@ fn searched_name(directory: &[u8], target: &[u8]) -> Vec<u8> {
     name
 }
 
+/// Most searches use one spelling. Repeated trailing separators keep the
+/// original basename for record/cache lookup, then clobber it for stat/output.
+fn search_probe_names<'a>(
+    directory: &[u8],
+    target: &[u8],
+    searched: &'a [u8],
+) -> (std::borrow::Cow<'a, [u8]>, std::borrow::Cow<'a, [u8]>) {
+    use std::borrow::Cow;
+    let directory = if directory.len() > 1 && directory.ends_with(b"/") {
+        &directory[..directory.len() - 1]
+    } else {
+        directory
+    };
+    if directory.ends_with(b"/")
+        && !target.starts_with(b"/")
+        && !target.contains(&b'/')
+        && !target.is_empty()
+    {
+        let mut lookup = searched.to_vec();
+        lookup[directory.len()] = target[0];
+        let membership = [directory, b"/", target].concat();
+        (Cow::Owned(lookup), Cow::Owned(membership))
+    } else {
+        (Cow::Borrowed(searched), Cow::Borrowed(searched))
+    }
+}
+
 fn joined(items: impl IntoIterator<Item = impl AsRef<[u8]>>) -> Vec<u8> {
     let mut result = Vec::new();
     for item in items {
@@ -228,6 +255,8 @@ struct Outcome {
     fatal: bool,
     question_outdated: bool,
     blocked: bool,
+    // A real recipe invalidates its timestamp; a parent may search again.
+    search_after_update: bool,
 }
 
 /// Freshness is a per-parent decision, independent of the intermediate's final
@@ -1671,7 +1700,10 @@ impl Engine {
             || modified(target).is_some()
             || self.special(b".PHONY", target, false)
         {
-            let outcome = self.build(target, Some(parent), depth);
+            let mut outcome = self.build(target, Some(parent), depth);
+            if !self.pending(target) {
+                outcome = self.observe_updated(target, outcome);
+            }
             return Inspection {
                 needs_rebuild: self.prerequisite_stale(time, outcome),
                 outcome,
@@ -1987,6 +2019,7 @@ impl Engine {
         outcome.failed |= failed;
         self.record_graph_failure(outcome);
         outcome.time = if job.phony { None } else { modified(&target) };
+        outcome.search_after_update = self.update_search_pending(&target, job.phony, true);
         self.done.insert(target.clone(), outcome);
         if !self.parallel_jobs.contains_key(&target) {
             self.finish_group(&target, outcome);
@@ -2019,7 +2052,9 @@ impl Engine {
             return Ok(None);
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target)
-            && let Some(path) = self.archive_vpath(archive)
+            && let Some(path) = self
+                .archive_vpath(archive)
+                .map_err(|error| self.expansion_error(None, &error))?
             && (self.gpath_match(archive, &path) || self.has_file_record(&path))
         {
             let archive_time = modified(&path);
@@ -2028,12 +2063,16 @@ impl Engine {
                 .entry(path.clone())
                 .or_insert(Some((None, archive_time)));
             let name = [path.as_slice(), b"(", member, b")"].concat();
-            let observation = self.find_vpath(&name);
+            let observation = self
+                .find_vpath(&name)
+                .map_err(|error| self.expansion_error(None, &error))?;
             self.rename_search_record(target, &name)?;
             self.path_observations.insert(name.clone(), observation);
             return Ok(Some(name));
         }
-        let observation = self.find_vpath(target);
+        let observation = self
+            .find_vpath(target)
+            .map_err(|error| self.expansion_error(None, &error))?;
         if let Some((Some(name), _)) = &observation
             && (self.gpath_match(target, name) || self.has_file_record(name))
         {
@@ -2229,16 +2268,56 @@ impl Engine {
             && (!self.record_is_target(target) || self.record_is_target(record))
     }
 
-    fn find_vpath(&self, target: &[u8]) -> PathObservation {
+    fn directory_member(&self, name: &[u8]) -> Result<bool, ExpandError> {
+        self.filesystem
+            .borrow_mut()
+            .file_exists(name)
+            .map_err(|error| match error {
+                rmake_core::diagnostic::FilesystemError::Caller(message) => {
+                    ExpandError::FileError(message)
+                }
+                rmake_core::diagnostic::FilesystemError::Unlocated(message) => {
+                    ExpandError::UnlocatedError(message)
+                }
+            })
+    }
+
+    fn searched_file(&self, target: &[u8]) -> Result<PathObservation, ExpandError> {
+        if !self.vpath_searchable(target) {
+            return Ok(None);
+        }
+        for directory in self
+            .database
+            .vpath_directories(target)
+            .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+        {
+            let name = searched_name(directory, target);
+            let (lookup, membership) = search_probe_names(directory, target, &name);
+            let declared = self.search_record_matches(target, &lookup);
+            if declared || self.directory_member(&membership)? {
+                // A cached name gates the probe, but VPATH must still reject
+                // a stale positive when a fresh stat no longer finds it.
+                let time = modified(&name);
+                if declared || time.is_some() {
+                    return Ok(Some((Some(name), time)));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn find_vpath(&self, target: &[u8]) -> Result<PathObservation, ExpandError> {
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
-            let path = self.archive_vpath(archive);
+            let path = self.archive_vpath(archive)?;
             let time = rmake_linux::archive::modified(path.as_deref().unwrap_or(archive), member)
                 .ok()
-                .flatten()?;
-            return Some((
-                path.map(|path| [path.as_slice(), b"(", member, b")"].concat()),
-                Some(time),
-            ));
+                .flatten();
+            return Ok(time.map(|time| {
+                (
+                    path.map(|path| [path.as_slice(), b"(", member, b")"].concat()),
+                    Some(time),
+                )
+            }));
         }
         if self
             .archive_vpath_reads
@@ -2246,58 +2325,105 @@ impl Engine {
             .as_ref()
             .is_some_and(|reads| reads.archives.contains(target))
         {
-            return None;
+            return Ok(None);
         }
+        // Build timestamps use fresh metadata. Only implicit viability's
+        // local-name test uses cached directory membership instead.
         if let Some(time) = modified(target) {
-            return Some((None, Some(time)));
+            return Ok(Some((None, Some(time))));
         }
-        if !self.vpath_searchable(target) {
-            return None;
-        }
-        self.database
-            .vpath_directories(target)
-            .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-            .find_map(|directory| {
-                let name = searched_name(directory, target);
-                let declared = self.search_record_matches(target, &name);
-                let time = modified(&name);
-                (declared || time.is_some()).then_some((Some(name), time))
-            })
+        self.searched_file(target)
     }
 
-    /// Search the archive filename before reading a member. The first existing
-    /// archive wins even when it lacks that member; an existing local archive
-    /// similarly prevents falling through to a different archive in VPATH.
-    fn archive_vpath(&self, archive: &[u8]) -> Option<Vec<u8>> {
+    /// Select the archive container before inspecting a member. Cached
+    /// directory membership and a fresh stat gate non-declared candidates.
+    fn archive_vpath(&self, archive: &[u8]) -> Result<Option<Vec<u8>>, ExpandError> {
         if !self.vpath_searchable(archive) || fs::metadata(os(archive)).is_ok() {
-            return None;
+            return Ok(None);
         }
-        self.database
+        for directory in self
+            .database
             .vpath_directories(archive)
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-            .find_map(|directory| {
-                let path = searched_name(directory, archive);
-                let declared = self.search_record_matches(archive, &path);
-                (declared || fs::metadata(os(&path)).is_ok()).then_some(path)
-            })
+        {
+            let path = searched_name(directory, archive);
+            let (lookup, membership) = search_probe_names(directory, archive, &path);
+            if self.search_record_matches(archive, &lookup)
+                || (self.directory_member(&membership)? && fs::metadata(os(&path)).is_ok())
+            {
+                return Ok(Some(path));
+            }
+        }
+        Ok(None)
     }
 
-    /// GNU's implicit viability probe does not perform the archive's own VPATH
-    /// search. Its VPATH test concerns the complete literal prerequisite name.
-    fn implicit_vpath_exists(&self, target: &[u8]) -> bool {
+    /// Local implicit prerequisites use directory membership without a fresh
+    /// stat. VPATH candidates still require its positive-name stat check.
+    fn implicit_vpath_exists(&self, target: &[u8]) -> Result<bool, ExpandError> {
         if rmake_core::filenames::archive_parts(target).is_none() {
-            return self.find_vpath(target).is_some();
+            return if self.directory_member(target)? {
+                Ok(true)
+            } else {
+                Ok(self.searched_file(target)?.is_some())
+            };
         }
-        modified(target).is_some()
-            || (self.vpath_searchable(target)
-                && self
-                    .database
-                    .vpath_directories(target)
-                    .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-                    .any(|directory| {
-                        let name = searched_name(directory, target);
-                        self.search_record_matches(target, &name) || fs::metadata(os(&name)).is_ok()
-                    }))
+        // Archive viability scans the local archive freshly, then searches
+        // the complete literal member name (not the archive container).
+        if modified(target).is_some() {
+            return Ok(true);
+        }
+        if self.vpath_searchable(target) {
+            for directory in self
+                .database
+                .vpath_directories(target)
+                .chain(self.vpath_dirs.iter().map(Vec::as_slice))
+            {
+                let name = searched_name(directory, target);
+                let (lookup, membership) = search_probe_names(directory, target, &name);
+                if self.search_record_matches(target, &lookup)
+                    || (self.directory_member(&membership)? && fs::metadata(os(&name)).is_ok())
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
+        !phony
+            && self.vpath_searchable(target)
+            && (!(self.options.dry_run || self.options.question || self.options.touch)
+                || all_recursive)
+    }
+
+    fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
+        if !outcome.search_after_update || outcome.fatal {
+            return outcome;
+        }
+        outcome.search_after_update = false;
+        match self.find_vpath(target) {
+            Ok(observation) => {
+                outcome.time = observation.as_ref().and_then(|(_, time)| *time);
+                if let Some((Some(name), _)) = observation
+                    && (self.gpath_match(target, &name) || self.has_file_record(&name))
+                {
+                    if self.rename_search_record(target, &name).is_err() {
+                        outcome.failed = true;
+                        outcome.fatal = true;
+                    }
+                    self.done.insert(name, outcome);
+                }
+            }
+            Err(error) => {
+                self.expansion_error(None, &error);
+                outcome.failed = true;
+                outcome.fatal = true;
+            }
+        }
+        self.done.insert(target.to_vec(), outcome);
+        self.record_graph_failure(outcome);
+        outcome
     }
 
     fn implicit_known_file(&self, target: &[u8]) -> bool {
@@ -2530,7 +2656,7 @@ impl Engine {
                                             })
                                     })
                                 });
-                            if name != b".WAIT" && !explicit && !self.implicit_vpath_exists(name) {
+                            if name != b".WAIT" && !explicit && !self.implicit_vpath_exists(name)? {
                                 if self.implicit_known_file(name) {
                                     if compatibility {
                                         dependencies.push(dependency);
@@ -2836,7 +2962,17 @@ impl Engine {
                 .concat(),
             )
         } else {
-            let path = search.then(|| self.archive_vpath(archive)).flatten();
+            let path = if search {
+                match self.archive_vpath(archive) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        self.expansion_error(None, &error);
+                        return true;
+                    }
+                }
+            } else {
+                None
+            };
             if path.is_some() {
                 // Reading a VPATH member observes the original archive as
                 // locally absent. GNU's original archive record keeps that
@@ -2956,7 +3092,17 @@ impl Engine {
         let resolved = if phony {
             None
         } else {
-            observed.unwrap_or_else(|| self.find_vpath(target))
+            match observed.map(Ok).unwrap_or_else(|| self.find_vpath(target)) {
+                Ok(observation) => observation,
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return Outcome {
+                        failed: true,
+                        fatal: true,
+                        ..Outcome::default()
+                    };
+                }
+            }
         };
         let mut before = resolved.as_ref().and_then(|(_, time)| *time);
         let double_colon = self
@@ -3078,6 +3224,7 @@ impl Engine {
                 state.combined.fatal |= result.fatal;
                 state.combined.blocked |= result.blocked;
                 state.combined.question_outdated |= result.question_outdated;
+                state.combined.search_after_update |= result.search_after_update;
                 self.record_graph_failure(result);
                 state.active = false;
                 if result.fatal
@@ -3233,11 +3380,29 @@ impl Engine {
         mut rule: Rule,
         double_colon: bool,
     ) -> Outcome {
-        if (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
-            && let Some(group) = &mut rule.group
-        {
-            for peer in &mut group.targets {
+        let mut members = Vec::new();
+        let grouped = rule.grouped_targets().is_some();
+        if grouped {
+            let implicit = rule.implicit_pattern.is_some();
+            if !implicit {
+                comparison = comparison.min(before);
+            }
+            let double = rule.grouped_double_id().is_some();
+            let group = rule.group.as_mut().expect("grouped targets have metadata");
+            let mut times = vec![None; group.targets.len()];
+            let mut observed = vec![false; group.targets.len()];
+            let mut compare_peers = before.is_some() && !implicit;
+            for (index, peer) in group.targets.iter_mut().enumerate().rev() {
+                let name = self.aliases.resolve(peer);
+                if name != peer {
+                    *peer = name.to_vec();
+                }
                 if peer.as_slice() == target {
+                    times[index] = before;
+                    observed[index] = true;
+                    continue;
+                }
+                if !compare_peers {
                     continue;
                 }
                 match self.prepare_search_name(peer) {
@@ -3251,6 +3416,42 @@ impl Engine {
                         };
                     }
                 }
+                let time = if self.special(b".PHONY", peer, false) {
+                    None
+                } else {
+                    match self
+                        .path_observations
+                        .get(peer)
+                        .cloned()
+                        .map(Ok)
+                        .unwrap_or_else(|| self.find_vpath(peer))
+                    {
+                        Ok(observation) => observation.and_then(|(_, time)| time),
+                        Err(error) => {
+                            self.expansion_error(None, &error);
+                            return Outcome {
+                                failed: true,
+                                fatal: true,
+                                ..Outcome::default()
+                            };
+                        }
+                    }
+                };
+                times[index] = time;
+                observed[index] = true;
+                comparison = comparison.min(time);
+                compare_peers = time.is_some();
+            }
+            let mut seen = HashSet::new();
+            for (index, peer) in group.targets.iter().enumerate() {
+                if !seen.insert(peer.clone()) {
+                    continue;
+                }
+                let mut time = times[index];
+                if double && observed[index] {
+                    time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
+                }
+                members.push((peer.clone(), time, self.special(b".PHONY", peer, false)));
             }
         }
         if let Err(error) = self.expand_dependencies(target, &mut rule) {
@@ -3263,7 +3464,6 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        let mut members = Vec::new();
         let peer_targets =
             rule.grouped_targets()
                 .map_or_else(std::collections::VecDeque::new, |targets| {
@@ -3285,35 +3485,7 @@ impl Engine {
                     }
                     peers.into_iter().rev().collect()
                 });
-        if let Some(targets) = rule.grouped_targets() {
-            let mut seen = HashSet::new();
-            for peer in targets {
-                if !seen.insert(peer.clone()) {
-                    continue;
-                }
-                let peer_phony = self.special(b".PHONY", peer, false);
-                let mut time = if peer_phony {
-                    None
-                } else if peer == target {
-                    before
-                } else {
-                    self.path_observations
-                        .get(peer)
-                        .cloned()
-                        .unwrap_or_else(|| self.find_vpath(peer))
-                        .and_then(|(_, time)| time)
-                };
-                if rule.grouped_double_id().is_some() {
-                    time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
-                }
-                // A newly selected implicit rule adds its peers after GNU's
-                // initial timestamp comparison. Explicit groups already exist
-                // at that point and use their oldest output.
-                if rule.implicit_pattern.is_none() {
-                    comparison = comparison.min(time);
-                }
-                members.push((peer.clone(), time, peer_phony));
-            }
+        if grouped {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
         }
@@ -3633,7 +3805,13 @@ impl Engine {
             } else {
                 self.done.get(dependency).copied().unwrap_or_default()
             };
-            (child, self.pending(dependency))
+            let pending = self.pending(dependency);
+            let child = if pending {
+                child
+            } else {
+                self.observe_updated(dependency, child)
+            };
+            (child, pending)
         }
     }
 
@@ -3827,6 +4005,8 @@ impl Engine {
                 }
                 let execution = self.execute(target, recipes, &autos, phony, before);
                 outcome.ran |= execution.ran;
+                outcome.search_after_update = execution.ran
+                    && self.update_search_pending(target, phony, execution.all_recursive);
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
                 outcome.fatal |= execution.status == Status::Fatal;
                 outcome.question_outdated |= execution.status == Status::Question;
@@ -3869,11 +4049,8 @@ impl Engine {
             self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
-            completed.time = if phony {
-                None
-            } else {
-                self.find_vpath(&peer).and_then(|(_, time)| time)
-            };
+            completed.search_after_update = false;
+            completed.time = if phony { None } else { modified(&peer) };
             if warn_missing && completed.time.is_none() {
                 emit_output(
                     &self.program,
@@ -4124,7 +4301,7 @@ impl Engine {
                 Ok(shell) => shell,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::fatal(ran);
+                    return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
             let shell = shell.as_slice();
@@ -4137,7 +4314,7 @@ impl Engine {
                 Ok(flags) => flags,
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::fatal(ran);
+                    return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
             let ifs = if variables.get(b"IFS").is_some() {
@@ -4145,7 +4322,7 @@ impl Engine {
                     Ok(value) => Some(value),
                     Err(err) => {
                         self.expansion_error(Some(&recipe.location), &err);
-                        return Execution::fatal(ran);
+                        return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                     }
                 }
             } else {
@@ -4173,7 +4350,8 @@ impl Engine {
             }
             if self.options.question && !force {
                 self.would_build = true;
-                return Execution::question(ran, flow.continuation_cleanup());
+                return Execution::question(ran, flow.continuation_cleanup())
+                    .with_recursion(!flow.has_ordinary());
             }
             if self.options.touch && !force {
                 continue;
@@ -4193,14 +4371,16 @@ impl Engine {
                             Some(&recipe.location),
                             b"rmake: shell syntax in .ONESHELL .SHELLFLAGS is not implemented yet",
                         );
-                        return Execution::failure(ran, Cleanup::None);
+                        return Execution::failure(ran, Cleanup::None)
+                            .with_recursion(!flow.has_ordinary());
                     }
                     Err(crate::oneshell::PrepareError::QuotedMultilineDirect) => {
                         self.fatal(
                             Some(&recipe.location),
                             b"rmake: .ONESHELL direct commands with quoted newlines are not implemented yet",
                         );
-                        return Execution::failure(ran, Cleanup::None);
+                        return Execution::failure(ran, Cleanup::None)
+                            .with_recursion(!flow.has_ordinary());
                     }
                 }
             } else {
@@ -4338,7 +4518,7 @@ impl Engine {
                             }
                             Err(err) => {
                                 self.expansion_error(variable.definition(), &err);
-                                return Execution::fatal(ran);
+                                return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                             }
                         }
                     } else {
@@ -4360,7 +4540,7 @@ impl Engine {
                         }
                         Err(error) => {
                             self.expansion_error(Some(&recipe.location), &error);
-                            return Execution::fatal(ran);
+                            return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                         }
                     }
                 }
@@ -4405,7 +4585,8 @@ impl Engine {
                         });
                 if let Err(error) = worker {
                     self.stderr(os_error(&error).as_bytes());
-                    return Execution::failure(ran, Cleanup::None);
+                    return Execution::failure(ran, Cleanup::None)
+                        .with_recursion(!flow.has_ordinary());
                 }
                 self.parallel_jobs.insert(
                     target.to_vec(),
@@ -4452,7 +4633,8 @@ impl Engine {
                 // command; ignored errors retain their ordinary handling.
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
                     self.would_build = true;
-                    return Execution::question(ran, failure_cleanup);
+                    return Execution::question(ran, failure_cleanup)
+                        .with_recursion(!flow.has_ordinary());
                 }
                 Ok(status) => Some(status.code().map_or_else(
                     || format!("Signal {}", status.signal().unwrap_or(0)),
@@ -4484,12 +4666,13 @@ impl Engine {
                     self.stderr(&message);
                 }
                 if !ignore {
-                    return Execution::failure(ran, failure_cleanup);
+                    return Execution::failure(ran, failure_cleanup)
+                        .with_recursion(!flow.has_ordinary());
                 }
             }
         }
         if !self.options.touch || phony || !flow.has_ordinary() {
-            return Execution::success(ran);
+            return Execution::success(ran).with_recursion(!flow.has_ordinary());
         }
         let passes = if one_shell {
             1
@@ -4509,7 +4692,7 @@ impl Engine {
                 return touched;
             }
         }
-        Execution::success(ran)
+        Execution::success(ran).with_recursion(!flow.has_ordinary())
     }
 
     fn touch_target(&self, target: &[u8]) -> Execution {

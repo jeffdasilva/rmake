@@ -1,0 +1,12 @@
+id = "directory-search-recipe-late-vpath-parallel"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: recipe-late-vpath-parallel"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66616c6c6261636b3d6e65772e696e0a73656c65637465643d6e65772e696e0a"
+stderr_hex = ""

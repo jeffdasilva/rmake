@@ -79,9 +79,10 @@ scale or replay that campaign. See [integer comparison notes](docs/intcmp.md).
 `make test-diagnostics` checks 206 fixed output-function scenarios with independent
 stream, status and filesystem expectations, including merged output ordering.
 `DIAGNOSTIC_CASE` replays one recorded cell. This is also part of `make ci`.
-`make test-filesystem` checks nineteen Linux/glibc scenarios, including partial
+`make test-filesystem` checks twenty-one Linux/glibc scenarios, including partial
 reads, close failures and external directory mutations; `FILESYSTEM_CASE` selects
-one for replay. `make test-wildcards` runs 100 seeded filesystem query programs
+one for replay. `make test-directory-search` checks 176 original shared-cache and
+I/O programs; `DIRECTORY_CASE` selects one. `make test-wildcards` runs 100 seeded filesystem query programs
 with independent matching and complete filesystem anchors. Use `WILDCARD_SEED`,
 `WILDCARD_CASES`, `WILDCARD_EXPRESSIONS` and `START_INDEX` to scale or replay them.
 See [wildcard semantics](docs/wildcard.md) for the implemented profile and limits.
@@ -124,6 +125,8 @@ with current outputs; see [intermediate-file policy](docs/intermediate-policy.md
 inspection; see [lazy rule records](docs/lazy-rule-records.md).
 `BENCH_SUITE=vpath-records` measures declared searched records and alias pairs;
 see [declared VPATH file records](docs/vpath-file-records.md).
+`BENCH_SUITE=directory-search` measures shared input probes and repeated VPATH misses;
+see [shared directory observations](docs/shared-directory-search.md).
 `BENCH_REPEAT` controls measured samples per engine (default 15).
 
 The engine can drive the repository's `build` and `check-core` targets:
@@ -156,6 +159,8 @@ before checking members and preserves GNU search/rebuild observations.
 rule, scope and job identities, including overlapping parallel alias workers.
 [Declared VPATH records](docs/vpath-file-records.md) allow missing searched outputs
 and ordinary VPATH record merges with target eligibility and GNU phase timing.
+[Shared directory observations](docs/shared-directory-search.md) preserve cached
+name membership, incremental streams, refresh timing and search I/O errors.
 [Secondary-expansion clauses](docs/secondary-expansion.md) retain individual
 static stems, literal prerequisites, GNU traversal order and diagnostic context.
 [Implicit secondary expansion](docs/implicit-secondary-expansion.md) evaluates

@@ -1,0 +1,12 @@
+id = "directory-search-directory-prerequisite-normal"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: directory-prerequisite-normal"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "73656c65637465643d6974656d2e6f75743a642f0a"
+stderr_hex = ""

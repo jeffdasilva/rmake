@@ -1,0 +1,12 @@
+id = "directory-search-file-refresh-dry"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: file-refresh-dry"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f2073656c65637465643d642f6e65772e696e20636f6e74656e743d637265617465640a"
+stderr_hex = ""

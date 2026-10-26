@@ -1,0 +1,12 @@
+id = "directory-search-candidate-write-normal"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: candidate-write-normal"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d65733d642f6e65772e696e0a7365636f6e643d66697273742e6f75740a66697273743d7365636f6e642e6f75743a642f6e65772e696e0a"
+stderr_hex = ""

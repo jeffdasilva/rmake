@@ -1,0 +1,12 @@
+id = "directory-search-dangling-directory-input-parallel"
+requirement = "resolution.directory-search"
+candidate = "required"
+description = "Original directory membership and refresh boundary: dangling-directory-input-parallel"
+provenance = "Original rmake directory-search fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66616c6c6261636b3d642f6974656d2e696e0a63686f73656e3d642f6974656d2e6f75743a642f6974656d2e696e0a"
+stderr_hex = ""

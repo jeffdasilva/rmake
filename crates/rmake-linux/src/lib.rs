@@ -14,6 +14,10 @@ pub mod filesystem;
 pub mod jobserver;
 mod wildcard;
 
+// Preserve incremental reads, dot entries, errno and descriptor ownership.
+#[allow(unsafe_code)]
+mod directory;
+
 #[allow(unsafe_code)]
 mod posix;
 

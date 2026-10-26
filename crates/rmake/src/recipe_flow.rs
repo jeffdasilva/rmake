@@ -33,9 +33,16 @@ pub struct Execution {
     pub ran: bool,
     pub status: Status,
     pub cleanup: Cleanup,
+    /// At completion, every logical recipe line is recursive after prefix scanning.
+    pub all_recursive: bool,
 }
 
 impl Execution {
+    pub fn with_recursion(mut self, all_recursive: bool) -> Self {
+        self.all_recursive = all_recursive;
+        self
+    }
+
     pub fn success(ran: bool) -> Self {
         Self {
             ran,
@@ -48,6 +55,7 @@ impl Execution {
             ran,
             status: Status::Failure,
             cleanup,
+            all_recursive: false,
         }
     }
 
@@ -56,6 +64,7 @@ impl Execution {
             ran,
             status: Status::Fatal,
             cleanup: Cleanup::None,
+            all_recursive: false,
         }
     }
 
@@ -64,6 +73,7 @@ impl Execution {
             ran,
             status: Status::Question,
             cleanup,
+            all_recursive: false,
         }
     }
 }

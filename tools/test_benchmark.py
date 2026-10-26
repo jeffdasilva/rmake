@@ -37,7 +37,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):
@@ -103,6 +103,30 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(source.count(b'absent.a(member '), count)
             self.assertNotIn(b'$(shell', source)
             self.assertTrue(source.endswith(b'all:;\n'))
+
+    def test_directory_search_inputs_are_fixed_time_and_misses_remain_absent(self):
+        from pathlib import Path
+        import tempfile
+        workloads = list(benchmark.selected_workloads('directory-search'))
+        self.assertEqual([name for name, _ in workloads],
+                         ['directory-search-implicit-1000', 'directory-search-vpath-misses-1000'])
+        for name, source in workloads:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory)
+                fixture = benchmark.prepare_files(path, name)
+                files = [file for file in path.rglob('*') if file.is_file()]
+                self.assertEqual(len(files), fixture['files'])
+                self.assertTrue(all(file.read_bytes() == b'original\n'
+                                    and file.stat().st_mtime_ns == fixture['mtime_ns']
+                                    for file in files))
+                self.assertFalse(list(path.glob('cache-missing*')))
+                self.assertNotIn(b'$(shell', source)
+                if 'implicit' in name:
+                    self.assertEqual(len(list(path.glob('*.out'))), 1000)
+                    self.assertEqual(len(list((path / 'inputs').iterdir())), 1000)
+                else:
+                    self.assertEqual(len([item for item in path.iterdir() if item.is_dir()]), 8)
+                    self.assertEqual(len(files), 512)
 
     def test_vpath_records_prepare_current_inputs_and_separate_outputs(self):
         from pathlib import Path

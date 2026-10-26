@@ -1776,3 +1776,32 @@ The `vpath-records` benchmark shows about 4% lower alias-pair elapsed time, abou
 16%/12% higher explicit/implicit lookup time and close core controls. GNU remains
 faster. See [declared VPATH records](vpath-file-records.md) for source references,
 measurement limits and the remaining M4 gates.
+
+
+## Shared directory observations for rule search
+
+Share wildcard names with local implicit viability and VPATH/GPATH membership,
+while preserving fresh literal/build metadata and VPATH's positive stat check.
+Read directories incrementally, share inode contents, refresh lazily at existing
+command/write generations, and retain at most nine partial streams. Bound and
+own libc directory reads, preserve EINTR/EOF/fatal error behavior, and close
+streams safely on allocation failure. Keep record/cache/stat spellings distinct
+for the repeated-trailing-separator quirk.
+
+Match grouped peer timestamp boundaries and local completion observations.
+Discover post-command GPATH identities at the parent's timestamp phase; transport
+recorded recursive-prefix flags, including variable-expanded plus signs.
+
+Add 56 original required Makefiles (12 fail on preceding main), 176 independently
+anchored directory/search programs (71 fail on preceding main), native byte and
+close-on-exec tests, and a stream-budget fault regression. Add the new Makefile/CI
+flow and a self-host case. The repeated graph gate now runs 720 comparisons per
+engine. Corpus: 3,658 cases, with 3,646 required matches and 12 unchanged pending
+mismatches. Stateful coverage remains 57 scenarios / 198 invocations.
+
+A paired benchmark shows about 15% lower repeated VPATH-miss time.
+Core controls are close; other controls have mixed costs, including roughly
+4% higher warm wildcard time and up to 9% higher declared-record lookup
+time. See [shared directory search](shared-directory-search.md) for all values,
+source references, measurement limits and open M4 gates. These do not establish
+general speed parity or complete M4/M8.
