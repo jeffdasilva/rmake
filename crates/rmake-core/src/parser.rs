@@ -268,6 +268,7 @@ pub struct Makefile {
 
 #[derive(Clone, Default)]
 pub struct Database {
+    pub file_records: crate::file_records::FileRecords,
     pub variables: VariableStore,
     /// Target-only variable declarations never create rules or select a goal.
     pub target_scopes: HashMap<Vec<u8>, TargetScope>,
@@ -586,7 +587,11 @@ impl Database {
     /// independent default variable, defined even when builtin rules are off.
     /// Existing higher-priority variables and explicit rules are preserved.
     pub fn initialize_suffixes(&mut self, builtin_rules: bool) -> Result<(), ExpandError> {
+        self.file_records.insert(b".SUFFIXES");
         let suffixes = if builtin_rules { DEFAULT_SUFFIXES } else { b"" };
+        for name in words(suffixes) {
+            self.file_records.insert(name);
+        }
         self.variables
             .define_literal(b"SUFFIXES", suffixes, Origin::Default)?;
         if builtin_rules {
@@ -1441,6 +1446,7 @@ impl Database {
                 continue;
             }
             let target = pattern.literal_bytes();
+            self.file_records.insert(target);
             let scope = self.target_scopes.entry(target.to_vec()).or_default();
             let parse_variables = scope.context(&self.variables);
             let name = parse_variables
@@ -2150,6 +2156,7 @@ impl Database {
                         words(&matches).map(Vec::from).collect()
                     };
                     for path in paths {
+                        self.file_records.insert(&path);
                         let result = context.read_include(&path).ok_or_else(|| ParseError {
                             unlocated: false,
                             location: location.clone(),
@@ -2575,6 +2582,13 @@ impl Database {
             } else {
                 None
             };
+            let record_start = if !implicit {
+                self.rules
+                    .get(target)
+                    .map_or(0, |rule| rule.dependencies.len())
+            } else {
+                0
+            };
             let mut group_ordinal = 0;
             let rule = if let Some(pattern) = declaration.patterns.get(target) {
                 let index = *declaration
@@ -2712,12 +2726,25 @@ impl Database {
                         } else {
                             name
                         };
-                        if !declaration.patterns.contains_key(target) {
+                        if !declaration.patterns.contains_key(target) && stem.is_none() {
                             self.explicit_names.insert(name.clone());
                         }
                         rule.dependencies.push(Dependency { name, order_only });
                     }
                 }
+            }
+            if !implicit {
+                if !secondary && !unmatched {
+                    // Clearing .SUFFIXES can shorten the rule below its old length.
+                    let start = record_start.min(rule.dependencies.len());
+                    for dependency in rule.dependencies[start..]
+                        .iter()
+                        .filter(|dep| dep.name != b".WAIT")
+                    {
+                        self.file_records.insert(&dependency.name);
+                    }
+                }
+                self.file_records.insert(target);
             }
             let duplicate = !declaration.recipes.is_empty()
                 && !double_colon

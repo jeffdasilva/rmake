@@ -25,6 +25,8 @@ The primary conformance corpus remains original. Any later upstream-derived test
 must be separately identified and attributed; they supplement rather than replace
 independent coverage. The reference executable remains a test tool, not a runtime
 fallback. No GNU implementation code or upstream tests have been incorporated.
+The [file-record notes](file-record-order.md) record the hash/table and lifecycle
+references, original numeric observations and declarative suffix-name ordering.
 The [ordinary recipe lifecycle notes](forced-touch.md) record the source sections
 consulted for that independently written implementation and its later fixtures.
 The [pattern-variable notes](pattern-scopes.md) record the binding, activation

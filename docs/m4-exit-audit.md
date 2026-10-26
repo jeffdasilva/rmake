@@ -27,7 +27,7 @@ filesystem edge cases match across every rule family.
 | Area | Direct evidence | Required follow-up |
 | --- | --- | --- |
 | `.EXTRA_PREREQS` | GNU executes the hidden prerequisite below; rmake does not. | Add hidden dependency records and GNU expansion/scope/recording phases; keep them out of automatic variables while retaining update/failure effects. |
-| Intermediate cleanup ordering | Existing `chain-two-roots` is pending: GNU emits `rm b.mid a.mid`. | Model file-record table order, including insertion/collisions/resizing/renaming; sorting just the removed names is insufficient. |
+| File-record cross-effects | The [file-record slice](file-record-order.md) resolves `chain-two-roots` and covered collision/growth/lifecycle paths. | Finish hidden-prerequisite and archive-container recording phases and combination checks. |
 | Recursive HOME filename queries | The [tilde notes](rule-tilde.md) preserve a probe where GNU's shared scratch buffer yields `earlyarker`. | Resolve the compatibility/safety boundary explicitly. Do not introduce unsafe memory corruption or count it as matching. |
 | Archive observations | Earlier slices retain standalone-member/container timestamp and metadata-error ordering gaps. | Expand the I/O/error matrix and file-record timing tests before claiming completeness. |
 
