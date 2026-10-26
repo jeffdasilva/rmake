@@ -1860,3 +1860,28 @@ close default core and ordinary wildcard controls. The new `-L` workloads remain
 slower than GNU. The development-prototype pathname-allocation comparison shows
 no clear elapsed-time gain. See [symlink timestamps](symlink-timestamps.md) for
 all values, executable identities, limits and open M4/M8 gates.
+
+
+## Rule filename quoting and wildcard identity
+
+Preserve filename boundaries through target/prerequisite parsing, scopes,
+secondary expansion and implicit search. Support quoted blanks, literal colon
+and normal/order-only pipe semantics, raw filename bytes and ordinary rule globs.
+Observe target globs before prerequisite expansion, preserve one filename per
+match, and retain GNU's single-word implicit and word-based static stem phases.
+
+Borrow unchanged filename tokens and common raw target prefixes, eliminating
+unnecessary temporary copies without a persistent cache. Add 109 original
+required Makefiles (89 fail on preceding main) and two stateful scenarios totaling
+20 invocations with complete byte/status and fixed timestamp anchors. Corpus:
+4,020 cases, 4,008 required matches and 12 unchanged pending mismatches. Stateful:
+63 scenarios / 261 invocations. Internal checks: 383 Rust / 279 tooling tests.
+
+Paired 101-sample measurements retain selected core/rule-search costs of about
+2-4% over preceding main, with ordinary wildcard controls close. GNU is faster
+in the new filename workloads; the allocation changes establish no general
+elapsed-time gain.
+
+See [rule filename sequences](rule-filenames.md) for behavior, source references,
+measurement evidence and open gates. These changes do not complete M4/M8 or
+establish general speed parity.

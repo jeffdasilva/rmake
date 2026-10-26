@@ -1,6 +1,6 @@
 # Stateful timestamp fixtures
 
-The current 61 original scenarios make 241 serial invocations per engine. Every case is required; there is no pending classification. They cover incremental rebuilds and no-ops, deletion, equal and adjacent nanosecond timestamps, order-only prerequisites, a rebuilt child restoring its old timestamp, dry-run propagation, question mode, always-make automatic variables, and touch mode.
+The current 63 original scenarios make 261 serial invocations per engine. Every case is required; there is no pending classification. They cover incremental rebuilds and no-ops, deletion, equal and adjacent nanosecond timestamps, order-only prerequisites, a rebuilt child restoring its old timestamp, dry-run propagation, question mode, always-make automatic variables, and touch mode.
 
 Eight lifecycle scenarios add forced-command touch completion, dry-run timestamp preservation, query continuation deletion, optimized colon commands, precious/phony protection, and changed-content targets with restored timestamps. They were independently authored after the [source-informed behavior investigation](../../docs/forced-touch.md); no upstream tests or implementation text were copied. Exact timestamp and unchanged-file expectations distinguish normal failure cleanup from continuation cleanup. Later verification steps independently check preserved content, deletion, and absence of forbidden recipe output.
 
@@ -28,3 +28,8 @@ authored anchors, including NUL padding, metadata fields and payloads.
 Three symlink-time scenarios add 31 invocations with exact link/hop/referent/output
 nanoseconds, dangling and restored chains, mode changes, deletion/rebuild, and
 archive-member second boundaries with complete-byte header expectations.
+
+`filename-quoted-rebuilds` and `filename-glob-transitions` add twenty invocations
+with space-containing target/input names, order-only changes, missing/restored
+inputs, fresh wildcard membership, query/dry/parallel/forced builds, exact bytes
+and fixed nanosecond output timestamps.

@@ -35,7 +35,10 @@ a twelve-step archive transition scenario and borrowed member views that avoid
 unnecessary name copies. The [symlink-time slice](symlink-timestamps.md) adds
 `-L`, link-aware timestamps, 77 required Makefiles, 52 syscall-fault programs
 and three stateful scenarios totaling 31 invocations. It also reuses archive
-matchers per scan. These do not complete M4.
+matchers per scan. The [rule filename slice](rule-filenames.md) adds quoted
+blank/colon/pipe semantics, ordinary rule globs, preserved implicit filename
+boundaries and GNU static-stem substitution, with 109 required Makefiles and
+two stateful scenarios totaling twenty invocations. These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 
 ## Milestones and exit criteria

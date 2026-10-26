@@ -90,6 +90,20 @@ def selected_workloads(suite):
         yield from archive_name_workloads()
     if suite in ("symlink-times", "all"):
         yield from symlink_time_workloads()
+    if suite in ("rule-filenames", "all"):
+        yield from rule_filename_workloads()
+
+
+def rule_filename_workloads():
+    """Parsing and filename identity costs with no recipe subprocesses."""
+    quoted = [f'rule\\ {index:04d}' for index in range(2000)]
+    yield 'rule-filenames-quoted-2000', ('all: ' + ' '.join(quoted) + ' ;\n'
+                                        + ''.join(name + ': ;\n' for name in quoted)).encode()
+    yield 'rule-filenames-glob-1000', b'all: rule-inputs/*.in ;\n'
+    yield 'rule-filenames-secondary-1000', (b'.SECONDEXPANSION:\nP=rule-inputs/*.in\n'
+                                           b'all: $$(P) ;\n')
+    targets = ' '.join(f'rule\\ {index:04d}.out' for index in range(500))
+    yield 'rule-filenames-implicit-500', ('all: ' + targets + ' ;\n%.out: %.in ;\n').encode()
 
 
 def symlink_time_workloads():
@@ -348,6 +362,23 @@ def prepare_archive_names(path, kind, count):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('rule-filenames-'):
+        kind, count = workload.removeprefix('rule-filenames-').rsplit('-', 1)
+        count = int(count)
+        directory = path / 'rule-inputs'
+        directory.mkdir(exist_ok=True)
+        for previous in directory.iterdir():
+            previous.unlink()
+        for previous in path.glob('rule *.in'):
+            previous.unlink()
+        if kind in ('glob', 'secondary', 'implicit'):
+            for index in range(count):
+                target = (path / f'rule {index:04d}.in' if kind == 'implicit'
+                          else directory / f'input {index:04d}.in')
+                target.write_bytes(b'input\n')
+                os.utime(target, ns=(1600000000000000000,) * 2)
+        return {'files': 0 if kind == 'quoted' else count,
+                'quoted_names': count, 'recipe_subprocesses': 0}
     if workload.startswith('symlink-times-'):
         _, _, kind, count = workload.split('-')
         count = int(count)
@@ -514,7 +545,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

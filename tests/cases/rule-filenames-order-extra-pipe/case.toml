@@ -1,0 +1,12 @@
+id = "rule-filenames-order-extra-pipe"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "order-extra-pipe"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c616c6c3e2066697273743d3c696e3e20616c6c3d3c696e3e206f726465723d3c6f72646572207c207461696c3e207374656d3d3c3e0a"
+stderr_hex = ""

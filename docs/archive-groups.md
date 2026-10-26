@@ -50,3 +50,7 @@ separate slice; GPATH/permanent renaming and the other remaining M4 gates are op
 Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
 selected alias/parallel interactions. Earlier corpus counts and open-work lists
 above describe this document's original slice; M4 still has broader open gates.
+
+The later [rule filename slice](rule-filenames.md) adds ordinary rule globs and
+quoted blank/colon/pipe handling, with separate implicit/static parsing phases.
+Escaped semicolon and broader reader interactions remain open.

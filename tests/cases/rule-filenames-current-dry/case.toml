@@ -1,0 +1,12 @@
+id = "rule-filenames-current-dry"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "current-dry"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory", "-n", "out file"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20276f75742066696c652720697320757020746f20646174652e0a"
+stderr_hex = ""

@@ -600,6 +600,58 @@ impl Database {
     }
 }
 
+fn stem_words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
+    bytes
+        .split(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
+        .filter(|word| !word.is_empty())
+}
+
+/// GNU validates the whole target against the static pattern, then derives its
+/// stem by substituting each word. Embedded blanks therefore matter twice.
+fn static_stem(pattern: &Pattern, target: &[u8]) -> Vec<u8> {
+    let mut stem = Vec::new();
+    for word in stem_words(target) {
+        let part = pattern.matches(word).unwrap_or(word);
+        if part.is_empty() {
+            continue;
+        }
+        if !stem.is_empty() {
+            stem.push(b' ');
+        }
+        stem.extend_from_slice(part);
+    }
+    stem
+}
+
+fn static_prerequisite(name: &[u8], stem: &[u8]) -> Result<Vec<u8>, ExpandError> {
+    let pattern = Pattern::new(name);
+    if !pattern.has_wildcard() {
+        return Ok(name.to_vec());
+    }
+    if stem.is_empty() {
+        return pattern.replace(stem);
+    }
+    let mut result = Vec::new();
+    for word in stem_words(stem) {
+        let name = pattern.replace(word)?;
+        if name.is_empty() {
+            continue;
+        }
+        if result
+            .len()
+            .saturating_add(name.len() + usize::from(!result.is_empty()))
+            > MAX_OUTPUT
+        {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        if !result.is_empty() {
+            result.push(b' ');
+        }
+        result.extend_from_slice(&name);
+    }
+    Ok(result)
+}
+
 /// GNU's deferred static prerequisite pass rewrites the first percent in each
 /// whitespace-delimited word to a stem reference, even inside surviving syntax.
 fn static_secondary_prerequisites(bytes: &[u8]) -> Vec<u8> {
@@ -734,24 +786,30 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
         .filter(|word| !word.is_empty())
 }
 
-/// Expand only archive rule globs through the runtime boundary. Keep ordinary
-/// filename words borrowed, and never reuse the wildcard function's archive
-/// output: GNU intentionally exposes different names through those two paths.
+/// Rule names retain unmatched globs and use NUL-separated filesystem results
+/// so a matched filename never becomes another list of words. Ordinary names
+/// stay borrowed and never cross the filesystem-effect boundary.
 pub fn rule_filenames<'a>(
     bytes: &'a [u8],
     context: &mut ExpansionContext<'_>,
 ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
-    let archive = bytes.contains(&b'(');
-    let names = if archive {
+    let scan = bytes
+        .iter()
+        .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'['));
+    let names = if scan {
         let mut names = Vec::new();
         let mut size = 0usize;
         for name in crate::filenames::sequence(bytes) {
-            if crate::filenames::archive_parts(&name).is_some()
-                && name.iter().any(|b| matches!(b, b'*' | b'?' | b'['))
-            {
+            let glob = name.iter().any(|b| matches!(b, b'*' | b'?' | b'['));
+            if glob {
+                let effect = if crate::filenames::archive_parts(&name).is_some() {
+                    FilesystemEffect::ArchiveGlob(&name)
+                } else {
+                    FilesystemEffect::RuleGlob(&name)
+                };
                 let result = context
-                    .perform_filesystem(FilesystemEffect::ArchiveGlob(&name))
-                    .ok_or_else(|| ExpandError::Unsupported(b"archive rule wildcard".to_vec()))?
+                    .perform_filesystem(effect)
+                    .ok_or_else(|| ExpandError::Unsupported(b"rule wildcard".to_vec()))?
                     .map_err(|error| match error {
                         FilesystemError::Caller(message) => ExpandError::FileError(message),
                         FilesystemError::Unlocated(message) => ExpandError::UnlocatedError(message),
@@ -779,7 +837,7 @@ pub fn rule_filenames<'a>(
         .into_iter()
         .flatten()
         .map(Cow::Owned)
-        .chain(words(if archive { b"" } else { bytes }).map(Cow::Borrowed))
+        .chain(crate::filenames::words(if scan { b"" } else { bytes }))
         .map(|name| match name {
             Cow::Borrowed(bytes) => Cow::Borrowed(crate::filenames::without_dot_prefix(bytes)),
             Cow::Owned(mut bytes) => {
@@ -805,24 +863,6 @@ fn parsed_rule_filenames<'a>(
         location: location.clone(),
         message: error.diagnostic(),
     })
-}
-
-/// Percent quoting is shared with pattern matching. Other escaped filename
-/// syntax remains unsupported by this reader rather than being reinterpreted.
-fn only_percent_escapes(bytes: &[u8]) -> bool {
-    let mut cursor = 0;
-    while cursor < bytes.len() {
-        if bytes[cursor] == b'\\' {
-            while bytes.get(cursor) == Some(&b'\\') {
-                cursor += 1;
-            }
-            if bytes.get(cursor) != Some(&b'%') {
-                return false;
-            }
-        }
-        cursor += 1;
-    }
-    true
 }
 
 /// Find a separator outside nested make references. It is deliberately not a
@@ -1102,7 +1142,7 @@ impl Database {
                     Some(_) => start + 2,
                     None => start + 1,
                 };
-                self.expand(&bytes[start..consumed], location, context)?
+                Cow::Owned(self.expand(&bytes[start..consumed], location, context)?)
             } else {
                 consumed += 1;
                 while consumed < limit
@@ -1111,7 +1151,26 @@ impl Database {
                 {
                     consumed += 1;
                 }
-                bytes[start..consumed].to_vec()
+                let raw = &bytes[start..consumed];
+                if !raw.iter().any(|byte| matches!(byte, b' ' | b'\t'..=b'\r')) {
+                    // The common target prefix needs no temporary allocation.
+                    Cow::Borrowed(raw)
+                } else {
+                    let mut part = Vec::with_capacity(raw.len());
+                    let mut blank = false;
+                    for &byte in raw {
+                        if matches!(byte, b' ' | b'\t'..=b'\r') {
+                            if !blank {
+                                part.push(b' ');
+                            }
+                            blank = true;
+                        } else {
+                            part.push(byte);
+                            blank = false;
+                        }
+                    }
+                    Cow::Owned(part)
+                }
             };
             if expanded.len().saturating_add(part.len()) > MAX_OUTPUT {
                 return Err(ParseError {
@@ -1227,7 +1286,8 @@ impl Database {
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let targets = parsed_rule_filenames(targets, location, context)?.collect::<Vec<_>>();
+        let targets = crate::filenames::target_colons(targets);
+        let targets = parsed_rule_filenames(&targets, location, context)?.collect::<Vec<_>>();
         if targets.last().is_some_and(|target| target.ends_with(b"&")) {
             return Err(ParseError {
                 unlocated: false,
@@ -1262,13 +1322,6 @@ impl Database {
                 self.pattern_assignments
                     .push(PatternAssignment { pattern, variable });
                 continue;
-            }
-            if !only_percent_escapes(target) {
-                return Err(ParseError {
-                    unlocated: false,
-                    location: location.clone(),
-                    message: "rmake: escaped target names are not implemented".into(),
-                });
             }
             let target = pattern.literal_bytes();
             let scope = self.target_scopes.entry(target.to_vec()).or_default();
@@ -2106,14 +2159,17 @@ impl Database {
             // GNU observes target globs before expanding the prerequisite
             // tail. A shell/file effect in that tail must not change which
             // targets this declaration names. Ordinary words remain borrowed.
-            let archive_targets = if let Some(colon) = prefix_expansion.colon
-                && prefix_expansion.expanded[..colon].contains(&b'(')
+            let observed_targets = if let Some(colon) = prefix_expansion.colon
+                && prefix_expansion.expanded[..colon]
+                    .iter()
+                    .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'['))
             {
                 let targets = prefix_expansion.expanded[..colon]
                     .strip_suffix(b"&")
                     .unwrap_or(&prefix_expansion.expanded[..colon]);
+                let targets = crate::filenames::target_colons(targets);
                 Some(
-                    parsed_rule_filenames(targets, &location, context)?
+                    parsed_rule_filenames(&targets, &location, context)?
                         .map(Cow::into_owned)
                         .collect::<Vec<_>>(),
                 )
@@ -2173,21 +2229,17 @@ impl Database {
             declaration.location = Some(location.clone());
             declaration.grouped = grouped;
             let target_end = colon - usize::from(grouped);
-            let early_targets = archive_targets.is_some();
-            let targets =
-                archive_targets
-                    .into_iter()
-                    .flatten()
-                    .map(Cow::Owned)
-                    .chain(parsed_rule_filenames(
-                        if early_targets {
-                            b""
-                        } else {
-                            &expanded[..target_end]
-                        },
-                        &location,
-                        context,
-                    )?);
+            let early_targets = observed_targets.is_some();
+            let target_text = crate::filenames::target_colons(&expanded[..target_end]);
+            let targets = observed_targets
+                .into_iter()
+                .flatten()
+                .map(Cow::Owned)
+                .chain(parsed_rule_filenames(
+                    if early_targets { b"" } else { &target_text },
+                    &location,
+                    context,
+                )?);
             for target in targets {
                 let target = target.as_ref();
                 let pattern = Pattern::new(target);
@@ -2195,13 +2247,6 @@ impl Database {
                     declaration
                         .patterns
                         .insert(pattern.literal_bytes().to_vec(), pattern.clone());
-                }
-                if !only_percent_escapes(target) {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: "rmake: escaped target names are not implemented".into(),
-                    });
                 }
                 declaration.targets.push(pattern.literal_bytes().to_vec());
             }
@@ -2214,8 +2259,9 @@ impl Database {
             }
             let mut prereqs = &expanded[colon + 1 + usize::from(double_colon)..];
             let static_pattern = if let Some(second) = expanded_colon(prereqs) {
-                let patterns: Vec<_> = words(&prereqs[..second]).collect();
-                if patterns.len() != 1 || !Pattern::new(patterns[0]).has_wildcard() {
+                let pattern_text = crate::filenames::target_colons(&prereqs[..second]);
+                let patterns: Vec<_> = crate::filenames::words(&pattern_text).collect();
+                if patterns.len() != 1 || !Pattern::new(&patterns[0]).has_wildcard() {
                     return Err(ParseError {
                         unlocated: false,
                         location,
@@ -2229,21 +2275,28 @@ impl Database {
                         .into(),
                     });
                 }
-                let pattern = Pattern::new(patterns[0]);
+                let pattern = Pattern::new(&patterns[0]);
                 prereqs = &prereqs[second + 1..];
                 Some(pattern)
             } else {
                 None
             };
+            let prereqs = crate::filenames::unquote_colons(prereqs);
+            let prereqs = prereqs.as_ref();
             let secondary =
                 self.rules.contains_key(b".SECONDEXPANSION".as_slice()) && prereqs.contains(&b'$');
-            let (normal, order) = separator(prereqs, b'|')
-                .map_or((prereqs, &b""[..]), |i| (&prereqs[..i], &prereqs[i + 1..]));
-            let empty_dependencies =
-                words(normal).next().is_none() && words(order).next().is_none();
+            let (normal, order) = crate::filenames::split_order(prereqs);
+            let normal = normal.as_ref();
+            let order = order.unwrap_or_default();
+            let empty_dependencies = crate::filenames::words(normal).next().is_none()
+                && crate::filenames::words(order).next().is_none();
             // A declaration's wildcard observations occur once, before static
             // stem replacement, and remain deferred with secondary expansion.
-            let prerequisite_names = if secondary || !prereqs.contains(&b'(') {
+            let prerequisite_names = if secondary
+                || !prereqs
+                    .iter()
+                    .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'['))
+            {
                 None
             } else {
                 let mut names = Vec::new();
@@ -2288,9 +2341,7 @@ impl Database {
                 }
                 let mut unmatched = false;
                 let stem = if let Some(pattern) = &static_pattern {
-                    if let Some(stem) = pattern.matches(target) {
-                        Some(stem.to_vec())
-                    } else {
+                    if pattern.matches(target).is_none() {
                         record_warning(
                             &mut self.warnings,
                             context,
@@ -2304,8 +2355,8 @@ impl Database {
                             .into(),
                         );
                         unmatched = true;
-                        Some(target.clone())
                     }
+                    Some(static_stem(pattern, target))
                 } else {
                     None
                 };
@@ -2414,31 +2465,35 @@ impl Database {
                     .offsets
                     .entry(target.clone())
                     .or_insert(rule.dependencies.len());
-                let archive_prereqs = prerequisite_names.is_some();
+                let observed_prereqs = prerequisite_names.is_some();
                 let names = prerequisite_names
                     .as_ref()
                     .into_iter()
                     .flatten()
-                    .map(|(name, order_only)| (name.as_ref(), *order_only))
+                    .map(|(name, order_only)| (Cow::Borrowed(name.as_ref()), *order_only))
                     .chain(
-                        words(if archive_prereqs { b"" } else { normal }).map(|name| (name, false)),
+                        crate::filenames::words(if observed_prereqs { b"" } else { normal })
+                            .map(|name| (name, false)),
                     )
                     .chain(
-                        words(if archive_prereqs { b"" } else { order }).map(|name| (name, true)),
+                        crate::filenames::words(if observed_prereqs { b"" } else { order })
+                            .map(|name| (name, true)),
                     );
                 for (name, order_only) in names {
                     let name = if let Some(stem) = &stem {
-                        Pattern::new(name)
-                            .replace(stem)
-                            .map_err(|error| ParseError {
-                                unlocated: false,
-                                location: location.clone(),
-                                message: error.diagnostic(),
-                            })?
+                        static_prerequisite(&name, stem).map_err(|error| ParseError {
+                            unlocated: false,
+                            location: location.clone(),
+                            message: error.diagnostic(),
+                        })?
                     } else {
-                        name.to_vec()
+                        name.into_owned()
                     };
-                    let name = if name.is_empty() || name.starts_with(b"./") {
+                    // Static replacement can erase the entire prerequisite.
+                    if name.is_empty() {
+                        continue;
+                    }
+                    let name = if name.starts_with(b"./") {
                         crate::filenames::without_dot_prefix(&name).to_vec()
                     } else {
                         name
@@ -3507,7 +3562,9 @@ mod tests {
         let mut patterns = Database::default();
         patterns.read(b"%.o:;\n", b"m").unwrap();
         assert_eq!(patterns.implicit_candidates(b"file.o").len(), 1);
-        assert!(Database::default().read(b"a\\ b:;\n", b"m").is_err());
+        let mut quoted = Database::default();
+        quoted.read(b"a\\ b:;\n", b"m").unwrap();
+        assert!(quoted.rules.contains_key(b"a b".as_slice()));
     }
 
     #[test]

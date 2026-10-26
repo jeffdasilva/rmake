@@ -1,0 +1,12 @@
+id = "rule-filenames-glob-escaped-no-match"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "glob-escaped-no-match"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027737461725c2a2e696e272c206e65656465642062792027616c6c272e202053746f702e0a"

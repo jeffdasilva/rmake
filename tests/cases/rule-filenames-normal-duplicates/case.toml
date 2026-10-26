@@ -1,0 +1,12 @@
+id = "rule-filenames-normal-duplicates"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "normal-duplicates"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6120627c6120627c612062206120627c6f72642066696c657c6120625d0a"
+stderr_hex = ""

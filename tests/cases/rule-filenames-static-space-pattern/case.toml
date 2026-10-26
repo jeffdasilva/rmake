@@ -1,0 +1,12 @@
+id = "rule-filenames-static-space-pattern"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "static-space-pattern"
+provenance = "Original Makefile, filename bytes and independently authored output/status anchors; no upstream tests or code copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d3c74776f20776f7264732e6f75743e2066697273743d3c74776f2e696e20776f7264732e6f75742e696e3e20616c6c3d3c74776f2e696e20776f7264732e6f75742e696e3e206f726465723d3c3e207374656d3d3c74776f20776f7264732e6f75743e0a"
+stderr_hex = ""

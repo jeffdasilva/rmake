@@ -132,3 +132,8 @@ conversion/lifetime follow-up and original archive/Makefile/stateful fixtures.
 The [symlink-time notes](symlink-timestamps.md) record GNU `remake.c` / `main.c`
 and Linux/glibc interface references for the independently written timestamp
 observer, option handling, matcher reuse and original test programs.
+
+The [rule filename notes](rule-filenames.md) identify the GNU 4.4.1 reader,
+prerequisite and implicit-search phases consulted for the independently written
+filename scanner and rule-expansion follow-up. No upstream code or tests were
+incorporated.
