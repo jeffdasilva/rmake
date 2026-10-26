@@ -58,3 +58,19 @@ campaigns for each engine and top-level self-host gates passed. Core checks pass
 `207b7291dfcfcf7095756cc552b4fe8e0be1c0b18915196a8270fb82a8129f73`.
 Release SHA-256:
 `04f6e172292bcbdae29912bb107ce1ad0c8bb0672198ae7242daf94f7c5a7656`.
+
+A paired 101-sample core benchmark (two warmups, alternating engine order, warm
+OS cache, exact status/stream checks) measured median milliseconds:
+
+| Workload | GNU | This release | Previous main |
+| --- | ---: | ---: | ---: |
+| startup | 0.625 | 0.706 | 0.706 |
+| 10,000 target no-op | 11.472 | 34.491 | 31.459 |
+| expansion | 2.811 | 4.755 | 4.755 |
+
+The filename index adds measurable no-op cost; this is compatibility work, not a
+speedup claim. Avoiding redundant registration during rule storage is follow-up
+performance work. There was no concurrent validation during measurement. The
+ignored report `artifacts/bench/file-record-core-101.json` retains all samples,
+identities and limitations. There is no CPU isolation, CPU/RSS/I/O profiling or
+threshold gate; GNU remains faster in these workloads.
