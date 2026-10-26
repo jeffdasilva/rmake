@@ -1,0 +1,11 @@
+id = "extra-prereqs-policy-global-notintermediate"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Hidden intermediate record snapshot with global-notintermediate."
+provenance = "Original Makefile, fixed nanosecond inputs and exact stream/status anchors; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6964646c650a6275696c740a616c6c0a"
+stderr_hex = "6d616b653a2043697263756c61722068696464656e2e6d6964203c2d2068696464656e2e6d696420646570656e64656e63792064726f707065642e0a"

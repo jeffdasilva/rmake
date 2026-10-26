@@ -91,6 +91,17 @@ impl FileRecords {
         self.insert(to);
     }
 
+    pub fn slots_len(&self) -> usize {
+        self.slots.len()
+    }
+
+    pub fn name_in_slot(&self, index: usize) -> Option<&[u8]> {
+        self.slots
+            .get(index)
+            .and_then(|slot| slot.as_deref())
+            .filter(|name| !name.is_empty())
+    }
+
     pub fn names(&self) -> impl Iterator<Item = &[u8]> {
         self.slots
             .iter()

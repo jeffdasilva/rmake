@@ -1,0 +1,11 @@
+id = "extra-prereqs-builtin-selected-record"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Selected builtin records become targets even when their commands leave no output file."
+provenance = "Original source and exact priority/stream/status anchors; no upstream tests copied."
+args = ["--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "extra-prereqs-local-makefile-record"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: local-makefile-record."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = "4d460a68696464656e0a6f746865720a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420274d616b6566696c65272e202053746f702e0a"

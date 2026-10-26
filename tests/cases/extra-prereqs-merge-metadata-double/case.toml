@@ -1,0 +1,11 @@
+id = "extra-prereqs-merge-metadata-double"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "VPATH merges retain target identity and preserve double-colon identity and head-only merging from real targets."
+provenance = "Original physical file, Makefile and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "68696464656e0a76697369626c650a646f6e650a"
+stderr_hex = ""

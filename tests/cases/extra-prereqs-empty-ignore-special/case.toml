@@ -1,0 +1,11 @@
+id = "extra-prereqs-empty-ignore-special"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: empty-ignore-special."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "68696464656e0a"
+stderr_hex = "6d616b653a205b4d616b6566696c653a333a20616c6c5d204572726f722031202869676e6f726564290a"

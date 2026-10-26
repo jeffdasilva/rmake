@@ -1,0 +1,132 @@
+id = "extra-prerequisite-transitions"
+description = "Hidden normal/order-only freshness, missing files, scopes, dry runs and parallel rebuilds"
+provenance = "Original Makefile, helper, fixed nanosecond transitions and exact independent stream/status anchors; no upstream tests copied."
+initial = [{"op" = "write", "path" = "config.mk", "content" = ".EXTRA_PREREQS=hidden\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "input", "content" = "input\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "hidden", "content" = "initial hidden\n", "mtime_ns" = 1600000002000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000003000000000", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "missing-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = []
+exact_mtime = {}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "initial-build"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000003000000000}
+expected = {"exit_code" = 0, "stdout" = "built=[input|input|input|input|]\noriginal output\n", "stderr" = ""}
+
+[[steps]]
+name = "current-query"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000003000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "hidden-newer-query"
+actions = [{"op" = "write", "path" = "hidden", "content" = "new hidden\n", "mtime_ns" = 1600000005000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000006000000000", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000003000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "hidden-rebuild-excluded-from-autos"
+actions = []
+args = ["-rR", "--no-print-directory", "verify"]
+unchanged = []
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "built=[input|input|input||]\noriginal output\n", "stderr" = ""}
+
+[[steps]]
+name = "hidden-dry"
+actions = [{"op" = "write", "path" = "hidden", "content" = "newer hidden\n", "mtime_ns" = 1600000008000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000009000000000", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-n", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000006000000000}
+expected = {"exit_code" = 0, "stdout" = "python3 build.py 'input' 'input' 'input' '' ''\n", "stderr" = ""}
+
+[[steps]]
+name = "hidden-parallel"
+actions = []
+args = ["-rR", "--no-print-directory", "-j4", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000009000000000}
+expected = {"exit_code" = 0, "stdout" = "built=[input|input|input||]\n", "stderr" = ""}
+
+[[steps]]
+name = "order-only-newer-stays-current"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".EXTRA_PREREQS=| hidden\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "hidden", "content" = "order only\n", "mtime_ns" = 1600000012000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000009000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "order-only-missing-fails"
+actions = [{"op" = "remove", "path" = "hidden"}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000009000000000}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'hidden', needed by 'out'.  Stop.\n"}
+
+[[steps]]
+name = "local-empty-suppresses-global"
+actions = [{"op" = "write", "path" = "hidden", "content" = "restored\n", "mtime_ns" = 1600000012000000000}, {"op" = "write", "path" = "config.mk", "content" = ".EXTRA_PREREQS=hidden\nout: .EXTRA_PREREQS=\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000009000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "unrelated-local-suppresses-global"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".EXTRA_PREREQS=hidden\nout: X=value\n", "mtime_ns" = 1600000000000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000009000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "local-selected-newer"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".EXTRA_PREREQS=other\nout: .EXTRA_PREREQS=hidden\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "hidden", "content" = "local\n", "mtime_ns" = 1600000013000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000014000000000", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "other", "content" = "irrelevant global\n", "mtime_ns" = 1600000020000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000009000000000}
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "local-build-parallel"
+actions = []
+args = ["-rR", "--no-print-directory", "-j4", "out"]
+unchanged = []
+exact_mtime = {"out" = 1600000014000000000}
+expected = {"exit_code" = 0, "stdout" = "built=[input|input|input||]\n", "stderr" = ""}
+
+[[steps]]
+name = "global-newer-still-suppressed"
+actions = []
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000014000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}
+
+[[steps]]
+name = "normal-hidden-missing-fails"
+actions = [{"op" = "write", "path" = "config.mk", "content" = ".EXTRA_PREREQS=hidden\n", "mtime_ns" = 1600000000000000000}, {"op" = "remove", "path" = "hidden"}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000014000000000}
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "make: *** No rule to make target 'hidden', needed by 'out'.  Stop.\n"}
+
+[[steps]]
+name = "restore-old-hidden-stays-current"
+actions = [{"op" = "write", "path" = "hidden", "content" = "old restored\n", "mtime_ns" = 1600000013000000000}]
+args = ["-rR", "--no-print-directory", "-q", "out"]
+unchanged = ["out"]
+exact_mtime = {"out" = 1600000014000000000}
+expected = {"exit_code" = 0, "stdout" = "", "stderr" = ""}

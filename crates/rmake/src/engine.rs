@@ -144,7 +144,7 @@ fn secondary_automatic(
     let normal = dependencies
         .iter()
         .zip(ready)
-        .filter(|(d, ready)| **ready && !d.order_only && d.name != b".WAIT")
+        .filter(|(d, ready)| **ready && !d.order_only && !d.hidden && d.name != b".WAIT")
         .map(|(d, _)| d.name.as_slice());
     let first_normal = normal.clone().next().unwrap_or_default().to_vec();
     let plus = joined(normal.map(prerequisite_variable_name));
@@ -153,7 +153,7 @@ fn secondary_automatic(
     let mut first = HashMap::new();
     let mut promotions = Vec::new();
     for (index, (dependency, ready)) in dependencies.iter().zip(ready).enumerate() {
-        if !ready || dependency.name == b".WAIT" {
+        if !ready || dependency.hidden || dependency.name == b".WAIT" {
             continue;
         }
         let (first_index, order_only) = first
@@ -171,7 +171,9 @@ fn secondary_automatic(
     let canonical: Vec<_> = dependencies
         .iter()
         .zip(ready)
-        .filter(|(d, ready)| **ready && d.name != b".WAIT" && seen.insert(d.name.as_slice()))
+        .filter(|(d, ready)| {
+            **ready && !d.hidden && d.name != b".WAIT" && seen.insert(d.name.as_slice())
+        })
         .map(|(d, _)| d)
         .collect();
     [
@@ -1296,8 +1298,47 @@ impl Engine {
                 }
             };
             self.database.freeze_rules();
+            let extra_records = match self.database.snap_extra_prerequisites(
+                self.intermediate_policy.all_secondary,
+                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    })
+                    .with_includes(&mut |name| self.include_search.read(name)),
+            ) {
+                Ok(records) => records,
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return 2;
+                }
+            };
+            self.intermediate_policy
+                .capture_extra_records(extra_records);
             if !self.options.no_rules {
                 self.database.record_builtin_suffixes();
+            }
+            if let Err(error) = self.database.finalize_implicit_rules(
+                !self.options.no_rules,
+                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+            ) {
+                self.fatal(error.source_location(), error.message.as_bytes());
+                return 2;
+            }
+            if let Err(error) = self.database.snap_implicit_extra_prerequisites(
+                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result = crate::shell::run(request, &self.program, self.makelevel);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    })
+                    .with_includes(&mut |name| self.include_search.read(name)),
+            ) {
+                self.expansion_error(None, &error);
+                return 2;
             }
             let vpath = match self.expand_global(b"$(VPATH)", None) {
                 Ok(value) => value,
@@ -1330,13 +1371,6 @@ impl Engine {
                 .filter(|path| *path != b".")
                 .map(Vec::from)
                 .collect();
-            if let Err(error) = self.database.finalize_implicit_rules(
-                !self.options.no_rules,
-                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
-            ) {
-                self.fatal(error.source_location(), error.message.as_bytes());
-                return 2;
-            }
             self.vpath_dirs = vpath
                 .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
                 .filter(|path| !path.is_empty())
@@ -1667,11 +1701,10 @@ impl Engine {
                         .any(|name| self.aliases.resolve(name) == target));
         }
         self.database.rules.get(special).is_some_and(|rule| {
-            (empty_means_all && rule.dependencies.is_empty())
-                || rule
-                    .dependencies
-                    .iter()
-                    .any(|dependency| self.aliases.resolve(&dependency.name) == target)
+            (empty_means_all && rule.dependencies.iter().all(|dep| dep.hidden))
+                || rule.dependencies.iter().any(|dependency| {
+                    !dependency.hidden && self.aliases.resolve(&dependency.name) == target
+                })
         })
     }
 
@@ -1940,7 +1973,7 @@ impl Engine {
                 .database
                 .rules
                 .get(b".SILENT".as_slice())
-                .is_some_and(|rule| rule.dependencies.is_empty())
+                .is_some_and(|rule| rule.dependencies.iter().all(|dep| dep.hidden))
     }
 
     fn job_slots(&self) -> usize {
@@ -1950,7 +1983,7 @@ impl Engine {
                 .database
                 .rules
                 .get(b".NOTPARALLEL".as_slice())
-                .is_some_and(|rule| rule.dependencies.is_empty())
+                .is_some_and(|rule| rule.dependencies.iter().all(|dep| dep.hidden))
         {
             1
         } else {
@@ -2263,7 +2296,18 @@ impl Engine {
                         );
                     }
                 }
-                if destination.double_colon.is_some() != source.double_colon.is_some() {
+                if destination.record_only
+                    && destination.double_colon.is_none()
+                    && source.double_colon.is_some()
+                {
+                    // The destination adopts double-colon identity, but the
+                    // merge joins only the heads. Source later branches are
+                    // not transferred through GNU's renamed head record.
+                    destination.double_colon = Some(vec![std::mem::take(destination)]);
+                }
+                if destination.double_colon.is_some() != source.double_colon.is_some()
+                    && !source.record_only
+                {
                     let message = [
                         b"can't rename ".as_slice(),
                         if source.double_colon.is_some() {
@@ -2301,6 +2345,7 @@ impl Engine {
                     destination.recipe_location = source.recipe_location.take();
                     destination.default_recipe = source.default_recipe;
                 }
+                destination.record_only &= source.record_only;
                 destination.append_prerequisites(source);
             } else {
                 // An existing filename record with no rule does not carry the
@@ -2353,15 +2398,15 @@ impl Engine {
     }
 
     fn has_file_record(&self, name: &[u8]) -> bool {
-        self.database.explicit_names.contains(name)
-            || self.database.rules.contains_key(name)
-            || self.database.target_scopes.contains_key(name)
-            || self.makefile_names.contains(name)
-            || self.options.goals.iter().any(|goal| goal == name)
+        self.database.file_records.contains(name)
     }
 
     fn record_is_target(&self, name: &[u8]) -> bool {
-        self.database.rules.contains_key(name) || self.special(b".PHONY", name, false)
+        self.database
+            .rules
+            .get(name)
+            .is_some_and(|rule| !rule.record_only)
+            || self.special(b".PHONY", name, false)
     }
 
     /// Record lookup strips leading ./ but the searched hash spelling is
@@ -2682,8 +2727,7 @@ impl Engine {
     }
 
     fn implicit_known_file(&self, target: &[u8]) -> bool {
-        self.database.explicit_names.contains(target)
-            || self.options.goals.iter().any(|goal| goal == target)
+        self.database.file_records.contains(target)
     }
 
     fn refresh_impossible_prerequisites(&mut self) {
@@ -2752,6 +2796,9 @@ impl Engine {
                     explicit_names: _,
                     intermediate_names,
                 } = selection;
+                // A selected implicit rule promotes its file to a target,
+                // including recipes converted from undeclared builtin records.
+                rule.record_only = false;
                 if let Some(pattern) = pattern_scope {
                     self.implicit_pattern_scopes.insert(name.clone(), *pattern);
                 }
@@ -2776,7 +2823,7 @@ impl Engine {
                 self.intermediates.extend(intermediate_names);
                 self.database.rules.insert(name, rule);
             }
-        } else if existing.is_none()
+        } else if existing.as_ref().is_none_or(|rule| rule.record_only)
             && let Some(default) = self.database.rules.get(b".DEFAULT".as_slice())
             && default.recipes.is_some()
         {
@@ -2786,6 +2833,7 @@ impl Engine {
                     recipes: default.recipes.clone(),
                     recipe_location: default.recipe_location.clone(),
                     default_recipe: true,
+                    dependencies: existing.map_or_else(Vec::new, |rule| rule.dependencies),
                     ..Rule::default()
                 },
             );
@@ -2925,6 +2973,7 @@ impl Engine {
                             }
                         };
                         for mut dependency in names {
+                            dependency.hidden = occurrence.hidden;
                             let identity = self.aliases.resolve(&dependency.name);
                             if identity != dependency.name {
                                 dependency.name = identity.to_vec();
@@ -2943,7 +2992,7 @@ impl Engine {
                             {
                                 intermediate_names.push(name.clone());
                             }
-                            let explicit = self.database.rules.contains_key(name)
+                            let explicit = self.record_is_target(name)
                                 || self.database.rules.get(target).is_some_and(|rule| {
                                     rule.dependencies.iter().enumerate().any(|(index, dep)| {
                                         dep.name == *name
@@ -3079,7 +3128,11 @@ impl Engine {
         let name = name.as_ref();
         let name = directory.map_or_else(|| name.to_vec(), |dir| [dir, name].concat());
         if !name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
-            return Ok(vec![Dependency { name, order_only }]);
+            return Ok(vec![Dependency {
+                name,
+                order_only,
+                hidden: false,
+            }]);
         }
         let bytes = self
             .filesystem
@@ -3099,6 +3152,7 @@ impl Engine {
             .map(|name| Dependency {
                 name: name.to_vec(),
                 order_only,
+                hidden: false,
             })
             .collect())
     }
@@ -3209,6 +3263,7 @@ impl Engine {
                     expanded.push(Dependency {
                         name: name.into_owned(),
                         order_only: role,
+                        hidden: false,
                     });
                 }
             }
@@ -3668,10 +3723,6 @@ impl Engine {
     }
 
     fn store_expanded_rule(&mut self, target: &[u8], rule: Rule) {
-        for dependency in rule.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
-            self.database.file_records.insert(&dependency.name);
-        }
-        self.database.file_records.insert(target);
         if let Some(id) = rule.grouped_double_id() {
             let ordinal = rule.grouped_double_ordinal();
             if let Some(branch) = self
@@ -4228,7 +4279,7 @@ impl Engine {
             }
         }
         let recipe_rule = group.as_ref().map_or(&rule, |group| &group.recipe_rule);
-        let canonical = recipe_rule.canonical_dependencies();
+        let canonical = recipe_rule.automatic_dependencies();
         let normal: Vec<_> = canonical
             .iter()
             .filter(|d| !d.order_only)
@@ -4240,7 +4291,14 @@ impl Engine {
             .map(|d| d.name.clone())
             .collect();
         self.apply_graph_abort(&mut outcome);
-        let normal_names: HashSet<_> = normal.iter().map(Vec::as_slice).collect();
+        let has_hidden = rule.dependencies.iter().any(|dependency| dependency.hidden);
+        let visible_normal =
+            has_hidden.then(|| normal.iter().map(Vec::as_slice).collect::<HashSet<_>>());
+        let normal_names: HashSet<_> = if has_hidden {
+            rule.normal_prerequisites().collect()
+        } else {
+            normal.iter().map(Vec::as_slice).collect()
+        };
         let mut newer = Vec::new();
         for (index, occurrence) in rule.dependencies.iter().enumerate() {
             let dependency = &occurrence.name;
@@ -4268,7 +4326,13 @@ impl Engine {
                     || (inspected_stale && !self.parallel_graph())
                 {
                     stale = true;
-                    newer.push(dependency.clone());
+                    if !occurrence.hidden
+                        && visible_normal
+                            .as_ref()
+                            .is_none_or(|names| names.contains(dependency.as_slice()))
+                    {
+                        newer.push(dependency.clone());
+                    }
                 }
             }
         }
@@ -4285,7 +4349,10 @@ impl Engine {
                     .cloned()
                     .collect();
                 let repeated: Vec<_> = recipe_rule
-                    .normal_prerequisites()
+                    .dependencies
+                    .iter()
+                    .filter(|dep| !dep.hidden && !dep.order_only && dep.name != b".WAIT")
+                    .map(|dep| dep.name.as_slice())
                     .filter(|name| !dropped.contains(*name))
                     .map(Vec::from)
                     .collect();
@@ -4382,6 +4449,16 @@ impl Engine {
                     self.created_intermediates.push(target.to_vec());
                 }
                 self.cleanup_target(target, before, phony, execution.cleanup);
+            } else if rule.record_only && !phony {
+                if !self.optional_remake {
+                    self.show_makefile_error();
+                    let parent = self
+                        .scope_parents
+                        .get(target)
+                        .and_then(|name| name.as_deref());
+                    self.report_missing_rule(target, parent);
+                }
+                outcome.failed = true;
             }
             outcome.time = if phony {
                 None

@@ -1999,3 +1999,14 @@ intermediate cleanup for expansion-only recipes and unlink errors. It adds 35
 required original fixtures and promotes `chain-two-roots`. The curated corpus is
 4,456 cases: 4,445 required, eleven historical pending mismatches. M4 remains open
 for hidden prerequisites, archive observation ordering and the documented exit audit.
+
+## M4 hidden prerequisite follow-up
+
+The [hidden-prerequisite slice](extra-prerequisites.md) adds normal/order-only
+hidden edges, local/global snapshot expansion, effect and restart phases, metadata
+record distinctions and automatic-variable exclusion. It also removes redundant
+filename registration during rule storage. The slice adds 145 original required
+fixtures and sixteen stateful invocations: 4,601 curated cases / 4,590 required /
+eleven historical pending, and 66 stateful scenarios / 303 invocations. M4 remains
+open for archive observation/recording, recursive HOME scratch behavior and its
+combined acceptance audit.

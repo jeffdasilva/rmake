@@ -1,0 +1,11 @@
+id = "extra-prereqs-local-unused-effects-touch"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: local-unused-effects-touch."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-t"]
+
+[expected]
+exit_code = 0
+stdout_hex = "554e555345440a746f756368206e6f726d616c0a746f75636820616c6c0a"
+stderr_hex = ""

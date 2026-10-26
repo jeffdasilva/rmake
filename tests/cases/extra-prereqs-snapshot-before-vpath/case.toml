@@ -1,0 +1,11 @@
+id = "extra-prereqs-snapshot-before-vpath"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: snapshot-before-vpath."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "534e41500a534e41500a56504154480a646f6e650a"
+stderr_hex = ""

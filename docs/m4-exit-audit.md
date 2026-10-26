@@ -26,14 +26,13 @@ filesystem edge cases match across every rule family.
 
 | Area | Direct evidence | Required follow-up |
 | --- | --- | --- |
-| `.EXTRA_PREREQS` | GNU executes the hidden prerequisite below; rmake does not. | Add hidden dependency records and GNU expansion/scope/recording phases; keep them out of automatic variables while retaining update/failure effects. |
-| File-record cross-effects | The [file-record slice](file-record-order.md) resolves `chain-two-roots` and covered collision/growth/lifecycle paths. | Finish hidden-prerequisite and archive-container recording phases and combination checks. |
+| Hidden-prerequisite combinations | The [hidden-prerequisite slice](extra-prerequisites.md) implements the probe below, snapshot phases and edge roles. | Retain strict archive/alias/secondary combinations in the final audit. |
+| File-record cross-effects | The [file-record slice](file-record-order.md) resolves `chain-two-roots` and covered collision/growth/lifecycle paths. | Hidden-prerequisite recording is covered by its slice; finish archive-container recording and combination checks. |
 | Recursive HOME filename queries | The [tilde notes](rule-tilde.md) preserve a probe where GNU's shared scratch buffer yields `earlyarker`. | Resolve the compatibility/safety boundary explicitly. Do not introduce unsafe memory corruption or count it as matching. |
 | Archive observations | Earlier slices retain standalone-member/container timestamp and metadata-error ordering gaps. | Expand the I/O/error matrix and file-record timing tests before claiming completeness. |
 
-The hidden-prerequisite probe remains a documented failure, not a passing case or
-new pending exemption. The historical library probe now passes and has required
-coverage in the library slice. GNU is never a product implementation fallback.
+The hidden-prerequisite and historical library probes now pass and have required
+coverage in their slices. GNU is never a product implementation fallback.
 
 ### Hidden prerequisites
 
@@ -52,8 +51,8 @@ normal
 [normal|normal|normal|normal]
 ```
 
-rmake omits `hidden`. Both return zero and have empty stderr. This is a build
-ordering/dependency omission despite the identical automatic-variable line.
+rmake now matches the complete output, status and empty stderr. Required fixtures
+also check missing/hidden/order-only inputs and scope/recording effects.
 
 ### Library lookup
 

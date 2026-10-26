@@ -1,0 +1,11 @@
+id = "extra-prereqs-snapshot-global-eval"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden dependency combination: snapshot-global-eval."
+provenance = "Independently authored source, role/phase expectations and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "4e3d310a4e3d320a68696464656e0a583d5b7820785d0a"
+stderr_hex = ""

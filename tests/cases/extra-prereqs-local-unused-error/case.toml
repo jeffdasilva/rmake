@@ -1,0 +1,11 @@
+id = "extra-prereqs-local-unused-error"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: local-unused-error."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a2045585452412e202053746f702e0a"

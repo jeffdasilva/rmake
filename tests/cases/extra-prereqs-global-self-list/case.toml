@@ -1,0 +1,11 @@
+id = "extra-prereqs-global-self-list"
+requirement = "rules.extra-prerequisites"
+candidate = "required"
+description = "Original hidden prerequisite phase/role boundary: global-self-list."
+provenance = "Independently authored Makefiles, exact output/status anchors and filesystem observations; source-informed, no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "68696464656e0a6e6f726d616c0a5b6e6f726d616c7c6e6f726d616c7c6e6f726d616c7c6e6f726d616c7c5d0a"
+stderr_hex = "6d616b653a2043697263756c6172206e6f726d616c203c2d20616c6c20646570656e64656e63792064726f707065642e0a"
