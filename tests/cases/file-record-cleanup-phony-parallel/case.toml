@@ -1,0 +1,12 @@
+id = "file-record-cleanup-phony-parallel"
+requirement = "rules.file-records"
+candidate = "required"
+description = "Original file-table and cleanup boundary: file-record-cleanup-phony-parallel."
+provenance = "Independently authored source, safe table model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "-j4"]
+timeout_seconds = 20
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a726d20780a"
+stderr_hex = ""

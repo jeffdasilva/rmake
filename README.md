@@ -24,6 +24,8 @@ Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
 locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
 [`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
 gaps are documented in [diagnostic notes](docs/diagnostics.md).
+The [file-record notes](docs/file-record-order.md) describe deterministic intermediate
+cleanup, collisions, growth and dependency registration phases.
 The [library lookup notes](docs/library-resolution.md) describe `-l` prerequisites,
 pattern/directory priorities and record merging.
 The [rule declaration notes](docs/declaration-recording.md) explain when rules,

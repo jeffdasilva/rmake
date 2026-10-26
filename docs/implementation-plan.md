@@ -53,6 +53,9 @@ and explicit completion-time state, with 92 required cases and twenty additional
 anchored fault programs. The [library slice](library-resolution.md) adds Linux
 `-l` lookup, ranked pattern/VPATH searches, record merges, 160 required cases,
 forty fault programs and a fourteen-step incremental scenario.
+The [file-record slice](file-record-order.md) adds deterministic cleanup order,
+collision/growth/rename policy, static/deferred registration and expansion-only
+intermediate cleanup, with 35 required cases and the promotion of `chain-two-roots`.
 These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 

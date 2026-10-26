@@ -26,7 +26,18 @@ fn builtin_location(rule: &mut Rule) {
     }
 }
 
+// Declarative Linux suffix-name order from GNU Make 4.4.1 default_suffix_rules.
+// These names also appear in the attributed public-database compatibility data.
+// Order is observable when user records collide with late default installation.
+const SUFFIX_RECORD_ORDER: &[u8] = b".o .s .S .c .cc .C .cpp .f .m .p .F .r .mod .def.sym .sh .s.o .S.o .c.o .cc.o .C.o .cpp.o .f.o .m.o .p.o .F.o .r.o .mod.o .c.ln .y.ln .l.ln .y.c .l.c .ym.m .lm.m .F.f .r.f .l.r .S.s .texinfo.info .texi.info .txinfo.info .tex.dvi .texinfo.dvi .texi.dvi .txinfo.dvi .w.c .web.p .w.tex .web.tex";
+
 impl Database {
+    pub fn record_builtin_suffixes(&mut self) {
+        for name in SUFFIX_RECORD_ORDER.split(|byte| *byte == b' ') {
+            self.file_records.insert(name);
+        }
+    }
+
     pub fn initialize_builtin_variables(&mut self) -> Result<(), ExpandError> {
         for line in VARIABLES.split(|byte| *byte == b'\n') {
             if let Some(spec) = assignment(line) {
@@ -144,5 +155,26 @@ impl Database {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod record_order_tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn late_default_record_names_match_the_pinned_declarative_rules() {
+        let mut database = Database::default();
+        database.initialize_builtin_rules().unwrap();
+        let actual: HashSet<_> = SUFFIX_RECORD_ORDER
+            .split(|byte| *byte == b' ')
+            .map(Vec::from)
+            .collect();
+        assert_eq!(
+            actual.len(),
+            SUFFIX_RECORD_ORDER.split(|byte| *byte == b' ').count()
+        );
+        assert_eq!(actual, database.rules.into_keys().collect());
     }
 }

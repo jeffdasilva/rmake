@@ -501,6 +501,7 @@ struct ImplicitSelection {
     rule: Rule,
     pattern_scope: Option<Box<Option<TargetScope>>>,
     explicit_names: Vec<Vec<u8>>,
+    intermediate_names: Vec<Vec<u8>>,
 }
 
 // A selected Makefile record can name a file that does not exist yet.
@@ -637,6 +638,9 @@ impl Engine {
         options.inherited_jobs = false;
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
+        for goal in &options.goals {
+            database.file_records.insert(goal);
+        }
         database
             .variables
             .set_environment_override(options.environment_override);
@@ -673,6 +677,7 @@ impl Engine {
                 .initialize_builtin_rules()
                 .map_err(|error| error.message)?;
         }
+        database.file_records.insert(b".DEFAULT");
         define_automatic_variants(&mut database.variables).map_err(|error| error.diagnostic())?;
         database
             .variables
@@ -1033,6 +1038,7 @@ impl Engine {
                 }
             };
             let name = path.as_os_str().as_bytes();
+            self.database.file_records.insert(name);
             let file = match self.include_search.read(name) {
                 Ok(file) => file,
                 Err(error) => {
@@ -1145,6 +1151,7 @@ impl Engine {
                 } else {
                     // Preloaded rules may generate a default main makefile.
                     for name in [b"GNUmakefile".as_slice(), b"makefile", b"Makefile"] {
+                        self.database.file_records.insert(name);
                         self.database.makefiles.push(Makefile {
                             name: name.to_vec(),
                             optional: true,
@@ -1156,6 +1163,9 @@ impl Engine {
             }
             found_makefile = startup_found || !files.is_empty();
             for file in &files {
+                self.database
+                    .file_records
+                    .insert(file.as_os_str().as_bytes());
                 let mut bytes = Vec::new();
                 let read = if file == Path::new("-") {
                     if let Some(saved) = &stdin_bytes {
@@ -1286,6 +1296,9 @@ impl Engine {
                 }
             };
             self.database.freeze_rules();
+            if !self.options.no_rules {
+                self.database.record_builtin_suffixes();
+            }
             let vpath = match self.expand_global(b"$(VPATH)", None) {
                 Ok(value) => value,
                 Err(error) => {
@@ -1704,28 +1717,67 @@ impl Engine {
             self.created_intermediates.clear();
             return;
         }
-        let mut removed = Vec::new();
-        for target in std::mem::take(&mut self.created_intermediates) {
-            if removed.contains(&target)
-                || self.special(b".SECONDARY", &target, true)
+        let created: HashSet<_> = std::mem::take(&mut self.created_intermediates)
+            .into_iter()
+            .collect();
+        let ordered: Vec<_> = self
+            .database
+            .file_records
+            .names()
+            .filter(|name| created.contains(*name))
+            .map(Vec::from)
+            .collect();
+        let mut line = Vec::new();
+        for target in ordered {
+            if self.special(b".SECONDARY", &target, true)
                 || self.special_for_rule(b".PRECIOUS", &target)
                 || self.special_for_rule(b".NOTINTERMEDIATE", &target)
-                || self.special(b".PHONY", &target, false)
             {
                 continue;
             }
             if self.options.question || self.options.touch {
                 continue;
             }
-            if self.options.dry_run
-                || (fs::symlink_metadata(os(&target)).is_ok_and(|m| !m.is_dir())
-                    && fs::remove_file(os(&target)).is_ok())
+            let result = if self.options.dry_run {
+                Ok(())
+            } else {
+                fs::remove_file(os(&target))
+            };
+            if result
+                .as_ref()
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
             {
-                removed.push(target);
+                continue;
+            }
+            if !self.globally_silent() {
+                if line.is_empty() {
+                    line.extend_from_slice(b"rm ");
+                } else {
+                    line.push(b' ');
+                }
+                line.extend_from_slice(&target);
+            }
+            if let Err(error) = result {
+                // GNU flushes the partial command before the unlink diagnostic
+                // and begins a new command for any later removable record.
+                let mut out = io::stdout().lock();
+                let _ = out.write_all(&line);
+                let _ = out.flush();
+                drop(out);
+                line.clear();
+                self.stderr(
+                    &[
+                        b"\nunlink: ".as_slice(),
+                        &target,
+                        b": ",
+                        os_error(&error).as_bytes(),
+                    ]
+                    .concat(),
+                );
             }
         }
-        if !removed.is_empty() && !self.globally_silent() {
-            self.stdout(&[b"rm ".as_slice(), &joined(removed)].concat());
+        if !line.is_empty() {
+            self.stdout(&line);
         }
     }
 
@@ -2142,6 +2194,7 @@ impl Engine {
         if from == to {
             return Ok(());
         }
+        self.database.file_records.rename(from, to);
         let merged = self.database.explicit_names.contains(to)
             || self.database.target_scopes.contains_key(to)
             || self.options.goals.iter().any(|goal| goal == to);
@@ -2660,6 +2713,32 @@ impl Engine {
             return false;
         }
         if let Some(plan) = plan {
+            // Recursive searches return unentered intermediate records. Commit
+            // each accepted child's input list when its parent installs it;
+            // the parent's candidate inputs are processed in reverse order.
+            let inferred: HashMap<_, _> = plan
+                .iter()
+                .map(|selection| (selection.name.as_slice(), &selection.rule))
+                .collect();
+            for selection in &plan {
+                for dependency in selection.rule.dependencies.iter().rev() {
+                    if let Some(child) = inferred.get(dependency.name.as_slice()) {
+                        self.database.file_records.insert(&dependency.name);
+                        for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
+                            self.database.file_records.insert(&input.name);
+                        }
+                    } else if selection.name == target && dependency.name != b".WAIT" {
+                        self.database.file_records.insert(&dependency.name);
+                    }
+                }
+                if let Some(group) = &selection.rule.group {
+                    for peer in &group.targets {
+                        if peer != &selection.name {
+                            self.database.file_records.insert(peer);
+                        }
+                    }
+                }
+            }
             for selection in &plan {
                 self.database
                     .explicit_names
@@ -2671,6 +2750,7 @@ impl Engine {
                     mut rule,
                     pattern_scope,
                     explicit_names: _,
+                    intermediate_names,
                 } = selection;
                 if let Some(pattern) = pattern_scope {
                     self.implicit_pattern_scopes.insert(name.clone(), *pattern);
@@ -2693,6 +2773,7 @@ impl Engine {
                 {
                     self.intermediates.insert(name.clone());
                 }
+                self.intermediates.extend(intermediate_names);
                 self.database.rules.insert(name, rule);
             }
         } else if existing.is_none()
@@ -2772,6 +2853,7 @@ impl Engine {
                 }
                 let mut plan = Vec::new();
                 let mut explicit_names = Vec::new();
+                let mut intermediate_names = Vec::new();
                 let mut dependencies = Vec::new();
                 let mut valid = true;
                 let mut order_only = false;
@@ -2856,6 +2938,10 @@ impl Engine {
                             }
                             if explicit_word {
                                 explicit_names.push(name.clone());
+                            } else if self.database.file_records.contains(name)
+                                && !self.database.explicit_names.contains(name)
+                            {
+                                intermediate_names.push(name.clone());
                             }
                             let explicit = self.database.rules.contains_key(name)
                                 || self.database.rules.get(target).is_some_and(|rule| {
@@ -2905,6 +2991,7 @@ impl Engine {
                         name: target.to_vec(),
                         rule: selected,
                         explicit_names,
+                        intermediate_names,
                         pattern_scope: (intermediate && variables.is_some())
                             .then(|| Box::new(pattern_scope.clone())),
                     });
@@ -3124,6 +3211,9 @@ impl Engine {
                         order_only: role,
                     });
                 }
+            }
+            for dependency in expanded.iter().filter(|dep| dep.name != b".WAIT") {
+                self.database.file_records.insert(&dependency.name);
             }
             original_next = clause.index + 1;
             expanded_next = index + expanded.len();
@@ -3578,6 +3668,10 @@ impl Engine {
     }
 
     fn store_expanded_rule(&mut self, target: &[u8], rule: Rule) {
+        for dependency in rule.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
+            self.database.file_records.insert(&dependency.name);
+        }
+        self.database.file_records.insert(target);
         if let Some(id) = rule.grouped_double_id() {
             let ordinal = rule.grouped_double_ordinal();
             if let Some(branch) = self
@@ -4284,7 +4378,7 @@ impl Engine {
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
                 outcome.fatal |= execution.status == Status::Fatal;
                 outcome.question_outdated |= execution.status == Status::Question;
-                if execution.ran && self.intermediate(target) && before.is_none() {
+                if self.intermediate(target) && before.is_none() {
                     self.created_intermediates.push(target.to_vec());
                 }
                 self.cleanup_target(target, before, phony, execution.cleanup);

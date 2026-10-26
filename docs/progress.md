@@ -1990,3 +1990,12 @@ measurements pass. Core controls are mixed/close; GNU remains faster in the sele
 workloads. See [library resolution](library-resolution.md) for exact evidence,
 identities, attribution and all medians. M4 continues with hidden prerequisites,
 file-record order and remaining archive/safety gates; this is not an M4 exit claim.
+
+## M4 file-record order and cleanup follow-up
+
+The [file-record slice](file-record-order.md) implements owned filename indexing,
+GNU collision/growth/tombstone order, phase-specific dependency registration and
+intermediate cleanup for expansion-only recipes and unlink errors. It adds 35
+required original fixtures and promotes `chain-two-roots`. The curated corpus is
+4,456 cases: 4,445 required, eleven historical pending mismatches. M4 remains open
+for hidden prerequisites, archive observation ordering and the documented exit audit.

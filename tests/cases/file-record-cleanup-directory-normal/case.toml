@@ -1,0 +1,12 @@
+id = "file-record-cleanup-directory-normal"
+requirement = "rules.file-records"
+candidate = "required"
+description = "Original file-table and cleanup boundary: file-record-cleanup-directory-normal."
+provenance = "Independently authored source, safe table model and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 20
+
+[expected]
+exit_code = 0
+stdout_hex = "726d2078"
+stderr_hex = "6d616b653a200a756e6c696e6b3a20783a2049732061206469726563746f72790a"
