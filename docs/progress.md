@@ -1795,7 +1795,7 @@ recorded recursive-prefix flags, including variable-expanded plus signs.
 Add 56 original required Makefiles (12 fail on preceding main), 176 independently
 anchored directory/search programs (71 fail on preceding main), native byte and
 close-on-exec tests, and a stream-budget fault regression. Add the new Makefile/CI
-flow and a self-host case. The repeated graph gate now runs 680 comparisons per
+flow and a self-host case. The repeated graph gate now runs 720 comparisons per
 engine. Corpus: 3,658 cases, with 3,646 required matches and 12 unchanged pending
 mismatches. Stateful coverage remains 57 scenarios / 198 invocations.
 

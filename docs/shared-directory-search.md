@@ -89,7 +89,7 @@ The runner rejects equal wrong observations, including nested filesystem or
 journal mutations and omitted resource proofs, and retains complete reproducers.
 `DIRECTORY_CASE=<id>` selects a replay. The target runs from GNU and rmake's top
 level Makefile, CI and a self-host smoke case. The late-GPATH parallel fixture
-joins the default 40-repeat graph-progress gate, which now runs 680 comparisons
+joins the default 40-repeat graph-progress gate, which now runs 720 comparisons
 per engine. The optimized-candidate check also runs it with twelve repetitions.
 
 The curated corpus is now 3,658 cases: 3,646 required matches and 12 unchanged
