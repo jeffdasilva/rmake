@@ -1,0 +1,11 @@
+id = "rule-record-group-error-before-home"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: group-error-before-home."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = "434f4e444954494f4e414c0a"
+stderr_hex = "4d616b6566696c653a333a202a2a2a2067726f757065642074617267657473206d7573742070726f766964652061207265636970652e202053746f702e0a"

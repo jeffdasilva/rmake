@@ -1,0 +1,11 @@
+id = "rule-record-first-escaped-then-pattern"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: first-escaped-then-pattern."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d6978656420696d706c6963697420616e64206e6f726d616c2072756c65733a20646570726563617465642073796e7461780a4d616b6566696c653a313a207461726765742027666f6f252720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a6d616b653a202a2a2a204e6f20746172676574732e202053746f702e0a"

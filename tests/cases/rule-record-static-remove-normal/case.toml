@@ -1,0 +1,11 @@
+id = "rule-record-static-remove-normal"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: static-remove-normal."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6f75747c2a2e696e7c5d0a"
+stderr_hex = ""

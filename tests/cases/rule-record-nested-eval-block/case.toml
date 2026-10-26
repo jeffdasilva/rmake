@@ -1,0 +1,11 @@
+id = "rule-record-nested-eval-block"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: nested-eval-block."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "6f757465723d5b6f6c642065787472615d0a"
+stderr_hex = "4d616b6566696c653a323a207761726e696e673a206f766572726964696e672072656369706520666f722074617267657420276f7574270a4d616b6566696c653a333a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f722074617267657420276f7574270a"

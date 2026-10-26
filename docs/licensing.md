@@ -141,3 +141,8 @@ incorporated.
 The [rule tilde notes](rule-tilde.md) record the GNU reader, declaration-close,
 implicit-search and default-goal source references used for the independently
 written tilde-expansion and deferred-prerequisite follow-up.
+
+The [declaration-recording notes](declaration-recording.md) identify the GNU
+reader/file references used to establish recording, rule-family and diagnostic
+phases. The Rust refactor and its 73 anchored Makefiles are independently authored;
+no upstream implementation or tests were copied or translated.

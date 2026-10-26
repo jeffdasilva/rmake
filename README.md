@@ -24,6 +24,8 @@ Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
 locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
 [`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
 gaps are documented in [diagnostic notes](docs/diagnostics.md).
+The [rule declaration notes](docs/declaration-recording.md) explain when rules,
+prerequisite filename observations and nested evaluations enter the database.
 The [assignment syntax notes](docs/assignment-syntax.md) explain lexical token
 boundaries, whitespace handling and remaining assignment gaps.
 

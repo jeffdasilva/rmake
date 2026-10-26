@@ -41,6 +41,9 @@ boundaries and GNU static-stem substitution, with 109 required Makefiles and
 two stateful scenarios totaling twenty invocations. The [rule tilde follow-up](rule-tilde.md)
 adds declaration-close HOME evaluation, named/environment fallback and default-goal
 filename parsing, with 76 required cases and twelve stateful invocations.
+The [declaration-recording slice](declaration-recording.md) defers rule records,
+ordinary globs and archive groups to the closing statement, preserves nested eval
+precedence, and adds 73 required cases for phase and diagnostic boundaries.
 These do not complete M4.
 Early measured optimizations do not complete M8 or establish GNU speed parity.
 

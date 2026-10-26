@@ -1,0 +1,11 @@
+id = "rule-record-implicit-group-remove-normal"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Original declaration recording boundary: implicit-group-remove-normal."
+provenance = "Independently authored Makefiles, helpers and exact stream/status anchors; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout_hex = "5b612e6f75747c2a2e696e7c5d0a"
+stderr_hex = ""
