@@ -1,0 +1,12 @@
+id = "runtime-completion-peer-noop-child-line-stop"
+requirement = "runtime.completion"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "-Oline", "--sync-mutex=fnm:mutex"]
+timeout_seconds = 5
+description = "Original synthetic launch-owner, peer drain or unbuilt intermediate barrier regression."
+provenance = "Independently authored Makefiles and bounded peer helper; independently checked fatal/no-later-effect anchors with exact pinned-oracle output goldens. No GNU source or test code copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a393a202a2a2a2073746f707065642e202053746f702e0a6d616b653a202a2a2a2057616974696e6720666f7220756e66696e6973686564206a6f62732e2e2e2e0a6d616b653a202a2a2a20776169743a204e6f206368696c642070726f6365737365732e202053746f702e0a"

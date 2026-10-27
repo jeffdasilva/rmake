@@ -37,6 +37,7 @@ struct State {
     current: RefCell<Option<Weak<Buffer>>>,
     coordination: RefCell<Option<Coordination>>,
     program: Vec<u8>,
+    interrupted_owner: RefCell<Option<Owner>>,
 }
 
 #[derive(Clone)]
@@ -49,7 +50,11 @@ impl Controller {
             current: RefCell::new(None),
             coordination: RefCell::new(None),
             program: program.to_vec(),
+            interrupted_owner: RefCell::new(None),
         }))
+    }
+    pub fn take_interrupted_owner(&self) -> Option<Owner> {
+        self.0.interrupted_owner.borrow_mut().take()
     }
     pub fn mode(&self) -> Mode {
         self.0.mode.get()
@@ -64,6 +69,7 @@ impl Controller {
                 enabled: Cell::new(true),
                 spool: RefCell::new(None),
                 failed: Cell::new(false),
+                owner: RefCell::new(None),
             })
         })
     }
@@ -146,14 +152,36 @@ impl Controller {
     }
 }
 
+#[derive(Clone)]
+pub struct Owner {
+    pub target: Vec<u8>,
+    pub before: Option<std::time::SystemTime>,
+    pub phony: bool,
+    reaped: bool,
+}
+
 pub struct Buffer {
     controller: Controller,
     enabled: Cell<bool>,
     spool: RefCell<Option<Spool>>,
     failed: Cell<bool>,
+    owner: RefCell<Option<Owner>>,
 }
 
 impl Buffer {
+    pub fn set_owner(&self, target: &[u8], before: Option<std::time::SystemTime>, phony: bool) {
+        self.owner.replace(Some(Owner {
+            target: target.to_vec(),
+            before,
+            phony,
+            reaped: false,
+        }));
+    }
+    pub fn child_reaped(&self, reaped: bool) {
+        if let Some(owner) = self.owner.borrow_mut().as_mut() {
+            owner.reaped = reaped;
+        }
+    }
     pub fn enabled(&self) -> bool {
         self.enabled.get()
     }
@@ -221,6 +249,19 @@ impl Buffer {
             })
         };
         if let Some(error) = error {
+            if rmake_linux::signals::pending().is_some() {
+                if let Some(owner) = self.owner.borrow().as_ref().filter(|owner| owner.reaped) {
+                    self.controller
+                        .0
+                        .interrupted_owner
+                        .replace(Some(owner.clone()));
+                }
+                // A fatal handler abandons the interrupted dump. Replaying the
+                // spool would expose output GNU never emitted on this path.
+                self.spool.borrow_mut().take();
+                self.enabled.set(false);
+                return;
+            }
             if rmake_linux::signals::pending().is_none() {
                 plain(
                     true,
@@ -279,7 +320,7 @@ impl Construction {
 }
 impl Drop for Construction {
     fn drop(&mut self) {
-        if self.armed {
+        if self.armed && rmake_linux::signals::pending().is_none() {
             self.controller.select(None);
             if let Some(buffer) = &self.buffer {
                 buffer.dump();

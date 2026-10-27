@@ -7,11 +7,14 @@
 use std::ffi::{c_int, c_long};
 use std::fs::File;
 use std::io;
-use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd};
+use std::io::Read;
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::process::{Command, ExitStatus};
 
 unsafe extern "C" {
     fn syscall(number: c_long, ...) -> c_long;
+    fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
+    fn read(descriptor: c_int, bytes: *mut std::ffi::c_void, size: usize) -> isize;
     fn kill(pid: c_int, signal: c_int) -> c_int;
     fn poll(descriptors: *mut PollFd, count: usize, timeout: c_int) -> c_int;
 }
@@ -30,7 +33,10 @@ pub struct Child {
 
 impl Child {
     pub fn spawn(command: &mut Command) -> io::Result<Self> {
-        let child = command.spawn()?;
+        Ok(Self::from_std(command.spawn()?))
+    }
+
+    fn from_std(child: std::process::Child) -> Self {
         // pidfd_open and pidfd_send_signal use these numbers on Linux x86-64
         // and asm-generic architectures. pidfd_open creates a CLOEXEC handle.
         let descriptor = unsafe { syscall(434, child.id() as c_int, 0_u32) };
@@ -40,7 +46,19 @@ impl Child {
         } else {
             None
         };
-        Ok(Self { child, pidfd })
+        Self { child, pidfd }
+    }
+
+    pub fn spawn_capture(command: &mut Command) -> io::Result<(Self, File)> {
+        command.stdout(std::process::Stdio::piped());
+        let mut child = Self::from_std(command.spawn()?);
+        let descriptor: OwnedFd = child.child.stdout.take().expect("piped stdout").into();
+        let stdout = crate::process::private_descriptor(File::from(descriptor))?;
+        let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
+        if flags < 0 || unsafe { fcntl(stdout.as_raw_fd(), 4, flags | 0x800) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok((child, stdout))
     }
 
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
@@ -143,6 +161,89 @@ pub fn wait(
     Ok(ready)
 }
 
+/// Capture stays responsive both while reading a pipe and after its writer
+/// closes stdout but keeps running. Dropping the uniquely owned child on any
+/// error kills and reaps it; a recycled PID can never be signalled here.
+pub fn capture(
+    mut child: Child,
+    mut stdout: File,
+    maximum: usize,
+) -> io::Result<(Vec<u8>, ExitStatus)> {
+    let mut bytes = Vec::new();
+    let mut eof = false;
+    let mut status = None;
+    loop {
+        if crate::signals::pending().is_some() {
+            return Err(io::ErrorKind::Interrupted.into());
+        }
+        if !eof {
+            let mut block = [0; 8192];
+            loop {
+                match stdout.read(&mut block) {
+                    Ok(0) => {
+                        eof = true;
+                        break;
+                    }
+                    Ok(count) => {
+                        if bytes.len().saturating_add(count) > maximum {
+                            return Err(io::ErrorKind::FileTooLarge.into());
+                        }
+                        bytes.extend_from_slice(&block[..count]);
+                        if crate::signals::pending().is_some() {
+                            return Err(io::ErrorKind::Interrupted.into());
+                        }
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+                        if crate::signals::pending().is_some() {
+                            return Err(error);
+                        }
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        if status.is_none() {
+            status = child.try_wait()?;
+        }
+        if eof && let Some(status) = status {
+            return Ok((bytes, status));
+        }
+        let children = [(0, &child)];
+        wait(
+            if status.is_none() { &children } else { &[] },
+            true,
+            true,
+            (!eof).then(|| stdout.as_fd()),
+            None,
+        )?;
+    }
+}
+
+/// Stdin Makefiles may be pipes. Avoid read_to_end's unconditional EINTR retry
+/// so an empty or nonterminating stream can be cancelled without a waiter thread.
+pub fn read_stdin() -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let mut block = [0; 8192];
+    loop {
+        if crate::signals::pending().is_some() {
+            return Err(io::ErrorKind::Interrupted.into());
+        }
+        let count = unsafe { read(0, block.as_mut_ptr().cast(), block.len()) };
+        if count == 0 {
+            return Ok(bytes);
+        }
+        if count > 0 {
+            bytes.extend_from_slice(&block[..count as usize]);
+        } else {
+            let error = io::Error::last_os_error();
+            if error.kind() != io::ErrorKind::Interrupted {
+                return Err(error);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,6 +264,27 @@ mod tests {
             assert!(Instant::now() < deadline, "owned child did not terminate");
             wait(&[(0, &child)], true, false, None, None).unwrap();
         }
+    }
+
+    #[test]
+    fn capture_waits_for_exit_after_stdout_closes_and_preserves_status() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "exec 1>&-; sleep .01; exit 7"]);
+        let (child, stdout) = Child::spawn_capture(&mut command).unwrap();
+        let (bytes, status) = capture(child, stdout, 16).unwrap();
+        assert!(bytes.is_empty());
+        assert_eq!(status.code(), Some(7));
+    }
+
+    #[test]
+    fn capture_enforces_the_byte_bound_and_reaps_the_owned_writer() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf abc"]);
+        let (child, stdout) = Child::spawn_capture(&mut command).unwrap();
+        assert_eq!(
+            capture(child, stdout, 2).unwrap_err().kind(),
+            io::ErrorKind::FileTooLarge
+        );
     }
 
     #[test]

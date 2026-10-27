@@ -21,7 +21,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
@@ -346,6 +346,13 @@ fn startup_makelevel(value: &[u8]) -> u32 {
 
 /// The only I/O boundary for parser and expansion output. Flush each message
 /// before subsequent diagnostics or child execution can write either stream.
+fn runtime_context<'a>(
+    location: Option<&'a Location>,
+    output: &'a mut dyn FnMut(Output<'_>),
+) -> ExpansionContext<'a> {
+    ExpansionContext::new(location, output).with_cancellation(rmake_linux::signals::cancellation())
+}
+
 fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
     match output {
         Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
@@ -530,6 +537,13 @@ struct ImplicitSelection {
 // Keep the search identity separate from its optional filesystem timestamp.
 type PathObservation = Option<(Option<Vec<u8>>, Option<SystemTime>)>;
 
+struct FailedOwner {
+    target: Vec<u8>,
+    location: Location,
+    ignore: bool,
+    output: Option<std::rc::Rc<crate::output::Buffer>>,
+}
+
 pub struct Engine {
     options: Options,
     output: crate::output::Controller,
@@ -569,7 +583,7 @@ pub struct Engine {
     parallel_failed: bool,
     waiting_reported: Cell<bool>,
     shutdown: Cell<Shutdown>,
-    shutdown_launch_failure: RefCell<Option<(Vec<u8>, Location, bool)>>,
+    shutdown_launch_failure: RefCell<Option<FailedOwner>>,
     remaking: bool,
     optional_remake: bool,
     optional_remake_failures: HashSet<Vec<u8>>,
@@ -796,7 +810,7 @@ impl Engine {
                 *directory = crate::makefiles::prepare_argument(
                     directory.as_os_str().as_bytes(),
                     &mut database.variables,
-                    ExpansionContext::new(None, &mut emit)
+                    runtime_context(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -818,7 +832,7 @@ impl Engine {
                 .variables
                 .expand_mut_with(
                     spec.name,
-                    ExpansionContext::new(None, &mut emit)
+                    runtime_context(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -836,7 +850,7 @@ impl Engine {
                     spec.kind,
                     Origin::CommandLine,
                     None,
-                    ExpansionContext::new(None, &mut emit)
+                    runtime_context(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -875,7 +889,7 @@ impl Engine {
                     Assignment::Append,
                     Origin::Default,
                     None,
-                    ExpansionContext::new(None, &mut emit)
+                    runtime_context(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -1029,7 +1043,7 @@ impl Engine {
         self.database.expand_in(
             variables,
             bytes,
-            ExpansionContext::new(location, &mut |event| {
+            runtime_context(location, &mut |event| {
                 emit_output(&self.output, &self.program, event)
             })
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1050,7 +1064,7 @@ impl Engine {
     ) -> Result<Vec<u8>, ExpandError> {
         self.database.expand_with(
             bytes,
-            ExpansionContext::new(location, &mut |event| {
+            runtime_context(location, &mut |event| {
                 emit_output(&self.output, &self.program, event)
             })
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1091,6 +1105,9 @@ impl Engine {
     }
 
     fn fatal_with_owner(&self, location: Option<&Location>, message: &[u8], owner: bool) {
+        if rmake_linux::signals::pending().is_some() {
+            return;
+        }
         let mut shutdown = self.shutdown.get();
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
@@ -1114,6 +1131,7 @@ impl Engine {
         error: &ExpandError,
         flow: &Flow,
         ignore: bool,
+        output: Option<&std::rc::Rc<crate::output::Buffer>>,
     ) {
         let first = self.shutdown.get() == Shutdown::Running;
         self.fatal_with_owner(
@@ -1122,8 +1140,12 @@ impl Engine {
             flow.retained_owner(),
         );
         if first && flow.retained_owner() && flow.failed_launch() {
-            *self.shutdown_launch_failure.borrow_mut() =
-                Some((target.to_vec(), location.clone(), ignore));
+            *self.shutdown_launch_failure.borrow_mut() = Some(FailedOwner {
+                target: target.to_vec(),
+                location: location.clone(),
+                ignore,
+                output: output.cloned(),
+            });
         }
     }
 
@@ -1157,7 +1179,7 @@ impl Engine {
             let path = match crate::makefiles::prepare_argument(
                 name,
                 &mut self.database.variables,
-                ExpansionContext::new(None, &mut |event| {
+                runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1214,7 +1236,7 @@ impl Engine {
             if let Err(error) = self.database.read_preload_with(
                 &file.bytes,
                 name,
-                ExpansionContext::new(None, &mut |event| {
+                runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1234,7 +1256,33 @@ impl Engine {
     }
 
     pub fn run(mut self) -> u8 {
-        let status = self.run_inner();
+        let mut status = self.run_inner();
+        if self.interrupt.is_none() && rmake_linux::signals::pending().is_some() {
+            self.observe_interrupt();
+            self.wait_all_jobs();
+            self.remove_intermediates();
+        }
+        if let Some(owner) = self.output.take_interrupted_owner() {
+            self.output.select(None);
+            let number = rmake_linux::signals::pending().expect("interrupted output lock");
+            if rmake_linux::signals::deletes_targets(number) {
+                self.cleanup_target(
+                    &owner.target,
+                    owner.before,
+                    owner.phony,
+                    Cleanup::ChangedOnSignal,
+                );
+                self.stderr(b"*** wait: No child processes.  Stop.");
+                self.notice_waiting_for_jobs();
+            } else {
+                self.notice_waiting_for_jobs();
+                self.stderr(b"*** wait: No child processes.  Stop.");
+            }
+            self.stderr(b"*** wait: No child processes.  Stop.");
+            self.shutdown.set(Shutdown::Reentered);
+            rmake_linux::signals::terminal_status(2);
+            status = 2;
+        }
         if self.interrupt.is_none() && self.shutdown.get() != Shutdown::Reentered {
             if let Some(buffer) = self.output.current() {
                 buffer.dump();
@@ -1333,17 +1381,24 @@ impl Engine {
                         bytes = Vec::clone(saved);
                         Ok(bytes.len())
                     } else {
-                        let result = io::stdin().read_to_end(&mut bytes);
-                        stdin_bytes = Some(bytes.clone());
-                        result
+                        rmake_linux::child::read_stdin().map(|content| {
+                            bytes = content;
+                            stdin_bytes = Some(bytes.clone());
+                            bytes.len()
+                        })
                     }
                 } else {
-                    fs::read(file).map(|content| {
-                        bytes = content;
-                        bytes.len()
-                    })
+                    rmake_linux::filesystem::read_source(file.as_os_str().as_bytes()).map(
+                        |content| {
+                            bytes = content;
+                            bytes.len()
+                        },
+                    )
                 };
                 if let Err(err) = read {
+                    if rmake_linux::signals::pending().is_some() {
+                        return 2;
+                    }
                     emit_output(
                         &self.output,
                         &self.program,
@@ -1383,7 +1438,7 @@ impl Engine {
                 if let Err(err) = self.database.read_with(
                     &bytes,
                     file.as_os_str().as_bytes(),
-                    ExpansionContext::new(None, &mut |event| {
+                    runtime_context(None, &mut |event| {
                         emit_output(&self.output, &self.program, event)
                     })
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1440,7 +1495,7 @@ impl Engine {
                 } else {
                     Origin::Environment
                 },
-                ExpansionContext::new(None, &mut |event| {
+                runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1484,7 +1539,7 @@ impl Engine {
             self.database.freeze_rules();
             let extra_records = match self.database.snap_extra_prerequisites(
                 self.intermediate_policy.all_secondary,
-                &mut ExpansionContext::new(None, &mut |event| {
+                &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1509,7 +1564,7 @@ impl Engine {
             }
             if let Err(error) = self.database.finalize_implicit_rules(
                 !self.options.no_rules,
-                &mut ExpansionContext::new(None, &mut |event| {
+                &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 }),
             ) {
@@ -1517,7 +1572,7 @@ impl Engine {
                 return 2;
             }
             if let Err(error) = self.database.snap_implicit_extra_prerequisites(
-                &mut ExpansionContext::new(None, &mut |event| {
+                &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -1612,6 +1667,10 @@ impl Engine {
             self.output.select(None);
             if let Some(buffer) = self.reader_output.take() {
                 buffer.dump();
+            }
+            self.observe_interrupt();
+            if self.interrupt.is_some() {
+                return 2;
             }
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
@@ -1754,7 +1813,7 @@ impl Engine {
                     } else {
                         let names = self.database.rule_filenames(
                             &goal,
-                            &mut ExpansionContext::new(None, &mut |event| {
+                            &mut runtime_context(None, &mut |event| {
                                 emit_output(&self.output, &self.program, event)
                             })
                             .with_filesystem(&mut |effect| {
@@ -1987,9 +2046,15 @@ impl Engine {
     fn remove_intermediates(&mut self) {
         match self.shutdown.get() {
             Shutdown::RetainedOwner => {
-                if let Some((target, location, ignore)) =
-                    self.shutdown_launch_failure.borrow_mut().take()
+                if let Some(FailedOwner {
+                    target,
+                    location,
+                    ignore,
+                    output,
+                }) = self.shutdown_launch_failure.borrow_mut().take()
                 {
+                    self.output
+                        .select(output.as_ref().filter(|buffer| buffer.enabled()));
                     self.stderr(
                         &[
                             if ignore { b"".as_slice() } else { b"*** " },
@@ -2004,6 +2069,10 @@ impl Engine {
                         ]
                         .concat(),
                     );
+                    self.output.select(None);
+                    if let Some(buffer) = output {
+                        buffer.dump();
+                    }
                 } else {
                     self.fatal(None, b"wait: No child processes");
                 }
@@ -2620,6 +2689,11 @@ impl Engine {
             .remove(&target, identity)
             .expect("reserved parallel target");
         let output = job.continuation.output.clone();
+        if result.as_ref().is_some_and(|status| status.is_ok())
+            && let Some(buffer) = &output
+        {
+            buffer.child_reaped(true);
+        }
         let report_error = result
             .as_ref()
             .is_some_and(|r| !r.as_ref().is_ok_and(|status| status.success()));
@@ -3848,7 +3922,7 @@ impl Engine {
         let (mut context, pattern_scope) = if intermediate {
             let prepared = self.database.prepare_pattern_scope(
                 target,
-                ExpansionContext::new(None, &mut |event| {
+                runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -3901,7 +3975,7 @@ impl Engine {
         let name = if name.starts_with(b"~") {
             self.database.rule_tilde(
                 name,
-                &mut ExpansionContext::new(None, &mut |event| {
+                &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -4037,7 +4111,7 @@ impl Engine {
                 result
             };
             let mut includes = |name: &[u8]| self.include_search.read(name);
-            let mut context = ExpansionContext::new(None, &mut emit)
+            let mut context = runtime_context(None, &mut emit)
                 .with_filesystem(&mut filesystem)
                 .with_shell(&mut shell)
                 .with_includes(&mut includes);
@@ -5421,7 +5495,7 @@ impl Engine {
             self.database.variables_for_target_with(
                 target,
                 &inherited,
-                ExpansionContext::new(None, &mut |event| {
+                runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
@@ -5560,6 +5634,9 @@ impl Engine {
             }
         }
         let output = self.output.make_buffer();
+        if let Some(buffer) = &output {
+            buffer.set_owner(target, before, phony);
+        }
         self.dispatch_output = output.clone();
         self.output.select(output.as_ref());
         let mut expanded = std::collections::VecDeque::new();
@@ -5692,7 +5769,14 @@ impl Engine {
             let shell = match self.expand(variables, b"$(SHELL)", Some(&recipe.location)) {
                 Ok(shell) => shell,
                 Err(err) => {
-                    self.recipe_expansion_error(target, &recipe.location, &err, &flow, ignore);
+                    self.recipe_expansion_error(
+                        target,
+                        &recipe.location,
+                        &err,
+                        &flow,
+                        ignore,
+                        output.as_ref(),
+                    );
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -5705,7 +5789,14 @@ impl Engine {
             let flags = match self.expand(variables, &flag_text, Some(&recipe.location)) {
                 Ok(flags) => flags,
                 Err(err) => {
-                    self.recipe_expansion_error(target, &recipe.location, &err, &flow, ignore);
+                    self.recipe_expansion_error(
+                        target,
+                        &recipe.location,
+                        &err,
+                        &flow,
+                        ignore,
+                        output.as_ref(),
+                    );
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -5713,7 +5804,14 @@ impl Engine {
                 match self.expand(variables, b"$(IFS)", Some(&recipe.location)) {
                     Ok(value) => Some(value),
                     Err(err) => {
-                        self.recipe_expansion_error(target, &recipe.location, &err, &flow, ignore);
+                        self.recipe_expansion_error(
+                            target,
+                            &recipe.location,
+                            &err,
+                            &flow,
+                            ignore,
+                            output.as_ref(),
+                        );
                         return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                     }
                 }
@@ -5756,6 +5854,10 @@ impl Engine {
                 if !synchronize {
                     buffer.dump();
                 }
+            }
+            self.observe_interrupt();
+            if self.interrupt.is_some() {
+                return Execution::fatal(ran);
             }
             if self.options.dry_run || !quiet {
                 self.stdout(command);
@@ -5900,7 +6002,7 @@ impl Engine {
                         match self.database.expand_environment_in(
                             variables,
                             name,
-                            ExpansionContext::new(variable.definition(), &mut |event| {
+                            runtime_context(variable.definition(), &mut |event| {
                                 emit_output(&self.output, &self.program, event)
                             })
                             .with_filesystem(&mut |effect| {
@@ -5950,6 +6052,7 @@ impl Engine {
                                 &error,
                                 &flow,
                                 ignore,
+                                output.as_ref(),
                             );
                             return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                         }
@@ -5968,6 +6071,9 @@ impl Engine {
             }
             let _ = io::stdout().flush();
             let stdin_owner = !parallel || !self.parallel_jobs.values().any(|job| job.stdin_owner);
+            if let Some(buffer) = &output {
+                buffer.child_reaped(false);
+            }
             let process = launch_child(&program, &child, |mut command| {
                 if let Some(server) = &self.jobserver {
                     server.configure_child(&mut command, force);
@@ -6035,7 +6141,13 @@ impl Engine {
                 .select(output.as_ref().filter(|buffer| buffer.enabled()));
             self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();
-            flow.attempted(launched);
+            if launched && let Some(buffer) = &output {
+                buffer.child_reaped(true);
+            }
+            flow.attempted_in_pool(
+                launched,
+                parallel && self.parallel_jobs.values().any(|job| job.child.is_some()),
+            );
             let failure_cleanup = if !launched || signal_cleaned {
                 Cleanup::None
             } else if result

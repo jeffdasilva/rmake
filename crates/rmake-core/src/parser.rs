@@ -746,6 +746,25 @@ mod include_tests {
     use crate::diagnostic::IncludedFile;
 
     #[test]
+    fn cancellation_stops_reader_before_a_later_definition_or_effect() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let flag = AtomicBool::new(false);
+        let mut receiver = |_: Output<'_>| {
+            flag.store(true, Ordering::Relaxed);
+        };
+        let mut database = Database::default();
+        let error = database
+            .read_with(
+                b"$(info before)\nLATER := changed\n$(file >forbidden)\n",
+                b"Makefile",
+                ExpansionContext::new(None, &mut receiver).with_cancellation(&flag),
+            )
+            .unwrap_err();
+        assert_eq!(error.message.as_bytes(), b"interrupted");
+        assert!(database.variables.get(b"LATER").is_none());
+    }
+
+    #[test]
     fn nested_read_uses_shared_database_and_records_only_successful_list_entries() {
         let mut db = Database::default();
         let mut output = Vec::new();
@@ -2010,6 +2029,16 @@ impl Database {
         let mut conditions = Vec::<Conditional>::new();
         let mut last_line = 0;
         loop {
+            if context.is_cancelled() {
+                return Err(ParseError {
+                    location: Location {
+                        file: source_name.clone(),
+                        line: last_line.max(1),
+                    },
+                    message: Diagnostic::from("interrupted"),
+                    unlocated: true,
+                });
+            }
             let prefix = self
                 .variables
                 .get(b".RECIPEPREFIX")

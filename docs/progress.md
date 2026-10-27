@@ -2121,3 +2121,20 @@ GNU/rmake mixed trees and output larger than pipe capacity. The corpus now has
 CLI tests accompany the new mandatory development/optimized campaigns. M5 is
 still open for interruption/effect combinations, remaining synthetic
 completion/intermediate cases and the runtime exit audit.
+
+## M5 interruption, synthetic completion and terminals
+
+Add cooperative core cancellation and an owned shell-capture reactor; interrupt
+source/include/stdin/file I/O without leaking a child or retrying a blocked pipe
+flush. Match GNU's completed-owner shutdown while waiting on an output mutex,
+and preserve deferred failed-launch output when a registered peer is active.
+The [runtime cancellation notes](runtime-cancellation.md) record phases, source
+provenance and the two explicit GNU cleanup safety differences.
+
+Add 96 completion and 12 normal-capture required fixtures. The corpus has 5,258
+cases: 5,248 required and 10 pending. Three new native campaigns cover 252 effect
+interruption, 76 output-lock and 64 inherited-terminal profiles, with exact
+streams/status/target-file observations and three paired repetitions. Both
+development and optimized CI run them. Six Rust and six tooling tests accompany
+the campaigns. M5 remains open for recursive flag interpretation and its combined
+exit audit.

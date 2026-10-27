@@ -1,0 +1,12 @@
+id = "runtime-completion-intermediate-j2-phony-none"
+requirement = "runtime.completion"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "-Onone", "--sync-mutex=fnm:mutex"]
+timeout_seconds = 5
+description = "Original synthetic launch-owner, peer drain or unbuilt intermediate barrier regression."
+provenance = "Independently authored Makefiles and bounded peer helper; independently checked fatal/no-later-effect anchors with exact pinned-oracle output goldens. No GNU source or test code copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a373a202a2a2a2073746f707065642e202053746f702e0a"

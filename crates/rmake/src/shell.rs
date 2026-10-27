@@ -7,10 +7,9 @@
 use rmake_core::diagnostic::{ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
 use std::ffi::OsStr;
-use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 pub fn run(
     request: ShellRequest<'_>,
@@ -35,12 +34,11 @@ pub fn run(
     }
     command.env("MAKELEVEL", makelevel.wrapping_add(1).to_string());
     let buffer = output.current();
-    let mut child = match crate::engine::launch_child(&program, &command, |mut command| {
-        command.stdout(Stdio::piped());
+    let (child, stdout) = match crate::engine::launch_child(&program, &command, |mut command| {
         if let Some(buffer) = &buffer {
             buffer.configure_stderr(&mut command)?;
         }
-        command.spawn()
+        rmake_linux::child::Child::spawn_capture(&mut command)
     }) {
         Ok(child) => child,
         Err(error) => {
@@ -61,21 +59,8 @@ pub fn run(
             });
         }
     };
-    let mut stdout = Vec::new();
-    let result = child
-        .stdout
-        .take()
-        .expect("piped capture stdout")
-        .take((MAX_OUTPUT + 1) as u64)
-        .read_to_end(&mut stdout);
-    if result.is_err() || stdout.len() > MAX_OUTPUT {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(b"rmake: shell output limit exceeded or capture failed".to_vec());
-    }
-    let status = child
-        .wait()
-        .map_err(|error| crate::engine::os_error(&error).into_bytes())?;
+    let (stdout, status) = rmake_linux::child::capture(child, stdout, MAX_OUTPUT)
+        .map_err(|_| b"rmake: shell output limit exceeded or capture failed".to_vec())?;
     Ok(ShellResult {
         stdout,
         status: status

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   compatibility:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,8 +24,8 @@ jobs:
         run: make bootstrap
       - name: Run development gates
         run: make ci
-      - name: Run optimized M4 regression gates
-        run: make test-m4-release
+      - name: Run optimized M4 and M5 regression gates
+        run: make test-m5-release
       - name: Retain conformance reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
