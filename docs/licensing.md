@@ -203,3 +203,8 @@ The [shell argv notes](shell-argv-replay.md) record command-construction and
 continuation references used to explain original shell configuration and residual
 execution observations. The Rust implementation and argument observers are
 original; allocator-abort probes remain research without conformance credit.
+
+The [flag payload notes](flag-payloads.md) record option/variable reference
+functions used for independently authored owned argument replay and evaluator
+integration. Original GNU nontermination and nested-decoder observations remain
+raw safety research without passing conformance credit.

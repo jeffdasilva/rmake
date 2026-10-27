@@ -44,10 +44,22 @@ impl State {
         let (mut updated, _) = current
             .assigned_flags(&[request.value.to_vec()])
             .map_err(String::into_bytes)?;
+        let assignments = std::mem::take(&mut updated.assignments)
+            .into_iter()
+            .zip(std::mem::take(&mut updated.assignment_context))
+            .map(|(argument, (position, environment_override))| {
+                rmake_core::diagnostic::FlagAssignment {
+                    argument,
+                    environment_override,
+                    position,
+                }
+            })
+            .collect();
         updated.files = current.files.clone();
         updated.directories = current.directories.clone();
         updated.goals = current.goals.clone();
         updated.assignments = current.assignments.clone();
+        updated.assignment_context = current.assignment_context.clone();
         updated.include_assignment_positions = current.include_assignment_positions.clone();
         updated.reset_jobserver = current.reset_jobserver;
         let mode = updated
@@ -75,6 +87,8 @@ impl State {
             origin: origin(updated.environment_override),
             environment_override: updated.environment_override,
             include_dirs,
+            assignments,
+            next_argument: updated.flag_word_count,
         };
         drop(current);
         self.options.replace(updated);
@@ -240,6 +254,64 @@ impl Engine {
                 return Err(());
             }
         };
+        if !updated.assignments.is_empty() {
+            let assignments = std::mem::take(&mut updated.assignments);
+            self.flag_state.refresh(&updated);
+            let assignments = assignments
+                .into_iter()
+                .zip(std::mem::take(&mut updated.assignment_context))
+                .map(|(argument, (position, environment_override))| {
+                    rmake_core::diagnostic::FlagAssignment {
+                        argument,
+                        position,
+                        environment_override,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let names = runtime_context(None, &mut |event| {
+                emit_output(&self.output, &self.program, event)
+            })
+            .with_makeflags(&mut |request| self.flag_state.assigned(request))
+            .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+            .with_shell(&mut |request| {
+                let result = crate::shell::run(
+                    request,
+                    &self.program,
+                    self.makelevel,
+                    &self.output,
+                    self.jobserver.as_ref(),
+                );
+                self.filesystem.borrow_mut().child_completed();
+                result
+            })
+            .apply_flag_assignments(
+                &mut self.database,
+                &assignments,
+                Origin::Environment,
+                updated.flag_word_count,
+            );
+            match names {
+                Ok(names) => {
+                    for name in names {
+                        if self.database.variables.get(&name).is_some_and(|variable| {
+                            matches!(
+                                variable.origin(),
+                                Origin::Environment | Origin::EnvironmentOverride
+                            )
+                        }) {
+                            self.inherited_exports.insert(name);
+                        }
+                    }
+                }
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return Err(());
+                }
+            }
+            if let Some(options) = self.flag_state.take() {
+                updated = options;
+            }
+        }
         if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs) {
             if restarts == 0 && self.options.jobserver_auth.is_some() {
                 self.stderr(
@@ -257,6 +329,7 @@ impl Engine {
         updated.directories = std::mem::take(&mut self.options.directories);
         updated.goals = std::mem::take(&mut self.options.goals);
         updated.assignments = std::mem::take(&mut self.options.assignments);
+        updated.assignment_context = std::mem::take(&mut self.options.assignment_context);
         updated.include_assignment_positions =
             std::mem::take(&mut self.options.include_assignment_positions);
         updated.reset_jobserver = self.options.reset_jobserver;

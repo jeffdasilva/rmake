@@ -1,0 +1,12 @@
+id = "flag-payload-effect-override-12"
+requirement = "variables.flag-payloads"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+description = "Original flag payload assignment, origin, byte, effect, restart or recursive inheritance regression."
+provenance = "Independently authored source, two raw GNU Make 4.4.1 observations and candidate comparison; source-reference study without copying upstream implementation or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "61667465723d5b6f6b5d2f5b6f6b5d2f6f766572726964652f7265637572736976653a5b6265666f72655d2f66696c653a5b58213d7072696e74665c206f6b3b657869745c20335d3a330a7265636970653d5b6f6b5d2f5b6f6b5d2f6f766572726964652f7265637572736976653a5b6265666f72655d2f66696c653a5b58213d7072696e74665c206f6b3b657869745c20335d3a330a"
+stderr_hex = ""
