@@ -58,6 +58,10 @@ class Cell:
             'main-read': '', 'stdin-read': '',
             'expansion': 'VALUES := $(shell seq 1 100000)\n$(file >ready)\nX := $(foreach v,$(VALUES),$(words a b c d e f g)$(subst a,b,aaa))',
         }[self.phase]
+        if self.phase == 'gnumakeflags-shell':
+            # Replay happens after reading: the forbidden effect must be in a
+            # later recipe, rather than an already-completed reader line.
+            return (before + body + '\n.PHONY: all\nall:;@$(file >forbidden)true\n').encode()
         if self.phase in ('recipe-shell', 'export-shell'): return (before + body + '\n').encode()
         return (before + body + after).encode()
 

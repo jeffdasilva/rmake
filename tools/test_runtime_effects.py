@@ -17,6 +17,9 @@ class RuntimeEffectTests(unittest.TestCase):
         self.assertEqual({c.phase for c in cells},set(effects.PHASES))
         self.assertEqual({c.number for c in cells},set(effects.SIGNALS))
         self.assertEqual({c.mode for c in cells},{'none','target','recurse'})
+        deferred=effects.Cell('gnumakeflags-shell',15).source
+        self.assertNotIn(b'$(file >forbidden)',deferred.split(b'all:;')[0])
+        self.assertIn(b'all:;@$(file >forbidden)true',deferred)
 
     def test_effect_anchors_reject_extra_diagnostics_effects_and_wrong_exit(self):
         cell=effects.Cell('reader-shell',15)
