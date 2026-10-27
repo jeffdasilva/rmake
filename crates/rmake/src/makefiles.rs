@@ -101,7 +101,7 @@ impl IncludeSearch {
     }
 
     fn read_path(name: &[u8]) -> io::Result<IncludedFile> {
-        fs::read(OsStr::from_bytes(name)).map(|bytes| IncludedFile {
+        rmake_linux::filesystem::read_source(name).map(|bytes| IncludedFile {
             name: name.to_vec(),
             bytes,
         })

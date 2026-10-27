@@ -35,10 +35,9 @@ truncation, duplicate output or missing bytes. Raw streams are retained; only
 that explicitly unordered target-group order has a named validator. All other
 observations remain exact. Development and optimized CI run these gates.
 
-M5 remains open for interruption during output-lock acquisition, expansion and
-shell capture, the remaining synthetic fatal/intermediate combinations and the
-combined runtime exit audit. This tranche does not claim complete GNU
-compatibility or general performance parity.
+The [interruption/completion follow-up](runtime-cancellation.md) covers the
+output-lock and evaluation/effect interruption paths and remaining synthetic
+owner/intermediate cases. M5's current position is tracked in the progress log.
 
 Reference study: GNU Make 4.4.1 `src/output.c`, `src/posixos.c`, `src/main.c`,
 `src/job.c`, `src/file.c` and `src/commands.c`, from the verified archive with

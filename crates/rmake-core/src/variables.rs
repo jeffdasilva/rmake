@@ -26,6 +26,30 @@ mod shell_effect_tests {
     use crate::diagnostic::ShellResult;
 
     #[test]
+    fn cancellation_after_output_prevents_the_next_effect() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let flag = AtomicBool::new(false);
+        let mut emitted = 0;
+        let mut receiver = |_: Output<'_>| {
+            emitted += 1;
+            flag.store(true, Ordering::Relaxed);
+        };
+        let mut filesystem = |_: FilesystemEffect<'_>| -> Result<Vec<u8>, FilesystemError> {
+            panic!("effect after cancellation")
+        };
+        let error = VariableStore::new()
+            .expand_mut_with(
+                b"$(info before)$(file >forbidden)",
+                ExpansionContext::new(None, &mut receiver)
+                    .with_cancellation(&flag)
+                    .with_filesystem(&mut filesystem),
+            )
+            .unwrap_err();
+        assert_eq!(error, ExpandError::Cancelled);
+        assert_eq!(emitted, 1);
+    }
+
+    #[test]
     fn shell_status_is_an_override_binding_visible_before_the_expansion_finishes() {
         let mut variables = VariableStore::new();
         let mut emit = |_: Output<'_>| {};
@@ -223,6 +247,7 @@ impl Variable {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpandError {
+    Cancelled,
     Located {
         location: Arc<Location>,
         error: Box<ExpandError>,
@@ -385,6 +410,7 @@ impl fmt::Display for ExpandError {
                 "invalid arguments to '{}': {message}",
                 String::from_utf8_lossy(function)
             ),
+            Self::Cancelled => output.write_str("interrupted"),
             Self::ExpansionLimit => output.write_str("variable expansion resource limit exceeded"),
             Self::WordIndexZero => {
                 output.write_str("first argument to 'word' function must be greater than 0")
@@ -1576,6 +1602,9 @@ impl Expansion<'_, '_> {
     }
 
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        if self.context.is_cancelled() {
+            return Err(ExpandError::Cancelled);
+        }
         // GNU consumes a C string at each expansion boundary. A NUL returned
         // by a file read does not skip later effects in this same expansion;
         // truncate only after evaluating all remaining source text.
@@ -1602,7 +1631,11 @@ impl Expansion<'_, '_> {
             result
         });
         self.depth -= 1;
-        result
+        if self.context.is_cancelled() {
+            Err(ExpandError::Cancelled)
+        } else {
+            result
+        }
     }
 
     fn expand_inner(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {

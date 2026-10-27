@@ -45,14 +45,10 @@ GNU default-FIFO path can leak a PID-named FIFO. rmake continues to release owne
 resources and reap its workers. No comparator normalization or new pending
 exemption was introduced. Product Rust still forbids unsafe code.
 
-M5 remains open. Further synthetic failed-launch combinations, ignored fatal
-preparation and concurrent peers need deeper same-phase shutdown replay. A
-research probe also found scheduler-dependent intermediate materialization when
-an unbuilt `.INTERMEDIATE` precedes a fatal target in a `.WAIT` phase. The required
-cleanup fixtures deliberately establish a completed intermediate through an
-ordinary prerequisite before testing shutdown; the unbuilt-phase interaction is
-remaining runtime work, not counted as a passing case. Signals, cancellation,
-load/stdin/output-sync profiles and broad stress still need their full M5 gates.
+The [runtime completion follow-up](runtime-cancellation.md) adds the active-peer,
+failed-launch, all-output-mode and unbuilt-intermediate/barrier regressions that
+were open at this tranche. Its required cases close those tracked runtime gaps.
+M5's remaining position is recorded in the implementation plan and progress log.
 
 ## Reference study
 

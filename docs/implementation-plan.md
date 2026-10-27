@@ -23,8 +23,9 @@ The next active tranche is M5's Linux runtime, alongside the remaining M3
 language gaps. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
 is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
-controlled development and optimized gates. Remaining synthetic completion,
-interruption/effect combinations and runtime stress cases stay open.
+controlled development and optimized gates. [Cooperative interruption and synthetic completion](runtime-cancellation.md)
+now have mandatory effect, lock, terminal and peer regressions. Recursive flag
+interpretation and the combined runtime exit audit remain open.
 [Output synchronization](output-sync.md) has controlled grouping, mutex and mixed-tree gates.
 [Owned children and signal shutdown](runtime-signals.md) now have controlled
 recipe/runtime gates, including safe borrowed-token recovery. Persistent caching remains deferred to its

@@ -7,9 +7,11 @@ use std::ffi::{c_int, c_void};
 use std::fs::File;
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 const CAUGHT: [c_int; 7] = [1, 2, 3, 13, 15, 24, 25];
+static CANCELLED: AtomicBool = AtomicBool::new(false);
+static TERMINAL_STATUS: AtomicI32 = AtomicI32::new(-1);
 static PENDING: AtomicI32 = AtomicI32::new(0);
 static WAKE_READER: AtomicI32 = AtomicI32::new(-1);
 static WAKE_WRITER: AtomicI32 = AtomicI32::new(-1);
@@ -45,6 +47,7 @@ extern "C" fn caught(number: c_int) {
     // and kill are async-signal-safe. Preserve this thread's interrupted errno.
     let saved = unsafe { *__errno_location() };
     unsafe { signal(number, 0) };
+    CANCELLED.store(true, Ordering::Relaxed);
     PENDING.store(number, Ordering::SeqCst);
     let byte = number as u8;
     unsafe {
@@ -83,6 +86,8 @@ impl Guard {
         WAKE_READER.store(guard._reader.as_raw_fd(), Ordering::Relaxed);
         WAKE_WRITER.store(guard._writer.as_raw_fd(), Ordering::Relaxed);
         PENDING.store(0, Ordering::SeqCst);
+        TERMINAL_STATUS.store(-1, Ordering::Relaxed);
+        CANCELLED.store(false, Ordering::Relaxed);
         for number in CAUGHT {
             let old = unsafe { signal(number, caught as *const () as usize) };
             if old == usize::MAX {
@@ -178,6 +183,10 @@ pub fn deletes_targets(number: i32) -> bool {
 /// Call after the interpreter has released owned resources. SIGQUIT has GNU's
 /// explicit status 1 convention; other fatal signals retain wait-status identity.
 pub fn exit_status(status: u8) -> u8 {
+    let terminal = TERMINAL_STATUS.load(Ordering::Relaxed);
+    if terminal >= 0 {
+        return terminal as u8;
+    }
     if let Some(number) = pending() {
         if number == 3 {
             return 1;
@@ -189,4 +198,16 @@ pub fn exit_status(status: u8) -> u8 {
         return (128 + number) as u8;
     }
     status
+}
+
+/// Core evaluation receives only a cooperative cancellation flag, with no
+/// platform effects or callback dispatch on its hot expansion path.
+pub fn cancellation() -> &'static AtomicBool {
+    &CANCELLED
+}
+
+/// A normal fatal diagnostic can supersede signal exit while GNU's logical
+/// completion owner reenters shutdown. Effects and cleanup still observe PENDING.
+pub fn terminal_status(status: u8) {
+    TERMINAL_STATUS.store(i32::from(status), Ordering::Relaxed);
 }

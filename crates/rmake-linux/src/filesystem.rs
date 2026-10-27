@@ -162,3 +162,20 @@ fn diagnostic(stage: &[u8], path: &[u8], error: io::Error) -> Vec<u8> {
     let message = message.strip_suffix(&suffix).unwrap_or(&message);
     [stage, b": ", path, b": ", message.as_bytes()].concat()
 }
+
+/// Whole-source reads retain the interpreter's existing source representation,
+/// while honoring cancellation during fopen/fread instead of retrying forever.
+pub fn read_source(path: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut stream = Stream::open(path, c"r")?;
+    let mut bytes = Vec::new();
+    let mut block = [0; 16384];
+    loop {
+        let count = stream.read(&mut block)?;
+        if count == 0 {
+            break;
+        }
+        bytes.extend_from_slice(&block[..count]);
+    }
+    stream.close()?;
+    Ok(bytes)
+}

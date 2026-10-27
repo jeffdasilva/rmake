@@ -1,0 +1,11 @@
+id = "runtime-capture-short-none"
+requirement = "runtime.cancellation"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "-Onone"]
+description = "Original capture EOF/status, byte drain and descriptor ownership regression."
+provenance = "Independently authored helper and exact word/status anchors; no upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "776f7264733d32207374617475733d300a"
+stderr_hex = ""

@@ -186,3 +186,7 @@ independent Linux event loop and original controlled signal campaign.
 The [output synchronization notes](output-sync.md) record output, recipe and
 POSIX synchronization source references used for the original Linux implementation
 and controlled output-phase and mixed-recursion fixtures.
+
+The [cancellation/completion notes](runtime-cancellation.md) record the source
+references for independently implemented evaluation cancellation, owned capture,
+stream interruption, synthetic completion and the original PTY/lock campaigns.

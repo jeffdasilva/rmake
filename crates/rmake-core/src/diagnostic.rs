@@ -97,6 +97,7 @@ type ShellReceiver<'a> = dyn FnMut(ShellRequest<'_>) -> Result<ShellResult, Vec<
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
     pub location: Option<&'a Location>,
+    cancellation: Option<&'a std::sync::atomic::AtomicBool>,
     output: Option<&'a mut dyn FnMut(Output<'_>)>,
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
     includes: Option<&'a mut IncludeReceiver<'a>>,
@@ -107,6 +108,7 @@ impl<'a> ExpansionContext<'a> {
     pub fn new(location: Option<&'a Location>, output: &'a mut dyn FnMut(Output<'_>)) -> Self {
         Self {
             location,
+            cancellation: None,
             output: Some(output),
             filesystem: None,
             includes: None,
@@ -118,11 +120,22 @@ impl<'a> ExpansionContext<'a> {
     pub fn pure() -> Self {
         Self {
             location: None,
+            cancellation: None,
             output: None,
             filesystem: None,
             includes: None,
             shell: None,
         }
+    }
+
+    pub fn with_cancellation(mut self, cancellation: &'a std::sync::atomic::AtomicBool) -> Self {
+        self.cancellation = Some(cancellation);
+        self
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     pub fn with_filesystem(mut self, filesystem: &'a mut FilesystemReceiver<'a>) -> Self {
@@ -136,6 +149,9 @@ impl<'a> ExpansionContext<'a> {
     }
 
     pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, Vec<u8>>> {
+        if self.is_cancelled() {
+            return Some(Err(b"interrupted".to_vec()));
+        }
         self.includes.as_mut().map(|receiver| receiver(name))
     }
 
@@ -149,6 +165,9 @@ impl<'a> ExpansionContext<'a> {
     }
 
     pub fn run_shell(&mut self, request: ShellRequest<'_>) -> Option<Result<ShellResult, Vec<u8>>> {
+        if self.is_cancelled() {
+            return Some(Err(b"interrupted".to_vec()));
+        }
         self.shell.as_mut().map(|receiver| receiver(request))
     }
 
@@ -156,10 +175,16 @@ impl<'a> ExpansionContext<'a> {
         &mut self,
         effect: FilesystemEffect<'_>,
     ) -> Option<Result<Vec<u8>, FilesystemError>> {
+        if self.is_cancelled() {
+            return Some(Err(FilesystemError::Unlocated(b"interrupted".to_vec())));
+        }
         self.filesystem.as_mut().map(|receiver| receiver(effect))
     }
 
     pub fn emit(&mut self, output: Output<'_>) -> bool {
+        if self.is_cancelled() {
+            return false;
+        }
         if let Some(receiver) = &mut self.output {
             receiver(output);
             true
@@ -171,6 +196,7 @@ impl<'a> ExpansionContext<'a> {
     pub fn at<'b>(&'b mut self, location: Option<&'b Location>) -> ExpansionContext<'b> {
         ExpansionContext {
             location,
+            cancellation: self.cancellation,
             output: match &mut self.output {
                 Some(output) => Some(&mut **output),
                 None => None,
@@ -239,6 +265,16 @@ impl fmt::Display for Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::Diagnostic;
+
+    #[test]
+    fn cancellation_survives_reborrowing_and_location_changes() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let flag = AtomicBool::new(false);
+        let mut context = super::ExpansionContext::pure().with_cancellation(&flag);
+        assert!(!context.reborrow().is_cancelled());
+        flag.store(true, Ordering::Relaxed);
+        assert!(context.at(None).is_cancelled());
+    }
 
     #[test]
     fn raw_diagnostic_transport_does_not_use_lossy_display() {

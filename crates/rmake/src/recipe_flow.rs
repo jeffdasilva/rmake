@@ -157,7 +157,14 @@ impl Flow {
     /// An ignored failed launch resets cleanup eligibility even if an earlier
     /// command really ran. Optimized no-child commands never call this method.
     pub fn attempted(&mut self, launched: bool) {
-        self.registered.get_or_insert(launched);
+        self.attempted_in_pool(launched, false);
+    }
+
+    pub fn attempted_in_pool(&mut self, launched: bool, active_peer: bool) {
+        // A failed dispatch can acquire a logical completion owner when another
+        // child is already registered. Keep this separate from actual launch
+        // success: cleanup still follows the last attempt's real outcome.
+        self.registered.get_or_insert(launched || active_peer);
         self.attempt = if launched {
             Attempt::Launched
         } else {
@@ -213,6 +220,16 @@ pub fn optimized_noop(invocation: &Invocation) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_dispatch_can_inherit_a_peer_owner_without_becoming_a_launch() {
+        let mut flow = Flow::new(vec![false]);
+        flow.visit(0, false);
+        flow.attempted_in_pool(false, true);
+        assert!(flow.retained_owner());
+        assert!(flow.failed_launch());
+        assert_eq!(flow.continuation_cleanup(), Cleanup::None);
+    }
 
     #[test]
     fn fatal_shutdown_retains_only_the_first_owner() {
