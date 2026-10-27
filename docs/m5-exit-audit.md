@@ -5,7 +5,8 @@ Linux/glibc, C-locale GNU Make 4.4.1 development profile. Its exit requires the
 combined development and optimized gates to pass on the exact proposed commit.
 An incomplete or failed run does not satisfy this requirement. This is a feature
 tranche acceptance; complete GNU compatibility and general speed parity remain
-open.
+open. Earlier progress entries and slice measurements describe their original
+points in time; this audit supersedes historical M5-open statements.
 
 ## Requirement coverage
 
