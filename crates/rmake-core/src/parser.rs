@@ -746,6 +746,50 @@ mod include_tests {
     use crate::diagnostic::IncludedFile;
 
     #[test]
+    fn argument_rhs_has_database_effects_without_makefile_comment_parsing() {
+        let mut database = Database::default();
+        let mut output = Vec::new();
+        let mut emit = |event: Output<'_>| {
+            if let Output::Info(bytes) = event {
+                output.push(bytes.to_vec());
+            }
+        };
+        database
+            .define_argument_with(
+                b"X:=$(eval Y:=inner)$(info rhs)value#literal",
+                Origin::File,
+                ExpansionContext::new(None, &mut emit),
+            )
+            .unwrap();
+        let variable = database.variables.get(b"X").unwrap();
+        assert_eq!(variable.raw_value(), b"value#literal");
+        assert_eq!(variable.origin(), Origin::File);
+        assert!(variable.definition().is_none());
+        assert_eq!(database.variables.expand(b"$(Y)").unwrap(), b"inner");
+        assert_eq!(output, [b"rhs".to_vec()]);
+    }
+
+    #[test]
+    fn argument_name_effects_do_not_reparse_semicolons_or_comments() {
+        let mut database = Database::default();
+        let name = database
+            .define_argument_with(
+                b"$(eval SIDE:=yes)X=foo;bar #baz",
+                Origin::Environment,
+                ExpansionContext::pure(),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(name, b"X");
+        assert_eq!(database.variables.expand(b"$(SIDE)").unwrap(), b"yes");
+        assert_eq!(
+            database.variables.get(b"X").unwrap().raw_value(),
+            b"foo;bar #baz"
+        );
+        assert!(database.rules.is_empty());
+    }
+
+    #[test]
     fn flag_value_eval_runs_before_the_host_callback_and_following_lines() {
         let mut database = Database::default();
         let mut values = Vec::new();
@@ -756,6 +800,8 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: Vec::new(),
+                assignments: Vec::new(),
+                next_argument: 1,
             })
         };
         database
@@ -796,6 +842,8 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: Vec::new(),
+                assignments: Vec::new(),
+                next_argument: 1,
             })
         };
         database
@@ -1602,25 +1650,7 @@ impl Database {
         self.variables = variables;
         result?;
         if spec.name == b"MAKEFLAGS" && context.has_makeflags() {
-            let encoded_overrides = self.variables.get(b"MAKEFLAGS").is_some_and(|variable| {
-                variable
-                    .raw_value()
-                    .windows(b"$(MAKEOVERRIDES)".len())
-                    .any(|part| part == b"$(MAKEOVERRIDES)")
-            });
-            let value = self
-                .expand_with(b"$(MAKEFLAGS)", context.at(Some(evaluation_location)))
-                .map_err(|error| ParseError {
-                    unlocated: error.is_unlocated(),
-                    location: error
-                        .diagnostic_location(Some(evaluation_location))
-                        .unwrap_or(evaluation_location)
-                        .clone(),
-                    message: error.diagnostic(),
-                })?;
-            context
-                .at(Some(evaluation_location))
-                .update_makeflags(&mut self.variables, origin, value, encoded_overrides)
+            self.reset_assigned_flags(origin, context.at(Some(evaluation_location)))
                 .map_err(|error| ParseError {
                     unlocated: error.is_unlocated(),
                     location: error
@@ -1631,6 +1661,63 @@ impl Database {
                 })?;
         }
         Ok(())
+    }
+
+    /// An option payload is one assignment token, not a Makefile statement:
+    /// comments/directives are data and the definition has no file location.
+    pub fn define_argument_with(
+        &mut self,
+        argument: &[u8],
+        origin: Origin,
+        mut context: ExpansionContext<'_>,
+    ) -> Result<Option<Vec<u8>>, ExpandError> {
+        let Some(spec) = assignment(argument) else {
+            return Ok(None);
+        };
+        let name = self.expand_with(spec.name, context.reborrow())?;
+        if name == b"MAKEFLAGS" && spec.kind == Assignment::Append && !spec.value.is_empty() {
+            self.variables.strip_makeflags_assignments(origin);
+        }
+        let mut variables = std::mem::take(&mut self.variables);
+        let result = variables.define_with_using(
+            &name,
+            spec.value,
+            spec.kind,
+            origin,
+            None,
+            context.reborrow(),
+            |variables, bytes, shell, context| {
+                std::mem::swap(variables, &mut self.variables);
+                let result = if shell {
+                    crate::variables::shell_database(self, bytes, context)
+                } else {
+                    self.expand_with(bytes, context)
+                };
+                std::mem::swap(variables, &mut self.variables);
+                result
+            },
+        );
+        self.variables = variables;
+        result?;
+        if name == b"MAKEFLAGS" && context.has_makeflags() {
+            self.reset_assigned_flags(origin, context.reborrow())?;
+        }
+        Ok(Some(name))
+    }
+
+    fn reset_assigned_flags(
+        &mut self,
+        origin: Origin,
+        mut context: ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        let encoded_overrides = self.variables.get(b"MAKEFLAGS").is_some_and(|variable| {
+            variable
+                .raw_value()
+                .windows(b"$(MAKEOVERRIDES)".len())
+                .any(|part| part == b"$(MAKEOVERRIDES)")
+        });
+        let value = self.expand_with(b"$(MAKEFLAGS)", context.reborrow())?;
+        context.update_makeflags(self, origin, value, encoded_overrides)
     }
 
     fn define_target_assignments(

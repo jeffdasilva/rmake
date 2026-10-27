@@ -2210,3 +2210,20 @@ are retained separately as raw research, without passing conformance credit.
 The [shell argv notes](shell-argv-replay.md) describe behavior and provenance.
 Full development and optimized acceptance remain merge gates; M3/M6 completeness
 and general performance parity remain open.
+
+## M3 assignments inside changed flag payloads
+
+Replace the explicit payload-assignment rejection with owned tokens evaluated
+through the ordinary database context. Preserve assignment-origin precedence,
+per-argument environment policy, byte quoting, immediate nested effects,
+post-read environment definitions and restart/recursive behavior. Retain a
+bounded owned cursor for reproducible nested interpretation without borrowing
+temporary argument memory.
+
+Add 454 required independent fixtures, two Rust regressions and three tooling
+checks. The curated inventory is 6,421 total / 6,420 required / one pending;
+unit totals are 427 Rust and 332 tooling tests. Six further decoder observations
+remain research and compatibility/safety conflicts without conformance credit.
+Full sequential development and optimized acceptance and exact-head CI remain
+merge gates. [Payload notes](flag-payloads.md) record scope and provenance; the
+[M3/M6 audit](m3-m6-audit.md) explicitly retains the broader unresolved surfaces.

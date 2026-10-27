@@ -23,6 +23,8 @@ pub struct Options {
     pub include_assignment_positions: Vec<usize>,
     pub goals: Vec<Vec<u8>>,
     pub assignments: Vec<Vec<u8>>,
+    pub assignment_context: Vec<(usize, bool)>,
+    pub flag_word_count: usize,
     pub dry_run: bool,
     pub silent: bool,
     pub always: bool,
@@ -84,7 +86,18 @@ impl Options {
             }
             pos += 1;
         }
-        let bytes = decoded.as_slice();
+        Self::append_expanded_flags(combined, &decoded)
+    }
+
+    // Expanded file flags have already consumed their make-dollar quoting.
+    // GNU skips C whitespace once at the start, then separates only SP/TAB.
+    fn append_expanded_flags(combined: &mut Vec<OsString>, mut bytes: &[u8]) -> Result<(), String> {
+        while bytes
+            .first()
+            .is_some_and(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
+        {
+            bytes = &bytes[1..];
+        }
         let mut tokens = Vec::new();
         let mut token = Vec::new();
         let mut i = 0;
@@ -92,7 +105,7 @@ impl Options {
             if bytes[i] == b'\\' && i + 1 < bytes.len() {
                 i += 1;
                 token.push(bytes[i]);
-            } else if bytes[i].is_ascii_whitespace() {
+            } else if matches!(bytes[i], b' ' | b'\t') {
                 if !token.is_empty() {
                     tokens.push(std::mem::take(&mut token));
                 }
@@ -139,24 +152,25 @@ impl Options {
     ) -> Result<(Self, Option<usize>), String> {
         let mut incoming = Vec::new();
         for value in flags {
-            Self::append_flags(&mut incoming, value)?;
+            Self::append_expanded_flags(&mut incoming, value)?;
         }
         let incoming_options = Self::parse(incoming.clone())?;
         if !incoming_options.files.is_empty() || !incoming_options.directories.is_empty() {
             return Err("file/directory switches in make flags are not implemented".into());
-        }
-        if !incoming_options.assignments.is_empty() {
-            return Err(
-                "assignments introduced through changed make flags are not implemented".into(),
-            );
         }
         let mut arguments = Vec::new();
         Self::append_flags(&mut arguments, &self.recursive_flags())?;
         if self.jobserver_pipe {
             arguments.push("--jobserver-style=pipe".into());
         }
+        let prefix_count = arguments.len();
+        let flag_word_count = incoming.len() + 1;
         arguments.extend(incoming);
         let mut parsed = Self::parse(arguments)?;
+        for (position, _) in &mut parsed.assignment_context {
+            *position = *position - prefix_count + 1;
+        }
+        parsed.flag_word_count = flag_word_count;
         parsed.command_jobs = self.command_jobs;
         if restore_cli_jobs && let Some(jobs) = self.command_jobs {
             parsed.jobs = Some(jobs);
@@ -386,6 +400,9 @@ impl Options {
                 }
             } else if rmake_core::parser::assignment(arg).is_some() {
                 result.assignments.push(arg.clone());
+                result
+                    .assignment_context
+                    .push((i, result.environment_override));
             } else {
                 result
                     .goals

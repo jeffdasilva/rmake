@@ -34,9 +34,10 @@ post-read `GNUMAKEFLAGS` replay. Raw streams, status and target-file effects sta
 under the normal exact comparator; opaque descriptor identities are validated
 by the helper rather than normalized in captured output.
 
-This closes the M5 runtime switch tranche. Assignments newly introduced inside
-a changed flag payload, broader command-line ordering, and remaining special
-variable metadata are M3/M6 work. They are not claimed as complete compatibility.
+This closes the M5 runtime switch tranche. [Changed flag payloads](flag-payloads.md)
+now evaluate embedded assignments through the normal database evaluator.
+Broader command-line ordering, inherited file/directory switches, special
+variable metadata and decoder safety conflicts remain M3/M6 work.
 See the [combined audit](m5-exit-audit.md).
 
 Reference study used `src/main.c`, `src/variable.c`, `src/read.c`, `src/job.c`,

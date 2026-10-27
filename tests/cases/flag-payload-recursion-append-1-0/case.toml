@@ -1,0 +1,12 @@
+id = "flag-payload-recursion-append-1-0"
+requirement = "variables.flag-payloads"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+description = "Original flag payload assignment, origin, byte, effect, restart or recursive inheritance regression."
+provenance = "Independently authored source, two raw GNU Make 4.4.1 observations and candidate comparison; source-reference study without copying upstream implementation or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "706172656e743d5b666c61675d2f66696c650a6368696c643d5b666c61675d2f656e7669726f6e6d656e742f7265637572736976650a"
+stderr_hex = ""

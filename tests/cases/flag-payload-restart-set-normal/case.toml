@@ -1,0 +1,12 @@
+id = "flag-payload-restart-set-normal"
+requirement = "variables.flag-payloads"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+description = "Original flag payload assignment, origin, byte, effect, restart or recursive inheritance regression."
+provenance = "Independently authored source, two raw GNU Make 4.4.1 observations and candidate comparison; source-reference study without copying upstream implementation or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "726573746172743d5b5d20583d5b666c61675d2f66696c650a726573746172743d5b315d20583d5b666c61675d2f66696c650a"
+stderr_hex = ""

@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "classification": "oracle decoder safety research; not passing conformance fixtures",
+  "oracle_version": "4.4.1",
+  "oracle_source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "oracle_sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+  "provenance": "Original probes and bounded observations, with independently authored getopt interposer confirming unexpected option parsing after nested flag assignments. No upstream implementation or tests copied.",
+  "interpretation": "GNU retains process-global getopt state across nested stack-local decodes. Nontermination and invalid option reads remain unresolved compatibility and safety conflicts; no equivalence credit, deliberately invalid memory accesses or unbounded candidate loops.",
+  "records": [
+    {
+      "id": "flag-payload-effect-set-9",
+      "classification": "oracle nontermination",
+      "inputs_hex": {
+        "Makefile": "593d6265666f72650a4d414b45464c414753203d20583d666c6167204d414b45464c4147533d2d730a2428696e666f2061667465723d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c53544154555329290a616c6c3a203b20402428696e666f207265636970653d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c5354415455532929747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 8,
+      "oracle_runs": [
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "",
+        "stderr": "4d616b6566696c653a323a202a2a2a207661726961626c6520657870616e73696f6e207265736f75726365206c696d69742065786365656465642e202053746f702e0a",
+        "status": 2,
+        "limit": null,
+        "leftovers": false
+      }
+    },
+    {
+      "id": "flag-payload-effect-set-10",
+      "classification": "oracle nontermination",
+      "inputs_hex": {
+        "Makefile": "593d6265666f72650a4d414b45464c414753203d20583a3d61204d414b45464c4147533d582b3d620a2428696e666f2061667465723d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c53544154555329290a616c6c3a203b20402428696e666f207265636970653d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c5354415455532929747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 8,
+      "oracle_runs": [
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "",
+        "stderr": "4d616b6566696c653a323a202a2a2a207661726961626c6520657870616e73696f6e207265736f75726365206c696d69742065786365656465642e202053746f702e0a",
+        "status": 2,
+        "limit": null,
+        "leftovers": false
+      }
+    },
+    {
+      "id": "flag-payload-effect-override-9",
+      "classification": "oracle nontermination",
+      "inputs_hex": {
+        "Makefile": "593d6265666f72650a6f76657272696465204d414b45464c414753203d20583d666c6167204d414b45464c4147533d2d730a2428696e666f2061667465723d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c53544154555329290a616c6c3a203b20402428696e666f207265636970653d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c5354415455532929747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 8,
+      "oracle_runs": [
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "",
+        "stderr": "4d616b6566696c653a323a202a2a2a207661726961626c6520657870616e73696f6e207265736f75726365206c696d69742065786365656465642e202053746f702e0a",
+        "status": 2,
+        "limit": null,
+        "leftovers": false
+      }
+    },
+    {
+      "id": "flag-payload-effect-override-10",
+      "classification": "oracle nontermination",
+      "inputs_hex": {
+        "Makefile": "593d6265666f72650a6f76657272696465204d414b45464c414753203d20583a3d61204d414b45464c4147533d582b3d620a2428696e666f2061667465723d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c53544154555329290a616c6c3a203b20402428696e666f207265636970653d5b242858295d2f5b242876616c75652058295d2f24286f726967696e2058292f2428666c61766f722058293a5b242859295d2f24286f726967696e2059293a5b24284d414b45464c414753295d3a24282e5348454c4c5354415455532929747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 8,
+      "oracle_runs": [
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "",
+        "stderr": "4d616b6566696c653a323a202a2a2a207661726961626c6520657870616e73696f6e207265736f75726365206c696d69742065786365656465642e202053746f702e0a",
+        "status": 2,
+        "limit": null,
+        "leftovers": false
+      }
+    },
+    {
+      "id": "flag-payload-ordered-13",
+      "classification": "oracle nontermination",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d20583a3d6f6e65204d414b45464c4147533d2d7320593a3d74776f0a2428696e666f20616674657220583d5b242858295d2f5b242876616c75652058295d20593d5b242859295d205a3d5b24285a295d20666c6167733d5b24284d414b45464c414753295d206f7665723d5b24284d414b454f5645525249444553295d290a616c6c3a203b2040747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 3,
+      "oracle_runs": [
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "stdout": "",
+          "stderr": "",
+          "status": -9,
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "",
+        "stderr": "4d616b6566696c653a313a202a2a2a207661726961626c6520657870616e73696f6e207265736f75726365206c696d69742065786365656465642e202053746f702e0a",
+        "status": 2,
+        "limit": null,
+        "leftovers": false
+      }
+    },
+    {
+      "id": "flag-payload-ordered-14",
+      "classification": "unsafe nested getopt continuation",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d74687265650a2428696e666f20616674657220583d5b242858295d2f5b242876616c75652058295d20593d5b242859295d205a3d5b24285a295d20666c6167733d5b24284d414b45464c414753295d206f7665723d5b24284d414b454f5645525249444553295d290a616c6c3a203b2040747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 3,
+      "oracle_runs": [
+        {
+          "stdout": "616674657220583d5b5d2f5b5d20593d5b74776f5d205a3d5b5d20666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d206f7665723d5b5d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "616674657220583d5b5d2f5b5d20593d5b74776f5d205a3d5b5d20666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d206f7665723d5b5d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "616674657220583d5b5d2f5b5d20593d5b74776f5d205a3d5b74687265655d20666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d206f7665723d5b5d0a",
+        "stderr": "",
+        "status": 0,
+        "limit": null,
+        "leftovers": false
+      }
+    }
+  ]
+}

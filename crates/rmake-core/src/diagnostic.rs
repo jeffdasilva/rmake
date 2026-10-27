@@ -100,11 +100,19 @@ pub struct MakeflagsRequest<'a> {
     pub value: &'a [u8],
     pub origin: crate::variables::Origin,
 }
+pub struct FlagAssignment {
+    pub argument: Vec<u8>,
+    pub environment_override: bool,
+    pub position: usize,
+}
+
 pub struct MakeflagsResult {
     pub value: Vec<u8>,
     pub origin: crate::variables::Origin,
     pub environment_override: bool,
     pub include_dirs: Vec<Vec<u8>>,
+    pub assignments: Vec<FlagAssignment>,
+    pub next_argument: usize,
 }
 type MakeflagsReceiver<'a> =
     dyn FnMut(MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>> + 'a;
@@ -119,6 +127,8 @@ pub struct ExpansionContext<'a> {
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
     makeflags: Option<&'a mut MakeflagsReceiver<'a>>,
+    makeflags_depth: usize,
+    makeflags_cursor: Option<std::rc::Rc<std::cell::Cell<usize>>>,
 }
 
 impl<'a> ExpansionContext<'a> {
@@ -131,6 +141,8 @@ impl<'a> ExpansionContext<'a> {
             includes: None,
             shell: None,
             makeflags: None,
+            makeflags_depth: 0,
+            makeflags_cursor: None,
         }
     }
 
@@ -144,6 +156,8 @@ impl<'a> ExpansionContext<'a> {
             includes: None,
             shell: None,
             makeflags: None,
+            makeflags_depth: 0,
+            makeflags_cursor: None,
         }
     }
 
@@ -158,7 +172,7 @@ impl<'a> ExpansionContext<'a> {
 
     pub fn update_makeflags(
         &mut self,
-        variables: &mut crate::variables::VariableStore,
+        database: &mut crate::parser::Database,
         origin: crate::variables::Origin,
         mut value: Vec<u8>,
         encoded_overrides: bool,
@@ -170,16 +184,43 @@ impl<'a> ExpansionContext<'a> {
         if self.is_cancelled() {
             return Err(ExpandError::Cancelled);
         }
+        if self.makeflags_depth >= 128 {
+            return Err(ExpandError::ExpansionLimit);
+        }
         if encoded_overrides
             && let Some(boundary) = value.windows(4).position(|part| part == b" -- ")
         {
             value.truncate(boundary);
         }
+        let has_input = value
+            .iter()
+            .any(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'));
         let mut result = self.makeflags.as_mut().expect("configured receiver")(MakeflagsRequest {
             value: &value,
             origin,
         })
         .map_err(ExpandError::UnlocatedError)?;
+        database
+            .variables
+            .set_environment_override(result.environment_override);
+        if !result.assignments.is_empty() {
+            self.apply_flag_assignments(
+                database,
+                &result.assignments,
+                origin,
+                result.next_argument,
+            )?;
+            // Nested definitions can change switches, but refreshing does not
+            // repeat the outer assignment stream or reset its owned cursor.
+            result = self.makeflags.as_mut().expect("configured receiver")(MakeflagsRequest {
+                value: b"",
+                origin,
+            })
+            .map_err(ExpandError::UnlocatedError)?;
+        } else if has_input && let Some(cursor) = &self.makeflags_cursor {
+            cursor.set(result.next_argument);
+        }
+        let variables = &mut database.variables;
         if variables
             .get(b"MAKEOVERRIDES")
             .is_some_and(|variable| !variable.raw_value().is_empty())
@@ -205,6 +246,58 @@ impl<'a> ExpansionContext<'a> {
             )?;
         }
         Ok(())
+    }
+
+    /// Replay option definitions in argument order. A nested MAKEFLAGS decode
+    /// shares GNU's observable argument cursor, but owns all input storage.
+    pub fn apply_flag_assignments(
+        &mut self,
+        database: &mut crate::parser::Database,
+        assignments: &[FlagAssignment],
+        origin: crate::variables::Origin,
+        terminal: usize,
+    ) -> Result<Vec<Vec<u8>>, crate::variables::ExpandError> {
+        use crate::variables::{ExpandError, Origin};
+        if self.makeflags_depth >= 128 {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        let cursor = self
+            .makeflags_cursor
+            .get_or_insert_with(Default::default)
+            .clone();
+        cursor.set(1);
+        let mut names = Vec::new();
+        let depth = self.makeflags_depth;
+        self.makeflags_depth += 1;
+        let applied = (|| {
+            for _ in 0..128_usize.saturating_mul(assignments.len().max(1)) {
+                let index =
+                    assignments.partition_point(|assignment| assignment.position < cursor.get());
+                let Some(assignment) = assignments.get(index) else {
+                    cursor.set(cursor.get().max(terminal));
+                    return Ok(());
+                };
+                cursor.set(assignment.position + 1);
+                database
+                    .variables
+                    .set_environment_override(assignment.environment_override);
+                let effective = if origin == Origin::Environment && assignment.environment_override
+                {
+                    Origin::EnvironmentOverride
+                } else {
+                    origin
+                };
+                if let Some(name) =
+                    database.define_argument_with(&assignment.argument, effective, self.at(None))?
+                {
+                    names.push(name);
+                }
+            }
+            Err(ExpandError::ExpansionLimit)
+        })();
+        self.makeflags_depth = depth;
+        applied?;
+        Ok(names)
     }
 
     pub fn with_cancellation(mut self, cancellation: &'a std::sync::atomic::AtomicBool) -> Self {
@@ -296,6 +389,8 @@ impl<'a> ExpansionContext<'a> {
                 Some(receiver) => Some(&mut **receiver),
                 None => None,
             },
+            makeflags_depth: self.makeflags_depth,
+            makeflags_cursor: self.makeflags_cursor.clone(),
         }
     }
 

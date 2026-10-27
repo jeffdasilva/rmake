@@ -21,7 +21,9 @@ compatibility, broad runtime/profile acceptance and general speed parity remain
 future milestones.
 
 The next active work is the remaining M3 language gaps and M6 compatibility
-surfaces. [Export traversal](export-order.md) now closes the two historical
+surfaces, tracked in the [gap audit](m3-m6-audit.md). [Flag payloads](flag-payloads.md)
+now evaluate embedded assignments with origin, ordering and effect coverage.
+[Export traversal](export-order.md) closes the two historical
 export-order pending cases, with collision/growth, scope and live-eval evidence.
 [Shell argv and residual execution](shell-argv-replay.md) closes five more
 curated gaps. One upstream-signal case remains pending; the broader M3/M6

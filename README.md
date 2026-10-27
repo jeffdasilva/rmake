@@ -17,6 +17,8 @@ remain open.
 The latest follow-ups add [ordered export effects](docs/export-order.md) and
 [shell argv/residual execution](docs/shell-argv-replay.md), with required
 collision, scope, configuration-byte and execution-mode tests.
+[Flag payload assignments](docs/flag-payloads.md) now use the ordinary evaluator;
+the [M3/M6 audit](docs/m3-m6-audit.md) tracks remaining compatibility surfaces.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
