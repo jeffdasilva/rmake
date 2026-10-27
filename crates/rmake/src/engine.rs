@@ -7,7 +7,7 @@
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
-use crate::recipe_flow::{Cleanup, Execution, Flow, Status};
+use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
 use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
@@ -17,7 +17,7 @@ use rmake_core::variables::{
 };
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
@@ -217,7 +217,7 @@ fn secondary_automatic(
 }
 
 fn location_prefix(location: &Location) -> Vec<u8> {
-    let mut bytes = location.file.clone();
+    let mut bytes = location.file.to_vec();
     if location.line != 0 {
         bytes.extend_from_slice(format!(":{}", location.line).as_bytes());
     }
@@ -557,7 +557,9 @@ pub struct Engine {
     completed_jobs: std::sync::mpsc::Receiver<JobResult>,
     job_sender: std::sync::mpsc::Sender<JobResult>,
     parallel_failed: bool,
-    waiting_reported: bool,
+    waiting_reported: Cell<bool>,
+    shutdown: Cell<Shutdown>,
+    shutdown_launch_failure: RefCell<Option<(Vec<u8>, Location, bool)>>,
     remaking: bool,
     optional_remake: bool,
     optional_remake_failures: HashSet<Vec<u8>>,
@@ -913,7 +915,9 @@ impl Engine {
             completed_jobs,
             job_sender,
             parallel_failed: false,
-            waiting_reported: false,
+            waiting_reported: Cell::new(false),
+            shutdown: Cell::new(Shutdown::Running),
+            shutdown_launch_failure: RefCell::new(None),
             remaking: false,
             optional_remake: false,
             optional_remake_failures: HashSet::new(),
@@ -1001,6 +1005,13 @@ impl Engine {
     }
 
     fn fatal(&self, location: Option<&Location>, message: &[u8]) {
+        self.fatal_with_owner(location, message, false);
+    }
+
+    fn fatal_with_owner(&self, location: Option<&Location>, message: &[u8], owner: bool) {
+        let mut shutdown = self.shutdown.get();
+        let wait = shutdown.report(owner);
+        self.shutdown.set(shutdown);
         if let Some(location) = location {
             let mut out = io::stderr().lock();
             let _ = out.write_all(&location_prefix(location));
@@ -1009,6 +1020,29 @@ impl Engine {
             let _ = out.write_all(b".  Stop.\n");
         } else {
             self.stderr(&[b"*** ".as_slice(), message, b".  Stop."].concat());
+        }
+        if wait {
+            self.notice_waiting_for_jobs();
+        }
+    }
+
+    fn recipe_expansion_error(
+        &self,
+        target: &[u8],
+        location: &Location,
+        error: &ExpandError,
+        flow: &Flow,
+        ignore: bool,
+    ) {
+        let first = self.shutdown.get() == Shutdown::Running;
+        self.fatal_with_owner(
+            error.diagnostic_location(Some(location)),
+            error.diagnostic().as_bytes(),
+            flow.retained_owner(),
+        );
+        if first && flow.retained_owner() && flow.failed_launch() {
+            *self.shutdown_launch_failure.borrow_mut() =
+                Some((target.to_vec(), location.clone(), ignore));
         }
     }
 
@@ -1086,7 +1120,7 @@ impl Engine {
                 &file.name,
                 Origin::File,
                 &Location {
-                    file: name.to_vec(),
+                    file: name.into(),
                     line: 1,
                 },
             ) {
@@ -1148,7 +1182,9 @@ impl Engine {
                 self.resolved_names.clear();
                 self.aliases.clear();
                 self.path_observations.clear();
-                self.waiting_reported = false;
+                self.waiting_reported.set(false);
+                self.shutdown.set(Shutdown::Running);
+                self.shutdown_launch_failure.borrow_mut().take();
                 *self.archive_vpath_reads.borrow_mut() = None;
                 self.archive_completion_times.clear();
                 self.inferred_peer_flags.clear();
@@ -1231,7 +1267,7 @@ impl Engine {
                     file.as_os_str().as_bytes(),
                     Origin::File,
                     &Location {
-                        file: file.as_os_str().as_bytes().to_vec(),
+                        file: file.as_os_str().as_bytes().into(),
                         line: 1,
                     },
                 ) {
@@ -1488,6 +1524,10 @@ impl Engine {
                 self.options.always,
             ) = modes;
             self.remaking = false;
+            if self.shutdown.get() != Shutdown::Running {
+                self.remove_intermediates();
+                return 2;
+            }
             if changed {
                 self.remove_intermediates();
                 restarts += 1;
@@ -1764,6 +1804,33 @@ impl Engine {
     }
 
     fn remove_intermediates(&mut self) {
+        match self.shutdown.get() {
+            Shutdown::RetainedOwner => {
+                if let Some((target, location, ignore)) =
+                    self.shutdown_launch_failure.borrow_mut().take()
+                {
+                    self.stderr(
+                        &[
+                            if ignore { b"".as_slice() } else { b"*** " },
+                            b"[",
+                            &location_prefix(&location),
+                            &target,
+                            if ignore {
+                                b"] Error 127 (ignored)".as_slice()
+                            } else {
+                                b"] Error 127"
+                            },
+                        ]
+                        .concat(),
+                    );
+                } else {
+                    self.fatal(None, b"wait: No child processes");
+                }
+                return;
+            }
+            Shutdown::Reentered => return,
+            Shutdown::Running | Shutdown::Draining => {}
+        }
         if self.created_intermediates.is_empty() {
             return;
         }
@@ -2141,10 +2208,9 @@ impl Engine {
         }
     }
 
-    fn notice_waiting_for_jobs(&mut self) {
-        if !self.waiting_reported {
+    fn notice_waiting_for_jobs(&self) {
+        if !self.waiting_reported.replace(true) {
             self.stderr(b"*** Waiting for unfinished jobs....");
-            self.waiting_reported = true;
         }
     }
 
@@ -2404,7 +2470,7 @@ impl Engine {
                             b"Recipe was specified for file '".as_slice(),
                             from,
                             b"' at ",
-                            location.file.as_slice(),
+                            location.file.as_ref(),
                             b":",
                             location.line.to_string().as_bytes(),
                             b",",
@@ -3577,6 +3643,9 @@ impl Engine {
             Status::Failure
         };
         if self.graph_abort.is_none() {
+            let mut shutdown = self.shutdown.get();
+            shutdown.drain();
+            self.shutdown.set(shutdown);
             if !self.parallel_jobs.is_empty() {
                 self.notice_waiting_for_jobs();
             }
@@ -4925,6 +4994,13 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
     ) -> Execution {
+        let recursive_line = |recipe: &Recipe| {
+            has_force_prefix(&recipe.bytes)
+                || recipe
+                    .bytes
+                    .windows(7)
+                    .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
+        };
         let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
         let combined;
         let (recipes, has_commands, recursive) = if one_shell {
@@ -4953,18 +5029,6 @@ impl Engine {
             });
             (recipes, has_commands, recursive)
         };
-        let flow = Flow::new(
-            recipes
-                .iter()
-                .map(|recipe| {
-                    has_force_prefix(&recipe.bytes)
-                        || recipe
-                            .bytes
-                            .windows(7)
-                            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
-                })
-                .collect(),
-        );
         if self.options.touch && !recursive {
             return if phony {
                 Execution::success(false)
@@ -4973,12 +5037,18 @@ impl Engine {
             };
         }
         if !has_commands {
-            return if self.options.touch && !phony && flow.has_ordinary() {
+            return if self.options.touch
+                && !phony
+                && recipes.iter().any(|recipe| !recursive_line(recipe))
+            {
                 self.touch_target(target)
             } else {
                 Execution::success(false)
             };
         }
+        // Empty/shortcut recipes never consume a continuation bitmap. Keep
+        // their raw recursion/touch decisions without allocating one per leaf.
+        let flow = Flow::new(recipes.iter().map(recursive_line).collect());
         let parallel = self.job_slots() > 1
             && !self.options.dry_run
             && !self.options.question
@@ -5107,7 +5177,7 @@ impl Engine {
             let shell = match self.expand(variables, b"$(SHELL)", Some(&recipe.location)) {
                 Ok(shell) => shell,
                 Err(err) => {
-                    self.expansion_error(Some(&recipe.location), &err);
+                    self.recipe_expansion_error(target, &recipe.location, &err, &flow, ignore);
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -5120,7 +5190,7 @@ impl Engine {
             let flags = match self.expand(variables, &flag_text, Some(&recipe.location)) {
                 Ok(flags) => flags,
                 Err(err) => {
-                    self.expansion_error(Some(&recipe.location), &err);
+                    self.recipe_expansion_error(target, &recipe.location, &err, &flow, ignore);
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -5128,7 +5198,7 @@ impl Engine {
                 match self.expand(variables, b"$(IFS)", Some(&recipe.location)) {
                     Ok(value) => Some(value),
                     Err(err) => {
-                        self.expansion_error(Some(&recipe.location), &err);
+                        self.recipe_expansion_error(target, &recipe.location, &err, &flow, ignore);
                         return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                     }
                 }
@@ -5346,7 +5416,13 @@ impl Engine {
                             child.env("MAKEFLAGS", OsString::from_vec(flags));
                         }
                         Err(error) => {
-                            self.expansion_error(Some(&recipe.location), &error);
+                            self.recipe_expansion_error(
+                                target,
+                                &recipe.location,
+                                &error,
+                                &flow,
+                                ignore,
+                            );
                             return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                         }
                     }
@@ -5558,9 +5634,7 @@ impl Engine {
     }
 
     fn archive_recipe_fatal(&self, message: &[u8]) {
-        self.fatal(None, message);
-        self.stderr(b"*** Waiting for unfinished jobs....");
-        self.fatal(None, b"wait: No child processes");
+        self.fatal_with_owner(None, message, true);
     }
 
     fn cleanup_target(

@@ -86,10 +86,43 @@ enum Attempt {
     LaunchFailed,
 }
 
+/// Terminal interpreter shutdown is separate from ordinary keep-going failures.
+/// A fatal report from a reaped command can retain GNU's recipe owner while
+/// other workers drain; another fatal report interrupts that final wait.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Shutdown {
+    #[default]
+    Running,
+    Draining,
+    RetainedOwner,
+    Reentered,
+}
+
+impl Shutdown {
+    pub fn report(&mut self, owner: bool) -> bool {
+        let first = *self == Self::Running;
+        *self = if !first {
+            Self::Reentered
+        } else if owner {
+            Self::RetainedOwner
+        } else {
+            Self::Draining
+        };
+        first && owner
+    }
+
+    pub fn drain(&mut self) {
+        if *self == Self::Running {
+            *self = Self::Draining;
+        }
+    }
+}
+
 pub struct Flow {
     recursive: Vec<bool>,
     attempt: Attempt,
     scanned_since_attempt: bool,
+    registered: Option<bool>,
 }
 
 impl Flow {
@@ -98,6 +131,7 @@ impl Flow {
             recursive,
             attempt: Attempt::None,
             scanned_since_attempt: false,
+            registered: None,
         }
     }
 
@@ -121,12 +155,21 @@ impl Flow {
     /// An ignored failed launch resets cleanup eligibility even if an earlier
     /// command really ran. Optimized no-child commands never call this method.
     pub fn attempted(&mut self, launched: bool) {
+        self.registered.get_or_insert(launched);
         self.attempt = if launched {
             Attempt::Launched
         } else {
             Attempt::LaunchFailed
         };
         self.scanned_since_attempt = false;
+    }
+
+    pub fn retained_owner(&self) -> bool {
+        self.registered == Some(true)
+    }
+
+    pub fn failed_launch(&self) -> bool {
+        self.attempt == Attempt::LaunchFailed
     }
 
     pub fn continuation_cleanup(&self) -> Cleanup {
@@ -168,6 +211,45 @@ pub fn optimized_noop(invocation: &Invocation) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fatal_shutdown_retains_only_the_first_owner() {
+        let mut state = Shutdown::Running;
+        assert!(state.report(true));
+        assert_eq!(state, Shutdown::RetainedOwner);
+        assert!(!state.report(true));
+        assert_eq!(state, Shutdown::Reentered);
+    }
+
+    #[test]
+    fn ordinary_failure_drain_does_not_gain_a_late_owner_wait() {
+        let mut state = Shutdown::Running;
+        state.drain();
+        assert!(!state.report(true));
+        assert_eq!(state, Shutdown::Reentered);
+    }
+
+    #[test]
+    fn an_initial_failed_launch_never_registers_the_later_owner() {
+        let mut flow = Flow::new(vec![false, false]);
+        flow.attempted(false);
+        flow.attempted(true);
+        assert!(!flow.retained_owner());
+        assert_eq!(
+            flow.continuation_cleanup(),
+            Cleanup::ExistingAfterContinuation
+        );
+    }
+
+    #[test]
+    fn a_later_failed_launch_preserves_an_existing_owner() {
+        let mut flow = Flow::new(vec![false, false]);
+        flow.attempted(true);
+        flow.attempted(false);
+        assert!(flow.retained_owner());
+        assert!(flow.failed_launch());
+        assert_eq!(flow.continuation_cleanup(), Cleanup::None);
+    }
 
     #[test]
     fn initial_and_post_child_exhaustion_have_different_completion_counts() {

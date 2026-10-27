@@ -1,0 +1,12 @@
+id = "runtime-launch-child-missing"
+requirement = "runtime.fatal-continuations"
+candidate = "required"
+description = "Original fatal owner/shutdown boundary: runtime-launch-child-missing."
+provenance = "Independently authored commands, barriers and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a20726d616b655f6d697373696e675f72756e74696d655f636f6d6d616e645f3434313a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a205b4d616b6566696c653a343a20616c6c5d204572726f7220313237202869676e6f726564290a4d616b6566696c653a353a202a2a2a2073746f707065642e202053746f702e0a6d616b653a202a2a2a2057616974696e6720666f7220756e66696e6973686564206a6f62732e2e2e2e0a6d616b653a202a2a2a205b4d616b6566696c653a353a20616c6c5d204572726f72203132370a"

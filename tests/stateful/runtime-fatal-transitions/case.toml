@@ -1,0 +1,112 @@
+id = "runtime-fatal-transitions"
+description = "Post-child fatal configuration, recovery, modes and protected output transitions"
+provenance = "Original helper, fixed input timestamps, exact stream/status anchors and relational touch checks; no upstream tests copied."
+initial = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000002000000000", "mtime_ns" = 1600000000000000000}]
+
+[[steps]]
+name = "healthy-serial"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe"]
+actions = []
+expected = {"exit_code" = 0, "stdout" = "completed\n", "stderr" = ""}
+unchanged = []
+exact_mtime = {"target" = 1600000002000000000}
+mtime_order = []
+
+[[steps]]
+name = "fatal-parallel"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=1\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000003000000000", "mtime_ns" = 1600000000000000000}, {"op" = "remove", "path" = "trigger"}]
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "Makefile:7: *** stopped.  Stop.\nmake: *** Waiting for unfinished jobs....\nmake: *** wait: No child processes.  Stop.\n"}
+unchanged = []
+exact_mtime = {"target" = 1600000003000000000}
+mtime_order = []
+
+[[steps]]
+name = "initial-fatal-keeps-output"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe"]
+actions = []
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "Makefile:6: *** stopped.  Stop.\n"}
+unchanged = ["target"]
+exact_mtime = {"target" = 1600000003000000000}
+mtime_order = []
+
+[[steps]]
+name = "query-continuation-deletes"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-q"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000004000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = "make: *** Deleting file 'target'\n"}
+unchanged = []
+exact_mtime = {}
+mtime_order = []
+
+[[steps]]
+name = "precious-query-keeps"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-q"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n.PRECIOUS:target\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000005000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+unchanged = []
+exact_mtime = {"target" = 1600000005000000000}
+mtime_order = []
+
+[[steps]]
+name = "fatal-touch-after-child"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-t"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=1\n.PRECIOUS:target\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000006000000000", "mtime_ns" = 1600000000000000000}, {"op" = "remove", "path" = "trigger"}]
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "Makefile:7: *** stopped.  Stop.\nmake: *** Waiting for unfinished jobs....\nmake: *** wait: No child processes.  Stop.\n"}
+unchanged = []
+exact_mtime = {"target" = 1600000006000000000}
+mtime_order = []
+
+[[steps]]
+name = "healthy-recovery"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000007000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 0, "stdout" = "completed\n", "stderr" = ""}
+unchanged = []
+exact_mtime = {"target" = 1600000007000000000}
+mtime_order = []
+
+[[steps]]
+name = "fatal-dry-forced-child"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-n"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=1\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000008000000000", "mtime_ns" = 1600000000000000000}, {"op" = "remove", "path" = "trigger"}]
+expected = {"exit_code" = 2, "stdout" = "python3 produce.py\n", "stderr" = "Makefile:7: *** stopped.  Stop.\nmake: *** Waiting for unfinished jobs....\nmake: *** wait: No child processes.  Stop.\n"}
+unchanged = []
+exact_mtime = {"target" = 1600000008000000000}
+mtime_order = []
+
+[[steps]]
+name = "healthy-touch"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-t"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000009000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 0, "stdout" = "touch target\ntouch target\n", "stderr" = ""}
+unchanged = []
+exact_mtime = {}
+mtime_order = [["next-time", "<", "target"]]
+
+[[steps]]
+name = "query-initial-fatal"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-q"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=1\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000010000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 2, "stdout" = "", "stderr" = "Makefile:6: *** stopped.  Stop.\n"}
+unchanged = ["target"]
+exact_mtime = {}
+mtime_order = []
+
+[[steps]]
+name = "healthy-dry"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-n"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000011000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 0, "stdout" = "python3 produce.py\nprintf 'completed\\n'\n", "stderr" = ""}
+unchanged = []
+exact_mtime = {"target" = 1600000011000000000}
+mtime_order = []
+
+[[steps]]
+name = "healthy-parallel"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2"]
+actions = [{"op" = "write", "path" = "config.mk", "content" = "FAIL=\n", "mtime_ns" = 1600000000000000000}, {"op" = "write", "path" = "next-time", "content" = "1600000012000000000", "mtime_ns" = 1600000000000000000}]
+expected = {"exit_code" = 0, "stdout" = "completed\n", "stderr" = ""}
+unchanged = []
+exact_mtime = {"target" = 1600000012000000000}
+mtime_order = []

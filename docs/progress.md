@@ -2041,3 +2041,25 @@ green checks are required before merge. The [current M4 audit](m4-exit-audit.md)
 records acceptance criteria, resolved blockers and separate open milestones.
 This completes the M4 implementation tranche; full compatibility and general
 performance parity remain open. Earlier slice notes retain historical results.
+
+## M5 fatal recipe owners and immutable source-name sharing
+
+Separate first fatal shutdown, retained recipe owners and reentered fatal drain;
+match post-child shell configuration diagnostics, sibling continuation order,
+synthetic failed-launch completion and intermediate cleanup. Fatal makefile-remake
+configuration stops before another restart. Promote the original pending case,
+add 69 required cases and twelve stateful invocations. M5 remains open for the
+explicit runtime combinations and signal/stress work in the follow-up notes.
+
+An allocation study found repeated source-name copies in location/rule traversal.
+Share immutable source spelling per read with Arc-backed locations and defer the
+continuation bitmap for empty recipes. The large no-op workload drops from
+374,749 to 274,742 observed allocation requests. The
+new top-level profile-allocations flow isolates profiling builds and retains
+trace/digest/coverage data; no persistent cache or suppressed effects are added.
+
+Inventory: 4,961 curated / 4,951 required / ten historical pending, 69 stateful
+scenarios / 341 invocations, 397 Rust / 297 tooling tests. Full development and
+optimized M4 regression gates remain required. See [fatal continuations](fatal-continuations.md)
+and [source-name sharing](shared-source-names.md); general GNU speed parity and
+full GNU compatibility are not claimed.

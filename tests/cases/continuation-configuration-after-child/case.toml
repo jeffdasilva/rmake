@@ -1,6 +1,6 @@
 id = "continuation-configuration-after-child"
 requirement = "parallel.execution"
-candidate = "pending"
+candidate = "required"
 description = "continuation-configuration-after-child"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
 args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]

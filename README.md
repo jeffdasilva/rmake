@@ -28,6 +28,10 @@ Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
 locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
 [`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
 gaps are documented in [diagnostic notes](docs/diagnostics.md).
+The [runtime continuation notes](docs/fatal-continuations.md) cover post-child
+fatal configuration and ordered shutdown. [Source-name sharing](docs/shared-source-names.md)
+reduces repeated location allocations; `make profile-allocations` provides an
+isolated development profiler.
 The [hidden-prerequisite notes](docs/extra-prerequisites.md) describe
 `.EXTRA_PREREQS`, snapshot effects and automatic-variable exclusion.
 The [file-record notes](docs/file-record-order.md) describe deterministic intermediate

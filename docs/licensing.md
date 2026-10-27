@@ -169,3 +169,9 @@ The [recursive HOME notes](recursive-home-names.md) identify filename-parser,
 tilde and function-query reference paths used to understand reproducible shared
 scratch effects. The bounded Rust byte model and all tests are independently
 written; no GNU implementation or upstream tests were incorporated.
+
+The [fatal continuation notes](fatal-continuations.md) record GNU job and shutdown
+source references used for the independent owner-state follow-up and original
+fixture anchors. The [allocation/source-name study](shared-source-names.md) uses
+an independently written, development-only glibc interposer and ordinary Linux
+interfaces; the sampler is not linked into rmake.

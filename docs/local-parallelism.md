@@ -67,12 +67,12 @@ files, keep-going, double-colon branches, automatic and target variables, and
 recursive concurrency. A manual piped-input comparison also checks stdin retention
 across child-command boundaries. The full mode matrix and stateful gates pass.
 
-One additional pending case records GNU's fatal expansion during parallel recipe
-resumption. GNU 4.4.1 prints an extra wait/ECHILD error; its default FIFO variant
-also leaks a PID-named FIFO. The corpus uses GNU's pipe style to keep that oracle
-observation reproducible. The pipe protocol option is now implemented; the GNU
-fatal-resumption diagnostic path remains pending. No leaked FIFO is reproduced or normalized away. Total corpus: 2,101
-cases, with 2,088 required passes and 13 pending mismatches.
+The [fatal continuation follow-up](fatal-continuations.md) promotes the earlier
+pending post-child configuration error and adds owner/shutdown coverage. The
+pinned GNU default-FIFO path leaks a PID-named FIFO for this fatal case, so the
+fixture uses its pipe protocol. rmake releases its own resources rather than
+reproducing that leak. Further synthetic-completion/runtime combinations remain
+explicitly open in the follow-up notes.
 
 `.WAIT` prerequisite phase barriers are implemented. See
 [phase barriers](wait-barriers.md) for local-scope ordering, automatic-variable

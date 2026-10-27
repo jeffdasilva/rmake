@@ -3,13 +3,14 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release m4-acceptance test check ci bench bench-compare clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release m4-acceptance test check ci bench bench-compare profile-allocations clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
+PROFILE_WORKLOAD ?= large-noop
 BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
 BENCH_BASELINE ?=
@@ -74,6 +75,7 @@ help:
 		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
 		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  bench           Record original GNU oracle workload baselines' \
+		'  profile-allocations  Sample allocation requests in an isolated profile build' \
 		'  bench-compare   Compare release rmake and GNU with paired timings' \
 		'  check / ci      Run all current development gates' \
 		'  clean           Remove Cargo build output' \
@@ -247,6 +249,11 @@ ci: check test-selfhost
 
 bench: oracle-verify
 	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
+
+profile-allocations:
+	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
+	$(PYTHON) tools/allocations.py --candidate "$(CURDIR)/artifacts/profile/target/release/rmake" --workload "$(PROFILE_WORKLOAD)"
+
 
 bench-compare: release oracle-verify
 	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
