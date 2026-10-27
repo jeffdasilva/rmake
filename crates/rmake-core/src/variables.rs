@@ -778,6 +778,28 @@ impl VariableStore {
         )
     }
 
+    /// Appending to GNU's special global flag variable discards its encoded
+    /// command-variable suffix; canonicalization reconstructs that suffix.
+    pub(crate) fn strip_makeflags_assignments(&mut self, origin: Origin) {
+        if let Some(variable) = self.variables.get(b"MAKEFLAGS".as_slice()) {
+            let priority = if self.environment_override && variable.origin == Origin::Environment {
+                Origin::EnvironmentOverride
+            } else {
+                variable.origin
+            };
+            if priority > origin {
+                return;
+            }
+            if let Some(boundary) = variable.value.windows(4).position(|part| part == b" -- ") {
+                Arc::make_mut(&mut self.variables)
+                    .get_mut(b"MAKEFLAGS".as_slice())
+                    .expect("existing binding")
+                    .value
+                    .truncate(boundary);
+            }
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn define_with_using(
         &mut self,

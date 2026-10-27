@@ -12,20 +12,21 @@ and keep extension work from changing the default GNU behavior.
 The [M4 exit audit](m4-exit-audit.md) records the implemented rule families,
 closed blockers, strict combined acceptance gate and remaining profile limits.
 
-Current position (2026-10-26): M4's rule-resolution implementation is complete on
-the pinned Linux development profile, with mandatory development and optimized
-acceptance in GitHub CI. Acceptance requires green checks on the exact proposed
-commit. M3 and M5 have implemented slices but retain their own open exit gates;
-complete GNU compatibility, broad runtime/profile acceptance and general speed
-parity remain future milestones.
+Current position (2026-10-27): M4's rule-resolution and M5's Linux runtime
+implementations are complete on the pinned Linux development profile, with
+mandatory development and optimized acceptance in GitHub CI. Acceptance requires
+green checks on the exact proposed commit. The [M5 exit audit](m5-exit-audit.md)
+records its coverage and limits. M3 retains language/effect gaps; complete GNU
+compatibility, broad runtime/profile acceptance and general speed parity remain
+future milestones.
 
-The next active tranche is M5's Linux runtime, alongside the remaining M3
-language gaps. [Fatal continuations](fatal-continuations.md) close the original
+The next active work is the remaining M3 language gaps and M6 compatibility
+surfaces. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
 is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
 controlled development and optimized gates. [Cooperative interruption and synthetic completion](runtime-cancellation.md)
-now have mandatory effect, lock, terminal and peer regressions. Recursive flag
-interpretation and the combined runtime exit audit remain open.
+now have mandatory effect, lock, terminal and peer regressions. [Recursive flags](runtime-flags.md)
+include immediate assignment effects, post-read replay and restart restoration.
 [Output synchronization](output-sync.md) has controlled grouping, mutex and mixed-tree gates.
 [Owned children and signal shutdown](runtime-signals.md) now have controlled
 recipe/runtime gates, including safe borrowed-token recovery. Persistent caching remains deferred to its

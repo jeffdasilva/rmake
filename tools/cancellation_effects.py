@@ -26,7 +26,7 @@ ready.with_suffix('.tmp').write_text(str(os.getpid()))
 ready.with_suffix('.tmp').rename(ready)
 while True:time.sleep(1)
 '''
-PHASES = ('cli-shell', 'reader-shell', 'reader-assignment', 'include-shell',
+PHASES = ('makeflags-shell', 'gnumakeflags-shell', 'cli-shell', 'reader-shell', 'reader-assignment', 'include-shell',
           'recipe-shell', 'export-shell', 'file-read', 'file-write', 'include-read',
           'main-read', 'stdin-read', 'expansion')
 
@@ -44,6 +44,8 @@ class Cell:
         before = '$(info before)\n'
         after = '\n$(file >forbidden)\n.PHONY: all\nall:;@true\n'
         body = {
+            'makeflags-shell': 'MAKEFLAGS = $(shell python3 helper.py)',
+            'gnumakeflags-shell': 'GNUMAKEFLAGS = $(shell python3 helper.py)',
             'cli-shell': '',
             'reader-shell': 'X := $(shell python3 helper.py)',
             'reader-assignment': 'X != python3 helper.py',

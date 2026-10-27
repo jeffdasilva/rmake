@@ -334,9 +334,57 @@ fn single_quote(input: &[u8], output: &mut Vec<u8>) {
     output.push(b'\'');
 }
 
+/// Nonrecursive pipe children receive GNU's explicit unavailable-pool marker.
+/// The original authentication remains as observable recursive flag text; the
+/// last marker prevents a descendant from using descriptors it did not inherit.
+pub fn disable_pipe_jobserver(command: &mut std::process::Command) {
+    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    let flags = command.get_envs().find_map(|(name, value)| {
+        (name.as_bytes() == b"MAKEFLAGS")
+            .then_some(value)
+            .flatten()
+            .map(|value| value.as_bytes().to_vec())
+    });
+    if let Some(mut flags) = flags {
+        let boundary = flags
+            .windows(4)
+            .position(|bytes| bytes == b" -- ")
+            .unwrap_or_else(|| {
+                if flags.ends_with(b" --") {
+                    flags.len() - 3
+                } else {
+                    flags.len()
+                }
+            });
+        flags.splice(
+            boundary..boundary,
+            b" --jobserver-auth=-2,-2".iter().copied(),
+        );
+        command.env("MAKEFLAGS", std::ffi::OsString::from_vec(flags));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unavailable_pipe_authentication_precedes_encoded_command_variables() {
+        use std::os::unix::ffi::OsStrExt;
+        let mut command = std::process::Command::new("unused");
+        command.env("MAKEFLAGS", "rR -j2 --jobserver-auth=3,4 -- X=a\\ b");
+        super::disable_pipe_jobserver(&mut command);
+        let flags = command
+            .get_envs()
+            .find(|(name, _)| *name == "MAKEFLAGS")
+            .unwrap()
+            .1
+            .unwrap();
+        assert_eq!(
+            flags.as_bytes(),
+            b"rR -j2 --jobserver-auth=3,4 --jobserver-auth=-2,-2 -- X=a\\ b"
+        );
+    }
 
     #[test]
     fn expanded_newline_ends_a_command_even_inside_a_quote() {

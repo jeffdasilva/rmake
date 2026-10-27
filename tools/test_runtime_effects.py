@@ -12,7 +12,7 @@ import runtime_terminals as terminals
 class RuntimeEffectTests(unittest.TestCase):
     def test_effect_inventory_covers_every_phase_signal_and_buffering_mode(self):
         cells=effects.inventory()
-        self.assertEqual(len(cells),252)
+        self.assertEqual(len(cells),294)
         self.assertEqual(len({c.id for c in cells}),len(cells))
         self.assertEqual({c.phase for c in cells},set(effects.PHASES))
         self.assertEqual({c.number for c in cells},set(effects.SIGNALS))

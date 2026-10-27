@@ -9,7 +9,10 @@ Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 
 M4's rule-resolution implementation is complete for the pinned Linux development
 profile. The [M4 acceptance audit](docs/m4-exit-audit.md) records its combined
-CI gate and limits. M3/M5 and broader compatibility/performance work remain open.
+CI gate and limits. M5's Linux runtime implementation is complete for that
+profile; its [acceptance audit](docs/m5-exit-audit.md) defines the combined
+development and optimized gate. M3 and broader compatibility/performance work
+remain open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
@@ -31,6 +34,9 @@ gaps are documented in [diagnostic notes](docs/diagnostics.md).
 The [runtime continuation notes](docs/fatal-continuations.md) cover post-child
 fatal configuration and ordered shutdown. [Linux load and stdin](docs/load-limits.md)
 and [signal shutdown](docs/runtime-signals.md) have controlled runtime gates.
+[Output synchronization](docs/output-sync.md),
+[interruption and completion](docs/runtime-cancellation.md), and
+[recursive runtime flags](docs/runtime-flags.md) share that acceptance gate.
 [Source-name sharing](docs/shared-source-names.md)
 reduces repeated location allocations; `make profile-allocations` provides an
 isolated development profiler.

@@ -1,0 +1,13 @@
+id = "runtime-flags-restart-none-j2"
+requirement = "runtime.flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "-Onone"]
+output = "merged"
+timeout_seconds = 5
+description = "Original immediate/deferred recursive-switch, restart or protocol-environment regression."
+provenance = "Independently authored source, protocol identity assertions and exact pinned-oracle output goldens; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "726561643d666972737420666c6167733d5b2d6a32202d4f6e6f6e655d0a61667465723d5b2d6a33202d6c30202d4f6e6f6e655d0a726561643d7365636f6e6420666c6167733d5b2d6a32202d4f6e6f6e655d0a61667465723d5b2d6a33202d6c30202d4f6e6f6e655d0a72656164790a"
+stderr_hex = ""

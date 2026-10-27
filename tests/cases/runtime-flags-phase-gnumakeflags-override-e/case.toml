@@ -1,0 +1,13 @@
+id = "runtime-flags-phase-gnumakeflags-override-e"
+requirement = "runtime.flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-e"]
+output = "merged"
+timeout_seconds = 5
+description = "Original immediate/deferred recursive-switch, restart or protocol-environment regression."
+provenance = "Independently authored source, protocol identity assertions and exact pinned-oracle output goldens; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6265666f72650a61667465723d5b5d0a4d616b6566696c653a323a20666c6167730a666c6167733d5b2d6a325d0a"
+stderr_hex = ""

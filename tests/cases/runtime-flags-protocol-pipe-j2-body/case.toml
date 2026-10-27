@@ -1,0 +1,13 @@
+id = "runtime-flags-protocol-pipe-j2-body"
+requirement = "runtime.flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "--jobserver-style=pipe", "X=foo"]
+output = "merged"
+timeout_seconds = 5
+description = "Original immediate/deferred recursive-switch, restart or protocol-environment regression."
+provenance = "Independently authored source, protocol identity assertions and exact pinned-oracle output goldens; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "636170747572653d5b6a6f62733d3220706f6f6c3d636c6f7365642064697361626c65643d3120583d666f6f5d0a"
+stderr_hex = ""

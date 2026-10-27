@@ -93,6 +93,22 @@ pub struct ShellResult {
 
 type ShellReceiver<'a> = dyn FnMut(ShellRequest<'_>) -> Result<ShellResult, Vec<u8>> + 'a;
 
+/// Global MAKEFLAGS assignment is an interpreter effect. Expand the value
+/// before invoking the receiver, so nested eval can report its own assignment
+/// without retaining a mutable borrow of host option state.
+pub struct MakeflagsRequest<'a> {
+    pub value: &'a [u8],
+    pub origin: crate::variables::Origin,
+}
+pub struct MakeflagsResult {
+    pub value: Vec<u8>,
+    pub origin: crate::variables::Origin,
+    pub environment_override: bool,
+    pub include_dirs: Vec<Vec<u8>>,
+}
+type MakeflagsReceiver<'a> =
+    dyn FnMut(MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>> + 'a;
+
 /// Explicit caller context and output receiver. This is never stored in or
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
@@ -102,6 +118,7 @@ pub struct ExpansionContext<'a> {
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
+    makeflags: Option<&'a mut MakeflagsReceiver<'a>>,
 }
 
 impl<'a> ExpansionContext<'a> {
@@ -113,6 +130,7 @@ impl<'a> ExpansionContext<'a> {
             filesystem: None,
             includes: None,
             shell: None,
+            makeflags: None,
         }
     }
 
@@ -125,7 +143,68 @@ impl<'a> ExpansionContext<'a> {
             filesystem: None,
             includes: None,
             shell: None,
+            makeflags: None,
         }
+    }
+
+    pub fn with_makeflags(mut self, receiver: &'a mut MakeflagsReceiver<'a>) -> Self {
+        self.makeflags = Some(receiver);
+        self
+    }
+
+    pub fn has_makeflags(&self) -> bool {
+        self.makeflags.is_some()
+    }
+
+    pub fn update_makeflags(
+        &mut self,
+        variables: &mut crate::variables::VariableStore,
+        origin: crate::variables::Origin,
+        mut value: Vec<u8>,
+        encoded_overrides: bool,
+    ) -> Result<(), crate::variables::ExpandError> {
+        use crate::variables::{Assignment, ExpandError};
+        if self.makeflags.is_none() {
+            return Ok(());
+        }
+        if self.is_cancelled() {
+            return Err(ExpandError::Cancelled);
+        }
+        if encoded_overrides
+            && let Some(boundary) = value.windows(4).position(|part| part == b" -- ")
+        {
+            value.truncate(boundary);
+        }
+        let mut result = self.makeflags.as_mut().expect("configured receiver")(MakeflagsRequest {
+            value: &value,
+            origin,
+        })
+        .map_err(ExpandError::UnlocatedError)?;
+        if variables
+            .get(b"MAKEOVERRIDES")
+            .is_some_and(|variable| !variable.raw_value().is_empty())
+        {
+            result.value.extend_from_slice(b" -- $(MAKEOVERRIDES)");
+        }
+        variables.set_environment_override(result.environment_override);
+        variables.define(
+            b"MAKEFLAGS",
+            &result.value,
+            Assignment::Recursive,
+            result.origin,
+        )?;
+        variables.define_literal(b".INCLUDE_DIRS", b"", crate::variables::Origin::Default)?;
+        for directory in result.include_dirs {
+            variables.define_with(
+                b".INCLUDE_DIRS",
+                &directory,
+                Assignment::Append,
+                crate::variables::Origin::Default,
+                None,
+                self.reborrow(),
+            )?;
+        }
+        Ok(())
     }
 
     pub fn with_cancellation(mut self, cancellation: &'a std::sync::atomic::AtomicBool) -> Self {
@@ -211,6 +290,10 @@ impl<'a> ExpansionContext<'a> {
             },
             shell: match &mut self.shell {
                 Some(shell) => Some(&mut **shell),
+                None => None,
+            },
+            makeflags: match &mut self.makeflags {
+                Some(receiver) => Some(&mut **receiver),
                 None => None,
             },
         }

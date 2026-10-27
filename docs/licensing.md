@@ -190,3 +190,7 @@ and controlled output-phase and mixed-recursion fixtures.
 The [cancellation/completion notes](runtime-cancellation.md) record the source
 references for independently implemented evaluation cancellation, owned capture,
 stream interruption, synthetic completion and the original PTY/lock campaigns.
+
+The [runtime flag notes](runtime-flags.md) record reader/variable/option and
+jobserver references used for independently authored immediate option effects,
+post-read replay, restart restoration and original protocol fixtures.

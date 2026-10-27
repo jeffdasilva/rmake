@@ -1,0 +1,13 @@
+id = "runtime-flags-gnumakeflags-option-9-j1"
+requirement = "runtime.flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j1"]
+output = "merged"
+timeout_seconds = 5
+description = "Original immediate/deferred recursive-switch, restart or protocol-environment regression."
+provenance = "Independently authored source, protocol identity assertions and exact pinned-oracle output goldens; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "726561643d5b2d6a315d0a666c6167733d5b2d6a315d0a"
+stderr_hex = ""
