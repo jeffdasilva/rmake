@@ -55,14 +55,14 @@ class DiagnosticMatrixTests(unittest.TestCase):
 
     def test_inventory_is_bounded_distinct_and_repeatable(self):
         cells = matrix.inventory()
-        self.assertEqual(len(cells), 206)
-        self.assertEqual(len({cell.case_id for cell in cells}), 206)
-        self.assertEqual(len({(cell.makefile, cell.args) for cell in cells}), 206)
+        self.assertEqual(len(cells), 218)
+        self.assertEqual(len({cell.case_id for cell in cells}), 218)
+        self.assertEqual(len({(cell.makefile, cell.args) for cell in cells}), 218)
         self.assertEqual(cells, matrix.inventory())
         self.assertTrue(all(len(cell.makefile) < 8192 for cell in cells))
         self.assertTrue(all(len(cell.stdout) + len(cell.stderr) < 8192 for cell in cells))
         self.assertTrue(all('boundary' not in cell.family for cell in cells))
-        self.assertEqual(len({cell.family for cell in cells}), 14)
+        self.assertEqual(len({cell.family for cell in cells}), 15)
 
     def test_every_cell_has_independent_exact_expectations(self):
         for cell in matrix.inventory():
@@ -87,6 +87,17 @@ class DiagnosticMatrixTests(unittest.TestCase):
         self.assertIn(b'Xline1\nline2X', multiline.makefile)
         self.assertTrue(any(cell.stderr == b'make: context\n' for cell in cells))
         self.assertTrue(any(cell.status == 2 and b'*** stopped.' in cell.stderr for cell in cells))
+
+    def test_export_traversal_has_independent_global_target_and_pattern_anchors(self):
+        cells=[cell for cell in matrix.inventory() if cell.family=='export-traversal']
+        self.assertEqual(len(cells),12)
+        self.assertTrue(any(cell.stdout==b'B\nA\nC\n' for cell in cells))
+        self.assertTrue(any(cell.stderr==b'Makefile:1: Z\nMakefile:3: Y\nMakefile:2: X\n' for cell in cells))
+        for cell in cells:
+            good=observation(cell)
+            self.assertEqual(matrix.anchor_errors(cell,good),[])
+            changed=dataclasses.replace(good, stdout=good.stdout[::-1]) if cell.stdout else dataclasses.replace(good, stderr=good.stderr[::-1])
+            self.assertTrue(matrix.anchor_errors(cell,changed))
 
     def test_materialized_manifest_replays_raw_bytes_and_expected_outputs(self):
         for cell in (self.cell, next(c for c in matrix.inventory() if c.stdout == b'\xff\xfe\n')):
@@ -154,7 +165,7 @@ class DiagnosticMatrixTests(unittest.TestCase):
         self.assertEqual(execute.call_args_list[0].args[1], execute.call_args_list[1].args[1])
         report = self.report()
         self.assertEqual(report['identities'], self.identities)
-        self.assertEqual(report['inventory_cells'], 206)
+        self.assertEqual(report['inventory_cells'], 218)
         self.assertEqual(report['matrix_source_sha256'], conformance.sha256_file(Path(matrix.__file__)))
         self.assertEqual(report['cells'][0]['expected_stdout_hex'], self.cell.stdout.hex())
         self.assertEqual(report['selected_cases'], [self.cell.case_id])
@@ -217,7 +228,7 @@ class DiagnosticMatrixTests(unittest.TestCase):
         self.assertEqual(len(report['workload_sha256']), 64)
 
     def test_invalid_budgets_and_tampered_or_duplicate_cells_are_rejected(self):
-        for value in (0, -1, 207, True, 1.5):
+        for value in (0, -1, 219, True, 1.5):
             with self.assertRaises(conformance.HarnessError):
                 matrix.validate_limit(value)
         for cells in ((), (self.cell, self.cell), (dataclasses.replace(self.cell, makefile=b'changed'),)):

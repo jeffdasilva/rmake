@@ -1,0 +1,12 @@
+id = "export-order-set1-reversetrue-reader-shell"
+requirement = "variables.environment"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+description = "Original export traversal, collision/growth, scope, effect timing and child-value regression."
+provenance = "Independently authored Makefile and child/journal observer; exact GNU Make 4.4.1 observations checked twice, with no upstream implementation or tests incorporated."
+
+[expected]
+exit_code = 0
+stdout_hex = "453a5a0a453a590a453a580a453a5a0a453a590a453a580a56414c5545533a7b2258223a2258222c2259223a2259222c225a223a225a227d0a4a4f55524e414c3a3561306135393061353830613561306135393061353830610a"
+stderr_hex = ""

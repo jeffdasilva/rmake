@@ -1,0 +1,12 @@
+id = "export-order-builtins-4-default"
+requirement = "variables.environment"
+candidate = "required"
+args = ["--no-print-directory", "A=$(info CLI:A)$(file >>journal,A)A", "B=$(info CLI:B)$(file >>journal,B)B", "C=$(info CLI:C)$(file >>journal,C)C"]
+timeout_seconds = 15
+description = "Original export traversal under enabled/disabled built-in profiles."
+provenance = "Independently authored source and fixed-key child/journal observer, repeated exact GNU Make 4.4.1 observations; no upstream implementation or test code incorporated."
+
+[expected]
+exit_code = 0
+stdout_hex = "434c493a420a434c493a410a434c493a430a434c493a420a434c493a410a434c493a430a56414c5545533a7b2241223a2241222c2242223a2242222c2243223a2243227d0a4a4f55524e414c3a3432306134313061343330613432306134313061343330610a"
+stderr_hex = ""

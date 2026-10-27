@@ -1,0 +1,13 @@
+id = "export-order-inherited-77"
+requirement = "variables.environment"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-e"]
+timeout_seconds = 15
+description = "Original export traversal, collision/growth, scope, effect timing and child-value regression."
+provenance = "Independently authored Makefile and child/journal observer; exact GNU Make 4.4.1 observations checked twice, with no upstream implementation or tests incorporated."
+environment = {"A" = "raw$(info raw-A)", "C" = "raw$(info raw-C)"}
+
+[expected]
+exit_code = 0
+stdout_hex = "453a420a56414c5545533a7b2241223a227261772428696e666f207261772d4129222c2242223a2242222c2243223a227261772428696e666f207261772d4329227d0a4a4f55524e414c3a343230610a"
+stderr_hex = ""

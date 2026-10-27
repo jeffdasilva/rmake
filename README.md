@@ -14,6 +14,9 @@ profile; its [acceptance audit](docs/m5-exit-audit.md) defines the combined
 development and optimized gate. M3 and broader compatibility/performance work
 remain open.
 
+The latest [export-order follow-up](docs/export-order.md) adds ordered environment
+effects and live eval eligibility, with required collision, growth and scope tests.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

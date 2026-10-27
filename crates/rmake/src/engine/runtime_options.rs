@@ -220,6 +220,7 @@ impl Engine {
                 }
             }
             if name == b"GNUMAKEFLAGS"
+                && self.database.variables.get(name).is_some()
                 && let Err(error) =
                     self.database
                         .variables

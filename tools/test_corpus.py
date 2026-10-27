@@ -64,6 +64,16 @@ class CorpusTests(unittest.TestCase):
                 for case_id in family["cases"]:
                     self.assertEqual(conformance.load_case(ROOT / "tests/cases" / case_id).candidate, "required")
 
+    def test_export_order_reproducers_remain_required(self):
+        ledger=tomllib.loads((ROOT/'tests/requirements.toml').read_text())
+        family=next(item for item in ledger['requirements'] if item['id']=='variables.environment')
+        self.assertTrue({'diagnostic-export-multiple-variable-order','diagnostic-export-other-variable-order',
+                         'export-order-edge-fill906','export-order-edge-fill923',
+                         'export-order-later-eval-71','export-order-later-eval-74'} <= set(family['cases']))
+        for case_id in family['cases']:
+            self.assertEqual(conformance.load_case(ROOT/'tests/cases'/case_id).candidate,'required')
+        self.assertEqual(family['candidate_required'],family['fixture_count'])
+
     def test_every_fixture_has_independent_expectations(self):
         for path in (ROOT / "tests/cases").iterdir():
             if path.is_dir():
