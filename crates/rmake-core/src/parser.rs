@@ -746,6 +746,73 @@ mod include_tests {
     use crate::diagnostic::IncludedFile;
 
     #[test]
+    fn flag_value_eval_runs_before_the_host_callback_and_following_lines() {
+        let mut database = Database::default();
+        let mut values = Vec::new();
+        let mut receiver = |request: crate::diagnostic::MakeflagsRequest<'_>| {
+            values.push(request.value.to_vec());
+            Ok(crate::diagnostic::MakeflagsResult {
+                value: request.value.to_vec(),
+                origin: Origin::File,
+                environment_override: false,
+                include_dirs: Vec::new(),
+            })
+        };
+        database
+            .read_with(
+                b"MAKEFLAGS = $(eval SEEN := yes)-k\nLATER := $(SEEN)\n",
+                b"Makefile",
+                ExpansionContext::pure().with_makeflags(&mut receiver),
+            )
+            .unwrap();
+        assert_eq!(values, [b"-k".to_vec()]);
+        assert_eq!(
+            database.variables.get(b"LATER").unwrap().raw_value(),
+            b"yes"
+        );
+    }
+
+    #[test]
+    fn special_flag_append_reconstructs_command_overrides_after_option_words() {
+        let mut database = Database::default();
+        database
+            .variables
+            .define(
+                b"MAKEFLAGS",
+                b"-j2 -- $(MAKEOVERRIDES)",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        database
+            .variables
+            .define_literal(b"MAKEOVERRIDES", b"X=foo", Origin::Default)
+            .unwrap();
+        let mut values = Vec::new();
+        let mut receiver = |request: crate::diagnostic::MakeflagsRequest<'_>| {
+            values.push(request.value.to_vec());
+            Ok(crate::diagnostic::MakeflagsResult {
+                value: request.value.to_vec(),
+                origin: Origin::File,
+                environment_override: false,
+                include_dirs: Vec::new(),
+            })
+        };
+        database
+            .read_with(
+                b"MAKEFLAGS += -k\n",
+                b"Makefile",
+                ExpansionContext::pure().with_makeflags(&mut receiver),
+            )
+            .unwrap();
+        assert_eq!(values, [b"-j2 -k".to_vec()]);
+        assert_eq!(
+            database.variables.expand(b"$(MAKEFLAGS)").unwrap(),
+            b"-j2 -k -- X=foo"
+        );
+    }
+
+    #[test]
     fn cancellation_stops_reader_before_a_later_definition_or_effect() {
         use std::sync::atomic::{AtomicBool, Ordering};
         let flag = AtomicBool::new(false);
@@ -1497,6 +1564,13 @@ impl Database {
         evaluation_location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
+        if spec.name == b"MAKEFLAGS"
+            && spec.kind == Assignment::Append
+            && context.has_makeflags()
+            && !spec.value.is_empty()
+        {
+            self.variables.strip_makeflags_assignments(origin);
+        }
         let mut variables = std::mem::take(&mut self.variables);
         let result = variables
             .define_with_using(
@@ -1526,7 +1600,37 @@ impl Database {
                 message: err.diagnostic(),
             });
         self.variables = variables;
-        result
+        result?;
+        if spec.name == b"MAKEFLAGS" && context.has_makeflags() {
+            let encoded_overrides = self.variables.get(b"MAKEFLAGS").is_some_and(|variable| {
+                variable
+                    .raw_value()
+                    .windows(b"$(MAKEOVERRIDES)".len())
+                    .any(|part| part == b"$(MAKEOVERRIDES)")
+            });
+            let value = self
+                .expand_with(b"$(MAKEFLAGS)", context.at(Some(evaluation_location)))
+                .map_err(|error| ParseError {
+                    unlocated: error.is_unlocated(),
+                    location: error
+                        .diagnostic_location(Some(evaluation_location))
+                        .unwrap_or(evaluation_location)
+                        .clone(),
+                    message: error.diagnostic(),
+                })?;
+            context
+                .at(Some(evaluation_location))
+                .update_makeflags(&mut self.variables, origin, value, encoded_overrides)
+                .map_err(|error| ParseError {
+                    unlocated: error.is_unlocated(),
+                    location: error
+                        .diagnostic_location(Some(evaluation_location))
+                        .unwrap_or(evaluation_location)
+                        .clone(),
+                    message: error.diagnostic(),
+                })?;
+        }
+        Ok(())
     }
 
     fn define_target_assignments(

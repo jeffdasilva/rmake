@@ -29,7 +29,7 @@ The synthetic failed-launch owner also accounts for active peers. Deferred launc
 failure diagnostics retain their recipe buffer until that logical completion.
 
 `make test-runtime-effects` runs three original native campaigns, each with three
-paired repetitions: 252 expansion/capture/I/O interruption profiles, 76 actual
+paired repetitions: 294 expansion/capture/I/O interruption profiles, 76 actual
 fcntl contention/release/interruption profiles and 64 inherited-PTY profiles.
 The latter cover stdin terminal identity, stdout/stderr diversion, forced lines,
 serial versus parallel modes, default tty spellings and explicit empty imported
@@ -54,9 +54,9 @@ exception normalizes target files, streams or status.
 
 Development and optimized CI run these campaigns alongside the existing corpus,
 stateful, syscall-fault, signal, load, mixed-jobserver and graph-progress gates.
-M5 stays open until recursive flag interpretation and the combined exit audit
-are complete. Full GNU compatibility and general speed parity remain later
-acceptance goals.
+The [M5 exit audit](m5-exit-audit.md) combines these with recursive flag
+interpretation and the other runtime gates. Full GNU compatibility and general
+speed parity remain later acceptance goals.
 
 Reference study: the verified GNU Make 4.4.1 archive, SHA-256
 `dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`,

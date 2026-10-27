@@ -2138,3 +2138,31 @@ streams/status/target-file observations and three paired repetitions. Both
 development and optimized CI run them. Six Rust and six tooling tests accompany
 the campaigns. M5 remains open for recursive flag interpretation and its combined
 exit audit.
+
+## M5 recursive flags and combined acceptance
+
+Complete the Linux runtime tranche with immediate global `MAKEFLAGS` assignment
+effects, post-read `GNUMAKEFLAGS` replay, startup-option restoration on makefile
+restart, literal-dollar option quoting, command-job precedence and pipe/FIFO
+recursive authentication. Separate option spelling from scheduler capacity and
+keep output buffers lazy while allowing synchronization to change during eval.
+The [flag notes](runtime-flags.md) document phases and original source provenance.
+
+Add 168 required flag fixtures and promote the two warning-expansion cases.
+The corpus now has 5,426 cases: 5,418 required and eight pending. All twelve M5
+families have required coverage: 737 fixtures and no pending runtime exemption.
+The cancellation campaign expands to 294 profiles, including immediate flag
+assignment and post-read replay. The lock and PTY campaigns retain 76 and 64
+profiles. The current unit inventory is 417 Rust and 324 tooling tests.
+
+The [M5 exit audit](m5-exit-audit.md) defines completion on the pinned Linux
+profile, contingent on the exact proposed head passing `make m5-acceptance` in
+development and optimized builds. CI runs both phases; incomplete runs do not
+qualify. M3/M6 language and interface gaps, broader M7 profile acceptance, and
+M8 general performance/cache correctness remain open.
+
+The [final runtime measurements](m5-runtime-performance.md) compare frozen GNU,
+candidate and preceding-main binaries with 101 alternating samples per engine.
+The candidate remains close to its predecessor; GNU remains faster on the three
+core workloads and slightly faster on the two parallel workloads. No general
+performance parity or cache acceleration claim follows from this milestone.

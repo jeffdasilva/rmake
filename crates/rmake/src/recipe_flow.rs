@@ -137,6 +137,10 @@ impl Flow {
         }
     }
 
+    pub fn any_recursive(&self) -> bool {
+        self.recursive.iter().any(|recursive| *recursive)
+    }
+
     pub fn has_ordinary(&self) -> bool {
         self.recursive.iter().any(|recursive| !recursive)
     }

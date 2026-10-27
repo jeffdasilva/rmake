@@ -62,16 +62,23 @@ impl Controller {
     pub fn set_mode(&self, mode: Mode) {
         self.0.mode.set(mode);
     }
-    pub fn make_buffer(&self) -> Option<Rc<Buffer>> {
-        (self.mode() != Mode::None).then(|| {
-            Rc::new(Buffer {
-                controller: self.clone(),
-                enabled: Cell::new(true),
-                spool: RefCell::new(None),
-                failed: Cell::new(false),
-                owner: RefCell::new(None),
-            })
+    fn allocate_buffer(&self, enabled: bool) -> Rc<Buffer> {
+        Rc::new(Buffer {
+            controller: self.clone(),
+            enabled: Cell::new(enabled),
+            spool: RefCell::new(None),
+            failed: Cell::new(false),
+            owner: RefCell::new(None),
+            reaped: Cell::new(false),
         })
+    }
+    pub fn make_buffer(&self) -> Option<Rc<Buffer>> {
+        (self.mode() != Mode::None).then(|| self.allocate_buffer(true))
+    }
+    // A recipe can enable output sync through eval while its body or shell
+    // configuration expands. Keep its lazy lifetime even when it starts off.
+    pub fn recipe_buffer(&self) -> Rc<Buffer> {
+        self.allocate_buffer(self.mode() != Mode::None)
     }
     pub fn select(&self, buffer: Option<&Rc<Buffer>>) {
         self.0.current.replace(buffer.map(Rc::downgrade));
@@ -122,6 +129,11 @@ impl Controller {
         if !self.mode().root_buffered() {
             return Ok(authentication.map(<[u8]>::to_vec));
         }
+        if let Some(provider) = self.0.coordination.borrow().as_ref()
+            && authentication == Some(provider.authentication())
+        {
+            return Ok(authentication.map(<[u8]>::to_vec));
+        }
         let provider = if let Some(auth) = authentication {
             match Coordination::join(auth)? {
                 Some(provider) => provider,
@@ -166,21 +178,29 @@ pub struct Buffer {
     spool: RefCell<Option<Spool>>,
     failed: Cell<bool>,
     owner: RefCell<Option<Owner>>,
+    reaped: Cell<bool>,
 }
 
 impl Buffer {
     pub fn set_owner(&self, target: &[u8], before: Option<std::time::SystemTime>, phony: bool) {
+        if self.owner.borrow().is_some() {
+            return;
+        }
         self.owner.replace(Some(Owner {
             target: target.to_vec(),
             before,
             phony,
-            reaped: false,
+            reaped: self.reaped.get(),
         }));
     }
     pub fn child_reaped(&self, reaped: bool) {
+        self.reaped.set(reaped);
         if let Some(owner) = self.owner.borrow_mut().as_mut() {
             owner.reaped = reaped;
         }
+    }
+    pub fn has_spool(&self) -> bool {
+        self.spool.borrow().is_some()
     }
     pub fn enabled(&self) -> bool {
         self.enabled.get()

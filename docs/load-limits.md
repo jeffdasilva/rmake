@@ -50,9 +50,9 @@ unordered parallel completion journal uses a named membership validator; its raw
 order is retained. All other file observations remain exact. Four tooling tests
 exercise these anchors with deliberately corrupted results.
 
-The campaign is in development CI and the optimized regression flow. This is an
-M5 slice, not M5 completion. Signals/cancellation, output synchronization, deeper
-synthetic-fatal completion and broader mixed-tree/runtime stress remain open.
+The campaign is in development CI and the optimized regression flow. The
+[M5 exit audit](m5-exit-audit.md) combines it with signal/cancellation, output
+synchronization, synthetic completion and mixed-tree runtime acceptance.
 
 ## Reference study
 

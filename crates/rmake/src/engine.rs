@@ -4,6 +4,8 @@
 //! Linux filesystem, dependency traversal and process execution boundary.
 //! No persistent cache and no delegation to GNU Make are involved.
 
+mod runtime_options;
+
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
@@ -546,12 +548,15 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
+    restart_options: Options,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
     dispatch_output: Option<std::rc::Rc<crate::output::Buffer>>,
     fatal_outputs: Vec<std::rc::Rc<crate::output::Buffer>>,
     filesystem: RefCell<FilesystemRuntime>,
-    include_search: IncludeSearch,
+    include_search: std::rc::Rc<RefCell<IncludeSearch>>,
+    flag_state: runtime_options::State,
+    flag_entry_jobs: Option<usize>,
     database: Database,
     program: Vec<u8>,
     makelevel: u32,
@@ -617,10 +622,20 @@ impl Engine {
                 })
             })
         };
+        let startup_level = startup_makelevel(
+            std::env::var_os("MAKELEVEL")
+                .as_deref()
+                .map_or(b"".as_slice(), OsStrExt::as_bytes),
+        );
+        let warning_program = if startup_level == 0 {
+            program.clone()
+        } else {
+            [program.as_slice(), format!("[{startup_level}]").as_bytes()].concat()
+        };
         let mode = parse_mode(options.output_sync.as_deref())?;
         let output = crate::output::Controller::new(
             parse_mode(options.inherited_output_sync.as_deref())?,
-            &program,
+            &warning_program,
         );
         let mut reader_output = output
             .mode()
@@ -635,74 +650,6 @@ impl Engine {
             std::env::set_current_dir(dir)
                 .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
         }
-        let startup_level = startup_makelevel(
-            std::env::var_os("MAKELEVEL")
-                .as_deref()
-                .map_or(b"".as_slice(), OsStrExt::as_bytes),
-        );
-        let warning_program = if startup_level == 0 {
-            program.clone()
-        } else {
-            [program.as_slice(), format!("[{startup_level}]").as_bytes()].concat()
-        };
-        if options.reset_jobserver {
-            emit_output(
-                &output,
-                &warning_program,
-                Output::Warning {
-                    location: None,
-                    message: format!(
-                        "warning: -j{} forced in submake: resetting jobserver mode.",
-                        options.jobs.filter(|jobs| *jobs != usize::MAX).unwrap_or(0)
-                    )
-                    .as_bytes(),
-                },
-            );
-        }
-        let jobserver = if options.jobs == Some(1) {
-            options.jobserver_auth = None;
-            None
-        } else if let Some(auth) = &options.jobserver_auth {
-            match Jobserver::join(auth) {
-                Ok(server) => Some(server),
-                Err(error) => {
-                    if let Some(path) = auth.strip_prefix(b"fifo:") {
-                        emit_output(
-                            &output,
-                            &warning_program,
-                            Output::Warning {
-                                location: None,
-                                message: &[
-                                    b"cannot open jobserver ".as_slice(),
-                                    path,
-                                    b": ",
-                                    os_error(&error).as_bytes(),
-                                ]
-                                .concat(),
-                            },
-                        );
-                    }
-                    emit_output(&output, &warning_program, Output::Warning { location: None,
-                        message: b"warning: jobserver unavailable: using -j1.  Add '+' to parent make rule." });
-                    options.jobs = Some(1);
-                    options.jobserver_auth = None;
-                    None
-                }
-            }
-        } else if let Some(jobs) = options.jobs.filter(|jobs| *jobs > 1 && *jobs != usize::MAX) {
-            Some(
-                Jobserver::create(jobs, options.jobserver_pipe).map_err(|error| {
-                    Diagnostic::from(format!("jobserver: {}", os_error(&error)))
-                })?,
-            )
-        } else {
-            None
-        };
-        if let Some(server) = &jobserver {
-            options.jobs = Some(usize::MAX);
-            options.jobserver_auth = Some(server.auth().to_vec());
-        }
-        options.inherited_jobs = false;
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
         for goal in &options.goals {
@@ -794,8 +741,19 @@ impl Engine {
         database.variables.remove(b"MAKEFLAGS");
         database
             .variables
-            .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
+            .define(
+                b"MAKEFLAGS",
+                &options.recursive_flags(),
+                Assignment::Recursive,
+                runtime_options::origin(options.environment_override),
+            )
             .map_err(|e| e.diagnostic())?;
+        if database.variables.get(b"GNUMAKEFLAGS").is_some() {
+            database
+                .variables
+                .define_literal(b"GNUMAKEFLAGS", b"", Origin::Environment)
+                .map_err(|e| e.diagnostic())?;
+        }
         let mut emit = |event: Output<'_>| emit_output(&output, &program, event);
         database
             .variables
@@ -814,7 +772,7 @@ impl Engine {
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
-                                crate::shell::run(request, &program, startup_level, &output);
+                                crate::shell::run(request, &program, startup_level, &output, None);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -825,9 +783,6 @@ impl Engine {
                 break;
             };
             let spec = assignment(arg).expect("CLI identified assignment");
-            if [b"MAKEFLAGS".as_slice(), b"GNUMAKEFLAGS"].contains(&trim(spec.name)) {
-                return Err("assigning make flags is not implemented yet".into());
-            }
             let name = database
                 .variables
                 .expand_mut_with(
@@ -836,7 +791,7 @@ impl Engine {
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
-                                crate::shell::run(request, &program, startup_level, &output);
+                                crate::shell::run(request, &program, startup_level, &output, None);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -854,7 +809,7 @@ impl Engine {
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
-                                crate::shell::run(request, &program, startup_level, &output);
+                                crate::shell::run(request, &program, startup_level, &output, None);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -874,7 +829,12 @@ impl Engine {
         let include_search = IncludeSearch::new(&options.include_directories);
         database
             .variables
-            .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
+            .define(
+                b"MAKEFLAGS",
+                &options.recursive_flags(),
+                Assignment::Recursive,
+                runtime_options::origin(options.environment_override),
+            )
             .map_err(|error| error.diagnostic())?;
         database
             .variables
@@ -893,7 +853,7 @@ impl Engine {
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
-                                crate::shell::run(request, &program, startup_level, &output);
+                                crate::shell::run(request, &program, startup_level, &output, None);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -929,12 +889,7 @@ impl Engine {
         if makelevel != 0 {
             program.extend_from_slice(format!("[{makelevel}]").as_bytes());
         }
-        database.variables.remove(b"GNUMAKEFLAGS");
-        database
-            .variables
-            .define_literal(b"GNUMAKEFLAGS", b"", Origin::Override)
-            .map_err(|e| e.diagnostic())?;
-        let mut initial_flags = options.flags();
+        let mut initial_flags = options.recursive_flags();
         if command_replay {
             initial_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
             database
@@ -943,7 +898,7 @@ impl Engine {
                     b"MAKEFLAGS",
                     &initial_flags,
                     Assignment::Recursive,
-                    Origin::File,
+                    runtime_options::origin(options.environment_override),
                 )
                 .map_err(|error| error.diagnostic())?;
         }
@@ -972,8 +927,13 @@ impl Engine {
             reader_output = output.make_buffer();
         }
         output.select(reader_output.as_ref());
-        construction_output.disarm();
-        Ok(Self {
+        let include_search = std::rc::Rc::new(RefCell::new(include_search));
+        let flag_state =
+            runtime_options::State::new(&options, output.clone(), include_search.clone());
+        let flag_entry_jobs = options.jobs;
+        let restart_options = options.clone();
+        let mut engine = Self {
+            restart_options,
             output,
             reader_output,
             dispatch_output: None,
@@ -981,6 +941,8 @@ impl Engine {
             options,
             filesystem,
             include_search,
+            flag_state,
+            flag_entry_jobs,
             database,
             program,
             makelevel,
@@ -1030,8 +992,30 @@ impl Engine {
             intermediate_policy: crate::intermediates::Policy::default(),
             intermediates: HashSet::new(),
             created_intermediates: Vec::new(),
-            jobserver,
-        })
+            jobserver: None,
+        };
+        // Inherited pipe descriptors must become close-on-exec before reader
+        // shell functions run. Creating a new owned pool waits until after read.
+        engine.setup_jobserver(false)?;
+        engine.initial_flags = engine.options.recursive_flags();
+        if engine.command_replay {
+            engine
+                .initial_flags
+                .extend_from_slice(b" -- $(MAKEOVERRIDES)");
+        }
+        engine
+            .database
+            .variables
+            .define(
+                b"MAKEFLAGS",
+                &engine.initial_flags,
+                Assignment::Recursive,
+                runtime_options::origin(engine.options.environment_override),
+            )
+            .map_err(|e| e.diagnostic())?;
+        engine.flag_state.refresh(&engine.options);
+        construction_output.disarm();
+        Ok(engine)
     }
 
     fn expand(
@@ -1040,21 +1024,31 @@ impl Engine {
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
-        self.database.expand_in(
+        let result = self.database.expand_in(
             variables,
             bytes,
             runtime_context(location, &mut |event| {
                 emit_output(&self.output, &self.program, event)
             })
+            .with_makeflags(&mut |request| self.flag_state.assigned(request))
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
-                let result =
-                    crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                let result = crate::shell::run(
+                    request,
+                    &self.program,
+                    self.makelevel,
+                    &self.output,
+                    self.jobserver.as_ref(),
+                );
                 self.filesystem.borrow_mut().child_completed();
                 result
             })
-            .with_includes(&mut |name| self.include_search.read(name)),
-        )
+            .with_includes(&mut |name| self.include_search.borrow().read(name)),
+        );
+        if let Some(options) = self.flag_state.take() {
+            self.options = options;
+        }
+        result
     }
 
     fn expand_global(
@@ -1062,20 +1056,30 @@ impl Engine {
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
-        self.database.expand_with(
+        let result = self.database.expand_with(
             bytes,
             runtime_context(location, &mut |event| {
                 emit_output(&self.output, &self.program, event)
             })
+            .with_makeflags(&mut |request| self.flag_state.assigned(request))
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
-                let result =
-                    crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                let result = crate::shell::run(
+                    request,
+                    &self.program,
+                    self.makelevel,
+                    &self.output,
+                    self.jobserver.as_ref(),
+                );
                 self.filesystem.borrow_mut().child_completed();
                 result
             })
-            .with_includes(&mut |name| self.include_search.read(name)),
-        )
+            .with_includes(&mut |name| self.include_search.borrow().read(name)),
+        );
+        if let Some(options) = self.flag_state.take() {
+            self.options = options;
+        }
+        result
     }
 
     fn show_makefile_error(&self) {
@@ -1182,10 +1186,16 @@ impl Engine {
                 runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 }),
@@ -1198,7 +1208,7 @@ impl Engine {
             };
             let name = path.as_os_str().as_bytes();
             self.database.file_records.insert(name);
-            let file = match self.include_search.read(name) {
+            let file = match self.include_search.borrow().read(name) {
                 Ok(file) => file,
                 Err(error) => {
                     if error == b"Is a directory" {
@@ -1239,14 +1249,20 @@ impl Engine {
                 runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 })
-                .with_includes(&mut |name| self.include_search.read(name)),
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
                 self.fatal(error.source_location(), error.message.as_bytes());
                 return Err(());
@@ -1312,9 +1328,32 @@ impl Engine {
         let mut stdin_bytes = None;
         loop {
             if restarts > 0 {
+                self.jobserver.take();
+                self.output.select(None);
+                self.output.clear();
+                self.options = self.restart_options.clone();
+                self.options.reset_jobserver = false;
+                self.include_search
+                    .replace(IncludeSearch::new(&self.options.include_directories));
+                self.output.set_mode(
+                    self.options
+                        .output_sync
+                        .as_deref()
+                        .and_then(crate::output::Mode::parse)
+                        .unwrap_or_default(),
+                );
                 if self.output.mode().root_buffered() {
                     self.reader_output = self.output.make_buffer();
                     self.output.select(self.reader_output.as_ref());
+                }
+                if let Err(error) = self.setup_jobserver(false) {
+                    self.fatal(None, error.as_bytes());
+                    return 2;
+                }
+                self.initial_flags = self.options.recursive_flags();
+                if self.command_replay {
+                    self.initial_flags
+                        .extend_from_slice(b" -- $(MAKEOVERRIDES)");
                 }
                 self.database = initial_database.clone();
                 self.database
@@ -1346,6 +1385,20 @@ impl Engine {
                 self.double_colon_before.clear();
                 self.optional_remake_failures.clear();
             }
+            if restarts > 0
+                && let Err(error) = self.database.variables.define(
+                    b"MAKEFLAGS",
+                    &self.initial_flags,
+                    Assignment::Recursive,
+                    runtime_options::origin(self.options.environment_override),
+                )
+            {
+                self.expansion_error(None, &error);
+                return 2;
+            }
+
+            self.flag_entry_jobs = self.options.jobs;
+            self.flag_state.refresh(&self.options);
             let startup_found = match self.read_startup_makefiles() {
                 Ok(found) => found,
                 Err(()) => return 2,
@@ -1441,18 +1494,27 @@ impl Engine {
                     runtime_context(None, &mut |event| {
                         emit_output(&self.output, &self.program, event)
                     })
+                    .with_makeflags(&mut |request| self.flag_state.assigned(request))
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                     .with_shell(&mut |request| {
-                        let result =
-                            crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                        let result = crate::shell::run(
+                            request,
+                            &self.program,
+                            self.makelevel,
+                            &self.output,
+                            self.jobserver.as_ref(),
+                        );
                         self.filesystem.borrow_mut().child_completed();
                         result
                     })
-                    .with_includes(&mut |name| self.include_search.read(name)),
+                    .with_includes(&mut |name| self.include_search.borrow().read(name)),
                 ) {
                     self.fatal(err.source_location(), err.message.as_bytes());
                     return 2;
                 }
+            }
+            if self.read_runtime_flags(restarts).is_err() {
+                return 2;
             }
             if restarts == 0
                 && let Some(authentication) = &self.options.sync_mutex
@@ -1472,21 +1534,6 @@ impl Engine {
                 );
                 return 2;
             }
-            for (name, initial) in [
-                (b"MAKEFLAGS".as_slice(), self.initial_flags.clone()),
-                (b"GNUMAKEFLAGS", self.initial_gnu_flags.clone()),
-            ] {
-                match self.database.variables.get(name) {
-                    Some(current) if current.raw_value() == initial => {}
-                    _ => {
-                        self.fatal(
-                            None,
-                            b"rmake: changing make flags in a Makefile is not implemented yet",
-                        );
-                        return 2;
-                    }
-                }
-            }
             match crate::command_variables::replay(
                 &mut self.database.variables,
                 self.command_replay,
@@ -1498,10 +1545,16 @@ impl Engine {
                 runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 }),
@@ -1518,17 +1571,65 @@ impl Engine {
                 .get(b"MAKEOVERRIDES")
                 .is_some_and(|value| !value.raw_value().is_empty())
             {
-                let raw = [self.options.flags(), b" -- $(MAKEOVERRIDES)".to_vec()].concat();
+                let raw = [
+                    self.options.recursive_flags(),
+                    b" -- $(MAKEOVERRIDES)".to_vec(),
+                ]
+                .concat();
                 if let Err(error) = self.database.variables.define(
                     b"MAKEFLAGS",
                     &raw,
                     Assignment::Recursive,
-                    Origin::File,
+                    runtime_options::origin(self.options.environment_override),
                 ) {
                     self.expansion_error(None, &error);
                     return 2;
                 }
             }
+            if let Err(error) = self.setup_jobserver(true) {
+                self.fatal(None, error.as_bytes());
+                return 2;
+            }
+            if self.options.jobs.unwrap_or(1) == 1 && self.output.mode().root_buffered() {
+                self.output.set_mode(crate::output::Mode::None);
+                self.output.select(None);
+                if let Some(buffer) = self.reader_output.take() {
+                    buffer.dump();
+                }
+            } else {
+                match self.output.setup(self.options.sync_mutex.as_deref()) {
+                    Ok(authentication) => self.options.sync_mutex = authentication,
+                    Err(error) => {
+                        self.fatal(
+                            None,
+                            format!("cannot open output sync mutex: {}", os_error(&error))
+                                .as_bytes(),
+                        );
+                        return 2;
+                    }
+                }
+            }
+
+            let mut runtime_flags = self.options.recursive_flags();
+            if self
+                .database
+                .variables
+                .get(b"MAKEFLAGS")
+                .is_some_and(|v| v.raw_value().ends_with(b" -- $(MAKEOVERRIDES)"))
+            {
+                runtime_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
+            }
+            if let Err(error) = self.database.variables.define(
+                b"MAKEFLAGS",
+                &runtime_flags,
+                Assignment::Recursive,
+                runtime_options::origin(self.options.environment_override),
+            ) {
+                self.expansion_error(None, &error);
+                return 2;
+            }
+            self.flag_state.refresh(&self.options);
+            self.initial_flags = runtime_flags.clone();
             self.intermediate_policy = match crate::intermediates::Policy::read(&self.database) {
                 Ok(policy) => policy,
                 Err(message) => {
@@ -1542,14 +1643,20 @@ impl Engine {
                 &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 })
-                .with_includes(&mut |name| self.include_search.read(name)),
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
                 Ok(records) => records,
                 Err(error) => {
@@ -1566,7 +1673,8 @@ impl Engine {
                 !self.options.no_rules,
                 &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
-                }),
+                })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request)),
             ) {
                 self.fatal(error.source_location(), error.message.as_bytes());
                 return 2;
@@ -1575,14 +1683,20 @@ impl Engine {
                 &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 })
-                .with_includes(&mut |name| self.include_search.read(name)),
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
                 self.expansion_error(None, &error);
                 return 2;
@@ -1629,41 +1743,6 @@ impl Engine {
                 .iter()
                 .map(|file| file.name.clone())
                 .collect();
-            if restarts == 0 {
-                if self.options.jobs.unwrap_or(1) == 1 && self.output.mode().root_buffered() {
-                    self.output.set_mode(crate::output::Mode::None);
-                } else {
-                    match self.output.setup(self.options.sync_mutex.as_deref()) {
-                        Ok(authentication) => self.options.sync_mutex = authentication,
-                        Err(error) => {
-                            self.fatal(
-                                None,
-                                format!("cannot open output sync mutex: {}", os_error(&error))
-                                    .as_bytes(),
-                            );
-                            return 2;
-                        }
-                    }
-                }
-            }
-            let mut runtime_flags = self.options.flags();
-            if self
-                .database
-                .variables
-                .get(b"MAKEFLAGS")
-                .is_some_and(|v| v.raw_value().ends_with(b" -- $(MAKEOVERRIDES)"))
-            {
-                runtime_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
-            }
-            if let Err(error) = self.database.variables.define(
-                b"MAKEFLAGS",
-                &runtime_flags,
-                Assignment::Recursive,
-                Origin::File,
-            ) {
-                self.expansion_error(None, &error);
-                return 2;
-            }
             self.output.select(None);
             if let Some(buffer) = self.reader_output.take() {
                 buffer.dump();
@@ -1816,6 +1895,7 @@ impl Engine {
                             &mut runtime_context(None, &mut |event| {
                                 emit_output(&self.output, &self.program, event)
                             })
+                            .with_makeflags(&mut |request| self.flag_state.assigned(request))
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
@@ -1825,11 +1905,12 @@ impl Engine {
                                     &self.program,
                                     self.makelevel,
                                     &self.output,
+                                    self.jobserver.as_ref(),
                                 );
                                 self.filesystem.borrow_mut().child_completed();
                                 result
                             })
-                            .with_includes(&mut |name| self.include_search.read(name)),
+                            .with_includes(&mut |name| self.include_search.borrow().read(name)),
                         );
                         let goals: Vec<_> = match names {
                             Ok(names) => names.map(std::borrow::Cow::into_owned).collect(),
@@ -2408,6 +2489,8 @@ impl Engine {
                 .is_some_and(|rule| rule.dependencies.iter().all(|dep| dep.hidden))
         {
             1
+        } else if self.jobserver.is_some() {
+            usize::MAX
         } else {
             self.options.jobs.unwrap_or(1)
         }
@@ -3925,10 +4008,16 @@ impl Engine {
                 runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 }),
@@ -3978,14 +4067,20 @@ impl Engine {
                 &mut runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 })
-                .with_includes(&mut |name| self.include_search.read(name)),
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?
         } else {
             std::borrow::Cow::Borrowed(name)
@@ -4105,13 +4200,22 @@ impl Engine {
             };
             let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
             let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-                let result =
-                    crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                let result = crate::shell::run(
+                    request,
+                    &self.program,
+                    self.makelevel,
+                    &self.output,
+                    self.jobserver.as_ref(),
+                );
                 self.filesystem.borrow_mut().child_completed();
                 result
             };
-            let mut includes = |name: &[u8]| self.include_search.read(name);
+            let mut includes = |name: &[u8]| self.include_search.borrow().read(name);
+            let mut makeflags = |request: rmake_core::diagnostic::MakeflagsRequest<'_>| {
+                self.flag_state.assigned(request)
+            };
             let mut context = runtime_context(None, &mut emit)
+                .with_makeflags(&mut makeflags)
                 .with_filesystem(&mut filesystem)
                 .with_shell(&mut shell)
                 .with_includes(&mut includes);
@@ -5498,10 +5602,16 @@ impl Engine {
                 runtime_context(None, &mut |event| {
                     emit_output(&self.output, &self.program, event)
                 })
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result =
-                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
                     self.filesystem.borrow_mut().child_completed();
                     result
                 }),
@@ -5531,7 +5641,7 @@ impl Engine {
                     .is_some_and(|active| std::rc::Rc::ptr_eq(active, &buffer))
             }) {
                 self.output.select(None);
-                if result.cleanup != Cleanup::None {
+                if result.cleanup != Cleanup::None && buffer.has_spool() {
                     if self.cleanup_target(target, before, phony, result.cleanup) {
                         result.status = Status::Fatal;
                     }
@@ -5633,8 +5743,10 @@ impl Engine {
                 return Execution::fatal(false);
             }
         }
-        let output = self.output.make_buffer();
-        if let Some(buffer) = &output {
+        let output = Some(self.output.recipe_buffer());
+        if let Some(buffer) = &output
+            && buffer.enabled()
+        {
             buffer.set_owner(target, before, phony);
         }
         self.dispatch_output = output.clone();
@@ -5849,6 +5961,9 @@ impl Engine {
             if let Some(buffer) = &output {
                 let synchronize = self.output.mode() != crate::output::Mode::None
                     && (self.output.mode() == crate::output::Mode::Recurse || !force);
+                if synchronize {
+                    buffer.set_owner(target, before, phony);
+                }
                 buffer.set_enabled(synchronize);
                 self.output.select(synchronize.then_some(buffer));
                 if !synchronize {
@@ -6005,6 +6120,7 @@ impl Engine {
                             runtime_context(variable.definition(), &mut |event| {
                                 emit_output(&self.output, &self.program, event)
                             })
+                            .with_makeflags(&mut |request| self.flag_state.assigned(request))
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
@@ -6014,11 +6130,12 @@ impl Engine {
                                     &self.program,
                                     self.makelevel,
                                     &self.output,
+                                    self.jobserver.as_ref(),
                                 );
                                 self.filesystem.borrow_mut().child_completed();
                                 result
                             })
-                            .with_includes(&mut |name| self.include_search.read(name)),
+                            .with_includes(&mut |name| self.include_search.borrow().read(name)),
                         ) {
                             Ok(value) => {
                                 child.env(os(name), OsString::from_vec(value));
@@ -6062,6 +6179,14 @@ impl Engine {
                 // The child's numeric depth always comes from the startup snapshot,
                 // even if the visible binding was changed, removed, or unexported.
                 child.env("MAKELEVEL", self.makelevel.wrapping_add(1).to_string());
+                if self
+                    .jobserver
+                    .as_ref()
+                    .is_some_and(|server| !server.auth().starts_with(b"fifo:"))
+                    && !flow.any_recursive()
+                {
+                    crate::process::disable_pipe_jobserver(&mut child);
+                }
                 environment = Some(
                     child
                         .get_envs()

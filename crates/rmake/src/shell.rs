@@ -16,6 +16,7 @@ pub fn run(
     program_name: &[u8],
     makelevel: u32,
     output: &crate::output::Controller,
+    jobserver: Option<&rmake_linux::jobserver::Jobserver>,
 ) -> Result<ShellResult, Vec<u8>> {
     let invocation =
         crate::process::prepare(request.command, request.shell, request.flags, request.ifs);
@@ -33,6 +34,9 @@ pub fn run(
         }
     }
     command.env("MAKELEVEL", makelevel.wrapping_add(1).to_string());
+    if jobserver.is_some_and(|server| !server.auth().starts_with(b"fifo:")) {
+        crate::process::disable_pipe_jobserver(&mut command);
+    }
     let buffer = output.current();
     let (child, stdout) = match crate::engine::launch_child(&program, &command, |mut command| {
         if let Some(buffer) = &buffer {

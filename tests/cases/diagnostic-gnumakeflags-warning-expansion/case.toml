@@ -1,6 +1,6 @@
 id = "diagnostic-gnumakeflags-warning-expansion"
 requirement = "recursion.environment"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
 description = "Original exact-byte information/warning output, caller-context and evaluation-timing regression."
 provenance = "Independently authored and asserted against pinned GNU Make 4.4.1 without upstream source or tests."

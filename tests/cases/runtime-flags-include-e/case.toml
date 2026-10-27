@@ -1,0 +1,13 @@
+id = "runtime-flags-include-e"
+requirement = "runtime.flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-e"]
+output = "merged"
+timeout_seconds = 5
+description = "Original immediate/deferred recursive-switch, restart or protocol-environment regression."
+provenance = "Independently authored source, protocol identity assertions and exact pinned-oracle output goldens; no upstream source or test code copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "6265666f72650a7365617263683d5b5d0a4d616b6566696c653a333a2073657474696e67732e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202773657474696e67732e6d6b272e202053746f702e0a"
+stderr_hex = ""

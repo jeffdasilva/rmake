@@ -74,9 +74,10 @@ Two GNU behavior boundaries are explicit:
   stage termination after signal delivery to avoid that reference race. rmake
   keeps its reaper outside handlers rather than reproducing reentrant wait state.
 
-These trusted process fixtures are not a security sandbox. This is an M5 slice,
-not its exit claim. Output synchronization, broader shell/reader interruption,
-synthetic fatal continuations and final runtime/mixed-tree stress remain open.
+These trusted process fixtures are not a security sandbox. The combined
+[M5 exit audit](m5-exit-audit.md) adds output synchronization, shell/reader
+interruption, synthetic completion and final runtime/mixed-tree gates to this
+signal slice. Broader profile acceptance remains M7 work.
 The second-signal profiles also passed 100 repetitions each after the lost-wake
 fix. A separate load profile changes the observed load exactly at entry into an
 unavailable-token wait, checking GNU's one-second queued-load retry; the prior

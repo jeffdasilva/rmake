@@ -5,10 +5,11 @@ use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
     pub jobs: Option<usize>,
+    pub command_jobs: Option<usize>,
     pub output_sync: Option<Vec<u8>>,
     pub inherited_output_sync: Option<Vec<u8>>,
     pub sync_mutex: Option<Vec<u8>>,
@@ -49,55 +50,7 @@ impl Options {
     ) -> Result<Self, String> {
         let mut combined = Vec::new();
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
-            let raw = flags.as_bytes();
-            let mut decoded = Vec::with_capacity(raw.len());
-            let mut pos = 0;
-            while pos < raw.len() {
-                decoded.push(raw[pos]);
-                if raw[pos] == b'$' && raw.get(pos + 1) == Some(&b'$') {
-                    pos += 1;
-                }
-                pos += 1;
-            }
-            let bytes = decoded.as_slice();
-            let mut tokens = Vec::new();
-            let mut token = Vec::new();
-            let mut i = 0;
-            while i < bytes.len() {
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    i += 1;
-                    token.push(bytes[i]);
-                } else if bytes[i].is_ascii_whitespace() {
-                    if !token.is_empty() {
-                        tokens.push(std::mem::take(&mut token));
-                    }
-                } else {
-                    token.push(bytes[i]);
-                }
-                i += 1;
-            }
-            if !token.is_empty() {
-                tokens.push(token);
-            }
-            if let Some(first) = tokens.first_mut()
-                && !first.starts_with(b"-")
-                && !first.contains(&b'=')
-            {
-                first.insert(0, b'-');
-            }
-            let mut inherited_end = false;
-            for token in tokens {
-                if token == b"--" {
-                    inherited_end = true;
-                    continue;
-                }
-                if inherited_end && token.starts_with(b"-") {
-                    return Err(
-                        "option-like goals in inherited make flags are not implemented".into(),
-                    );
-                }
-                combined.push(OsString::from_vec(token));
-            }
+            Self::append_flags(&mut combined, flags.as_bytes())?;
         }
         let inherited_options = Self::parse(combined.clone())?;
         // Inspect parsed options: an -I argument can itself contain f or C.
@@ -110,6 +63,7 @@ impl Options {
         let explicit = explicit_options.jobs;
         combined.extend(args);
         let mut result = Self::parse(combined)?;
+        result.command_jobs = explicit;
         result.inherited_output_sync = inherited_options.output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
         result.reset_jobserver = explicit.is_some() && result.jobserver_auth.is_some();
@@ -117,6 +71,102 @@ impl Options {
             result.jobserver_auth = None;
         }
         Ok(result)
+    }
+
+    fn append_flags(combined: &mut Vec<OsString>, flags: &[u8]) -> Result<(), String> {
+        let raw = flags;
+        let mut decoded = Vec::with_capacity(raw.len());
+        let mut pos = 0;
+        while pos < raw.len() {
+            decoded.push(raw[pos]);
+            if raw[pos] == b'$' && raw.get(pos + 1) == Some(&b'$') {
+                pos += 1;
+            }
+            pos += 1;
+        }
+        let bytes = decoded.as_slice();
+        let mut tokens = Vec::new();
+        let mut token = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                i += 1;
+                token.push(bytes[i]);
+            } else if bytes[i].is_ascii_whitespace() {
+                if !token.is_empty() {
+                    tokens.push(std::mem::take(&mut token));
+                }
+            } else {
+                token.push(bytes[i]);
+            }
+            i += 1;
+        }
+        if !token.is_empty() {
+            tokens.push(token);
+        }
+        if let Some(first) = tokens.first_mut()
+            && !first.starts_with(b"-")
+            && !first.contains(&b'=')
+        {
+            first.insert(0, b'-');
+        }
+        let mut inherited_end = false;
+        for token in tokens {
+            if token == b"--" {
+                inherited_end = true;
+                continue;
+            }
+            if inherited_end && token.starts_with(b"-") {
+                return Err("option-like goals in inherited make flags are not implemented".into());
+            }
+            combined.push(OsString::from_vec(token));
+        }
+        Ok(())
+    }
+
+    /// Decode changed file bindings after reading. Existing switches persist;
+    /// later file flags can change them, while explicit CLI -j keeps priority.
+    pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
+        self.decode_file_flags(flags, true)
+    }
+    pub fn assigned_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
+        self.decode_file_flags(flags, false)
+    }
+    fn decode_file_flags(
+        &self,
+        flags: &[Vec<u8>],
+        restore_cli_jobs: bool,
+    ) -> Result<(Self, Option<usize>), String> {
+        let mut incoming = Vec::new();
+        for value in flags {
+            Self::append_flags(&mut incoming, value)?;
+        }
+        let incoming_options = Self::parse(incoming.clone())?;
+        if !incoming_options.files.is_empty() || !incoming_options.directories.is_empty() {
+            return Err("file/directory switches in make flags are not implemented".into());
+        }
+        if !incoming_options.assignments.is_empty() {
+            return Err(
+                "assignments introduced through changed make flags are not implemented".into(),
+            );
+        }
+        let mut arguments = Vec::new();
+        Self::append_flags(&mut arguments, &self.recursive_flags())?;
+        if self.jobserver_pipe {
+            arguments.push("--jobserver-style=pipe".into());
+        }
+        arguments.extend(incoming);
+        let mut parsed = Self::parse(arguments)?;
+        parsed.command_jobs = self.command_jobs;
+        if restore_cli_jobs && let Some(jobs) = self.command_jobs {
+            parsed.jobs = Some(jobs);
+        }
+        Ok((
+            parsed,
+            incoming_options
+                .jobs
+                .filter(|_| self.command_jobs.is_none()),
+        ))
     }
 
     pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Self, String> {
@@ -357,6 +407,24 @@ impl Options {
         Ok(())
     }
 
+    /// Stored MAKEFLAGS is recursive: literal option dollars need one layer
+    /// of make quoting, separate from its encoded command-variable reference.
+    pub fn recursive_flags(&self) -> Vec<u8> {
+        let flags = self.flags();
+        if !flags.contains(&b'$') {
+            return flags;
+        }
+        let mut value =
+            Vec::with_capacity(flags.len() + flags.iter().filter(|byte| **byte == b'$').count());
+        for byte in flags {
+            if byte == b'$' {
+                value.push(b'$');
+            }
+            value.push(byte);
+        }
+        value
+    }
+
     pub fn flags(&self) -> Vec<u8> {
         let mut flags = Vec::new();
         for (set, flag) in [
@@ -448,6 +516,43 @@ mod tests {
     use super::*;
     fn parse(args: &[&str]) -> Result<Options, String> {
         Options::parse(args.iter().map(OsString::from))
+    }
+
+    #[test]
+    fn stored_recursive_flags_preserve_literal_dollars_after_make_expansion() {
+        let options = Options::parse(["-Idir$dollar".into()]).unwrap();
+        assert_eq!(options.flags(), b" -Idir$dollar");
+        let mut variables = rmake_core::variables::VariableStore::new();
+        variables
+            .define(
+                b"MAKEFLAGS",
+                &options.recursive_flags(),
+                rmake_core::variables::Assignment::Recursive,
+                rmake_core::variables::Origin::File,
+            )
+            .unwrap();
+        assert_eq!(variables.expand(b"$(MAKEFLAGS)").unwrap(), options.flags());
+        let (assigned, _) = options.assigned_flags(&[b"-k".to_vec()]).unwrap();
+        assert_eq!(assigned.include_directories, options.include_directories);
+    }
+
+    #[test]
+    fn immediate_flags_expose_requested_jobs_before_final_cli_priority_is_restored() {
+        let options = Options::with_environment(["-j1".into()], None, None).unwrap();
+        assert_eq!(
+            options
+                .assigned_flags(&[b"-j3 -Oline".to_vec()])
+                .unwrap()
+                .0
+                .jobs,
+            Some(3)
+        );
+        let final_options = options.file_flags(&[b"-j3 -Oline".to_vec()]).unwrap().0;
+        assert_eq!(final_options.jobs, Some(1));
+        assert_eq!(
+            final_options.output_sync.as_deref(),
+            Some(b"line".as_slice())
+        );
     }
 
     #[test]

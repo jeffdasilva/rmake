@@ -1,0 +1,13 @@
+id = "runtime-flags-eval-n-j2"
+requirement = "runtime.flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "X=foo"]
+output = "merged"
+timeout_seconds = 5
+description = "Original immediate/deferred recursive-switch, restart or protocol-environment regression."
+provenance = "Independently authored source, protocol identity assertions and exact pinned-oracle output goldens; no upstream source or test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "657870616e73696f6e2d6265666f72650a657870616e73696f6e2d61667465720a4d616b6566696c653a343a20636f6e6669672d616c6c0a7072696e746620276368696c645c6e270a4d616b6566696c653a353a20636f6e6669672d616c6c0a7072696e746620277461696c5c6e270a"
+stderr_hex = ""

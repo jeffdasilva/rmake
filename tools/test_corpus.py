@@ -50,6 +50,20 @@ class CorpusTests(unittest.TestCase):
                     case = conformance.load_case(ROOT / "tests/cases" / case_id)
                     self.assertEqual(case.candidate, "required")
 
+    def test_m5_runtime_families_have_required_cases_without_pending_exemptions(self):
+        ledger = tomllib.loads((ROOT / "tests/requirements.toml").read_text())
+        families = {item["id"]: item for item in ledger["requirements"]
+                    if item["id"].startswith(("runtime.", "parallel.", "recursion."))}
+        self.assertTrue({"parallel.execution", "parallel.jobserver", "recursion.environment", "recursion.makelevel",
+                         "runtime.stdin", "runtime.load", "runtime.signals", "runtime.output-sync", "runtime.completion",
+                         "runtime.cancellation", "runtime.flags", "runtime.fatal-continuations"} <= families.keys())
+        for name, family in families.items():
+            with self.subTest(requirement=name):
+                self.assertGreater(family["fixture_count"], 0)
+                self.assertEqual(family["candidate_required"], family["fixture_count"])
+                for case_id in family["cases"]:
+                    self.assertEqual(conformance.load_case(ROOT / "tests/cases" / case_id).candidate, "required")
+
     def test_every_fixture_has_independent_expectations(self):
         for path in (ROOT / "tests/cases").iterdir():
             if path.is_dir():
