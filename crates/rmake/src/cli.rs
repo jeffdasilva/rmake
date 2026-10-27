@@ -9,6 +9,9 @@ use std::path::PathBuf;
 pub struct Options {
     pub files: Vec<PathBuf>,
     pub jobs: Option<usize>,
+    pub output_sync: Option<Vec<u8>>,
+    pub inherited_output_sync: Option<Vec<u8>>,
+    pub sync_mutex: Option<Vec<u8>>,
     pub load_limit: Option<f64>,
     pub inherited_jobs: bool,
     pub jobserver_auth: Option<Vec<u8>>,
@@ -107,6 +110,7 @@ impl Options {
         let explicit = explicit_options.jobs;
         combined.extend(args);
         let mut result = Self::parse(combined)?;
+        result.inherited_output_sync = inherited_options.output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
         result.reset_jobserver = explicit.is_some() && result.jobserver_auth.is_some();
         if result.reset_jobserver {
@@ -207,6 +211,19 @@ impl Options {
                                 result.files.push(path);
                             }
                         }
+                        b"--output-sync" => {
+                            result.output_sync = Some(value.unwrap_or_else(|| b"target".to_vec()))
+                        }
+                        b"--sync-mutex" => {
+                            result.sync_mutex = Some(
+                                value
+                                    .or_else(|| {
+                                        i += 1;
+                                        args.get(i).cloned()
+                                    })
+                                    .ok_or("option '--sync-mutex' requires an argument")?,
+                            );
+                        }
                         b"--load-average" | b"--max-load" => {
                             let value = value.or_else(|| {
                                 if args.get(i + 1).is_some_and(|v| {
@@ -263,6 +280,14 @@ impl Options {
                         b'R' => {
                             result.no_variables = true;
                             result.no_rules = true;
+                        }
+                        b'O' => {
+                            result.output_sync = Some(if j + 1 < arg.len() {
+                                arg[j + 1..].to_vec()
+                            } else {
+                                b"target".to_vec()
+                            });
+                            break;
                         }
                         b'l' => {
                             let value = if j + 1 < arg.len() {
@@ -366,6 +391,14 @@ impl Options {
                 flags.extend_from_slice(jobs.to_string().as_bytes());
             }
         }
+        if let Some(limit) = self.load_limit.filter(|v| *v != -1.0) {
+            flags.extend_from_slice(b" -l");
+            flags.extend_from_slice(rmake_linux::process::load_spelling(limit).as_bytes());
+        }
+        if let Some(mode) = &self.output_sync {
+            flags.extend_from_slice(b" -O");
+            flags.extend_from_slice(mode);
+        }
         if let Some(auth) = &self.jobserver_auth {
             flags.extend_from_slice(b" --jobserver-auth=");
             for byte in auth {
@@ -375,9 +408,14 @@ impl Options {
                 flags.push(*byte);
             }
         }
-        if let Some(limit) = self.load_limit.filter(|v| *v != -1.0) {
-            flags.extend_from_slice(b" -l");
-            flags.extend_from_slice(rmake_linux::process::load_spelling(limit).as_bytes());
+        if let Some(auth) = &self.sync_mutex {
+            flags.extend_from_slice(b" --sync-mutex=");
+            for byte in auth {
+                if byte.is_ascii_whitespace() || *byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(*byte);
+            }
         }
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
@@ -410,6 +448,38 @@ mod tests {
     use super::*;
     fn parse(args: &[&str]) -> Result<Options, String> {
         Options::parse(args.iter().map(OsString::from))
+    }
+
+    #[test]
+    fn output_sync_optional_arguments_and_recursive_flags_preserve_explicit_none() {
+        for (argument, expected) in [
+            ("-O", "target"),
+            ("-Oline", "line"),
+            ("--output-sync", "target"),
+            ("--output-sync=recurse", "recurse"),
+            ("--output-sync=none", "none"),
+        ] {
+            let options = Options::parse([argument.into(), "goal".into()]).unwrap();
+            assert_eq!(options.output_sync.as_deref(), Some(expected.as_bytes()));
+            assert_eq!(options.goals, [b"goal".to_vec()]);
+            assert_eq!(options.flags(), format!(" -O{expected}").as_bytes());
+        }
+    }
+
+    #[test]
+    fn output_sync_inheritance_keeps_the_startup_mode_and_last_explicit_choice() {
+        let options = Options::with_environment(
+            ["-Onone".into()],
+            Some("-Oline --sync-mutex=fnm:path".into()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(options.output_sync.as_deref(), Some(b"none".as_slice()));
+        assert_eq!(
+            options.inherited_output_sync.as_deref(),
+            Some(b"line".as_slice())
+        );
+        assert_eq!(options.flags(), b" -Onone --sync-mutex=fnm:path");
     }
 
     #[test]

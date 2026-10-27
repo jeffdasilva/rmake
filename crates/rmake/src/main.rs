@@ -15,11 +15,13 @@ mod intermediates;
 mod load;
 mod makefiles;
 mod oneshell;
+mod output;
 mod process;
 mod recipe_flow;
 mod shell;
 
 fn main() -> ExitCode {
+    rmake_linux::output::initialize();
     let signals = match rmake_linux::signals::Guard::install() {
         Ok(guard) => guard,
         Err(error) => {
@@ -64,10 +66,11 @@ fn main() -> ExitCode {
         println!("  -i / -k    Ignore recipe errors / continue independent targets");
         println!("  -t / -e    Touch targets / let environment override file variables");
         println!("  -rR / -jN  Disable built-ins / set shared local job limit");
+        println!("  -O[TYPE]   Synchronize output: line, target (default), recurse, none");
         println!("  -l[LOAD]   Limit parallel launches by Linux runnable load");
         println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
         println!("\nDevelopment build: GNU Make compatibility is incomplete.");
-        println!("Output synchronization and complete runtime compatibility remain unfinished.");
+        println!("Complete runtime compatibility remains unfinished.");
         return ExitCode::SUCCESS;
     }
     let status = match engine::Engine::new(options, program.clone(), &invocation) {

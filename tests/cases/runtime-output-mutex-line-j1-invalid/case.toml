@@ -1,0 +1,12 @@
+id = "runtime-output-mutex-line-j1-invalid"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-Oline", "--sync-mutex=bad", "--jobserver-style=pipe"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a20696e76616c6964202d2d73796e632d6d7574657820737472696e672027626164270a70617273650a6d616b653a20696e76616c6964202d2d73796e632d6d7574657820737472696e672027626164270a6368696c640a"
+stderr_hex = ""

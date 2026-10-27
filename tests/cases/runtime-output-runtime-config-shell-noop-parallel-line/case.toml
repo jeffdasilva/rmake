@@ -1,0 +1,11 @@
+id = "runtime-output-runtime-config-shell-noop-parallel-line"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "-Oline", "--sync-mutex=fnm:mutex"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a353a202a2a2a2073746f707065642e202053746f702e0a"

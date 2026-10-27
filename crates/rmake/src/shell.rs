@@ -7,7 +7,7 @@
 use rmake_core::diagnostic::{ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
 use std::ffi::OsStr;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
@@ -16,6 +16,7 @@ pub fn run(
     request: ShellRequest<'_>,
     program_name: &[u8],
     makelevel: u32,
+    output: &crate::output::Controller,
 ) -> Result<ShellResult, Vec<u8>> {
     let invocation =
         crate::process::prepare(request.command, request.shell, request.flags, request.ifs);
@@ -33,18 +34,27 @@ pub fn run(
         }
     }
     command.env("MAKELEVEL", makelevel.wrapping_add(1).to_string());
+    let buffer = output.current();
     let mut child = match crate::engine::launch_child(&program, &command, |mut command| {
-        command.stdout(Stdio::piped()).spawn()
+        command.stdout(Stdio::piped());
+        if let Some(buffer) = &buffer {
+            buffer.configure_stderr(&mut command)?;
+        }
+        command.spawn()
     }) {
         Ok(child) => child,
         Err(error) => {
-            let mut stderr = std::io::stderr().lock();
-            let _ = stderr.write_all(program_name);
-            let _ = stderr.write_all(b": ");
-            let _ = stderr.write_all(&program);
-            let _ = stderr.write_all(b": ");
-            let _ = stderr.write_all(crate::engine::os_error(&error).as_bytes());
-            let _ = stderr.write_all(b"\n");
+            output.write_parts(
+                true,
+                &[
+                    program_name,
+                    b": ",
+                    &program,
+                    b": ",
+                    crate::engine::os_error(&error).as_bytes(),
+                    b"\n",
+                ],
+            );
             return Ok(ShellResult {
                 stdout: Vec::new(),
                 status: 127,

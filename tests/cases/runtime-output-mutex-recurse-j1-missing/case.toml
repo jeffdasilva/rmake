@@ -1,0 +1,12 @@
+id = "runtime-output-mutex-recurse-j1-missing"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-Orecurse", "--sync-mutex=fnm:missing", "--jobserver-style=pipe"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "6d616b653a202a2a2a2063616e6e6f74206f70656e206f75747075742073796e63206d75746578206d697373696e673a204e6f20737563682066696c65206f72206469726563746f72792e202053746f702e0a"
+stderr_hex = ""

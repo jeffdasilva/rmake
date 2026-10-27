@@ -24,7 +24,8 @@ language gaps. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
 is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
 controlled development and optimized gates. Remaining synthetic completion,
-output-sync, interruption/effect combinations and runtime stress cases stay open.
+interruption/effect combinations and runtime stress cases stay open.
+[Output synchronization](output-sync.md) has controlled grouping, mutex and mixed-tree gates.
 [Owned children and signal shutdown](runtime-signals.md) now have controlled
 recipe/runtime gates, including safe borrowed-token recovery. Persistent caching remains deferred to its
 correctness design and acceptance gate.
