@@ -17,6 +17,7 @@ static INITIAL_PIPE: AtomicI32 = AtomicI32::new(0);
 
 unsafe extern "C" {
     fn signal(number: c_int, handler: usize) -> usize;
+    fn siginterrupt(number: c_int, interrupt: c_int) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn read(descriptor: c_int, bytes: *mut c_void, length: usize) -> isize;
     fn write(descriptor: c_int, bytes: *const c_void, length: usize) -> isize;
@@ -92,6 +93,11 @@ impl Guard {
             } else {
                 old == 1
             };
+            // Blocking output locks must wake for fatal shutdown. libc owns
+            // the sigaction ABI; use its flag update rather than a Rust layout.
+            if !inherited_ignore {
+                unsafe { siginterrupt(number, 1) };
+            }
             guard.saved.push((number, old));
             if inherited_ignore {
                 unsafe { signal(number, 1) };

@@ -1,0 +1,11 @@
+id = "runtime-output-forced-touch-query-ignored-exit-cleanup-recurse"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "-qt", "-Orecurse", "--sync-mutex=fnm:mutex"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a2044656c6574696e672066696c652027616c6c270a6d616b653a205b4d616b6566696c653a323a20616c6c5d204572726f722031202869676e6f726564290a"

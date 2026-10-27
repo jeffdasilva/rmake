@@ -182,3 +182,7 @@ independent Linux runtime scheduling and descriptor follow-up.
 The [signal/runtime notes](runtime-signals.md) record child ownership, fatal
 signal, output ordering and intermediate-cleanup source references for the
 independent Linux event loop and original controlled signal campaign.
+
+The [output synchronization notes](output-sync.md) record output, recipe and
+POSIX synchronization source references used for the original Linux implementation
+and controlled output-phase and mixed-recursion fixtures.

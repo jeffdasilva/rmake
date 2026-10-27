@@ -1,0 +1,11 @@
+id = "runtime-output-restart-none"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j2", "-Onone", "--jobserver-style=pipe"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "706173732d66697273740a706173732d7365636f6e640a72656164790a"
+stderr_hex = ""

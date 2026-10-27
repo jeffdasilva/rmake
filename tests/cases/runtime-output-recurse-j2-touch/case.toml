@@ -1,0 +1,11 @@
+id = "runtime-output-recurse-j2-touch"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j2", "-Orecurse", "--jobserver-style=pipe", "-t"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "70617273650a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = "70617273652d6572726f720a"

@@ -1,0 +1,11 @@
+id = "runtime-output-line-j1-dry"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-Oline", "--jobserver-style=pipe", "-n"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "70617273650a657870616e642d66697273740a657870616e642d7365636f6e640a7072696e7466202766697273742d6f75745c6e273b207072696e7466202766697273742d6572726f725c6e27203e26320a7072696e746620277365636f6e642d6f75745c6e273b207072696e746620277365636f6e642d6572726f725c6e27203e26320a"
+stderr_hex = "70617273652d6572726f720a"

@@ -1,0 +1,11 @@
+id = "runtime-output-forced-touch-after-dry-target"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-nt", "-Otarget", "--sync-mutex=fnm:mutex"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "69662074657374202d6520616c6c3b207468656e207072696e7466202725735c6e272070726573656e743b20656c7365207072696e7466202725735c6e2720616273656e743b2066690a616273656e740a746f75636820616c6c0a746f75636820616c6c0a"
+stderr_hex = ""

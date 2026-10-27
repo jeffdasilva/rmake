@@ -346,25 +346,15 @@ fn startup_makelevel(value: &[u8]) -> u32 {
 
 /// The only I/O boundary for parser and expansion output. Flush each message
 /// before subsequent diagnostics or child execution can write either stream.
-fn emit_output(program: &[u8], output: Output<'_>) {
+fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
     match output {
-        Output::Info(message) => {
-            let mut out = io::stdout().lock();
-            let _ = out.write_all(message);
-            let _ = out.write_all(b"\n");
-            let _ = out.flush();
-        }
+        Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
         Output::Warning { location, message } => {
-            let mut out = io::stderr().lock();
             if let Some(location) = location {
-                let _ = out.write_all(&location_prefix(location));
+                controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
             } else {
-                let _ = out.write_all(program);
-                let _ = out.write_all(b": ");
+                controller.write_parts(true, &[program, b": ", message, b"\n"]);
             }
-            let _ = out.write_all(message);
-            let _ = out.write_all(b"\n");
-            let _ = out.flush();
         }
     }
 }
@@ -444,6 +434,7 @@ impl ParallelJobs {
 /// Interpreter-owned continuation. Workers receive only one prepared Command;
 /// subsequent command configuration and exports are evaluated after completion.
 struct RecipeState {
+    output: Option<std::rc::Rc<crate::output::Buffer>>,
     expanded: std::collections::VecDeque<(usize, Vec<u8>, Recipe)>,
     variables: VariableStore,
     flow: Flow,
@@ -541,6 +532,10 @@ type PathObservation = Option<(Option<Vec<u8>>, Option<SystemTime>)>;
 
 pub struct Engine {
     options: Options,
+    output: crate::output::Controller,
+    reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
+    dispatch_output: Option<std::rc::Rc<crate::output::Buffer>>,
+    fatal_outputs: Vec<std::rc::Rc<crate::output::Buffer>>,
     filesystem: RefCell<FilesystemRuntime>,
     include_search: IncludeSearch,
     database: Database,
@@ -601,6 +596,27 @@ impl Engine {
         program: Vec<u8>,
         invocation: &OsStr,
     ) -> Result<Self, Diagnostic> {
+        let parse_mode = |raw: Option<&[u8]>| -> Result<crate::output::Mode, Diagnostic> {
+            raw.map_or(Ok(crate::output::Mode::None), |raw| {
+                crate::output::Mode::parse(raw).ok_or_else(|| {
+                    Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat())
+                })
+            })
+        };
+        let mode = parse_mode(options.output_sync.as_deref())?;
+        let output = crate::output::Controller::new(
+            parse_mode(options.inherited_output_sync.as_deref())?,
+            &program,
+        );
+        let mut reader_output = output
+            .mode()
+            .root_buffered()
+            .then(|| output.make_buffer())
+            .flatten();
+        output.select(reader_output.as_ref());
+        // Constructor errors must still expose already-produced expansion output.
+        let mut construction_output =
+            crate::output::Construction::new(output.clone(), reader_output.clone());
         for dir in &options.directories {
             std::env::set_current_dir(dir)
                 .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
@@ -617,6 +633,7 @@ impl Engine {
         };
         if options.reset_jobserver {
             emit_output(
+                &output,
                 &warning_program,
                 Output::Warning {
                     location: None,
@@ -637,6 +654,7 @@ impl Engine {
                 Err(error) => {
                     if let Some(path) = auth.strip_prefix(b"fifo:") {
                         emit_output(
+                            &output,
                             &warning_program,
                             Output::Warning {
                                 location: None,
@@ -650,7 +668,7 @@ impl Engine {
                             },
                         );
                     }
-                    emit_output(&warning_program, Output::Warning { location: None,
+                    emit_output(&output, &warning_program, Output::Warning { location: None,
                         message: b"warning: jobserver unavailable: using -j1.  Add '+' to parent make rule." });
                     options.jobs = Some(1);
                     options.jobserver_auth = None;
@@ -698,6 +716,20 @@ impl Engine {
             // reassignment retains it; undefine destroys it with the binding.
             database.variables.set_export_policy(name, Some(true));
             inherited_exports.insert(name.to_vec());
+        }
+        for (name, descriptor) in [
+            (b"MAKE_TERMOUT".as_slice(), 1),
+            (b"MAKE_TERMERR".as_slice(), 2),
+        ] {
+            if database.variables.get(name).is_none()
+                && let Some(value) = rmake_linux::output::terminal(descriptor)
+            {
+                database
+                    .variables
+                    .define_literal(name, &value, Origin::Default)
+                    .map_err(|e| e.diagnostic())?;
+                database.variables.set_export_policy(name, Some(true));
+            }
         }
         database
             .initialize_suffixes(!options.no_rules)
@@ -750,7 +782,7 @@ impl Engine {
             .variables
             .define_literal(b"MAKEFLAGS", &options.flags(), Origin::File)
             .map_err(|e| e.diagnostic())?;
-        let mut output = |event: Output<'_>| emit_output(&program, event);
+        let mut emit = |event: Output<'_>| emit_output(&output, &program, event);
         database
             .variables
             .set_export_policy(b"MAKEFLAGS", Some(true));
@@ -764,10 +796,11 @@ impl Engine {
                 *directory = crate::makefiles::prepare_argument(
                     directory.as_os_str().as_bytes(),
                     &mut database.variables,
-                    ExpansionContext::new(None, &mut output)
+                    ExpansionContext::new(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
-                            let result = crate::shell::run(request, &program, startup_level);
+                            let result =
+                                crate::shell::run(request, &program, startup_level, &output);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -785,10 +818,11 @@ impl Engine {
                 .variables
                 .expand_mut_with(
                     spec.name,
-                    ExpansionContext::new(None, &mut output)
+                    ExpansionContext::new(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
-                            let result = crate::shell::run(request, &program, startup_level);
+                            let result =
+                                crate::shell::run(request, &program, startup_level, &output);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -802,10 +836,11 @@ impl Engine {
                     spec.kind,
                     Origin::CommandLine,
                     None,
-                    ExpansionContext::new(None, &mut output)
+                    ExpansionContext::new(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
-                            let result = crate::shell::run(request, &program, startup_level);
+                            let result =
+                                crate::shell::run(request, &program, startup_level, &output);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -840,10 +875,11 @@ impl Engine {
                     Assignment::Append,
                     Origin::Default,
                     None,
-                    ExpansionContext::new(None, &mut output)
+                    ExpansionContext::new(None, &mut emit)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
-                            let result = crate::shell::run(request, &program, startup_level);
+                            let result =
+                                crate::shell::run(request, &program, startup_level, &output);
                             filesystem.borrow_mut().child_completed();
                             result
                         }),
@@ -897,7 +933,37 @@ impl Engine {
                 )
                 .map_err(|error| error.diagnostic())?;
         }
+        if let Some(authentication) = &options.sync_mutex {
+            output.decode_mutex(authentication).map_err(|error| {
+                Diagnostic::from(
+                    [
+                        b"cannot open output sync mutex ".as_slice(),
+                        authentication
+                            .strip_prefix(b"fnm:")
+                            .unwrap_or(authentication),
+                        b": ",
+                        os_error(&error).as_bytes(),
+                    ]
+                    .concat(),
+                )
+            })?;
+        }
+        output.set_mode(mode);
+        if !mode.root_buffered() {
+            output.select(None);
+            if let Some(buffer) = reader_output.take() {
+                buffer.dump();
+            }
+        } else if reader_output.is_none() {
+            reader_output = output.make_buffer();
+        }
+        output.select(reader_output.as_ref());
+        construction_output.disarm();
         Ok(Self {
+            output,
+            reader_output,
+            dispatch_output: None,
+            fatal_outputs: Vec::new(),
             options,
             filesystem,
             include_search,
@@ -963,14 +1029,17 @@ impl Engine {
         self.database.expand_in(
             variables,
             bytes,
-            ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
-                    let result = crate::shell::run(request, &self.program, self.makelevel);
-                    self.filesystem.borrow_mut().child_completed();
-                    result
-                })
-                .with_includes(&mut |name| self.include_search.read(name)),
+            ExpansionContext::new(location, &mut |event| {
+                emit_output(&self.output, &self.program, event)
+            })
+            .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+            .with_shell(&mut |request| {
+                let result =
+                    crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                self.filesystem.borrow_mut().child_completed();
+                result
+            })
+            .with_includes(&mut |name| self.include_search.read(name)),
         )
     }
 
@@ -981,20 +1050,24 @@ impl Engine {
     ) -> Result<Vec<u8>, ExpandError> {
         self.database.expand_with(
             bytes,
-            ExpansionContext::new(location, &mut |event| emit_output(&self.program, event))
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
-                    let result = crate::shell::run(request, &self.program, self.makelevel);
-                    self.filesystem.borrow_mut().child_completed();
-                    result
-                })
-                .with_includes(&mut |name| self.include_search.read(name)),
+            ExpansionContext::new(location, &mut |event| {
+                emit_output(&self.output, &self.program, event)
+            })
+            .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+            .with_shell(&mut |request| {
+                let result =
+                    crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                self.filesystem.borrow_mut().child_completed();
+                result
+            })
+            .with_includes(&mut |name| self.include_search.read(name)),
         )
     }
 
     fn show_makefile_error(&self) {
         if let Some((location, message)) = self.makefile_error.borrow_mut().take() {
             emit_output(
+                &self.output,
                 &self.program,
                 Output::Warning {
                     location: location.as_ref(),
@@ -1005,18 +1078,12 @@ impl Engine {
     }
 
     fn stderr(&self, body: &[u8]) {
-        let mut out = io::stderr().lock();
-        let _ = out.write_all(&self.program);
-        let _ = out.write_all(b": ");
-        let _ = out.write_all(body);
-        let _ = out.write_all(b"\n");
+        self.output
+            .write_parts(true, &[&self.program, b": ", body, b"\n"]);
     }
 
     fn stdout(&self, body: &[u8]) {
-        let mut out = io::stdout().lock();
-        let _ = out.write_all(body);
-        let _ = out.write_all(b"\n");
-        let _ = out.flush();
+        self.output.write_parts(false, &[body, b"\n"]);
     }
 
     fn fatal(&self, location: Option<&Location>, message: &[u8]) {
@@ -1028,11 +1095,10 @@ impl Engine {
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
         if let Some(location) = location {
-            let mut out = io::stderr().lock();
-            let _ = out.write_all(&location_prefix(location));
-            let _ = out.write_all(b"*** ");
-            let _ = out.write_all(message);
-            let _ = out.write_all(b".  Stop.\n");
+            self.output.write_parts(
+                true,
+                &[&location_prefix(location), b"*** ", message, b".  Stop.\n"],
+            );
         } else {
             self.stderr(&[b"*** ".as_slice(), message, b".  Stop."].concat());
         }
@@ -1091,13 +1157,16 @@ impl Engine {
             let path = match crate::makefiles::prepare_argument(
                 name,
                 &mut self.database.variables,
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    }),
+                ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                }),
             ) {
                 Ok(path) => path,
                 Err(error) => {
@@ -1145,14 +1214,17 @@ impl Engine {
             if let Err(error) = self.database.read_preload_with(
                 &file.bytes,
                 name,
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    })
-                    .with_includes(&mut |name| self.include_search.read(name)),
+                ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut |name| self.include_search.read(name)),
             ) {
                 self.fatal(error.source_location(), error.message.as_bytes());
                 return Err(());
@@ -1162,6 +1234,20 @@ impl Engine {
     }
 
     pub fn run(mut self) -> u8 {
+        let status = self.run_inner();
+        if self.interrupt.is_none() && self.shutdown.get() != Shutdown::Reentered {
+            if let Some(buffer) = self.output.current() {
+                buffer.dump();
+            }
+            if let Some(buffer) = self.reader_output.take() {
+                buffer.dump();
+            }
+        }
+        self.output.select(None);
+        status
+    }
+
+    fn run_inner(&mut self) -> u8 {
         let mut found_makefile;
         // GNU initializes this metadata after command-line assignment expansion.
         // Higher-priority CLI/-e bindings remain intact and reject file appends.
@@ -1178,6 +1264,10 @@ impl Engine {
         let mut stdin_bytes = None;
         loop {
             if restarts > 0 {
+                if self.output.mode().root_buffered() {
+                    self.reader_output = self.output.make_buffer();
+                    self.output.select(self.reader_output.as_ref());
+                }
                 self.database = initial_database.clone();
                 self.database
                     .variables
@@ -1255,6 +1345,7 @@ impl Engine {
                 };
                 if let Err(err) = read {
                     emit_output(
+                        &self.output,
                         &self.program,
                         Output::Warning {
                             location: None,
@@ -1292,18 +1383,39 @@ impl Engine {
                 if let Err(err) = self.database.read_with(
                     &bytes,
                     file.as_os_str().as_bytes(),
-                    ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                        .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result = crate::shell::run(request, &self.program, self.makelevel);
-                            self.filesystem.borrow_mut().child_completed();
-                            result
-                        })
-                        .with_includes(&mut |name| self.include_search.read(name)),
+                    ExpansionContext::new(None, &mut |event| {
+                        emit_output(&self.output, &self.program, event)
+                    })
+                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                    .with_shell(&mut |request| {
+                        let result =
+                            crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                        self.filesystem.borrow_mut().child_completed();
+                        result
+                    })
+                    .with_includes(&mut |name| self.include_search.read(name)),
                 ) {
                     self.fatal(err.source_location(), err.message.as_bytes());
                     return 2;
                 }
+            }
+            if restarts == 0
+                && let Some(authentication) = &self.options.sync_mutex
+                && let Err(error) = self.output.decode_mutex(authentication)
+            {
+                self.fatal(
+                    None,
+                    &[
+                        b"cannot open output sync mutex ".as_slice(),
+                        authentication
+                            .strip_prefix(b"fnm:")
+                            .unwrap_or(authentication),
+                        b": ",
+                        os_error(&error).as_bytes(),
+                    ]
+                    .concat(),
+                );
+                return 2;
             }
             for (name, initial) in [
                 (b"MAKEFLAGS".as_slice(), self.initial_flags.clone()),
@@ -1328,13 +1440,16 @@ impl Engine {
                 } else {
                     Origin::Environment
                 },
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    }),
+                ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                }),
             ) {
                 Ok(names) => self.inherited_exports.extend(names),
                 Err(error) => {
@@ -1369,14 +1484,17 @@ impl Engine {
             self.database.freeze_rules();
             let extra_records = match self.database.snap_extra_prerequisites(
                 self.intermediate_policy.all_secondary,
-                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    })
-                    .with_includes(&mut |name| self.include_search.read(name)),
+                &mut ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut |name| self.include_search.read(name)),
             ) {
                 Ok(records) => records,
                 Err(error) => {
@@ -1391,20 +1509,25 @@ impl Engine {
             }
             if let Err(error) = self.database.finalize_implicit_rules(
                 !self.options.no_rules,
-                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event)),
+                &mut ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                }),
             ) {
                 self.fatal(error.source_location(), error.message.as_bytes());
                 return 2;
             }
             if let Err(error) = self.database.snap_implicit_extra_prerequisites(
-                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    })
-                    .with_includes(&mut |name| self.include_search.read(name)),
+                &mut ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut |name| self.include_search.read(name)),
             ) {
                 self.expansion_error(None, &error);
                 return 2;
@@ -1451,6 +1574,45 @@ impl Engine {
                 .iter()
                 .map(|file| file.name.clone())
                 .collect();
+            if restarts == 0 {
+                if self.options.jobs.unwrap_or(1) == 1 && self.output.mode().root_buffered() {
+                    self.output.set_mode(crate::output::Mode::None);
+                } else {
+                    match self.output.setup(self.options.sync_mutex.as_deref()) {
+                        Ok(authentication) => self.options.sync_mutex = authentication,
+                        Err(error) => {
+                            self.fatal(
+                                None,
+                                format!("cannot open output sync mutex: {}", os_error(&error))
+                                    .as_bytes(),
+                            );
+                            return 2;
+                        }
+                    }
+                }
+            }
+            let mut runtime_flags = self.options.flags();
+            if self
+                .database
+                .variables
+                .get(b"MAKEFLAGS")
+                .is_some_and(|v| v.raw_value().ends_with(b" -- $(MAKEOVERRIDES)"))
+            {
+                runtime_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
+            }
+            if let Err(error) = self.database.variables.define(
+                b"MAKEFLAGS",
+                &runtime_flags,
+                Assignment::Recursive,
+                Origin::File,
+            ) {
+                self.expansion_error(None, &error);
+                return 2;
+            }
+            self.output.select(None);
+            if let Some(buffer) = self.reader_output.take() {
+                buffer.dump();
+            }
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
             let modes = (
@@ -1593,14 +1755,18 @@ impl Engine {
                         let names = self.database.rule_filenames(
                             &goal,
                             &mut ExpansionContext::new(None, &mut |event| {
-                                emit_output(&self.program, event)
+                                emit_output(&self.output, &self.program, event)
                             })
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
                             .with_shell(&mut |request| {
-                                let result =
-                                    crate::shell::run(request, &self.program, self.makelevel);
+                                let result = crate::shell::run(
+                                    request,
+                                    &self.program,
+                                    self.makelevel,
+                                    &self.output,
+                                );
                                 self.filesystem.borrow_mut().child_completed();
                                 result
                             })
@@ -2453,6 +2619,14 @@ impl Engine {
             .parallel_jobs
             .remove(&target, identity)
             .expect("reserved parallel target");
+        let output = job.continuation.output.clone();
+        let report_error = result
+            .as_ref()
+            .is_some_and(|r| !r.as_ref().is_ok_and(|status| status.success()));
+        if report_error {
+            self.output
+                .select(output.as_ref().filter(|buffer| buffer.enabled()));
+        }
         let launched = result.as_ref().is_some_and(Result::is_ok);
         if result.is_some() {
             self.filesystem.borrow_mut().child_completed();
@@ -2491,6 +2665,9 @@ impl Engine {
             .concat();
             self.stderr(&message);
         }
+        if report_error {
+            self.output.select(None);
+        }
         let mut cleanup_fatal = false;
         if failed && launched && !job.signal_cleaned {
             cleanup_fatal = self.cleanup_target(
@@ -2518,6 +2695,11 @@ impl Engine {
             }
             failed = true;
         }
+        if (failed || self.output.mode() == crate::output::Mode::Line)
+            && let Some(buffer) = &output
+        {
+            buffer.dump();
+        }
         if failed && self.parallel_jobs.contains_key(&target) {
             self.notice_waiting_for_jobs();
         }
@@ -2531,6 +2713,19 @@ impl Engine {
             if self.cleanup_target(&target, job.before, job.phony, execution.cleanup) {
                 failed = true;
                 outcome.fatal = true;
+            }
+        }
+        if let Some(buffer) = output {
+            if outcome.fatal && self.interrupt.is_none() {
+                self.fatal_outputs.push(buffer);
+            } else if !self.parallel_jobs.values().any(|job| {
+                job.continuation
+                    .output
+                    .as_ref()
+                    .is_some_and(|active| std::rc::Rc::ptr_eq(active, &buffer))
+            }) {
+                self.output.clear_buffer(&buffer);
+                buffer.dump();
             }
         }
         // Inspect archive metadata only after the last command exits. A child
@@ -2749,6 +2944,7 @@ impl Engine {
                         .concat(),
                     ] {
                         emit_output(
+                            &self.output,
                             &self.program,
                             Output::Warning {
                                 location,
@@ -3652,13 +3848,16 @@ impl Engine {
         let (mut context, pattern_scope) = if intermediate {
             let prepared = self.database.prepare_pattern_scope(
                 target,
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    }),
+                ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                }),
             )?;
             let context = match prepared.as_ref() {
                 Some(scope) => self.database.variables.with_target_scopes(&[scope]),
@@ -3702,14 +3901,17 @@ impl Engine {
         let name = if name.starts_with(b"~") {
             self.database.rule_tilde(
                 name,
-                &mut ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    })
-                    .with_includes(&mut |name| self.include_search.read(name)),
+                &mut ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut |name| self.include_search.read(name)),
             )?
         } else {
             std::borrow::Cow::Borrowed(name)
@@ -3827,9 +4029,10 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut emit = |event: Output<'_>| emit_output(&self.program, event);
+            let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
             let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-                let result = crate::shell::run(request, &self.program, self.makelevel);
+                let result =
+                    crate::shell::run(request, &self.program, self.makelevel, &self.output);
                 self.filesystem.borrow_mut().child_completed();
                 result
             };
@@ -5174,6 +5377,7 @@ impl Engine {
             };
             if warn_missing && completed.time.is_none() {
                 emit_output(
+                    &self.output,
                     &self.program,
                     Output::Warning {
                         location: group.location.as_ref(),
@@ -5217,13 +5421,16 @@ impl Engine {
             self.database.variables_for_target_with(
                 target,
                 &inherited,
-                ExpansionContext::new(None, &mut |event| emit_output(&self.program, event))
-                    .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
-                        let result = crate::shell::run(request, &self.program, self.makelevel);
-                        self.filesystem.borrow_mut().child_completed();
-                        result
-                    }),
+                ExpansionContext::new(None, &mut |event| {
+                    emit_output(&self.output, &self.program, event)
+                })
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result =
+                        crate::shell::run(request, &self.program, self.makelevel, &self.output);
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                }),
             )?
         };
         self.target_contexts
@@ -5232,6 +5439,37 @@ impl Engine {
     }
 
     fn execute(
+        &mut self,
+        target: &[u8],
+        recipes: &[Recipe],
+        automatic: &[(&[u8], Vec<u8>)],
+        phony: bool,
+        before: Option<SystemTime>,
+    ) -> Execution {
+        let mut result = self.execute_inner(target, recipes, automatic, phony, before);
+        if let Some(buffer) = self.dispatch_output.take() {
+            if result.status == Status::Fatal {
+                self.fatal_outputs.push(buffer);
+            } else if !self.parallel_jobs.values().any(|job| {
+                job.continuation
+                    .output
+                    .as_ref()
+                    .is_some_and(|active| std::rc::Rc::ptr_eq(active, &buffer))
+            }) {
+                self.output.select(None);
+                if result.cleanup != Cleanup::None {
+                    if self.cleanup_target(target, before, phony, result.cleanup) {
+                        result.status = Status::Fatal;
+                    }
+                    result.cleanup = Cleanup::None;
+                }
+                buffer.dump();
+            }
+        }
+        result
+    }
+
+    fn execute_inner(
         &mut self,
         target: &[u8],
         recipes: &[Recipe],
@@ -5321,6 +5559,9 @@ impl Engine {
                 return Execution::fatal(false);
             }
         }
+        let output = self.output.make_buffer();
+        self.dispatch_output = output.clone();
+        self.output.select(output.as_ref());
         let mut expanded = std::collections::VecDeque::new();
         for (index, recipe) in recipes.iter().enumerate() {
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
@@ -5362,6 +5603,7 @@ impl Engine {
             return Execution::failure(false, Cleanup::None);
         }
         let state = RecipeState {
+            output,
             expanded,
             variables,
             flow,
@@ -5391,6 +5633,7 @@ impl Engine {
                     signal_cleaned: false,
                 },
             );
+            self.output.select(None);
             return Execution::success(true);
         }
         self.continue_recipe(target, state, phony, before, parallel)
@@ -5405,6 +5648,7 @@ impl Engine {
         parallel: bool,
     ) -> Execution {
         let RecipeState {
+            output,
             mut expanded,
             mut variables,
             mut flow,
@@ -5503,6 +5747,15 @@ impl Engine {
             }
             if self.options.touch && !force {
                 continue;
+            }
+            if let Some(buffer) = &output {
+                let synchronize = self.output.mode() != crate::output::Mode::None
+                    && (self.output.mode() == crate::output::Mode::Recurse || !force);
+                buffer.set_enabled(synchronize);
+                self.output.select(synchronize.then_some(buffer));
+                if !synchronize {
+                    buffer.dump();
+                }
             }
             if self.options.dry_run || !quiet {
                 self.stdout(command);
@@ -5648,14 +5901,18 @@ impl Engine {
                             variables,
                             name,
                             ExpansionContext::new(variable.definition(), &mut |event| {
-                                emit_output(&self.program, event)
+                                emit_output(&self.output, &self.program, event)
                             })
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
                             .with_shell(&mut |request| {
-                                let result =
-                                    crate::shell::run(request, &self.program, self.makelevel);
+                                let result = crate::shell::run(
+                                    request,
+                                    &self.program,
+                                    self.makelevel,
+                                    &self.output,
+                                );
                                 self.filesystem.borrow_mut().child_completed();
                                 result
                             })
@@ -5718,8 +5975,12 @@ impl Engine {
                 if !stdin_owner {
                     command.stdin(rmake_linux::process::closed_stdin()?);
                 }
+                if let Some(buffer) = &output {
+                    buffer.configure_child(&mut command)?;
+                }
                 rmake_linux::child::Child::spawn(&mut command)
             });
+            self.output.select(None);
             if process.is_ok() && self.options.load_limit.is_some_and(|v| v >= 0.0) {
                 self.load.started();
             }
@@ -5743,6 +6004,7 @@ impl Engine {
                                 child: Some(child),
                                 signal_cleaned: false,
                                 continuation: RecipeState {
+                                    output,
                                     expanded,
                                     variables: variables.clone(),
                                     flow,
@@ -5769,6 +6031,8 @@ impl Engine {
                     Err(error) => Err(error),
                 }
             };
+            self.output
+                .select(output.as_ref().filter(|buffer| buffer.enabled()));
             self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();
             flow.attempted(launched);
@@ -5823,9 +6087,16 @@ impl Engine {
                     self.stderr(&message);
                 }
                 if !ignore {
+                    self.output.select(None);
                     return Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                 }
+            }
+            self.output.select(None);
+            if self.output.mode() == crate::output::Mode::Line
+                && let Some(buffer) = &output
+            {
+                buffer.dump();
             }
             if self.interrupt.is_some() {
                 if !signal_cleaned && expanded.iter().any(|(_, bytes, _)| !bytes.is_empty()) {
@@ -5843,6 +6114,11 @@ impl Engine {
             flow.completion_passes()
         };
         for pass in 0..passes {
+            if pass + 1 == passes
+                && let Some(buffer) = &output
+            {
+                buffer.dump();
+            }
             let mut touched = self.touch_target(target);
             ran |= touched.ran;
             if matches!(touched.status, Status::Failure | Status::Fatal) {

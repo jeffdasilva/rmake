@@ -2106,3 +2106,18 @@ A 21st load profile changes only the load observation at entry into a real
 unavailable-token wait; GNU and the fixed runtime pass, while the preceding
 reactor fails. Queued-load retries retain GNU's one-second wait bound without
 adding a token polling delay to ordinary scheduling.
+
+## M5 output synchronization
+
+Implement GNU's four output-sync modes with explicit interpreter output phases,
+append-mode owned spools and interoperable POSIX byte-range mutexes. Reader and
+recipe output, recursive commands, retained fatal owners, touch completion and
+makefile restarts have separate lifetimes. Terminal metadata is captured before
+redirection. See [the output-sync notes](output-sync.md).
+
+Add 107 required curated cases and 76 controlled native profiles, including
+GNU/rmake mixed trees and output larger than pipe capacity. The corpus now has
+5,150 cases: 5,140 required and 10 pending. Seven tooling anchor tests and two
+CLI tests accompany the new mandatory development/optimized campaigns. M5 is
+still open for interruption/effect combinations, remaining synthetic
+completion/intermediate cases and the runtime exit audit.

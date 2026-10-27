@@ -1,0 +1,11 @@
+id = "runtime-output-runtime-launch-missing-child-line"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "-Oline", "--sync-mutex=fnm:mutex"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a20726d616b655f6d697373696e675f72756e74696d655f636f6d6d616e645f3434313a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a205b4d616b6566696c653a333a20616c6c5d204572726f7220313237202869676e6f726564290a4d616b6566696c653a353a202a2a2a2073746f707065642e202053746f702e0a"

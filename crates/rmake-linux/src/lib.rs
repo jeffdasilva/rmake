@@ -34,3 +34,6 @@ mod posix;
 // that behavior requires a small FFI boundary; no semantic code uses unsafe.
 #[allow(unsafe_code)]
 mod stdio;
+
+#[allow(unsafe_code)]
+pub mod output;

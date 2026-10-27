@@ -1,0 +1,11 @@
+id = "runtime-output-flags-long-none"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--output-sync=none"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b7252202d6a31202d4f6e6f6e65202d2d6e6f2d7072696e742d6469726563746f72795d0a5b7252202d6a31202d4f6e6f6e65202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+stderr_hex = ""

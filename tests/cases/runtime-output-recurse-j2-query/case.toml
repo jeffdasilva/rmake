@@ -1,0 +1,11 @@
+id = "runtime-output-recurse-j2-query"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j2", "-Orecurse", "--jobserver-style=pipe", "-q"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 1
+stdout_hex = "70617273650a657870616e642d66697273740a657870616e642d7365636f6e640a"
+stderr_hex = "70617273652d6572726f720a"

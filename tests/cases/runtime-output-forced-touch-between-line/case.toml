@@ -1,0 +1,11 @@
+id = "runtime-output-forced-touch-between-line"
+requirement = "runtime.output-sync"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-t", "-Oline", "--sync-mutex=fnm:mutex"]
+description = "Original output buffering, lifecycle or recursive flag regression."
+provenance = "Independently authored; exact anchors describe observable output phases, without copied GNU source or tests."
+
+[expected]
+exit_code = 0
+stdout_hex = "616273656e740a616273656e740a746f75636820616c6c0a"
+stderr_hex = ""
