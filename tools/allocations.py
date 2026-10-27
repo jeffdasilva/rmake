@@ -52,6 +52,8 @@ def run(candidate, workload, output):
     subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2', '-fPIC', '-shared',
                     str(SOURCE), '-ldl', '-o', str(helper)], check=True, capture_output=True, timeout=30)
     trace = output / 'trace.txt'
+    # A missing/failed preload must not reuse evidence from an earlier process.
+    trace.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(prefix='rmake-allocation-profile-') as tmp:
         root = Path(tmp)
         (root / 'Makefile').write_bytes(source)

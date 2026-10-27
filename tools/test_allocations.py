@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
 import unittest
+from pathlib import Path
+import subprocess
+import tempfile
+from unittest import mock
 
 import allocations
 
@@ -17,6 +21,19 @@ class AllocationProfileTests(unittest.TestCase):
                      'sample 601 1\nsummary calls=600 requested_bytes=1 frees=0\n'):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 allocations.parse_trace(text)
+
+    def test_native_helper_failure_cannot_republish_a_previous_trace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / 'trace.txt').write_text('summary calls=123 requested_bytes=456 frees=100\n')
+            identity = {'path': '/candidate', 'sha256': 'test'}
+            compile_result = subprocess.CompletedProcess([], 0, b'', b'')
+            execution_result = subprocess.CompletedProcess([], 0, b"make: Nothing to be done for 'all'.\n", b'')
+            with mock.patch.object(allocations.conformance, 'executable_identity', return_value=identity), \
+                 mock.patch.object(allocations.subprocess, 'run', side_effect=[compile_result, execution_result]), \
+                 self.assertRaises(OSError):
+                allocations.run(Path('/candidate'), 'tiny-noop', output)
+            self.assertFalse((output / 'report.json').exists())
 
     def test_empty_process_and_missing_executable_frames_are_distinct(self):
         summary, samples = allocations.parse_trace('summary calls=0 requested_bytes=0 frees=0\n')
