@@ -14,8 +14,9 @@ profile; its [acceptance audit](docs/m5-exit-audit.md) defines the combined
 development and optimized gate. M3 and broader compatibility/performance work
 remain open.
 
-The latest [export-order follow-up](docs/export-order.md) adds ordered environment
-effects and live eval eligibility, with required collision, growth and scope tests.
+The latest follow-ups add [ordered export effects](docs/export-order.md) and
+[shell argv/residual execution](docs/shell-argv-replay.md), with required
+collision, scope, configuration-byte and execution-mode tests.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it

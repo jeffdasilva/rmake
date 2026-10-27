@@ -2194,3 +2194,19 @@ comparison records 4.669 ms current / 4.659 ms preceding main / 2.823 ms GNU on
 These are synthetic, unisolated observations, not general performance parity.
 See [export traversal](export-order.md) for measurements, provenance and remaining
 metadata/environment-vector boundaries. M3 and M6 remain open.
+
+## M3 shell argv and one-shell residual execution
+
+Close five curated shell gaps: literal configuration LFs on fast and fallback
+paths, quoted one-shell flags, quoted file-function output and residual script
+execution. Preserve already-expanded script ownership, one cached environment,
+execution-mode echo boundaries, output synchronization and failure cleanup.
+
+Add 278 required original cases and promote five historical cases. The curated
+inventory is now 5,967 cases: 5,966 required and one upstream-signal pending.
+Both shell families have required coverage without pending exemptions. The unit
+inventory is 425 Rust and 329 tooling tests. Five new GNU allocator-abort probes
+are retained separately as raw research, without passing conformance credit.
+The [shell argv notes](shell-argv-replay.md) describe behavior and provenance.
+Full development and optimized acceptance remain merge gates; M3/M6 completeness
+and general performance parity remain open.

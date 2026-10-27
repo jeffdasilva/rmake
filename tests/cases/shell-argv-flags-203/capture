@@ -1,0 +1,3 @@
+#!/bin/sh
+printf "argc=%s\n" "$#"
+for a do printf "<%s>\n" "$a"; done

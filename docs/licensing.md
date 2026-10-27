@@ -198,3 +198,8 @@ post-read replay, restart restoration and original protocol fixtures.
 The [export-order notes](export-order.md) identify variable/environment and hash
 references used for the independently authored owned traversal index, deferred
 realization, scoped policy follow-up, original fixtures and diagnostic anchors.
+
+The [shell argv notes](shell-argv-replay.md) record command-construction and
+continuation references used to explain original shell configuration and residual
+execution observations. The Rust implementation and argument observers are
+original; allocator-abort probes remain research without conformance credit.

@@ -76,18 +76,18 @@ identify a Bourne-compatible shell. Dry-run output preserves that transformed
 script even though no launch occurs. Execution modifiers, ignored failures,
 keep-going and touch/query modes retain their usual control-flow decisions.
 
-## Open boundaries
+## Follow-up coverage and open boundaries
 
-Literal LF within configuration has additional GNU parsing rules. Two original
-pending fixtures preserve those observed mismatches. Complex one-shell flag
-handling also remains incomplete. These are open compatibility requirements,
-not scope exceptions.
+[Shell argv and residual execution](shell-argv-replay.md) closes the two literal
+configuration-LF cases, complex quoted one-shell flags and quoted-LF residual
+execution. Ordinary expanded multiline recipes also retain their successive
+command boundaries, including empty configuration and assignment cases. The
+whole-word behavior above does not imply that a complete expanded multiline
+recipe is always one executable or assignment.
 
-Ordinary recipe expansion can also introduce literal newlines that GNU splits
-into successive commands. Two further pending empty-configuration fixtures
-preserve this command-splitting gap, including an assignment followed by a
-missing command. The whole-word behavior above does not imply that a complete
-expanded multiline recipe is always one executable or assignment.
+There are no pending exemptions in the two curated shell families. Broader
+language and interface completeness remains open; curated coverage alone is
+not an exhaustive compatibility proof.
 
 Exploratory complex-flag inputs also exposed two GNU allocator aborts, and one
 background-process observation was unsuitable as a stable comparison. Their

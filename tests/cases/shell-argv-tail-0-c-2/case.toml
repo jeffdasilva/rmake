@@ -1,0 +1,12 @@
+id = "shell-argv-tail-0-c-2"
+requirement = "recipes.oneshell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 10
+description = "Original literal configuration-LF, quoted flags, residual pass and execution-mode regression."
+provenance = "Independently authored Makefile and argv observer; two exact GNU Make 4.4.1 observations and candidate comparison, with no upstream implementation or tests incorporated."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

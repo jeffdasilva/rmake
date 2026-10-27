@@ -1,0 +1,12 @@
+id = "shell-argv-prefix-7"
+requirement = "recipes.oneshell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 10
+description = "Original custom-prefix, echo-boundary and single-expansion residual execution regression."
+provenance = "Independently authored source and exact repeated GNU Make 4.4.1 observations; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e7466202725735c6e27202766697273740a3e406d6964646c650a6c617374270a"
+stderr_hex = ""

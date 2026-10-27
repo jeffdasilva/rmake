@@ -1,0 +1,12 @@
+id = "shell-argv-prefix-5"
+requirement = "recipes.oneshell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 10
+description = "Original custom-prefix, echo-boundary and single-expansion residual execution regression."
+provenance = "Independently authored source and exact repeated GNU Make 4.4.1 observations; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "7072696e7466202725735c6e27202766697273740a66697273740a78406d6964646c650a6c6173740a78406d6964646c650a6c617374270a"
+stderr_hex = "2f62696e2f73683a20313a2078406d6964646c653a206e6f7420666f756e640a2f62696e2f73683a20323a2053796e746178206572726f723a20556e7465726d696e617465642071756f74656420737472696e670a6d616b653a202a2a2a205b4d616b6566696c653a343a20616c6c5d204572726f7220320a"

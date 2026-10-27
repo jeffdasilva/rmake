@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "oneshell-quoted-direct-tail-replay"
 requirement = "recipes.oneshell"
-candidate = "pending"
+candidate = "required"
 description = "A direct-eligible multiline quoted command reproduces the pinned oracle tail-execution diagnostics."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

@@ -1,0 +1,12 @@
+id = "shell-argv-newline-205"
+requirement = "process.invocation"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 10
+description = "Original literal configuration-LF, quoted flags, residual pass and execution-mode regression."
+provenance = "Independently authored Makefile and argv observer; two exact GNU Make 4.4.1 observations and candidate comparison, with no upstream implementation or tests incorporated."
+
+[expected]
+exit_code = 0
+stdout_hex = "617267633d330a3c41423e0a3c2d633e0a3c7072696e746620626f64793e0a"
+stderr_hex = ""
