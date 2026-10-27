@@ -2,7 +2,8 @@
 // Copyright 2026 Jeff DaSilva
 
 //! Pure .ONESHELL preparation derived from original GNU Make 4.4.1 probes.
-//! No GNU implementation source was consulted.
+//! Initial probes preceded source inspection; later argv/tail findings use
+//! verified job.c references with an independently authored state model.
 
 use crate::process::{Invocation, prepare as prepare_ordinary};
 
@@ -20,15 +21,6 @@ pub struct Prefixes {
     pub quiet: bool,
     pub ignore_errors: bool,
     pub force: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PrepareError {
-    /// GNU's unusual complex flag argv and unsafe edge cases need a later slice.
-    ShellFlagSyntax,
-    /// GNU also executes a residual tail for this fast-path form. Reject it
-    /// until that behavior can be reproduced without changing recipe effects.
-    QuotedMultilineDirect,
 }
 
 /// Inputs are reader/parser logical recipe bodies with their initial recipe
@@ -83,63 +75,88 @@ pub fn transform(command: &[u8], shell: &[u8], recipe_prefix: u8) -> Vec<u8> {
     internal_prefixes(command, recipe_prefix, bourne_compatible(shell))
 }
 
-/// Build an invocation only when actually executing. The caller expands shell
-/// configuration even under -n/-q, but our unsupported syntax diagnostic belongs
-/// only to actual execution. `command` is the result of `transform`. A direct
-/// command can contain LFs inside single quotes; GNU's residual-command behavior
-/// for that form is explicitly unsupported rather than silently running once.
-pub fn prepare(
+/// An execution plan for the already-transformed script. The residual offset
+/// describes GNU's fast-prefix replay boundary, not another make expansion.
+/// The caller requests this only for actual execution, after unforced modes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreparedScript {
+    pub invocation: Invocation,
+    pub next: Option<usize>,
+}
+
+#[cfg(test)]
+fn prepare(command: &[u8], shell: &[u8], flags: &[u8], ifs: Option<&[u8]>) -> Invocation {
+    prepare_script(command, shell, flags, ifs).invocation
+}
+
+pub fn prepare_script(
     command: &[u8],
     shell: &[u8],
     flags: &[u8],
     ifs: Option<&[u8]>,
-) -> Result<Invocation, PrepareError> {
-    if let direct @ Invocation::Direct { .. } = prepare_ordinary(command, shell, flags, ifs) {
-        if has_quoted_newline(command) {
-            return Err(PrepareError::QuotedMultilineDirect);
-        }
-        return Ok(direct);
+) -> PreparedScript {
+    let next = residual_offset(command, shell, flags, ifs);
+    if next.is_none()
+        && let direct @ Invocation::Direct { .. } = prepare_ordinary(command, shell, flags, ifs)
+    {
+        return PreparedScript {
+            invocation: direct,
+            next,
+        };
     }
-    let mut args = if flags.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
-        Vec::new()
-    } else {
-        match prepare_ordinary(flags, b"/bin/sh", b"-c", None) {
-            Invocation::Direct { program, args } => {
-                let mut values = Vec::with_capacity(args.len() + 2);
-                values.push(program);
-                values.extend(args);
-                values
+    let mut args = Vec::new();
+    if !flags.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
+        let (program, words) = match prepare_ordinary(flags, b"/bin/sh", b"-c", None) {
+            Invocation::Direct { program, args } | Invocation::Shell { program, args } => {
+                (program, args)
             }
-            Invocation::Shell { .. } => return Err(PrepareError::ShellFlagSyntax),
-        }
-    };
+        };
+        args.push(program);
+        args.extend(words);
+    }
     args.push(command.to_vec());
-    Ok(Invocation::Shell {
-        program: shell.to_vec(),
-        args,
-    })
+    PreparedScript {
+        invocation: Invocation::Shell {
+            program: shell.to_vec(),
+            args,
+        },
+        next,
+    }
 }
 
-fn has_quoted_newline(command: &[u8]) -> bool {
-    let mut single_quoted = false;
-    let mut index = 0;
-    while let Some(&byte) = command.get(index) {
-        index += 1;
-        if single_quoted {
-            match byte {
-                b'\n' => return true,
-                b'\'' => single_quoted = false,
-                _ => {}
-            }
-        } else {
-            match byte {
-                b'\'' => single_quoted = true,
-                b'\\' => index += 1,
-                _ => {}
-            }
+fn residual_offset(
+    command: &[u8],
+    shell: &[u8],
+    flags: &[u8],
+    ifs: Option<&[u8]>,
+) -> Option<usize> {
+    let mut quoted = false;
+    let mut at = 0;
+    while let Some(&byte) = command.get(at) {
+        if byte == b'\\' && command.get(at + 1) == Some(&b'\n') {
+            at += 2;
+            continue;
         }
+        if byte == b'\n' {
+            if !quoted {
+                return None;
+            }
+            let mut prefix = command[..at].to_vec();
+            prefix.push(b'\'');
+            return matches!(
+                prepare_ordinary(&prefix, shell, flags, ifs),
+                Invocation::Direct { .. }
+            )
+            .then_some(at + 1);
+        }
+        if byte == b'\'' {
+            quoted = !quoted;
+        } else if !quoted && byte == b'\\' && at + 1 < command.len() {
+            at += 1;
+        }
+        at += 1;
     }
-    false
+    None
 }
 
 fn bourne_compatible(shell: &[u8]) -> bool {
@@ -186,7 +203,7 @@ mod tests {
 
     fn shell(command: &[u8], executable: &[u8], prefix: u8) -> Prepared {
         let echo = transform(command, executable, prefix);
-        let invocation = prepare(&echo, executable, b"-c", None).unwrap();
+        let invocation = prepare(&echo, executable, b"-c", None);
         Prepared { echo, invocation }
     }
 
@@ -202,7 +219,7 @@ mod tests {
             }
             args.push(transformed.clone());
             assert_eq!(
-                prepare(&transformed, b"", flags, None).unwrap(),
+                prepare(&transformed, b"", flags, None),
                 Invocation::Shell {
                     program: vec![],
                     args
@@ -391,7 +408,7 @@ mod tests {
 
     #[test]
     fn flag_words_support_single_quotes_and_backslash_escapes() {
-        let prepared = prepare(b"body", b"./other", b"one 'two words' a\\ b ''", None).unwrap();
+        let prepared = prepare(b"body", b"./other", b"one 'two words' a\\ b ''", None);
         assert_eq!(
             prepared,
             Invocation::Shell {
@@ -411,7 +428,7 @@ mod tests {
     fn empty_flags_are_not_replaced_by_c() {
         for flags in [b"".as_slice(), b" \t"] {
             assert_eq!(
-                prepare(b"body", b"./other", flags, None).unwrap(),
+                prepare(b"body", b"./other", flags, None),
                 Invocation::Shell {
                     program: b"./other".to_vec(),
                     args: vec![b"body".to_vec()]
@@ -421,34 +438,73 @@ mod tests {
     }
 
     #[test]
-    fn complex_shell_flag_syntax_is_an_explicit_unimplemented_error() {
+    fn complex_flags_keep_the_nested_interpreter_argv_as_data() {
         for flags in [
             b"one \"two words\"".as_slice(),
-            b"one;two",
             b"NAME=value",
-            b"cd",
+            b"command argument",
         ] {
             assert_eq!(
                 prepare(b"body", b"./other", flags, None),
-                Err(PrepareError::ShellFlagSyntax)
+                Invocation::Shell {
+                    program: b"./other".to_vec(),
+                    args: vec![
+                        b"/bin/sh".to_vec(),
+                        b"-c".to_vec(),
+                        flags.to_vec(),
+                        b"body".to_vec()
+                    ],
+                }
             );
         }
     }
 
     #[test]
-    fn quoted_multiline_direct_command_is_explicitly_unsupported() {
-        for command in [
-            b"printf '%s\\n' 'first\nlast'".as_slice(),
-            b"printf 'first\\\nlast'",
+    fn quoted_newlines_retain_the_fast_prefix_residual_boundary() {
+        let command = b"printf '%s\\n' 'first\nlast'";
+        let result = prepare_script(command, b"/bin/sh", b"-c", None);
+        assert_eq!(
+            result.next,
+            command.iter().position(|b| *b == b'\n').map(|n| n + 1)
+        );
+        assert_eq!(
+            result.invocation,
+            Invocation::Shell {
+                program: b"/bin/sh".to_vec(),
+                args: vec![b"-c".to_vec(), command.to_vec()]
+            }
+        );
+        for (shell, flags) in [
+            (b"/bin/bash".as_slice(), b"-c".as_slice()),
+            (b"/bin/sh", b"-ce"),
         ] {
-            assert_eq!(
-                prepare(command, b"/bin/sh", b"-c", None),
-                Err(PrepareError::QuotedMultilineDirect)
-            );
-            assert!(prepare(command, b"/bin/sh", b"-ce", None).is_ok());
-            assert!(prepare(command, b"/bin/bash", b"-c", None).is_ok());
+            assert_eq!(prepare_script(command, shell, flags, None).next, None);
         }
-        assert!(prepare(b"printf first\\\nlast", b"/bin/sh", b"-c", None).is_ok());
+    }
+
+    #[test]
+    fn a_later_metacharacter_does_not_erase_an_earlier_residual_boundary() {
+        assert!(
+            prepare_script(b"printf 'first\nlast'; true", b"/bin/sh", b"-c", None)
+                .next
+                .is_some()
+        );
+        assert_eq!(
+            prepare_script(b"printf \"first\nlast\"", b"/bin/sh", b"-c", None).next,
+            None
+        );
+    }
+
+    #[test]
+    fn escaped_newlines_do_not_create_a_residual_pass() {
+        assert_eq!(
+            prepare_script(b"printf 'first\\\nlast'", b"/bin/sh", b"-c", None).next,
+            None
+        );
+        assert_eq!(
+            prepare_script(b"printf first\\\nlast", b"/bin/sh", b"-c", None).next,
+            None
+        );
     }
 
     #[test]

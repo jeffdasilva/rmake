@@ -132,22 +132,6 @@ fn split_words(input: &[u8], mode: Mode) -> Option<Vec<Vec<u8>>> {
             }
             continue;
         }
-        if quote == Some(b'"') {
-            match byte {
-                b'"' => quote = None,
-                b'$' | b'`' => return None,
-                b'\\' => match input.get(index) {
-                    Some(b'\n') => index += 1,
-                    Some(next @ (b'$' | b'`' | b'"' | b'\\')) => {
-                        word.push(*next);
-                        index += 1;
-                    }
-                    _ => word.push(byte),
-                },
-                _ => word.push(byte),
-            }
-            continue;
-        }
         match byte {
             b' ' | b'\t' => {
                 if started {
@@ -159,9 +143,9 @@ fn split_words(input: &[u8], mode: Mode) -> Option<Vec<Vec<u8>>> {
                 started = true;
                 quote = Some(byte);
             }
-            b'"' if mode == Mode::Configuration => {
+            b'\n' if mode == Mode::Configuration => {
+                word.push(byte);
                 started = true;
-                quote = Some(byte);
             }
             b'\\' => match input.get(index) {
                 Some(b'\n') => index += 1,
@@ -314,6 +298,23 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     // Flags retain shell syntax; assignments, builtins, and existing backslash
     // combinations can also require evaluation after the SHELL protection.
     // Preserve that syntax while keeping the recipe one literal argument.
+    // A failed fast configuration parse goes through an outer interpreter.
+    // Unescaped configuration LFs fold at that boundary; original backslash-LF
+    // pairs survive to the interpreter. The recipe is quoted only afterwards.
+    let mut folded = Vec::with_capacity(configuration.len());
+    let mut at = 0;
+    while at < configuration.len() {
+        if configuration[at] == b'\\' && configuration.get(at + 1) == Some(&b'\n') {
+            folded.extend_from_slice(&configuration[at..at + 2]);
+            at += 2;
+        } else {
+            if configuration[at] != b'\n' {
+                folded.push(configuration[at]);
+            }
+            at += 1;
+        }
+    }
+    configuration = folded;
     configuration.push(b' ');
     single_quote(command, &mut configuration);
     Invocation::Shell {
@@ -697,7 +698,7 @@ mod tests {
             prepare(
                 b"body",
                 b"'./wrapper' --option",
-                b"one \"two words\" 'three words' a\\ b \"\" ''",
+                b"one 'two words' 'three words' a\\ b '' ''",
                 None
             ),
             Invocation::Shell {
@@ -806,12 +807,28 @@ mod tests {
     }
 
     #[test]
-    fn double_quoted_configuration_backslash_rules() {
+    fn double_quoted_flags_require_shell_lexing() {
+        assert_eq!(split_words(b"one \"two words\"", Mode::Configuration), None);
+    }
+
+    #[test]
+    fn configuration_newlines_are_literal_on_the_fast_path() {
         assert_eq!(
-            prepare(b"body", b"./wrapper", b"\"a\\qb\\$c\\\"d\\\\e\"", None),
+            prepare(b"body", b"./capture A\nB", b"-c", None),
             Invocation::Shell {
-                program: b"./wrapper".to_vec(),
-                args: vec![b"a\\qb$c\"d\\e".to_vec(), b"body".to_vec()]
+                program: b"./capture".to_vec(),
+                args: vec![b"A\nB".to_vec(), b"-c".to_vec(), b"body".to_vec()],
+            }
+        );
+    }
+
+    #[test]
+    fn shell_fallback_folds_unescaped_configuration_newlines() {
+        assert_eq!(
+            prepare(b"body", b"./capture A\nB", b"\"-c\"", None),
+            Invocation::Shell {
+                program: b"/bin/sh".to_vec(),
+                args: vec![b"-c".to_vec(), b"./capture AB \"-c\" 'body'".to_vec()],
             }
         );
     }

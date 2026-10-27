@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "fs-file-oneshell-quoted-read"
 requirement = "recipes.oneshell"
-candidate = "pending"
+candidate = "required"
 description = "File-produced quoted newlines follow the existing pending GNU one-shell direct-command replay surface."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]

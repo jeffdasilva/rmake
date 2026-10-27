@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "classification": "oracle allocator-abort research, not passing conformance fixtures",
+  "observed_on": "2026-10-27",
+  "oracle_version": "4.4.1",
+  "oracle_source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "oracle_sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+  "provenance": "Original inputs and owned argv observers; source-reference study of job.c, without copying or translating implementation or upstream tests.",
+  "interpretation": "GNU allocator aborts are recorded separately, without treating them as equality passes or deliberately crashing rmake. Candidate status/streams and containment remain raw observations.",
+  "records": [
+    {
+      "id": "shell-argv-flags-177",
+      "makefile_hex": "2e4f4e455348454c4c3a0a646566696e65205348454c4c203a3d0a2e2f636170747572650a656e6465660a646566696e65202e5348454c4c464c414753203a3d0a6f6e653b74776f0a656e6465660a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f62696e2f73680a7072696e74662022617267633d25735c6e2220222423220a666f72206120646f207072696e746620223c25733e5c6e2220222461223b20646f6e650a",
+      "capture_mode": "0755",
+      "oracle_runs": [
+        {
+          "exit_status": -6,
+          "stdout_hex": "617267633d340a3c2f62696e2f73683e0a3c2d633e0a3c6f6e653b74776f3e0a3c7072696e746620626f64793e0a",
+          "stderr_hex": "6672656528293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        },
+        {
+          "exit_status": -6,
+          "stdout_hex": "617267633d340a3c2f62696e2f73683e0a3c2d633e0a3c6f6e653b74776f3e0a3c7072696e746620626f64793e0a",
+          "stderr_hex": "6672656528293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        }
+      ],
+      "candidate": {
+        "exit_status": 0,
+        "stdout_hex": "617267633d340a3c2f62696e2f73683e0a3c2d633e0a3c6f6e653b74776f3e0a3c7072696e746620626f64793e0a",
+        "stderr_hex": "",
+        "limit": null,
+        "leftover_processes": false
+      }
+    },
+    {
+      "id": "shell-argv-flags-179",
+      "makefile_hex": "2e4f4e455348454c4c3a0a646566696e65205348454c4c203a3d0a2e2f636170747572650a656e6465660a646566696e65202e5348454c4c464c414753203a3d0a6f6e650a74776f0a656e6465660a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f62696e2f73680a7072696e74662022617267633d25735c6e2220222423220a666f72206120646f207072696e746620223c25733e5c6e2220222461223b20646f6e650a",
+      "capture_mode": "0755",
+      "oracle_runs": [
+        {
+          "exit_status": -6,
+          "stdout_hex": "617267633d340a3c2f62696e2f73683e0a3c2d633e0a3c6f6e650a74776f3e0a3c7072696e746620626f64793e0a",
+          "stderr_hex": "6672656528293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        },
+        {
+          "exit_status": -6,
+          "stdout_hex": "617267633d340a3c2f62696e2f73683e0a3c2d633e0a3c6f6e650a74776f3e0a3c7072696e746620626f64793e0a",
+          "stderr_hex": "6672656528293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        }
+      ],
+      "candidate": {
+        "exit_status": 0,
+        "stdout_hex": "617267633d340a3c2f62696e2f73683e0a3c2d633e0a3c6f6e650a74776f3e0a3c7072696e746620626f64793e0a",
+        "stderr_hex": "",
+        "limit": null,
+        "leftover_processes": false
+      }
+    },
+    {
+      "id": "shell-argv-flags-187",
+      "makefile_hex": "2e4f4e455348454c4c3a0a646566696e65205348454c4c203a3d0a2e2f6361707475726520410a420a656e6465660a646566696e65202e5348454c4c464c414753203a3d0a222d63220a656e6465660a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f62696e2f73680a7072696e74662022617267633d25735c6e2220222423220a666f72206120646f207072696e746620223c25733e5c6e2220222461223b20646f6e650a",
+      "capture_mode": "0755",
+      "oracle_runs": [
+        {
+          "exit_status": -6,
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31303a20616c6c5d204572726f72203132370a6672656528293a20696e76616c69642073697a650a",
+          "limit": null,
+          "leftover_processes": false
+        },
+        {
+          "exit_status": -6,
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31303a20616c6c5d204572726f72203132370a6672656528293a20696e76616c69642073697a650a",
+          "limit": null,
+          "leftover_processes": false
+        }
+      ],
+      "candidate": {
+        "exit_status": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31303a20616c6c5d204572726f72203132370a",
+        "limit": null,
+        "leftover_processes": false
+      }
+    },
+    {
+      "id": "shell-argv-flags-197",
+      "makefile_hex": "2e4f4e455348454c4c3a0a646566696e65205348454c4c203a3d0a2e2f6361707475726520410a420a656e6465660a646566696e65202e5348454c4c464c414753203a3d0a6f6e653b74776f0a656e6465660a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f62696e2f73680a7072696e74662022617267633d25735c6e2220222423220a666f72206120646f207072696e746620223c25733e5c6e2220222461223b20646f6e650a",
+      "capture_mode": "0755",
+      "oracle_runs": [
+        {
+          "exit_status": -6,
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31303a20616c6c5d204572726f72203132370a6d756e6d61705f6368756e6b28293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        },
+        {
+          "exit_status": -6,
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31303a20616c6c5d204572726f72203132370a6d756e6d61705f6368756e6b28293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        }
+      ],
+      "candidate": {
+        "exit_status": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31303a20616c6c5d204572726f72203132370a",
+        "limit": null,
+        "leftover_processes": false
+      }
+    },
+    {
+      "id": "shell-argv-flags-199",
+      "makefile_hex": "2e4f4e455348454c4c3a0a646566696e65205348454c4c203a3d0a2e2f6361707475726520410a420a656e6465660a646566696e65202e5348454c4c464c414753203a3d0a6f6e650a74776f0a656e6465660a616c6c3a0a09407072696e746620626f64790a",
+      "argv": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "capture_script_hex": "23212f62696e2f73680a7072696e74662022617267633d25735c6e2220222423220a666f72206120646f207072696e746620223c25733e5c6e2220222461223b20646f6e650a",
+      "capture_mode": "0755",
+      "oracle_runs": [
+        {
+          "exit_status": -6,
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31313a20616c6c5d204572726f72203132370a6d756e6d61705f6368756e6b28293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        },
+        {
+          "exit_status": -6,
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31313a20616c6c5d204572726f72203132370a6d756e6d61705f6368756e6b28293a20696e76616c696420706f696e7465720a",
+          "limit": null,
+          "leftover_processes": false
+        }
+      ],
+      "candidate": {
+        "exit_status": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202e2f6361707475726520410a423a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31313a20616c6c5d204572726f72203132370a",
+        "limit": null,
+        "leftover_processes": false
+      }
+    }
+  ]
+}

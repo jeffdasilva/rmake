@@ -6024,6 +6024,12 @@ impl Engine {
             if self.options.touch && !force {
                 continue;
             }
+            let one_prepared = (one_shell && (!self.options.dry_run || force))
+                .then(|| crate::oneshell::prepare_script(command, shell, &flags, ifs.as_deref()));
+            let echo = one_prepared
+                .as_ref()
+                .and_then(|prepared| prepared.next)
+                .map_or(command, |next| &command[..next - 1]);
             if let Some(buffer) = &output {
                 let synchronize = self.output.mode() != crate::output::Mode::None
                     && (self.output.mode() == crate::output::Mode::Recurse || !force);
@@ -6041,32 +6047,17 @@ impl Engine {
                 return Execution::fatal(ran);
             }
             if self.options.dry_run || !quiet {
-                self.stdout(command);
+                self.stdout(echo);
             }
             ran = true;
             if self.options.dry_run && !force {
                 continue;
             }
-            let invocation = if one_shell {
-                match crate::oneshell::prepare(command, shell, &flags, ifs.as_deref()) {
-                    Ok(invocation) => invocation,
-                    Err(crate::oneshell::PrepareError::ShellFlagSyntax) => {
-                        self.fatal(
-                            Some(&recipe.location),
-                            b"rmake: shell syntax in .ONESHELL .SHELLFLAGS is not implemented yet",
-                        );
-                        return Execution::failure(ran, Cleanup::None)
-                            .with_recursion(!flow.has_ordinary());
-                    }
-                    Err(crate::oneshell::PrepareError::QuotedMultilineDirect) => {
-                        self.fatal(
-                            Some(&recipe.location),
-                            b"rmake: .ONESHELL direct commands with quoted newlines are not implemented yet",
-                        );
-                        return Execution::failure(ran, Cleanup::None)
-                            .with_recursion(!flow.has_ordinary());
-                    }
+            let invocation = if let Some(prepared) = one_prepared {
+                if let Some(next) = prepared.next {
+                    expanded.push_front((index, command[next..].to_vec(), recipe.clone()));
                 }
+                prepared.invocation
             } else {
                 ordinary_invocation.expect("ordinary commands are prepared with their boundary")
             };

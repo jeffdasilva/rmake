@@ -1,6 +1,6 @@
 id = "process-shell-literal-newline-simple-flags"
 requirement = "process.invocation"
-candidate = "pending"
+candidate = "required"
 args = ["-rR", "--no-print-directory"]
 provenance = "Original independently asserted SHELL boundary regression, verified with pinned GNU Make 4.4.1 black-box probes; known in-scope compatibility gap, not an exception."
 

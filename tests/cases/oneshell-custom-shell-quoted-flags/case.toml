@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 id = "oneshell-custom-shell-quoted-flags"
 requirement = "recipes.oneshell"
-candidate = "pending"
+candidate = "required"
 description = "Double-quoted shell-flag syntax preserves the oracle shell-dispatch argv shape."
 provenance = "Independently authored from documented behavior and black-box GNU Make 4.4.1 observations; no upstream test code."
 args = ["-rR", "--no-print-directory"]
