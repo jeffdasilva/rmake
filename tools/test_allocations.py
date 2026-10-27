@@ -28,7 +28,7 @@ class AllocationProfileTests(unittest.TestCase):
             (output / 'trace.txt').write_text('summary calls=123 requested_bytes=456 frees=100\n')
             identity = {'path': '/candidate', 'sha256': 'test'}
             compile_result = subprocess.CompletedProcess([], 0, b'', b'')
-            execution_result = subprocess.CompletedProcess([], 0, b"make: Nothing to be done for 'all'.\n", b'')
+            execution_result = subprocess.CompletedProcess([], 0, b"make: 'all' is up to date.\n", b'')
             with mock.patch.object(allocations.conformance, 'executable_identity', return_value=identity), \
                  mock.patch.object(allocations.subprocess, 'run', side_effect=[compile_result, execution_result]), \
                  self.assertRaises(OSError):

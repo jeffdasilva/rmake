@@ -65,13 +65,15 @@ def run(candidate, workload, output):
             'LD_PRELOAD': str(helper), 'RMAKE_ALLOC_TRACE': str(trace), 'MAKELEVEL': '0'})
         result = subprocess.run([str(alias), '-rR', '--no-print-directory'], cwd=root,
                                 env=environment, capture_output=True, timeout=30, check=True)
-        if result.stdout != b"make: Nothing to be done for 'all'.\n" or result.stderr:
+        expected = (b"make: Nothing to be done for 'all'.\n" if workload == 'large-noop'
+                    else b"make: 'all' is up to date.\n")
+        if result.stdout != expected or result.stderr:
             raise ValueError(f'profile workload produced unexpected output: {result.stdout!r} {result.stderr!r}')
     summary, samples = parse_trace(trace.read_text())
     addresses = sorted({address for sample in samples for address in sample['addresses']})
     symbols = {}
     if addresses:
-        resolved = subprocess.run(['addr2line', '-Cfpie', binary['path'], *addresses], check=True,
+        resolved = subprocess.run(['addr2line', '-Cfpe', binary['path'], *addresses], check=True,
                                   capture_output=True, text=True, timeout=30).stdout.splitlines()
         if len(resolved) != len(addresses):
             raise ValueError('incomplete address symbolization')
