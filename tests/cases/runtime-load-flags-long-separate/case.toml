@@ -1,0 +1,12 @@
+id = "runtime-load-flags-long-separate"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-long-separate."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "--load-average", "2.75"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l2.75 --no-print-directory\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "runtime-load-flags-last-wins"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-last-wins."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-l2", "--max-load=5"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l5 --no-print-directory\n"
+stderr = ""

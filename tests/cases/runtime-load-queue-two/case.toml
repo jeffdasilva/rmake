@@ -1,0 +1,12 @@
+id = "runtime-load-queue-two"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: queue-zero."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "-l0"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "a\nb\nc\n"
+stderr = ""

@@ -175,3 +175,6 @@ source references used for the independent owner-state follow-up and original
 fixture anchors. The [allocation/source-name study](shared-source-names.md) uses
 an independently written, development-only glibc interposer and ordinary Linux
 interfaces; the sampler is not linked into rmake.
+
+The [load/stdin notes](load-limits.md) record the source-reference study for the
+independent Linux runtime scheduling and descriptor follow-up.

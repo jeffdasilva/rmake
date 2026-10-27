@@ -25,8 +25,9 @@ including escaped spaces, backslashes and dollars. Child arguments take preceden
 clearing MAKEOVERRIDES stops command-line-origin transport. Inherited scheduling
 joins the parent's shared pool, including GNU parents/children. Explicit child job
 options reset that mode. Unavailable inherited servers fall back to serial.
-General expression evaluation in imported MAKEFLAGS, load limiting, output
-synchronization and complete signal behavior remain follow-up work.
+General expression evaluation in imported MAKEFLAGS, output synchronization
+and complete signal behavior remain follow-up work. [Linux load limits](load-limits.md)
+and per-child stdin handoff are implemented with controlled runtime gates.
 
 The initial local-pool validation added 28 original differential fixtures and promotes five existing
 fixtures. The new two-process barrier cannot pass under serial execution. A

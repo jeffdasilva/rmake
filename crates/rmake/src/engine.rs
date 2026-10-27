@@ -377,6 +377,8 @@ struct ParallelJob {
     before: Option<SystemTime>,
     phony: bool,
     continuation: RecipeState,
+    stdin_owner: bool,
+    waiting_load: bool,
 }
 
 /// A rename can merge a newly visited file into one with a running recipe.
@@ -434,7 +436,6 @@ struct RecipeState {
     flow: Flow,
     ran: bool,
     one_shell: bool,
-    stdin_owner: bool,
     environment: Option<Vec<(OsString, Option<OsString>)>>,
     permit: Option<Permit>,
 }
@@ -491,7 +492,7 @@ struct GroupRun {
     members: Vec<(Vec<u8>, Option<SystemTime>, bool)>,
 }
 
-type JobResult = (Vec<u8>, u64, io::Result<std::process::ExitStatus>);
+type JobResult = (Vec<u8>, u64, Option<io::Result<std::process::ExitStatus>>);
 
 #[derive(Default)]
 struct ArchiveVpathReads {
@@ -543,6 +544,8 @@ pub struct Engine {
     impossible_generation: u64,
     would_build: bool,
     parallel_jobs: ParallelJobs,
+    load_waiting: Vec<(Vec<u8>, u64)>,
+    load: crate::load::Monitor,
     next_job: u64,
     pending_rules: HashMap<Vec<u8>, RuleState>,
     pending_double_colon: HashMap<Vec<u8>, DoubleColonState>,
@@ -901,6 +904,8 @@ impl Engine {
             impossible_generation: 0,
             would_build: false,
             parallel_jobs: ParallelJobs::default(),
+            load_waiting: Vec::new(),
+            load: crate::load::Monitor::default(),
             next_job: 0,
             pending_rules: HashMap::new(),
             pending_double_colon: HashMap::new(),
@@ -2143,6 +2148,7 @@ impl Engine {
             return Ok(None);
         };
         loop {
+            self.start_load_waiting();
             if !self.parallel_jobs.values().any(|job| {
                 job.continuation
                     .permit
@@ -2221,12 +2227,66 @@ impl Engine {
     }
 
     fn poll_jobs(&mut self) {
+        self.start_load_waiting();
         while let Ok(result) = self.completed_jobs.try_recv() {
             self.complete_job(result);
+            self.start_load_waiting();
+        }
+    }
+
+    fn load_high(&mut self) -> bool {
+        let Some(limit) = self.options.load_limit else {
+            return false;
+        };
+        let (high, error) = self.load.high(limit);
+        if let Some(error) = error {
+            if error.raw_os_error() == Some(0) {
+                self.stderr(b"cannot enforce load limits on this operating system");
+            } else {
+                self.stderr(
+                    format!(
+                        "cannot enforce load limit: getloadavg: {}",
+                        os_error(&error)
+                    )
+                    .as_bytes(),
+                );
+            }
+        }
+        high
+    }
+
+    fn start_load_waiting(&mut self) {
+        if self.graph_abort.is_some() || self.shutdown.get() != Shutdown::Running {
+            while let Some((target, identity)) = self.load_waiting.pop() {
+                let job = self
+                    .parallel_jobs
+                    .remove(&target, identity)
+                    .expect("reserved load waiter");
+                let mut outcome = self.done.get(&target).copied().unwrap_or_default();
+                outcome.failed = true;
+                outcome.fatal |= self.graph_abort == Some(Status::Fatal);
+                outcome.ran = false;
+                self.done.insert(target, outcome);
+                drop(job); // Return the queued recipe's permit without launching it.
+            }
+            return;
+        }
+        while !self.load_waiting.is_empty() {
+            if self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high() {
+                break;
+            }
+            let (target, identity) = self.load_waiting.pop().expect("nonempty waiting queue");
+            self.complete_job((target, identity, None));
         }
     }
 
     fn reap_job(&mut self) {
+        self.start_load_waiting();
+        if self.parallel_jobs.is_empty() {
+            return;
+        }
+        // A load change alone does not wake GNU's child wait. Retry queued
+        // recipes on scheduling activity/completion, not a wall-clock timer.
         let result = self
             .completed_jobs
             .recv()
@@ -2240,20 +2300,25 @@ impl Engine {
             .parallel_jobs
             .remove(&target, identity)
             .expect("reserved parallel target");
-        self.filesystem.borrow_mut().child_completed();
-        let launched = result.is_ok();
+        let launched = result.as_ref().is_some_and(Result::is_ok);
+        if result.is_some() {
+            self.filesystem.borrow_mut().child_completed();
+        }
         let error = match result {
-            Ok(status) if status.success() => None,
-            Ok(status) => Some(status.code().map_or_else(
+            None => None,
+            Some(Ok(status)) if status.success() => None,
+            Some(Ok(status)) => Some(status.code().map_or_else(
                 || format!("Signal {}", status.signal().unwrap_or(0)),
                 |code| format!("Error {code}"),
             )),
-            Err(error) => {
+            Some(Err(error)) => {
                 self.stderr(&[job.program.as_slice(), b": ", os_error(&error).as_bytes()].concat());
                 Some("Error 127".to_string())
             }
         };
-        job.continuation.flow.attempted(launched);
+        if !job.waiting_load {
+            job.continuation.flow.attempted(launched);
+        }
         let mut failed = error.is_some() && !job.ignore;
         if let Some(error) = error
             && (!job.ignore || !self.globally_silent())
@@ -3646,7 +3711,7 @@ impl Engine {
             let mut shutdown = self.shutdown.get();
             shutdown.drain();
             self.shutdown.set(shutdown);
-            if !self.parallel_jobs.is_empty() {
+            if self.parallel_jobs.values().any(|job| !job.waiting_load) {
                 self.notice_waiting_for_jobs();
             }
             self.graph_abort = Some(status);
@@ -5053,6 +5118,35 @@ impl Engine {
             && !self.options.dry_run
             && !self.options.question
             && !self.options.touch;
+        if self.graph_abort == Some(Status::Fatal) {
+            return Execution::fatal(false);
+        }
+        if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
+            return Execution::failure(false, Cleanup::None);
+        }
+        let mut variables = match self.target_variables(target) {
+            Ok(variables) => variables,
+            Err(error) => {
+                self.expansion_error(None, &error);
+                return Execution::fatal(false);
+            }
+        };
+        for (name, value) in automatic {
+            if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
+                self.expansion_error(None, &error);
+                return Execution::fatal(false);
+            }
+        }
+        let mut expanded = std::collections::VecDeque::new();
+        for (index, recipe) in recipes.iter().enumerate() {
+            match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
+                Ok(bytes) => expanded.push_back((index, bytes, recipe.clone())),
+                Err(err) => {
+                    self.expansion_error(Some(&recipe.location), &err);
+                    return Execution::fatal(false);
+                }
+            }
+        }
         if parallel {
             while self.parallel_jobs.len() >= self.job_slots() {
                 self.reap_job();
@@ -5083,49 +5177,37 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let mut variables = match self.target_variables(target) {
-            Ok(variables) => variables,
-            Err(error) => {
-                self.expansion_error(None, &error);
-                return Execution::fatal(false);
-            }
+        let state = RecipeState {
+            expanded,
+            variables,
+            flow,
+            ran: false,
+            one_shell,
+            environment: None,
+            permit,
         };
-        for (name, value) in automatic {
-            if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
-                self.expansion_error(None, &error);
-                return Execution::fatal(false);
-            }
+        if parallel && self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high()
+        {
+            let identity = self.next_job;
+            self.next_job = self.next_job.wrapping_add(1);
+            self.load_waiting.push((target.to_vec(), identity));
+            self.parallel_jobs.insert(
+                target.to_vec(),
+                ParallelJob {
+                    identity,
+                    program: Vec::new(),
+                    location: recipes[0].location.clone(),
+                    ignore: false,
+                    before,
+                    phony,
+                    continuation: state,
+                    stdin_owner: false,
+                    waiting_load: true,
+                },
+            );
+            return Execution::success(true);
         }
-        let mut expanded = std::collections::VecDeque::new();
-        for (index, recipe) in recipes.iter().enumerate() {
-            match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
-                Ok(bytes) => expanded.push_back((index, bytes, recipe.clone())),
-                Err(err) => {
-                    self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::fatal(false);
-                }
-            }
-        }
-        let stdin_owner = !self
-            .parallel_jobs
-            .values()
-            .any(|job| job.continuation.stdin_owner);
-        self.continue_recipe(
-            target,
-            RecipeState {
-                expanded,
-                variables,
-                flow,
-                ran: false,
-                one_shell,
-                stdin_owner,
-                environment: None,
-                permit,
-            },
-            phony,
-            before,
-            parallel,
-        )
+        self.continue_recipe(target, state, phony, before, parallel)
     }
 
     fn continue_recipe(
@@ -5142,7 +5224,6 @@ impl Engine {
             mut flow,
             mut ran,
             one_shell,
-            stdin_owner,
             mut environment,
             permit,
         } = state;
@@ -5445,7 +5526,7 @@ impl Engine {
                 self.next_job = self.next_job.wrapping_add(1);
                 let name = target.to_vec();
                 let executable = program.clone();
-                let first = stdin_owner;
+                let stdin_owner = !self.parallel_jobs.values().any(|job| job.stdin_owner);
                 let jobserver = self.jobserver.clone();
                 let worker =
                     std::thread::Builder::new()
@@ -5455,8 +5536,8 @@ impl Engine {
                                 if let Some(server) = &jobserver {
                                     server.configure_child(&mut command, force);
                                 }
-                                if !first {
-                                    command.stdin(std::process::Stdio::null());
+                                if !stdin_owner {
+                                    command.stdin(rmake_linux::process::closed_stdin()?);
                                 }
                                 command.status()
                             });
@@ -5464,12 +5545,15 @@ impl Engine {
                             // its jobserver owner, so process exit cannot race
                             // the last FIFO unlink against thread teardown.
                             drop(jobserver);
-                            let _ = sender.send((name, identity, result));
+                            let _ = sender.send((name, identity, Some(result)));
                         });
                 if let Err(error) = worker {
                     self.stderr(os_error(&error).as_bytes());
                     return Execution::failure(ran, Cleanup::None)
                         .with_recursion(!flow.has_ordinary());
+                }
+                if self.options.load_limit.is_some_and(|v| v >= 0.0) {
+                    self.load.started();
                 }
                 self.parallel_jobs.insert(
                     target.to_vec(),
@@ -5480,13 +5564,14 @@ impl Engine {
                         ignore,
                         before,
                         phony,
+                        stdin_owner,
+                        waiting_load: false,
                         continuation: RecipeState {
                             expanded,
                             variables: variables.clone(),
                             flow,
                             ran,
                             one_shell,
-                            stdin_owner,
                             environment,
                             permit,
                         },
@@ -5495,6 +5580,9 @@ impl Engine {
                 return Execution::success(true);
             }
             self.wait_all_jobs();
+            if self.options.load_limit.is_some_and(|v| v >= 0.0) {
+                self.load.started();
+            }
             let result = launch_child(&program, &child, |mut command| {
                 if let Some(server) = &self.jobserver {
                     server.configure_child(&mut command, force);

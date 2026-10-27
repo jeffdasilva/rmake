@@ -1130,3 +1130,23 @@ candidate_required = 69
 fixture_count = 69
 reference = "https://www.gnu.org/software/make/manual/html_node/Errors.html"
 cases = ["runtime-config-shell-child-serial", "runtime-config-shell-child-parallel", "runtime-config-shell-child-dry", "runtime-config-shell-child-query", "runtime-config-shell-child-touch", "runtime-config-shell-noop-serial", "runtime-config-shell-noop-parallel", "runtime-config-shell-noop-dry", "runtime-config-shell-noop-query", "runtime-config-shell-noop-touch", "runtime-config-shell-eager-serial", "runtime-config-shell-eager-parallel", "runtime-config-shell-eager-dry", "runtime-config-shell-eager-query", "runtime-config-shell-eager-touch", "runtime-config-shellflags-child-serial", "runtime-config-shellflags-child-parallel", "runtime-config-shellflags-child-dry", "runtime-config-shellflags-child-query", "runtime-config-shellflags-child-touch", "runtime-config-shellflags-noop-serial", "runtime-config-shellflags-noop-parallel", "runtime-config-shellflags-noop-dry", "runtime-config-shellflags-noop-query", "runtime-config-shellflags-noop-touch", "runtime-config-shellflags-eager-serial", "runtime-config-shellflags-eager-parallel", "runtime-config-shellflags-eager-dry", "runtime-config-shellflags-eager-query", "runtime-config-shellflags-eager-touch", "runtime-config-ifs-child-serial", "runtime-config-ifs-child-parallel", "runtime-config-ifs-child-dry", "runtime-config-ifs-child-query", "runtime-config-ifs-child-touch", "runtime-config-ifs-noop-serial", "runtime-config-ifs-noop-parallel", "runtime-config-ifs-noop-dry", "runtime-config-ifs-noop-query", "runtime-config-ifs-noop-touch", "runtime-config-ifs-eager-serial", "runtime-config-ifs-eager-parallel", "runtime-config-ifs-eager-dry", "runtime-config-ifs-eager-query", "runtime-config-ifs-eager-touch", "runtime-drain-configuration-stop", "runtime-drain-configuration-keep", "runtime-drain-initial-stop", "runtime-drain-initial-keep", "runtime-drain-failure-stop", "runtime-drain-failure-keep", "runtime-drain-late-fatal-stop", "runtime-drain-late-fatal-keep", "runtime-launch-child-child", "runtime-launch-child-noop", "runtime-launch-child-missing", "runtime-launch-noop-child", "runtime-launch-noop-noop", "runtime-launch-noop-missing", "runtime-launch-missing-child", "runtime-launch-missing-noop", "runtime-launch-missing-missing", "runtime-intermediate-continuation-j1", "runtime-intermediate-continuation-j2", "runtime-intermediate-initial-j1", "runtime-intermediate-initial-j2", "runtime-remake-required", "runtime-remake-optional", "runtime-remake-changed"]
+
+[[requirements]]
+id = "runtime.stdin"
+title = "Per-child parallel stdin ownership and broken-pipe fallback"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 4
+reference = "https://www.gnu.org/software/make/manual/html_node/Parallel-Input.html"
+fixture_count = 4
+cases = ["runtime-stdin-handoff-two", "runtime-stdin-handoff-four", "runtime-stdin-handoff-unlimited", "runtime-stdin-handoff-pipe"]
+
+[[requirements]]
+id = "runtime.load"
+title = "Linux load-limited launches and queued recipe phases"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 29
+reference = "https://www.gnu.org/software/make/manual/html_node/Parallel-Disable.html"
+fixture_count = 29
+cases = ["runtime-load-queue-zero", "runtime-load-queue-fraction", "runtime-load-queue-long", "runtime-load-queue-alias", "runtime-load-queue-unlimited", "runtime-load-queue-pipe", "runtime-load-flags-integer", "runtime-load-flags-fraction", "runtime-load-flags-long", "runtime-load-flags-alias", "runtime-load-flags-separate", "runtime-load-flags-long-separate", "runtime-load-flags-trailing", "runtime-load-flags-invalid", "runtime-load-flags-negative", "runtime-load-flags-negative-zero", "runtime-load-flags-clear", "runtime-load-flags-clear-long", "runtime-load-flags-precision", "runtime-load-flags-infinity", "runtime-load-flags-nan", "runtime-load-flags-exponent", "runtime-load-flags-empty", "runtime-load-flags-hex", "runtime-load-flags-last-wins", "runtime-load-queue-two", "runtime-load-recursive-inherit", "runtime-load-recursive-override", "runtime-load-recursive-clear"]

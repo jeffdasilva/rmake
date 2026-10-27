@@ -1,0 +1,12 @@
+id = "runtime-load-flags-invalid"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-invalid."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-lgarbage"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l0 --no-print-directory\n"
+stderr = ""

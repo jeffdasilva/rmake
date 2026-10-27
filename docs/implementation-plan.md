@@ -22,8 +22,9 @@ parity remain future milestones.
 The next active tranche is M5's Linux runtime, alongside the remaining M3
 language gaps. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
-is a measured allocation reduction. Remaining synthetic completion, signal and
-runtime-profile cases stay open. Persistent caching remains deferred to its
+is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
+controlled development and optimized gates. Remaining synthetic completion,
+signal, output-sync and runtime stress cases stay open. Persistent caching remains deferred to its
 correctness design and acceptance gate.
 
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;

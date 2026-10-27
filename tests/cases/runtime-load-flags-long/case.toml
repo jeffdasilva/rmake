@@ -1,0 +1,12 @@
+id = "runtime-load-flags-long"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-long."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "--load-average=3.25"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l3.25 --no-print-directory\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "runtime-stdin-handoff-pipe"
+requirement = "runtime.stdin"
+candidate = "required"
+description = "Release stdin after a child exits and grant it to another recipe continuation; preserve closed-pipe descriptor semantics."
+provenance = "Original bounded process/reap barriers, independently authored without GNU code or tests."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "blocked=pipe/eof\nfirst=alpha\nsecond=beta\n"
+stderr = ""

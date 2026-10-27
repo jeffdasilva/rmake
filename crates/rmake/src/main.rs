@@ -12,6 +12,7 @@ mod command_variables;
 mod engine;
 mod file_aliases;
 mod intermediates;
+mod load;
 mod makefiles;
 mod oneshell;
 mod process;
@@ -56,6 +57,7 @@ fn main() -> ExitCode {
         println!("  -i / -k    Ignore recipe errors / continue independent targets");
         println!("  -t / -e    Touch targets / let environment override file variables");
         println!("  -rR / -jN  Disable built-ins / set shared local job limit");
+        println!("  -l[LOAD]   Limit parallel launches by Linux runnable load");
         println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
         println!("\nDevelopment build: GNU Make compatibility is incomplete.");
         println!(

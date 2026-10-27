@@ -56,8 +56,8 @@ transport/reset decoding. Three tooling tests protect independent campaign
 anchors. The corpus now has 2,116 cases: 2,103 required and 13 pending.
 
 Full GNU compatibility remains unfinished. Complete interrupt/signal forwarding,
-interrupted-target cleanup and exit signaling, load limits and output
-synchronization still need work. This slice does not claim signal-safe token
+interrupted-target cleanup and exit signaling and output synchronization still
+need work. [Load limits and stdin leases](load-limits.md) now have controlled gates. This slice does not claim signal-safe token
 recovery on process termination. The tracked fatal-resumption GNU diagnostic
 mismatch also remains pending; its FIFO leak is not reproduced.
 

@@ -1,0 +1,12 @@
+id = "runtime-load-flags-precision"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-precision."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-l3.1415927"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l3.14159 --no-print-directory\n"
+stderr = ""
