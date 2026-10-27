@@ -1,0 +1,13 @@
+id = "runtime-drain-configuration-keep"
+requirement = "runtime.fatal-continuations"
+candidate = "required"
+description = "Original fatal owner/shutdown boundary: runtime-drain-configuration-keep."
+provenance = "Independently authored commands, barriers and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2", "-k"]
+timeout_seconds = 8
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "4d616b6566696c653a353a202a2a2a2066697273742073746f707065642e202053746f702e0a6d616b653a202a2a2a2057616974696e6720666f7220756e66696e6973686564206a6f62732e2e2e2e0a622d66696e69736865640a6d616b653a202a2a2a20776169743a204e6f206368696c642070726f6365737365732e202053746f702e0a"
+stderr_hex = ""

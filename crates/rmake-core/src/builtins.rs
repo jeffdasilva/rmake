@@ -19,7 +19,7 @@ fn builtin_location(rule: &mut Rule) {
     if let Some(recipes) = &mut rule.recipes {
         for Recipe { location, .. } in recipes {
             *location = Location {
-                file: b"<builtin>".to_vec(),
+                file: b"<builtin>".as_slice().into(),
                 line: 0,
             };
         }

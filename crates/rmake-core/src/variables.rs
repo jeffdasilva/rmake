@@ -2929,7 +2929,7 @@ mod tests {
 
     fn source(line: usize) -> Location {
         Location {
-            file: b"source.mk".to_vec(),
+            file: b"source.mk".as_slice().into(),
             line,
         }
     }
@@ -4263,15 +4263,15 @@ mod tests {
     fn warnings_use_caller_or_first_binding_context_and_restore_nested_context() {
         let mut store = VariableStore::default();
         let outer = Location {
-            file: b"outer".to_vec(),
+            file: b"outer".as_slice().into(),
             line: 2,
         };
         let inner = Location {
-            file: b"inner\xff".to_vec(),
+            file: b"inner\xff".as_slice().into(),
             line: 4,
         };
         let caller = Location {
-            file: b"recipe".to_vec(),
+            file: b"recipe".as_slice().into(),
             line: 9,
         };
         store

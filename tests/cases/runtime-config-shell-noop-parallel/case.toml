@@ -1,0 +1,12 @@
+id = "runtime-config-shell-noop-parallel"
+requirement = "runtime.fatal-continuations"
+candidate = "required"
+description = "Original fatal owner/shutdown boundary: runtime-config-shell-noop-parallel."
+provenance = "Independently authored commands, barriers and exact stream/status anchors; no upstream tests copied."
+args = ["-rR", "--no-print-directory", "--jobserver-style=pipe", "-j2"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a353a202a2a2a2073746f707065642e202053746f702e0a"

@@ -1,0 +1,5 @@
+.SHELLFLAGS=$(if $(wildcard stage2),$(error stopped),$(if $(wildcard stage1),$(file >stage2,seen),$(file >stage1,seen)))-c
+all:
+	-@rmake_missing_runtime_command_441
+	-@rmake_missing_runtime_command_441
+	@echo forbidden

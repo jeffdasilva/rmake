@@ -830,7 +830,7 @@ mod evaluation_tests {
         assert_eq!(
             recipe.location,
             Location {
-                file: b"outer.mk".to_vec(),
+                file: b"outer.mk".as_slice().into(),
                 line: 3
             }
         );
@@ -1958,12 +1958,12 @@ impl Database {
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let (file, offset) = location.map_or((b"".as_slice(), 0), |location| {
-            (location.file.as_slice(), location.line.saturating_sub(1))
+            (location.file.as_ref(), location.line.saturating_sub(1))
         });
         if self.evaluation_depth >= 128 {
             return Err(ParseError {
                 location: Location {
-                    file: file.to_vec(),
+                    file: file.into(),
                     line: offset + 1,
                 },
                 unlocated: location.is_none(),
@@ -2002,6 +2002,7 @@ impl Database {
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let context = &mut context;
+        let source_name: std::sync::Arc<[u8]> = file.into();
         let mut reader = Reader::new(bytes);
         // Keep declaration boundaries until its first recipe is seen: GNU
         // places that declaration's prerequisites before earlier declarations.
@@ -2024,7 +2025,7 @@ impl Database {
             }
             last_line = line.end_line;
             let location = Location {
-                file: file.to_vec(),
+                file: source_name.clone(),
                 line: evaluated_at.unwrap_or(line.line),
             };
             for _ in 0..reader.take_nul_warnings() {
@@ -2213,7 +2214,7 @@ impl Database {
                             &mut self.warnings,
                             context,
                             Location {
-                                file: file.to_vec(),
+                                file: source_name.clone(),
                                 line: if active { warning_line } else { part.line },
                             },
                             "warning: NUL character seen; rest of line ignored".into(),
@@ -2243,7 +2244,7 @@ impl Database {
                                     &mut self.warnings,
                                     context,
                                     Location {
-                                        file: file.to_vec(),
+                                        file: source_name.clone(),
                                         line: part.end_line,
                                     },
                                     "extraneous text after 'endef' directive".into(),
@@ -2271,7 +2272,7 @@ impl Database {
                         origin,
                         &location,
                         &Location {
-                            file: file.to_vec(),
+                            file: source_name.clone(),
                             line: last_line,
                         },
                         context,
@@ -2670,7 +2671,7 @@ impl Database {
             return Err(ParseError {
                 unlocated: false,
                 location: Location {
-                    file: file.to_vec(),
+                    file: source_name.clone(),
                     line: evaluated_at.unwrap_or(last_line + 1),
                 },
                 message: "missing 'endif'".into(),
@@ -2679,7 +2680,7 @@ impl Database {
         self.finish_declaration(
             &mut declaration,
             &Location {
-                file: file.to_vec(),
+                file: source_name.clone(),
                 line: evaluated_at.unwrap_or(last_line + 1),
             },
             context,
@@ -3275,7 +3276,7 @@ mod tests {
                         assignment,
                         origin,
                         &Location {
-                            file: b"old".to_vec(),
+                            file: b"old".as_slice().into(),
                             line: 7,
                         },
                     )
@@ -3735,7 +3736,7 @@ mod tests {
             assert_eq!(
                 rule.recipe_location,
                 Some(Location {
-                    file: b"m".to_vec(),
+                    file: b"m".as_slice().into(),
                     line: 1
                 })
             );
@@ -4405,7 +4406,7 @@ mod tests {
             assert_eq!(
                 error.location,
                 Location {
-                    file: b"input\xfe.mk".to_vec(),
+                    file: b"input\xfe.mk".as_slice().into(),
                     line
                 }
             );
@@ -4421,7 +4422,7 @@ mod tests {
             b"$(intcmp \xff,0) = value\n",
         ] {
             let error = Database::default().read(input, b"bytes.mk").unwrap_err();
-            assert_eq!(error.location.file, b"bytes.mk");
+            assert_eq!(error.location.file.as_ref(), b"bytes.mk");
             assert_eq!(error.location.line, 1);
             assert_eq!(
                 error.message.as_bytes(),
@@ -4451,7 +4452,7 @@ mod tests {
             assert_eq!(
                 error.location,
                 Location {
-                    file: b"define.mk".to_vec(),
+                    file: b"define.mk".as_slice().into(),
                     line: expected
                 }
             );
@@ -4470,7 +4471,7 @@ mod tests {
                 .unwrap_err()
                 .location(),
             Some(&Location {
-                file: b"define.mk".to_vec(),
+                file: b"define.mk".as_slice().into(),
                 line: 2
             })
         );
@@ -4488,14 +4489,14 @@ mod tests {
         assert_eq!(
             error.location(),
             Some(&Location {
-                file: b"second\xfe.mk".to_vec(),
+                file: b"second\xfe.mk".as_slice().into(),
                 line: 1
             })
         );
         assert_eq!(
             snapshot.expand_variable(b"V").unwrap_err().location(),
             Some(&Location {
-                file: b"first\xff.mk".to_vec(),
+                file: b"first\xff.mk".as_slice().into(),
                 line: 2
             })
         );
@@ -4701,7 +4702,7 @@ mod tests {
             assert_eq!(
                 error.location,
                 Location {
-                    file: b"fixture.mk".to_vec(),
+                    file: b"fixture.mk".as_slice().into(),
                     line
                 }
             );

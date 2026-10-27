@@ -19,6 +19,13 @@ commit. M3 and M5 have implemented slices but retain their own open exit gates;
 complete GNU compatibility, broad runtime/profile acceptance and general speed
 parity remain future milestones.
 
+The next active tranche is M5's Linux runtime, alongside the remaining M3
+language gaps. [Fatal continuations](fatal-continuations.md) close the original
+post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
+is a measured allocation reduction. Remaining synthetic completion, signal and
+runtime-profile cases stay open. Persistent caching remains deferred to its
+correctness design and acceptance gate.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

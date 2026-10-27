@@ -7,7 +7,9 @@ use std::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Location {
-    pub file: Vec<u8>,
+    /// Immutable source spelling shared by locations from the same read.
+    /// Sharing bytes does not cache file contents, lookup results or effects.
+    pub file: std::sync::Arc<[u8]>,
     pub line: usize,
 }
 
