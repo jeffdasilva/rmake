@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
 import unittest
+import contextlib
+import io
 from pathlib import Path
 import subprocess
 import tempfile
@@ -34,6 +36,27 @@ class AllocationProfileTests(unittest.TestCase):
                  self.assertRaises(OSError):
                 allocations.run(Path('/candidate'), 'tiny-noop', output)
             self.assertFalse((output / 'report.json').exists())
+
+    def test_each_workload_uses_its_exact_output_contract(self):
+        expected = {'tiny-noop': b"make: 'all' is up to date.\n",
+                    'expansion': b"make: 'all' is up to date.\n",
+                    'large-noop': b"make: Nothing to be done for 'all'.\n"}
+        for workload, stdout in expected.items():
+            with self.subTest(workload=workload), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                def command(argv, **kwargs):
+                    if argv[0] == 'cc':
+                        return subprocess.CompletedProcess(argv, 0, b'', b'')
+                    Path(kwargs['env']['RMAKE_ALLOC_TRACE']).write_text(
+                        'summary calls=0 requested_bytes=0 frees=0\n')
+                    return subprocess.CompletedProcess(argv, 0, stdout, b'')
+                with mock.patch.object(allocations.conformance, 'executable_identity',
+                                       return_value={'path': '/candidate', 'sha256': 'test'}), \
+                     mock.patch.object(allocations.subprocess, 'run', side_effect=command), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    report = allocations.run(Path('/candidate'), workload, output)
+                self.assertEqual(report['workload'], workload)
+                self.assertTrue((output / 'report.json').is_file())
 
     def test_empty_process_and_missing_executable_frames_are_distinct(self):
         summary, samples = allocations.parse_trace('summary calls=0 requested_bytes=0 frees=0\n')
