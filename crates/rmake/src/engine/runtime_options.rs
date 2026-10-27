@@ -234,7 +234,6 @@ impl Engine {
                 }
             }
             if name == b"GNUMAKEFLAGS"
-                && self.database.variables.get(name).is_some()
                 && let Err(error) =
                     self.database
                         .variables
@@ -356,6 +355,14 @@ impl Engine {
         updated
             .include_directories
             .retain(|path| seen.insert(path.clone()));
+        if let Err(error) = self
+            .database
+            .variables
+            .update_mflags(&updated.recursive_flags(), updated.environment_override)
+        {
+            self.expansion_error(None, &error);
+            return Err(());
+        }
         self.options = updated;
         self.database
             .variables

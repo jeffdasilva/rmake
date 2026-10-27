@@ -1,0 +1,12 @@
+id = "metadata-mflags-set-command"
+requirement = "variables.metadata"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "MFLAGS=cli"]
+timeout_seconds = 10
+description = "Original GNU metadata values, ordered membership, scope, assignment or cache-lifetime regression."
+provenance = "Independently authored Makefile, two exact GNU Make 4.4.1 observations and final candidate comparison; source-informed semantics without upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6265666f7265204d464c4147533d5b636c695d2f5b636c695d2f636f6d6d616e64206c696e652f726563757273697665204d414b45464c4147533d5b7252202d2d6e6f2d7072696e742d6469726563746f7279202d2d204d464c4147533d636c695d0a6166746572204d464c4147533d5b636c695d2f5b636c695d2f636f6d6d616e64206c696e652f726563757273697665204d414b45464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f7279202d2d204d464c4147533d636c695d0a726563697065204d464c4147533d5b636c695d2f5b636c695d2f636f6d6d616e64206c696e652f726563757273697665204d414b45464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f7279202d2d204d464c4147533d636c695d0a"
+stderr_hex = ""

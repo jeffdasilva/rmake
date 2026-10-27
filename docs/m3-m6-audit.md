@@ -9,7 +9,7 @@ pinned development profile does not establish those surfaces.
 | Area | Current evidence and next acceptance work |
 | --- | --- |
 | Changed flag assignments | [Owned payload evaluation](flag-payloads.md) covers ordinary assignment forms, origins and effects. Inherited file/directory switches, broader option ordering and decoder safety conflicts remain open. |
-| Special metadata | Complete `.VARIABLES`, `.FEATURES`, `.LOADED`, default `.RECIPEPREFIX`, `MFLAGS` and related startup/replay values and origins; preserve GNU traversal order, scope and assignment semantics. Current occupancy reservations are not values. |
+| Special metadata | [Variable metadata](variable-metadata.md) now implements ordered `.VARIABLES`, pinned `.FEATURES`, initial `.LOADED`, default `.RECIPEPREFIX`, `MAKE_HOST`, `.DEFAULT_GOAL` and `MFLAGS`, including lookup lifetime and scope tests. Module-updated metadata and enabled/broader Linux profiles remain tied to their adapters and acceptance gates. |
 | POSIX mode | The executable still explicitly rejects `.POSIX`. Implement reader/variable, shell flag, rule and command interactions with independent mode comparisons. |
 | CLI and presentation | Inventory all pinned `--help` options against the decoder. Add missing debug/database/trace, directory reporting, shuffle and remaining option interactions. Required raw output or narrow semantic validators must establish ordering, identities and nondeterministic fields. |
 | Child environment vectors | Ordered export evaluation is implemented; raw `envp` serialization still follows Rust command construction rather than GNU's complete table vector. Add byte/order probes and an owned launch representation. |

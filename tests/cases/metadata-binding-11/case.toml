@@ -1,0 +1,12 @@
+id = "metadata-binding-11"
+requirement = "variables.metadata"
+candidate = "required"
+args = ["--no-print-directory", "-rR"]
+timeout_seconds = 10
+description = "Original GNU metadata values, ordered membership, scope, assignment or cache-lifetime regression."
+provenance = "Independently authored Makefile, two exact GNU Make 4.4.1 observations and final candidate comparison; source-informed semantics without upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "563d5b5d0a"
+stderr_hex = ""

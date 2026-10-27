@@ -23,6 +23,8 @@ future milestones.
 The next active work is the remaining M3 language gaps and M6 compatibility
 surfaces, tracked in the [gap audit](m3-m6-audit.md). [Flag payloads](flag-payloads.md)
 now evaluate embedded assignments with origin, ordering and effect coverage.
+[Variable metadata](variable-metadata.md) adds ordered global membership and
+lookup lifetime, default bindings and legacy flag updates on the pinned profile.
 [Export traversal](export-order.md) closes the two historical
 export-order pending cases, with collision/growth, scope and live-eval evidence.
 [Shell argv and residual execution](shell-argv-replay.md) closes five more

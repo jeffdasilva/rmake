@@ -220,6 +220,7 @@ impl<'a> ExpansionContext<'a> {
         } else if has_input && let Some(cursor) = &self.makeflags_cursor {
             cursor.set(result.next_argument);
         }
+        database.update_mflags(&result.value, result.environment_override)?;
         let variables = &mut database.variables;
         if variables
             .get(b"MAKEOVERRIDES")

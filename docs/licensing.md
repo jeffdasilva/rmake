@@ -208,3 +208,7 @@ The [flag payload notes](flag-payloads.md) record option/variable reference
 functions used for independently authored owned argument replay and evaluator
 integration. Original GNU nontermination and nested-decoder observations remain
 raw safety research without passing conformance credit.
+
+The [variable metadata notes](variable-metadata.md) identify reference lookup,
+startup/default membership and flag phases used for the independently authored
+lazy names cache, scope behavior, interface literals and original comparisons.

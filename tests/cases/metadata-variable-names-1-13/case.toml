@@ -1,0 +1,12 @@
+id = "metadata-variable-names-1-13"
+requirement = "variables.metadata"
+candidate = "required"
+args = ["--no-print-directory", "-r"]
+timeout_seconds = 10
+description = "Original GNU metadata values, ordered membership, scope, assignment or cache-lifetime regression."
+provenance = "Independently authored Makefile, two exact GNU Make 4.4.1 observations and final candidate comparison; source-informed semantics without upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6f726967696e3d64656661756c740a6e616d65733d5b637573746f6d5d2076616c75653d5b637573746f6d5d206f726967696e3d66696c6520666c61766f723d7265637572736976650a7265636970653d5b637573746f6d5d2076616c75653d5b637573746f6d5d0a"
+stderr_hex = ""

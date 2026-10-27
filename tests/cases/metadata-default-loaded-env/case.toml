@@ -1,0 +1,15 @@
+id = "metadata-default-loaded-env"
+requirement = "variables.metadata"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 10
+description = "Original GNU metadata values, ordered membership, scope, assignment or cache-lifetime regression."
+provenance = "Independently authored Makefile, two exact GNU Make 4.4.1 observations and final candidate comparison; source-informed semantics without upstream implementation or tests copied."
+
+[environment]
+".LOADED" = "env"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6574613d5b656e765d2f656e7669726f6e6d656e742f7265637572736976650a"
+stderr_hex = ""

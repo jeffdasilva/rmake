@@ -1,0 +1,12 @@
+id = "metadata-default-default-goal-file"
+requirement = "variables.metadata"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 10
+description = "Original GNU metadata values, ordered membership, scope, assignment or cache-lifetime regression."
+provenance = "Independently authored Makefile, two exact GNU Make 4.4.1 observations and final candidate comparison; source-informed semantics without upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "6d6574613d5b66696c655d2f66696c652f7265637572736976650a"
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202766696c65272e202053746f702e0a"

@@ -755,9 +755,16 @@ impl Engine {
         database
             .initialize_suffixes(!options.no_rules)
             .map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .reserve_environment_layout(&[b"MFLAGS"], true);
         if !options.no_variables {
             database
                 .initialize_builtin_variables()
+                .map_err(|error| error.diagnostic())?;
+            database
+                .variables
+                .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
                 .map_err(|error| error.diagnostic())?;
         }
         if !options.no_rules {
@@ -782,6 +789,10 @@ impl Engine {
             (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
             (b".SHELLFLAGS", b"-c"),
             (b"MAKE_VERSION", b"4.4.1"),
+            (b".RECIPEPREFIX", b""),
+            (b".LOADED", b""),
+            (b".FEATURES", b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load"),
+            (b"MAKE_HOST", b"x86_64-pc-linux-gnu"),
             (b"MAKE", invocation.as_bytes()),
             (b"MAKE_COMMAND", invocation.as_bytes()),
         ] {
@@ -790,6 +801,19 @@ impl Engine {
                 .define_literal(name, value, Origin::Default)
                 .map_err(|e| e.diagnostic())?;
         }
+        database
+            .variables
+            .enable_variable_names()
+            .map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
+            .map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .update_mflags(&options.recursive_flags(), options.environment_override)
+            .map_err(|error| error.diagnostic())?;
+        inherited_exports.insert(b"MFLAGS".to_vec());
         let cwd = std::env::current_dir().map_err(|e| Diagnostic::from(e.to_string()))?;
         database
             .variables
@@ -814,7 +838,11 @@ impl Engine {
                 runtime_options::origin(options.environment_override),
             )
             .map_err(|e| e.diagnostic())?;
-        if database.variables.get(b"GNUMAKEFLAGS").is_some() {
+        if database
+            .variables
+            .get(b"GNUMAKEFLAGS")
+            .is_some_and(|variable| variable.origin() != Origin::Default)
+        {
             database
                 .variables
                 .define_literal(b"GNUMAKEFLAGS", b"", Origin::Environment)
@@ -1063,6 +1091,14 @@ impl Engine {
         // Inherited pipe descriptors must become close-on-exec before reader
         // shell functions run. Creating a new owned pool waits until after read.
         engine.setup_jobserver(false)?;
+        engine
+            .database
+            .variables
+            .update_mflags(
+                &engine.options.recursive_flags(),
+                engine.options.environment_override,
+            )
+            .map_err(|error| error.diagnostic())?;
         engine.initial_flags = engine.options.recursive_flags();
         if engine.command_replay {
             engine
@@ -1676,6 +1712,13 @@ impl Engine {
                 }
             }
 
+            if let Err(error) = self.database.variables.update_mflags(
+                &self.options.recursive_flags(),
+                self.options.environment_override,
+            ) {
+                self.expansion_error(None, &error);
+                return 2;
+            }
             let mut runtime_flags = self.options.recursive_flags();
             if self
                 .database
