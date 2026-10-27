@@ -155,6 +155,7 @@ struct ScopeMetadata {
     export_default_reset: bool,
     export_if_set: bool,
     append_outer: bool,
+    variable_names: bool,
 }
 
 /// Environment preparation remembers inherited policy on the selected binding.
@@ -424,11 +425,31 @@ impl fmt::Display for ExpandError {
 
 impl std::error::Error for ExpandError {}
 
+#[derive(Clone, Debug, Default)]
+struct NamesState {
+    generation: u64,
+    value: Vec<u8>,
+}
+#[derive(Debug, Default)]
+struct NamesCache(std::sync::Mutex<NamesState>);
+impl Clone for NamesCache {
+    fn clone(&self) -> Self {
+        Self(std::sync::Mutex::new(
+            self.0
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone(),
+        ))
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Bindings {
     values: BTreeMap<Arc<[u8]>, Variable>,
     order: crate::variable_order::NameOrder,
     reserved_exports: Vec<Vec<u8>>,
+    generation: u64,
+    names_cache: OnceLock<Arc<NamesCache>>,
 }
 impl Default for Bindings {
     fn default() -> Self {
@@ -441,14 +462,29 @@ impl Bindings {
             values: BTreeMap::new(),
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
             reserved_exports: Vec::new(),
+            generation: 0,
+            names_cache: OnceLock::new(),
         }
     }
     fn insert(&mut self, name: &[u8], variable: Variable) {
         match self.values.entry(name.into()) {
             std::collections::btree_map::Entry::Occupied(mut entry) => {
+                if entry.get().scope.variable_names
+                    && let Some(cache) = self.names_cache.get_mut()
+                {
+                    Arc::make_mut(cache)
+                        .0
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .value = variable.value.clone();
+                }
                 entry.insert(variable);
             }
             std::collections::btree_map::Entry::Vacant(entry) => {
+                if let Some(cache) = self.names_cache.get_mut() {
+                    Arc::make_mut(cache);
+                }
+                self.generation += 1;
                 self.order.insert_owned(entry.key().clone());
                 entry.insert(variable);
             }
@@ -456,6 +492,12 @@ impl Bindings {
     }
     fn remove(&mut self, name: &[u8]) -> Option<Variable> {
         let value = self.values.remove(name);
+        if value.is_some() {
+            if let Some(cache) = self.names_cache.get_mut() {
+                Arc::make_mut(cache);
+            }
+            self.generation += 1;
+        }
         self.order.remove(name);
         value
     }
@@ -548,6 +590,73 @@ pub struct PatternVariable {
 impl VariableStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn enable_variable_names(&mut self) -> Result<(), ExpandError> {
+        self.define_literal(b".VARIABLES", b"", Origin::Default)?;
+        let bindings = Arc::make_mut(&mut self.variables);
+        bindings
+            .get_mut(b".VARIABLES")
+            .expect("builtin binding")
+            .scope
+            .variable_names = true;
+        bindings.names_cache = OnceLock::new();
+        Ok(())
+    }
+
+    fn variable_names(&self, refresh: bool) -> Result<Vec<u8>, ExpandError> {
+        let bindings = if self.scoped {
+            self.layers
+                .iter()
+                .find(|layer| layer.global)
+                .map_or(&self.variables, |layer| &layer.variables)
+        } else {
+            &self.variables
+        };
+        let cache = bindings.names_cache.get_or_init(Arc::default);
+        let mut state = cache.0.lock().unwrap_or_else(|error| error.into_inner());
+        if refresh && state.generation != bindings.generation {
+            let mut value = Vec::new();
+            for name in bindings
+                .order
+                .names()
+                .filter(|name| bindings.values.contains_key(*name))
+            {
+                if !value.is_empty() {
+                    push(&mut value, b" ")?;
+                }
+                push(&mut value, name)?;
+            }
+            state.value = value;
+            state.generation = bindings.generation;
+        }
+        Ok(state.value.clone())
+    }
+
+    /// GNU's legacy switch variable excludes command overrides and retains
+    /// recursive make-dollar quoting. File/CLI definitions keep their priority.
+    pub fn update_mflags(
+        &mut self,
+        flags: &[u8],
+        environment_override: bool,
+    ) -> Result<(), ExpandError> {
+        let value = if let Some(complex) = flags.strip_prefix(b" ") {
+            complex.to_vec()
+        } else if flags.is_empty() {
+            Vec::new()
+        } else {
+            [b"-".as_slice(), flags].concat()
+        };
+        self.define(
+            b"MFLAGS",
+            &value,
+            Assignment::Recursive,
+            if environment_override {
+                Origin::EnvironmentOverride
+            } else {
+                Origin::Environment
+            },
+        )
     }
 
     /// Preserve startup table occupancy independently of metadata surfaces that
@@ -992,6 +1101,18 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
+        if matches!(assignment, Assignment::Append | Assignment::Conditional)
+            && self
+                .variables
+                .get(name)
+                .is_some_and(|variable| variable.scope.variable_names)
+        {
+            let value = self.variable_names(true)?;
+            Arc::make_mut(&mut self.variables)
+                .get_mut(name)
+                .expect("special binding")
+                .value = value;
+        }
         if assignment == Assignment::Conditional && self.get(name).is_some() {
             return Ok(());
         }
@@ -1394,6 +1515,12 @@ impl PatternVariable {
         } else {
             value.to_vec()
         };
+        if globals
+            .get(name)
+            .is_some_and(|variable| variable.scope.variable_names)
+        {
+            globals.variable_names(true)?;
+        }
         if origin != Origin::Override
             && let Some(global) = globals.get(name)
             && matches!(
@@ -1545,6 +1672,13 @@ impl TargetScope {
             return Err(ExpandError::EmptyVariableName);
         }
         let mut scope = self.context(globals);
+        if assignment == Assignment::Conditional
+            && scope
+                .get(name)
+                .is_some_and(|variable| variable.scope.variable_names)
+        {
+            globals.variable_names(true)?;
+        }
         if assignment == Assignment::Conditional && scope.get(name).is_some() {
             // GNU's suppressed conditional returns the existing binding itself.
             // Qualifiers can consequently mutate even global binding metadata.
@@ -1566,6 +1700,12 @@ impl TargetScope {
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
+        if globals
+            .get(name)
+            .is_some_and(|variable| variable.scope.variable_names)
+        {
+            globals.variable_names(true)?;
+        }
         if let Some(global) = globals.get(name)
             && matches!(
                 global.origin,
@@ -1885,6 +2025,16 @@ impl Expansion<'_, '_> {
         } else {
             return Ok(Vec::new());
         };
+        if variable.scope.variable_names {
+            let value = self.store.variable_names(true)?;
+            if variable.flavor == Flavor::Simple {
+                return Ok(value);
+            }
+            let mut dynamic = variable.clone();
+            dynamic.scope.variable_names = false;
+            dynamic.value = value;
+            return self.selected_variable(name, &dynamic, layer);
+        }
         if variable.flavor == Flavor::Simple {
             // Simple values need neither definition context nor a temporary
             // owned binding. Copy their bytes once, directly from the store.
@@ -1900,6 +2050,16 @@ impl Expansion<'_, '_> {
         variable: &Variable,
         layer: Option<usize>,
     ) -> Result<Vec<u8>, ExpandError> {
+        if variable.scope.variable_names {
+            let value = self.store.variable_names(true)?;
+            if variable.flavor == Flavor::Simple {
+                return Ok(value);
+            }
+            let mut dynamic = variable.clone();
+            dynamic.scope.variable_names = false;
+            dynamic.value = value;
+            return self.selected_variable(name, &dynamic, layer);
+        }
         if variable.flavor == Flavor::Simple {
             // Already-expanded values need no temporary definition context.
             return Ok(variable.value.clone());
@@ -1926,6 +2086,14 @@ impl Expansion<'_, '_> {
         layer: Option<usize>,
         depth: usize,
     ) -> Result<Vec<u8>, ExpandError> {
+        if variable.scope.variable_names {
+            // Outer appends use the stored global value, without performing a
+            // second special lookup or refreshing its membership snapshot.
+            let mut dynamic = variable.clone();
+            dynamic.scope.variable_names = false;
+            dynamic.value = self.store.variable_names(false)?;
+            return self.expand_layer(name, &dynamic, layer, depth);
+        }
         if depth >= MAX_DEPTH {
             return Err(ExpandError::ExpansionLimit);
         }
@@ -2680,18 +2848,28 @@ impl Expansion<'_, '_> {
                 }
                 Ok(output)
             }
-            b"origin" => Ok(self
-                .lookup(first)
-                .map_or(b"undefined".as_slice(), |value| value.origin.name())
-                .to_vec()),
-            b"flavor" => Ok(match self.lookup(first).map(|value| value.flavor) {
-                None => b"undefined".to_vec(),
-                Some(Flavor::Recursive) => b"recursive".to_vec(),
-                Some(Flavor::Simple) => b"simple".to_vec(),
-            }),
-            b"value" => Ok(self
-                .lookup(first)
-                .map_or_else(Vec::new, |value| value.value.clone())),
+            b"origin" | b"flavor" | b"value" => {
+                let variable = self.lookup(first);
+                let special = variable.is_some_and(|variable| variable.scope.variable_names);
+                let dynamic = if special {
+                    Some(self.store.variable_names(true)?)
+                } else {
+                    None
+                };
+                match name {
+                    b"origin" => Ok(variable
+                        .map_or(b"undefined".as_slice(), |value| value.origin.name())
+                        .to_vec()),
+                    b"flavor" => Ok(match variable.map(|value| value.flavor) {
+                        None => b"undefined".to_vec(),
+                        Some(Flavor::Recursive) => b"recursive".to_vec(),
+                        Some(Flavor::Simple) => b"simple".to_vec(),
+                    }),
+                    _ => Ok(dynamic.unwrap_or_else(|| {
+                        variable.map_or_else(Vec::new, |value| value.value.clone())
+                    })),
+                }
+            }
             b"abspath" => {
                 let directory = self.store.working_directory.as_deref().ok_or_else(|| {
                     ExpandError::Unsupported(b"abspath without invocation directory".to_vec())
@@ -6142,5 +6320,81 @@ mod environment_order_tests {
         store.set_export_policy(b"MFLAGS", Some(false));
         assert!(store.environment_order(|_, _| false).is_empty());
         assert_eq!(store.get(b"MFLAGS").unwrap().raw_value(), b"user");
+    }
+}
+
+#[cfg(test)]
+mod variable_names_tests {
+    use super::*;
+
+    #[test]
+    fn membership_cache_isolated_across_copy_on_write_snapshots() {
+        let mut original = VariableStore::new();
+        original.enable_variable_names().unwrap();
+        original.define_literal(b"A", b"one", Origin::File).unwrap();
+        let before = original.expand(b"$(.VARIABLES)").unwrap();
+        let mut changed = original.clone();
+        changed.define_literal(b"B", b"two", Origin::File).unwrap();
+        assert_eq!(original.expand(b"$(.VARIABLES)").unwrap(), before);
+        let members = changed.expand(b"$(.VARIABLES)").unwrap();
+        assert!(words(&members).any(|word| word == b"B"));
+        changed
+            .define(
+                b".VARIABLES",
+                b"custom",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        assert_eq!(changed.expand(b"$(.VARIABLES)").unwrap(), b"custom");
+        assert_eq!(original.expand(b"$(.VARIABLES)").unwrap(), before);
+    }
+
+    #[test]
+    fn recursive_metadata_effects_repeat_until_membership_invalidates_raw_value() {
+        let mut variables = VariableStore::new();
+        variables.enable_variable_names().unwrap();
+        variables.expand(b"$(.VARIABLES)").unwrap();
+        variables
+            .define(
+                b".VARIABLES",
+                b"$(info effect)value",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        let mut emitted = Vec::new();
+        let mut output = |event: Output<'_>| {
+            if let Output::Info(bytes) = event {
+                emitted.push(bytes.to_vec());
+            }
+        };
+        for _ in 0..2 {
+            assert_eq!(
+                variables
+                    .expand_mut_with(b"$(.VARIABLES)", ExpansionContext::new(None, &mut output))
+                    .unwrap(),
+                b"value"
+            );
+        }
+        assert_eq!(emitted, [b"effect".to_vec(), b"effect".to_vec()]);
+        variables.define_literal(b"NEW", b"", Origin::File).unwrap();
+        assert!(words(&variables.expand(b"$(.VARIABLES)").unwrap()).any(|word| word == b"NEW"));
+    }
+
+    #[test]
+    fn automatic_scope_names_are_excluded_from_global_metadata() {
+        let mut globals = VariableStore::new();
+        globals.enable_variable_names().unwrap();
+        globals
+            .define_literal(b"GLOBAL", b"", Origin::File)
+            .unwrap();
+        let mut scoped = globals.with_target_scopes(&[]);
+        scoped
+            .define_literal(b"LOCAL", b"", Origin::Automatic)
+            .unwrap();
+        let names = scoped.expand(b"$(.VARIABLES)").unwrap();
+        assert!(words(&names).any(|word| word == b"GLOBAL"));
+        assert!(!words(&names).any(|word| word == b"LOCAL"));
     }
 }

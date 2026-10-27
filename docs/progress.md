@@ -2227,3 +2227,23 @@ remain research and compatibility/safety conflicts without conformance credit.
 Full sequential development and optimized acceptance and exact-head CI remain
 merge gates. [Payload notes](flag-payloads.md) record scope and provenance; the
 [M3/M6 audit](m3-m6-audit.md) explicitly retains the broader unresolved surfaces.
+
+## M6 variable introspection and legacy metadata
+
+Implement ordered global `.VARIABLES` membership and GNU's raw lookup-cache
+lifetime, including assignment flavors, membership invalidation, outer appends
+and isolated snapshots. Add scoped legacy `MFLAGS` updates and the missing
+default metadata bindings on the pinned profile. Built-in `GNUMAKEFLAGS`
+membership and post-read creation now follow their actual phases, superseding
+the preceding absent-binding description.
+
+Add 268 required independent cases and three Rust/tooling tests each. The corpus
+has 6,689 cases: 6,688 required and one pending; unit totals are 430 Rust and
+335 tooling. An additional GNU default-goal signal remains raw safety research,
+without conformance credit. An initial roughly 20% expansion regression was
+reduced to a roughly 3.1% higher median with single-search insertion and lazy
+cache allocation; other selected medians remain close to the preceding code.
+See [metadata notes](variable-metadata.md) for behavior, measurements and source
+provenance. Full development/optimized acceptance and exact-head CI remain merge
+gates. M3/M6, broader native/profile acceptance and general speed parity remain
+open.

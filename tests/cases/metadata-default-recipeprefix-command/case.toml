@@ -1,0 +1,12 @@
+id = "metadata-default-recipeprefix-command"
+requirement = "variables.metadata"
+candidate = "required"
+args = ["-rR", "--no-print-directory", ".RECIPEPREFIX=cli"]
+timeout_seconds = 10
+description = "Original GNU metadata values, ordered membership, scope, assignment or cache-lifetime regression."
+provenance = "Independently authored Makefile, two exact GNU Make 4.4.1 observations and final candidate comparison; source-informed semantics without upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6574613d5b636c695d2f636f6d6d616e64206c696e652f7265637572736976650a"
+stderr_hex = ""

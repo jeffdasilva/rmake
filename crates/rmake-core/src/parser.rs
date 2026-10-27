@@ -1705,6 +1705,18 @@ impl Database {
         Ok(Some(name))
     }
 
+    pub(crate) fn update_mflags(
+        &mut self,
+        flags: &[u8],
+        environment_override: bool,
+    ) -> Result<(), ExpandError> {
+        if let Some(scope) = &mut self.evaluation_scope {
+            scope.update_mflags(flags, environment_override)
+        } else {
+            self.variables.update_mflags(flags, environment_override)
+        }
+    }
+
     fn reset_assigned_flags(
         &mut self,
         origin: Origin,

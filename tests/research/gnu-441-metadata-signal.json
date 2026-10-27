@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "classification": "oracle metadata safety research; not passing conformance fixtures",
+  "oracle_version": "4.4.1",
+  "oracle_source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "oracle_sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+  "interpretation": "Undefining the special default-goal binding causes a GNU signal in these original bounded observations. The candidate owns its bindings and completes safely; this remains an explicit compatibility/safety conflict without equivalence credit.",
+  "records": [
+    {
+      "id": "metadata-default-default-goal-undef",
+      "classification": "upstream default-goal lifetime signal",
+      "inputs_hex": {
+        "Makefile": "756e646566696e65202e44454641554c545f474f414c0a2428696e666f206d6574613d5b242876616c7565202e44454641554c545f474f414c295d2f24286f726967696e202e44454641554c545f474f414c292f2428666c61766f72202e44454641554c545f474f414c29290a616c6c3a203b2040747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "oracle_runs": [
+        {
+          "stdout": "6d6574613d5b5d2f756e646566696e65642f756e646566696e65640a",
+          "stderr": "",
+          "status": -11,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "6d6574613d5b5d2f756e646566696e65642f756e646566696e65640a",
+          "stderr": "",
+          "status": -11,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "candidate": {
+        "stdout": "6d6574613d5b5d2f756e646566696e65642f756e646566696e65640a",
+        "stderr": "",
+        "status": 0,
+        "limit": null,
+        "leftovers": false
+      }
+    }
+  ]
+}
