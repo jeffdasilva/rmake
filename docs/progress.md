@@ -2166,3 +2166,31 @@ candidate and preceding-main binaries with 101 alternating samples per engine.
 The candidate remains close to its predecessor; GNU remains faster on the three
 core workloads and slightly faster on the two parallel workloads. No general
 performance parity or cache acceleration claim follows from this milestone.
+
+## M3 export traversal and live environment effects
+
+Close the two historical export-order pending cases. GNU's environment table
+visits `B, A, C` and `Z, Y, X`, rather than lexical order. Add an owned name index
+with separate global/file/pattern histories, source-table traversal, collision
+and tombstone/growth behavior. Preserve lookup precedence and private binding
+selection while replaying automatic locals onto their file table for ordering.
+Recipe and shell environments share the model. Later values and policies remain
+live across earlier export eval effects; scoped export directives update the
+selected binding without changing unrelated globals.
+
+Add 263 required original fixtures, including fixed-key child values and exact
+journal observations, wrapped/growing collision boundaries and four built-in
+profiles. Promote the two previous cases. The corpus now has 5,689 cases: 5,683
+required and six pending. Add twelve independent info/warning matrix anchors
+(218 cells / 15 families), four Rust regressions (421 total), and two tooling
+regressions (326 total). Development and optimized full acceptance remain the
+merge gates. CI gets a sixty-minute ceiling for the growing combined suite.
+
+An initial eager implementation regressed the selected expansion workload about
+15%. Lazy realization, shared owned keys, single-search insertion and shared
+empty copy-on-write bindings removed that regression. The final 101-sample
+comparison records 4.669 ms current / 4.659 ms preceding main / 2.823 ms GNU on
+5,000 expansions; the other selected workloads stay close to preceding main.
+These are synthetic, unisolated observations, not general performance parity.
+See [export traversal](export-order.md) for measurements, provenance and remaining
+metadata/environment-vector boundaries. M3 and M6 remain open.

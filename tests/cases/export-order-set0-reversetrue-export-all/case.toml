@@ -1,0 +1,12 @@
+id = "export-order-set0-reversetrue-export-all"
+requirement = "variables.environment"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+description = "Original export traversal, collision/growth, scope, effect timing and child-value regression."
+provenance = "Independently authored Makefile and child/journal observer; exact GNU Make 4.4.1 observations checked twice, with no upstream implementation or tests incorporated."
+
+[expected]
+exit_code = 0
+stdout_hex = "453a420a453a410a453a430a56414c5545533a7b2241223a2241222c2242223a2242222c2243223a2243227d0a4a4f55524e414c3a3432306134313061343330610a"
+stderr_hex = ""

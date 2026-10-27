@@ -300,6 +300,56 @@ fn merge_child(outcome: &mut Outcome, child: Outcome) {
     outcome.question_outdated |= child.question_outdated;
 }
 
+fn export_selected(
+    environment: &VariableStore,
+    globals: &VariableStore,
+    unexports: &HashSet<Vec<u8>>,
+    name: &[u8],
+    export_all: bool,
+) -> bool {
+    environment.resolve_export_policy(name).unwrap_or_else(|| {
+        let default_export = || {
+            automatic_export_name(name)
+                && environment.get(name).is_some_and(|variable| {
+                    !matches!(variable.origin(), Origin::Default | Origin::Automatic)
+                        && (export_all
+                            || matches!(
+                                variable.origin(),
+                                Origin::Environment
+                                    | Origin::EnvironmentOverride
+                                    | Origin::CommandLine
+                            ))
+                })
+        };
+        if globals
+            .get(name)
+            .is_some_and(|variable| variable.export_default_reset())
+        {
+            // A pattern conditional can explicitly reset an
+            // imported name's policy. Re-evaluate default
+            // eligibility from the selected binding instead
+            // of retaining the startup name-list decision.
+            return default_export();
+        }
+        if globals
+            .get(name)
+            .is_some_and(|variable| variable.is_private())
+        {
+            // A suppressed private conditional can mark the
+            // global binding private. Its export policy is then
+            // hidden too; export-all still applies independently
+            // to an unrelated visible target binding.
+            export_all
+                && automatic_export_name(name)
+                && environment.get(name).is_some_and(|variable| {
+                    !matches!(variable.origin(), Origin::Default | Origin::Automatic)
+                })
+        } else {
+            !unexports.contains(name) && default_export()
+        }
+    })
+}
+
 fn automatic_export_name(name: &[u8]) -> bool {
     name.first()
         .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
@@ -652,6 +702,16 @@ impl Engine {
         }
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
+        database.variables.reserve_environment_layout(
+            &[
+                b".VARIABLES",
+                b".RECIPEPREFIX",
+                b".SHELLFLAGS",
+                b".LOADED",
+                b".FEATURES",
+            ],
+            false,
+        );
         for goal in &options.goals {
             database.file_records.insert(goal);
         }
@@ -707,6 +767,12 @@ impl Engine {
         }
         database.file_records.insert(b".DEFAULT");
         define_automatic_variants(&mut database.variables).map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .reserve_environment_layout(&[b"MAKE_HOST", b".DEFAULT_GOAL"], false);
+        database
+            .variables
+            .reserve_environment_layout(&[b"MFLAGS"], true);
         database
             .variables
             .define_literal(b"MAKEFILES", b"", Origin::Default)
@@ -6047,60 +6113,34 @@ impl Engine {
                         exports.insert(name.to_vec());
                     }
                 }
+                let eligible: HashSet<Vec<u8>> = exports
+                    .iter()
+                    .filter(|name| {
+                        export_selected(
+                            &environment_variables,
+                            &self.database.variables,
+                            &self.database.unexports,
+                            name,
+                            export_all,
+                        )
+                    })
+                    .cloned()
+                    .collect();
+                for name in exports.iter().filter(|name| !eligible.contains(*name)) {
+                    child.env_remove(os(name));
+                }
+                let exports =
+                    environment_variables.environment_order(|name, _| eligible.contains(name));
                 for name in &exports {
-                    if !environment_variables
-                        .resolve_export_policy(name)
-                        .unwrap_or_else(|| {
-                            let default_export = || {
-                                automatic_export_name(name)
-                                    && environment_variables.get(name).is_some_and(|variable| {
-                                        !matches!(
-                                            variable.origin(),
-                                            Origin::Default | Origin::Automatic
-                                        ) && (export_all
-                                            || matches!(
-                                                variable.origin(),
-                                                Origin::Environment
-                                                    | Origin::EnvironmentOverride
-                                                    | Origin::CommandLine
-                                            ))
-                                    })
-                            };
-                            if self
-                                .database
-                                .variables
-                                .get(name)
-                                .is_some_and(|variable| variable.export_default_reset())
-                            {
-                                // A pattern conditional can explicitly reset an
-                                // imported name's policy. Re-evaluate default
-                                // eligibility from the selected binding instead
-                                // of retaining the startup name-list decision.
-                                return default_export();
-                            }
-                            if self
-                                .database
-                                .variables
-                                .get(name)
-                                .is_some_and(|variable| variable.is_private())
-                            {
-                                // A suppressed private conditional can mark the
-                                // global binding private. Its export policy is then
-                                // hidden too; export-all still applies independently
-                                // to an unrelated visible target binding.
-                                export_all
-                                    && automatic_export_name(name)
-                                    && environment_variables.get(name).is_some_and(|variable| {
-                                        !matches!(
-                                            variable.origin(),
-                                            Origin::Default | Origin::Automatic
-                                        )
-                                    })
-                            } else {
-                                !self.database.unexports.contains(name) && default_export()
-                            }
-                        })
-                    {
+                    variables.refresh_globals(&self.database.variables);
+                    let environment_variables = variables.for_environment();
+                    if !export_selected(
+                        &environment_variables,
+                        &self.database.variables,
+                        &self.database.unexports,
+                        name,
+                        export_all,
+                    ) {
                         child.env_remove(os(name));
                         continue;
                     }

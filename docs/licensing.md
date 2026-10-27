@@ -194,3 +194,7 @@ stream interruption, synthetic completion and the original PTY/lock campaigns.
 The [runtime flag notes](runtime-flags.md) record reader/variable/option and
 jobserver references used for independently authored immediate option effects,
 post-read replay, restart restoration and original protocol fixtures.
+
+The [export-order notes](export-order.md) identify variable/environment and hash
+references used for the independently authored owned traversal index, deferred
+realization, scoped policy follow-up, original fixtures and diagnostic anchors.

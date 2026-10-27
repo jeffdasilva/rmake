@@ -10,8 +10,8 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
@@ -424,18 +424,92 @@ impl fmt::Display for ExpandError {
 
 impl std::error::Error for ExpandError {}
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
+struct Bindings {
+    values: BTreeMap<Arc<[u8]>, Variable>,
+    order: crate::variable_order::NameOrder,
+    reserved_exports: Vec<Vec<u8>>,
+}
+impl Default for Bindings {
+    fn default() -> Self {
+        Self::new(1024)
+    }
+}
+impl Bindings {
+    fn new(size: usize) -> Self {
+        Self {
+            values: BTreeMap::new(),
+            order: crate::variable_order::NameOrder::deferred(size, size < 1024),
+            reserved_exports: Vec::new(),
+        }
+    }
+    fn insert(&mut self, name: &[u8], variable: Variable) {
+        match self.values.entry(name.into()) {
+            std::collections::btree_map::Entry::Occupied(mut entry) => {
+                entry.insert(variable);
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                self.order.insert_owned(entry.key().clone());
+                entry.insert(variable);
+            }
+        }
+    }
+    fn remove(&mut self, name: &[u8]) -> Option<Variable> {
+        let value = self.values.remove(name);
+        self.order.remove(name);
+        value
+    }
+    fn get_mut(&mut self, name: &[u8]) -> Option<&mut Variable> {
+        self.values.get_mut(name)
+    }
+}
+impl std::ops::Deref for Bindings {
+    type Target = BTreeMap<Arc<[u8]>, Variable>;
+    fn deref(&self) -> &Self::Target {
+        &self.values
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct VariableStore {
-    variables: Arc<BTreeMap<Vec<u8>, Variable>>,
+    variables: Arc<Bindings>,
     layers: Vec<VariableLayer>,
     working_directory: Option<Arc<[u8]>>,
     environment_override: bool,
     scoped: bool,
+    file_locals: bool,
+}
+
+impl Default for VariableStore {
+    fn default() -> Self {
+        Self {
+            variables: empty_bindings(1024),
+            layers: Vec::new(),
+            working_directory: None,
+            environment_override: false,
+            scoped: false,
+            file_locals: false,
+        }
+    }
+}
+
+fn empty_bindings(size: usize) -> Arc<Bindings> {
+    static GLOBAL: OnceLock<Arc<Bindings>> = OnceLock::new();
+    static FILE: OnceLock<Arc<Bindings>> = OnceLock::new();
+    static PATTERN: OnceLock<Arc<Bindings>> = OnceLock::new();
+    let slot = match size {
+        1024 => &GLOBAL,
+        32 => &FILE,
+        16 => &PATTERN,
+        _ => unreachable!("scope size"),
+    };
+    slot.get_or_init(|| Arc::new(Bindings::new(size))).clone()
 }
 
 #[derive(Clone, Debug)]
 struct VariableLayer {
-    variables: Arc<BTreeMap<Vec<u8>, Variable>>,
+    file_locals: bool,
+    variables: Arc<Bindings>,
     inherited: bool,
     global: bool,
     pattern: bool,
@@ -443,10 +517,19 @@ struct VariableLayer {
 
 /// Bindings attached to a target or pattern, independent of build rules.
 /// Clones share immutable definitions; modifying a declaration uses copy on write.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct TargetScope {
-    variables: Arc<BTreeMap<Vec<u8>, Variable>>,
+    variables: Arc<Bindings>,
     pattern: bool,
+}
+
+impl Default for TargetScope {
+    fn default() -> Self {
+        Self {
+            variables: empty_bindings(32),
+            pattern: false,
+        }
+    }
 }
 
 /// One pattern declaration, prepared while reading and applied in specificity
@@ -465,6 +548,34 @@ pub struct PatternVariable {
 impl VariableStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Preserve startup table occupancy independently of metadata surfaces that
+    /// are not implemented yet. Reservations never define or advertise a value.
+    pub fn reserve_environment_layout(&mut self, names: &[&[u8]], exported: bool) {
+        let bindings = Arc::make_mut(&mut self.variables);
+        for name in names {
+            bindings.order.insert(name);
+            if exported && !bindings.reserved_exports.iter().any(|old| old == name) {
+                bindings.reserved_exports.push(name.to_vec());
+            }
+        }
+    }
+
+    pub(crate) fn set_scoped_export_policy(&self, name: &[u8], export: bool) -> bool {
+        let Some((index, variable)) = self.lookup_from(name, 0) else {
+            return false;
+        };
+        let global = if index == 0 {
+            !self.scoped
+        } else {
+            self.layers[index - 1].global
+        };
+        if global {
+            return false;
+        }
+        variable.scope.export.set(Some(export));
+        true
     }
 
     /// Set the actual invocation directory for `abspath`, independently of the
@@ -506,7 +617,7 @@ impl VariableStore {
                 variables.iter().filter_map(move |(name, value)| {
                     self.lookup_from(name, 0)
                         .is_some_and(|(selected, _)| selected == index)
-                        .then_some((name.as_slice(), value))
+                        .then_some((name.as_ref(), value))
                 })
             })
     }
@@ -584,6 +695,7 @@ impl VariableStore {
         for scope in scopes.iter().rev() {
             if !scope.variables.is_empty() {
                 layers.push(VariableLayer {
+                    file_locals: false,
                     variables: Arc::clone(&scope.variables),
                     inherited: false,
                     global: false,
@@ -593,6 +705,7 @@ impl VariableStore {
         }
         if !self.variables.is_empty() {
             layers.push(VariableLayer {
+                file_locals: self.file_locals,
                 variables: Arc::clone(&self.variables),
                 inherited: true,
                 global: !self.scoped,
@@ -600,6 +713,7 @@ impl VariableStore {
             });
         }
         layers.extend(self.layers.iter().map(|layer| VariableLayer {
+            file_locals: layer.file_locals,
             variables: Arc::clone(&layer.variables),
             inherited: true,
             global: layer.global,
@@ -608,15 +722,16 @@ impl VariableStore {
         Self {
             // Empty local maps can share storage. Definitions use Arc::make_mut
             // so writes in one target still leave parents and siblings intact.
-            variables: if self.variables.is_empty() {
+            variables: if self.file_locals && self.variables.is_empty() {
                 Arc::clone(&self.variables)
             } else {
-                Arc::default()
+                empty_bindings(32)
             },
             layers,
             working_directory: self.working_directory.clone(),
             environment_override: false,
             scoped: true,
+            file_locals: true,
         }
     }
 
@@ -633,6 +748,7 @@ impl VariableStore {
             self.layers.insert(
                 0,
                 VariableLayer {
+                    file_locals: false,
                     variables: Arc::clone(&scope.variables),
                     inherited: false,
                     global: false,
@@ -658,6 +774,7 @@ impl VariableStore {
         }
         if !found && !globals.variables.is_empty() {
             self.layers.push(VariableLayer {
+                file_locals: false,
                 variables: Arc::clone(&globals.variables),
                 inherited: true,
                 global: true,
@@ -677,6 +794,62 @@ impl VariableStore {
             }
         }
         environment
+    }
+
+    /// Environment construction has its own ordered table. Non-global scopes
+    /// reserve a name even when it is not exported, while globals only reserve
+    /// eligible exports. Keep this independent from lookup and .VARIABLES order.
+    pub fn environment_order(
+        &self,
+        mut exported: impl FnMut(&[u8], &Variable) -> bool,
+    ) -> Vec<Vec<u8>> {
+        use crate::variable_order::NameOrder;
+        let mut sources = vec![(&*self.variables, !self.scoped, self.file_locals, false)];
+        sources.extend(self.layers.iter().map(|layer| {
+            (
+                &*layer.variables,
+                layer.global,
+                layer.file_locals,
+                layer.pattern,
+            )
+        }));
+        let mut table = NameOrder::new(1024, false);
+        let mut index = 0;
+        while index < sources.len() {
+            let (bindings, global, locals, _) = sources[index];
+            let paired = locals
+                && sources
+                    .get(index + 1)
+                    .is_some_and(|(_, global, locals, pattern)| !global && !locals && !pattern);
+            let merged = paired.then(|| {
+                let mut order = sources[index + 1].0.order.clone();
+                bindings.order.replay_into(&mut order);
+                order
+            });
+            let order = merged.as_ref().unwrap_or(&bindings.order);
+            for name in order.names() {
+                if global
+                    && bindings
+                        .reserved_exports
+                        .iter()
+                        .any(|reserved| reserved == name)
+                    && self.lookup_from(name, 0).is_none()
+                {
+                    table.insert(name);
+                    continue;
+                }
+                let Some((selected, variable)) = self.lookup_from(name, 0) else {
+                    continue;
+                };
+                if (selected == index || (paired && selected == index + 1))
+                    && (!global || exported(name, variable))
+                {
+                    table.insert(name);
+                }
+            }
+            index += 1 + usize::from(paired);
+        }
+        table.names().map(<[u8]>::to_vec).collect()
     }
 
     /// An unspecified local policy inherits the closest visible explicit one,
@@ -964,7 +1137,7 @@ impl VariableStore {
         if assignment != Assignment::Append {
             variable.scope.append_outer = false;
         }
-        Arc::make_mut(&mut self.variables).insert(name.to_vec(), variable);
+        Arc::make_mut(&mut self.variables).insert(name, variable);
         Ok(())
     }
 
@@ -992,7 +1165,7 @@ impl VariableStore {
             .get(name)
             .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
         Arc::make_mut(&mut self.variables).insert(
-            name.to_vec(),
+            name,
             Variable {
                 value: value.to_vec(),
                 flavor: Flavor::Simple,
@@ -1033,7 +1206,7 @@ impl VariableStore {
             .get(name)
             .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
         Arc::make_mut(&mut self.variables).insert(
-            name.to_vec(),
+            name,
             Variable {
                 value: combined,
                 flavor,
@@ -1251,10 +1424,10 @@ impl TargetScope {
     /// File-record merging retains bindings already present on the destination.
     pub fn merge_missing(&mut self, other: &Self) {
         let variables = Arc::make_mut(&mut self.variables);
-        for (name, value) in other.variables.iter() {
-            variables
-                .entry(name.clone())
-                .or_insert_with(|| value.clone());
+        for name in other.variables.order.names() {
+            if !variables.contains_key(name) {
+                variables.insert(name, other.variables.get(name).unwrap().clone());
+            }
         }
     }
 
@@ -1263,6 +1436,7 @@ impl TargetScope {
     pub fn context(&self, globals: &VariableStore) -> VariableStore {
         let mut context = globals.with_target_scopes(&[]);
         context.variables = Arc::clone(&self.variables);
+        context.file_locals = false;
         context
     }
 
@@ -1279,6 +1453,9 @@ impl TargetScope {
         prepared: &PatternVariable,
         context: ExpansionContext<'_>,
     ) -> Result<bool, ExpandError> {
+        if !self.pattern && self.variables.is_empty() {
+            self.variables = empty_bindings(16);
+        }
         self.pattern = true;
         let mut scope = self.context(globals);
         // Pattern initialization shares the global lookup boundary. A private
@@ -1305,7 +1482,7 @@ impl TargetScope {
                     .get(name)
                     .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
                 Arc::make_mut(&mut scope.variables).insert(
-                    name.to_vec(),
+                    name,
                     Variable {
                         value: prepared.value.clone(),
                         flavor: Flavor::Simple,
@@ -2057,14 +2234,36 @@ impl Expansion<'_, '_> {
             }
             _ => false,
         };
-        let names: Vec<_> = self
-            .store
-            .for_environment()
-            .definitions()
-            .map(|(name, variable)| (name.to_vec(), variable.clone()))
-            .collect();
+        let snapshot = self.store.for_environment();
+        let names = snapshot.environment_order(|name, variable| {
+            if name == b"SHELL" && variable.export_policy().is_none() {
+                return false;
+            }
+            let valid = name
+                .first()
+                .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
+                && name
+                    .iter()
+                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_');
+            self.store.resolve_export_policy(name).unwrap_or(
+                valid
+                    && (matches!(
+                        variable.origin,
+                        Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
+                    ) || (export_all
+                        && !matches!(variable.origin, Origin::Default | Origin::Automatic))),
+            )
+        });
+        let names = names
+            .into_iter()
+            .filter(|name| snapshot.get(name).is_some());
         let mut environment = Vec::new();
-        for (name, variable) in names {
+        for name in names {
+            let current = self.store.for_environment();
+            let Some(variable) = current.get(&name).cloned() else {
+                environment.push((name, None));
+                continue;
+            };
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
@@ -5892,5 +6091,56 @@ mod tests {
         assert_eq!(store.get(b"X").unwrap().raw_value(), b"original");
         assert_eq!(store.get(b"X").unwrap().flavor(), Flavor::Simple);
         assert_eq!(store.get(b"X").unwrap().origin(), Origin::File);
+    }
+}
+
+#[cfg(test)]
+mod environment_order_tests {
+    use super::*;
+
+    #[test]
+    fn runtime_export_directive_changes_the_selected_scope_only() {
+        let mut globals = VariableStore::new();
+        globals
+            .define_literal(b"C", b"global", Origin::File)
+            .unwrap();
+        globals.set_export_policy(b"C", Some(true));
+        let mut target = TargetScope::default();
+        target
+            .define_with(
+                &mut globals,
+                b"C",
+                b"local",
+                Assignment::Recursive,
+                Origin::File,
+                false,
+                Some(true),
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let current = globals.with_target_scopes(&[&target]);
+        assert!(current.set_scoped_export_policy(b"C", false));
+        assert_eq!(current.resolve_export_policy(b"C"), Some(false));
+        assert_eq!(globals.resolve_export_policy(b"C"), Some(true));
+        assert!(!globals.set_scoped_export_policy(b"C", false));
+        assert_eq!(globals.resolve_export_policy(b"C"), Some(true));
+    }
+
+    #[test]
+    fn layout_reservations_do_not_define_or_resurrect_metadata() {
+        let mut store = VariableStore::new();
+        store.reserve_environment_layout(&[b"MFLAGS"], true);
+        assert!(store.get(b"MFLAGS").is_none());
+        assert_eq!(store.definitions().count(), 0);
+        assert_eq!(store.environment_order(|_, _| false), [b"MFLAGS".to_vec()]);
+        store.remove(b"MFLAGS");
+        assert!(store.environment_order(|_, _| false).is_empty());
+        store
+            .define_literal(b"MFLAGS", b"user", Origin::File)
+            .unwrap();
+        store.set_export_policy(b"MFLAGS", Some(false));
+        assert!(store.environment_order(|_, _| false).is_empty());
+        assert_eq!(store.get(b"MFLAGS").unwrap().raw_value(), b"user");
     }
 }

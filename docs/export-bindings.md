@@ -66,8 +66,10 @@ goal. Valid assignment and qualified `undefine` forms still use their modifiers.
 Export behavior is still incomplete. Pending original fixtures retain these
 distinct gaps:
 
-- Additional directive grammar and ordering of effects from multiple exported
-  variables require compatibility work.
+- Additional directive grammar and full special-variable/environment-vector
+  surfaces require compatibility work. The [export-order follow-up](export-order.md)
+  implements multi-variable effect traversal, collision/growth history and live
+  eval eligibility; its two historical pending cases are now required.
 
 The later [directive-whitespace slice](directive-whitespace.md) recognizes the
 vertical-tab keyword boundary. The [rule-warning slice](rule-warnings.md) resolves

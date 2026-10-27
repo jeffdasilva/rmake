@@ -21,7 +21,10 @@ compatibility, broad runtime/profile acceptance and general speed parity remain
 future milestones.
 
 The next active work is the remaining M3 language gaps and M6 compatibility
-surfaces. [Fatal continuations](fatal-continuations.md) close the original
+surfaces. [Export traversal](export-order.md) now closes the two historical
+export-order pending cases, with collision/growth, scope and live-eval evidence.
+Six existing curated gaps remain outside M4/M5; the broader M3/M6 inventory is
+still incomplete. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
 is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
 controlled development and optimized gates. [Cooperative interruption and synthetic completion](runtime-cancellation.md)

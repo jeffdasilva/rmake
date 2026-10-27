@@ -15,4 +15,5 @@ pub mod filenames;
 pub mod implicit;
 pub mod parser;
 pub mod reader;
+mod variable_order;
 pub mod variables;

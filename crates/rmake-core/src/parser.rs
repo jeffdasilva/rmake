@@ -3168,6 +3168,13 @@ impl Database {
     }
 
     fn set_export(&mut self, name: Vec<u8>, export: bool) {
+        if self
+            .evaluation_scope
+            .as_ref()
+            .is_some_and(|scope| scope.set_scoped_export_policy(&name, export))
+        {
+            return;
+        }
         self.variables.set_export_policy(&name, Some(export));
         if export {
             self.unexports.remove(&name);

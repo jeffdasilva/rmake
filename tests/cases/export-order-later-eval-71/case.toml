@@ -1,0 +1,12 @@
+id = "export-order-later-eval-71"
+requirement = "variables.environment"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+description = "Original export traversal, collision/growth, scope, effect timing and child-value regression."
+provenance = "Independently authored Makefile and child/journal observer; exact GNU Make 4.4.1 observations checked twice, with no upstream implementation or tests incorporated."
+
+[expected]
+exit_code = 0
+stdout_hex = "420a410a56414c5545533a7b2241223a2261222c2242223a2262222c2243223a6e756c6c7d0a4a4f55524e414c3a616273656e740a"
+stderr_hex = ""

@@ -4,8 +4,9 @@
 """Original byte-exact info/warning function matrix against GNU Make 4.4.1.
 
 Every cell has authored output, status, and complete filesystem expectations.
-The programs were created independently without inspecting GNU implementation
-source or tests. Only trusted, bounded fixtures run here; process containment
+The initial programs were created independently without inspecting GNU source
+or tests. The export-order extension uses verified variable/hash source references,
+with original programs and byte/status/filesystem anchors. Only trusted, bounded fixtures run here; process containment
 is not a filesystem or network security sandbox.
 """
 from __future__ import annotations
@@ -30,7 +31,7 @@ PROTECTED = b"Original diagnostic-effect campaign anchor.\n"
 LIMITATIONS = [
     "trusted fixed inputs; process containment is not a security sandbox",
     "single invocation, serial recipes, timestamps not compared",
-    "multiple-export traversal and effect-bearing MAKEFLAGS/GNUMAKEFLAGS excluded; curated pending cases retain these boundaries",
+    "fixed matrix; collision/growth and option-replay interactions have additional curated fixtures",
     "fixed info/warning examples, not exhaustive expansion compatibility",
 ]
 
@@ -293,6 +294,17 @@ def inventory() -> tuple[Cell, ...]:
         'mixed-fatal-order', source,
         b'before\nMakefile:2: middle\nMakefile:3: *** stopped.  Stop.\n', status=2, merged=True,
     ))
+    # Independently authored traversal anchors; do not sort observed output.
+    for names, ordered in (([b"A", b"B", b"C"], [b"B", b"A", b"C"]),
+                           ([b"Z", b"X", b"Y"], [b"Z", b"Y", b"X"])):
+        for prefix in (b"", b"all: ", b"a%: "):
+            for kind in (b"info", b"warning"):
+                source = b"".join(prefix + b"export " + name + b" = " + expr(kind, name) + b"value\n"
+                                  for name in names) + tail
+                emitted = b"".join(message(kind, name, names.index(name) + 1) for name in ordered)
+                cases.append(spec('export-traversal', source,
+                                  emitted if kind == b"info" else b"",
+                                  emitted if kind == b"warning" else b""))
     return tuple(
         dataclasses.replace(cell, case_id=f"message-{index:03d}-{cell.family}")
         for index, cell in enumerate(cases)

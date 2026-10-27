@@ -1,0 +1,12 @@
+id = "export-order-fatal-b"
+requirement = "variables.environment"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+description = "Original export traversal, collision/growth, scope, effect timing and child-value regression."
+provenance = "Independently authored Makefile and child/journal observer; exact GNU Make 4.4.1 observations checked twice, with no upstream implementation or tests incorporated."
+
+[expected]
+exit_code = 2
+stdout_hex = "453a420a"
+stderr_hex = "4d616b6566696c653a343a202a2a2a2073746f702d422e202053746f702e0a"
