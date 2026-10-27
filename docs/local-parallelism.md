@@ -2,8 +2,9 @@
 
 `-jN`, `--jobs=N`, `-j` and `-j1` are accepted. Independent targets with complete
 multi-command recipes can run concurrently. The interpreter owns all variable, rule,
-filesystem-cache and graph state; workers own only prepared child commands and
-report completion through a channel. A target is reserved once, including shared
+filesystem-cache, graph and continuation state. The Linux runtime owns each child
+and uses process readiness to wake the interpreter; no waiter thread is created
+for each command. A target is reserved once, including shared
 prerequisites and multiple command-line goals. Dependents wait for completion and
 use the completed timestamp and status. Failed and ignored jobs retain their
 recipe diagnostics and deletion policy; outstanding children are reaped before
@@ -13,10 +14,11 @@ An empty `.NOTPARALLEL` forces serial execution. Named `.NOTPARALLEL` targets
 serialize their prerequisites. One-shell scripts, ordinary multi-command recipes
 and recursive invocations can run concurrently. Each target retains a slot until
 its complete recipe finishes. Interpreter-owned continuations keep the expanded
-command queue, target variables, automatic variables, export snapshot, stdin
-ownership and recipe flow. A successful or ignored child resumes that state; an
+command queue, target variables, automatic variables, export snapshot and recipe
+flow. Stdin ownership is assigned to each actual child command. A successful or ignored child resumes that state; an
 unignored failure stops the target. Already-running targets finish their queued
-commands after another target fails. Workers still own only one prepared command.
+commands after another target fails. Fatal signals cancel those continuations;
+see [signal shutdown](runtime-signals.md) for controlled cleanup and token recovery.
 Shared FIFO and pipe jobservers are implemented; see [jobservers](jobserver.md)
 for cross-engine validation and remaining scheduler boundaries.
 
@@ -26,7 +28,7 @@ clearing MAKEOVERRIDES stops command-line-origin transport. Inherited scheduling
 joins the parent's shared pool, including GNU parents/children. Explicit child job
 options reset that mode. Unavailable inherited servers fall back to serial.
 General expression evaluation in imported MAKEFLAGS, output synchronization
-and complete signal behavior remain follow-up work. [Linux load limits](load-limits.md)
+and broader interruption/effect combinations remain follow-up work. [Linux load limits](load-limits.md)
 and per-child stdin handoff are implemented with controlled runtime gates.
 
 The initial local-pool validation added 28 original differential fixtures and promotes five existing

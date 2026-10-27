@@ -14,9 +14,9 @@ launch failures and unignored errors release held permits. Token return errors
 are reported. The original acquired byte is returned, supporting external
 clients whose tokens have distinct byte values.
 
-The interpreter owns pool decisions and permits. Workers own prepared commands
-and release their server references before reporting completion, so process exit
-cannot race final FIFO cleanup against worker teardown. Owned FIFOs have private
+The interpreter owns pool decisions and permits. Each command has one owned
+child and one reaper. Child readiness and token availability wake a Linux event
+loop; no waiter-thread/server-reference teardown can race final FIFO cleanup. Owned FIFOs have private
 permissions, are never created over existing files, and are unlinked only while
 the path still identifies the created FIFO. Borrowed resources are not unlinked.
 FIFO authentication rejects regular files and symlinks without writing to them.
@@ -29,9 +29,9 @@ flags shared with GNU clients. All unsafe operations remain inside the reviewed
 Linux effect adapter; the application and semantic crates keep `unsafe_code =
 forbid`. Pipe mode requires procfs. Very large requested pools can fail when token
 initialization exceeds available pipe capacity; they cannot block initialization
-indefinitely. External token availability is checked within 5 ms while local job
-completions wake immediately; this is an optimization opportunity, not a claim
-of scheduler performance parity.
+indefinitely. External token availability and child completion are polled together,
+so normal token return has no fixed polling delay. Kernels without pidfd support
+retain uniquely owned children and use a bounded readiness fallback.
 
 `make test-jobserver` runs the original mixed-engine campaign and is part of CI.
 Three repetitions cover FIFO and pipe transports, all four GNU/rmake parent/child
@@ -55,11 +55,12 @@ symlinks, regular files and recursive descriptor lifetime; a CLI test covers
 transport/reset decoding. Three tooling tests protect independent campaign
 anchors. The corpus now has 2,116 cases: 2,103 required and 13 pending.
 
-Full GNU compatibility remains unfinished. Complete interrupt/signal forwarding,
-interrupted-target cleanup and exit signaling and output synchronization still
-need work. [Load limits and stdin leases](load-limits.md) now have controlled gates. This slice does not claim signal-safe token
-recovery on process termination. The tracked fatal-resumption GNU diagnostic
-mismatch also remains pending; its FIFO leak is not reproduced.
+[Signal shutdown](runtime-signals.md) now covers forwarding, changed-target
+cleanup, cancelled continuations and exit-signal identity. Borrowed FIFO/pipe
+campaigns check all original token bytes and resource identity during active,
+load-queued and token-blocked shutdown. GNU 4.4.1 loses acquired borrowed tokens
+on fatal exit; rmake deliberately returns them. Output synchronization and
+broader dynamic interruption combinations still need their full M5 gates.
 
 Incoming pipe authentication also verifies that the reopened read and write
 ends identify the same FIFO/pipe object before changing inherited FD flags or

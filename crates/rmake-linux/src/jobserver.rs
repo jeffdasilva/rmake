@@ -7,7 +7,7 @@
 use std::ffi::{CString, c_char, c_int, c_uint};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::process::CommandExt;
@@ -244,6 +244,24 @@ impl Jobserver {
             }
         }
         Ok(server)
+    }
+
+    pub fn readiness(&self) -> BorrowedFd<'_> {
+        self.0.reader.as_fd()
+    }
+
+    /// Release the owned pathname during fatal shutdown; open descriptors and
+    /// permits remain valid so outstanding borrowed token bytes can be returned.
+    pub fn unlink_owned(&self) {
+        if let Some((path, device, inode)) = &self.0.created
+            && fs::symlink_metadata(path).is_ok_and(|metadata| {
+                metadata.file_type().is_fifo()
+                    && metadata.dev() == *device
+                    && metadata.ino() == *inode
+            })
+        {
+            let _ = fs::remove_file(path);
+        }
     }
 
     pub fn auth(&self) -> &[u8] {

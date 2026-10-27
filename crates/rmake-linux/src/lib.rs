@@ -16,6 +16,11 @@ pub mod jobserver;
 
 #[allow(unsafe_code)]
 pub mod process;
+
+#[allow(unsafe_code)]
+pub mod child;
+#[allow(unsafe_code)]
+pub mod signals;
 mod wildcard;
 
 // Preserve incremental reads, dot entries, errno and descriptor ownership.

@@ -1,0 +1,12 @@
+id = "runtime-child-signal-15-j1-ignored"
+requirement = "runtime.signals"
+candidate = "required"
+description = "Original child-only Linux signal status, libc diagnostic, ignore policy, and changed-target cleanup probe."
+provenance = "Independently authored original Makefile and helper; kernel core dumping explicitly disabled."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "continued\n"
+stderr = "make: [Makefile:3: out] Terminated (ignored)\n"

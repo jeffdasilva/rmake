@@ -23,6 +23,8 @@ pub enum Cleanup {
     None,
     /// A launched child failed: .DELETE_ON_ERROR and changed mtime are required.
     ChangedOnError,
+    /// A signal removes changed targets even without .DELETE_ON_ERROR.
+    ChangedOnSignal,
     /// A continuation stopped after target completion marked it synthetic-new.
     /// GNU consequently removes even unchanged regular files on this path.
     ExistingAfterContinuation,

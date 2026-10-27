@@ -20,6 +20,13 @@ mod recipe_flow;
 mod shell;
 
 fn main() -> ExitCode {
+    let signals = match rmake_linux::signals::Guard::install() {
+        Ok(guard) => guard,
+        Err(error) => {
+            eprintln!("rmake: signal setup: {error}");
+            return ExitCode::from(2);
+        }
+    };
     let mut args = std::env::args_os();
     let invocation = args.next().unwrap_or_else(|| "rmake".into());
     let program = cli::invocation_name(&invocation);
@@ -60,20 +67,20 @@ fn main() -> ExitCode {
         println!("  -l[LOAD]   Limit parallel launches by Linux runnable load");
         println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
         println!("\nDevelopment build: GNU Make compatibility is incomplete.");
-        println!(
-            "Archive rules, output synchronization and complete signal handling remain unfinished."
-        );
+        println!("Output synchronization and complete runtime compatibility remain unfinished.");
         return ExitCode::SUCCESS;
     }
-    match engine::Engine::new(options, program.clone(), &invocation) {
-        Ok(engine) => ExitCode::from(engine.run()),
+    let status = match engine::Engine::new(options, program.clone(), &invocation) {
+        Ok(engine) => engine.run(),
         Err(message) => {
             let mut stderr = io::stderr().lock();
             let _ = stderr.write_all(&program);
             let _ = stderr.write_all(b": *** ");
             let _ = stderr.write_all(message.as_bytes());
             let _ = stderr.write_all(b".  Stop.\n");
-            ExitCode::from(2)
+            2
         }
-    }
+    };
+    drop(signals);
+    ExitCode::from(rmake_linux::signals::exit_status(status))
 }

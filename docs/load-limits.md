@@ -21,7 +21,10 @@ is rewound and reread for each observation. Interrupted operations retry; invali
 or failed observations select libc's load average with recent-launch pressure.
 Repeated fallback errors report once per error number. No load observation is
 reused after a child or scheduling decision as a supposedly permanent fact.
-Load changes alone do not wake a child wait; a scheduling event retries the queue.
+Load changes alone do not wake an ordinary child wait. A blocked jobserver wait
+with load-delayed recipes has GNU's one-second retry; token arrival still wakes
+immediately. A controlled wait-entry load transition proves this retry rather
+than relying on a host load change or a completion sleep.
 
 Stdin belongs to one child command at a time. On completion another target's
 continuation can acquire it. Other commands receive an owned read pipe with its
@@ -36,7 +39,7 @@ The four stdin fixtures passed 20 repeated oracle and candidate executions each;
 the previous release fails the handoff/type observation. Load fixtures use bounded
 expansion barriers rather than a completion sleep.
 
-`make test-load` runs 20 native controlled profiles three times against both GNU
+`make test-load` runs 21 native controlled profiles three times against both GNU
 and rmake: above/equal/below load, integer boundaries, disabled limits, load changes
 after a peer completion, EINTR, malformed/read/open fallbacks, unsupported/error
 sampling, and queued ordinary/ignored/keep-going failures. A test-only original

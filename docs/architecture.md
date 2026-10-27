@@ -67,7 +67,9 @@ Use safe Rust for semantic code. Put necessary unsafe FFI in small audited
 adapters with ownership and lifetime tests. Pin the Rust toolchain and dependency
 lockfile when Cargo is initialized; select exact versions then. Avoid a general
 async framework until measurements demonstrate a need; child-process readiness
-and signal handling can use an explicit Linux event loop.
+and signal handling use an explicit Linux event loop with owned child handles,
+pidfd readiness where available, borrowed jobserver readiness, and a minimal
+signal-to-interpreter wake pipe. See [runtime shutdown](runtime-signals.md).
 
 ## Interpreter and data model
 

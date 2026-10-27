@@ -24,7 +24,9 @@ language gaps. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
 is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
 controlled development and optimized gates. Remaining synthetic completion,
-signal, output-sync and runtime stress cases stay open. Persistent caching remains deferred to its
+output-sync, interruption/effect combinations and runtime stress cases stay open.
+[Owned children and signal shutdown](runtime-signals.md) now have controlled
+recipe/runtime gates, including safe borrowed-token recovery. Persistent caching remains deferred to its
 correctness design and acceptance gate.
 
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
