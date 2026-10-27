@@ -1,0 +1,12 @@
+id = "runtime-inherited-ignore-pipe"
+requirement = "runtime.signals"
+candidate = "required"
+description = "Ignored PIPE survives recursive make startup and child exec."
+provenance = "Original independently authored recursive signal-disposition probe."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "shell=<survived>\nsurvived\n"
+stderr = ""

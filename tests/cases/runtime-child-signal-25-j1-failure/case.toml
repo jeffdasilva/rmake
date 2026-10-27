@@ -1,0 +1,12 @@
+id = "runtime-child-signal-25-j1-failure"
+requirement = "runtime.signals"
+candidate = "required"
+description = "Original child-only Linux signal status, libc diagnostic, ignore policy, and changed-target cleanup probe."
+provenance = "Independently authored original Makefile and helper; kernel core dumping explicitly disabled."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** [Makefile:3: out] File size limit exceeded\nmake: *** Deleting file 'out'\n"

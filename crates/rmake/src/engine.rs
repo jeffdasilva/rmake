@@ -379,6 +379,8 @@ struct ParallelJob {
     continuation: RecipeState,
     stdin_owner: bool,
     waiting_load: bool,
+    child: Option<rmake_linux::child::Child>,
+    signal_cleaned: bool,
 }
 
 /// A rename can merge a newly visited file into one with a running recipe.
@@ -423,6 +425,17 @@ impl ParallelJobs {
     fn is_empty(&self) -> bool {
         self.primary.is_empty() && self.overlapping.is_empty()
     }
+    fn entries_mut(&mut self) -> impl Iterator<Item = (&[u8], &mut ParallelJob)> {
+        self.primary
+            .iter_mut()
+            .map(|(name, job)| (name.as_slice(), job))
+            .chain(
+                self.overlapping
+                    .iter_mut()
+                    .map(|((name, _), job)| (name.as_slice(), job)),
+            )
+    }
+
     fn values(&self) -> impl Iterator<Item = &ParallelJob> {
         self.primary.values().chain(self.overlapping.values())
     }
@@ -557,8 +570,7 @@ pub struct Engine {
     inferred_peer_flags: HashMap<Vec<u8>, (bool, bool)>,
     graph_epoch: u64,
     graph_abort: Option<Status>,
-    completed_jobs: std::sync::mpsc::Receiver<JobResult>,
-    job_sender: std::sync::mpsc::Sender<JobResult>,
+    interrupt: Option<i32>,
     parallel_failed: bool,
     waiting_reported: Cell<bool>,
     shutdown: Cell<Shutdown>,
@@ -885,7 +897,6 @@ impl Engine {
                 )
                 .map_err(|error| error.diagnostic())?;
         }
-        let (job_sender, completed_jobs) = std::sync::mpsc::channel();
         Ok(Self {
             options,
             filesystem,
@@ -917,8 +928,7 @@ impl Engine {
             inferred_peer_flags: HashMap::new(),
             graph_epoch: 0,
             graph_abort: None,
-            completed_jobs,
-            job_sender,
+            interrupt: None,
             parallel_failed: false,
             waiting_reported: Cell::new(false),
             shutdown: Cell::new(Shutdown::Running),
@@ -1836,6 +1846,9 @@ impl Engine {
             Shutdown::Reentered => return,
             Shutdown::Running | Shutdown::Draining => {}
         }
+        if self.interrupt.is_some() && self.options.dry_run {
+            return;
+        }
         if self.created_intermediates.is_empty() {
             return;
         }
@@ -1873,6 +1886,28 @@ impl Engine {
                 .as_ref()
                 .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
             {
+                continue;
+            }
+            if self.interrupt.is_some() {
+                self.stderr(
+                    &[
+                        b"*** Deleting intermediate file '".as_slice(),
+                        &target,
+                        b"'",
+                    ]
+                    .concat(),
+                );
+                if let Err(error) = result {
+                    self.stderr(
+                        &[
+                            b"\nunlink: ".as_slice(),
+                            &target,
+                            b": ",
+                            os_error(&error).as_bytes(),
+                        ]
+                        .concat(),
+                    );
+                }
                 continue;
             }
             if !self.globally_silent() {
@@ -2160,17 +2195,11 @@ impl Engine {
             if let Some(permit) = server.try_acquire()? {
                 return Ok(Some(permit));
             }
-            // Local completions wake immediately. Tokens returned by another
-            // process are checked within 5 ms without changing shared FD flags.
-            match self
-                .completed_jobs
-                .recv_timeout(std::time::Duration::from_millis(5))
-            {
-                Ok(result) => self.complete_job(result),
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                Err(_) => return Err(io::Error::from(io::ErrorKind::BrokenPipe)),
-            }
-            if self.parallel_failed && !self.options.keep_going {
+            // Wait for this pool's reader, owned child exits, or a fatal signal.
+            // No polling delay is added to tokens returned by another process.
+            self.child_events(true, Some(server.readiness()))?;
+            self.observe_interrupt();
+            if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
                 return Ok(None);
             }
         }
@@ -2227,10 +2256,130 @@ impl Engine {
     }
 
     fn poll_jobs(&mut self) {
+        self.observe_interrupt();
         self.start_load_waiting();
-        while let Ok(result) = self.completed_jobs.try_recv() {
-            self.complete_job(result);
-            self.start_load_waiting();
+        loop {
+            match self.child_events(false, None) {
+                Ok(true) => self.start_load_waiting(),
+                Ok(false) => break,
+                Err(error) => {
+                    self.fatal(None, os_error(&error).as_bytes());
+                    break;
+                }
+            }
+        }
+    }
+
+    fn child_events(
+        &mut self,
+        block: bool,
+        additional: Option<std::os::fd::BorrowedFd<'_>>,
+    ) -> io::Result<bool> {
+        let children: Vec<_> = self
+            .parallel_jobs
+            .values()
+            .filter_map(|job| job.child.as_ref().map(|child| (job.identity, child)))
+            .collect();
+        if children.is_empty() && additional.is_none() {
+            return Ok(false);
+        }
+        // GNU retries load-delayed recipes after a one-second jobserver wait.
+        // Ordinary child waits remain event-driven; token readiness still wakes
+        // immediately instead of paying this retry interval.
+        let load_retry = (additional.is_some() && !self.load_waiting.is_empty())
+            .then_some(Duration::from_secs(1));
+        let ready = rmake_linux::child::wait(&children, block, true, additional, load_retry)?;
+        self.observe_interrupt();
+        for identity in ready {
+            let (target, job) = self
+                .parallel_jobs
+                .entries_mut()
+                .find(|(_, job)| job.identity == identity)
+                .expect("live child identity");
+            let result = job.child.as_mut().expect("live child").try_wait();
+            let result = match result {
+                Ok(Some(status)) => Some(Ok(status)),
+                Ok(None) => continue,
+                Err(error) => Some(Err(error)),
+            };
+            let target = target.to_vec();
+            self.complete_job((target, identity, result));
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn observe_interrupt(&mut self) {
+        if rmake_linux::signals::pending().is_none() {
+            return;
+        }
+        rmake_linux::signals::drain();
+        let number = rmake_linux::signals::pending().expect("a pending signal is retained");
+        if self.interrupt == Some(number) {
+            return;
+        }
+        self.interrupt = Some(number);
+        self.graph_abort = Some(Status::Fatal);
+        self.shutdown.set(Shutdown::Draining);
+        self.parallel_failed = true;
+        if let Some(server) = &self.jobserver {
+            server.unlink_owned();
+        }
+        let mut cleanup = Vec::new();
+        for (name, job) in self.parallel_jobs.entries_mut() {
+            let Some(child) = &mut job.child else {
+                continue;
+            };
+            if number == 15 {
+                let _ = child.send_signal(number);
+            }
+            if rmake_linux::signals::deletes_targets(number) && !job.signal_cleaned {
+                cleanup.push((job.identity, name.to_vec(), job.before, job.phony));
+                job.signal_cleaned = true;
+            }
+        }
+        cleanup.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.0));
+        for (_, target, before, phony) in cleanup {
+            self.cleanup_target(&target, before, phony, Cleanup::ChangedOnSignal);
+        }
+        if !rmake_linux::signals::deletes_targets(number)
+            && self.parallel_jobs.values().any(|job| job.child.is_some())
+        {
+            self.notice_waiting_for_jobs();
+        }
+    }
+
+    fn wait_serial_child(
+        &mut self,
+        child: &mut rmake_linux::child::Child,
+        target: &[u8],
+        before: Option<SystemTime>,
+        phony: bool,
+    ) -> io::Result<(std::process::ExitStatus, bool)> {
+        let mut observed = None;
+        let mut cleaned = false;
+        loop {
+            self.observe_interrupt();
+            if let Some(number) = self.interrupt
+                && observed != Some(number)
+            {
+                observed = Some(number);
+                if number == 15 {
+                    child.send_signal(number)?;
+                }
+                if rmake_linux::signals::deletes_targets(number) {
+                    if !cleaned {
+                        self.cleanup_target(target, before, phony, Cleanup::ChangedOnSignal);
+                        cleaned = true;
+                    }
+                } else {
+                    self.notice_waiting_for_jobs();
+                }
+            }
+            if let Some(status) = child.try_wait()? {
+                return Ok((status, cleaned));
+            }
+            rmake_linux::child::wait(&[(0, child)], true, true, None, None)?;
         }
     }
 
@@ -2281,17 +2430,21 @@ impl Engine {
     }
 
     fn reap_job(&mut self) {
-        self.start_load_waiting();
-        if self.parallel_jobs.is_empty() {
-            return;
+        loop {
+            self.observe_interrupt();
+            self.start_load_waiting();
+            if self.parallel_jobs.is_empty() {
+                return;
+            }
+            match self.child_events(true, None) {
+                Ok(true) => return,
+                Ok(false) => {}
+                Err(error) => {
+                    self.fatal(None, os_error(&error).as_bytes());
+                    return;
+                }
+            }
         }
-        // A load change alone does not wake GNU's child wait. Retry queued
-        // recipes on scheduling activity/completion, not a wall-clock timer.
-        let result = self
-            .completed_jobs
-            .recv()
-            .expect("a live worker owns its completion sender");
-        self.complete_job(result);
     }
 
     fn complete_job(&mut self, (target, identity, result): JobResult) {
@@ -2304,13 +2457,18 @@ impl Engine {
         if result.is_some() {
             self.filesystem.borrow_mut().child_completed();
         }
+        let signaled = result
+            .as_ref()
+            .and_then(|status| status.as_ref().ok())
+            .is_some_and(|status| status.signal().is_some());
         let error = match result {
             None => None,
             Some(Ok(status)) if status.success() => None,
-            Some(Ok(status)) => Some(status.code().map_or_else(
-                || format!("Signal {}", status.signal().unwrap_or(0)),
-                |code| format!("Error {code}"),
-            )),
+            Some(Ok(status)) => Some(
+                status
+                    .code()
+                    .map_or_else(|| signal_status(status), |code| format!("Error {code}")),
+            ),
             Some(Err(error)) => {
                 self.stderr(&[job.program.as_slice(), b": ", os_error(&error).as_bytes()].concat());
                 Some("Error 127".to_string())
@@ -2334,15 +2492,37 @@ impl Engine {
             self.stderr(&message);
         }
         let mut cleanup_fatal = false;
-        if failed && launched {
-            cleanup_fatal =
-                self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnError);
+        if failed && launched && !job.signal_cleaned {
+            cleanup_fatal = self.cleanup_target(
+                &target,
+                job.before,
+                job.phony,
+                if signaled {
+                    Cleanup::ChangedOnSignal
+                } else {
+                    Cleanup::ChangedOnError
+                },
+            );
+        }
+        if self.interrupt.is_some() {
+            if !job.signal_cleaned
+                && !failed
+                && job
+                    .continuation
+                    .expanded
+                    .iter()
+                    .any(|(_, bytes, _)| !bytes.is_empty())
+            {
+                cleanup_fatal |=
+                    self.cleanup_target(&target, job.before, job.phony, Cleanup::ChangedOnSignal);
+            }
+            failed = true;
         }
         if failed && self.parallel_jobs.contains_key(&target) {
             self.notice_waiting_for_jobs();
         }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
-        outcome.fatal |= cleanup_fatal;
+        outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
         if !failed {
             let execution =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
@@ -5059,6 +5239,10 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
     ) -> Execution {
+        self.observe_interrupt();
+        if self.interrupt.is_some() {
+            return Execution::fatal(false);
+        }
         let recursive_line = |recipe: &Recipe| {
             has_force_prefix(&recipe.bytes)
                 || recipe
@@ -5203,6 +5387,8 @@ impl Engine {
                     continuation: state,
                     stdin_owner: false,
                     waiting_load: true,
+                    child: None,
+                    signal_cleaned: false,
                 },
             );
             return Execution::success(true);
@@ -5229,6 +5415,10 @@ impl Engine {
         } = state;
         let variables = &mut variables;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
+            self.observe_interrupt();
+            if self.interrupt.is_some() {
+                return Execution::fatal(ran);
+            }
             if bytes.is_empty() {
                 continue;
             }
@@ -5520,82 +5710,77 @@ impl Engine {
                 );
             }
             let _ = io::stdout().flush();
-            if parallel {
-                let sender = self.job_sender.clone();
-                let identity = self.next_job;
-                self.next_job = self.next_job.wrapping_add(1);
-                let name = target.to_vec();
-                let executable = program.clone();
-                let stdin_owner = !self.parallel_jobs.values().any(|job| job.stdin_owner);
-                let jobserver = self.jobserver.clone();
-                let worker =
-                    std::thread::Builder::new()
-                        .name("rmake-job".into())
-                        .spawn(move || {
-                            let result = launch_child(&executable, &child, |mut command| {
-                                if let Some(server) = &jobserver {
-                                    server.configure_child(&mut command, force);
-                                }
-                                if !stdin_owner {
-                                    command.stdin(rmake_linux::process::closed_stdin()?);
-                                }
-                                command.status()
-                            });
-                            // Completion must imply that the worker has released
-                            // its jobserver owner, so process exit cannot race
-                            // the last FIFO unlink against thread teardown.
-                            drop(jobserver);
-                            let _ = sender.send((name, identity, Some(result)));
-                        });
-                if let Err(error) = worker {
-                    self.stderr(os_error(&error).as_bytes());
-                    return Execution::failure(ran, Cleanup::None)
-                        .with_recursion(!flow.has_ordinary());
-                }
-                if self.options.load_limit.is_some_and(|v| v >= 0.0) {
-                    self.load.started();
-                }
-                self.parallel_jobs.insert(
-                    target.to_vec(),
-                    ParallelJob {
-                        identity,
-                        program,
-                        location: recipe.location.clone(),
-                        ignore,
-                        before,
-                        phony,
-                        stdin_owner,
-                        waiting_load: false,
-                        continuation: RecipeState {
-                            expanded,
-                            variables: variables.clone(),
-                            flow,
-                            ran,
-                            one_shell,
-                            environment,
-                            permit,
-                        },
-                    },
-                );
-                return Execution::success(true);
-            }
-            self.wait_all_jobs();
-            if self.options.load_limit.is_some_and(|v| v >= 0.0) {
-                self.load.started();
-            }
-            let result = launch_child(&program, &child, |mut command| {
+            let stdin_owner = !parallel || !self.parallel_jobs.values().any(|job| job.stdin_owner);
+            let process = launch_child(&program, &child, |mut command| {
                 if let Some(server) = &self.jobserver {
                     server.configure_child(&mut command, force);
                 }
-                command.status()
+                if !stdin_owner {
+                    command.stdin(rmake_linux::process::closed_stdin()?);
+                }
+                rmake_linux::child::Child::spawn(&mut command)
             });
+            if process.is_ok() && self.options.load_limit.is_some_and(|v| v >= 0.0) {
+                self.load.started();
+            }
+            let mut signal_cleaned = false;
+            let result = if parallel {
+                match process {
+                    Ok(child) => {
+                        let identity = self.next_job;
+                        self.next_job = self.next_job.wrapping_add(1);
+                        self.parallel_jobs.insert(
+                            target.to_vec(),
+                            ParallelJob {
+                                identity,
+                                program,
+                                location: recipe.location.clone(),
+                                ignore,
+                                before,
+                                phony,
+                                stdin_owner,
+                                waiting_load: false,
+                                child: Some(child),
+                                signal_cleaned: false,
+                                continuation: RecipeState {
+                                    expanded,
+                                    variables: variables.clone(),
+                                    flow,
+                                    ran,
+                                    one_shell,
+                                    environment,
+                                    permit,
+                                },
+                            },
+                        );
+                        self.observe_interrupt();
+                        return Execution::success(true);
+                    }
+                    Err(error) => Err(error),
+                }
+            } else {
+                match process {
+                    Ok(mut child) => self
+                        .wait_serial_child(&mut child, target, before, phony)
+                        .map(|(status, cleaned)| {
+                            signal_cleaned = cleaned;
+                            status
+                        }),
+                    Err(error) => Err(error),
+                }
+            };
             self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();
             flow.attempted(launched);
-            let failure_cleanup = if launched {
-                Cleanup::ChangedOnError
-            } else {
+            let failure_cleanup = if !launched || signal_cleaned {
                 Cleanup::None
+            } else if result
+                .as_ref()
+                .is_ok_and(|status| status.signal().is_some())
+            {
+                Cleanup::ChangedOnSignal
+            } else {
+                Cleanup::ChangedOnError
             };
             let error = match result {
                 Ok(status) if status.success() => None,
@@ -5607,10 +5792,11 @@ impl Engine {
                     return Execution::question(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                 }
-                Ok(status) => Some(status.code().map_or_else(
-                    || format!("Signal {}", status.signal().unwrap_or(0)),
-                    |code| format!("Error {code}"),
-                )),
+                Ok(status) => Some(
+                    status
+                        .code()
+                        .map_or_else(|| signal_status(status), |code| format!("Error {code}")),
+                ),
                 Err(err) => {
                     let text = err.to_string();
                     let suffix = err
@@ -5640,6 +5826,12 @@ impl Engine {
                     return Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                 }
+            }
+            if self.interrupt.is_some() {
+                if !signal_cleaned && expanded.iter().any(|(_, bytes, _)| !bytes.is_empty()) {
+                    self.cleanup_target(target, before, phony, Cleanup::ChangedOnSignal);
+                }
+                return Execution::fatal(ran);
             }
         }
         if !self.options.touch || phony || !flow.has_ordinary() {
@@ -5798,7 +5990,9 @@ impl Engine {
         if !metadata.is_file() {
             return false;
         }
-        if cleanup == Cleanup::ChangedOnError && metadata.modified().ok() == before {
+        if matches!(cleanup, Cleanup::ChangedOnError | Cleanup::ChangedOnSignal)
+            && metadata.modified().ok() == before
+        {
             return false;
         }
         let context = owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
@@ -5858,6 +6052,14 @@ fn has_force_prefix(bytes: &[u8]) -> bool {
     false
 }
 
+fn signal_status(status: std::process::ExitStatus) -> String {
+    let mut message = rmake_linux::process::signal_name(status.signal().unwrap_or(0));
+    if status.core_dumped() {
+        message.push_str(" (core dumped)");
+    }
+    message
+}
+
 fn copy_environment(source: &Command, destination: &mut Command) {
     for (name, value) in source.get_envs() {
         if let Some(value) = value {
@@ -5902,6 +6104,7 @@ pub(crate) fn launch_child<T>(
         let mut command = Command::new(&path);
         command.arg0(os(program)).args(template.get_args());
         copy_environment(template, &mut command);
+        rmake_linux::signals::configure_child(&mut command);
         match run(command) {
             // Linux ENOEXEC: interpret the attempted file through /bin/sh,
             // preserving args/environment but not the recipe's -e/-c flags.
@@ -5909,6 +6112,7 @@ pub(crate) fn launch_child<T>(
                 let mut shell = Command::new("/bin/sh");
                 shell.arg(&path).args(template.get_args());
                 copy_environment(template, &mut shell);
+                rmake_linux::signals::configure_child(&mut shell);
                 return run(shell);
             }
             Err(error)
@@ -5931,6 +6135,26 @@ pub(crate) fn launch_child<T>(
 mod tests {
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn child_signal_diagnostics_keep_libc_names_and_core_dump_status() {
+        use std::os::unix::process::ExitStatusExt;
+        for (signal, name) in [
+            (2, "Interrupt"),
+            (3, "Quit"),
+            (13, "Broken pipe"),
+            (15, "Terminated"),
+        ] {
+            assert_eq!(
+                signal_status(std::process::ExitStatus::from_raw(signal)),
+                name
+            );
+            assert_eq!(
+                signal_status(std::process::ExitStatus::from_raw(signal | 0x80)),
+                format!("{name} (core dumped)")
+            );
+        }
+    }
 
     #[test]
     fn exhausted_implicit_search_cannot_install_a_default_recipe() {

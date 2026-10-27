@@ -2078,3 +2078,31 @@ including LIFO queues, equality boundaries, inherited options, EINTR/fallbacks,
 error suppression and failure/keep-going policy. Four mutation-oriented tooling
 tests protect independent anchors. The corpus now has 4,994 cases: 4,984 required
 and 10 pending. Existing stateful and M4 gates remain mandatory; M5 is open.
+
+## M5 owned children and signal shutdown
+
+Replace per-command waiter threads/channels with interpreter-owned Linux child
+handles and readiness polling. Jobserver token returns wake the same event loop;
+unsupported/restricted pidfd kernels retain unique reaping with a bounded
+fallback. Fatal handlers only record the signal, restore its default disposition
+and wake the interpreter. Cleanup, forwarding, diagnostics and token return run
+outside handlers. Preserve inherited ignore, signal-name/core-dump diagnostics,
+changed-target/group/archive policy, fatal vs ordinary peer continuations,
+intermediate cleanup, query/dry/touch execution and actual exit-signal identity.
+
+Add 49 required original child-signal Makefiles and 337 controlled signal
+profiles plus 36 borrowed-pool safety profiles, repeated three times per campaign.
+Six tooling mutation/ownership tests protect anchors; three adapter tests cover
+owned reaping, fallback delivery and Drop; a status test covers core-dump flags.
+The curated inventory is now 5,043 cases: 5,033 required and 10 pending. There are
+404 Rust and 310 tooling tests. See [the runtime notes](runtime-signals.md) for
+source references, retained GNU race evidence and explicit safety differences.
+M5 remains open for output synchronization, deeper interruption/effect/shutdown
+interactions and release-scale mixed-tree/runtime stress acceptance.
+
+The signal stress follow-up fixes a lost wake when a different fatal signal
+arrives just before poll. All twelve second-signal profiles pass 100 repeats.
+A 21st load profile changes only the load observation at entry into a real
+unavailable-token wait; GNU and the fixed runtime pass, while the preceding
+reactor fails. Queued-load retries retain GNU's one-second wait bound without
+adding a token polling delay to ordinary scheduling.

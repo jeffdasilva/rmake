@@ -178,3 +178,7 @@ interfaces; the sampler is not linked into rmake.
 
 The [load/stdin notes](load-limits.md) record the source-reference study for the
 independent Linux runtime scheduling and descriptor follow-up.
+
+The [signal/runtime notes](runtime-signals.md) record child ownership, fatal
+signal, output ordering and intermediate-cleanup source references for the
+independent Linux event loop and original controlled signal campaign.

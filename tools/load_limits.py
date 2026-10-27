@@ -59,6 +59,7 @@ class Cell:
     average: str = '100'
     trace: bytes = b'proc\n'
     stderr: bytes = b''
+    jobs: int = 4
 
     @property
     def maximum(self):
@@ -72,7 +73,7 @@ class Cell:
             lines += [name + ':', '\t@$(file >expanded-' + name + ')python3 helper.py ' + name + ' ' + self.behavior]
         if self.behavior == 'dynamic':
             lines[1] = 'all: a b c d'
-            lines += ['d:', '\t@$(file >load.input,0 0 0 0/100 1)true']
+            lines += ['d:', '\t@$(file >expanded-d)true' if self.mode == 'drop-on-token-wait' else '\t@$(file >load.input,0 0 0 0/100 1)true']
         return ('\n'.join(lines) + '\n').encode()
 
 
@@ -105,6 +106,7 @@ def inventory():
     for mode, suffix in [('fail', b''), ('fail-keep', b"make: Target 'all' not remade because of errors.\n"), ('fail-ignore', b'')]:
         cells.append(Cell('queued-' + mode, b'0 0 0 99/100 1\n', '2', mode,
                           stderr=(b'make: [Makefile:5: a] Error 7 (ignored)\n' if mode == 'fail-ignore' else b'make: *** [Makefile:5: a] Error 7\n') + suffix))
+    cells.append(Cell('load-drops-during-token-wait', b'0 0 0 99/100 1\n', '2', 'dynamic', 'drop-on-token-wait', trace=b'proc\ntoken-wait\n', jobs=3))
     return tuple(cells)
 
 
@@ -121,7 +123,7 @@ def execute(cell, root, fixture, binary, helper):
     trace = root / 'load.trace'
     trace.unlink(missing_ok=True)
     case = harness.Case(fixture, cell.id, 'runtime.load', 'required',
-                        ('-rR', '--no-print-directory', '-j4', '-l' + cell.limit,
+                        ('-rR', '--no-print-directory', '-j' + str(cell.jobs), '-l' + cell.limit,
                          *(['-k'] if cell.behavior == 'fail-keep' else ['-i'] if cell.behavior == 'fail-ignore' else [])), 6, {}, {})
     harness.reset_workspace(case, root, binary)
     environment = harness.clean_environment(root, {

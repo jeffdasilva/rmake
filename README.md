@@ -29,7 +29,9 @@ locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
 [`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
 gaps are documented in [diagnostic notes](docs/diagnostics.md).
 The [runtime continuation notes](docs/fatal-continuations.md) cover post-child
-fatal configuration and ordered shutdown. [Source-name sharing](docs/shared-source-names.md)
+fatal configuration and ordered shutdown. [Linux load and stdin](docs/load-limits.md)
+and [signal shutdown](docs/runtime-signals.md) have controlled runtime gates.
+[Source-name sharing](docs/shared-source-names.md)
 reduces repeated location allocations; `make profile-allocations` provides an
 isolated development profiler.
 The [hidden-prerequisite notes](docs/extra-prerequisites.md) describe

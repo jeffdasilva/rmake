@@ -58,3 +58,32 @@ int getloadavg(double *values, int count) {
     values[0] = value ? strtod(value, NULL) : 100.0;
     return 1;
 }
+
+// Change only the fixture's system-load observation after a token wait really
+// begins. No child exits or tokens arrive to wake it: the load retry must work.
+#include <poll.h>
+#include <signal.h>
+#include <sys/select.h>
+static int load_dropped;
+static void drop_load(void) {
+    if (load_dropped || !mode("drop-on-token-wait")) return;
+    load_dropped = 1;
+    int (*real_open)(const char *, int, ...) = next("open");
+    ssize_t (*real_write)(int, const void *, size_t) = next("write");
+    int fd = real_open("load.input", O_WRONLY | O_TRUNC | O_CLOEXEC);
+    const char value[] = "0 0 0 0/100 1\n";
+    if (fd < 0 || real_write(fd, value, sizeof value - 1) != sizeof value - 1) _exit(125);
+    close(fd);
+    note("token-wait\n");
+}
+int poll(struct pollfd *descriptors, nfds_t count, int timeout) {
+    int (*real)(struct pollfd *, nfds_t, int) = next("poll");
+    if (count >= 3 && timeout != 0) drop_load();
+    return real(descriptors, count, timeout);
+}
+int pselect(int count, fd_set *readers, fd_set *writers, fd_set *errors,
+            const struct timespec *timeout, const sigset_t *mask) {
+    int (*real)(int, fd_set *, fd_set *, fd_set *, const struct timespec *, const sigset_t *) = next("pselect");
+    if (timeout) drop_load();
+    return real(count, readers, writers, errors, timeout, mask);
+}

@@ -11,13 +11,13 @@ import load_limits as campaign
 class LoadLimitsTests(unittest.TestCase):
     def test_inventory_covers_thresholds_recovery_errors_and_failure_queue_policy(self):
         cells = campaign.inventory()
-        self.assertEqual(len(cells), 20)
+        self.assertEqual(len(cells), 21)
         self.assertEqual(len({c.id for c in cells}), len(cells))
         self.assertTrue({'above', 'equal', 'below', 'zero', 'disabled', 'unsigned-wrap',
                          'unsigned-overflow', 'load-drops-after-peer-completion',
                          'interrupted-read', 'read-fallback', 'malformed-fallback',
                          'average-unsupported', 'average-eio', 'queued-fail',
-                         'queued-fail-keep', 'queued-fail-ignore'} <= {c.id for c in cells})
+                         'queued-fail-keep', 'queued-fail-ignore', 'load-drops-during-token-wait'} <= {c.id for c in cells})
 
     def test_anchors_reject_duplicate_missing_and_wrongly_ordered_serial_jobs(self):
         cell = campaign.inventory()[0]
@@ -41,6 +41,13 @@ class LoadLimitsTests(unittest.TestCase):
         failed = conformance.Observation(b'', cell.stderr, 2, None, {})
         self.assertEqual(campaign.anchors(cell, failed, b'a\n', cell.trace), [])
         self.assertTrue(campaign.anchors(cell, failed, b'a\nc\nb\n', cell.trace))
+
+    def test_delayed_load_transition_holds_all_three_slots_until_the_token_wait(self):
+        cell = next(c for c in campaign.inventory() if c.id == 'load-drops-during-token-wait')
+        self.assertEqual(cell.jobs, 3)
+        self.assertEqual(cell.trace, b'proc\ntoken-wait\n')
+        self.assertIn(b'$(file >expanded-d)true', cell.makefile)
+        self.assertNotIn(b'$(file >load.input', cell.makefile)
 
     def test_materialization_preserves_controlled_load_and_expansion_barriers(self):
         cell = next(c for c in campaign.inventory() if c.behavior == 'dynamic')

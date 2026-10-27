@@ -6,14 +6,16 @@
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::fs::File;
 use std::io;
-use std::os::fd::FromRawFd;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::process::Stdio;
 
 unsafe extern "C" {
+    fn strsignal(number: c_int) -> *mut c_char;
     fn strtod(text: *const c_char, end: *mut *mut c_char) -> f64;
     fn snprintf(buffer: *mut c_char, length: usize, format: *const c_char, ...) -> c_int;
     fn __errno_location() -> *mut c_int;
     fn getloadavg(values: *mut f64, count: c_int) -> c_int;
+    fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
 }
 
@@ -29,7 +31,7 @@ pub fn closed_stdin() -> io::Result<Stdio> {
     let reader = unsafe { File::from_raw_fd(descriptors[0]) };
     let writer = unsafe { File::from_raw_fd(descriptors[1]) };
     drop(writer);
-    Ok(Stdio::from(reader))
+    Ok(Stdio::from(private_descriptor(reader)?))
 }
 
 /// GNU's floating option accepts the C numeric prefix, including trailing text.
@@ -59,4 +61,30 @@ pub fn average_load() -> io::Result<f64> {
     } else {
         Err(io::Error::last_os_error())
     }
+}
+
+/// Return an owned diagnostic spelling. Only the interpreter renders statuses;
+/// the libc string is copied before another signal-name lookup can overwrite it.
+pub fn signal_name(number: i32) -> String {
+    let text = unsafe { strsignal(number) };
+    if text.is_null() {
+        return format!("Signal {number}");
+    }
+    unsafe { CStr::from_ptr(text) }
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Keep private effects out of standard descriptor slots that a caller closed.
+/// Duplicating above stderr also makes child dup2 inheritance unambiguous.
+pub(crate) fn private_descriptor(file: File) -> io::Result<File> {
+    if file.as_raw_fd() >= 3 {
+        return Ok(file);
+    }
+    // Linux F_DUPFD_CLOEXEC atomically allocates a new descriptor at least 3.
+    let descriptor = unsafe { fcntl(file.as_raw_fd(), 1030, 3) };
+    if descriptor < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(unsafe { File::from_raw_fd(descriptor) })
 }
