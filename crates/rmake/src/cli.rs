@@ -9,6 +9,7 @@ use std::path::PathBuf;
 pub struct Options {
     pub files: Vec<PathBuf>,
     pub jobs: Option<usize>,
+    pub load_limit: Option<f64>,
     pub inherited_jobs: bool,
     pub jobserver_auth: Option<Vec<u8>>,
     pub jobserver_pipe: bool,
@@ -206,6 +207,20 @@ impl Options {
                                 result.files.push(path);
                             }
                         }
+                        b"--load-average" | b"--max-load" => {
+                            let value = value.or_else(|| {
+                                if args.get(i + 1).is_some_and(|v| {
+                                    v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
+                                }) {
+                                    i += 1;
+                                    Some(args[i].clone())
+                                } else {
+                                    None
+                                }
+                            });
+                            result.load_limit =
+                                value.map(|v| rmake_linux::process::load_number(&v));
+                        }
                         b"--jobs" => {
                             let value = value.or_else(|| {
                                 if args
@@ -248,6 +263,21 @@ impl Options {
                         b'R' => {
                             result.no_variables = true;
                             result.no_rules = true;
+                        }
+                        b'l' => {
+                            let value = if j + 1 < arg.len() {
+                                Some(arg[j + 1..].to_vec())
+                            } else if args.get(i + 1).is_some_and(|v| {
+                                v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
+                            }) {
+                                i += 1;
+                                Some(args[i].clone())
+                            } else {
+                                None
+                            };
+                            result.load_limit =
+                                value.map(|v| rmake_linux::process::load_number(&v));
+                            break;
                         }
                         option @ (b'f' | b'C' | b'j' | b'I') => {
                             let value = if j + 1 < arg.len() {
@@ -345,6 +375,10 @@ impl Options {
                 flags.push(*byte);
             }
         }
+        if let Some(limit) = self.load_limit.filter(|v| *v != -1.0) {
+            flags.extend_from_slice(b" -l");
+            flags.extend_from_slice(rmake_linux::process::load_spelling(limit).as_bytes());
+        }
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
         }
@@ -376,6 +410,37 @@ mod tests {
     use super::*;
     fn parse(args: &[&str]) -> Result<Options, String> {
         Options::parse(args.iter().map(OsString::from))
+    }
+
+    #[test]
+    fn load_options_preserve_c_numeric_prefixes_and_recursive_flag_spelling() {
+        for (text, spelling) in [
+            ("-l2.5junk", "2.5"),
+            ("-l0x10", "16"),
+            ("-l-2", "-2"),
+            ("-lnan", "nan"),
+            ("-linf", "inf"),
+            ("-l-0", "-0"),
+            ("--max-load=3.1415927", "3.14159"),
+        ] {
+            let parsed = parse(&[text]).unwrap();
+            assert_eq!(parsed.flags(), format!(" -l{spelling}").as_bytes());
+        }
+        assert_eq!(parse(&["-l2", "-l"]).unwrap().flags(), b"");
+        assert_eq!(parse(&["-l-1"]).unwrap().flags(), b"");
+        assert_eq!(parse(&["-l", "2.25"]).unwrap().load_limit, Some(2.25));
+    }
+
+    #[test]
+    fn explicit_load_settings_override_inherited_limits_including_reset() {
+        let inherited = Options::with_environment([], Some("rR -l2.5".into()), None).unwrap();
+        assert_eq!(inherited.load_limit, Some(2.5));
+        let changed =
+            Options::with_environment(["--load-average=4".into()], Some("-l2.5".into()), None)
+                .unwrap();
+        assert_eq!(changed.load_limit, Some(4.0));
+        let cleared = Options::with_environment(["-l".into()], Some("-l2.5".into()), None).unwrap();
+        assert_eq!(cleared.load_limit, None);
     }
 
     #[test]

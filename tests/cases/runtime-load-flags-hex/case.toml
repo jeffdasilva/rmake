@@ -1,0 +1,12 @@
+id = "runtime-load-flags-hex"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-hex."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-l0x10"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l16 --no-print-directory\n"
+stderr = ""

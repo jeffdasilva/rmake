@@ -2063,3 +2063,18 @@ scenarios / 341 invocations, 397 Rust / 297 tooling tests. Full development and
 optimized M4 regression gates remain required. See [fatal continuations](fatal-continuations.md)
 and [source-name sharing](shared-source-names.md); general GNU speed parity and
 full GNU compatibility are not claimed.
+
+## M5 load limits and per-child stdin
+
+Implement Linux load-limit options, instantaneous runnable sampling and libc
+fallbacks; queue expanded recipes without launching them or consuming stdin;
+resume them on scheduling activity/completion; cancel queued work on ordinary
+abort while returning permits. Move body expansion before slot/token waits.
+Stdin leases now end at each child boundary, with EOF pipes for other children.
+See [the runtime notes](load-limits.md) for source provenance and test boundaries.
+
+Add 33 original required fixtures and a 20-profile controlled native campaign,
+including LIFO queues, equality boundaries, inherited options, EINTR/fallbacks,
+error suppression and failure/keep-going policy. Four mutation-oriented tooling
+tests protect independent anchors. The corpus now has 4,994 cases: 4,984 required
+and 10 pending. Existing stateful and M4 gates remain mandatory; M5 is open.

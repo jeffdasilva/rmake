@@ -1,0 +1,12 @@
+id = "runtime-load-flags-nan"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-nan."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-lnan"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -lnan --no-print-directory\n"
+stderr = ""

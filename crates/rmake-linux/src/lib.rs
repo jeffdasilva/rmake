@@ -13,6 +13,9 @@ pub mod timestamp;
 // reviewed Linux FIFO, pipe, and fork/exec descriptor operations.
 #[allow(unsafe_code)]
 pub mod jobserver;
+
+#[allow(unsafe_code)]
+pub mod process;
 mod wildcard;
 
 // Preserve incremental reads, dot entries, errno and descriptor ownership.

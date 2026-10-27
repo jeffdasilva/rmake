@@ -1,0 +1,12 @@
+id = "runtime-load-recursive-inherit"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original recursive load option inheritance and explicit override probe."
+provenance = "Independently authored without GNU implementation or tests."
+args = ["-rR", "--no-print-directory", "--load-average=2.75"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l2.75 --no-print-directory\n"
+stderr = ""

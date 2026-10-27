@@ -1,0 +1,12 @@
+id = "runtime-load-flags-alias"
+requirement = "runtime.load"
+candidate = "required"
+description = "Original Linux load limit, numeric option and scheduling phase probe: flags-alias."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rR", "--no-print-directory", "--max-load=4.5"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "rR -l4.5 --no-print-directory\n"
+stderr = ""
