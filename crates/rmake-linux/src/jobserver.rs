@@ -32,6 +32,7 @@ struct Inner {
     writer: File,
     protocol_reader: Option<File>,
     auth: Vec<u8>,
+    owned_slots: Option<usize>,
     created: Option<(PathBuf, u64, u64)>,
     error: Mutex<Option<io::Error>>,
 }
@@ -103,7 +104,7 @@ impl Jobserver {
         if jobs < 2 {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
-        let server = if pipe {
+        let mut server = if pipe {
             let mut descriptors = [-1; 2];
             // A successful pipe2 returns two new, uniquely owned descriptors.
             if unsafe { pipe2(descriptors.as_mut_ptr(), CLOEXEC) } < 0 {
@@ -123,6 +124,9 @@ impl Jobserver {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
         writer.write_all(&tokens)?;
+        Arc::get_mut(&mut server.0)
+            .expect("unshared new jobserver")
+            .owned_slots = Some(jobs);
         Ok(server)
     }
 
@@ -187,6 +191,7 @@ impl Jobserver {
             writer,
             protocol_reader: None,
             auth,
+            owned_slots: None,
             created: owned.then(|| (path.to_owned(), metadata.dev(), metadata.ino())),
             error: Mutex::new(None),
         })))
@@ -212,9 +217,15 @@ impl Jobserver {
             writer,
             protocol_reader: Some(protocol_reader),
             auth,
+            owned_slots: None,
             created: None,
             error: Mutex::new(None),
         })))
+    }
+
+    /// The pool size is present only for the process that created this server.
+    pub fn owned_slots(&self) -> Option<usize> {
+        self.0.owned_slots
     }
 
     pub fn join(auth: &[u8]) -> io::Result<Self> {
@@ -316,6 +327,27 @@ impl Jobserver {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn joining_a_pool_does_not_acquire_creator_metadata_or_consume_tokens() {
+        for pipe in [false, true] {
+            let owner = Jobserver::create(3, pipe).unwrap();
+            let joined = Jobserver::join(owner.auth()).unwrap();
+            assert_eq!(owner.owned_slots(), Some(3));
+            assert_eq!(owner.clone().owned_slots(), Some(3));
+            assert_eq!(joined.owned_slots(), None);
+            let first = joined.try_acquire().unwrap().unwrap();
+            let second = owner.try_acquire().unwrap().unwrap();
+            assert!(joined.try_acquire().unwrap().is_none());
+            drop(first);
+            drop(second);
+            let first = owner.try_acquire().unwrap().unwrap();
+            let second = joined.try_acquire().unwrap().unwrap();
+            assert!(owner.try_acquire().unwrap().is_none());
+            drop(first);
+            drop(second);
+        }
+    }
 
     #[test]
     fn fifo_tokens_are_exhaustible_and_each_permit_returns_its_original_byte() {

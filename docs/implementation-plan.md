@@ -207,3 +207,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [POSIX mode](posix-mode.md) now has 390 required original comparisons across reader/default, shell, suffix, recursion and startup-origin phases. Complete M3/M6 criteria remain unchanged.
 
 [Switch origin and runtime metadata behavior](switch-origins.md) adds 468 required cases across CLI, import, file/eval, recursive and current-file boundaries. Complete M3/M6 exit criteria remain unchanged.
+
+[Restart namespace acceptance](restart-directories.md) adds 348 required cases for directory reentry, recursive invocation metadata and raw path diagnostics. Full startup ordering, self-exec lifecycle and CLI/profile criteria remain open.

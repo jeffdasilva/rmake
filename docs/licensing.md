@@ -218,3 +218,5 @@ The [environment vector notes](environment-vectors.md) identify export-table, de
 The [POSIX mode notes](posix-mode.md) identify special-reader, continuation, suffix, shell and startup references for the original Rust implementation and independently authored phase/profile fixtures.
 
 The [switch-origin notes](switch-origins.md) identify option, flag-definition, include-path and scope references used for the independently authored origin-aware decoder and original phase/recursion fixtures.
+
+The [restart directory notes](restart-directories.md) identify the fixed-reference invocation, restart and jobserver cleanup behavior consulted for independently authored Rust code and original namespace/byte-path fixtures.

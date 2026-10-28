@@ -1,0 +1,15 @@
+id = "restart-namespace-broken-custom-curdir-l2-serial-separate"
+requirement = "recursion.restart-cwd"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Iinc", "-C", "link", "-f", "custom.mk", "CURDIR=client"]
+timeout_seconds = 15
+output = "separate"
+provenance = "Original namespace, recursive invocation and byte-path Makefiles; two raw GNU Make 4.4.1 observations and candidate comparison. Controlled directory renames and symlinks stay inside the runner root; no output normalization or upstream tests copied."
+
+[environment]
+"MAKELEVEL" = "2"
+
+[expected]
+exit_code = 2
+stdout_hex = "70686173653d6f6c643a636c69656e743a3a6f6c640a"
+stderr_hex = "6d616b655b325d3a202a2a2a206c696e6b3a204e6f20737563682066696c65206f72206469726563746f72792e202053746f702e0a"

@@ -604,6 +604,7 @@ struct FailedOwner {
 pub struct Engine {
     options: Options,
     restart_options: Options,
+    startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
     dispatch_output: Option<std::rc::Rc<crate::output::Buffer>>,
@@ -701,9 +702,30 @@ impl Engine {
         // Constructor errors must still expose already-produced expansion output.
         let mut construction_output =
             crate::output::Construction::new(output.clone(), reader_output.clone());
+        let relative_command =
+            !Path::new(invocation).is_absolute() && invocation.as_bytes().contains(&b'/');
+        let startup_directory = (!options.directories.is_empty() || relative_command)
+            .then(|| std::env::current_dir().ok())
+            .flatten();
+        let make_command = if relative_command {
+            startup_directory.as_ref().map_or_else(
+                || invocation.to_owned(),
+                |cwd| cwd.join(invocation).into_os_string(),
+            )
+        } else {
+            invocation.to_owned()
+        };
         for dir in &options.directories {
-            std::env::set_current_dir(dir)
-                .map_err(|e| Diagnostic::from(format!("{}: {e}", dir.display())))?;
+            std::env::set_current_dir(dir).map_err(|error| {
+                Diagnostic::from(
+                    [
+                        dir.as_os_str().as_bytes(),
+                        b": ",
+                        os_error(&error).as_bytes(),
+                    ]
+                    .concat(),
+                )
+            })?;
         }
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let mut database = Database::default();
@@ -799,8 +821,7 @@ impl Engine {
             (b".LOADED", b""),
             (b".FEATURES", b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load"),
             (b"MAKE_HOST", b"x86_64-pc-linux-gnu"),
-            (b"MAKE", invocation.as_bytes()),
-            (b"MAKE_COMMAND", invocation.as_bytes()),
+            (b"MAKE_COMMAND", make_command.as_bytes()),
         ] {
             // These specials precede option decoding in GNU. Their imported
             // environment values have no later default-assignment conflict.
@@ -811,6 +832,15 @@ impl Engine {
                 .define_literal(name, value, Origin::Default)
                 .map_err(|e| e.diagnostic())?;
         }
+        database
+            .variables
+            .define(
+                b"MAKE",
+                b"$(MAKE_COMMAND)",
+                Assignment::Recursive,
+                Origin::Default,
+            )
+            .map_err(|error| error.diagnostic())?;
         database.variables.set_environment_override(false);
         database
             .variables
@@ -1042,6 +1072,7 @@ impl Engine {
         let restart_options = options.clone();
         let mut engine = Self {
             restart_options,
+            startup_directory,
             output,
             reader_output,
             dispatch_output: None,
@@ -1444,10 +1475,62 @@ impl Engine {
         let mut stdin_bytes = None;
         loop {
             if restarts > 0 {
+                let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
                 self.jobserver.take();
                 self.output.select(None);
                 self.output.clear();
                 self.options = self.restart_options.clone();
+                // GNU re-enters CLI directories only when -C was present.
+                // Without -C, a renamed current directory remains current.
+                if !self.options.directories.is_empty() {
+                    let restored = if let Some(directory) = &self.startup_directory {
+                        match std::env::set_current_dir(directory) {
+                            Ok(()) => true,
+                            Err(error) => {
+                                self.stderr(
+                                    [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
+                                        .concat()
+                                        .as_slice(),
+                                );
+                                false
+                            }
+                        }
+                    } else {
+                        false
+                    };
+                    if !restored {
+                        self.fatal(None, b"Couldn't change back to original directory");
+                        // GNU has already retired its master pool here, but its
+                        // fatal cleanup checks the remembered size a second time.
+                        // Preserve the observable warning with owned metadata;
+                        // RAII still closes our pool and returns every live permit.
+                        if let Some(slots) = retired_slots {
+                            self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
+                        }
+                        return 2;
+                    }
+                    for directory in self.options.directories.clone() {
+                        if let Err(error) = std::env::set_current_dir(&directory) {
+                            self.fatal(
+                                None,
+                                &[
+                                    directory.as_os_str().as_bytes(),
+                                    b": ",
+                                    os_error(&error).as_bytes(),
+                                ]
+                                .concat(),
+                            );
+                            return 2;
+                        }
+                    }
+                }
+                let restart_directory = match std::env::current_dir() {
+                    Ok(directory) => directory,
+                    Err(error) => {
+                        self.fatal(None, os_error(&error).as_bytes());
+                        return 2;
+                    }
+                };
                 self.options.reset_jobserver = false;
                 self.include_search
                     .replace(IncludeSearch::new(&self.options.include_directories));
@@ -1472,6 +1555,17 @@ impl Engine {
                         .extend_from_slice(b" -- $(MAKEOVERRIDES)");
                 }
                 self.database = initial_database.clone();
+                self.database
+                    .variables
+                    .set_working_directory(restart_directory.as_os_str().as_bytes());
+                if let Err(error) = self.database.variables.define_literal(
+                    b"CURDIR",
+                    restart_directory.as_os_str().as_bytes(),
+                    Origin::File,
+                ) {
+                    self.expansion_error(None, &error);
+                    return 2;
+                }
                 self.database
                     .variables
                     .define_literal(

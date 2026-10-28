@@ -1,0 +1,12 @@
+id = "make-command-meta-1-file-make"
+requirement = "recursion.restart-cwd"
+candidate = "required"
+args = ["--no-print-directory", "-r"]
+timeout_seconds = 15
+output = "separate"
+provenance = "Original namespace, recursive invocation and byte-path Makefiles; two raw GNU Make 4.4.1 observations and candidate comparison. Controlled directory renames and symlinks stay inside the runner root; no output normalization or upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653d5b7265637572736976655d2f5b66696c655d2f5b637573746f6d5d2f5b637573746f6d5d20636f6d6d616e643d5b73696d706c655d2f5b64656661756c745d0a"
+stderr_hex = ""
