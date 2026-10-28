@@ -283,3 +283,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Restart directory namespaces and recursive invocation identity](docs/restart-directories.md) now follow original `-C` replay, actual-directory refresh and default `MAKE_COMMAND` indirection, with 348 required cases. M3/M6 remain open.
 
 [M3 profile inputs](docs/profile-inputs.md) now cover inherited file/directory switches, Guile-free lookup and expression reference boundaries. The [option inventory](docs/m3-option-inventory.md) lists the remaining CLI work; M3/M6 remain open.
+
+[Explicit startup arguments](docs/startup-arguments.md) now use one parse when no inherited tokens need merging. Three required fixtures and an output-checked `startup-arguments` benchmark cover up to 5,000 overrides. General performance parity remains open.

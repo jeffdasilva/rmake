@@ -2318,3 +2318,9 @@ Original `-C` arguments now re-enter from the startup directory after a Makefile
 Well-formed startup file/directory switches in MAKEFLAGS/GNUMAKEFLAGS now participate in the original invocation; later file/environment-origin decodes consume them without changing active paths. The disabled Guile profile uses ordinary variable/call semantics. Reference expansion now preserves simple-name closing delimiters, computed-name balancing, unmatched nested-name fallback and function-specific unterminated diagnostics.
 
 [Profile-input evidence](profile-inputs.md) adds 792 required cases: 504 Guile-free, 168 flag-path and 120 reference-boundary cases. The preceding candidate fails 648 and passes 144 controls. Valid computed-name declarations and independent success/effect anchors prevent malformed fixtures from masking lookup behavior. Totals are 8,965 cases / 8,964 required / one pending, with 440 Rust / 355 tooling tests. Full acceptance and exact-head CI remain merge gates. M3/M6 and general speed parity remain open; the [option inventory](m3-option-inventory.md) makes the remaining CLI work explicit.
+
+## M6 explicit startup argument cost
+
+Invocations without inherited flag tokens now parse explicit arguments once. The existing inherited merge remains intact, and both paths share explicit-job/authentication finalization. [Startup argument evidence](startup-arguments.md) adds three required full-value fixtures and a top-level benchmark suite. Totals are 8,968 cases / 8,967 required / one pending, with 440 Rust / 357 tooling tests.
+
+In 101 paired samples, the 5,000-override median fell from 8.637 ms to 8.216 ms; GNU measured 25.921 ms. Every value is observed. Core/parallel medians remain close, with some slightly higher, and general parity remains open. Raw argument/core/parallel reports are retained. Full acceptance and exact-head CI remain merge gates.
