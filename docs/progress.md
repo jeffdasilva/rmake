@@ -2396,3 +2396,22 @@ Output-checked frozen benchmarks retain all samples and identities; several
 common medians are slightly higher (expansion about 2.1% in this run). These
 measurements establish neither statistical improvement/regression nor general
 parity. GNU remains faster on standard workloads; no semantic cache is added.
+
+## M3/M6 trace output and remake diagnostic state
+
+[Trace output](trace.md) now preserves source/target identities, rebuild reasons,
+command echo, nonexecuting modes, output synchronization, includes, implicit and
+built-in recipes, VPATH/GPATH names, restarts and recursive propagation. Requested
+trace flags remain separate from the active diagnostic state while remaking
+Makefiles; live flag assignment can reactivate diagnostics inside that phase.
+Fallback reasons use existing logical completion observations without new
+filesystem probes or timestamp caches.
+
+165 new exact-modeled cases bring the corpus to 9,796 required ordinary cases,
+no ordinary pending entries, and 17 separately gated safety exceptions. Totals
+are 453 Rust / 381 tooling tests. Source/status/stream models require each GPATH
+and phony fallback input to reach its intended branch. Full local development/
+optimized acceptance and exact-head CI remain merge gates. M3/M6 remain open.
+
+Frozen output-checked core/parallel reports retain all samples and identities.
+They establish neither statistical improvement nor general performance parity.

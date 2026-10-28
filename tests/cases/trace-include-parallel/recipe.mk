@@ -1,0 +1,1 @@
+all:;@printf 'done\n'

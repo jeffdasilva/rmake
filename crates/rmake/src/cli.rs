@@ -39,6 +39,7 @@ pub struct Options {
     pub environment_override: bool,
     pub no_rules: bool,
     pub no_variables: bool,
+    pub trace: bool,
     pub warn_undefined: bool,
     pub startup_missing_makeflags_warning: bool,
     pub no_print_directory: bool,
@@ -256,6 +257,7 @@ impl Options {
                     b"--check-symlink-times" => Some(&mut result.check_symlink_times),
                     b"--question" => Some(&mut result.question),
                     b"--touch" => Some(&mut result.touch),
+                    b"--trace" => Some(&mut result.trace),
                     b"--warn-undefined-variables" => Some(&mut result.warn_undefined),
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
@@ -582,6 +584,9 @@ impl Options {
                 flags.push(*byte);
             }
         }
+        if self.trace {
+            flags.extend_from_slice(b" --trace");
+        }
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
         }
@@ -890,5 +895,28 @@ mod tests {
         assert_eq!(inherited_file.files, [PathBuf::from("config")]);
         let non_utf8 = Options::parse([OsString::from_vec(b"-I\xff".to_vec())]).unwrap();
         assert_eq!(non_utf8.flags(), b" -I\xff");
+    }
+    #[test]
+    fn trace_flag_is_retained_in_live_decoding_and_recursive_order() {
+        let options = Options::parse(
+            [
+                "-rR",
+                "--trace",
+                "--no-print-directory",
+                "--warn-undefined-variables",
+                "--no-silent",
+            ]
+            .map(OsString::from),
+        )
+        .unwrap();
+        assert!(options.trace);
+        assert_eq!(
+            options.recursive_flags(),
+            b"rR --trace --no-print-directory --warn-undefined-variables --no-silent"
+        );
+        let (updated, _) = options.file_flags(&[b"-i".to_vec()]).unwrap();
+        assert!(updated.trace);
+        assert!(updated.ignore_errors);
+        assert!(Options::parse([OsString::from("--trace=all")]).is_err());
     }
 }

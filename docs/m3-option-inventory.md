@@ -18,7 +18,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-w`/`--print-directory` | Unsupported: needs origin-aware policy, deferred entering/leaving, synchronized spool boundaries, constructor errors and restart behavior. |
 | `-d`, `--debug[=...]` | Unsupported: must implement debug categories, ordering, restart/child identities and output. |
 | `-p`/`--print-data-base` | Unsupported: needs semantic database validator with narrow treatment of documented nondeterministic fields. |
-| `--trace` | Unsupported: needs exact trigger, recipe/dependency/location and timing observations. |
+| `--trace` | [Trace output](trace.md) has 165 required cases for rebuild reasons, identity, echo, modes, synchronization and remake reactivation. Full debug-category, startup, option/profile and locale interactions remain open. |
 | `-E`/`--eval` | Unsupported: startup evaluation before ordinary files, ordering and recursive propagation need original cases. Ordinary `$(eval ...)` is separate and implemented. |
 | `-o`/`--old-file`/`--assume-old` | Unsupported: filename handling and old-file update semantics need implementation. |
 | `-W`/`--what-if`/`--new-file`/`--assume-new` | Unsupported: logical timestamp/update semantics need implementation. |

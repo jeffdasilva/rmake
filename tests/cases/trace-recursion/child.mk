@@ -1,0 +1,1 @@
+all:;@printf 'child\n'

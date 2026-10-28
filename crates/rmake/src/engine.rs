@@ -491,6 +491,14 @@ impl ParallelJobs {
     }
 }
 
+/// Rule observations borrowed until recipe dispatch; disabled tracing allocates
+/// nothing and does not add state to suspended continuations.
+struct TraceInputs<'a> {
+    location: Option<&'a Location>,
+    dependencies: &'a [Dependency],
+    dropped: &'a HashSet<Vec<u8>>,
+}
+
 /// Interpreter-owned continuation. Workers receive only one prepared Command;
 /// subsequent command configuration and exports are evaluated after completion.
 struct RecipeState {
@@ -2044,6 +2052,7 @@ impl Engine {
             if restarts > 0 {
                 self.options.always = false;
             }
+            let trace_before_remake = self.flag_state.trace_enabled.replace(false);
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
@@ -2117,6 +2126,7 @@ impl Engine {
                 self.options.touch,
                 self.options.always,
             ) = modes;
+            self.flag_state.trace_enabled.set(trace_before_remake);
             self.remaking = false;
             if self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
@@ -5740,7 +5750,18 @@ impl Engine {
                     self.running_groups.insert(target.to_vec(), group);
                 }
                 self.archive_completion_times.remove(target);
-                let execution = self.execute(target, recipes, &autos, phony, before);
+                let execution = self.execute(
+                    target,
+                    recipes,
+                    &autos,
+                    phony,
+                    before,
+                    TraceInputs {
+                        location: recipes.first().map(|recipe| &recipe.location),
+                        dependencies: &rule.dependencies,
+                        dropped: &dropped,
+                    },
+                );
                 outcome.ran |= execution.ran;
                 outcome.completion =
                     if (self.options.dry_run || self.options.question || self.options.touch)
@@ -5920,8 +5941,9 @@ impl Engine {
         automatic: &[(&[u8], Vec<u8>)],
         phony: bool,
         before: Option<SystemTime>,
+        trace: TraceInputs<'_>,
     ) -> Execution {
-        let mut result = self.execute_inner(target, recipes, automatic, phony, before);
+        let mut result = self.execute_inner(target, recipes, automatic, phony, before, trace);
         if let Some(buffer) = self.dispatch_output.take() {
             if result.status == Status::Fatal {
                 self.fatal_outputs.push(buffer);
@@ -5951,6 +5973,7 @@ impl Engine {
         automatic: &[(&[u8], Vec<u8>)],
         phony: bool,
         before: Option<SystemTime>,
+        trace: TraceInputs<'_>,
     ) -> Execution {
         self.observe_interrupt();
         if self.interrupt.is_some() {
@@ -6081,6 +6104,59 @@ impl Engine {
         }
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
+        }
+        if self.flag_state.trace_enabled.get() {
+            let reason = if phony {
+                b"target is .PHONY".to_vec()
+            } else if before.is_none() {
+                b"target does not exist".to_vec()
+            } else {
+                let newer = match self.expand(&mut variables, b"$?", None) {
+                    Ok(newer) => newer,
+                    Err(error) => {
+                        self.expansion_error(None, &error);
+                        return Execution::fatal(false);
+                    }
+                };
+                if newer.is_empty() {
+                    let missing = joined(
+                        trace
+                            .dependencies
+                            .iter()
+                            .filter(|dependency| {
+                                dependency.name != b".WAIT"
+                                    && !trace.dropped.contains(&dependency.name)
+                                    && self.done.get(&dependency.name).is_some_and(|child| {
+                                        child.time.is_none()
+                                            && (child.completion != CompletionTime::AssumeNew
+                                                || self.special(b".PHONY", &dependency.name, false))
+                                    })
+                            })
+                            .map(|dependency| dependency.name.as_slice()),
+                    );
+                    if missing.is_empty() {
+                        b"unknown reasons".to_vec()
+                    } else {
+                        missing
+                    }
+                } else {
+                    newer
+                }
+            };
+            let prefix = trace
+                .location
+                .map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
+            self.output.write_parts(
+                false,
+                &[
+                    &prefix,
+                    b"update target '",
+                    target,
+                    b"' due to: ",
+                    &reason,
+                    b"\n",
+                ],
+            );
         }
         let state = RecipeState {
             output,
@@ -6304,7 +6380,7 @@ impl Engine {
             if self.interrupt.is_some() {
                 return Execution::fatal(ran);
             }
-            if self.options.dry_run || !quiet {
+            if self.options.dry_run || self.flag_state.trace_enabled.get() || !quiet {
                 self.stdout(echo);
             }
             ran = true;
