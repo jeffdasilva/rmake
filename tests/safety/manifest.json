@@ -1,0 +1,345 @@
+{
+  "schema": 1,
+  "classification": "documented safety exceptions; not exact GNU conformance",
+  "exceptions": [
+    {
+      "id": "flag-payload-effect-set-9",
+      "code": "S004",
+      "evidence": "tests/research/gnu-441-flag-decoder.json",
+      "evidence_sha256": "0e4fd895bd78cb68bdc7a68e70a5f4592468c18565adfeb6245624b9c9848022",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "9182ffa39642fa211a75759bbfa9cd16fe171865b40d4db6bf19f382af787f87"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20726d616b6520736166657479206572726f72205b533030345d3a20756e73616665207265656e7472616e74204d414b45464c41475320617267756d656e74206465636f64696e672e202053746f702e0a"
+      }
+    },
+    {
+      "id": "flag-payload-effect-set-10",
+      "code": "S004",
+      "evidence": "tests/research/gnu-441-flag-decoder.json",
+      "evidence_sha256": "0e4fd895bd78cb68bdc7a68e70a5f4592468c18565adfeb6245624b9c9848022",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "fa4e4b6fcef3b231c33b7175fb32d9375297c8a40cb445e55e02e24e801b60f3"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20726d616b6520736166657479206572726f72205b533030345d3a20756e73616665207265656e7472616e74204d414b45464c41475320617267756d656e74206465636f64696e672e202053746f702e0a"
+      }
+    },
+    {
+      "id": "flag-payload-effect-override-9",
+      "code": "S004",
+      "evidence": "tests/research/gnu-441-flag-decoder.json",
+      "evidence_sha256": "0e4fd895bd78cb68bdc7a68e70a5f4592468c18565adfeb6245624b9c9848022",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "1780fa75fa646781e1cdbc97e1fb3e464cab513275b5fef44e71c8a85d825232"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20726d616b6520736166657479206572726f72205b533030345d3a20756e73616665207265656e7472616e74204d414b45464c41475320617267756d656e74206465636f64696e672e202053746f702e0a"
+      }
+    },
+    {
+      "id": "flag-payload-effect-override-10",
+      "code": "S004",
+      "evidence": "tests/research/gnu-441-flag-decoder.json",
+      "evidence_sha256": "0e4fd895bd78cb68bdc7a68e70a5f4592468c18565adfeb6245624b9c9848022",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "453dc643c68e0f1c15995ec25e8db44e1adb1aa585c6a619302afdb769c35230"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20726d616b6520736166657479206572726f72205b533030345d3a20756e73616665207265656e7472616e74204d414b45464c41475320617267756d656e74206465636f64696e672e202053746f702e0a"
+      }
+    },
+    {
+      "id": "flag-payload-ordered-13",
+      "code": "S004",
+      "evidence": "tests/research/gnu-441-flag-decoder.json",
+      "evidence_sha256": "0e4fd895bd78cb68bdc7a68e70a5f4592468c18565adfeb6245624b9c9848022",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "f446856b8c04be91f7720bc2213a979e48fdc73730c6f3a6b22b7c877f6c6ea2"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a20726d616b6520736166657479206572726f72205b533030345d3a20756e73616665207265656e7472616e74204d414b45464c41475320617267756d656e74206465636f64696e672e202053746f702e0a"
+      }
+    },
+    {
+      "id": "metadata-default-default-goal-undef",
+      "code": "S002",
+      "evidence": "tests/research/gnu-441-metadata-signal.json",
+      "evidence_sha256": "fd16f4721682c4418d4fdd76570ed5ea624f5b309efe22779aff0bb7668974c8",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "1be226fcf6a1c9ac196b059790f2dec4da5f146745c867fd47cc5fd930668410"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a20726d616b6520736166657479206572726f72205b533030325d3a2064656c6574696e67206c697665202e44454641554c545f474f414c206d657461646174612e202053746f702e0a"
+      }
+    },
+    {
+      "id": "env-vector-edge-recipe-active-deleted",
+      "code": "S003",
+      "evidence": "tests/research/gnu-441-environment-deletion.json",
+      "evidence_sha256": "d424d77472731fae5400b3de289ff61d98c4be93427b58f225bf013d0c9422a9",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "A": "original"
+      },
+      "inputs": {
+        "Makefile": "b01347bf8010eba93b9d0dc6284ac9b21b4f979fdb0f203ee46d7d009354b3ca",
+        "capture.c": "f6232c5cee0fb733adc2d08e2c381c7b5232039a69452896523f6af1ad9311db"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20726d616b6520736166657479206572726f72205b533030335d3a2064656c6574696e6720612062696e64696e67207768696c65206578706f7274696e67206974732076616c75652e202053746f702e0a"
+      }
+    },
+    {
+      "id": "env-vector-edge-shell-active-deleted",
+      "code": "S003",
+      "evidence": "tests/research/gnu-441-environment-deletion.json",
+      "evidence_sha256": "d424d77472731fae5400b3de289ff61d98c4be93427b58f225bf013d0c9422a9",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "A": "original"
+      },
+      "inputs": {
+        "Makefile": "56d351d267196a3d3e786c41d20db1de8d919a12c0b46f99078f0a29005f6a0e",
+        "capture.c": "f6232c5cee0fb733adc2d08e2c381c7b5232039a69452896523f6af1ad9311db"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a20726d616b6520736166657479206572726f72205b533030335d3a2064656c6574696e6720612062696e64696e67207768696c65206578706f7274696e67206974732076616c75652e202053746f702e0a"
+      }
+    },
+    {
+      "id": "env-vector-edge-oneshell-active-deleted",
+      "code": "S003",
+      "evidence": "tests/research/gnu-441-environment-deletion.json",
+      "evidence_sha256": "d424d77472731fae5400b3de289ff61d98c4be93427b58f225bf013d0c9422a9",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "A": "original"
+      },
+      "inputs": {
+        "Makefile": "b8cd86d3ce0441dc8cb8bcea8caa7c03f3084bc60bf3c2f5496ccad254244f72",
+        "capture.c": "f6232c5cee0fb733adc2d08e2c381c7b5232039a69452896523f6af1ad9311db"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20726d616b6520736166657479206572726f72205b533030335d3a2064656c6574696e6720612062696e64696e67207768696c65206578706f7274696e67206974732076616c75652e202053746f702e0a"
+      }
+    },
+    {
+      "id": "shell-argv-flags-177",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-shell-argv-aborts.json",
+      "evidence_sha256": "a0990752506994f85d058fa380586cbec8fc545b4838c8cbcba468651162223e",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "e10361d062fe0cf58be715952ebcc67367b3cf5d6ad37bb3f863a8c3432dbcea",
+        "capture": "c40a37e3fc706a0394c9f36142f371ba1588c02504e5a628f49b443224ffe7c1"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a393a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "shell-argv-flags-179",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-shell-argv-aborts.json",
+      "evidence_sha256": "a0990752506994f85d058fa380586cbec8fc545b4838c8cbcba468651162223e",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "ad5b173673b21308f165c71ea6c0c0d8e5c18231d03711b78f96e763a8e48fde",
+        "capture": "c40a37e3fc706a0394c9f36142f371ba1588c02504e5a628f49b443224ffe7c1"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a31303a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "shell-argv-flags-187",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-shell-argv-aborts.json",
+      "evidence_sha256": "a0990752506994f85d058fa380586cbec8fc545b4838c8cbcba468651162223e",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "043376bb8a79adc88b4a49f8509d520f77c92fa12be28761d0da2b96c78eb5fc",
+        "capture": "c40a37e3fc706a0394c9f36142f371ba1588c02504e5a628f49b443224ffe7c1"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a31303a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "shell-argv-flags-197",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-shell-argv-aborts.json",
+      "evidence_sha256": "a0990752506994f85d058fa380586cbec8fc545b4838c8cbcba468651162223e",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "4f3541026258695491b667cfcff9786b8ad2e9269e7bee8c58999ca566fe98a0",
+        "capture": "c40a37e3fc706a0394c9f36142f371ba1588c02504e5a628f49b443224ffe7c1"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a31303a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "shell-argv-flags-199",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-shell-argv-aborts.json",
+      "evidence_sha256": "a0990752506994f85d058fa380586cbec8fc545b4838c8cbcba468651162223e",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "fb123f71c1e58756b4f7883fe35911f9c2585b4e424765f6c35a8d3a68c9c4c9",
+        "capture": "c40a37e3fc706a0394c9f36142f371ba1588c02504e5a628f49b443224ffe7c1"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a31313a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "oneshell-flags-10",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-oneshell-flags-aborts.json",
+      "evidence_sha256": "d913f5a4a03d5443a6aa43c796488dd93eae033f174bfeb23643620f20864543",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "3c9901e4ac9a883b4fa2201293f66bb1d063fb4b276cba0160649f167b1acd20",
+        "capture": "5ed34929f2f9a78c3224c12056ed601a209708380cfdc9f90ad151c8f1ee1ad5"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a353a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "oneshell-flags-20",
+      "code": "S005",
+      "evidence": "tests/research/gnu-441-oneshell-flags-aborts.json",
+      "evidence_sha256": "d913f5a4a03d5443a6aa43c796488dd93eae033f174bfeb23643620f20864543",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "b3b497d949d134653e36390a2e0393cf3ba5256cbe8639a8bfde949a7e3ea3ca",
+        "capture": "5ed34929f2f9a78c3224c12056ed601a209708380cfdc9f90ad151c8f1ee1ad5"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a353a202a2a2a20726d616b6520736166657479206572726f72205b533030355d3a20756e73616665202e4f4e455348454c4c207368656c6c20636f6e66696775726174696f6e2e202053746f702e0a"
+      }
+    },
+    {
+      "id": "whitespace-let-empty-list-upstream-signal",
+      "code": "S001",
+      "evidence": "tests/research/gnu-441-let-empty-signal.json",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "16a0c6c95d9a4208c2b8539bc06b6bc20251a8233b5f309b50f17be9c774740c"
+      },
+      "evidence_sha256": "4407fe102e1570d5ab61a13fd91926eaac9edf42a3b18955734444a3565c89e4",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a343a202a2a2a20726d616b6520736166657479206572726f72205b533030315d3a206d756c7469706c65206c6574206e616d6573207769746820616e20656d7074792076616c7565206c6973742e202053746f702e0a"
+      }
+    }
+  ]
+}

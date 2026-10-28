@@ -249,6 +249,7 @@ impl Variable {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpandError {
     Cancelled,
+    Safety(crate::safety::SafetyError),
     Located {
         location: Arc<Location>,
         error: Box<ExpandError>,
@@ -431,6 +432,7 @@ impl fmt::Display for ExpandError {
                 String::from_utf8_lossy(function)
             ),
             Self::Cancelled => output.write_str("interrupted"),
+            Self::Safety(error) => output.write_str(error.message()),
             Self::ExpansionLimit => output.write_str("variable expansion resource limit exceeded"),
             Self::WordIndexZero => {
                 output.write_str("first argument to 'word' function must be greater than 0")
@@ -758,14 +760,17 @@ impl VariableStore {
     /// Unlike internal removal, an undefine directive observes origin priority
     /// and promotes an environment binding when -e makes it prevail.
     pub fn undefine(&mut self, name: &[u8], origin: Origin) -> bool {
-        self.promote_environment(name, origin);
-        if self
-            .get(name)
-            .is_some_and(|variable| variable.origin > origin)
-        {
+        if !self.can_undefine(name, origin) {
             return false;
         }
         self.remove(name).is_some()
+    }
+
+    pub(crate) fn can_undefine(&mut self, name: &[u8], origin: Origin) -> bool {
+        self.promote_environment(name, origin);
+        self.get(name)
+            .is_none_or(|variable| variable.origin <= origin)
+            && self.variables.contains_key(name)
     }
 
     pub fn definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
@@ -958,6 +963,14 @@ impl VariableStore {
             }
         }
         environment
+    }
+
+    fn global_layer(&self, layer: usize) -> bool {
+        if layer == 0 {
+            !self.scoped
+        } else {
+            self.layers[layer - 1].global
+        }
     }
 
     /// Environment construction has its own ordered table. Non-global scopes
@@ -1808,6 +1821,13 @@ impl std::ops::Deref for StoreAccess<'_> {
 }
 
 impl StoreAccess<'_> {
+    fn database_mut(&mut self) -> Option<&mut crate::parser::Database> {
+        match self {
+            Self::Database(database) | Self::Scoped { database, .. } => Some(database),
+            _ => None,
+        }
+    }
+
     fn begin_filename_session(&mut self, needed: bool) -> bool {
         match self {
             Self::Database(db) | Self::Scoped { database: db, .. } => {
@@ -1884,6 +1904,12 @@ pub(crate) fn expand_environment_database(
         return Ok(Vec::new());
     };
     let bindings = db.evaluation_bindings.clone();
+    let tracked = environment.global_layer(layer)
+        && variable.flavor == Flavor::Recursive
+        && variable.value.contains(&b'$');
+    if tracked {
+        db.exporting.push(name.to_vec());
+    }
     let mut expansion = Expansion {
         store: StoreAccess::Scoped {
             database: db,
@@ -1895,8 +1921,11 @@ pub(crate) fn expand_environment_database(
         context,
         binding_context: None,
     };
-    if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+    let result = if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
         let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) else {
+            if tracked {
+                expansion.store.database_mut().unwrap().exporting.pop();
+            }
             return Ok(Vec::new());
         };
         let first = first.clone();
@@ -1905,7 +1934,11 @@ pub(crate) fn expand_environment_database(
         expansion.expand_layer(name, &first, Some(first_layer), 0)
     } else {
         expansion.selected_variable(name, variable, Some(layer))
+    };
+    if tracked {
+        expansion.store.database_mut().unwrap().exporting.pop();
     }
+    result
 }
 
 pub(crate) fn expand_database(
@@ -2294,6 +2327,9 @@ impl Expansion<'_, '_> {
                 let values = self.expand(args[1])?;
                 let names: Vec<_> = words(&names).collect();
                 let mut value_spans = word_spans(&values);
+                if names.len() > 1 && word_spans(&values).next().is_none() {
+                    return Err(ExpandError::Safety(crate::safety::SafetyError::EmptyLet));
+                }
                 let mut bindings = BTreeMap::new();
                 for (index, name) in names.iter().enumerate() {
                     let value = match value_spans.next() {
@@ -2422,8 +2458,22 @@ impl Expansion<'_, '_> {
         let Some((layer, variable)) = environment.lookup_from(name, 0) else {
             return Ok(Vec::new());
         };
-        if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+        let tracked = environment.global_layer(layer)
+            && variable.flavor == Flavor::Recursive
+            && variable.value.contains(&b'$')
+            && self.store.database_mut().is_some();
+        if tracked {
+            self.store
+                .database_mut()
+                .unwrap()
+                .exporting
+                .push(name.to_vec());
+        }
+        let result = if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
             let Some((first_layer, first)) = self.store.lookup_from(name, 0) else {
+                if tracked {
+                    self.store.database_mut().unwrap().exporting.pop();
+                }
                 return Ok(Vec::new());
             };
             let first = first.clone();
@@ -2435,7 +2485,11 @@ impl Expansion<'_, '_> {
             result
         } else {
             self.selected_variable(name, variable, Some(layer))
+        };
+        if tracked {
+            self.store.database_mut().unwrap().exporting.pop();
         }
+        result
     }
 
     fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
@@ -4446,8 +4500,32 @@ mod tests {
             b"[first\tsecond \r]"
         );
         assert_eq!(expand(b"$(let ,ignored,body)"), b"body");
-        // GNU 4.4.1 crashes on this shortage of words; retain a safe empty binding.
-        assert_eq!(expand(b"$(let a b, \t\x0b,[$(a)][$(b)])"), b"[][]");
+        // The approved exception returns an error before evaluating the body.
+        assert_eq!(
+            VariableStore::new().expand(b"$(let a b, \t\x0b,[$(a)][$(b)])"),
+            Err(ExpandError::Safety(crate::safety::SafetyError::EmptyLet))
+        );
+    }
+
+    #[test]
+    fn empty_let_safety_error_preserves_eager_names_values_and_skips_body() {
+        let mut store = VariableStore::new();
+        let mut messages = Vec::new();
+        let mut output = |event: Output<'_>| {
+            if let Output::Info(bytes) = event {
+                messages.push(bytes.to_vec());
+            }
+        };
+        let result = store.expand_mut_with(
+            b"$(let $(info names)a b,$(info values),$(info body)BAD)",
+            ExpansionContext::new(None, &mut output),
+        );
+        assert_eq!(
+            result,
+            Err(ExpandError::Safety(crate::safety::SafetyError::EmptyLet))
+        );
+        assert_eq!(messages, [b"names".to_vec(), b"values".to_vec()]);
+        assert_eq!(store.expand(b"$(let a,,OK)").unwrap(), b"OK");
     }
 
     #[test]

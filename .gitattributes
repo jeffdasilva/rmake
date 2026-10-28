@@ -31,3 +31,7 @@ crates/rmake-core/data/*.mk -text whitespace=-blank-at-eol,-blank-at-eof
 # Profile/reference fixtures preserve byte names and significant trailing spaces.
 tests/cases/guile-disabled-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/reference-boundary-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Safety evidence and valid boundary controls retain their original input bytes.
+tests/safety/cases/*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/safety-control-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

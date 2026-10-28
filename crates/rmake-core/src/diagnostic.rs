@@ -136,6 +136,7 @@ pub struct ExpansionContext<'a> {
     shell: Option<&'a mut ShellReceiver<'a>>,
     makeflags: Option<&'a mut MakeflagsReceiver<'a>>,
     makeflags_depth: usize,
+    makeflags_terminal: usize,
     makeflags_cursor: Option<std::rc::Rc<std::cell::Cell<usize>>>,
 }
 
@@ -150,6 +151,7 @@ impl<'a> ExpansionContext<'a> {
             shell: None,
             makeflags: None,
             makeflags_depth: 0,
+            makeflags_terminal: 0,
             makeflags_cursor: None,
         }
     }
@@ -165,6 +167,7 @@ impl<'a> ExpansionContext<'a> {
             shell: None,
             makeflags: None,
             makeflags_depth: 0,
+            makeflags_terminal: 0,
             makeflags_cursor: None,
         }
     }
@@ -226,6 +229,20 @@ impl<'a> ExpansionContext<'a> {
             })
             .map_err(ExpandError::UnlocatedError)?;
         } else if has_input && let Some(cursor) = &self.makeflags_cursor {
+            // A nested single short-option word rewinds GNU's process-global
+            // cursor into an already-applied outer assignment. Refuse the
+            // recorded nonterminating class before replaying those effects.
+            let token = value.trim_ascii();
+            if self.makeflags_depth > 0
+                && self.makeflags_terminal > 2
+                && cursor.get() > 2
+                && result.next_argument == 2
+                && token.starts_with(b"-")
+                && token.len() > 1
+                && !token.starts_with(b"--")
+            {
+                return Err(ExpandError::Safety(crate::safety::SafetyError::NestedFlags));
+            }
             cursor.set(result.next_argument);
         }
         database.update_mflags(&result.value, result.environment_override)?;
@@ -278,6 +295,7 @@ impl<'a> ExpansionContext<'a> {
         cursor.set(1);
         let mut names = Vec::new();
         let depth = self.makeflags_depth;
+        let previous_terminal = std::mem::replace(&mut self.makeflags_terminal, terminal);
         self.makeflags_depth += 1;
         let applied = (|| {
             for _ in 0..128_usize.saturating_mul(assignments.len().max(1)) {
@@ -303,9 +321,10 @@ impl<'a> ExpansionContext<'a> {
                     names.push(name);
                 }
             }
-            Err(ExpandError::ExpansionLimit)
+            Err(ExpandError::Safety(crate::safety::SafetyError::NestedFlags))
         })();
         self.makeflags_depth = depth;
+        self.makeflags_terminal = previous_terminal;
         applied?;
         Ok(names)
     }
@@ -400,6 +419,7 @@ impl<'a> ExpansionContext<'a> {
                 None => None,
             },
             makeflags_depth: self.makeflags_depth,
+            makeflags_terminal: self.makeflags_terminal,
             makeflags_cursor: self.makeflags_cursor.clone(),
         }
     }

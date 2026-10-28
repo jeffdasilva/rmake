@@ -53,7 +53,9 @@ bytes as options; an original bounded `getopt_long` interposer confirmed those
 calls. Global getopt state retaining stack-local argument storage is a
 source-informed explanation, rather than a passing equivalence claim. The
 research is not run by normal CI or counted as passing conformance. These remain
-explicit compatibility/safety conflicts under the compatibility contract.
+explicit observations under the compatibility contract. The five recorded hangs
+now have [approved S004 errors](safety-exceptions.md), gated separately with no
+conformance credit. The finite nested-decode mismatch remains open ordinary work.
 
 Recursive inheritance fixtures pass `--no-print-directory` explicitly to isolate
 binding behavior. GNU's implicit recursive directory messages remain an M6

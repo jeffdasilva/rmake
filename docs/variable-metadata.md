@@ -59,8 +59,9 @@ coverage, independent effect anchors and research classification. The corpus is
 
 An additional GNU default-goal undefinition probe produces SIGSEGV. Its original
 input and two observations remain in [the safety record](../tests/research/gnu-441-metadata-signal.json).
-The candidate completes safely. This is an unresolved compatibility/safety
-conflict, without passing conformance credit or deliberate memory corruption.
+The historical candidate completed safely. The owner subsequently approved the
+[S002 fatal safety error](safety-exceptions.md), tested separately without passing
+conformance credit or deliberate memory corruption.
 
 The first eager implementation regressed the expansion benchmark about 20%.
 A single-search insertion path and allocation only on metadata lookup reduced

@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "classification": "ordinary startup CLI eval compatibility gap; not a safety exception",
+  "provenance": "Original guard-boundary control with independently asserted empty default-goal value, two GNU observations and current candidate observation. No upstream code or tests copied.",
+  "record": {
+    "id": "safety-control-metadata-inactive-cli",
+    "source": "2320535044582d4c6963656e73652d4964656e7469666965723a2047504c2d332e302d6f722d6c617465720a2320436f707972696768742032303236204a65666620446153696c76610a2428696e666f20726573756c743d5b24282e44454641554c545f474f414c295d290a616c6c3a3b403a0a",
+    "stdout": "726573756c743d5b5d0a",
+    "status": 0,
+    "args": [
+      "-rR",
+      "--no-print-directory",
+      "BOOT:=$(eval undefine .DEFAULT_GOAL)"
+    ],
+    "files": {},
+    "path": "/tmp/rmake-safety-controls/safety-control-metadata-inactive-cli"
+  },
+  "oracle_observations": [
+    {
+      "returncode": 0,
+      "stdout_hex": "726573756c743d5b5d0a",
+      "stderr_hex": "",
+      "limit": null,
+      "leftover_processes": false
+    },
+    {
+      "returncode": 0,
+      "stdout_hex": "726573756c743d5b5d0a",
+      "stderr_hex": "",
+      "limit": null,
+      "leftover_processes": false
+    }
+  ],
+  "candidate": {
+    "id": "safety-control-metadata-inactive-cli",
+    "errors": [
+      "oracle disagrees with expected.exit_code",
+      "oracle disagrees with expected.stdout_hex",
+      "oracle disagrees with expected.stderr_hex"
+    ],
+    "returncode": 2,
+    "stdout_hex": "",
+    "stderr_hex": "6d616b653a202a2a2a20756e737570706f7274656420657870616e73696f6e206665617475726520276576616c272e202053746f702e0a",
+    "limit": null,
+    "leftovers": false
+  }
+}

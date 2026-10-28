@@ -320,6 +320,10 @@ pub struct Database {
     // bytes preserve shared-name overwrites without aliased or dangling pointers.
     filename_scratch: Option<Vec<u8>>,
     filename_session_depth: usize,
+    runtime_metadata_live: bool,
+    /// Global bindings being expanded for an environment vector. Target-local
+    /// bindings do not refer to the global object removed by undefine.
+    pub(crate) exporting: Vec<Vec<u8>>,
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -332,6 +336,10 @@ struct Vpath {
 }
 
 impl Database {
+    pub fn activate_runtime_metadata(&mut self) {
+        self.runtime_metadata_live = true;
+    }
+
     /// Activate a target's local bindings over its inherited execution context.
     /// Descendant visibility and append layers are preserved by the store.
     pub fn variables_for_target_with(
@@ -2582,7 +2590,22 @@ impl Database {
                 self.finish_declaration(&mut declaration, &location, context)?;
                 let name = self.expand(rest, &location, context)?;
                 let name = trim(&name);
-                if self.variables.undefine(name, origin) {
+                if self.variables.can_undefine(name, origin) {
+                    let safety = if self.runtime_metadata_live && name == b".DEFAULT_GOAL" {
+                        Some(crate::safety::SafetyError::DefaultGoalDeletion)
+                    } else if self.exporting.iter().any(|active| active == name) {
+                        Some(crate::safety::SafetyError::ActiveExportDeletion)
+                    } else {
+                        None
+                    };
+                    if let Some(error) = safety {
+                        return Err(ParseError {
+                            location,
+                            message: error.message().into(),
+                            unlocated: false,
+                        });
+                    }
+                    self.variables.remove(name);
                     self.exports.remove(name);
                     self.unexports.remove(name);
                 }
@@ -3407,6 +3430,74 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn live_goal_deletion_checks_origin_without_blocking_normal_resets() {
+        let mut db = Database::default();
+        db.variables
+            .define_literal(b".DEFAULT_GOAL", b"all", Origin::File)
+            .unwrap();
+        db.activate_runtime_metadata();
+        let error = db.read(b"undefine .DEFAULT_GOAL\n", b"m").unwrap_err();
+        assert_eq!(
+            error.message.as_bytes(),
+            crate::safety::SafetyError::DefaultGoalDeletion
+                .message()
+                .as_bytes()
+        );
+        assert_eq!(
+            db.variables.get(b".DEFAULT_GOAL").unwrap().raw_value(),
+            b"all"
+        );
+        db.read(b".DEFAULT_GOAL :=\n", b"m").unwrap();
+        assert_eq!(db.variables.get(b".DEFAULT_GOAL").unwrap().raw_value(), b"");
+        db.variables
+            .define_literal(b".DEFAULT_GOAL", b"all", Origin::CommandLine)
+            .unwrap();
+        db.read(b"undefine .DEFAULT_GOAL\n", b"m").unwrap();
+        assert_eq!(
+            db.variables.get(b".DEFAULT_GOAL").unwrap().raw_value(),
+            b"all"
+        );
+        assert!(db.read(b"override undefine .DEFAULT_GOAL\n", b"m").is_err());
+    }
+
+    #[test]
+    fn active_export_marker_unwinds_on_error_and_tracks_global_binding_selection() {
+        let mut db = Database::default();
+        db.read(b"export A = $(eval undefine A)BAD\n", b"m")
+            .unwrap();
+        let mut variables = db.variables.clone();
+        let result = db.expand_environment_in(&mut variables, b"A", ExpansionContext::pure());
+        assert!(
+            result
+                .unwrap_err()
+                .diagnostic()
+                .as_bytes()
+                .windows(4)
+                .any(|part| part == b"S003")
+        );
+        assert!(db.exporting.is_empty());
+        assert!(db.variables.get(b"A").is_some());
+        db.read(b"A := VALUE\n", b"m").unwrap();
+        assert_eq!(
+            db.expand_environment_in(&mut variables, b"A", ExpansionContext::pure())
+                .unwrap(),
+            b"VALUE"
+        );
+        assert!(db.exporting.is_empty());
+
+        db.read(b"all: export A = $(eval undefine A)LOCAL\n", b"m")
+            .unwrap();
+        let mut variables = target_variables(&mut db, b"all");
+        assert_eq!(
+            db.expand_environment_in(&mut variables, b"A", ExpansionContext::pure())
+                .unwrap(),
+            b"LOCAL"
+        );
+        assert!(db.variables.get(b"A").is_none());
+        assert!(db.exporting.is_empty());
+    }
 
     fn target_variables(database: &mut Database, target: &[u8]) -> VariableStore {
         let globals = database.variables.clone();

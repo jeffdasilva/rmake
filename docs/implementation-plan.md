@@ -28,8 +28,9 @@ lookup lifetime, default bindings and legacy flag updates on the pinned profile.
 [Export traversal](export-order.md) closes the two historical
 export-order pending cases, with collision/growth, scope and live-eval evidence.
 [Shell argv and residual execution](shell-argv-replay.md) closes five more
-curated gaps. One upstream-signal case remains pending; the broader M3/M6
-inventory is still incomplete. [Fatal continuations](fatal-continuations.md) close the original
+curated gaps. The former upstream-signal pending case is now a separately gated
+[approved safe-error exception](safety-exceptions.md); the broader M3/M6 inventory
+is still incomplete. [Fatal continuations](fatal-continuations.md) close the original
 post-child configuration failure; [immutable source-name sharing](shared-source-names.md)
 is a measured allocation reduction. [Load limits and stdin](load-limits.md) have
 controlled development and optimized gates. [Cooperative interruption and synthetic completion](runtime-cancellation.md)

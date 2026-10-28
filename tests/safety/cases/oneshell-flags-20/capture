@@ -1,0 +1,4 @@
+#!/usr/bin/python3
+import os,sys
+for arg in sys.argv:
+ print(os.fsencode(arg).hex(),flush=True)
