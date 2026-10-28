@@ -39,6 +39,8 @@ pub struct Options {
     pub environment_override: bool,
     pub no_rules: bool,
     pub no_variables: bool,
+    pub warn_undefined: bool,
+    pub startup_missing_makeflags_warning: bool,
     pub no_print_directory: bool,
     pub help: bool,
     pub version: bool,
@@ -53,6 +55,7 @@ impl Options {
         makeflags: Option<OsString>,
         gnumakeflags: Option<OsString>,
     ) -> Result<Self, String> {
+        let missing_makeflags = makeflags.is_none();
         let mut combined = Vec::new();
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
             Self::append_flags(&mut combined, flags.as_bytes())?;
@@ -79,6 +82,8 @@ impl Options {
                 .keep_going_origin
                 .map(|_| Origin::Environment)
         });
+        result.startup_missing_makeflags_warning =
+            missing_makeflags && inherited_options.warn_undefined;
         result.inherited_output_sync = inherited_options.output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
         Ok(result.with_command_jobs(explicit))
@@ -251,6 +256,7 @@ impl Options {
                     b"--check-symlink-times" => Some(&mut result.check_symlink_times),
                     b"--question" => Some(&mut result.question),
                     b"--touch" => Some(&mut result.touch),
+                    b"--warn-undefined-variables" => Some(&mut result.warn_undefined),
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
                     b"--no-builtin-variables" => {
@@ -579,6 +585,9 @@ impl Options {
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
         }
+        if self.warn_undefined {
+            flags.extend_from_slice(b" --warn-undefined-variables");
+        }
         if !self.silent && self.silent_origin.is_some() {
             flags.extend_from_slice(b" --no-silent");
         }
@@ -608,6 +617,34 @@ pub fn invocation_name(arg: &std::ffi::OsStr) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn warning_option_serializes_and_tracks_the_initial_gnu_flag_boundary() {
+        let direct =
+            Options::with_environment(["--warn-undefined-variables".into()], None, None).unwrap();
+        assert!(direct.warn_undefined);
+        assert!(!direct.startup_missing_makeflags_warning);
+        assert!(
+            direct
+                .recursive_flags()
+                .ends_with(b" --warn-undefined-variables")
+        );
+        let inherited = Options::with_environment(
+            Vec::<OsString>::new(),
+            None,
+            Some("--warn-undefined-variables".into()),
+        )
+        .unwrap();
+        assert!(inherited.warn_undefined && inherited.startup_missing_makeflags_warning);
+        let present = Options::with_environment(
+            Vec::<OsString>::new(),
+            Some("".into()),
+            Some("--warn-undefined-variables".into()),
+        )
+        .unwrap();
+        assert!(present.warn_undefined);
+        assert!(!present.startup_missing_makeflags_warning);
+    }
     fn parse(args: &[&str]) -> Result<Options, String> {
         Options::parse(args.iter().map(OsString::from))
     }

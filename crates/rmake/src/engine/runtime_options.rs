@@ -8,6 +8,7 @@ use super::*;
 pub(super) struct State {
     options: RefCell<Options>,
     dirty: Cell<bool>,
+    pub(super) warn_undefined: Cell<bool>,
     output: crate::output::Controller,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
 }
@@ -21,11 +22,13 @@ impl State {
         Self {
             options: RefCell::new(options.clone()),
             dirty: Cell::new(false),
+            warn_undefined: Cell::new(options.warn_undefined),
             output,
             includes,
         }
     }
     pub(super) fn refresh(&self, options: &Options) {
+        self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
         self.dirty.set(false);
     }
@@ -91,6 +94,7 @@ impl State {
             next_argument: updated.flag_word_count,
         };
         drop(current);
+        self.warn_undefined.set(updated.warn_undefined);
         self.options.replace(updated);
         self.dirty.set(true);
         Ok(result)
@@ -192,6 +196,13 @@ impl Engine {
         }
         let mut changed = Vec::new();
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
+            if self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none() {
+                let expression = [b"$(".as_slice(), name, b")"].concat();
+                if let Err(error) = self.expand_global(&expression, None) {
+                    self.expansion_error(None, &error);
+                    return Err(());
+                }
+            }
             let initial = if name == b"GNUMAKEFLAGS" {
                 &self.initial_gnu_flags
             } else {
@@ -235,6 +246,18 @@ impl Engine {
                 }
             }
             if name == b"GNUMAKEFLAGS"
+                && !self.flag_state.warn_undefined.get()
+                && let Some(value) = changed.last()
+                && self
+                    .options
+                    .file_flags(std::slice::from_ref(value))
+                    .is_ok_and(|(options, _)| options.warn_undefined)
+            {
+                self.options.warn_undefined = true;
+                self.flag_state.warn_undefined.set(true);
+                self.flag_state.options.borrow_mut().warn_undefined = true;
+            }
+            if name == b"GNUMAKEFLAGS"
                 && let Err(error) =
                     self.database
                         .variables
@@ -268,9 +291,13 @@ impl Engine {
                     }
                 })
                 .collect::<Vec<_>>();
-            let names = runtime_context(None, &mut |event| {
-                emit_output(&self.output, &self.program, event)
-            })
+            let names = runtime_context(
+                None,
+                &mut WarningOutput::new(
+                    &mut |event| emit_output(&self.output, &self.program, event),
+                    &self.flag_state.warn_undefined,
+                ),
+            )
             .with_makeflags(&mut |request| self.flag_state.assigned(request))
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {

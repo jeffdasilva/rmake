@@ -10,7 +10,7 @@ use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output};
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output, OutputReceiver, WarningOutput};
 use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
 };
@@ -400,9 +400,10 @@ fn startup_makelevel(value: &[u8]) -> u32 {
 /// before subsequent diagnostics or child execution can write either stream.
 fn runtime_context<'a>(
     location: Option<&'a Location>,
-    output: &'a mut dyn FnMut(Output<'_>),
+    output: &'a mut dyn OutputReceiver,
 ) -> ExpansionContext<'a> {
-    ExpansionContext::new(location, output).with_cancellation(rmake_linux::signals::cancellation())
+    ExpansionContext::with_receiver(location, output)
+        .with_cancellation(rmake_linux::signals::cancellation())
 }
 
 fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
@@ -671,6 +672,7 @@ impl Engine {
         program: Vec<u8>,
         invocation: &OsStr,
     ) -> Result<Self, Diagnostic> {
+        let startup_warnings = Cell::new(options.warn_undefined);
         let parse_mode = |raw: Option<&[u8]>| -> Result<crate::output::Mode, Diagnostic> {
             raw.map_or(Ok(crate::output::Mode::None), |raw| {
                 crate::output::Mode::parse(raw).ok_or_else(|| {
@@ -699,6 +701,16 @@ impl Engine {
             .then(|| output.make_buffer())
             .flatten();
         output.select(reader_output.as_ref());
+        if options.startup_missing_makeflags_warning {
+            emit_output(
+                &output,
+                &warning_program,
+                Output::Warning {
+                    location: None,
+                    message: b"warning: undefined variable 'MAKEFLAGS'",
+                },
+            );
+        }
         // Constructor errors must still expose already-produced expansion output.
         let mut construction_output =
             crate::output::Construction::new(output.clone(), reader_output.clone());
@@ -893,6 +905,7 @@ impl Engine {
                 .map_err(|e| e.diagnostic())?;
         }
         let mut emit = |event: Output<'_>| emit_output(&output, &program, event);
+        let mut startup_output = WarningOutput::new(&mut emit, &startup_warnings);
         database
             .variables
             .set_export_policy(b"MAKEFLAGS", Some(true));
@@ -906,7 +919,7 @@ impl Engine {
                 *directory = crate::makefiles::prepare_argument(
                     directory.as_os_str().as_bytes(),
                     &mut database.variables,
-                    runtime_context(None, &mut emit)
+                    runtime_context(None, &mut startup_output)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -925,7 +938,7 @@ impl Engine {
                 .variables
                 .expand_mut_with(
                     spec.name,
-                    runtime_context(None, &mut emit)
+                    runtime_context(None, &mut startup_output)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -943,7 +956,7 @@ impl Engine {
                     spec.kind,
                     Origin::CommandLine,
                     None,
-                    runtime_context(None, &mut emit)
+                    runtime_context(None, &mut startup_output)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -987,7 +1000,7 @@ impl Engine {
                     Assignment::Append,
                     Origin::Default,
                     None,
-                    runtime_context(None, &mut emit)
+                    runtime_context(None, &mut startup_output)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
                             let result =
@@ -1174,9 +1187,13 @@ impl Engine {
         let result = self.database.expand_in(
             variables,
             bytes,
-            runtime_context(location, &mut |event| {
-                emit_output(&self.output, &self.program, event)
-            })
+            runtime_context(
+                location,
+                &mut WarningOutput::new(
+                    &mut |event| emit_output(&self.output, &self.program, event),
+                    &self.flag_state.warn_undefined,
+                ),
+            )
             .with_makeflags(&mut |request| self.flag_state.assigned(request))
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
@@ -1205,9 +1222,13 @@ impl Engine {
     ) -> Result<Vec<u8>, ExpandError> {
         let result = self.database.expand_with(
             bytes,
-            runtime_context(location, &mut |event| {
-                emit_output(&self.output, &self.program, event)
-            })
+            runtime_context(
+                location,
+                &mut WarningOutput::new(
+                    &mut |event| emit_output(&self.output, &self.program, event),
+                    &self.flag_state.warn_undefined,
+                ),
+            )
             .with_makeflags(&mut |request| self.flag_state.assigned(request))
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
@@ -1330,9 +1351,13 @@ impl Engine {
             let path = match crate::makefiles::prepare_argument(
                 name,
                 &mut self.database.variables,
-                runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -1393,9 +1418,13 @@ impl Engine {
             if let Err(error) = self.database.read_preload_with(
                 &file.bytes,
                 name,
-                runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -1704,9 +1733,13 @@ impl Engine {
                 if let Err(err) = self.database.read_with(
                     &bytes,
                     file.as_os_str().as_bytes(),
-                    runtime_context(None, &mut |event| {
-                        emit_output(&self.output, &self.program, event)
-                    })
+                    runtime_context(
+                        None,
+                        &mut WarningOutput::new(
+                            &mut |event| emit_output(&self.output, &self.program, event),
+                            &self.flag_state.warn_undefined,
+                        ),
+                    )
                     .with_makeflags(&mut |request| self.flag_state.assigned(request))
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                     .with_shell(&mut |request| {
@@ -1765,9 +1798,13 @@ impl Engine {
                 } else {
                     Origin::Environment
                 },
-                runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -1870,9 +1907,13 @@ impl Engine {
             self.database.freeze_rules();
             let extra_records = match self.database.snap_extra_prerequisites(
                 self.intermediate_policy.all_secondary,
-                &mut runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                &mut runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -1901,18 +1942,26 @@ impl Engine {
             }
             if let Err(error) = self.database.finalize_implicit_rules(
                 !self.options.no_rules,
-                &mut runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                &mut runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request)),
             ) {
                 self.fatal(error.source_location(), error.message.as_bytes());
                 return 2;
             }
             if let Err(error) = self.database.snap_implicit_extra_prerequisites(
-                &mut runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                &mut runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -2116,9 +2165,13 @@ impl Engine {
                     } else {
                         let names = self.database.rule_filenames(
                             &goal,
-                            &mut runtime_context(None, &mut |event| {
-                                emit_output(&self.output, &self.program, event)
-                            })
+                            &mut runtime_context(
+                                None,
+                                &mut WarningOutput::new(
+                                    &mut |event| emit_output(&self.output, &self.program, event),
+                                    &self.flag_state.warn_undefined,
+                                ),
+                            )
                             .with_makeflags(&mut |request| self.flag_state.assigned(request))
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
@@ -4229,9 +4282,13 @@ impl Engine {
         let (mut context, pattern_scope) = if intermediate {
             let prepared = self.database.prepare_pattern_scope(
                 target,
-                runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -4288,9 +4345,13 @@ impl Engine {
         let name = if name.starts_with(b"~") {
             self.database.rule_tilde(
                 name,
-                &mut runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                &mut runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -4438,7 +4499,9 @@ impl Engine {
             let mut makeflags = |request: rmake_core::diagnostic::MakeflagsRequest<'_>| {
                 self.flag_state.assigned(request)
             };
-            let mut context = runtime_context(None, &mut emit)
+            let mut diagnostic_output =
+                WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
+            let mut context = runtime_context(None, &mut diagnostic_output)
                 .with_makeflags(&mut makeflags)
                 .with_filesystem(&mut filesystem)
                 .with_shell(&mut shell)
@@ -5823,9 +5886,13 @@ impl Engine {
             self.database.variables_for_target_with(
                 target,
                 &inherited,
-                runtime_context(None, &mut |event| {
-                    emit_output(&self.output, &self.program, event)
-                })
+                runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
                 .with_makeflags(&mut |request| self.flag_state.assigned(request))
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
@@ -6106,7 +6173,12 @@ impl Engine {
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
             // expansion does not. Only the unforced touch shortcut skips expansion.
-            let shell = match self.expand(variables, b"$(SHELL)", Some(&recipe.location)) {
+            let selected_shell = if variables.get(b"SHELL").is_some() {
+                self.expand(variables, b"$(SHELL)", Some(&recipe.location))
+            } else {
+                Ok(Vec::new())
+            };
+            let shell = match selected_shell {
                 Ok(shell) => shell,
                 Err(err) => {
                     self.recipe_expansion_error(
@@ -6336,9 +6408,13 @@ impl Engine {
                         match self.database.expand_environment_in(
                             variables,
                             name,
-                            runtime_context(variable.definition(), &mut |event| {
-                                emit_output(&self.output, &self.program, event)
-                            })
+                            runtime_context(
+                                variable.definition(),
+                                &mut WarningOutput::new(
+                                    &mut |event| emit_output(&self.output, &self.program, event),
+                                    &self.flag_state.warn_undefined,
+                                ),
+                            )
                             .with_makeflags(&mut |request| self.flag_state.assigned(request))
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)

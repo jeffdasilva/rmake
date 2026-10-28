@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "classification": "ordinary startup-order mismatches; not safety exceptions or passing fixtures",
+  "provenance": "Original warning-option probes with two bounded pinned GNU observations and prototype observations. No upstream implementation or tests copied.",
+  "oracle": {
+    "path": "/home/jdasilva/github/rmake/.tools/oracle/bin/make",
+    "sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+    "version_stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n",
+    "version_stderr": ""
+  },
+  "candidate": {
+    "path": "/tmp/rmake-undefined-prototype/target/debug/rmake",
+    "sha256": "87ce8bfda6934656f02b02b2951126abc4947720c73a58c06a7061a66ae445bf",
+    "version_stdout": "rmake 0.1.0\nGNU Make 4.4.1 compatibility target (implementation incomplete)\nLicense GPLv3+: GNU GPL version 3 or later.\nThis is free software; there is no warranty.\n",
+    "version_stderr": ""
+  },
+  "records": [
+    {
+      "id": "warn-extra-cli-default-cc",
+      "inputs_hex": {
+        "Makefile": "2320535044582d4c6963656e73652d4964656e7469666965723a2047504c2d332e302d6f722d6c617465720a2320436f707972696768742032303236204a65666620446153696c76610a2428696e666f20726573756c743d5b2428494e505554295d290a616c6c3a3b403a0a"
+      },
+      "args": [
+        "--no-print-directory",
+        "--warn-undefined-variables",
+        "INPUT:=$(CC)"
+      ],
+      "environment": {},
+      "observations": {
+        "oracle": {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogR1BMLTMuMC1vci1sYXRlcgojIENvcHlyaWdodCAyMDI2IEplZmYgRGFTaWx2YQokKGluZm8gcmVzdWx0PVskKElOUFVUKV0pCmFsbDo7QDoK",
+              "size": 108,
+              "sha256": "3482d23e61efa6189d2bcf22588b0942157e855ba236e27c9da8ed40971f5e96"
+            }
+          },
+          "stdout_hex": "726573756c743d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274343270a"
+        },
+        "repeat": {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogR1BMLTMuMC1vci1sYXRlcgojIENvcHlyaWdodCAyMDI2IEplZmYgRGFTaWx2YQokKGluZm8gcmVzdWx0PVskKElOUFVUKV0pCmFsbDo7QDoK",
+              "size": 108,
+              "sha256": "3482d23e61efa6189d2bcf22588b0942157e855ba236e27c9da8ed40971f5e96"
+            }
+          },
+          "stdout_hex": "726573756c743d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274343270a"
+        },
+        "candidate": {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogR1BMLTMuMC1vci1sYXRlcgojIENvcHlyaWdodCAyMDI2IEplZmYgRGFTaWx2YQokKGluZm8gcmVzdWx0PVskKElOUFVUKV0pCmFsbDo7QDoK",
+              "size": 108,
+              "sha256": "3482d23e61efa6189d2bcf22588b0942157e855ba236e27c9da8ed40971f5e96"
+            }
+          },
+          "stdout_hex": "726573756c743d5b63635d0a",
+          "stderr_hex": ""
+        }
+      }
+    },
+    {
+      "id": "warn-extra-cli-default-goal",
+      "inputs_hex": {
+        "Makefile": "2320535044582d4c6963656e73652d4964656e7469666965723a2047504c2d332e302d6f722d6c617465720a2320436f707972696768742032303236204a65666620446153696c76610a2428696e666f20726573756c743d5b2428494e505554295d290a616c6c3a3b403a0a"
+      },
+      "args": [
+        "--no-print-directory",
+        "--warn-undefined-variables",
+        "INPUT:=$(.DEFAULT_GOAL)"
+      ],
+      "environment": {},
+      "observations": {
+        "oracle": {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogR1BMLTMuMC1vci1sYXRlcgojIENvcHlyaWdodCAyMDI2IEplZmYgRGFTaWx2YQokKGluZm8gcmVzdWx0PVskKElOUFVUKV0pCmFsbDo7QDoK",
+              "size": 108,
+              "sha256": "3482d23e61efa6189d2bcf22588b0942157e855ba236e27c9da8ed40971f5e96"
+            }
+          },
+          "stdout_hex": "726573756c743d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520272e44454641554c545f474f414c270a"
+        },
+        "repeat": {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogR1BMLTMuMC1vci1sYXRlcgojIENvcHlyaWdodCAyMDI2IEplZmYgRGFTaWx2YQokKGluZm8gcmVzdWx0PVskKElOUFVUKV0pCmFsbDo7QDoK",
+              "size": 108,
+              "sha256": "3482d23e61efa6189d2bcf22588b0942157e855ba236e27c9da8ed40971f5e96"
+            }
+          },
+          "stdout_hex": "726573756c743d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520272e44454641554c545f474f414c270a"
+        },
+        "candidate": {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogR1BMLTMuMC1vci1sYXRlcgojIENvcHlyaWdodCAyMDI2IEplZmYgRGFTaWx2YQokKGluZm8gcmVzdWx0PVskKElOUFVUKV0pCmFsbDo7QDoK",
+              "size": 108,
+              "sha256": "3482d23e61efa6189d2bcf22588b0942157e855ba236e27c9da8ed40971f5e96"
+            }
+          },
+          "stdout_hex": "726573756c743d5b5d0a",
+          "stderr_hex": ""
+        }
+      }
+    }
+  ]
+}

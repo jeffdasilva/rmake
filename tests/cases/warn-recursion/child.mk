@@ -1,0 +1,2 @@
+$(info child=[$(ABSENT)])
+all:;@:

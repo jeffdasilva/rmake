@@ -24,6 +24,41 @@ pub enum Output<'a> {
     },
 }
 
+/// Output receivers can expose live diagnostic policy without growing every
+/// expansion context. Ordinary closures retain the default quiet policy.
+pub trait OutputReceiver {
+    fn emit(&mut self, event: Output<'_>);
+    fn warns_undefined(&self) -> bool {
+        false
+    }
+}
+
+impl<F: FnMut(Output<'_>)> OutputReceiver for F {
+    fn emit(&mut self, event: Output<'_>) {
+        self(event);
+    }
+}
+
+pub struct WarningOutput<'a> {
+    output: &'a mut dyn FnMut(Output<'_>),
+    enabled: &'a std::cell::Cell<bool>,
+}
+
+impl<'a> WarningOutput<'a> {
+    pub fn new(output: &'a mut dyn FnMut(Output<'_>), enabled: &'a std::cell::Cell<bool>) -> Self {
+        Self { output, enabled }
+    }
+}
+
+impl OutputReceiver for WarningOutput<'_> {
+    fn emit(&mut self, event: Output<'_>) {
+        (self.output)(event);
+    }
+    fn warns_undefined(&self) -> bool {
+        self.enabled.get()
+    }
+}
+
 /// A filesystem operation requested by expansion. Filenames and contents are
 /// raw Linux bytes; the runtime owns filesystem access and error formatting.
 #[derive(Clone, Copy, Debug)]
@@ -130,7 +165,7 @@ type MakeflagsReceiver<'a> =
 pub struct ExpansionContext<'a> {
     pub location: Option<&'a Location>,
     cancellation: Option<&'a std::sync::atomic::AtomicBool>,
-    output: Option<&'a mut dyn FnMut(Output<'_>)>,
+    output: Option<&'a mut dyn OutputReceiver>,
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
@@ -141,7 +176,14 @@ pub struct ExpansionContext<'a> {
 }
 
 impl<'a> ExpansionContext<'a> {
-    pub fn new(location: Option<&'a Location>, output: &'a mut dyn FnMut(Output<'_>)) -> Self {
+    pub fn new<F: FnMut(Output<'_>)>(location: Option<&'a Location>, output: &'a mut F) -> Self {
+        Self::with_receiver(location, output)
+    }
+
+    pub fn with_receiver(
+        location: Option<&'a Location>,
+        output: &'a mut dyn OutputReceiver,
+    ) -> Self {
         Self {
             location,
             cancellation: None,
@@ -329,6 +371,12 @@ impl<'a> ExpansionContext<'a> {
         Ok(names)
     }
 
+    pub fn warns_undefined(&self) -> bool {
+        self.output
+            .as_ref()
+            .is_some_and(|output| output.warns_undefined())
+    }
+
     pub fn with_cancellation(mut self, cancellation: &'a std::sync::atomic::AtomicBool) -> Self {
         self.cancellation = Some(cancellation);
         self
@@ -387,7 +435,7 @@ impl<'a> ExpansionContext<'a> {
             return false;
         }
         if let Some(receiver) = &mut self.output {
-            receiver(output);
+            receiver.emit(output);
             true
         } else {
             false

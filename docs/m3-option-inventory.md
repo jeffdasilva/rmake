@@ -22,7 +22,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-E`/`--eval` | Unsupported: startup evaluation before ordinary files, ordering and recursive propagation need original cases. Ordinary `$(eval ...)` is separate and implemented. |
 | `-o`/`--old-file`/`--assume-old` | Unsupported: filename handling and old-file update semantics need implementation. |
 | `-W`/`--what-if`/`--new-file`/`--assume-new` | Unsupported: logical timestamp/update semantics need implementation. |
-| `--warn-undefined-variables` | Unsupported: definition/evaluation scopes, function arguments, automatic variables, timing and locations need implementation. |
+| `--warn-undefined-variables` | [Reader/runtime warning emission](undefined-warnings.md) now covers scopes, automatic variables, option sources/phases and raw diagnostics. Startup default ordering, broader inherited expansion and complete option/profile acceptance remain open. |
 | `--shuffle[=...]` | Unsupported: GNU seed/mode, goal/edge permutation, barriers, recursion and reproducibility need implementation. |
 | `--temp-stdin` | Unsupported internal restart option: stdin currently survives an in-process restart; real self-exec needs owned temporary-source lifetime and exact argument replacement. |
 

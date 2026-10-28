@@ -1045,7 +1045,7 @@ phase model, source references and remaining flags/recursive-transport gaps.
 Thirty original required fixtures were added and five pending cases promoted.
 Full `make ci` passed with 350 Rust tests, 240 tooling tests and all existing
 generated, fault, stateful and self-host gates. The curated corpus contains 1,395
-cases: 1,354 required exact matches and 41 observed pending mismatches, with no
+cases: 1,358 required exact matches and 41 observed pending mismatches, with no
 failures or unexpected passes. A separate 480-program replay campaign matched
 both engines' streams and statuses across operators, values, imports, precedence
 and source mutations. General flag decoding and recursive transport remain open.
@@ -1068,7 +1068,7 @@ No cache, unsafe code or source-reference dependency is added.
 
 Full `make ci` passed with 351 Rust tests, 240 tooling tests and all existing
 curated, generated, fault, stateful and self-host gates. The corpus remains 1,395
-cases: 1,354 required exact matches and 41 observed pending mismatches, with no
+cases: 1,358 required exact matches and 41 observed pending mismatches, with no
 failures or unexpected passes.
 
 Against preceding production source `88a3f03`, 31 alternating release pairs after
@@ -2374,3 +2374,25 @@ In 101 alternating samples the 10,000-unused-declaration cleanup median was
 6.639 ms for GNU. This removes graph-wide cleanup work but establishes neither
 statistical improvement nor general speed parity. Raw paired common-workload
 reports retain mixed differences; GNU remains faster on standard workloads.
+
+## M3/M6 undefined-variable warnings and lexical call frames
+
+[Warning emission](undefined-warnings.md) now supports the live reader/runtime
+option across variable/function references, raw names, automatic variables,
+option sources, diagnostic phases, exports, includes, restarts and recursion.
+Policy lives in the output receiver, preserving a compact expansion context;
+internal named selection does not become an explicit user reference. Function
+parameter frames are distinct from numeric let/foreach bindings, fixing their
+incorrect masking during nested calls and eval.
+
+358 new exact modeled cases bring the corpus to 9,631 required ordinary cases,
+no ordinary pending entries, and 17 separately gated safety exceptions. Totals
+are 452 Rust / 377 tooling tests. Two startup command-variable default-order
+probes remain ordinary open research with raw GNU/prototype evidence, without
+passing credit or safety exemptions. M3/M6 remain open.
+
+Full development/optimized acceptance and exact-head CI remain merge gates.
+Output-checked frozen benchmarks retain all samples and identities; several
+common medians are slightly higher (expansion about 2.1% in this run). These
+measurements establish neither statistical improvement/regression nor general
+parity. GNU remains faster on standard workloads; no semantic cache is added.
