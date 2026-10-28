@@ -212,3 +212,5 @@ raw safety research without passing conformance credit.
 The [variable metadata notes](variable-metadata.md) identify reference lookup,
 startup/default membership and flag phases used for the independently authored
 lazy names cache, scope behavior, interface literals and original comparisons.
+
+The [environment vector notes](environment-vectors.md) identify export-table, dependency-freeze and process-launch references used for the independently authored owned Linux execution adapter, phase behavior and original C/Makefile probes.

@@ -1,0 +1,11 @@
+id = "env-vector-exec-absent-path"
+requirement = "variables.environment-vector"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+provenance = "Original native environment observer and Makefile; two raw GNU Make 4.4.1 observations plus final candidate comparison. No output sorting or normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "413d6f6e650a4d414b454c4556454c3d310a"
+stderr_hex = ""

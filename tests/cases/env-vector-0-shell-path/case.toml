@@ -1,0 +1,11 @@
+id = "env-vector-0-shell-path"
+requirement = "variables.environment-vector"
+candidate = "required"
+args = ["--no-print-directory", "-rR"]
+timeout_seconds = 15
+provenance = "Original native environment observer and Makefile; two raw GNU Make 4.4.1 observations plus final candidate comparison. No output sorting or normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "766563746f723d5b4c435f414c4c20544d50444952204c414e47204d414b45464c414753204d464c414753204d414b454c4556454c205041544820545a20484f4d455d0a"
+stderr_hex = ""

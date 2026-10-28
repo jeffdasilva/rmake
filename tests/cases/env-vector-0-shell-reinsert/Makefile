@@ -1,0 +1,6 @@
+$(shell cc -O2 -o capture capture.c)
+export A=one
+undefine A
+export A=two
+$(info vector=[$(shell ./capture names)])
+all: ; @true

@@ -37,3 +37,6 @@ mod stdio;
 
 #[allow(unsafe_code)]
 pub mod output;
+
+#[allow(unsafe_code)]
+pub mod environment;

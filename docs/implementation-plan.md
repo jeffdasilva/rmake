@@ -201,3 +201,5 @@ Those are measurable engineering choices; none authorizes dropping language or
 local execution features. Later decisions cover cache enablement and public plugin
 transport. Keep them in dated decision records once evidence exists, rather than
 choosing a framework or serialization format prematurely.
+
+Owned child environment vectors and export activation phases now have [278 required original comparisons](environment-vectors.md). This closes that specific representation gap, with full M3/M6 exit criteria unchanged.

@@ -517,6 +517,7 @@ pub struct VariableStore {
     variables: Arc<Bindings>,
     layers: Vec<VariableLayer>,
     working_directory: Option<Arc<[u8]>>,
+    original_shell: Option<Arc<[u8]>>,
     environment_override: bool,
     scoped: bool,
     file_locals: bool,
@@ -528,6 +529,7 @@ impl Default for VariableStore {
             variables: empty_bindings(1024),
             layers: Vec::new(),
             working_directory: None,
+            original_shell: None,
             environment_override: false,
             scoped: false,
             file_locals: false,
@@ -590,6 +592,14 @@ pub struct PatternVariable {
 impl VariableStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Invocation data, independent of the visible SHELL binding and eval.
+    pub fn set_original_shell(&mut self, value: &[u8]) {
+        self.original_shell = Some(value.into());
+    }
+    pub fn original_shell(&self) -> Option<&[u8]> {
+        self.original_shell.as_deref()
     }
 
     pub fn enable_variable_names(&mut self) -> Result<(), ExpandError> {
@@ -838,6 +848,7 @@ impl VariableStore {
             },
             layers,
             working_directory: self.working_directory.clone(),
+            original_shell: self.original_shell.clone(),
             environment_override: false,
             scoped: true,
             file_locals: true,
@@ -2398,7 +2409,7 @@ impl Expansion<'_, '_> {
         };
         let export_all = match &self.store {
             StoreAccess::Database(db) | StoreAccess::Scoped { database: db, .. } => {
-                db.export_all || db.rules.contains_key(b".EXPORT_ALL_VARIABLES".as_slice())
+                db.export_all_for_shell()
             }
             _ => false,
         };
@@ -2429,7 +2440,7 @@ impl Expansion<'_, '_> {
         for name in names {
             let current = self.store.for_environment();
             let Some(variable) = current.get(&name).cloned() else {
-                environment.push((name, None));
+                environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
                 continue;
             };
             if name == b"SHELL" && variable.export_policy().is_none() {
@@ -2450,12 +2461,13 @@ impl Expansion<'_, '_> {
                         && !matches!(variable.origin, Origin::Default | Origin::Automatic))),
             );
             if !export {
-                environment.push((name, None));
+                environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
                 continue;
             }
             // GNU uses the original process environment when constructing an
             // exported recursive variable would re-enter the current binding.
             if self.active.iter().any(|(active, _)| *active == name) {
+                environment.push((name, crate::diagnostic::EnvironmentValue::Original));
                 continue;
             }
             let value = if matches!(
@@ -2466,8 +2478,9 @@ impl Expansion<'_, '_> {
             } else {
                 self.environment_variable(&name)?
             };
-            environment.push((name, Some(value)));
+            environment.push((name, crate::diagnostic::EnvironmentValue::Set(value)));
         }
+        let original_shell = self.store.original_shell.clone();
         let result = self
             .context
             .run_shell(ShellRequest {
@@ -2476,6 +2489,7 @@ impl Expansion<'_, '_> {
                 flags: &flags,
                 ifs: ifs.as_deref(),
                 environment: &environment,
+                original_shell: original_shell.as_deref(),
             })
             .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
             .map_err(ExpandError::UnlocatedError)?;

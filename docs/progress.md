@@ -2247,3 +2247,40 @@ See [metadata notes](variable-metadata.md) for behavior, measurements and source
 provenance. Full development/optimized acceptance and exact-head CI remain merge
 gates. M3/M6, broader native/profile acceptance and general speed parity remain
 open.
+
+## M3/M6 owned child environments
+
+Recipes and shell expansions now launch with a complete owned vector in the
+interpreter's selected export order. Rust's ordinary `Command` environment map
+sorts entries; that loses observable ordering and can reject logical names that
+GNU passes through `execve`. The Linux adapter owns the byte strings, argument
+vector and pointer arrays until execution. It preserves non-UTF-8 values/names,
+spaces and equals signs, including distinct logical names that serialize to
+entries with the same apparent key. No implicit parent-environment merge can
+restore undefined or unexported bindings.
+
+All allocation and validation occur in the parent. The final child hook calls
+`execve` with immutable owned storage after signal, descriptor, stdin, output and
+jobserver setup. It allocates nothing, acquires no locks and never mutates the
+parent environment. Linux unsafe pointer ownership is isolated in the platform
+crate; the interpreter and core retain their unsafe-code prohibition. The parent
+launcher retains PATH search, EACCES precedence and ENOEXEC fallback with the
+actual attempted executable. Undefined PATH uses the system default search path.
+
+The selected environment keeps synthesized `MAKELEVEL` in its GNU table slot
+when eligible, or adds its numeric child value at the end. GNU's saved original
+`SHELL` is invocation metadata distinct from the Make variable: it can remain
+forwarded after `unexport` or `undefine`. An active recursive export falls back
+to the process value, or an empty value when absent. Evaluation and its effects
+remain ordered; cached recipe environments retain their selected vector across
+residual commands and `.ONESHELL` boundaries.
+
+`.EXPORT_ALL_VARIABLES` activates when dependencies are frozen after reading,
+including activation through `.PHONY`; merely naming it as a prerequisite does
+not activate it. Bare `export` still takes immediate effect. Runtime eval of
+`export` or `unexport` changes subsequent selection without reactivating an old
+special target. Original phase comparisons include secondary expansion and
+makefile restarts.
+
+
+See [environment vector evidence](environment-vectors.md) for 278 new required cases, phase transitions, clock-fixture repair and unresolved oracle signals. M3/M6 remain open.

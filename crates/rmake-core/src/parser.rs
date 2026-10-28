@@ -2105,10 +2105,26 @@ impl Database {
         Ok(())
     }
 
+    pub(crate) fn export_all_for_shell(&self) -> bool {
+        self.export_all
+    }
+
     /// After the initial dependency snapshot, global setup expansions share
     /// recipe expansion's restriction on introducing new rules. A fresh
     /// database on Makefile restart restores the reader phase.
     pub fn freeze_rules(&mut self) {
+        if !self.rules_frozen {
+            let named = self
+                .rules
+                .get(b".EXPORT_ALL_VARIABLES".as_slice())
+                .is_some_and(|rule| !rule.record_only);
+            let phony = self.rules.get(b".PHONY".as_slice()).is_some_and(|rule| {
+                rule.dependencies
+                    .iter()
+                    .any(|dependency| dependency.name == b".EXPORT_ALL_VARIABLES")
+            });
+            self.export_all |= named || phony;
+        }
         self.rules_frozen = true;
     }
 

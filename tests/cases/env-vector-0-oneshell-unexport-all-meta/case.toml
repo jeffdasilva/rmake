@@ -1,0 +1,11 @@
+id = "env-vector-0-oneshell-unexport-all-meta"
+requirement = "variables.environment-vector"
+candidate = "required"
+args = ["--no-print-directory", "-rR"]
+timeout_seconds = 15
+provenance = "Original native environment observer and Makefile; two raw GNU Make 4.4.1 observations plus final candidate comparison. No output sorting or normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "484f4d450a544d504449520a504154480a4d414b454c4556454c0a4c414e470a4c435f414c4c0a5057440a545a0a4d414b454c4556454c3d310a"
+stderr_hex = ""
