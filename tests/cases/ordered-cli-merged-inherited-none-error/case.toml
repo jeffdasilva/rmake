@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "ordered-cli-merged-inherited-none-error"
+requirement = "cli.ordered-startup"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "A:=$(info BEFORE)$(warning WARN)$(error STOP)"]
+timeout_seconds = 5
+description = "Original ordered explicit startup, early metadata, filename, output or restart control."
+provenance = "Independent exact models checked against two bounded pinned GNU observations and the candidate; source-informed model refinements retained during development. No upstream implementation or tests copied."
+output = "merged"
+
+[environment]
+"MAKEFLAGS" = "-Onone"
+
+[expected]
+exit_code = 2
+stdout_hex = "4245464f52450a6d616b653a205741524e0a6d616b653a202a2a2a2053544f502e202053746f702e0a"
+stderr_hex = ""

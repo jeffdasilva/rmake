@@ -6,6 +6,16 @@ use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
+/// A decoded non-option or filename operand, at its original argument position.
+#[derive(Clone, Copy)]
+pub(crate) enum Argument {
+    Definition(usize),
+    File(usize),
+    Directory(usize),
+    Include(usize),
+    Goal(usize),
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
@@ -85,10 +95,26 @@ impl Options {
 
     pub(crate) fn with_parsed_inherited(
         args: impl IntoIterator<Item = OsString>,
-        mut inherited_options: Self,
+        inherited_options: Self,
         prefix_count: usize,
         missing_makeflags: bool,
     ) -> Result<Self, String> {
+        Self::with_parsed_inherited_with(
+            args,
+            inherited_options,
+            prefix_count,
+            missing_makeflags,
+            &mut |_, _| Ok(()),
+        )
+    }
+
+    pub(crate) fn with_parsed_inherited_with<E: From<String> + From<&'static str>>(
+        args: impl IntoIterator<Item = OsString>,
+        mut inherited_options: Self,
+        prefix_count: usize,
+        missing_makeflags: bool,
+        receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+    ) -> Result<Self, E> {
         let inherited = inherited_options.jobs;
         let inherited_warning = inherited_options.warn_undefined;
         let inherited_output_sync = inherited_options.output_sync.clone();
@@ -99,7 +125,7 @@ impl Options {
             .map(|_| Origin::Environment);
         inherited_options.command_jobs = None;
         let mut result =
-            Self::parse_into_mode::<true>(args, inherited_options, prefix_count, true)?;
+            Self::parse_with::<true, E>(args, inherited_options, prefix_count, true, receiver)?;
         let explicit = result.command_jobs;
         result.startup_missing_makeflags_warning = missing_makeflags && inherited_warning;
         result.inherited_output_sync = inherited_output_sync;
@@ -107,12 +133,13 @@ impl Options {
         Ok(result.with_command_jobs(explicit))
     }
 
-    pub(crate) fn parse_continued(
+    pub(crate) fn parse_continued_with<E: From<String> + From<&'static str>>(
         args: impl IntoIterator<Item = OsString>,
         initial: Self,
         offset: usize,
-    ) -> Result<Self, String> {
-        Self::parse_into_mode::<true>(args, initial, offset, false)
+        receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+    ) -> Result<Self, E> {
+        Self::parse_with::<true, E>(args, initial, offset, false, receiver)
     }
 
     fn with_command_jobs(mut self, jobs: Option<usize>) -> Self {
@@ -281,10 +308,26 @@ impl Options {
 
     fn parse_into_mode<const BIG_R_IMPLIES_RULES: bool>(
         args: impl IntoIterator<Item = OsString>,
-        mut result: Self,
+        result: Self,
         offset: usize,
         track_jobs: bool,
     ) -> Result<Self, String> {
+        Self::parse_with::<BIG_R_IMPLIES_RULES, String>(
+            args,
+            result,
+            offset,
+            track_jobs,
+            &mut |_, _| Ok(()),
+        )
+    }
+
+    fn parse_with<const BIG_R_IMPLIES_RULES: bool, E: From<String> + From<&'static str>>(
+        args: impl IntoIterator<Item = OsString>,
+        mut result: Self,
+        offset: usize,
+        track_jobs: bool,
+        receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+    ) -> Result<Self, E> {
         let args: Vec<Vec<u8>> = args.into_iter().map(OsString::into_vec).collect();
         let mut evals_seen: std::collections::HashSet<_> = result.evals.iter().cloned().collect();
         let mut i = 0;
@@ -328,7 +371,8 @@ impl Options {
                         return Err(format!(
                             "option '{}' doesn't allow an argument",
                             String::from_utf8_lossy(name)
-                        ));
+                        )
+                        .into());
                     }
                     *flag = true;
                     match name {
@@ -345,7 +389,8 @@ impl Options {
                                 return Err(format!(
                                     "option '{}' doesn't allow an argument",
                                     String::from_utf8_lossy(name)
-                                ));
+                                )
+                                .into());
                             }
                             if name == b"--no-silent" {
                                 result.silent = false;
@@ -396,10 +441,16 @@ impl Options {
                             let path = PathBuf::from(OsString::from_vec(value));
                             if name == b"--include-dir" {
                                 result.add_include_directory(path)?;
+                                let index = result.include_directories.len() - 1;
+                                receiver(&mut result, Argument::Include(index))?;
                             } else if name == b"--directory" {
                                 result.directories.push(path);
+                                let index = result.directories.len() - 1;
+                                receiver(&mut result, Argument::Directory(index))?;
                             } else {
                                 result.files.push(path);
+                                let index = result.files.len() - 1;
+                                receiver(&mut result, Argument::File(index))?;
                             }
                         }
                         b"--eval" => {
@@ -467,7 +518,8 @@ impl Options {
                             return Err(format!(
                                 "unsupported option '{}'",
                                 String::from_utf8_lossy(arg)
-                            ));
+                            )
+                            .into());
                         }
                     }
                 }
@@ -554,6 +606,8 @@ impl Options {
                                 }
                             } else if option == b'I' {
                                 result.add_include_directory(OsString::from_vec(value).into())?;
+                                let index = result.include_directories.len() - 1;
+                                receiver(&mut result, Argument::Include(index))?;
                             } else if option == b'j' {
                                 result.jobs = Some(job_count(&value)?);
                                 if track_jobs {
@@ -561,12 +615,18 @@ impl Options {
                                 }
                             } else if option == b'f' {
                                 result.files.push(OsString::from_vec(value).into());
+                                let index = result.files.len() - 1;
+                                receiver(&mut result, Argument::File(index))?;
                             } else {
                                 result.directories.push(OsString::from_vec(value).into());
+                                let index = result.directories.len() - 1;
+                                receiver(&mut result, Argument::Directory(index))?;
                             }
                             break;
                         }
-                        option => return Err(format!("unsupported option '-{}'", option as char)),
+                        option => {
+                            return Err(format!("unsupported option '-{}'", option as char).into());
+                        }
                     }
                     j += 1;
                 }
@@ -576,10 +636,14 @@ impl Options {
                 result
                     .assignment_context
                     .push((i + offset, result.environment_override));
-            } else {
+                let index = result.assignments.len() - 1;
+                receiver(&mut result, Argument::Definition(index))?;
+            } else if !arg.is_empty() && arg != b"-" {
                 result
                     .goals
                     .push(rmake_core::filenames::without_dot_prefix(arg).to_vec());
+                let index = result.goals.len() - 1;
+                receiver(&mut result, Argument::Goal(index))?;
             }
             i += 1;
         }

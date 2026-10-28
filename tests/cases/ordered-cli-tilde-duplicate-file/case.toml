@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "ordered-cli-tilde-duplicate-file"
+requirement = "cli.ordered-startup"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "HOME=$(file >>seen,H)before", "-f~/input.mk", "-f~/input.mk"]
+timeout_seconds = 5
+description = "Original ordered explicit startup, early metadata, filename, output or restart control."
+provenance = "Independent exact models checked against two bounded pinned GNU observations and the candidate; source-informed model refinements retained during development. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "4e3d5b325d0a4e3d5b325d0a"
+stderr_hex = "6265666f72652f696e7075742e6d6b3a323a207761726e696e673a206f766572726964696e672072656369706520666f72207461726765742027616c6c270a6265666f72652f696e7075742e6d6b3a323a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f72207461726765742027616c6c270a"

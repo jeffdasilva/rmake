@@ -17,9 +17,22 @@ pub(super) struct Prepared {
     pub(super) database: Database,
     pub(super) filesystem: RefCell<FilesystemRuntime>,
     pub(super) output: crate::output::Controller,
+    pub(super) reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
+    pub(super) construction: crate::output::Construction,
     pub(super) exports: HashSet<Vec<u8>>,
     pub(super) seed: startup::Seed,
     pub(super) plan: Box<Plan>,
+}
+
+impl From<String> for InvocationError {
+    fn from(message: String) -> Self {
+        Self::Options(message)
+    }
+}
+impl From<&'static str> for InvocationError {
+    fn from(message: &'static str) -> Self {
+        Self::Options(message.into())
+    }
 }
 
 impl From<StartupError> for InvocationError {
@@ -135,118 +148,53 @@ impl Plan {
         }
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let output = crate::output::Controller::new(crate::output::Mode::None, &self.program);
-        let warnings = Cell::new(false);
+        let mut state = State {
+            database,
+            filesystem,
+            output,
+            exports,
+            seed: startup::Seed::default(),
+            warnings: Cell::new(false),
+            seen_commands: HashSet::new(),
+        };
         let mut prefix_count = 0;
-        let mut parsed_prefix = None;
-        let mut seed = startup::Seed::default();
-        let mut seen = HashSet::new();
-        let mut include_directories = Vec::new();
+        let mut parsed_prefix = Options::default();
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-            if name == b"GNUMAKEFLAGS" && database.variables.get(name).is_none() {
+            if name == b"GNUMAKEFLAGS" && state.database.variables.get(name).is_none() {
                 continue;
             }
-            let mut emit = |event: Output<'_>| emit_output(&output, &self.program, event);
-            let mut receiver = WarningOutput::new(&mut emit, &warnings);
             let expression = [b"$(".as_slice(), name, b")"].concat();
-            let value = database
-                .expand_with(
-                    &expression,
-                    runtime_context(None, &mut receiver)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result =
-                                crate::shell::run(request, &self.program, 0, &output, None);
-                            filesystem.borrow_mut().child_completed();
-                            result
-                        })
-                        .with_includes(&mut |path| IncludeSearch::default().read(path)),
-                )
+            let value = state
+                .evaluate(&self.program, |database, context| {
+                    database.expand_with(&expression, context)
+                })
                 .map_err(StartupError::expansion)?;
             let mut incoming = Vec::new();
-            Options::append_expanded_flags(&mut incoming, &value)
-                .map_err(InvocationError::Options)?;
-            // All expansion effects occur even when there are no new tokens.
-            if incoming.is_empty() {
-                if name == b"GNUMAKEFLAGS" {
-                    database
-                        .variables
-                        .define_literal(name, b"", Origin::Environment)
-                        .map_err(StartupError::expansion)?;
-                }
-                continue;
-            }
-            let count = incoming.len();
-            let parsed = Options::parse_continued(
-                incoming,
-                parsed_prefix.take().unwrap_or_default(),
-                prefix_count,
-            )
-            .map_err(InvocationError::Options)?;
-            prefix_count += count;
-            let mut next_include = seed.includes;
-            for index in seed.assignments..=parsed.assignments.len() {
-                while parsed.include_assignment_positions.get(next_include) == Some(&index) {
-                    let directory = crate::makefiles::prepare_argument(
-                        parsed.include_directories[next_include]
-                            .as_os_str()
-                            .as_bytes(),
-                        &mut database.variables,
-                        runtime_context(None, &mut receiver)
-                            .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                            .with_shell(&mut |request| {
-                                let result =
-                                    crate::shell::run(request, &self.program, 0, &output, None);
-                                filesystem.borrow_mut().child_completed();
-                                result
-                            }),
-                    )
-                    .map_err(StartupError::expansion)?;
-                    include_directories.push(directory);
-                    next_include += 1;
-                }
-                let Some(argument) = parsed.assignments.get(index) else {
-                    break;
-                };
-                warnings.set(parsed.assignment_warnings[index]);
-                database
+            Options::append_expanded_flags(&mut incoming, &value)?;
+            // Empty sources retain expansion effects without another parse.
+            if !incoming.is_empty() {
+                let count = incoming.len();
+                parsed_prefix = Options::parse_continued_with(
+                    incoming,
+                    parsed_prefix,
+                    prefix_count,
+                    &mut |options, argument| state.argument(&self.program, options, argument),
+                )?;
+                prefix_count += count;
+                state
+                    .database
                     .variables
-                    .set_environment_override(parsed.assignment_context[index].1);
-                let variable = database
-                    .define_argument_with(
-                        argument,
-                        Origin::CommandLine,
-                        runtime_context(None, &mut receiver)
-                            .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                            .with_shell(&mut |request| {
-                                let result =
-                                    crate::shell::run(request, &self.program, 0, &output, None);
-                                filesystem.borrow_mut().child_completed();
-                                result
-                            })
-                            .with_includes(&mut |path| IncludeSearch::default().read(path)),
-                    )
-                    .map_err(StartupError::expansion)?
-                    .expect("decoded assignment");
-                if seen.insert(variable.clone()) {
-                    seed.commands.push(variable.clone());
-                }
-                if automatic_export_name(&variable) {
-                    exports.insert(variable);
-                }
+                    .set_environment_override(parsed_prefix.environment_override);
+                state.warnings.set(parsed_prefix.warn_undefined);
             }
-            seed.assignments = parsed.assignments.len();
-            seed.includes = next_include;
-            database
-                .variables
-                .set_environment_override(parsed.environment_override);
-            warnings.set(parsed.warn_undefined);
             if name == b"GNUMAKEFLAGS" {
-                database
+                state
+                    .database
                     .variables
                     .define_literal(
                         name,
                         b"",
-                        if parsed.environment_override {
+                        if parsed_prefix.environment_override {
                             Origin::EnvironmentOverride
                         } else {
                             Origin::Environment
@@ -254,31 +202,206 @@ impl Plan {
                     )
                     .map_err(StartupError::expansion)?;
             }
-            parsed_prefix = Some(parsed);
         }
-        let mut options = if let Some(parsed) = parsed_prefix {
-            Options::with_parsed_inherited(self.args.clone(), parsed, prefix_count, false)
-        } else {
-            Options::with_inherited_tokens(self.args.clone(), Vec::new(), false)
-        }
-        .map_err(InvocationError::Options)?;
-        for (directory, prepared) in options
-            .include_directories
-            .iter_mut()
-            .zip(include_directories)
-        {
-            *directory = prepared;
-        }
+        // Initial inherited expansion precedes synchronization; explicit CLI
+        // effects use the inherited mode until the whole explicit stream ends.
+        let inherited_mode = output_mode(parsed_prefix.output_sync.as_deref())?;
+        state.output.set_mode(inherited_mode);
+        let reader_output = inherited_mode
+            .root_buffered()
+            .then(|| state.output.make_buffer())
+            .flatten();
+        state.output.select(reader_output.as_ref());
+        let mut construction =
+            crate::output::Construction::new(state.output.clone(), reader_output.clone());
+        let decoded = Options::with_parsed_inherited_with(
+            self.args.clone(),
+            parsed_prefix,
+            prefix_count,
+            false,
+            &mut |options, argument| state.argument(&self.program, options, argument),
+        );
+        let options = match decoded {
+            Ok(options) => options,
+            Err(InvocationError::Expansion(mut error)) => {
+                if rmake_linux::signals::pending().is_none()
+                    && let Some(buffer) = &reader_output
+                {
+                    state.output.write_parts(
+                        true,
+                        &[
+                            &error.prefix(&self.program),
+                            b"*** ",
+                            error.message.as_bytes(),
+                            b".  Stop.\n",
+                        ],
+                    );
+                    error.buffered = Some(buffer.clone());
+                    construction.disarm();
+                }
+                return Err(InvocationError::Expansion(error));
+            }
+            Err(error) => return Err(error),
+        };
+        output_mode(options.output_sync.as_deref())?;
         Ok(Invocation {
             options,
             initial: Some(Box::new(Prepared {
-                database,
-                filesystem,
-                output,
-                exports,
-                seed,
+                database: state.database,
+                filesystem: state.filesystem,
+                output: state.output,
+                exports: state.exports,
+                seed: state.seed,
+                reader_output,
+                construction,
                 plan: Box::new(self.clone()),
             })),
+        })
+    }
+}
+
+fn output_mode(raw: Option<&[u8]>) -> Result<crate::output::Mode, StartupError> {
+    raw.map_or(Ok(crate::output::Mode::None), |raw| {
+        crate::output::Mode::parse(raw).ok_or_else(|| {
+            Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat()).into()
+        })
+    })
+}
+
+/// One early database and effect runtime, shared by all ordered argument sources.
+struct State {
+    database: Database,
+    filesystem: RefCell<FilesystemRuntime>,
+    output: crate::output::Controller,
+    exports: HashSet<Vec<u8>>,
+    seed: startup::Seed,
+    warnings: Cell<bool>,
+    seen_commands: HashSet<Vec<u8>>,
+}
+
+impl State {
+    fn evaluate<T>(
+        &mut self,
+        program: &[u8],
+        action: impl FnOnce(&mut Database, ExpansionContext<'_>) -> Result<T, ExpandError>,
+    ) -> Result<T, ExpandError> {
+        let mut emit = |event: Output<'_>| emit_output(&self.output, program, event);
+        let mut receiver = WarningOutput::new(&mut emit, &self.warnings);
+        let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+            self.filesystem.borrow_mut().execute(effect)
+        };
+        let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let result = crate::shell::run(request, program, 0, &self.output, None);
+            self.filesystem.borrow_mut().child_completed();
+            result
+        };
+        let mut include = |name: &[u8]| IncludeSearch::default().read(name);
+        action(
+            &mut self.database,
+            runtime_context(None, &mut receiver)
+                .with_filesystem(&mut filesystem)
+                .with_shell(&mut shell)
+                .with_includes(&mut include),
+        )
+    }
+
+    fn path(&mut self, program: &[u8], raw: &[u8]) -> Result<std::path::PathBuf, ExpandError> {
+        let warnings = self.warnings.replace(false);
+        let result = crate::makefiles::prepare_argument_with(raw, || {
+            self.evaluate(program, |database, context| {
+                database.expand_with(b"$(HOME)", context)
+            })
+        });
+        self.warnings.set(warnings);
+        result
+    }
+
+    fn argument(
+        &mut self,
+        program: &[u8],
+        options: &mut Options,
+        argument: crate::cli::Argument,
+    ) -> Result<(), InvocationError> {
+        self.warnings.set(options.warn_undefined);
+        self.database
+            .variables
+            .set_environment_override(options.environment_override);
+        let result: Result<(), ExpandError> = (|| {
+            match argument {
+                crate::cli::Argument::Definition(index) => {
+                    let name = self
+                        .evaluate(program, |database, context| {
+                            database.define_argument_with(
+                                &options.assignments[index],
+                                Origin::CommandLine,
+                                context,
+                            )
+                        })?
+                        .expect("decoded assignment");
+                    if self.seen_commands.insert(name.clone()) {
+                        self.seed.commands.push(name.clone());
+                    }
+                    if automatic_export_name(&name) {
+                        self.exports.insert(name);
+                    }
+                    self.seed.assignments = options.assignments.len();
+                }
+                crate::cli::Argument::Include(index) => {
+                    let raw = options.include_directories[index].as_os_str().as_bytes();
+                    if !options.include_directories[..index]
+                        .iter()
+                        .any(|path| path.as_os_str().as_bytes() == raw)
+                    {
+                        options.include_directories[index] = self.path(program, raw)?;
+                    } else {
+                        options.include_directories.pop();
+                        options.include_assignment_positions.pop();
+                    }
+                    self.seed.includes = options.include_directories.len();
+                }
+                crate::cli::Argument::Directory(index) => {
+                    let raw = options.directories[index].as_os_str().as_bytes();
+                    if !options.directories[..index]
+                        .iter()
+                        .any(|path| path.as_os_str().as_bytes() == raw)
+                    {
+                        options.directories[index] = self.path(program, raw)?;
+                    } else {
+                        options.directories.pop();
+                    }
+                }
+                crate::cli::Argument::File(index) => {
+                    let raw = options.files[index].as_os_str().as_bytes();
+                    options.files[index] = self.path(program, raw)?;
+                }
+                crate::cli::Argument::Goal(index) => {
+                    let path = self.path(program, &options.goals[index])?;
+                    let name = path.as_os_str().as_bytes();
+                    self.database.file_records.insert(name);
+                    let mut value = self
+                        .database
+                        .variables
+                        .get(b"MAKECMDGOALS")
+                        .map(|v| v.raw_value().to_vec())
+                        .unwrap_or_default();
+                    if self.database.variables.get(b"MAKECMDGOALS").is_some() {
+                        value.push(b' ');
+                    }
+                    value.extend_from_slice(name);
+                    self.database.variables.define_literal(
+                        b"MAKECMDGOALS",
+                        &value,
+                        Origin::Default,
+                    )?;
+                    options.goals[index] = name.to_vec();
+                }
+            }
+            Ok(())
+        })();
+        result.map_err(|error| {
+            let mut error = StartupError::expansion(error);
+            error.version = options.version;
+            error.into()
         })
     }
 }
@@ -287,6 +410,16 @@ pub(super) fn emit_error(program: &[u8], error: InvocationError) {
     if rmake_linux::signals::pending().is_some() {
         return;
     }
+    if let InvocationError::Expansion(error) = &error
+        && let Some(buffer) = &error.buffered
+    {
+        if error.version {
+            crate::print_version();
+        }
+        buffer.dump();
+        return;
+    }
+    let version = matches!(&error, InvocationError::Expansion(error) if error.version);
     let mut stderr = io::stderr().lock();
     match error {
         InvocationError::Options(message) => {
@@ -301,5 +434,10 @@ pub(super) fn emit_error(program: &[u8], error: InvocationError) {
             let _ = stderr.write_all(error.message.as_bytes());
             let _ = stderr.write_all(b".  Stop.\n");
         }
+    }
+    let _ = stderr.flush();
+    drop(stderr);
+    if version {
+        crate::print_version();
     }
 }

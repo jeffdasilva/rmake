@@ -19,10 +19,17 @@ pub fn prepare_argument(
     variables: &mut VariableStore,
     context: ExpansionContext<'_>,
 ) -> Result<PathBuf, ExpandError> {
+    prepare_argument_with(name, || variables.expand_mut_with(b"$(HOME)", context))
+}
+
+pub fn prepare_argument_with(
+    name: &[u8],
+    home: impl FnOnce() -> Result<Vec<u8>, ExpandError>,
+) -> Result<PathBuf, ExpandError> {
     let mut expanded = Vec::new();
     if name.starts_with(b"~") {
         if name.len() == 1 || name[1] == b'/' {
-            let home = variables.expand_mut_with(b"$(HOME)", context)?;
+            let home = home()?;
             if !home.is_empty() {
                 expanded = [home.as_slice(), &name[1..]].concat();
             }

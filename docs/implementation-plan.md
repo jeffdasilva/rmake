@@ -238,3 +238,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Ordered startup replay](startup-replay.md) adds 67 required original controls and two output-checked scaling fixtures. It closes the exact repeated CLI file-effect control while retaining explicit process-replacement and broader startup/profile work. M3/M6 criteria are unchanged.
 
 [Initial inherited flag expansion](initial-flag-expansion.md) adds 111 semantic and two output-checked scaling cases, plus 42 staged runtime interruption cells. Source ordering, owned transfer and iterative restart preparation are implemented without changing M3/M6 exit criteria.
+
+[Ordered explicit CLI startup](ordered-cli-startup.md) adds typed decoder effects before directory/metadata initialization, with 126 semantic and two scaling controls. A 128-cell exit-phase gate and 42 staged interruption cells retain exact behavior around cosmetic help/version blocks. M3/M6 criteria remain unchanged.

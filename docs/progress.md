@@ -2477,3 +2477,7 @@ Constructor and restart now share ordered CLI preparation, restoring pre-assignm
 ## Initial inherited flag expansion — 2026-10-28
 
 MAKEFLAGS/GNUMAKEFLAGS expansion now uses the complete early database context before option decoding. Source effects, assignments, includes and export policies transfer into construction once; an owned invocation plan repeats the initial phase on Makefile restart. 111 semantic cases and two output-checked scaling cases bring the ordinary corpus to 10,360 required / zero pending. 42 initial interruption cells extend the runtime gate; 17 safe-error exceptions remain separate. [Evidence and limits](initial-flag-expansion.md) retain full M3/M6 startup/decoder/profile work.
+
+## Ordered explicit CLI startup — 2026-10-28
+
+A typed decoder receiver now applies definitions, goal metadata and filename operands against the early database, before directory changes and late defaults. Owned output buffers preserve inherited synchronization and fatal/version exit phases. Original controls cover 126 semantic and two scaling cases, with 128 separate early-exit cells and 42 new interruption cells. The corpus is 10,488 required ordinary cases, zero pending, plus 17 unchanged separate safety exceptions. Complete final acceptance and exact-head CI remain merge gates; M3/M6 and general performance parity remain open. See [ordered startup](ordered-cli-startup.md).

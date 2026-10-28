@@ -684,10 +684,21 @@ pub struct Engine {
 
 /// Startup errors can originate inside real files read by a CLI eval. Keep the
 /// source identity through constructor unwinding and buffered-output flushing.
-#[derive(Debug)]
 pub struct StartupError {
     pub message: Diagnostic,
     pub location: Option<Location>,
+    pub version: bool,
+    pub buffered: Option<std::rc::Rc<crate::output::Buffer>>,
+}
+
+impl std::fmt::Debug for StartupError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StartupError")
+            .field("message", &self.message)
+            .field("location", &self.location)
+            .field("version", &self.version)
+            .finish_non_exhaustive()
+    }
 }
 
 impl From<Diagnostic> for StartupError {
@@ -695,6 +706,8 @@ impl From<Diagnostic> for StartupError {
         Self {
             message,
             location: None,
+            version: false,
+            buffered: None,
         }
     }
 }
@@ -707,6 +720,8 @@ impl StartupError {
                 .filter(|location| !location.file.is_empty())
                 .cloned(),
             message: error.diagnostic(),
+            version: false,
+            buffered: None,
         }
     }
 
@@ -739,14 +754,17 @@ impl Engine {
         makeflags: Option<OsString>,
         gnumakeflags: Option<OsString>,
     ) -> Result<Invocation, InvocationError> {
+        let args: Vec<_> = args.into_iter().collect();
+        let needs_initial = |value: &[u8]| {
+            value.contains(&b'$')
+                || value.contains(&b'~')
+                || value.windows(2).any(|part| part == b"!=")
+        };
         if ![makeflags.as_deref(), gnumakeflags.as_deref()]
             .into_iter()
             .flatten()
-            .any(|value| {
-                value.as_bytes().contains(&b'$')
-                    || value.as_bytes().contains(&b'~')
-                    || value.as_bytes().windows(2).any(|part| part == b"!=")
-            })
+            .any(|value| needs_initial(value.as_bytes()))
+            && !args.iter().any(|value| needs_initial(value.as_bytes()))
         {
             return Options::with_environment(args, makeflags, gnumakeflags)
                 .map(|options| Invocation {
@@ -755,13 +773,7 @@ impl Engine {
                 })
                 .map_err(InvocationError::Options);
         }
-        let plan = initial::Plan::new(
-            args.into_iter().collect(),
-            program,
-            invocation,
-            makeflags,
-            gnumakeflags,
-        );
+        let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags);
         plan.decode(None)
     }
 }
@@ -793,6 +805,10 @@ impl Engine {
             mut initial,
         } = launch;
         let prepared = initial.is_some();
+        if !prepared {
+            let mut seen = HashSet::new();
+            options.directories.retain(|path| seen.insert(path.clone()));
+        }
         let startup_warnings = Cell::new(options.warn_undefined);
         let parse_mode = |raw: Option<&[u8]>| -> Result<crate::output::Mode, Diagnostic> {
             raw.map_or(Ok(crate::output::Mode::None), |raw| {
@@ -818,11 +834,16 @@ impl Engine {
             |state| state.output.clone(),
         );
         output.set_mode(inherited_mode);
-        let mut reader_output = output
-            .mode()
-            .root_buffered()
-            .then(|| output.make_buffer())
-            .flatten();
+        let mut reader_output = if let Some(state) = initial.as_mut() {
+            state.construction.disarm();
+            state.reader_output.take()
+        } else {
+            output
+                .mode()
+                .root_buffered()
+                .then(|| output.make_buffer())
+                .flatten()
+        };
         output.select(reader_output.as_ref());
         if options.startup_missing_makeflags_warning {
             emit_output(
@@ -1015,7 +1036,7 @@ impl Engine {
             .variables
             .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
             .map_err(|e| e.diagnostic())?;
-        if !options.goals.is_empty() {
+        if !prepared && !options.goals.is_empty() {
             database
                 .variables
                 .define_literal(b"MAKECMDGOALS", &joined(&options.goals), Origin::Default)

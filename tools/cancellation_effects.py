@@ -26,7 +26,7 @@ ready.with_suffix('.tmp').write_text(str(os.getpid()))
 ready.with_suffix('.tmp').rename(ready)
 while True:time.sleep(1)
 '''
-PHASES = ('initial-makeflags-shell', 'initial-gnumakeflags-shell', 'makeflags-shell', 'gnumakeflags-shell', 'cli-shell', 'reader-shell', 'reader-assignment', 'include-shell',
+PHASES = ('initial-makeflags-shell', 'initial-gnumakeflags-shell', 'makeflags-shell', 'gnumakeflags-shell', 'cli-shell', 'cli-inherited-shell', 'cli-tilde-shell', 'reader-shell', 'reader-assignment', 'include-shell',
           'recipe-shell', 'export-shell', 'file-read', 'file-write', 'include-read',
           'main-read', 'stdin-read', 'expansion')
 
@@ -47,7 +47,7 @@ class Cell:
         body = {
             'makeflags-shell': 'MAKEFLAGS = $(shell python3 helper.py)',
             'gnumakeflags-shell': 'GNUMAKEFLAGS = $(shell python3 helper.py)',
-            'cli-shell': '',
+            'cli-shell': '', 'cli-inherited-shell': '', 'cli-tilde-shell': '',
             'reader-shell': 'X := $(shell python3 helper.py)',
             'reader-assignment': 'X != python3 helper.py',
             'include-shell': 'include $(shell python3 helper.py)',
@@ -69,7 +69,8 @@ class Cell:
     @property
     def arguments(self):
         args = ['-rR', '--no-print-directory', '-j2', '--jobserver-style=pipe', '-O' + self.mode]
-        if self.phase == 'cli-shell': args += ['SHELL=/bin/sh', 'X:=$(shell python3 helper.py)']
+        if self.phase in ('cli-shell', 'cli-inherited-shell'): args += ['SHELL=/bin/sh', 'X:=$(shell python3 helper.py)', 'AFTER:=$(file >forbidden)']
+        if self.phase == 'cli-tilde-shell': args += ['SHELL=/bin/sh', 'HOME=$(shell python3 helper.py)', '-I~/include', 'AFTER:=$(file >forbidden)']
         if self.phase == 'main-read': args += ['-f', 'fifo']
         if self.phase == 'stdin-read': args += ['-f', '-']
         return args
@@ -95,7 +96,7 @@ def live_group(group):
 
 
 def anchors(cell, observed):
-    before = not cell.phase.startswith('initial-') and cell.phase not in ('cli-shell', 'main-read', 'stdin-read')
+    before = not cell.phase.startswith('initial-') and not cell.phase.startswith('cli-') and cell.phase not in ('main-read', 'stdin-read')
     if cell.mode == 'target' and cell.phase not in ('recipe-shell', 'export-shell'): before = False
     expected = b'before\n' if before else b''
     errors = []
@@ -112,6 +113,7 @@ def execute(cell, root, fixture, binary, require_reaping):
     harness.reset_workspace(case, root, binary)
     ready = root / 'capture.ready'; ready.unlink(missing_ok=True)
     environment = harness.clean_environment(root, {'RMAKE_TEST_READY': str(ready)})
+    if cell.phase == 'cli-inherited-shell': environment['MAKEFLAGS'] = '-O' + cell.mode
     if cell.phase.startswith('initial-'):
         environment['SHELL'] = '/bin/sh'
         variable = 'GNUMAKEFLAGS' if cell.phase == 'initial-gnumakeflags-shell' else 'MAKEFLAGS'

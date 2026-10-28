@@ -12,7 +12,7 @@ import runtime_terminals as terminals
 class RuntimeEffectTests(unittest.TestCase):
     def test_effect_inventory_covers_every_phase_signal_and_buffering_mode(self):
         cells=effects.inventory()
-        self.assertEqual(len(cells),336)
+        self.assertEqual(len(cells),378)
         self.assertEqual(len({c.id for c in cells}),len(cells))
         self.assertEqual({c.phase for c in cells},set(effects.PHASES))
         self.assertEqual({c.number for c in cells},set(effects.SIGNALS))
@@ -41,6 +41,15 @@ class RuntimeEffectTests(unittest.TestCase):
                 self.assertTrue(effects.anchors(cell, dataclasses.replace(good, returncode=2)))
                 self.assertTrue(effects.anchors(cell, dataclasses.replace(good, stdout=b'before\n')))
                 self.assertTrue(effects.anchors(cell, dataclasses.replace(good, filesystem={'work/forbidden':{}})))
+
+    def test_ordered_cli_capture_and_tilde_interruption_have_no_later_effects(self):
+        for phase in ('cli-inherited-shell','cli-tilde-shell'):
+            for mode in ('none','target','recurse'):
+                cell=effects.Cell(phase,15,mode)
+                good=conformance.Observation(b'',b'',-15,None,{})
+                self.assertEqual(effects.anchors(cell,good),[])
+                self.assertIn('AFTER:=$(file >forbidden)',cell.arguments)
+                self.assertTrue(effects.anchors(cell,dataclasses.replace(good,filesystem={'work/forbidden':{}})))
 
     def test_lock_inventory_distinguishes_reader_completed_owner_and_serial_recurse(self):
         cells=locks.inventory()

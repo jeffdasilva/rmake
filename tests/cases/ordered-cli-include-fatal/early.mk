@@ -1,0 +1,2 @@
+# real file
+$(error INCLUDED)

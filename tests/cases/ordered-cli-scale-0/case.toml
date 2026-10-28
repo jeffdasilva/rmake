@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "ordered-cli-scale-0"
+requirement = "performance.ordered-cli"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "DONE:=$(info values=[])$(error END)"]
+timeout_seconds = 5
+description = "Original ordered explicit startup, early metadata, filename, output or restart control."
+provenance = "Independent exact models checked against two bounded pinned GNU observations and the candidate; source-informed model refinements retained during development. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "76616c7565733d5b5d0a"
+stderr_hex = "6d616b653a202a2a2a20454e442e202053746f702e0a"
