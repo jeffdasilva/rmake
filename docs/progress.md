@@ -2321,6 +2321,10 @@ Well-formed startup file/directory switches in MAKEFLAGS/GNUMAKEFLAGS now partic
 
 ## M6 explicit startup argument cost
 
-Invocations without inherited flag tokens now parse explicit arguments once. The existing inherited merge remains intact, and both paths share explicit-job/authentication finalization. [Startup argument evidence](startup-arguments.md) adds three required full-value fixtures and a top-level benchmark suite. Totals are 8,968 cases / 8,967 required / one pending, with 440 Rust / 357 tooling tests.
+Invocations without inherited flag tokens now parse explicit arguments once. The existing inherited merge remains intact, and both paths share explicit-job/authentication finalization. [Startup argument evidence](startup-arguments.md) adds three required full-value fixtures and a top-level benchmark suite. Totals are 8,968 cases / 8,967 required / one pending, with 440 Rust / 359 tooling tests.
 
 In 101 paired samples, the 5,000-override median fell from 8.637 ms to 8.216 ms; GNU measured 25.921 ms. Every value is observed. Core/parallel medians remain close, with some slightly higher, and general parity remains open. Raw argument/core/parallel reports are retained. Full acceptance and exact-head CI remain merge gates.
+
+## Terminal collector completion tail
+
+A full local run exposed an empty-select/process-exit race: GNU helper bytes were left in the reused PTY and appeared in the candidate observation. The [collector fix and raw evidence](terminal-capture.md) retain every byte after completion and preserve all expected output and timeouts. Two deterministic tests fail before the fix and pass afterward. GNU, previous/current candidates each passed 100 targeted repetitions; all 192 terminal matrix cells also passed. Full acceptance and exact-head CI are rerun with this fix.

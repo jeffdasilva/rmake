@@ -21,7 +21,7 @@ negative mutation guard, so an implementation cannot pass by dropping arguments.
 Two tooling tests protect the benchmark workload and exact oracle anchor.
 
 The curated corpus is 8,968 total / 8,967 required / one pending. Rust totals
-remain 440; tooling totals are 357. Full development/optimized acceptance, driven
+remain 440; tooling totals are 359. Full development/optimized acceptance, driven
 by rmake, and exact-head CI remain merge gates. The [M3/M6 audit](m3-m6-audit.md)
 retains the incomplete compatibility inventory and broader exit criteria.
 
@@ -68,3 +68,5 @@ previous:
 
 All code, workload definitions and fixtures are independently authored. GNU is
 an external reference, never an implementation fallback.
+
+The full local run exposed a pre-existing [terminal capture race](terminal-capture.md). The collector now drains completed streams before reusing a PTY, with deterministic regressions and unchanged raw expectations/timeouts. The product binaries and performance samples are unchanged.
