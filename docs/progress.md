@@ -1302,7 +1302,7 @@ post-read suffix conversion, override/cancellation priority, disabled-rule modes
 and built-in diagnostic locations. The data verifier and regenerator are
 available through the top-level Makefile; CI verifies the data against the pinned
 oracle. See [built-ins](builtins.md) for provenance and remaining boundaries.
-Added 66 original differential cases and three tooling tests. All 2,064 required
+Added 66 original differential cases and four tooling tests. All 2,064 required
 cases pass; 12 pending mismatches remain, out of 2,076 total cases.
 
 ## Parallel recipe continuations
@@ -2291,7 +2291,7 @@ The explicit `.POSIX` rejection is replaced by sticky reader activation,
 GNU default variables, continuation folding, per-command shell error flags,
 POSIX suffix conversion eligibility and original command-variable propagation.
 Early special-variable origins under `-e` retain the correct startup phase.
-390 original required comparisons and three core/three tooling tests cover
+390 original required comparisons and three core/four tooling tests cover
 profiles, effects, includes, eval, restarts, execution modes and recursion.
 The corpus is 7,357 total / 7,356 required / one pending; unit totals are
 436 Rust / 341 tooling. See [POSIX behavior and performance](posix-mode.md).
@@ -2304,5 +2304,5 @@ Negative silent/keep-going aliases, explicit negative propagation, ignored legac
 options and origin-aware switch updates now have 468 required original cases.
 Runtime flag normalization respects current-file priority and sibling isolation;
 include metadata remains global. See [behavior and measurements](switch-origins.md).
-The corpus is 7,825 total / 7,824 required / one pending, with 437 Rust / 344
+The corpus is 7,825 total / 7,824 required / one pending, with 437 Rust / 345
 tooling tests. M3/M6 and their broader option/profile/native surfaces remain open.

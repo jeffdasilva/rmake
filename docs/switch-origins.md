@@ -41,13 +41,15 @@ ignored compatibility options, recursive flags, actual recipe echo/failure
 behavior, import/CLI/file/override precedence, eval, recipe expansion, secondary
 expansion, siblings, target bindings, include metadata and POSIX mode. Include
 queries use original controlled directory names rather than compile-prefix
-anchors. No output sorting or normalization is introduced.
+anchors. Recursive command echoes invoke the harness alias by basename, keeping exact
+expectations independent of the temporary workspace. No output sorting or
+normalization is introduced.
 
 A core test verifies that a direct file value survives normalization, a child can
-shadow its ancestor, and parent/global values remain intact. Three tooling tests
+shadow its ancestor, and parent/global values remain intact. Four tooling tests
 protect required coverage, explicit negative spellings and independent sibling
 metadata anchors. The corpus is 7,825 total / 7,824 required / one pending; unit
-totals are 437 Rust / 344 tooling tests. Full sequential development/optimized
+totals are 437 Rust / 345 tooling tests. Full sequential development/optimized
 acceptance and exact-head CI remain merge gates. This slice does not close M3/M6
 or the existing oracle safety conflicts.
 

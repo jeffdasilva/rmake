@@ -34,6 +34,16 @@ class SwitchOriginTests(unittest.TestCase):
             self.assertTrue(conformance.expectation_errors(case,
                 dataclasses.replace(good, stdout=stdout.replace(spelling, b'wrong'))))
 
+    def test_recursive_echo_has_a_portable_exact_alias_anchor(self):
+        case = conformance.load_case(ROOT / 'tests/cases/switch-alias-8-recursive')
+        stdout = bytes.fromhex(case.expected['stdout_hex'])
+        command = b"\nmake --no-print-directory -f child.mk child\n"
+        self.assertIn(command, stdout)
+        good = conformance.Observation(stdout, b'', 0, None, {})
+        self.assertEqual(conformance.expectation_errors(case, good), [])
+        wrong = stdout.replace(command, b"\n/tmp/private-runner/bin/make --no-print-directory -f child.mk child\n")
+        self.assertTrue(conformance.expectation_errors(case, dataclasses.replace(good, stdout=wrong)))
+
     def test_file_local_and_inherited_metadata_have_distinct_anchors(self):
         case = conformance.load_case(ROOT / 'tests/cases/switch-scopes-0-target-siblings-iinc')
         stdout = bytes.fromhex(case.expected['stdout_hex'])
