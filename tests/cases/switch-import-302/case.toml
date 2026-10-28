@@ -1,0 +1,14 @@
+id = "switch-import-302"
+requirement = "cli.switch-origins"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s"]
+timeout_seconds = 12
+provenance = "Original switch-origin, recursion and scoped metadata Makefiles; two raw GNU Make 4.4.1 observations and final candidate comparison. Controlled include directories; no upstream tests copied or outputs normalized."
+
+[environment]
+"MAKEFLAGS" = "-s"
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d2f5b2d725273202d2d6e6f2d7072696e742d6469726563746f72795d0a7265636970653d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d2f5b2d725273202d2d6e6f2d7072696e742d6469726563746f72795d0a646f6e650a"
+stderr_hex = ""

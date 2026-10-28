@@ -42,7 +42,7 @@ impl State {
     ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
         let current = self.options.borrow();
         let (mut updated, _) = current
-            .assigned_flags(&[request.value.to_vec()])
+            .assigned_flags(&[request.value.to_vec()], request.origin)
             .map_err(String::into_bytes)?;
         let assignments = std::mem::take(&mut updated.assignments)
             .into_iter()

@@ -643,6 +643,32 @@ impl VariableStore {
         Ok(state.value.clone())
     }
 
+    /// GNU normalizes flags in the current file set. An explicit binding in
+    /// that file retains its priority; global and inherited sets stay outside
+    /// this comparison. Preserve metadata when materializing that local value.
+    pub(crate) fn define_runtime_metadata(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        origin: Origin,
+    ) -> Result<(), ExpandError> {
+        if self.file_locals
+            && !self.variables.contains_key(name)
+            && let Some(old) = self
+                .layers
+                .iter()
+                .filter(|layer| !layer.global && !layer.inherited && !layer.pattern)
+                .find_map(|layer| layer.variables.get(name))
+        {
+            if old.origin > origin {
+                return Ok(());
+            }
+            let old = old.clone();
+            Arc::make_mut(&mut self.variables).insert(name, old);
+        }
+        self.define(name, value, Assignment::Recursive, origin)
+    }
+
     /// GNU's legacy switch variable excludes command overrides and retains
     /// recursive make-dollar quoting. File/CLI definitions keep their priority.
     pub fn update_mflags(
@@ -657,10 +683,9 @@ impl VariableStore {
         } else {
             [b"-".as_slice(), flags].concat()
         };
-        self.define(
+        self.define_runtime_metadata(
             b"MFLAGS",
             &value,
-            Assignment::Recursive,
             if environment_override {
                 Origin::EnvironmentOverride
             } else {
@@ -6410,5 +6435,52 @@ mod variable_names_tests {
         let names = scoped.expand(b"$(.VARIABLES)").unwrap();
         assert!(words(&names).any(|word| word == b"GLOBAL"));
         assert!(!words(&names).any(|word| word == b"LOCAL"));
+    }
+}
+
+#[cfg(test)]
+mod runtime_metadata_scope_tests {
+    use super::*;
+
+    #[test]
+    fn normalization_preserves_this_files_value_and_shadows_ancestors() {
+        let mut globals = VariableStore::new();
+        globals
+            .define_literal(b"MFLAGS", b"global", Origin::Override)
+            .unwrap();
+        let mut target = TargetScope::default();
+        target
+            .define_with(
+                &mut globals,
+                b"MFLAGS",
+                b"target",
+                Assignment::Recursive,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut parent = globals.with_target_scopes(&[&target]);
+        parent.update_mflags(b"s", false).unwrap();
+        assert_eq!(
+            parent.expand(b"$(origin MFLAGS)|$(MFLAGS)").unwrap(),
+            b"file|target"
+        );
+        let mut child = parent.with_target_scopes(&[]);
+        child.update_mflags(b"k", false).unwrap();
+        assert_eq!(
+            child.expand(b"$(origin MFLAGS)|$(MFLAGS)").unwrap(),
+            b"environment|-k"
+        );
+        assert_eq!(
+            parent.expand(b"$(origin MFLAGS)|$(MFLAGS)").unwrap(),
+            b"file|target"
+        );
+        assert_eq!(
+            globals.expand(b"$(origin MFLAGS)|$(MFLAGS)").unwrap(),
+            b"override|global"
+        );
     }
 }

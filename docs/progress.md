@@ -2297,3 +2297,12 @@ The corpus is 7,357 total / 7,356 required / one pending; unit totals are
 436 Rust / 341 tooling. See [POSIX behavior and performance](posix-mode.md).
 M3/M6 remain open, with native loading, Guile, presentation, locales and broader
 integration acceptance still in the [audit](m3-m6-audit.md).
+
+## M3/M6 switch origins
+
+Negative silent/keep-going aliases, explicit negative propagation, ignored legacy
+options and origin-aware switch updates now have 468 required original cases.
+Runtime flag normalization respects current-file priority and sibling isolation;
+include metadata remains global. See [behavior and measurements](switch-origins.md).
+The corpus is 7,825 total / 7,824 required / one pending, with 437 Rust / 344
+tooling tests. M3/M6 and their broader option/profile/native surfaces remain open.

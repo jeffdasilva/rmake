@@ -1,0 +1,11 @@
+id = "switch-scopes-0-none-reader-e"
+requirement = "cli.switch-origins"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 12
+provenance = "Original switch-origin, recursion and scoped metadata Makefiles; two raw GNU Make 4.4.1 observations and final candidate comparison. Controlled include directories; no upstream tests copied or outputs normalized."
+
+[expected]
+exit_code = 0
+stdout_hex = "73746174653d5b657252202d2d6e6f2d7072696e742d6469726563746f72795d2f5b656e7669726f6e6d656e74206f766572726964655d2f5b2d657252202d2d6e6f2d7072696e742d6469726563746f72795d2f5b656e7669726f6e6d656e74206f766572726964655d2f5b5d2f5b64656661756c745d0a"
+stderr_hex = ""

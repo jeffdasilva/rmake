@@ -1,0 +1,11 @@
+id = "switch-alias-11-recursive"
+requirement = "cli.switch-origins"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--stop"]
+timeout_seconds = 12
+provenance = "Original switch-origin, recursion and scoped metadata Makefiles; two raw GNU Make 4.4.1 observations and final candidate comparison. Controlled include directories; no upstream tests copied or outputs normalized."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b725253202d2d6e6f2d7072696e742d6469726563746f72795d2f5b2d725253202d2d6e6f2d7072696e742d6469726563746f72795d0a2f746d702f726d616b652d7377697463682d70726f6265732d6e6431776e6a32312f72756e2f62696e2f6d616b65202d2d6e6f2d7072696e742d6469726563746f7279202d66206368696c642e6d6b206368696c640a6368696c643d5b725253202d2d6e6f2d7072696e742d6469726563746f72795d2f5b2d725253202d2d6e6f2d7072696e742d6469726563746f72795d0a7072696e7466202725735c6e27206368696c640a6368696c640a"
+stderr_hex = ""

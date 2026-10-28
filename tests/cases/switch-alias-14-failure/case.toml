@@ -1,0 +1,11 @@
+id = "switch-alias-14-failure"
+requirement = "cli.switch-origins"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-S", "-k"]
+timeout_seconds = 12
+provenance = "Original switch-origin, recursion and scoped metadata Makefiles; two raw GNU Make 4.4.1 observations and final candidate comparison. Controlled include directories; no upstream tests copied or outputs normalized."
+
+[expected]
+exit_code = 2
+stdout_hex = "7265616465723d5b6b7252202d2d6e6f2d7072696e742d6469726563746f72795d2f5b2d6b7252202d2d6e6f2d7072696e742d6469726563746f72795d0a66616c73650a7072696e7466202725735c6e272061667465720a61667465720a"
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a333a206661696c5d204572726f7220310a6d616b653a205461726765742027616c6c27206e6f742072656d6164652062656361757365206f66206572726f72732e0a"
