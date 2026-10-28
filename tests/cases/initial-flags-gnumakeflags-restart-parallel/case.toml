@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-gnumakeflags-restart-parallel"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory", "-j2"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "$(file >>seen,E)$(eval SIDE:=$(MAKE_RESTARTS))rR"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d2f5b5d2f5b315d0a5b315d2f5b315d2f5b325d0a"
+stderr_hex = ""

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-gnumakeflags-warning-position-before"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Initial warning policy follows its source and argument position."
+provenance = "Independent exact status/stream model checked against two bounded GNU observations and candidate. No upstream source or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "$(info EARLY)--warn-undefined-variables X:=$$(MISSING)"
+"MAKEFLAGS" = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "4541524c590a583d5b5d0a"
+stderr_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"

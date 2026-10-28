@@ -32,17 +32,21 @@ fn main() -> ExitCode {
     let mut args = std::env::args_os();
     let invocation = args.next().unwrap_or_else(|| "rmake".into());
     let program = cli::invocation_name(&invocation);
-    let options = match cli::Options::with_environment(
+    let launch = match engine::Engine::invocation(
         args,
+        &program,
+        &invocation,
         std::env::var_os("MAKEFLAGS"),
         std::env::var_os("GNUMAKEFLAGS"),
     ) {
-        Ok(options) => options,
-        Err(message) => {
-            eprintln!("{}: {message}", String::from_utf8_lossy(&program));
-            return ExitCode::from(2);
+        Ok(launch) => launch,
+        Err(error) => {
+            engine::emit_invocation_error(&program, error);
+            drop(signals);
+            return ExitCode::from(rmake_linux::signals::exit_status(2));
         }
     };
+    let options = &launch.options;
     if options.version {
         println!("rmake {}", env!("CARGO_PKG_VERSION"));
         println!(
@@ -76,7 +80,7 @@ fn main() -> ExitCode {
         println!("Complete runtime compatibility remains unfinished.");
         return ExitCode::SUCCESS;
     }
-    let status = match engine::Engine::new(options, program.clone(), &invocation) {
+    let status = match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
         Ok(engine) => engine.run(),
         Err(message) => {
             if rmake_linux::signals::pending().is_none() {

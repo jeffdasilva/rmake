@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-makeflags-warning-include"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKEFLAGS" = "$(eval include early.mk)rR"
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "6561726c792e6d6b3a313a20494e434c554445440a"

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-gnumakeflags-op-conditional"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "$(info ENV)rR X?=$$(eval\\ SIDE:=value)word"
+
+[expected]
+exit_code = 0
+stdout_hex = "454e560a5b776f72645d2f5b76616c75655d0a"
+stderr_hex = ""

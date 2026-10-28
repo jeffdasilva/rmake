@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-gnumakeflags-literal-tilde"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory", "HOME=after"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "rR HOME=before -I~/include"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6265666f72655d2f5b61667465725d0a"
+stderr_hex = ""

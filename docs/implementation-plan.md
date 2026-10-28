@@ -236,3 +236,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [CLI assignment effects and default phases](cli-assignment-effects.md) add 186 required original comparisons and close the recorded early CC/default-goal warning controls and inactive-metadata eval control. The ordinary repeated CLI file-effect mismatch remains explicit restart work; full M3/M6 criteria are unchanged.
 
 [Ordered startup replay](startup-replay.md) adds 67 required original controls and two output-checked scaling fixtures. It closes the exact repeated CLI file-effect control while retaining explicit process-replacement and broader startup/profile work. M3/M6 criteria are unchanged.
+
+[Initial inherited flag expansion](initial-flag-expansion.md) adds 111 semantic and two output-checked scaling cases, plus 42 staged runtime interruption cells. Source ordering, owned transfer and iterative restart preparation are implemented without changing M3/M6 exit criteria.

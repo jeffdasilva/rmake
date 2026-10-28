@@ -26,7 +26,7 @@ ready.with_suffix('.tmp').write_text(str(os.getpid()))
 ready.with_suffix('.tmp').rename(ready)
 while True:time.sleep(1)
 '''
-PHASES = ('makeflags-shell', 'gnumakeflags-shell', 'cli-shell', 'reader-shell', 'reader-assignment', 'include-shell',
+PHASES = ('initial-makeflags-shell', 'initial-gnumakeflags-shell', 'makeflags-shell', 'gnumakeflags-shell', 'cli-shell', 'reader-shell', 'reader-assignment', 'include-shell',
           'recipe-shell', 'export-shell', 'file-read', 'file-write', 'include-read',
           'main-read', 'stdin-read', 'expansion')
 
@@ -43,6 +43,7 @@ class Cell:
     def source(self):
         before = '$(info before)\n'
         after = '\n$(file >forbidden)\n.PHONY: all\nall:;@true\n'
+        if self.phase.startswith('initial-'): return (before + after).encode()
         body = {
             'makeflags-shell': 'MAKEFLAGS = $(shell python3 helper.py)',
             'gnumakeflags-shell': 'GNUMAKEFLAGS = $(shell python3 helper.py)',
@@ -94,7 +95,7 @@ def live_group(group):
 
 
 def anchors(cell, observed):
-    before = cell.phase not in ('cli-shell', 'main-read', 'stdin-read')
+    before = not cell.phase.startswith('initial-') and cell.phase not in ('cli-shell', 'main-read', 'stdin-read')
     if cell.mode == 'target' and cell.phase not in ('recipe-shell', 'export-shell'): before = False
     expected = b'before\n' if before else b''
     errors = []
@@ -111,6 +112,11 @@ def execute(cell, root, fixture, binary, require_reaping):
     harness.reset_workspace(case, root, binary)
     ready = root / 'capture.ready'; ready.unlink(missing_ok=True)
     environment = harness.clean_environment(root, {'RMAKE_TEST_READY': str(ready)})
+    if cell.phase.startswith('initial-'):
+        environment['SHELL'] = '/bin/sh'
+        variable = 'GNUMAKEFLAGS' if cell.phase == 'initial-gnumakeflags-shell' else 'MAKEFLAGS'
+        environment[variable] = '$(shell python3 helper.py)$(file >forbidden)'
+
     # GNU's stdin-Makefile temporary is observer state outside the target tree.
     # Preserve its names as evidence; the candidate must release owned temps.
     if cell.phase == 'stdin-read':

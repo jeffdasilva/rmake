@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-makeflags-assignment-simple"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKEFLAGS" = "$(info ENV)rR X:=$$(eval\\ SIDE:=early)value"
+
+[expected]
+exit_code = 0
+stdout_hex = "454e560a4245464f52453d5b6561726c795d0a583d5b76616c75655d2f5b636f6d6d616e64206c696e655d0a41465445523d5b6561726c795d0a"
+stderr_hex = ""

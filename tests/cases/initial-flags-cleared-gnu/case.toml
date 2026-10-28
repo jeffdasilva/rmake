@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-cleared-gnu"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "$(info G)rR"
+"MAKEFLAGS" = "$(info M=[$(value GNUMAKEFLAGS)]/[$(origin GNUMAKEFLAGS)]/[$(flavor GNUMAKEFLAGS)])"
+
+[expected]
+exit_code = 0
+stdout_hex = "470a4d3d5b5d2f5b656e7669726f6e6d656e745d2f5b73696d706c655d0a"
+stderr_hex = ""

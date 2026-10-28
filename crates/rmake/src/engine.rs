@@ -4,6 +4,7 @@
 //! Linux filesystem, dependency traversal and process execution boundary.
 //! No persistent cache and no delegation to GNU Make are involved.
 
+mod initial;
 mod runtime_options;
 mod startup;
 
@@ -28,6 +29,8 @@ use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, SystemTime};
+
+const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load";
 
 fn os(bytes: &[u8]) -> &OsStr {
     OsStr::from_bytes(bytes)
@@ -616,6 +619,7 @@ struct FailedOwner {
 pub struct Engine {
     options: Options,
     restart_options: Options,
+    initial_plan: Option<Box<initial::Plan>>,
     startup_snapshot: Option<Box<startup::Snapshot>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
@@ -713,12 +717,82 @@ impl StartupError {
     }
 }
 
+pub fn emit_invocation_error(program: &[u8], error: InvocationError) {
+    initial::emit_error(program, error);
+}
+
+pub struct Invocation {
+    pub options: Options,
+    initial: Option<Box<initial::Prepared>>,
+}
+
+pub enum InvocationError {
+    Options(String),
+    Expansion(StartupError),
+}
+
 impl Engine {
+    pub fn invocation(
+        args: impl IntoIterator<Item = OsString>,
+        program: &[u8],
+        invocation: &OsStr,
+        makeflags: Option<OsString>,
+        gnumakeflags: Option<OsString>,
+    ) -> Result<Invocation, InvocationError> {
+        if ![makeflags.as_deref(), gnumakeflags.as_deref()]
+            .into_iter()
+            .flatten()
+            .any(|value| {
+                value.as_bytes().contains(&b'$')
+                    || value.as_bytes().contains(&b'~')
+                    || value.as_bytes().windows(2).any(|part| part == b"!=")
+            })
+        {
+            return Options::with_environment(args, makeflags, gnumakeflags)
+                .map(|options| Invocation {
+                    options,
+                    initial: None,
+                })
+                .map_err(InvocationError::Options);
+        }
+        let plan = initial::Plan::new(
+            args.into_iter().collect(),
+            program,
+            invocation,
+            makeflags,
+            gnumakeflags,
+        );
+        plan.decode(None)
+    }
+}
+
+impl Engine {
+    #[cfg(test)]
     pub fn new(
-        mut options: Options,
+        options: Options,
         program: Vec<u8>,
         invocation: &OsStr,
     ) -> Result<Self, StartupError> {
+        Self::from_invocation(
+            Invocation {
+                options,
+                initial: None,
+            },
+            program,
+            invocation,
+        )
+    }
+
+    pub fn from_invocation(
+        launch: Invocation,
+        program: Vec<u8>,
+        invocation: &OsStr,
+    ) -> Result<Self, StartupError> {
+        let Invocation {
+            mut options,
+            mut initial,
+        } = launch;
+        let prepared = initial.is_some();
         let startup_warnings = Cell::new(options.warn_undefined);
         let parse_mode = |raw: Option<&[u8]>| -> Result<crate::output::Mode, Diagnostic> {
             raw.map_or(Ok(crate::output::Mode::None), |raw| {
@@ -738,10 +812,12 @@ impl Engine {
             [program.as_slice(), format!("[{startup_level}]").as_bytes()].concat()
         };
         let mode = parse_mode(options.output_sync.as_deref())?;
-        let output = crate::output::Controller::new(
-            parse_mode(options.inherited_output_sync.as_deref())?,
-            &warning_program,
+        let inherited_mode = parse_mode(options.inherited_output_sync.as_deref())?;
+        let output = initial.as_ref().map_or_else(
+            || crate::output::Controller::new(inherited_mode, &warning_program),
+            |state| state.output.clone(),
         );
+        output.set_mode(inherited_mode);
         let mut reader_output = output
             .mode()
             .root_buffered()
@@ -786,29 +862,51 @@ impl Engine {
                 )
             })?;
         }
-        let filesystem = RefCell::new(FilesystemRuntime::default());
-        let mut database = Database::default();
-        database.variables.reserve_environment_layout(
-            &[
-                b".VARIABLES",
-                b".RECIPEPREFIX",
-                b".SHELLFLAGS",
-                b".LOADED",
-                b".FEATURES",
-            ],
-            false,
+        let filesystem = initial.as_mut().map_or_else(
+            || RefCell::new(FilesystemRuntime::default()),
+            |state| std::mem::take(&mut state.filesystem),
         );
+        let mut database = initial.as_mut().map_or_else(Database::default, |state| {
+            std::mem::take(&mut state.database)
+        });
+        if !prepared {
+            database.variables.reserve_environment_layout(
+                &[
+                    b".VARIABLES",
+                    b".RECIPEPREFIX",
+                    b".SHELLFLAGS",
+                    b".LOADED",
+                    b".FEATURES",
+                ],
+                false,
+            );
+        }
         for goal in &options.goals {
             database.file_records.insert(goal);
         }
         database
             .variables
             .set_environment_override(options.environment_override);
-        let mut inherited_exports = HashSet::new();
-        for (name, value) in std::env::vars_os() {
-            let name = name.as_bytes();
-            if name == b"SHELL" {
-                database.variables.set_original_shell(value.as_bytes());
+        let mut inherited_exports = initial
+            .as_mut()
+            .map_or_else(HashSet::new, |state| std::mem::take(&mut state.exports));
+        if !prepared {
+            for (name, value) in std::env::vars_os() {
+                let name = name.as_bytes();
+                if name == b"SHELL" {
+                    database.variables.set_original_shell(value.as_bytes());
+                    database
+                        .variables
+                        .define(
+                            name,
+                            value.as_bytes(),
+                            Assignment::Recursive,
+                            Origin::Environment,
+                        )
+                        .map_err(|error| error.diagnostic())?;
+                    database.variables.set_export_policy(name, Some(false));
+                    continue;
+                }
                 database
                     .variables
                     .define(
@@ -817,23 +915,12 @@ impl Engine {
                         Assignment::Recursive,
                         Origin::Environment,
                     )
-                    .map_err(|error| error.diagnostic())?;
-                database.variables.set_export_policy(name, Some(false));
-                continue;
+                    .map_err(|e| e.diagnostic())?;
+                // Imported export policy belongs to this binding. Ordinary
+                // reassignment retains it; undefine destroys it with the binding.
+                database.variables.set_export_policy(name, Some(true));
+                inherited_exports.insert(name.to_vec());
             }
-            database
-                .variables
-                .define(
-                    name,
-                    value.as_bytes(),
-                    Assignment::Recursive,
-                    Origin::Environment,
-                )
-                .map_err(|e| e.diagnostic())?;
-            // Imported export policy belongs to this binding. Ordinary
-            // reassignment retains it; undefine destroys it with the binding.
-            database.variables.set_export_policy(name, Some(true));
-            inherited_exports.insert(name.to_vec());
         }
         for (name, descriptor) in [
             (b"MAKE_TERMOUT".as_slice(), 1),
@@ -878,14 +965,22 @@ impl Engine {
             (b"MAKE_VERSION", b"4.4.1"),
             (b".RECIPEPREFIX", b""),
             (b".LOADED", b""),
-            (b".FEATURES", b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load"),
+            (b".FEATURES", FEATURES),
             (b"MAKE_HOST", b"x86_64-pc-linux-gnu"),
             (b"MAKE_COMMAND", make_command.as_bytes()),
         ] {
             // These specials precede option decoding in GNU. Their imported
             // environment values have no later default-assignment conflict.
-            let early = matches!(name, b".SHELLFLAGS" | b".RECIPEPREFIX" | b".LOADED" | b".FEATURES");
-            database.variables.set_environment_override(options.environment_override && !early);
+            let early = matches!(
+                name,
+                b".SHELLFLAGS" | b".RECIPEPREFIX" | b".LOADED" | b".FEATURES"
+            );
+            if prepared && early {
+                continue;
+            }
+            database
+                .variables
+                .set_environment_override(options.environment_override && !early);
             database
                 .variables
                 .define_literal(name, value, Origin::Default)
@@ -900,11 +995,13 @@ impl Engine {
                 Origin::Default,
             )
             .map_err(|error| error.diagnostic())?;
-        database.variables.set_environment_override(false);
-        database
-            .variables
-            .enable_variable_names()
-            .map_err(|error| error.diagnostic())?;
+        if !prepared {
+            database.variables.set_environment_override(false);
+            database
+                .variables
+                .enable_variable_names()
+                .map_err(|error| error.diagnostic())?;
+        }
         database
             .variables
             .set_environment_override(options.environment_override);
@@ -927,7 +1024,9 @@ impl Engine {
         database
             .variables
             .set_working_directory(cwd.as_os_str().as_bytes());
-        database.variables.remove(b"MAKEFLAGS");
+        if !prepared {
+            database.variables.remove(b"MAKEFLAGS");
+        }
         database
             .variables
             .define(
@@ -947,8 +1046,17 @@ impl Engine {
                 .define_literal(b"GNUMAKEFLAGS", b"", Origin::Environment)
                 .map_err(|e| e.diagnostic())?;
         }
-        let startup_snapshot =
-            startup::Snapshot::capture(&database, &options, &inherited_exports, &program, 0);
+        let startup_snapshot = if prepared {
+            None
+        } else {
+            startup::Snapshot::capture(&database, &options, &inherited_exports, &program, 0)
+        };
+        let seed = initial
+            .as_mut()
+            .map_or_else(startup::Seed::default, |state| {
+                std::mem::take(&mut state.seed)
+            });
+        let initial_plan = initial.map(|state| state.plan);
         let setup = startup::prepare(
             &mut database,
             &mut options,
@@ -960,6 +1068,7 @@ impl Engine {
                 filesystem: &filesystem,
                 warnings: &startup_warnings,
             },
+            seed,
         )?;
         let include_search = setup.include_search;
         let command_replay = setup.command_replay;
@@ -1001,6 +1110,7 @@ impl Engine {
         let restart_options = options.clone();
         let mut engine = Self {
             restart_options,
+            initial_plan,
             startup_snapshot,
             startup_directory,
             output,
@@ -1486,14 +1596,48 @@ impl Engine {
         if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
             return 2;
         }
-        let initial_database = self
-            .startup_snapshot
-            .is_none()
+        let mut initial_database = (self.startup_snapshot.is_none() && self.initial_plan.is_none())
             .then(|| self.database.clone());
         let mut restarts = 0_u32;
         let mut stdin_bytes = None;
         loop {
-            if restarts > 0 {
+            if restarts > 0 && self.initial_plan.is_some() {
+                let plan = self.initial_plan.take().expect("initial invocation");
+                self.jobserver.take();
+                self.output.select(None);
+                self.output.clear();
+                if !self.options.directories.is_empty() {
+                    let restored = self
+                        .startup_directory
+                        .as_ref()
+                        .is_some_and(|directory| std::env::set_current_dir(directory).is_ok());
+                    if !restored {
+                        self.fatal(None, b"Couldn't change back to original directory");
+                        return 2;
+                    }
+                }
+                let launch = match plan.decode(Some((restarts, self.makelevel))) {
+                    Ok(launch) => launch,
+                    Err(error) => {
+                        initial::emit_error(&plan.program, error);
+                        return 2;
+                    }
+                };
+                let mut next =
+                    match Self::from_invocation(launch, plan.program.clone(), &plan.invocation) {
+                        Ok(next) => next,
+                        Err(error) => {
+                            initial::emit_error(&plan.program, InvocationError::Expansion(error));
+                            return 2;
+                        }
+                    };
+                next.database.activate_runtime_metadata();
+                if next.options.evals.is_empty() && next.initialize_makefile_list().is_err() {
+                    return 2;
+                }
+                *self = next;
+                initial_database = None;
+            } else if restarts > 0 {
                 let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
                 self.jobserver.take();
                 self.output.select(None);

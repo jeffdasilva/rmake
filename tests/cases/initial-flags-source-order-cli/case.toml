@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-source-order-cli"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory", "X=CLI"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "X:=one"
+"MAKEFLAGS" = "$(info M=[$(X)])rR"
+
+[expected]
+exit_code = 0
+stdout_hex = "4d3d5b6f6e655d0a463d5b434c495d0a"
+stderr_hex = ""

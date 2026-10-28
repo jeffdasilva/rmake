@@ -26,6 +26,7 @@ pub struct Options {
     pub goals: Vec<Vec<u8>>,
     pub assignments: Vec<Vec<u8>>,
     pub assignment_context: Vec<(usize, bool)>,
+    pub assignment_warnings: Vec<bool>,
     pub flag_word_count: usize,
     pub dry_run: bool,
     pub silent: bool,
@@ -62,6 +63,14 @@ impl Options {
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
             Self::append_flags(&mut combined, flags.as_bytes())?;
         }
+        Self::with_inherited_tokens(args, combined, missing_makeflags)
+    }
+
+    pub(crate) fn with_inherited_tokens(
+        args: impl IntoIterator<Item = OsString>,
+        combined: Vec<OsString>,
+        missing_makeflags: bool,
+    ) -> Result<Self, String> {
         // No inherited tokens means there is no source merge. Decode the
         // explicit arguments once, retaining the same jobserver finalization.
         if combined.is_empty() {
@@ -69,26 +78,41 @@ impl Options {
             let jobs = result.jobs;
             return Ok(result.with_command_jobs(jobs));
         }
-        let inherited_options = Self::parse(combined.clone())?;
+        let prefix_count = combined.len();
+        let inherited_options = Self::parse(combined)?;
+        Self::with_parsed_inherited(args, inherited_options, prefix_count, missing_makeflags)
+    }
+
+    pub(crate) fn with_parsed_inherited(
+        args: impl IntoIterator<Item = OsString>,
+        mut inherited_options: Self,
+        prefix_count: usize,
+        missing_makeflags: bool,
+    ) -> Result<Self, String> {
         let inherited = inherited_options.jobs;
-        let args: Vec<_> = args.into_iter().collect();
-        let explicit_options = Self::parse(args.clone())?;
-        let explicit = explicit_options.jobs;
-        combined.extend(args);
-        let mut result = Self::parse(combined)?;
-        result.silent_origin = explicit_options
-            .silent_origin
-            .or_else(|| inherited_options.silent_origin.map(|_| Origin::Environment));
-        result.keep_going_origin = explicit_options.keep_going_origin.or_else(|| {
-            inherited_options
-                .keep_going_origin
-                .map(|_| Origin::Environment)
-        });
-        result.startup_missing_makeflags_warning =
-            missing_makeflags && inherited_options.warn_undefined;
-        result.inherited_output_sync = inherited_options.output_sync;
+        let inherited_warning = inherited_options.warn_undefined;
+        let inherited_output_sync = inherited_options.output_sync.clone();
+        inherited_options.silent_origin =
+            inherited_options.silent_origin.map(|_| Origin::Environment);
+        inherited_options.keep_going_origin = inherited_options
+            .keep_going_origin
+            .map(|_| Origin::Environment);
+        inherited_options.command_jobs = None;
+        let mut result =
+            Self::parse_into_mode::<true>(args, inherited_options, prefix_count, true)?;
+        let explicit = result.command_jobs;
+        result.startup_missing_makeflags_warning = missing_makeflags && inherited_warning;
+        result.inherited_output_sync = inherited_output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
         Ok(result.with_command_jobs(explicit))
+    }
+
+    pub(crate) fn parse_continued(
+        args: impl IntoIterator<Item = OsString>,
+        initial: Self,
+        offset: usize,
+    ) -> Result<Self, String> {
+        Self::parse_into_mode::<true>(args, initial, offset, false)
     }
 
     fn with_command_jobs(mut self, jobs: Option<usize>) -> Self {
@@ -116,7 +140,10 @@ impl Options {
 
     // Expanded file flags have already consumed their make-dollar quoting.
     // GNU skips C whitespace once at the start, then separates only SP/TAB.
-    fn append_expanded_flags(combined: &mut Vec<OsString>, mut bytes: &[u8]) -> Result<(), String> {
+    pub(crate) fn append_expanded_flags(
+        combined: &mut Vec<OsString>,
+        mut bytes: &[u8],
+    ) -> Result<(), String> {
         while bytes
             .first()
             .is_some_and(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
@@ -249,9 +276,17 @@ impl Options {
     fn parse_mode<const BIG_R_IMPLIES_RULES: bool>(
         args: impl IntoIterator<Item = OsString>,
     ) -> Result<Self, String> {
+        Self::parse_into_mode::<BIG_R_IMPLIES_RULES>(args, Self::default(), 0, false)
+    }
+
+    fn parse_into_mode<const BIG_R_IMPLIES_RULES: bool>(
+        args: impl IntoIterator<Item = OsString>,
+        mut result: Self,
+        offset: usize,
+        track_jobs: bool,
+    ) -> Result<Self, String> {
         let args: Vec<Vec<u8>> = args.into_iter().map(OsString::into_vec).collect();
-        let mut result = Self::default();
-        let mut evals_seen = std::collections::HashSet::new();
+        let mut evals_seen: std::collections::HashSet<_> = result.evals.iter().cloned().collect();
         let mut i = 0;
         let mut end_options = false;
         while i < args.len() {
@@ -424,6 +459,9 @@ impl Options {
                                 }
                             });
                             result.jobs = Some(job_count(value.as_deref().unwrap_or_default())?);
+                            if track_jobs {
+                                result.command_jobs = result.jobs;
+                            }
                         }
                         _ => {
                             return Err(format!(
@@ -518,6 +556,9 @@ impl Options {
                                 result.add_include_directory(OsString::from_vec(value).into())?;
                             } else if option == b'j' {
                                 result.jobs = Some(job_count(&value)?);
+                                if track_jobs {
+                                    result.command_jobs = result.jobs;
+                                }
                             } else if option == b'f' {
                                 result.files.push(OsString::from_vec(value).into());
                             } else {
@@ -531,9 +572,10 @@ impl Options {
                 }
             } else if rmake_core::parser::assignment(arg).is_some() {
                 result.assignments.push(arg.clone());
+                result.assignment_warnings.push(result.warn_undefined);
                 result
                     .assignment_context
-                    .push((i, result.environment_override));
+                    .push((i + offset, result.environment_override));
             } else {
                 result
                     .goals

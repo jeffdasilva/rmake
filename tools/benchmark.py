@@ -56,6 +56,22 @@ def startup_effect_workloads():
         yield f"startup-effects-{count}", b"$(info values=[" + references + b"])\nall: ;\n"
 
 
+def initial_flag_workloads():
+    """Observe raw dollar decoding and every eager inherited assignment effect."""
+    for count in (0, 1000):
+        references = b"|".join(f"$(IV_{index})".encode() for index in range(count))
+        yield f"initial-flags-{count}", b"$(info sentinel=[$(value FLAG)])\n$(info values=[" + references + b"])\nall: ;\n"
+
+
+def workload_environment(name):
+    if name.startswith('initial-flags-'):
+        count = int(name.rsplit('-', 1)[1])
+        payload = 'rR FLAG=$$'
+        payload += ''.join(f' IF_{i}:=$$(eval\\ IV_{i}:=value{i})' for i in range(count))
+        return {'GNUMAKEFLAGS': payload}
+    return {}
+
+
 def builtin_transition_workloads():
     """Late -R with unused user declarations and observed cleanup semantics."""
     for count in (0, 1000, 10000):
@@ -92,6 +108,8 @@ def selected_workloads(suite):
         yield from eval_workloads()
     if suite in ("startup-effects", "all"):
         yield from startup_effect_workloads()
+    if suite in ("initial-flags", "all"):
+        yield from initial_flag_workloads()
     if suite in ("builtin-transitions", "all"):
         yield from builtin_transition_workloads()
     if suite in ("word-spans", "all"):
@@ -652,7 +670,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
@@ -690,6 +708,8 @@ def main():
             fixture = prepare_files(path, name)
             (path / "Makefile").write_bytes(source)
             arguments = workload_arguments(name)
+            overrides = workload_environment(name)
+            run_environment = env | overrides
             samples = {label: [] for label in executables}
             expected = None
             for iteration in range(args.repeat + 2):
@@ -698,7 +718,7 @@ def main():
                     alias.symlink_to(executables[label])
                     start = time.perf_counter_ns()
                     result = subprocess.run(
-                        [str(alias), *arguments], cwd=path, env=env,
+                        [str(alias), *arguments], cwd=path, env=run_environment,
                         capture_output=True, timeout=30, check=True,
                     )
                     elapsed = time.perf_counter_ns() - start
@@ -714,6 +734,8 @@ def main():
                 "input_fixture": fixture,
                 "measurements": {label: summary(values) for label, values in samples.items()},
             }
+            if overrides:
+                record["environment"] = overrides
             if args.candidate:
                 record["paired_oracle_over_candidate"] = [
                     left / right for left, right in zip(samples["oracle"], samples["candidate"])]
