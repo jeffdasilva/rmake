@@ -19,7 +19,7 @@ pinned development profile does not establish those surfaces.
 | Guile profiles | [Disabled-profile lookup, effects and scopes](profile-inputs.md) now have 504 required cases. Add a pinned enabled reference with Scheme evaluation/conversion, registration, lifecycle and error tests. Do not declare the disabled baseline to be full-profile acceptance. |
 | Locales and Linux profiles | Add required non-C diagnostic/catalog behavior and profile-specific path/build metadata; keep glibc/x86-64 observations distinct from broader Linux acceptance. |
 | Integration and self-hosting | Expand pinned original/external projects and all top-level developer flows. The complete rmake-driven m5-acceptance flow is now validated; bootstrap, cleanup, benchmark and external-project acceptance still need the complete-flow audit. |
-| Unsafe oracle behavior | Keep raw `let` signal, allocator abort and nested decoder nontermination/option-read observations visible without deliberate crashes or conformance credit. Resolve compatibility/safety conflicts explicitly before milestone completion. |
+| Unsafe oracle behavior | The owner approved [documented safe errors](safety-exceptions.md). A separate candidate-only gate covers 17 recorded crash/hang inputs with zero exact-conformance credit. The finite nested decoder mismatch and startup CLI eval probe remain ordinary compatibility gaps. |
 
 The implementation order is language and metadata correctness, complete option
 and presentation behavior, native extension/profile adapters, then the expanded

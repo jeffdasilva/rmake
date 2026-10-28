@@ -21,6 +21,8 @@ collision, scope, configuration-byte and execution-mode tests.
 the [M3/M6 audit](docs/m3-m6-audit.md) tracks remaining compatibility surfaces.
 [Variable metadata](docs/variable-metadata.md) adds ordered `.VARIABLES` lookup
 and cache lifetime, pinned metadata values and scoped `MFLAGS` updates.
+[Documented safety exceptions](docs/safety-exceptions.md) return fatal errors for
+17 recorded GNU crash/hang inputs and are gated separately from exact conformance.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it

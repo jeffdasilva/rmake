@@ -31,8 +31,8 @@ standalone `-`, end markers, optional arguments, repeated directories and
 makefiles, source origins, invalid arguments, original raw argument bytes,
 MAKEFLAGS/GNUMAKEFLAGS precedence, and all permitted recursive propagation.
 Do not turn oracle crashes/hangs into passing fixtures or deliberately reproduce
-memory corruption. Keep those observations separate until the human resolves
-safety exceptions.
+memory corruption. The owner approved [separately gated safe errors](safety-exceptions.md)
+for recorded crash/hang inputs. Finite ordinary mismatches remain compatibility work.
 
 Other M3/M6 surfaces include enabled Guile profiles, broader disabled-profile interactions, native loading
 and APIs, locales, Linux/build metadata, startup/reexec semantics, pinned external

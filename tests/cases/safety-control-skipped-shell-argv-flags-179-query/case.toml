@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "safety-control-skipped-shell-argv-flags-179-query"
+requirement = "compatibility.safety-boundaries"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+description = "Original valid boundary control for the separately documented GNU crash/hang exceptions."
+provenance = "Independently authored source and owned argv observer; explicit expected status and bytes checked against two bounded GNU Make 4.4.1 observations. No upstream test or implementation copied."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

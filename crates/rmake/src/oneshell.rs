@@ -107,7 +107,14 @@ pub fn prepare_script(
     let mut args = Vec::new();
     if !flags.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
         let (program, words) = match prepare_ordinary(flags, b"/bin/sh", b"-c", None) {
-            Invocation::Direct { program, args } | Invocation::Shell { program, args } => {
+            Invocation::Direct { program, args } => (program, args),
+            Invocation::Shell { program, mut args } => {
+                // A slow flag parse re-enters GNU's .ONESHELL Bourne-body
+                // preparation. Make modifiers on that body are consumed too.
+                // This affects argv bytes even though no interpreter runs here.
+                if let Some(body) = args.last_mut() {
+                    *body = transform(prefixes(body).0, b"/bin/sh", b'\t');
+                }
                 (program, args)
             }
         };
@@ -167,6 +174,76 @@ fn bourne_compatible(shell: &[u8]) -> bool {
     )
 }
 
+/// GNU's custom-shell .ONESHELL argument path can free an interpreter-owned
+/// argument after a slow flag parse. Classify only the hazardous lexical forms;
+/// balanced plain quotes, escaped syntax and ordinary Bourne shells still work.
+pub fn unsafe_configuration(shell: &[u8], flags: &[u8]) -> bool {
+    if bourne_compatible(shell) {
+        return false;
+    }
+    // A literal configuration LF with a leading double-quoted flag reaches a
+    // distinct recorded allocator fault. Other LF configurations can simply
+    // fail exec normally and must retain those ordinary diagnostics.
+    if shell.contains(&b'\n') && flags.trim_ascii_start().starts_with(b"\"") {
+        return true;
+    }
+    let mut quote = None;
+    let mut at = 0;
+    while let Some(&byte) = flags.get(at) {
+        at += 1;
+        if quote == Some(b'\'') {
+            if byte == b'\'' {
+                quote = None;
+            }
+            continue;
+        }
+        if byte == b'\\' {
+            if let Some(&next) = flags.get(at)
+                && (quote.is_none() || matches!(next, b'"' | b'\\' | b'$' | b'`' | b'\n'))
+            {
+                at += 1;
+            }
+            continue;
+        }
+        if byte == b'"' {
+            quote = if quote.is_some() { None } else { Some(byte) };
+            continue;
+        }
+        if quote == Some(b'"') {
+            if matches!(byte, b'$' | b'`') {
+                return true;
+            }
+        } else if byte == b'\'' {
+            quote = Some(byte);
+        } else if matches!(
+            byte,
+            b'\n'
+                | b'#'
+                | b';'
+                | b'*'
+                | b'?'
+                | b'['
+                | b']'
+                | b'&'
+                | b'|'
+                | b'<'
+                | b'>'
+                | b'('
+                | b')'
+                | b'{'
+                | b'}'
+                | b'$'
+                | b'`'
+                | b'^'
+                | b'~'
+                | b'!'
+        ) {
+            return true;
+        }
+    }
+    quote.is_some()
+}
+
 fn internal_prefixes(command: &[u8], recipe_prefix: u8, bourne: bool) -> Vec<u8> {
     let mut output = Vec::with_capacity(command.len());
     let mut index = 0;
@@ -195,6 +272,47 @@ fn internal_prefixes(command: &[u8], recipe_prefix: u8, bourne: bool) -> Vec<u8>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn safety_classifier_preserves_quotes_escapes_bourne_and_normal_exec_errors() {
+        for flags in [
+            b"-c $NAME".as_slice(),
+            b"-c \"open",
+            b"one;two",
+            b"one\ntwo",
+        ] {
+            assert!(unsafe_configuration(b"./capture", flags));
+            assert!(!unsafe_configuration(b"/bin/sh", flags));
+        }
+        for flags in [
+            b"-c".as_slice(),
+            b"-c 'two words'",
+            b"-c \"two words\"",
+            b"-c '$NAME'",
+            b"-c \\$NAME",
+        ] {
+            assert!(!unsafe_configuration(b"./capture", flags));
+            assert!(!unsafe_configuration(b"./capture A\nB", flags));
+        }
+        assert!(unsafe_configuration(b"./capture A\nB", b"\"-c\""));
+        assert!(!unsafe_configuration(b"./capture", b"\"-c\""));
+    }
+
+    #[test]
+    fn slow_quoted_flags_consume_make_modifiers_at_the_reentered_body() {
+        assert_eq!(
+            prepare(b"printf body", b"./capture", b"-c \"extra words\"", None),
+            Invocation::Shell {
+                program: b"./capture".to_vec(),
+                args: vec![
+                    b"/bin/sh".to_vec(),
+                    b"-c".to_vec(),
+                    b"c \"extra words\"".to_vec(),
+                    b"printf body".to_vec()
+                ]
+            }
+        );
+    }
 
     struct Prepared {
         echo: Vec<u8>,

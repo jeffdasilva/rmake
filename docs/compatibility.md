@@ -143,3 +143,7 @@ No unapproved compatibility exclusions are hidden in performance work. If an
 observed GNU defect conflicts with memory/process/cache safety, retain a failing
 compatibility entry and resolve the conflict explicitly rather than claiming
 equivalence or deliberately reproducing memory corruption.
+
+The owner approved [documented safe errors](safety-exceptions.md) for recorded
+GNU crash/hang inputs on 2026-10-28. Their separate candidate-only gate grants
+zero exact-conformance credit. Ordinary status-0 mismatches remain open work.

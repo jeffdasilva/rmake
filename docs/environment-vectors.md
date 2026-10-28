@@ -46,8 +46,9 @@ corpus now has 6,967 cases: 6,966 required and one pending.
 Three additional original inputs delete a currently expanding export and crash
 GNU with SIGSEGV in both observations. Their raw inputs and outcomes are retained
 in [the safety record](../tests/research/gnu-441-environment-deletion.json).
-The candidate terminates safely; this unresolved conflict receives no conformance
-credit. M3/M6 remain open; see the [remaining audit](m3-m6-audit.md).
+The historical candidate terminated safely. The owner subsequently approved
+[documented fatal errors](safety-exceptions.md); a separate candidate-only gate
+now enforces S003 without conformance credit. M3/M6 remain open; see the [remaining audit](m3-m6-audit.md).
 
 Post-merge CI also exposed a pre-existing clock race in two archive touch
 fixtures: the second header write observes a live file modification second.

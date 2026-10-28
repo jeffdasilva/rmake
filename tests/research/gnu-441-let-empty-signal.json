@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "classification": "oracle lifetime signal research; not exact conformance",
+  "oracle_version": "4.4.1",
+  "oracle_sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+  "oracle_source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "provenance": "Original historical fixture, rechecked under bounded process-group capture. No upstream test or implementation copied.",
+  "records": [
+    {
+      "id": "whitespace-let-empty-list-upstream-signal",
+      "inputs_hex": {
+        "Makefile": "2320436f707972696768742032303236204a65666620446153696c76610a2320535044582d4c6963656e73652d4964656e7469666965723a2047504c2d332e302d6f722d6c617465720a0a2428696e666f205b24286c6574207820792c20202c5b242878295d5b242879295d295d290a616c6c3a3b403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "oracle_runs": [
+        {
+          "status": -11,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "status": -11,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "limit": null,
+          "leftovers": false
+        }
+      ]
+    }
+  ]
+}

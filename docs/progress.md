@@ -2328,3 +2328,27 @@ In 101 paired samples, the 5,000-override median fell from 8.637 ms to 8.216 ms;
 ## Terminal collector completion tail
 
 A full local run exposed an empty-select/process-exit race: GNU helper bytes were left in the reused PTY and appeared in the candidate observation. The [collector fix and raw evidence](terminal-capture.md) retain every byte after completion and preserve all expected output and timeouts. Two deterministic tests fail before the fix and pass afterward. GNU, previous/current candidates each passed 100 targeted repetitions; all 192 terminal matrix cells also passed. Full acceptance and exact-head CI are rerun with this fix.
+
+## M3/M6 approved safe-error exceptions
+
+The owner approved documented fatal errors for recorded GNU crash/hang inputs.
+[Five semantic guard classes](safety-exceptions.md) now return normal status 2
+for 17 original reproductions. A separate candidate-only gate checks 68 mode
+cells twice, independent raw diagnostics/status, containment, unchanged inputs,
+allowed pre-hazard observer compilation and repeatable filesystem effects. It
+runs in development, optimized and rmake-driven flows, with zero exact-conformance
+credit. Historical GNU/candidate research observations remain unchanged.
+
+The former pending empty-let case moves into that exception ledger. Ninety-nine
+new ordinary controls cover valid/lazy let lists, metadata origin/reset behavior,
+export scope, quoting/escaping, execution skips and finite nested flag decoding.
+They also expose and fix initial-modifier bytes in slow .ONESHELL flag parsing.
+The corpus is 9,066 ordinary cases, all required, plus 17 separate safety
+exceptions. Unit totals are 445 Rust / 366 tooling. Full development/optimized
+acceptance and exact-head CI remain merge gates.
+
+A finite nested flag decoder mismatch and startup command-variable eval remain
+ordinary open research, without safety exemptions. The complete M3/M6 inventory,
+profiles/native integration and general speed parity are still open. Frozen
+101-sample paired benchmark reports retain mixed small differences; GNU remains
+faster on the standard graph/expansion workloads. No semantic cache is added.

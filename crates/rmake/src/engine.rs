@@ -1460,6 +1460,7 @@ impl Engine {
 
     fn run_inner(&mut self) -> u8 {
         let mut found_makefile;
+        self.database.activate_runtime_metadata();
         // GNU initializes this metadata after command-line assignment expansion.
         // Higher-priority CLI/-e bindings remain intact and reject file appends.
         if let Err(error) =
@@ -6182,6 +6183,20 @@ impl Engine {
             }
             if self.options.touch && !force {
                 continue;
+            }
+            if one_shell
+                && (!self.options.dry_run || force)
+                && crate::oneshell::unsafe_configuration(shell, &flags)
+            {
+                self.recipe_expansion_error(
+                    target,
+                    &recipe.location,
+                    &ExpandError::Safety(rmake_core::safety::SafetyError::OneShellConfiguration),
+                    &flow,
+                    ignore,
+                    output.as_ref(),
+                );
+                return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
             }
             let one_prepared = (one_shell && (!self.options.dry_run || force))
                 .then(|| crate::oneshell::prepare_script(command, shell, &flags, ifs.as_deref()));
