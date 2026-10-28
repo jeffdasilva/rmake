@@ -53,17 +53,17 @@ current required controls are `cli-assignment-warning-cc`,
 `cli-assignment-warning-goal` and `cli-assignment-metadata-inactive`; historical
 prototype mismatches are not current acceptance results.
 
-## Ordinary restart gap
+## Historical restart gap, subsequently resolved
 
 [`cli-assignment-restart-effect.json`](../tests/research/cli-assignment-restart-effect.json)
 records an independently modeled immediate CLI eval which appends to a file.
 Both GNU runs append once at initial startup and again after Makefile re-exec.
-The current in-process restart restores a snapshot taken after CLI assignments,
-so it retains their values without repeating their I/O. This is a finite,
+At this slice, in-process restart restored a snapshot taken after CLI assignments,
+so it retained their values without repeating their I/O. This was a finite,
 ordinary compatibility mismatch, with zero passing or safety-exception credit.
 Startup replay must reconstruct pre-assignment state and its ordered phases;
 re-expanding effects against the final variable snapshot would corrupt appends,
-conditionals and earlier lookups. Full self-exec lifecycle remains open.
+conditionals and earlier lookups. [Ordered startup replay](startup-replay.md) subsequently resolves this exact control without a safety exemption. Full self-exec lifecycle remains open.
 
 The fixed GNU 4.4.1 source was consulted for startup order, shell initialization,
 include-path construction and error identities. No GNU implementation or

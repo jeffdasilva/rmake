@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-early-shell-level"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "SHELL=/bin/sh", "SNAP:=$(shell printf \"%s\" \"$$MAKELEVEL\")"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKELEVEL" = "7"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d2f5b315d2f5b375d0a5b315d2f5b315d2f5b375d0a"
+stderr_hex = ""

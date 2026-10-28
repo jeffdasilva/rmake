@@ -299,3 +299,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Automatic snapshot preparation](docs/automatic-snapshots.md) avoids unused owned prerequisite/value snapshots while preserving freshness and grouped-target views. Raw allocation and timing evidence accompanies the change; general performance parity remains open.
 
 [CLI assignment effects](docs/cli-assignment-effects.md) now use the full evaluator, retain included-file startup diagnostics, and install shell/default variables after early assignment effects. Full M3/M6 acceptance and process restart reconstruction remain open.
+
+[Ordered startup replay](docs/startup-replay.md) now reconstructs pre-assignment state for CLI effects after Makefile remaking, including fresh reads, computed names, warnings and recursive snapshots. Broader M3/M6 acceptance remains open.

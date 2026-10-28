@@ -68,8 +68,8 @@ before metadata activation. [CLI assignment effects](cli-assignment-effects.md)
 now implement that finite control as a required ordinary fixture. Historical
 prototype evidence remains in
 [`safety-boundary-cli-eval.json`](../tests/research/safety-boundary-cli-eval.json).
-This does not extend the 17 approved safe-error exceptions. The new recorded
-CLI restart file-effect mismatch and complete startup/profile work remain
+This does not extend the 17 approved safe-error exceptions. The recorded CLI restart file-effect mismatch is now a required control under
+[ordered startup replay](startup-replay.md). Complete startup/profile work remains
 ordinary [M3/M6 compatibility work](m3-m6-audit.md).
 
 ## Performance observations

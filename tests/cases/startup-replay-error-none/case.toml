@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-error-none"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Onone", "BOOT:=$(if $(MAKE_RESTARTS),$(error SECOND),$(info FIRST))"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "46495253540a5b5d0a"
+stderr_hex = "6d616b653a202a2a2a205345434f4e442e202053746f702e0a"

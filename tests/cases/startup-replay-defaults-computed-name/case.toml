@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-defaults-computed-name"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["--no-print-directory", "NAME:=$(if $(MAKE_RESTARTS),AFTER,BEFORE)", "$(NAME)=value"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d2f5b4245464f52455d2f5b636f6d6d616e64206c696e655d2f5b756e646566696e65645d0a5b315d2f5b41465445525d2f5b756e646566696e65645d2f5b636f6d6d616e64206c696e655d0a"
+stderr_hex = ""

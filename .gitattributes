@@ -42,3 +42,5 @@ tests/cases/cli-eval-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/cli-eval-*/raw.bin -text
 tests/cases/cli-assignment-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/cli-assignment-*/raw.bin -text
+tests/cases/startup-replay-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/startup-replay-*/value.bin -text
