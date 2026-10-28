@@ -57,6 +57,13 @@ impl Options {
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
             Self::append_flags(&mut combined, flags.as_bytes())?;
         }
+        // No inherited tokens means there is no source merge. Decode the
+        // explicit arguments once, retaining the same jobserver finalization.
+        if combined.is_empty() {
+            let result = Self::parse(args)?;
+            let jobs = result.jobs;
+            return Ok(result.with_command_jobs(jobs));
+        }
         let inherited_options = Self::parse(combined.clone())?;
         let inherited = inherited_options.jobs;
         let args: Vec<_> = args.into_iter().collect();
@@ -72,14 +79,18 @@ impl Options {
                 .keep_going_origin
                 .map(|_| Origin::Environment)
         });
-        result.command_jobs = explicit;
         result.inherited_output_sync = inherited_options.output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
-        result.reset_jobserver = explicit.is_some() && result.jobserver_auth.is_some();
-        if result.reset_jobserver {
-            result.jobserver_auth = None;
+        Ok(result.with_command_jobs(explicit))
+    }
+
+    fn with_command_jobs(mut self, jobs: Option<usize>) -> Self {
+        self.command_jobs = jobs;
+        self.reset_jobserver = jobs.is_some() && self.jobserver_auth.is_some();
+        if self.reset_jobserver {
+            self.jobserver_auth = None;
         }
-        Ok(result)
+        self
     }
 
     fn append_flags(combined: &mut Vec<OsString>, flags: &[u8]) -> Result<(), String> {

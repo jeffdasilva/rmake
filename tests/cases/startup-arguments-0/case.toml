@@ -1,0 +1,11 @@
+id = "startup-arguments-0"
+requirement = "cli.startup-arguments"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+provenance = "Original argv workload observes every override value. Two raw GNU Make 4.4.1 observations and current/previous candidate comparison, with exact status/streams/files and no normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c7565733d5b5d0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

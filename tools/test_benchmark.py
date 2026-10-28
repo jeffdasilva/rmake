@@ -6,6 +6,7 @@ import hashlib
 import unittest
 
 import benchmark
+import conformance
 
 
 class BenchmarkTests(unittest.TestCase):
@@ -15,6 +16,33 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(benchmark.paired_order(1, False), ["oracle"])
         self.assertEqual(benchmark.paired_order(0, True, True), ["oracle", "baseline", "candidate"])
         self.assertEqual(benchmark.paired_order(1, True, True), ["candidate", "baseline", "oracle"])
+
+    def test_startup_workloads_observe_every_argument_without_recipe_processes(self):
+        workloads = list(benchmark.startup_workloads())
+        self.assertEqual(workloads, list(benchmark.selected_workloads('startup-arguments')))
+        for (name, source), count in zip(workloads, (0, 1000, 5000)):
+            arguments = benchmark.workload_arguments(name)
+            self.assertEqual(arguments[:2], ['-rR', '--no-print-directory'])
+            self.assertEqual(len(arguments), count + 2)
+            self.assertEqual(source.count(b'$(ARG_'), count)
+            self.assertNotIn(b'$(shell', source)
+            self.assertNotIn(b'\t', source)
+            if count:
+                self.assertIn(f'$(ARG_{count - 1})'.encode(), source)
+                self.assertEqual(arguments[-1], f'ARG_{count - 1}=value{count - 1}')
+
+    def test_large_argv_has_an_exact_oracle_anchor_for_middle_values(self):
+        import dataclasses
+        case = conformance.load_case(benchmark.ROOT / 'tests/cases/startup-arguments-5000')
+        expected = bytes.fromhex(case.expected['stdout_hex'])
+        self.assertIn(b'|value2500|', expected)
+        self.assertEqual(case.args, tuple(benchmark.workload_arguments(case.id)))
+        sources = dict(benchmark.startup_workloads())
+        self.assertEqual((case.path / 'Makefile').read_bytes(), sources[case.id])
+        good = conformance.Observation(expected, b'', 0, None, {})
+        self.assertEqual(conformance.expectation_errors(case, good), [])
+        self.assertTrue(conformance.expectation_errors(case, dataclasses.replace(
+            good, stdout=expected.replace(b'|value2500|', b'|omitted|'))))
 
     def test_workloads_are_stable_and_cover_distinct_costs(self):
         first = list(benchmark.workloads())
@@ -74,7 +102,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + list(benchmark.startup_workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):

@@ -34,6 +34,14 @@ def workloads():
     ).encode()
 
 
+def startup_workloads():
+    """Large explicit argv, with every assignment value checked in raw output."""
+    for count in (0, 1000, 5000):
+        references = b"|".join(f"$(ARG_{index})".encode() for index in range(count))
+        yield f"startup-arguments-{count}", (
+            b"$(info values=[" + references + b"])\n.PHONY: all\nall: ;\n")
+
+
 def span_workloads():
     """Fixed large-list costs, including early exits and required full scans."""
     prelude = b"TEXT := " + b"one  two\t" * 100000 + b"\n"
@@ -54,6 +62,8 @@ def span_workloads():
 def selected_workloads(suite):
     if suite in ("core", "all"):
         yield from workloads()
+    if suite in ("startup-arguments", "all"):
+        yield from startup_workloads()
     if suite in ("word-spans", "all"):
         yield from span_workloads()
     if suite in ("wildcard", "all"):
@@ -310,6 +320,9 @@ def parallel_branch_workloads():
 
 def workload_arguments(name):
     arguments = ["-rR", "--no-print-directory"]
+    if name.startswith('startup-arguments-'):
+        count = int(name.removeprefix('startup-arguments-'))
+        arguments.extend(f"ARG_{index}=value{index}" for index in range(count))
     if name.startswith('symlink-times-'):
         arguments.append('-L')
     if name.startswith('parallel-branches-'):
@@ -602,7 +615,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

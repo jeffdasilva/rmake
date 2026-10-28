@@ -211,3 +211,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Restart namespace acceptance](restart-directories.md) adds 348 required cases for directory reentry, recursive invocation metadata and raw path diagnostics. Full startup ordering, self-exec lifecycle and CLI/profile criteria remain open.
 
 [Startup/profile and reference-boundary acceptance](profile-inputs.md) adds 792 required cases. The [option inventory](m3-option-inventory.md) makes remaining CLI surfaces explicit; enabled Guile, native loading, startup/self-exec, locales and integration gates remain open.
+
+[Single-pass explicit startup arguments](startup-arguments.md) removes redundant decoding only when no inherited tokens need merging. Exact-value fixtures and the top-level benchmark suite retain correctness gates; general speed parity remains open.
