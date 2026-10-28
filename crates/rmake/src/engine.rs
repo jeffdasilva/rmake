@@ -5602,7 +5602,19 @@ impl Engine {
             }
         }
         let recipe_rule = group.as_ref().map_or(&rule, |group| &group.recipe_rule);
-        let canonical = recipe_rule.automatic_dependencies();
+        // Ungrouped rules without a nonempty recipe need only normal-name
+        // membership for freshness. Keep grouped canonical views separate from
+        // peer edges. Empty recipe vectors never read automatic bindings.
+        let capture_automatic = group.is_some()
+            || rule
+                .recipes
+                .as_ref()
+                .is_some_and(|recipes| !recipes.is_empty());
+        let canonical = if capture_automatic {
+            recipe_rule.automatic_dependencies()
+        } else {
+            Vec::new()
+        };
         let normal: Vec<_> = canonical
             .iter()
             .filter(|d| !d.order_only)
@@ -5617,7 +5629,7 @@ impl Engine {
         let has_hidden = rule.dependencies.iter().any(|dependency| dependency.hidden);
         let visible_normal =
             has_hidden.then(|| normal.iter().map(Vec::as_slice).collect::<HashSet<_>>());
-        let normal_names: HashSet<_> = if has_hidden {
+        let normal_names: HashSet<_> = if has_hidden || !capture_automatic {
             rule.normal_prerequisites().collect()
         } else {
             normal.iter().map(Vec::as_slice).collect()
@@ -5649,7 +5661,8 @@ impl Engine {
                     || (inspected_stale && !self.parallel_graph())
                 {
                     stale = true;
-                    if !occurrence.hidden
+                    if capture_automatic
+                        && !occurrence.hidden
                         && visible_normal
                             .as_ref()
                             .is_none_or(|names| names.contains(dependency.as_slice()))
@@ -5687,46 +5700,48 @@ impl Engine {
                     .map(|name| self.resolved_name(name))
                     .collect();
                 let newer: Vec<_> = newer.iter().map(|name| self.resolved_name(name)).collect();
-                let autos = [
-                    (b"@".as_slice(), target_variable_names(target).0.to_vec()),
-                    (
-                        b"<",
-                        if rule.default_recipe || target == b".DEFAULT" {
-                            target_variable_names(target).0.to_vec()
-                        } else {
-                            repeated.first().cloned().unwrap_or_default()
-                        },
-                    ),
-                    (
-                        b"^",
-                        joined(normal.iter().map(|name| prerequisite_variable_name(name))),
-                    ),
-                    (
-                        b"+",
-                        joined(repeated.iter().map(|name| prerequisite_variable_name(name))),
-                    ),
-                    (
-                        b"?",
-                        joined(
-                            unique(&newer)
-                                .iter()
-                                .map(|name| prerequisite_variable_name(name)),
+                let autos = (!recipes.is_empty()).then(|| {
+                    [
+                        (b"@".as_slice(), target_variable_names(target).0.to_vec()),
+                        (
+                            b"<",
+                            if rule.default_recipe || target == b".DEFAULT" {
+                                target_variable_names(target).0.to_vec()
+                            } else {
+                                repeated.first().cloned().unwrap_or_default()
+                            },
                         ),
-                    ),
-                    (
-                        b"|",
-                        joined(order.iter().map(|name| prerequisite_variable_name(name))),
-                    ),
-                    (
-                        b"*",
-                        rule.stem.clone().unwrap_or_else(|| {
-                            self.database
-                                .explicit_stem(prerequisite_variable_name(target))
-                                .to_vec()
-                        }),
-                    ),
-                    (b"%", target_variable_names(target).1.to_vec()),
-                ];
+                        (
+                            b"^",
+                            joined(normal.iter().map(|name| prerequisite_variable_name(name))),
+                        ),
+                        (
+                            b"+",
+                            joined(repeated.iter().map(|name| prerequisite_variable_name(name))),
+                        ),
+                        (
+                            b"?",
+                            joined(
+                                unique(&newer)
+                                    .iter()
+                                    .map(|name| prerequisite_variable_name(name)),
+                            ),
+                        ),
+                        (
+                            b"|",
+                            joined(order.iter().map(|name| prerequisite_variable_name(name))),
+                        ),
+                        (
+                            b"*",
+                            rule.stem.clone().unwrap_or_else(|| {
+                                self.database
+                                    .explicit_stem(prerequisite_variable_name(target))
+                                    .to_vec()
+                            }),
+                        ),
+                        (b"%", target_variable_names(target).1.to_vec()),
+                    ]
+                });
                 let recursive = recipes.iter().any(|recipe| {
                     has_force_prefix(&recipe.bytes)
                         || recipe
@@ -5753,7 +5768,10 @@ impl Engine {
                 let execution = self.execute(
                     target,
                     recipes,
-                    &autos,
+                    autos
+                        .as_ref()
+                        .map(|values| values.as_slice())
+                        .unwrap_or(&[]),
                     phony,
                     before,
                     TraceInputs {

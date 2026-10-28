@@ -2415,3 +2415,23 @@ optimized acceptance and exact-head CI remain merge gates. M3/M6 remain open.
 
 Frozen output-checked core/parallel reports retain all samples and identities.
 They establish neither statistical improvement nor general performance parity.
+
+## M6 avoid unused automatic snapshots
+
+[Automatic snapshot preparation](automatic-snapshots.md) now skips owned names
+for ungrouped rules without a nonempty recipe and lazily creates the stack value
+array for nonempty recipe vectors. Dependency traversal, freshness, errors and
+completion remain active; grouped canonical views retain their existing path.
+No mutable cache, filesystem probe, unsafe code or GNU fallback is added.
+
+The output-checked 10,000-target allocation observation records 30,053 fewer
+glibc requests (about 10.9%) and about 15.3% fewer requested bytes. These are not
+retained/peak memory measurements. In 101 alternating samples the large-graph
+median is 36.454 ms versus 38.557 ms for the preceding release and 13.926 ms for
+GNU. Other medians are close and mixed; general/statistical parity is not claimed.
+Raw profiles and paired timings retain all identities and observations.
+
+The corpus remains 9,796 required ordinary cases, no ordinary pending entries,
+and 17 separately gated safety exceptions. Totals remain 453 Rust / 381 tooling
+tests. Full local development/optimized acceptance and exact-head CI remain
+merge gates. M3/M6 remain open.
