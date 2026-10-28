@@ -279,3 +279,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [POSIX mode](docs/posix-mode.md) now covers reader activation, defaults, folding, shell error flags, suffix eligibility and recursive command variables; M3/M6 remain open.
 
 [Negative switches and option origins](docs/switch-origins.md) now cover silent/keep-going aliases, explicit propagation, precedence and scoped flag normalization. M3/M6 remain open.
+
+[Restart directory namespaces and recursive invocation identity](docs/restart-directories.md) now follow original `-C` replay, actual-directory refresh and default `MAKE_COMMAND` indirection, with 348 required cases. M3/M6 remain open.

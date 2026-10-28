@@ -2306,3 +2306,9 @@ Runtime flag normalization respects current-file priority and sibling isolation;
 include metadata remains global. See [behavior and measurements](switch-origins.md).
 The corpus is 7,825 total / 7,824 required / one pending, with 437 Rust / 345
 tooling tests. M3/M6 and their broader option/profile/native surfaces remain open.
+
+## M3/M6 restart directories and recursive invocation
+
+Original `-C` arguments now re-enter from the startup directory after a Makefile remake; no-`-C` restarts retain the renamed current directory. Actual working-directory caches and file-origin `CURDIR` refresh, while stronger user metadata remains intact. Default `MAKE` now references `MAKE_COMMAND` recursively, and relative executable paths are anchored before changing directory. Byte-path diagnostics and retired-owned-jobserver failure messages follow observed GNU behavior.
+
+[Restart evidence](restart-directories.md) adds 348 required cases, one Rust ownership/token test and four tooling checks. Totals are 8,173 cases / 8,172 required / one pending, and 438 Rust / 349 tooling tests. Empty `-C` usage output is a recorded open CLI mismatch, without passing credit. Full acceptance and exact-head CI remain merge gates. M3/M6 and general performance parity remain open.

@@ -1,0 +1,15 @@
+id = "restart-namespace-plain-normal-l2-pipe3-merged"
+requirement = "recursion.restart-cwd"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Iinc", "-j3", "--jobserver-style=pipe"]
+timeout_seconds = 15
+output = "merged"
+provenance = "Original namespace, recursive invocation and byte-path Makefiles; two raw GNU Make 4.4.1 observations and candidate comparison. Controlled directory renames and symlinks stay inside the runner root; no output normalization or upstream tests copied."
+
+[environment]
+"MAKELEVEL" = "2"
+
+[expected]
+exit_code = 0
+stdout_hex = "70686173653d6f6c643a776f726b3a3a6f6c640a70686173653d6f6c643a73617665643a313a6f6c640a4f4c443a6f6c640a"
+stderr_hex = ""

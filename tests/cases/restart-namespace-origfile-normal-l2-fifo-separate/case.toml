@@ -1,0 +1,15 @@
+id = "restart-namespace-origfile-normal-l2-fifo-separate"
+requirement = "recursion.restart-cwd"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Iinc", "-C", "sub", "-j2", "--jobserver-style=fifo"]
+timeout_seconds = 15
+output = "separate"
+provenance = "Original namespace, recursive invocation and byte-path Makefiles; two raw GNU Make 4.4.1 observations and candidate comparison. Controlled directory renames and symlinks stay inside the runner root; no output normalization or upstream tests copied."
+
+[environment]
+"MAKELEVEL" = "2"
+
+[expected]
+exit_code = 2
+stdout_hex = "70686173653d6f6c643a7375623a3a6f6c640a"
+stderr_hex = "6d616b655b325d3a2063686469723a204e6f742061206469726563746f72790a6d616b655b325d3a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b655b325d3a20494e5445524e414c3a2045786974696e6720776974682031206a6f6273657276657220746f6b656e7320617661696c61626c653b2073686f756c642062652032210a"

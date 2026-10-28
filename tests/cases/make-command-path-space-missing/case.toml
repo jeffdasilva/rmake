@@ -1,0 +1,12 @@
+id = "make-command-path-space-missing"
+requirement = "recursion.restart-cwd"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+output = "separate"
+provenance = "Original namespace, recursive invocation and byte-path Makefiles; two raw GNU Make 4.4.1 observations and candidate comparison. Controlled directory renames and symlinks stay inside the runner root; no output normalization or upstream tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20646972207370616365ff3a204e6f20737563682066696c65206f72206469726563746f72792e202053746f702e0a6d616b653a202a2a2a205b4d616b6566696c653a323a20616c6c5d204572726f7220320a"
