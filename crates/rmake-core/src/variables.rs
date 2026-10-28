@@ -619,6 +619,29 @@ impl VariableStore {
     pub fn set_original_shell(&mut self, value: &[u8]) {
         self.original_shell = Some(value.into());
     }
+    /// The Linux startup shell is installed after command-line effects. Imported
+    /// or empty selected values become the default interpreter at file origin;
+    /// their flavor, source identity and explicit export policy survive.
+    pub fn initialize_shell_default(&mut self, default: &[u8]) -> Result<(), ExpandError> {
+        if default.len() > MAX_OUTPUT {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        self.define_literal(b"SHELL", default, Origin::Default)?;
+        let variable = Arc::make_mut(&mut self.variables)
+            .get_mut(b"SHELL")
+            .expect("shell initialized");
+        if variable.value.is_empty()
+            || matches!(
+                variable.origin,
+                Origin::Environment | Origin::EnvironmentOverride
+            )
+        {
+            variable.value = default.to_vec();
+            variable.origin = Origin::File;
+        }
+        Ok(())
+    }
+
     pub fn original_shell(&self) -> Option<&[u8]> {
         self.original_shell.as_deref()
     }

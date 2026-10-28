@@ -22,7 +22,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-E`/`--eval` | [Command-line evaluation](command-line-eval.md) has 194 required semantic cases and two output-checked scaling cases across phases, metadata, diagnostics, effects, priority, recursion and restarts. Broader startup/usage/self-exec/profile acceptance remains open. |
 | `-o`/`--old-file`/`--assume-old` | Unsupported: filename handling and old-file update semantics need implementation. |
 | `-W`/`--what-if`/`--new-file`/`--assume-new` | Unsupported: logical timestamp/update semantics need implementation. |
-| `--warn-undefined-variables` | [Reader/runtime warning emission](undefined-warnings.md) now covers scopes, automatic variables, option sources/phases and raw diagnostics. Startup default ordering, broader inherited expansion and complete option/profile acceptance remain open. |
+| `--warn-undefined-variables` | [Reader/runtime warning emission](undefined-warnings.md) now covers scopes, automatic variables, option sources/phases and raw diagnostics. [CLI assignment defaults](cli-assignment-effects.md) close the two recorded startup warning probes; broader inherited expansion and complete startup/option/profile acceptance remain open. |
 | `--shuffle[=...]` | Unsupported: GNU seed/mode, goal/edge permutation, barriers, recursion and reproducibility need implementation. |
 | `--temp-stdin` | Unsupported internal restart option: stdin currently survives an in-process restart; real self-exec needs owned temporary-source lifetime and exact argument replacement. |
 

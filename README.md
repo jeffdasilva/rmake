@@ -297,3 +297,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Trace output](docs/trace.md) now reports rebuild reasons, source locations and command echo across execution modes, recursion and Makefile remake phases. Broader debug, startup and profile acceptance remain open.
 
 [Automatic snapshot preparation](docs/automatic-snapshots.md) avoids unused owned prerequisite/value snapshots while preserving freshness and grouped-target views. Raw allocation and timing evidence accompanies the change; general performance parity remains open.
+
+[CLI assignment effects](docs/cli-assignment-effects.md) now use the full evaluator, retain included-file startup diagnostics, and install shell/default variables after early assignment effects. Full M3/M6 acceptance and process restart reconstruction remain open.

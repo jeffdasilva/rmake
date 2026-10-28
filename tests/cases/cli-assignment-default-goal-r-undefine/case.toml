@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-assignment-default-goal-r-undefine"
+requirement = "cli.assignment-effects"
+candidate = "required"
+args = ["-r", "--no-print-directory", "BOOT:=$(eval undefine .DEFAULT_GOAL)"]
+timeout_seconds = 5
+description = "Original CLI assignment evaluation, default initialization, diagnostic identity or effect boundary control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "46494c453d5b66696c655d2f5b5d0a414c4c0a"
+stderr_hex = ""

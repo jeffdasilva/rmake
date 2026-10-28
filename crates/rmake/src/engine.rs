@@ -11,9 +11,7 @@ use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
 use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output, OutputReceiver, WarningOutput};
-use rmake_core::parser::{
-    Database, Dependency, Location, Makefile, Recipe, Rule, assignment, trim, words,
-};
+use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
 };
@@ -678,12 +676,47 @@ pub struct Engine {
     jobserver: Option<Jobserver>,
 }
 
+/// Startup errors can originate inside real files read by a CLI eval. Keep the
+/// source identity through constructor unwinding and buffered-output flushing.
+#[derive(Debug)]
+pub struct StartupError {
+    pub message: Diagnostic,
+    pub location: Option<Location>,
+}
+
+impl From<Diagnostic> for StartupError {
+    fn from(message: Diagnostic) -> Self {
+        Self {
+            message,
+            location: None,
+        }
+    }
+}
+
+impl StartupError {
+    fn expansion(error: rmake_core::variables::ExpandError) -> Self {
+        Self {
+            location: error
+                .diagnostic_location(None)
+                .filter(|location| !location.file.is_empty())
+                .cloned(),
+            message: error.diagnostic(),
+        }
+    }
+
+    pub fn prefix(&self, program: &[u8]) -> Vec<u8> {
+        self.location
+            .as_ref()
+            .map_or_else(|| [program, b": "].concat(), location_prefix)
+    }
+}
+
 impl Engine {
     pub fn new(
         mut options: Options,
         program: Vec<u8>,
         invocation: &OsStr,
-    ) -> Result<Self, Diagnostic> {
+    ) -> Result<Self, StartupError> {
         let startup_warnings = Cell::new(options.warn_undefined);
         let parse_mode = |raw: Option<&[u8]>| -> Result<crate::output::Mode, Diagnostic> {
             raw.map_or(Ok(crate::output::Mode::None), |raw| {
@@ -774,6 +807,16 @@ impl Engine {
             let name = name.as_bytes();
             if name == b"SHELL" {
                 database.variables.set_original_shell(value.as_bytes());
+                database
+                    .variables
+                    .define(
+                        name,
+                        value.as_bytes(),
+                        Assignment::Recursive,
+                        Origin::Environment,
+                    )
+                    .map_err(|error| error.diagnostic())?;
+                database.variables.set_export_policy(name, Some(false));
                 continue;
             }
             database
@@ -810,15 +853,6 @@ impl Engine {
         database
             .variables
             .reserve_environment_layout(&[b"MFLAGS"], true);
-        if !options.no_variables {
-            database
-                .initialize_builtin_variables()
-                .map_err(|error| error.diagnostic())?;
-            database
-                .variables
-                .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
-                .map_err(|error| error.diagnostic())?;
-        }
         if !options.no_rules {
             database
                 .initialize_builtin_rules()
@@ -838,8 +872,7 @@ impl Engine {
             .map_err(|error| error.diagnostic())?;
         database.variables.set_export_if_set(b"MAKEFILES");
         for (name, value) in [
-            (b"SHELL".as_slice(), b"/bin/sh".as_slice()),
-            (b".SHELLFLAGS", b"-c"),
+            (b".SHELLFLAGS".as_slice(), b"-c".as_slice()),
             (b"MAKE_VERSION", b"4.4.1"),
             (b".RECIPEPREFIX", b""),
             (b".LOADED", b""),
@@ -873,10 +906,6 @@ impl Engine {
         database
             .variables
             .set_environment_override(options.environment_override);
-        database
-            .variables
-            .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
-            .map_err(|error| error.diagnostic())?;
         database
             .variables
             .update_mflags(&options.recursive_flags(), options.environment_override)
@@ -945,29 +974,10 @@ impl Engine {
             let Some(arg) = options.assignments.get(index) else {
                 break;
             };
-            let spec = assignment(arg).expect("CLI identified assignment");
             let name = database
-                .variables
-                .expand_mut_with(
-                    spec.name,
-                    runtime_context(None, &mut startup_output)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result =
-                                crate::shell::run(request, &program, startup_level, &output, None);
-                            filesystem.borrow_mut().child_completed();
-                            result
-                        }),
-                )
-                .map_err(|e| e.diagnostic())?;
-            database
-                .variables
-                .define_with(
-                    &name,
-                    spec.value,
-                    spec.kind,
+                .define_argument_with(
+                    arg,
                     Origin::CommandLine,
-                    None,
                     runtime_context(None, &mut startup_output)
                         .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
                         .with_shell(&mut |request| {
@@ -975,9 +985,11 @@ impl Engine {
                                 crate::shell::run(request, &program, startup_level, &output, None);
                             filesystem.borrow_mut().child_completed();
                             result
-                        }),
+                        })
+                        .with_includes(&mut |name| IncludeSearch::default().read(name)),
                 )
-                .map_err(|e| e.diagnostic())?;
+                .map_err(StartupError::expansion)?
+                .expect("CLI identified assignment");
             if seen_commands.insert(name.clone()) {
                 command_names.push(name.clone());
             }
@@ -985,6 +997,23 @@ impl Engine {
                 inherited_exports.insert(name);
             }
         }
+        database
+            .variables
+            .initialize_shell_default(b"/bin/sh")
+            .map_err(|error| error.diagnostic())?;
+        if !options.no_variables {
+            database
+                .initialize_builtin_variables()
+                .map_err(|error| error.diagnostic())?;
+            database
+                .variables
+                .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
+                .map_err(|error| error.diagnostic())?;
+        }
+        database
+            .variables
+            .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
+            .map_err(|error| error.diagnostic())?;
         let mut seen_include_arguments = HashSet::new();
         options
             .include_directories

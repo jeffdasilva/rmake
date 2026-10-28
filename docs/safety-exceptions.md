@@ -63,12 +63,14 @@ remains a research-only compatibility mismatch, **not** one of these exceptions.
 Its source-informed lifetime explanation does not turn a status-0 observation
 into crash/hang evidence.
 
-An additional original boundary probe uses `BOOT:=$(eval undefine .DEFAULT_GOAL)`
-on the command line. GNU succeeds before metadata activation; rmake's current
-startup assignment evaluator rejects `eval`. The raw evidence is retained in
+The original boundary probe `BOOT:=$(eval undefine .DEFAULT_GOAL)` succeeds
+before metadata activation. [CLI assignment effects](cli-assignment-effects.md)
+now implement that finite control as a required ordinary fixture. Historical
+prototype evidence remains in
 [`safety-boundary-cli-eval.json`](../tests/research/safety-boundary-cli-eval.json).
-It receives neither conformance credit nor a safety exemption. Complete startup
-evaluation/order and the other [M3/M6 surfaces](m3-m6-audit.md) still need work.
+This does not extend the 17 approved safe-error exceptions. The new recorded
+CLI restart file-effect mismatch and complete startup/profile work remain
+ordinary [M3/M6 compatibility work](m3-m6-audit.md).
 
 ## Performance observations
 
