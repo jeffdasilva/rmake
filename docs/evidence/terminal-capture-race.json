@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "classification": "terminal collector completion race; not an engine conformance result",
+  "runner_sha256": "558b7ad462942c81dca7cdb953463ec265b08a88ceb1ff5860e0b629af039e33",
+  "oracle_binary": {
+    "relative_path": "bin/make",
+    "sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974"
+  },
+  "candidate_identity": {
+    "path": "/tmp/rmake-startup-final-debug",
+    "sha256": "1c52e70bb55ee180aaa9ab4df39dc0b8f3a52837f485fde1ec516721f239cc2d",
+    "version_stdout": "rmake 0.1.0\nGNU Make 4.4.1 compatibility target (implementation incomplete)\nLicense GPLv3+: GNU GPL version 3 or later.\nThis is free software; there is no warranty.\n",
+    "version_stderr": ""
+  },
+  "case": "recurse-j1-forced-separate-imported",
+  "repeat": 1,
+  "errors": [
+    "terminal metadata and diversion anchor",
+    "terminal metadata and diversion anchor",
+    "stdout",
+    "stderr"
+  ],
+  "oracle": {
+    "stdout": {
+      "hex": "7465726d6f75742d6f726967696e3d656e7669726f6e6d656e740d0a7465726d6572722d6f726967696e3d656e7669726f6e6d656e740d0a"
+    },
+    "stderr": {
+      "hex": ""
+    },
+    "returncode": 0,
+    "limit": null,
+    "leftover_processes": false
+  },
+  "candidate": {
+    "stdout": {
+      "hex": "737464696e2d7474793d310d0a7374646f75742d7474793d300d0a7374646572722d7474793d300d0a4d414b455f5445524d4f55543d5b5d0d0a4d414b455f5445524d4552523d5b5d0d0a7465726d6f75742d6f726967696e3d656e7669726f6e6d656e740d0a7465726d6572722d6f726967696e3d656e7669726f6e6d656e740d0a737464696e2d7474793d310d0a7374646f75742d7474793d300d0a7374646572722d7474793d300d0a4d414b455f5445524d4f55543d5b5d0d0a4d414b455f5445524d4552523d5b5d0d0a"
+    },
+    "stderr": {
+      "hex": "6368696c642d7374646572720a"
+    },
+    "returncode": 0,
+    "limit": null,
+    "leftover_processes": false
+  }
+}

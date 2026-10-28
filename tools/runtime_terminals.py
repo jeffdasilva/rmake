@@ -76,6 +76,19 @@ def execute(cell,root,fixture,binary,master,slave):
         process.wait(timeout=1)
     finally:
         harness.kill_group(process.pid)
+        # A child can write and exit between an empty select result and poll.
+        # Reaping precedes this nonblocking drain; keep every tail byte in this
+        # observation before closing a pipe or reusing the still-open PTY.
+        for descriptor, output in streams.items():
+            os.set_blocking(descriptor, False)
+            while True:
+                try:
+                    chunk = os.read(descriptor, 8192)
+                except BlockingIOError:
+                    break
+                if not chunk:
+                    break
+                output.extend(chunk)
     err=bytes(streams[process.stderr.fileno()]) if process.stderr is not None else b''
     if process.stderr is not None:process.stderr.close()
     observed=harness.Observation(bytes(streams[master]),err,process.returncode,limit,
