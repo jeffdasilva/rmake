@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "warn-flow-2-env-make-reader"
+requirement = "cli.undefined-warnings"
+candidate = "required"
+args = ["--no-print-directory", "-R"]
+timeout_seconds = 5
+description = "Original undefined-warning option, scope, phase, decoder or silent-control comparison."
+provenance = "Independent exact status/stream model checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKEFLAGS" = "--warn-undefined-variables"
+
+[expected]
+exit_code = 0
+stdout_hex = "726573756c743d5b5d0a"
+stderr_hex = "4d616b6566696c653a333a207761726e696e673a20756e646566696e6564207661726961626c652027414253454e54270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c652027474e554d414b45464c414753270a"

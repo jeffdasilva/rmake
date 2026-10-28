@@ -14,7 +14,7 @@ use crate::variables::{
     VariableStore, reference_end,
 };
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
 /// This metadata does not install implicit rules or suffix-rule conversions.
@@ -315,7 +315,7 @@ pub struct Database {
     second_expansion: bool,
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
-    pub(crate) evaluation_bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
+    pub(crate) evaluation_bindings: Vec<crate::variables::LocalFrame>,
     // Active only while parsing a potentially recursive HOME filename. Owned
     // bytes preserve shared-name overwrites without aliased or dangling pointers.
     filename_scratch: Option<Vec<u8>>,
@@ -1060,7 +1060,7 @@ impl Database {
         let home = if name.len() == 1 || name[1] == b'/' {
             let session = self.begin_filename_session(true);
             self.write_filename(name, 0);
-            let result = self.expand_with(b"$(HOME)", context.reborrow());
+            let result = self.expand_variable_with(b"HOME", context.reborrow());
             observed = Some(self.filename_suffix(name));
             self.end_filename_session(session);
             result.map_err(|error| {
@@ -2170,13 +2170,32 @@ impl Database {
         bytes: &[u8],
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
+        self.expand_entry_with::<false>(bytes, context)
+    }
+
+    /// Select an internal binding silently, while evaluating its value with
+    /// ordinary effects and diagnostics in the complete active context.
+    pub fn expand_variable_with(
+        &mut self,
+        name: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.expand_entry_with::<true>(name, context)
+    }
+
+    fn expand_entry_with<const NAMED: bool>(
+        &mut self,
+        bytes: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
         if let Some(mut scope) = self.evaluation_scope.take() {
             scope.refresh_globals(&self.variables);
-            let result = crate::variables::expand_scoped_database(self, &mut scope, bytes, context);
+            let result =
+                crate::variables::expand_scoped_database::<NAMED>(self, &mut scope, bytes, context);
             self.evaluation_scope = Some(scope);
             result
         } else {
-            crate::variables::expand_database(self, bytes, context)
+            crate::variables::expand_database::<NAMED>(self, bytes, context)
         }
     }
 
@@ -2188,7 +2207,8 @@ impl Database {
     ) -> Result<Vec<u8>, ExpandError> {
         variables.refresh_globals(&self.variables);
         let previous = std::mem::replace(&mut self.rules_frozen, true);
-        let result = crate::variables::expand_scoped_database(self, variables, bytes, context);
+        let result =
+            crate::variables::expand_scoped_database::<false>(self, variables, bytes, context);
         self.rules_frozen = previous;
         result
     }
@@ -2211,7 +2231,7 @@ impl Database {
         bytes: &[u8],
         location: Option<&Location>,
         scope: Option<&mut VariableStore>,
-        bindings: Vec<BTreeMap<Vec<u8>, crate::variables::Variable>>,
+        bindings: Vec<crate::variables::LocalFrame>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let previous_scope =
@@ -3430,6 +3450,45 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn named_binding_selection_is_silent_but_its_body_preserves_warning_context() {
+        let enabled = std::cell::Cell::new(true);
+        let mut db = Database::default();
+        db.read(b"VALUE = $(INNER)\n", b"m").unwrap();
+        let mut warnings = Vec::new();
+        let mut output = |event: Output<'_>| {
+            if let Output::Warning { location, message } = event {
+                warnings.push((location.cloned(), message.to_vec()));
+            }
+        };
+        assert_eq!(
+            db.expand_variable_with(
+                b"ABSENT",
+                ExpansionContext::with_receiver(
+                    None,
+                    &mut crate::diagnostic::WarningOutput::new(&mut output, &enabled)
+                )
+            )
+            .unwrap(),
+            b""
+        );
+        assert_eq!(
+            db.expand_variable_with(
+                b"VALUE",
+                ExpansionContext::with_receiver(
+                    None,
+                    &mut crate::diagnostic::WarningOutput::new(&mut output, &enabled)
+                )
+            )
+            .unwrap(),
+            b""
+        );
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].0.as_ref().unwrap().file.as_ref(), b"m");
+        assert_eq!(warnings[0].0.as_ref().unwrap().line, 1);
+        assert_eq!(warnings[0].1, b"warning: undefined variable 'INNER'");
+    }
 
     #[test]
     fn live_goal_deletion_checks_origin_without_blocking_normal_resets() {

@@ -1798,6 +1798,19 @@ impl TargetScope {
     }
 }
 
+#[derive(Clone)]
+pub(crate) struct LocalFrame {
+    values: BTreeMap<Vec<u8>, Variable>,
+    call: bool,
+}
+
+impl std::ops::Deref for LocalFrame {
+    type Target = BTreeMap<Vec<u8>, Variable>;
+    fn deref(&self) -> &Self::Target {
+        &self.values
+    }
+}
+
 enum StoreAccess<'a> {
     Read(&'a VariableStore),
     Write(&'a mut VariableStore),
@@ -1872,14 +1885,18 @@ impl StoreAccess<'_> {
     }
 }
 
-pub(crate) fn expand_scoped_database(
+pub(crate) fn expand_scoped_database<const NAMED: bool>(
     db: &mut crate::parser::Database,
     variables: &mut VariableStore,
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
-    let bindings = db.evaluation_bindings.clone();
-    Expansion {
+    let bindings = if db.evaluation_bindings.is_empty() {
+        Vec::new()
+    } else {
+        db.evaluation_bindings.clone()
+    };
+    let mut expansion = Expansion {
         store: StoreAccess::Scoped {
             database: db,
             variables,
@@ -1889,8 +1906,12 @@ pub(crate) fn expand_scoped_database(
         depth: 0,
         context,
         binding_context: None,
+    };
+    if NAMED {
+        expansion.variable(input)
+    } else {
+        expansion.expand(input)
     }
-    .expand(input)
 }
 
 pub(crate) fn expand_environment_database(
@@ -1903,7 +1924,11 @@ pub(crate) fn expand_environment_database(
     let Some((layer, variable)) = environment.lookup_from(name, 0) else {
         return Ok(Vec::new());
     };
-    let bindings = db.evaluation_bindings.clone();
+    let bindings = if db.evaluation_bindings.is_empty() {
+        Vec::new()
+    } else {
+        db.evaluation_bindings.clone()
+    };
     let tracked = environment.global_layer(layer)
         && variable.flavor == Flavor::Recursive
         && variable.value.contains(&b'$');
@@ -1941,21 +1966,29 @@ pub(crate) fn expand_environment_database(
     result
 }
 
-pub(crate) fn expand_database(
+pub(crate) fn expand_database<const NAMED: bool>(
     db: &mut crate::parser::Database,
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
-    let bindings = db.evaluation_bindings.clone();
-    Expansion {
+    let bindings = if db.evaluation_bindings.is_empty() {
+        Vec::new()
+    } else {
+        db.evaluation_bindings.clone()
+    };
+    let mut expansion = Expansion {
         store: StoreAccess::Database(db),
         bindings,
         active: Vec::new(),
         depth: 0,
         context,
         binding_context: None,
+    };
+    if NAMED {
+        expansion.variable(input)
+    } else {
+        expansion.expand(input)
     }
-    .expand(input)
 }
 
 pub(crate) fn shell_database(
@@ -1963,7 +1996,11 @@ pub(crate) fn shell_database(
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
-    let bindings = db.evaluation_bindings.clone();
+    let bindings = if db.evaluation_bindings.is_empty() {
+        Vec::new()
+    } else {
+        db.evaluation_bindings.clone()
+    };
     let mut scope = db.evaluation_scope.take();
     if let Some(scope) = &mut scope {
         scope.refresh_globals(&db.variables);
@@ -1999,7 +2036,7 @@ pub(crate) fn shell_database(
 
 struct Expansion<'a, 'b> {
     store: StoreAccess<'a>,
-    bindings: Vec<BTreeMap<Vec<u8>, Variable>>,
+    bindings: Vec<LocalFrame>,
     active: Vec<(Vec<u8>, Option<usize>)>,
     depth: usize,
     context: ExpansionContext<'b>,
@@ -2100,7 +2137,7 @@ impl Expansion<'_, '_> {
                     cursor = next;
                 }
                 _ => {
-                    let expanded = self.variable(&input[cursor + 1..cursor + 2])?;
+                    let expanded = self.reference_variable(&input[cursor + 1..cursor + 2])?;
                     push(&mut result, &expanded)?;
                     cursor += 2;
                 }
@@ -2109,13 +2146,58 @@ impl Expansion<'_, '_> {
         Ok(result)
     }
 
+    fn warn_missing(&mut self, name: &[u8]) -> Result<(), ExpandError> {
+        if matches!(
+            name,
+            b"MAKECMDGOALS"
+                | b"MAKE_RESTARTS"
+                | b"MAKE_TERMOUT"
+                | b"MAKE_TERMERR"
+                | b"MAKEOVERRIDES"
+                | b".DEFAULT"
+                | b"-*-command-variables-*-"
+                | b"-*-eval-flags-*-"
+                | b"VPATH"
+                | b"GPATH"
+        ) {
+            return Ok(());
+        }
+        let message = [b"warning: undefined variable '".as_slice(), name, b"'"].concat();
+        if !self.context.emit(Output::Warning {
+            location: self.context.location.or(self
+                .binding_context
+                .as_ref()
+                .and_then(|location| location.as_deref())),
+            message: &message,
+        }) {
+            return Err(ExpandError::Unsupported(
+                b"--warn-undefined-variables".to_vec(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn reference_variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.variable_with_warning::<true>(name)
+    }
+
     fn variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.variable_with_warning::<false>(name)
+    }
+
+    fn variable_with_warning<const WARN: bool>(
+        &mut self,
+        name: &[u8],
+    ) -> Result<Vec<u8>, ExpandError> {
         let binding = self.bindings.iter().rev().find_map(|scope| scope.get(name));
         let (variable, layer) = if let Some(variable) = binding {
             (variable, None)
         } else if let Some((layer, variable)) = self.store.lookup_from(name, 0) {
             (variable, Some(layer))
         } else {
+            if WARN && self.context.warns_undefined() {
+                self.warn_missing(name)?;
+            }
             return Ok(Vec::new());
         };
         if variable.scope.variable_names {
@@ -2230,7 +2312,7 @@ impl Expansion<'_, '_> {
             && let Some(equals) = name[colon + 1..].iter().position(|byte| *byte == b'=')
         {
             let equals = colon + 1 + equals;
-            let value = self.variable(&name[..colon])?;
+            let value = self.reference_variable(&name[..colon])?;
             let from = &name[colon + 1..equals];
             let to = &name[equals + 1..];
             if Pattern::new(from).wildcard.is_some() {
@@ -2242,7 +2324,7 @@ impl Expansion<'_, '_> {
             replacement.extend_from_slice(to);
             return pattern_substitute(&pattern, &replacement, &value);
         }
-        self.variable(name)
+        self.reference_variable(name)
     }
 
     fn function(&mut self, name: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, ExpandError> {
@@ -2312,7 +2394,10 @@ impl Expansion<'_, '_> {
                 let mut output = Vec::new();
                 for (index, word) in words(&list).enumerate() {
                     let bindings = BTreeMap::from([(variable.clone(), local(word.to_vec()))]);
-                    self.bindings.push(bindings);
+                    self.bindings.push(LocalFrame {
+                        values: bindings,
+                        call: false,
+                    });
                     let expanded = self.expand(args[2]);
                     self.bindings.pop();
                     if index != 0 {
@@ -2339,7 +2424,10 @@ impl Expansion<'_, '_> {
                     };
                     bindings.insert(name.to_vec(), local(value));
                 }
-                self.bindings.push(bindings);
+                self.bindings.push(LocalFrame {
+                    values: bindings,
+                    call: false,
+                });
                 let result = self.expand(args[2]);
                 self.bindings.pop();
                 result
@@ -2392,6 +2480,9 @@ impl Expansion<'_, '_> {
             return self.eager_function(name, &values);
         }
         let Some(variable) = self.lookup(name).cloned() else {
+            if !name.is_empty() && self.context.warns_undefined() {
+                self.warn_missing(name)?;
+            }
             return Ok(Vec::new());
         };
         let layer = if self
@@ -2406,7 +2497,7 @@ impl Expansion<'_, '_> {
         };
         let mut bindings = BTreeMap::new();
         // Inner calls hide missing outer positional parameters as well.
-        for scope in &self.bindings {
+        for scope in self.bindings.iter().filter(|scope| scope.call) {
             for key in scope.keys() {
                 if !key.is_empty() && key.iter().all(u8::is_ascii_digit) {
                     bindings.insert(key.clone(), local(Vec::new()));
@@ -2424,7 +2515,10 @@ impl Expansion<'_, '_> {
             };
             bindings.insert(index.to_string().into_bytes(), local(value.to_vec()));
         }
-        self.bindings.push(bindings);
+        self.bindings.push(LocalFrame {
+            values: bindings,
+            call: true,
+        });
         let result = if variable.flavor == Flavor::Simple {
             Ok(variable.value)
         } else {
@@ -4526,6 +4620,72 @@ mod tests {
         );
         assert_eq!(messages, [b"names".to_vec(), b"values".to_vec()]);
         assert_eq!(store.expand(b"$(let a,,OK)").unwrap(), b"OK");
+    }
+
+    #[test]
+    fn undefined_warning_policy_is_live_within_one_expansion() {
+        let enabled = std::cell::Cell::new(false);
+        let mut events = Vec::new();
+        let mut output = |event: Output<'_>| match event {
+            Output::Info(message) => {
+                events.push(message.to_vec());
+                enabled.set(true);
+            }
+            Output::Warning { message, .. } => events.push(message.to_vec()),
+        };
+        let store = VariableStore::new();
+        assert_eq!(
+            store
+                .expand_with(
+                    b"$(FIRST)$(info switch)$(SECOND)",
+                    ExpansionContext::with_receiver(
+                        None,
+                        &mut crate::diagnostic::WarningOutput::new(&mut output, &enabled)
+                    )
+                )
+                .unwrap(),
+            b""
+        );
+        assert_eq!(
+            events,
+            [
+                b"switch".to_vec(),
+                b"warning: undefined variable 'SECOND'".to_vec()
+            ]
+        );
+    }
+
+    #[test]
+    fn pure_expansion_remains_quiet_without_a_warning_receiver() {
+        let store = VariableStore::new();
+        assert_eq!(store.expand(b"$(MISSING)").unwrap(), b"");
+        assert_eq!(
+            store
+                .expand_variable_with(b"MISSING", ExpansionContext::pure())
+                .unwrap(),
+            b""
+        );
+    }
+
+    #[test]
+    fn call_masks_outer_call_parameters_without_masking_numeric_let_or_foreach_names() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"BODY", b"$(1)/$(2)", Assignment::Recursive);
+        define(
+            &mut store,
+            b"OUTER",
+            b"$(let 2,inner,$(call BODY,$(1)))",
+            Assignment::Recursive,
+        );
+        assert_eq!(
+            store.expand(b"$(let 2,outer,$(call BODY,x))").unwrap(),
+            b"x/outer"
+        );
+        assert_eq!(
+            store.expand(b"$(foreach 2,a b,$(call BODY,x))").unwrap(),
+            b"x/a x/b"
+        );
+        assert_eq!(store.expand(b"$(call OUTER,x,y)").unwrap(), b"x/");
     }
 
     #[test]

@@ -1,0 +1,2 @@
+$(info result=[$(ABSENT)])
+all:;@:
