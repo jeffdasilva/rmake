@@ -281,3 +281,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Negative switches and option origins](docs/switch-origins.md) now cover silent/keep-going aliases, explicit propagation, precedence and scoped flag normalization. M3/M6 remain open.
 
 [Restart directory namespaces and recursive invocation identity](docs/restart-directories.md) now follow original `-C` replay, actual-directory refresh and default `MAKE_COMMAND` indirection, with 348 required cases. M3/M6 remain open.
+
+[M3 profile inputs](docs/profile-inputs.md) now cover inherited file/directory switches, Guile-free lookup and expression reference boundaries. The [option inventory](docs/m3-option-inventory.md) lists the remaining CLI work; M3/M6 remain open.

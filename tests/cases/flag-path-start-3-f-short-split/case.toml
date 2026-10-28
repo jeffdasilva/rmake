@@ -1,0 +1,15 @@
+id = "flag-path-start-3-f-short-split"
+requirement = "cli.flag-paths"
+candidate = "required"
+args = ["--no-print-directory", "-f", "driver.mk"]
+timeout_seconds = 15
+provenance = "Original startup/profile/reference Makefiles; two raw pinned GNU Make 4.4.1 observations, final prototype comparison and preceding-candidate control. No upstream test code copied or output normalization."
+
+[environment]
+"GNUMAKEFLAGS" = "-f flags.mk"
+"MAKEFLAGS" = "s"
+
+[expected]
+exit_code = 0
+stdout_hex = "726561643d666c6167732e6d6b0a66696c65733d5b666c6167732e6d6b206472697665722e6d6b5d20666c6167733d5b73202d2d6e6f2d7072696e742d6469726563746f72795d206d666c6167733d5b2d73202d2d6e6f2d7072696e742d6469726563746f72795d206377643d5b776f726b5d2076616c75653d5b464c41475d0a524f4f540a"
+stderr_hex = ""

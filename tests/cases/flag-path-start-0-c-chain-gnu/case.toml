@@ -1,0 +1,14 @@
+id = "flag-path-start-0-c-chain-gnu"
+requirement = "cli.flag-paths"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "-f", "driver.mk"]
+timeout_seconds = 15
+provenance = "Original startup/profile/reference Makefiles; two raw pinned GNU Make 4.4.1 observations, final prototype comparison and preceding-candidate control. No upstream test code copied or output normalization."
+
+[environment]
+"GNUMAKEFLAGS" = "-C sub -C nested"
+
+[expected]
+exit_code = 0
+stdout_hex = "66696c65733d5b6472697665722e6d6b5d20666c6167733d5b7252202d2d6e6f2d7072696e742d6469726563746f72795d206d666c6167733d5b2d7252202d2d6e6f2d7072696e742d6469726563746f72795d206377643d5b6e65737465645d2076616c75653d5b5d0a53454c45435445440a"
+stderr_hex = ""

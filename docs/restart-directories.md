@@ -77,7 +77,7 @@ concurrent with timing.
 
 These observations remain close to the previous candidate and do not establish
 statistical improvement or general performance parity. GNU is faster in all five
-workloads. Raw reports: `artifacts/bench/restart-final-{core,parallel}.json`.
+workloads. Raw [core](benchmarks/restart-core.json) and [parallel](benchmarks/restart-parallel.json) reports are retained with every sample and binary identity.
 Current candidate SHA256:
 `7e9fe304bb3d2f529e7d73cf90a17df7e2c47ff06b73dac68243b080023336dd`;
 previous candidate:

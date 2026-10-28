@@ -220,3 +220,5 @@ The [POSIX mode notes](posix-mode.md) identify special-reader, continuation, suf
 The [switch-origin notes](switch-origins.md) identify option, flag-definition, include-path and scope references used for the independently authored origin-aware decoder and original phase/recursion fixtures.
 
 The [restart directory notes](restart-directories.md) identify the fixed-reference invocation, restart and jobserver cleanup behavior consulted for independently authored Rust code and original namespace/byte-path fixtures.
+
+The [profile-input notes](profile-inputs.md) identify the fixed-reference switch-source, Guile registration and expansion-boundary sources consulted for independently authored Rust code, Makefiles and tooling tests. The option inventory is an acceptance audit rather than copied implementation.

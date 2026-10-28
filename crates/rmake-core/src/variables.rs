@@ -264,6 +264,10 @@ pub enum ExpandError {
         location: Option<Arc<Location>>,
     },
     UnterminatedReference,
+    UnterminatedFunction {
+        function: Vec<u8>,
+        close: u8,
+    },
     RecursiveVariable(Vec<u8>),
     EmptyVariableName,
     InvalidArguments {
@@ -346,6 +350,15 @@ impl ExpandError {
             | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => message.clone().into(),
+            Self::UnterminatedFunction { function, close } => [
+                b"unterminated call to function '".as_slice(),
+                function,
+                b"': missing '",
+                &[*close],
+                b"'",
+            ]
+            .concat()
+            .into(),
             Self::RecursiveVariable(name) => [
                 b"Recursive variable '".as_slice(),
                 name,
@@ -400,6 +413,12 @@ impl fmt::Display for ExpandError {
                 String::from_utf8_lossy(name)
             ),
             Self::UnterminatedReference => output.write_str("unterminated variable reference"),
+            Self::UnterminatedFunction { function, close } => write!(
+                output,
+                "unterminated call to function '{}': missing '{}'",
+                String::from_utf8_lossy(function),
+                *close as char
+            ),
             Self::RecursiveVariable(name) => write!(
                 output,
                 "Recursive variable '{}' references itself (eventually)",
@@ -2037,10 +2056,15 @@ impl Expansion<'_, '_> {
                     cursor += 2;
                 }
                 b'(' | b'{' => {
-                    let end = reference_end(input, cursor + 1)?;
-                    let expanded = self.reference(&input[cursor + 2..end], input[cursor + 1])?;
+                    let (end, next, raw_name) = expansion_reference_span(input, cursor + 1)?;
+                    let body = &input[cursor + 2..end];
+                    let expanded = if raw_name {
+                        self.variable_reference(body)?
+                    } else {
+                        self.reference(body, input[cursor + 1])?
+                    };
                     push(&mut result, &expanded)?;
-                    cursor = end + 1;
+                    cursor = next;
                 }
                 _ => {
                     let expanded = self.variable(&input[cursor + 1..cursor + 2])?;
@@ -2165,6 +2189,10 @@ impl Expansion<'_, '_> {
             }
         }
         let name = self.expand(body)?;
+        self.variable_reference(&name)
+    }
+
+    fn variable_reference(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
         if let Some(colon) = name.iter().position(|byte| *byte == b':')
             && let Some(equals) = name[colon + 1..].iter().position(|byte| *byte == b'=')
         {
@@ -2181,7 +2209,7 @@ impl Expansion<'_, '_> {
             replacement.extend_from_slice(to);
             return pattern_substitute(&pattern, &replacement, &value);
         }
-        self.variable(&name)
+        self.variable(name)
     }
 
     fn function(&mut self, name: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, ExpandError> {
@@ -2288,7 +2316,6 @@ impl Expansion<'_, '_> {
                 let command = self.expand(args[0])?;
                 self.shell(&command)
             }
-            b"guile" => Err(ExpandError::Unsupported(name.to_vec())),
             _ => {
                 let expanded = args
                     .iter()
@@ -3072,6 +3099,38 @@ fn join_words<'a>(values: impl IntoIterator<Item = &'a [u8]>) -> Result<Vec<u8>,
     Ok(output)
 }
 
+// Expansion distinguishes a function invocation from a simple variable name.
+// Reader/argument scans keep their separate structural balancing rules.
+fn expansion_reference_span(
+    input: &[u8],
+    opening: usize,
+) -> Result<(usize, usize, bool), ExpandError> {
+    let body = &input[opening + 1..];
+    let close = if input[opening] == b'(' { b')' } else { b'}' };
+    let first = body.iter().position(|byte| *byte == close);
+    let prefix = &body[..first.unwrap_or(body.len())];
+    if let Some(end) = prefix.iter().position(gnu_whitespace)
+        && arity(&prefix[..end]).is_some()
+    {
+        let end = reference_end(input, opening).map_err(|_| ExpandError::UnterminatedFunction {
+            function: prefix[..end].to_vec(),
+            close,
+        })?;
+        return Ok((end, end + 1, false));
+    }
+    let first = first.ok_or(ExpandError::UnterminatedReference)?;
+    let first = opening + 1 + first;
+    if !prefix.contains(&b'$') {
+        return Ok((first, first + 1, false));
+    }
+    match reference_end(input, opening) {
+        Ok(end) => Ok((end, end + 1, false)),
+        // GNU's unmatched nested-name fallback looks up the unexpanded prefix
+        // and consumes the rest of this expansion buffer.
+        Err(_) => Ok((first, input.len(), true)),
+    }
+}
+
 pub(crate) fn reference_end(input: &[u8], opening: usize) -> Result<usize, ExpandError> {
     let open = input[opening];
     let close = if open == b'(' { b')' } else { b'}' };
@@ -3101,7 +3160,7 @@ fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
         b"or" | b"and" | b"call" => Some((1, None)),
         b"strip" | b"sort" | b"words" | b"firstword" | b"lastword" | b"dir" | b"notdir"
         | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"wildcard"
-        | b"shell" | b"eval" | b"guile" => Some((1, Some(1))),
+        | b"shell" | b"eval" => Some((1, Some(1))),
         b"file" => Some((1, Some(2))),
         _ => None,
     }
@@ -5179,8 +5238,45 @@ mod tests {
     }
 
     #[test]
+    fn simple_parentheses_and_unmatched_nested_names_keep_distinct_boundaries() {
+        let mut store = VariableStore::new();
+        store
+            .define(b"name (value", b"FIRST", Assignment::Simple, Origin::File)
+            .unwrap();
+        store
+            .define(b"$(missing", b"RAW", Assignment::Simple, Origin::File)
+            .unwrap();
+        assert_eq!(store.expand(b"$(name (value))tail").unwrap(), b"FIRST)tail");
+        assert_eq!(store.expand(b"$($(missing)tail").unwrap(), b"RAW");
+        assert_eq!(store.expand(b"$(subst x,(x),x)tail").unwrap(), b"(x)tail");
+    }
+
+    #[test]
+    fn disabled_guile_names_follow_ordinary_variable_lookup_and_call_bindings() {
+        let mut store = VariableStore::new();
+        store
+            .define(
+                b"guile",
+                b"[$(0)|$(1)|$(2)]",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        store
+            .define(b"guile form", b"variable", Assignment::Simple, Origin::File)
+            .unwrap();
+        assert_eq!(store.expand(b"$(guile form)").unwrap(), b"variable");
+        assert_eq!(store.expand(b"$(guile missing)").unwrap(), b"");
+        assert_eq!(
+            store.expand(b"$(call guile,one,two)").unwrap(),
+            b"[guile|one|two]"
+        );
+        assert_eq!(store.expand(b"$(guile)").unwrap(), b"[||]");
+    }
+
+    #[test]
     fn unimplemented_effects_are_explicitly_unsupported() {
-        for name in ["shell", "eval", "wildcard", "realpath", "guile"] {
+        for name in ["shell", "eval", "wildcard", "realpath"] {
             let input = format!("$({name} value)");
             assert_eq!(
                 VariableStore::new().expand(input.as_bytes()),

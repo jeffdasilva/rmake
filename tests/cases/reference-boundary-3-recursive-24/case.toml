@@ -1,0 +1,11 @@
+id = "reference-boundary-3-recursive-24"
+requirement = "variables.reference-boundaries"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 15
+provenance = "Original startup/profile/reference Makefiles; two raw pinned GNU Make 4.4.1 observations, final prototype comparison and preceding-candidate control. No upstream test code copied or output normalization."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a32383a202a2a2a20756e7465726d696e61746564207661726961626c65207265666572656e63652e202053746f702e0a"
