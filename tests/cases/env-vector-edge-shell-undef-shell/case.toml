@@ -1,0 +1,14 @@
+id = "env-vector-edge-shell-undef-shell"
+requirement = "variables.environment-vector"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 15
+provenance = "Original native environment observer and Makefile; two raw GNU Make 4.4.1 observations plus final candidate comparison. No output sorting or normalization."
+
+[environment]
+"SHELL" = "original-shell"
+
+[expected]
+exit_code = 2
+stdout_hex = "766563746f723d5b5d0a"
+stderr_hex = "6d616b653a202d633a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202d633a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a343a20616c6c5d204572726f72203132370a"

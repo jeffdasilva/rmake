@@ -1,0 +1,11 @@
+id = "env-vector-phase-dependency-restart"
+requirement = "variables.environment-vector"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 15
+provenance = "Original native environment observer and Makefile; two raw GNU Make 4.4.1 observations plus final candidate comparison. No output sorting or normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b5d0a7265616465723d5b5d0a"
+stderr_hex = ""

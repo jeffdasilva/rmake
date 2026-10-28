@@ -499,8 +499,13 @@ struct RecipeState {
     flow: Flow,
     ran: bool,
     one_shell: bool,
-    environment: Option<Vec<(OsString, Option<OsString>)>>,
+    environment: Option<RecipeEnvironment>,
     permit: Option<Permit>,
+}
+
+struct RecipeEnvironment {
+    values: Vec<(OsString, Option<OsString>)>,
+    order: Vec<Vec<u8>>,
 }
 
 /// A dependency traversal can yield without holding a recipe slot. Only the
@@ -722,6 +727,7 @@ impl Engine {
         for (name, value) in std::env::vars_os() {
             let name = name.as_bytes();
             if name == b"SHELL" {
+                database.variables.set_original_shell(value.as_bytes());
                 continue;
             }
             database
@@ -6114,7 +6120,7 @@ impl Engine {
             let mut child = Command::new(os(&program));
             child.args(arguments.iter().map(|arg| os(arg)));
             if let Some(values) = &environment {
-                for (name, value) in values {
+                for (name, value) in &values.values {
                     if let Some(value) = value {
                         child.env(name, value);
                     } else {
@@ -6132,11 +6138,11 @@ impl Engine {
                     .chain(self.database.unexports.iter())
                     .cloned()
                     .collect();
-                let export_all = self.database.export_all
-                    || self
-                        .database
-                        .rules
-                        .contains_key(b".EXPORT_ALL_VARIABLES".as_slice());
+                // The synthesized environment-origin binding occupies its table
+                // slot. A later ordinary file binding can still be ineligible;
+                // numeric MAKELEVEL is then synthesized at the vector tail.
+                exports.insert(b"MAKELEVEL".to_vec());
+                let export_all = self.database.export_all;
                 for (name, variable) in environment_variables.definitions() {
                     if environment_variables.resolve_export_policy(name).is_some()
                         || (export_all
@@ -6165,6 +6171,7 @@ impl Engine {
                 }
                 let exports =
                     environment_variables.environment_order(|name, _| eligible.contains(name));
+                let mut emitted_order = Vec::new();
                 for name in &exports {
                     variables.refresh_globals(&self.database.variables);
                     let environment_variables = variables.for_environment();
@@ -6186,6 +6193,7 @@ impl Engine {
                             Origin::Environment | Origin::EnvironmentOverride
                         ) {
                             child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
+                            emitted_order.push(name.clone());
                             continue;
                         }
                         match self.database.expand_environment_in(
@@ -6213,6 +6221,7 @@ impl Engine {
                         ) {
                             Ok(value) => {
                                 child.env(os(name), OsString::from_vec(value));
+                                emitted_order.push(name.clone());
                             }
                             Err(err) => {
                                 self.expansion_error(variable.definition(), &err);
@@ -6261,30 +6270,37 @@ impl Engine {
                 {
                     crate::process::disable_pipe_jobserver(&mut child);
                 }
-                environment = Some(
-                    child
+                environment = Some(RecipeEnvironment {
+                    values: child
                         .get_envs()
                         .map(|(name, value)| (name.to_owned(), value.map(OsStr::to_owned)))
                         .collect(),
-                );
+                    order: emitted_order,
+                });
             }
             let _ = io::stdout().flush();
             let stdin_owner = !parallel || !self.parallel_jobs.values().any(|job| job.stdin_owner);
             if let Some(buffer) = &output {
                 buffer.child_reaped(false);
             }
-            let process = launch_child(&program, &child, |mut command| {
-                if let Some(server) = &self.jobserver {
-                    server.configure_child(&mut command, force);
-                }
-                if !stdin_owner {
-                    command.stdin(rmake_linux::process::closed_stdin()?);
-                }
-                if let Some(buffer) = &output {
-                    buffer.configure_child(&mut command)?;
-                }
-                rmake_linux::child::Child::spawn(&mut command)
-            });
+            let process = launch_child(
+                &program,
+                &child,
+                &environment.as_ref().expect("prepared environment").order,
+                self.database.variables.original_shell(),
+                |mut command, image, arg0| {
+                    if let Some(server) = &self.jobserver {
+                        server.configure_child(&mut command, force);
+                    }
+                    if !stdin_owner {
+                        command.stdin(rmake_linux::process::closed_stdin()?);
+                    }
+                    if let Some(buffer) = &output {
+                        buffer.configure_child(&mut command)?;
+                    }
+                    rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
+                },
+            );
             self.output.select(None);
             if process.is_ok() && self.options.load_limit.is_some_and(|v| v >= 0.0) {
                 self.load.started();
@@ -6647,23 +6663,15 @@ fn signal_status(status: std::process::ExitStatus) -> String {
     message
 }
 
-fn copy_environment(source: &Command, destination: &mut Command) {
-    for (name, value) in source.get_envs() {
-        if let Some(value) = value {
-            destination.env(name, value);
-        } else {
-            destination.env_remove(name);
-        }
-    }
-}
-
 /// Keep the exact executable that returned ENOEXEC. Re-searching using file mode
 /// bits is incorrect: an earlier PATH entry can have an execute bit yet deny the
 /// current user execution. Only the kernel's actual exec result decides that.
 pub(crate) fn launch_child<T>(
     program: &[u8],
     template: &Command,
-    mut run: impl FnMut(Command) -> io::Result<T>,
+    order: &[Vec<u8>],
+    original_shell: Option<&[u8]>,
+    mut run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
 ) -> io::Result<T> {
     let paths = if program.contains(&b'/') {
         vec![std::path::PathBuf::from(os(program))]
@@ -6671,8 +6679,7 @@ pub(crate) fn launch_child<T>(
         let path = template
             .get_envs()
             .find(|(key, _)| *key == "PATH")
-            .map(|(_, value)| value.map(OsStr::to_owned))
-            .unwrap_or_else(|| std::env::var_os("PATH"))
+            .and_then(|(_, value)| value.map(OsStr::to_owned))
             .unwrap_or_else(|| "/bin:/usr/bin".into());
         std::env::split_paths(&path)
             .map(|directory| {
@@ -6685,22 +6692,22 @@ pub(crate) fn launch_child<T>(
             })
             .collect()
     };
+    let environment =
+        rmake_linux::environment::Image::from_command(template, order, original_shell)?;
     let mut denied = None;
     let mut missing = io::Error::from_raw_os_error(2);
     for path in paths {
         let mut command = Command::new(&path);
         command.arg0(os(program)).args(template.get_args());
-        copy_environment(template, &mut command);
         rmake_linux::signals::configure_child(&mut command);
-        match run(command) {
+        match run(command, &environment, program) {
             // Linux ENOEXEC: interpret the attempted file through /bin/sh,
             // preserving args/environment but not the recipe's -e/-c flags.
             Err(error) if error.raw_os_error() == Some(8) => {
                 let mut shell = Command::new("/bin/sh");
                 shell.arg(&path).args(template.get_args());
-                copy_environment(template, &mut shell);
                 rmake_linux::signals::configure_child(&mut shell);
-                return run(shell);
+                return run(shell, &environment, b"/bin/sh");
             }
             Err(error)
                 if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>

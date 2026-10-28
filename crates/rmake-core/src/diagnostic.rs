@@ -77,13 +77,21 @@ pub struct IncludedFile {
 
 type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, Vec<u8>> + 'a;
 
+pub enum EnvironmentValue {
+    Set(Vec<u8>),
+    Remove,
+    Original,
+}
+
 pub struct ShellRequest<'a> {
     pub command: &'a [u8],
     pub shell: &'a [u8],
     pub flags: &'a [u8],
     pub ifs: Option<&'a [u8]>,
-    /// None explicitly removes a variable; other inherited names are retained.
-    pub environment: &'a [(Vec<u8>, Option<Vec<u8>>)],
+    /// Ordered set/remove operations, or an original-process fallback for an
+    /// active recursive export. Interpretation performs no implicit OS reads.
+    pub environment: &'a [(Vec<u8>, EnvironmentValue)],
+    pub original_shell: Option<&'a [u8]>,
 }
 
 pub struct ShellResult {

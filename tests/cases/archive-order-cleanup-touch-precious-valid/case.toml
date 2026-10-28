@@ -2,7 +2,7 @@ id = "archive-order-cleanup-touch-precious-valid"
 requirement = "archives.observation-order"
 candidate = "required"
 description = "Original archive lifecycle or tentative-key ordering boundary: archive-order-cleanup-touch-precious-valid."
-provenance = "Independently authored Makefile, archive bytes, table phase model and exact stream/status anchors. No upstream tests copied."
+provenance = "Independently authored Makefile, archive bytes, table phase model and exact stream/status anchors. A narrow original stat/fstat/statx adapter fixes only archive.a modification time at 946684800; raw output and header comparison remain exact. No upstream tests copied."
 args = ["-rR", "--no-print-directory", "-B", "-t"]
 timeout_seconds = 30
 

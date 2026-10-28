@@ -36,6 +36,24 @@ impl Child {
         Ok(Self::from_std(command.spawn()?))
     }
 
+    pub fn spawn_ordered(
+        command: &mut Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+    ) -> io::Result<Self> {
+        image.configure_exec(command, arg0)?;
+        Self::spawn(command)
+    }
+
+    pub fn spawn_capture_ordered(
+        command: &mut Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+    ) -> io::Result<(Self, File)> {
+        image.configure_exec(command, arg0)?;
+        Self::spawn_capture(command)
+    }
+
     fn from_std(child: std::process::Child) -> Self {
         // pidfd_open and pidfd_send_signal use these numbers on Linux x86-64
         // and asm-generic architectures. pidfd_open creates a CLOEXEC handle.

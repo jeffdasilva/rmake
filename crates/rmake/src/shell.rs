@@ -4,7 +4,7 @@
 //! Process capture for make's shell function and shell assignments. Expansion
 //! and newline folding live in core; this module only launches and captures.
 
-use rmake_core::diagnostic::{ShellRequest, ShellResult};
+use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -26,11 +26,21 @@ pub fn run(
     };
     let mut command = Command::new(OsStr::from_bytes(&program));
     command.args(args.iter().map(|arg| OsStr::from_bytes(arg)));
+    let mut order = Vec::new();
     for (name, value) in request.environment {
-        if let Some(value) = value {
-            command.env(OsStr::from_bytes(name), OsStr::from_bytes(value));
-        } else {
-            command.env_remove(OsStr::from_bytes(name));
+        match value {
+            EnvironmentValue::Set(value) => {
+                command.env(OsStr::from_bytes(name), OsStr::from_bytes(value));
+                order.push(name.clone());
+            }
+            EnvironmentValue::Remove => {
+                command.env_remove(OsStr::from_bytes(name));
+            }
+            EnvironmentValue::Original => {
+                let value = std::env::var_os(OsStr::from_bytes(name)).unwrap_or_default();
+                command.env(OsStr::from_bytes(name), value);
+                order.push(name.clone());
+            }
         }
     }
     command.env("MAKELEVEL", makelevel.wrapping_add(1).to_string());
@@ -38,12 +48,22 @@ pub fn run(
         crate::process::disable_pipe_jobserver(&mut command);
     }
     let buffer = output.current();
-    let (child, stdout) = match crate::engine::launch_child(&program, &command, |mut command| {
-        if let Some(buffer) = &buffer {
-            buffer.configure_stderr(&mut command)?;
-        }
-        rmake_linux::child::Child::spawn_capture(&mut command)
-    }) {
+    let (child, stdout) = match crate::engine::launch_child(
+        &program,
+        &command,
+        &order,
+        request.original_shell,
+        |mut command, image, arg0| {
+            if let Some(buffer) = &buffer {
+                buffer.configure_stderr(&mut command)?;
+            }
+            rmake_linux::child::Child::spawn_capture_ordered(
+                &mut command,
+                image,
+                OsStr::from_bytes(arg0),
+            )
+        },
+    ) {
         Ok(child) => child,
         Err(error) => {
             output.write_parts(

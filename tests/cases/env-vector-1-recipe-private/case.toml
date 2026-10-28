@@ -1,0 +1,11 @@
+id = "env-vector-1-recipe-private"
+requirement = "variables.environment-vector"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 15
+provenance = "Original native environment observer and Makefile; two raw GNU Make 4.4.1 observations plus final candidate comparison. No output sorting or normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "4c435f414c4c0a544d504449520a4c414e470a4d414b45464c4147530a4d464c4147530a4d414b454c4556454c0a504154480a545a0a580a484f4d450a"
+stderr_hex = ""

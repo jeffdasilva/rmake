@@ -273,3 +273,5 @@ regressions. `make test-m4-release` runs the optimized corpus, stateful and arch
 fault suites, repeated parallel cases and self-hosted flows. The
 [recursive HOME notes](docs/recursive-home-names.md) describe the safe byte model
 and [M4 audit](docs/m4-exit-audit.md) records milestone acceptance and open work.
+
+The [owned environment-vector slice](docs/environment-vectors.md) adds byte/order-preserving Linux child launches and export activation phase checks. [M3/M6 remain open](docs/m3-m6-audit.md).
