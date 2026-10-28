@@ -9,6 +9,7 @@ pub(super) struct State {
     options: RefCell<Options>,
     dirty: Cell<bool>,
     pub(super) warn_undefined: Cell<bool>,
+    pub(super) trace_enabled: Cell<bool>,
     output: crate::output::Controller,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
 }
@@ -23,11 +24,13 @@ impl State {
             options: RefCell::new(options.clone()),
             dirty: Cell::new(false),
             warn_undefined: Cell::new(options.warn_undefined),
+            trace_enabled: Cell::new(options.trace),
             output,
             includes,
         }
     }
     pub(super) fn refresh(&self, options: &Options) {
+        self.trace_enabled.set(options.trace);
         self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
         self.dirty.set(false);
@@ -94,6 +97,7 @@ impl State {
             next_argument: updated.flag_word_count,
         };
         drop(current);
+        self.trace_enabled.set(updated.trace);
         self.warn_undefined.set(updated.warn_undefined);
         self.options.replace(updated);
         self.dirty.set(true);

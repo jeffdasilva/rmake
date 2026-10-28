@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "trace-oneshell-dry"
+requirement = "cli.trace"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--trace", "-n"]
+timeout_seconds = 5
+description = "Original trace scope, rebuild reason, execution mode or remake phase comparison."
+provenance = "Independent exact status/stream model checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "4d616b6566696c653a353a20757064617465207461726765742027616c6c272064756520746f3a2074617267657420646f6573206e6f742065786973740a7072696e7466202766697273745c6e270a7072696e746620277365636f6e645c6e270a"
+stderr_hex = ""

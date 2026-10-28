@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "trace-existing-missing-normal-duplicates-silent"
+requirement = "cli.trace"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--trace", "-s"]
+timeout_seconds = 5
+description = "Original trace scope, rebuild reason, execution mode or remake phase comparison."
+provenance = "Independent exact status/stream model checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "4d616b6566696c653a343a207570646174652074617267657420276f7574272064756520746f3a206d697373696e670a7072696e74662027646f6e655c6e270a646f6e650a"
+stderr_hex = ""

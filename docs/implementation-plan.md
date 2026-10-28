@@ -45,6 +45,9 @@ correctness design and acceptance gate.
 transition, origin/suffix preservation and restart-phase controls. Its cleanup
 visits fixed tables; full startup, self-exec and option inventory remain open.
 
+[Trace output](trace.md) adds rebuild reasons and command echo across runtime
+modes and Makefile remake phases. Full debug/profile acceptance remains open.
+
 [Undefined-variable warning emission](undefined-warnings.md) adds the live
 reader/runtime policy, diagnostic scopes and numeric call-frame correction.
 Startup default ordering remains an ordinary compatibility gap; this does not
