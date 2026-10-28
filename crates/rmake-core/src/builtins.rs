@@ -69,6 +69,14 @@ impl Database {
         {
             rule.dependencies.clear();
         }
+        self.remove_builtin_recipes();
+        self.variables
+            .define_literal(b"SUFFIXES", b"", Origin::Default)
+    }
+
+    /// Eval can select -r after default variables/suffix metadata exist, but
+    /// before built-in recipes are installed by GNU. Preserve those metadata.
+    pub fn remove_builtin_recipes(&mut self) {
         // The source table is bounded independently of the user's graph. Its
         // set equality with the pinned declarative recipes is tested below.
         for name in SUFFIX_RECORD_ORDER.split(|byte| *byte == b' ') {
@@ -88,8 +96,6 @@ impl Database {
                 }
             }
         }
-        self.variables
-            .define_literal(b"SUFFIXES", b"", Origin::Default)
     }
 
     pub fn initialize_builtin_rules(&mut self) -> Result<(), ParseError> {

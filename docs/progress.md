@@ -2435,3 +2435,22 @@ The corpus remains 9,796 required ordinary cases, no ordinary pending entries,
 and 17 separately gated safety exceptions. Totals remain 453 Rust / 381 tooling
 tests. Full local development/optimized acceptance and exact-head CI remain
 merge gates. M3/M6 remain open.
+
+## M3/M6 command-line eval and post-eval option phases
+
+[Command-line eval](command-line-eval.md) now supports ordered, byte-deduplicated
+startup buffers before preloads/Makefiles, live appended buffers, recursive
+transport and original-buffer restart replay. MAKEFILE_LIST and the automatic
+encoded eval snapshot follow their distinct initialization phases; MFLAGS omits
+eval payloads. Anonymous diagnostics retain program/builtin identities while
+included files retain source locations. BOM/recipe classification and incomplete
+function diagnostics share the existing reader/expansion boundaries.
+
+Eval-selected -r/-R and job counts now respect post-eval snapshots: default
+metadata, user suffix rules, post-read implied -r and original CLI job priority
+remain distinct. No unsafe code, mutable semantic cache or GNU fallback is added.
+194 exact-modeled semantic cases and two output-checked scaling cases bring the
+curated corpus to 9,992 required ordinary cases, no ordinary pending entries,
+and 17 separately gated safety exceptions. Totals are 457 Rust / 387 tooling
+tests. Full local development/optimized acceptance and exact-head CI remain
+merge gates; broader startup, M3/M6 and general performance parity remain open.

@@ -19,7 +19,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-d`, `--debug[=...]` | Unsupported: must implement debug categories, ordering, restart/child identities and output. |
 | `-p`/`--print-data-base` | Unsupported: needs semantic database validator with narrow treatment of documented nondeterministic fields. |
 | `--trace` | [Trace output](trace.md) has 165 required cases for rebuild reasons, identity, echo, modes, synchronization and remake reactivation. Full debug-category, startup, option/profile and locale interactions remain open. |
-| `-E`/`--eval` | Unsupported: startup evaluation before ordinary files, ordering and recursive propagation need original cases. Ordinary `$(eval ...)` is separate and implemented. |
+| `-E`/`--eval` | [Command-line evaluation](command-line-eval.md) has 194 required semantic cases and two output-checked scaling cases across phases, metadata, diagnostics, effects, priority, recursion and restarts. Broader startup/usage/self-exec/profile acceptance remains open. |
 | `-o`/`--old-file`/`--assume-old` | Unsupported: filename handling and old-file update semantics need implementation. |
 | `-W`/`--what-if`/`--new-file`/`--assume-new` | Unsupported: logical timestamp/update semantics need implementation. |
 | `--warn-undefined-variables` | [Reader/runtime warning emission](undefined-warnings.md) now covers scopes, automatic variables, option sources/phases and raw diagnostics. Startup default ordering, broader inherited expansion and complete option/profile acceptance remain open. |

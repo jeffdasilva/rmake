@@ -150,6 +150,7 @@ pub struct FlagAssignment {
 }
 
 pub struct MakeflagsResult {
+    pub eval_reference: bool,
     pub value: Vec<u8>,
     pub origin: crate::variables::Origin,
     pub environment_override: bool,
@@ -288,6 +289,9 @@ impl<'a> ExpansionContext<'a> {
             cursor.set(result.next_argument);
         }
         database.update_mflags(&result.value, result.environment_override)?;
+        if result.eval_reference {
+            result.value.extend_from_slice(b" $(-*-eval-flags-*-)");
+        }
         let overrides_name = database.command_overrides_name();
         let overrides_reference = database.command_overrides_reference();
         let variables = database

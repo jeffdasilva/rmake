@@ -42,6 +42,13 @@ def startup_workloads():
             b"$(info values=[" + references + b"])\n.PHONY: all\nall: ;\n")
 
 
+def eval_workloads():
+    """Observe every separately evaluated binding, without recipe children."""
+    for count in (0, 1000):
+        references = b"|".join(f"$(EV_{index})".encode() for index in range(count))
+        yield f"eval-arguments-{count}", b"$(info values=[" + references + b"])\nall: ;\n"
+
+
 def builtin_transition_workloads():
     """Late -R with unused user declarations and observed cleanup semantics."""
     for count in (0, 1000, 10000):
@@ -74,6 +81,8 @@ def selected_workloads(suite):
         yield from workloads()
     if suite in ("startup-arguments", "all"):
         yield from startup_workloads()
+    if suite in ("eval-arguments", "all"):
+        yield from eval_workloads()
     if suite in ("builtin-transitions", "all"):
         yield from builtin_transition_workloads()
     if suite in ("word-spans", "all"):
@@ -336,6 +345,9 @@ def workload_arguments(name):
     if name.startswith('startup-arguments-'):
         count = int(name.removeprefix('startup-arguments-'))
         arguments.extend(f"ARG_{index}=value{index}" for index in range(count))
+    if name.startswith('eval-arguments-'):
+        count = int(name.removeprefix('eval-arguments-'))
+        arguments.extend(f"--eval=EV_{index}=value{index}" for index in range(count))
     if name.startswith('symlink-times-'):
         arguments.append('-L')
     if name.startswith('parallel-branches-'):
@@ -628,7 +640,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:

@@ -806,6 +806,7 @@ mod include_tests {
         let mut receiver = |request: crate::diagnostic::MakeflagsRequest<'_>| {
             values.push(request.value.to_vec());
             Ok(crate::diagnostic::MakeflagsResult {
+                eval_reference: false,
                 value: request.value.to_vec(),
                 origin: Origin::File,
                 environment_override: false,
@@ -848,6 +849,7 @@ mod include_tests {
         let mut receiver = |request: crate::diagnostic::MakeflagsRequest<'_>| {
             values.push(request.value.to_vec());
             Ok(crate::diagnostic::MakeflagsResult {
+                eval_reference: false,
                 value: request.value.to_vec(),
                 origin: Origin::File,
                 environment_override: false,
@@ -1508,10 +1510,19 @@ impl Database {
             let part = if bytes[start] == b'$' {
                 consumed = match bytes.get(start + 1) {
                     Some(b'(' | b'{') => {
-                        reference_end(bytes, start + 1).map_err(|error| ParseError {
-                            unlocated: error.is_unlocated(),
-                            location: location.clone(),
-                            message: error.diagnostic(),
+                        reference_end(bytes, start + 1).map_err(|error| {
+                            // Retain structural reader balancing on success;
+                            // an incomplete recognized function has its own
+                            // diagnostic rather than a generic variable error.
+                            let error =
+                                crate::variables::expansion_reference_span(bytes, start + 1)
+                                    .err()
+                                    .unwrap_or(error);
+                            ParseError {
+                                unlocated: error.is_unlocated(),
+                                location: location.clone(),
+                                message: error.diagnostic(),
+                            }
                         })? + 1
                     }
                     Some(_) => start + 2,
@@ -2246,7 +2257,9 @@ impl Database {
         result
     }
 
-    pub(crate) fn read_evaluated(
+    /// Evaluate a buffer without appending a source filename to MAKEFILE_LIST.
+    /// None denotes an anonymous command-line buffer; includes retain locations.
+    pub fn read_evaluated(
         &mut self,
         bytes: &[u8],
         location: Option<&Location>,
@@ -2279,7 +2292,7 @@ impl Database {
                 context,
             )
             .map_err(|mut error| {
-                if location.is_none() {
+                if location.is_none() && error.location.file.is_empty() {
                     error.unlocated = true;
                 }
                 error
@@ -2321,6 +2334,9 @@ impl Database {
                 .and_then(|v| v.raw_value().first().copied())
                 .unwrap_or(b'\t');
             reader.set_posix(self.posix);
+            if evaluated_at == Some(1) {
+                reader.skip_eval_bom();
+            }
             let Some(mut line) = reader.next_line(prefix, !declaration.targets.is_empty()) else {
                 break;
             };
@@ -3449,6 +3465,30 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn anonymous_eval_preserves_real_included_file_errors() {
+        let mut db = Database::default();
+        let mut include = |_: &[u8]| {
+            Ok(crate::diagnostic::IncludedFile {
+                name: b"child.mk".to_vec(),
+                bytes: b"$(error included)\n".to_vec(),
+            })
+        };
+        let error = db
+            .read_evaluated(
+                b"include child.mk\n",
+                None,
+                ExpansionContext::pure().with_includes(&mut include),
+            )
+            .unwrap_err();
+        assert!(!error.unlocated);
+        assert_eq!(error.source_location().unwrap().file.as_ref(), b"child.mk");
+        let error = Database::default()
+            .read_evaluated(b"broken\n", None, ExpansionContext::pure())
+            .unwrap_err();
+        assert!(error.unlocated);
+    }
     use super::*;
 
     #[test]

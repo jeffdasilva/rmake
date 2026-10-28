@@ -48,6 +48,9 @@ visits fixed tables; full startup, self-exec and option inventory remain open.
 [Unused automatic snapshots](automatic-snapshots.md) are now avoided on empty
 and absent recipe paths, with raw allocation and timing evidence.
 
+[Command-line evaluation](command-line-eval.md) adds startup buffers, recursive
+transport and source/metadata/switch phase checks. Broader startup remains open.
+
 [Trace output](trace.md) adds rebuild reasons and command echo across runtime
 modes and Makefile remake phases. Full debug/profile acceptance remains open.
 

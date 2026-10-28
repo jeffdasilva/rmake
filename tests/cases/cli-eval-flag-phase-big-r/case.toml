@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-flag-phase-big-r"
+requirement = "cli.eval"
+candidate = "required"
+args = ["--no-print-directory", "-E", "MAKEFLAGS += -R\n$(info E=[$(value MAKEFLAGS)]/[$(value MFLAGS)])"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "453d5b52202d2d6e6f2d7072696e742d6469726563746f72792024282d2a2d6576616c2d666c6167732d2a2d295d2f5b2d52202d2d6e6f2d7072696e742d6469726563746f72795d0a463d5b52202d2d6e6f2d7072696e742d6469726563746f72792024282d2a2d6576616c2d666c6167732d2a2d295d2f5b2d52202d2d6e6f2d7072696e742d6469726563746f72795d0a523d5b7252202d2d6e6f2d7072696e742d6469726563746f72792024282d2a2d6576616c2d666c6167732d2a2d295d2f5b2d7252202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+stderr_hex = ""

@@ -58,6 +58,9 @@ fn main() -> ExitCode {
         println!("  --help     Show this help");
         println!("  --version  Show rmake version and compatibility target");
         println!("  -f FILE    Read the specified Makefile (may be repeated)");
+        println!("  -E STRING  Evaluate Makefile text before reading files (--eval)");
+        println!("  --trace    Print rebuild reasons and recipe commands");
+        println!("  --warn-undefined-variables  Diagnose missing variable references");
         println!("  -C DIR     Change directory before reading Makefiles");
         println!("  -I DIR     Search for included Makefiles; -I- resets the search path");
         println!("  -L         Include symlink timestamps (--check-symlink-times)");

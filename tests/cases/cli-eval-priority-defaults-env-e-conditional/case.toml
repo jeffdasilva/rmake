@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-priority-defaults-env-e-conditional"
+requirement = "cli.eval"
+candidate = "required"
+args = ["--no-print-directory", "-E", "X ?= E\n$(info E=[$(X)/$(origin X)])", "-e"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[environment]
+"X" = "ENV"
+
+[expected]
+exit_code = 0
+stdout_hex = "453d5b454e562f656e7669726f6e6d656e745d0a463d5b454e562f656e7669726f6e6d656e745d0a"
+stderr_hex = ""

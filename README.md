@@ -292,6 +292,8 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 
 [Undefined-variable warnings](docs/undefined-warnings.md) now cover reader/runtime scopes, option sources, automatic variables and raw diagnostic order. Numeric lexical bindings survive nested calls correctly. Startup ordering and broader M3/M6 acceptance remain open.
 
+[Command-line eval](docs/command-line-eval.md) now evaluates ordered buffers before ordinary Makefiles, with recursive transport, metadata, source diagnostics and restart replay. Broader startup and M3/M6 acceptance remain open.
+
 [Trace output](docs/trace.md) now reports rebuild reasons, source locations and command echo across execution modes, recursion and Makefile remake phases. Broader debug, startup and profile acceptance remain open.
 
 [Automatic snapshot preparation](docs/automatic-snapshots.md) avoids unused owned prerequisite/value snapshots while preserving freshness and grouped-target views. Raw allocation and timing evidence accompanies the change; general performance parity remains open.

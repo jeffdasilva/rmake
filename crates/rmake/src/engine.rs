@@ -219,7 +219,11 @@ fn secondary_automatic(
 }
 
 fn location_prefix(location: &Location) -> Vec<u8> {
-    let mut bytes = location.file.to_vec();
+    let mut bytes = if location.file.is_empty() {
+        return b"<builtin>: ".to_vec();
+    } else {
+        location.file.to_vec()
+    };
     if location.line != 0 {
         bytes.extend_from_slice(format!(":{}", location.line).as_bytes());
     }
@@ -410,7 +414,7 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
     match output {
         Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
         Output::Warning { location, message } => {
-            if let Some(location) = location {
+            if let Some(location) = location.filter(|location| !location.file.is_empty()) {
                 controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
             } else {
                 controller.write_parts(true, &[program, b": ", message, b"\n"]);
@@ -897,7 +901,7 @@ impl Engine {
             .variables
             .define(
                 b"MAKEFLAGS",
-                &options.recursive_flags(),
+                &options.makeflags(),
                 Assignment::Recursive,
                 runtime_options::origin(options.environment_override),
             )
@@ -990,7 +994,7 @@ impl Engine {
             .variables
             .define(
                 b"MAKEFLAGS",
-                &options.recursive_flags(),
+                &options.makeflags(),
                 Assignment::Recursive,
                 runtime_options::origin(options.environment_override),
             )
@@ -1048,7 +1052,7 @@ impl Engine {
         if makelevel != 0 {
             program.extend_from_slice(format!("[{makelevel}]").as_bytes());
         }
-        let mut initial_flags = options.recursive_flags();
+        let mut initial_flags = options.makeflags();
         if command_replay {
             initial_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
             database
@@ -1165,7 +1169,7 @@ impl Engine {
                 engine.options.environment_override,
             )
             .map_err(|error| error.diagnostic())?;
-        engine.initial_flags = engine.options.recursive_flags();
+        engine.initial_flags = engine.options.makeflags();
         if engine.command_replay {
             engine
                 .initial_flags
@@ -1291,7 +1295,7 @@ impl Engine {
         let mut shutdown = self.shutdown.get();
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
-        if let Some(location) = location {
+        if let Some(location) = location.filter(|location| !location.file.is_empty()) {
             self.output.write_parts(
                 true,
                 &[&location_prefix(location), b"*** ", message, b".  Stop.\n"],
@@ -1495,17 +1499,86 @@ impl Engine {
         status
     }
 
-    fn run_inner(&mut self) -> u8 {
-        let mut found_makefile;
-        self.database.activate_runtime_metadata();
-        // GNU initializes this metadata after command-line assignment expansion.
-        // Higher-priority CLI/-e bindings remain intact and reject file appends.
+    fn read_command_evals(&mut self) -> Result<(), ()> {
+        if self.options.evals.is_empty() {
+            return Ok(());
+        }
+        let mut index = 0;
+        while let Some(bytes) = self.options.evals.get(index).cloned() {
+            index += 1;
+            let result = self.database.read_evaluated(
+                &bytes,
+                None,
+                runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
+                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
+            );
+            if let Err(error) = result {
+                self.fatal(error.source_location(), error.message.as_bytes());
+                return Err(());
+            }
+            if let Some(options) = self.flag_state.take() {
+                self.options = options;
+            }
+        }
+        let mut encoded = Vec::new();
+        for bytes in &self.options.evals {
+            if !encoded.is_empty() {
+                encoded.push(b' ');
+            }
+            encoded.extend_from_slice(b"--eval=");
+            if let Err(error) = crate::command_variables::quote(&mut encoded, bytes) {
+                self.expansion_error(None, &error);
+                return Err(());
+            }
+        }
+        if let Err(error) =
+            self.database
+                .variables
+                .define_literal(b"-*-eval-flags-*-", &encoded, Origin::Automatic)
+        {
+            self.expansion_error(None, &error);
+            return Err(());
+        }
+        Ok(())
+    }
+
+    fn initialize_makefile_list(&mut self) -> Result<(), ()> {
         if let Err(error) =
             self.database
                 .variables
                 .define_literal(b"MAKEFILE_LIST", b"", Origin::File)
         {
             self.expansion_error(None, &error);
+            return Err(());
+        }
+        Ok(())
+    }
+
+    fn run_inner(&mut self) -> u8 {
+        let mut found_makefile;
+        self.database.activate_runtime_metadata();
+        // The empty eval pass has no effects. Keep its old snapshot shape and
+        // avoid inserting a new name into a shared variable table afterward.
+        if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
             return 2;
         }
         let initial_database = self.database.clone();
@@ -1587,7 +1660,7 @@ impl Engine {
                     self.fatal(None, error.as_bytes());
                     return 2;
                 }
-                self.initial_flags = self.options.recursive_flags();
+                self.initial_flags = self.options.makeflags();
                 if self.command_replay {
                     self.initial_flags
                         .extend_from_slice(b" -- $(MAKEOVERRIDES)");
@@ -1643,6 +1716,24 @@ impl Engine {
             {
                 self.expansion_error(None, &error);
                 return 2;
+            }
+
+            if !self.options.evals.is_empty() {
+                let eval_entry_no_rules = self.options.no_rules;
+                if self.read_command_evals().is_err() {
+                    return 2;
+                }
+                if !eval_entry_no_rules && self.options.no_rules {
+                    self.database.remove_builtin_recipes();
+                }
+                if self.options.command_jobs.is_some() {
+                    self.options.command_jobs = self.options.jobs;
+                }
+                // Nonempty buffers precede MAKEFILE_LIST initialization on
+                // every pass; higher-priority CLI/-e bindings still prevail.
+                if self.initialize_makefile_list().is_err() {
+                    return 2;
+                }
             }
 
             let entry_no_rules = self.options.no_rules;
@@ -1770,6 +1861,12 @@ impl Engine {
             if self.read_runtime_flags(restarts).is_err() {
                 return 2;
             }
+            // GNU applies -R's implied -r after the post-read option decode,
+            // independently of the snapshots taken after initial eval buffers.
+            if self.options.no_variables && !self.options.no_rules {
+                self.options.no_rules = true;
+                self.flag_state.refresh(&self.options);
+            }
             if self.options.no_rules
                 && !entry_no_rules
                 && let Err(error) = self.database.disable_builtin_rules()
@@ -1840,7 +1937,7 @@ impl Engine {
                 .is_some_and(|value| !value.raw_value().is_empty())
             {
                 let raw = [
-                    self.options.recursive_flags(),
+                    self.options.makeflags(),
                     self.database.command_overrides_reference().to_vec(),
                 ]
                 .concat();
@@ -1885,7 +1982,7 @@ impl Engine {
                 self.expansion_error(None, &error);
                 return 2;
             }
-            let mut runtime_flags = self.options.recursive_flags();
+            let mut runtime_flags = self.options.makeflags();
             if self
                 .database
                 .variables

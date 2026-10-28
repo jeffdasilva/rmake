@@ -9,7 +9,7 @@ use rmake_core::variables::{Assignment, ExpandError, Flavor, MAX_OUTPUT, Origin,
 
 const SNAPSHOT: &[u8] = b"-*-command-variables-*-";
 
-fn quote(output: &mut Vec<u8>, input: &[u8]) -> Result<(), ExpandError> {
+pub(crate) fn quote(output: &mut Vec<u8>, input: &[u8]) -> Result<(), ExpandError> {
     for &byte in input {
         let escape = match byte {
             b'$' => Some(b'$'),

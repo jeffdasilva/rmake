@@ -9,6 +9,7 @@ use std::path::PathBuf;
 #[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
+    pub evals: Vec<Vec<u8>>,
     pub jobs: Option<usize>,
     pub command_jobs: Option<usize>,
     pub output_sync: Option<Vec<u8>>,
@@ -183,7 +184,7 @@ impl Options {
         for value in flags {
             Self::append_expanded_flags(&mut incoming, value)?;
         }
-        let incoming_options = Self::parse(incoming.clone())?;
+        let incoming_options = Self::parse_mode::<false>(incoming.clone())?;
         let mut arguments = Vec::new();
         Self::append_flags(&mut arguments, &self.recursive_flags())?;
         if self.jobserver_pipe {
@@ -192,9 +193,20 @@ impl Options {
         let prefix_count = arguments.len();
         let flag_word_count = incoming.len() + 1;
         arguments.extend(incoming);
-        let mut parsed = Self::parse(arguments)?;
+        let mut parsed = Self::parse_mode::<false>(arguments)?;
         for (position, _) in &mut parsed.assignment_context {
             *position = *position - prefix_count + 1;
+        }
+        if !self.evals.is_empty() {
+            let mut seen: std::collections::HashSet<_> = self.evals.iter().cloned().collect();
+            let mut evals = self.evals.clone();
+            evals.extend(
+                parsed
+                    .evals
+                    .into_iter()
+                    .filter(|value| seen.insert(value.clone())),
+            );
+            parsed.evals = evals;
         }
         parsed.flag_word_count = flag_word_count;
         // GNU only tracks origins for selected switches. Reconstructing the
@@ -231,8 +243,15 @@ impl Options {
     }
 
     pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Self, String> {
+        Self::parse_mode::<true>(args)
+    }
+
+    fn parse_mode<const BIG_R_IMPLIES_RULES: bool>(
+        args: impl IntoIterator<Item = OsString>,
+    ) -> Result<Self, String> {
         let args: Vec<Vec<u8>> = args.into_iter().map(OsString::into_vec).collect();
         let mut result = Self::default();
+        let mut evals_seen = std::collections::HashSet::new();
         let mut i = 0;
         let mut end_options = false;
         while i < args.len() {
@@ -262,7 +281,9 @@ impl Options {
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
                     b"--no-builtin-variables" => {
-                        result.no_rules = true;
+                        if BIG_R_IMPLIES_RULES {
+                            result.no_rules = true;
+                        }
                         Some(&mut result.no_variables)
                     }
                     _ => None,
@@ -346,6 +367,23 @@ impl Options {
                                 result.files.push(path);
                             }
                         }
+                        b"--eval" => {
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    args.get(i).cloned()
+                                })
+                                .ok_or("option '--eval' requires an argument")?;
+                            if value.is_empty() {
+                                return Err(
+                                    "the '--eval' option requires a non-empty string argument"
+                                        .into(),
+                                );
+                            }
+                            if evals_seen.insert(value.clone()) {
+                                result.evals.push(value);
+                            }
+                        }
                         b"--output-sync" => {
                             result.output_sync = Some(value.unwrap_or_else(|| b"target".to_vec()))
                         }
@@ -424,7 +462,9 @@ impl Options {
                         b'r' => result.no_rules = true,
                         b'R' => {
                             result.no_variables = true;
-                            result.no_rules = true;
+                            if BIG_R_IMPLIES_RULES {
+                                result.no_rules = true;
+                            }
                         }
                         b'O' => {
                             result.output_sync = Some(if j + 1 < arg.len() {
@@ -449,7 +489,7 @@ impl Options {
                                 value.map(|v| rmake_linux::process::load_number(&v));
                             break;
                         }
-                        option @ (b'f' | b'C' | b'j' | b'I') => {
+                        option @ (b'f' | b'C' | b'j' | b'I' | b'E') => {
                             let value = if j + 1 < arg.len() {
                                 arg[j + 1..].to_vec()
                             } else if option == b'j'
@@ -464,7 +504,17 @@ impl Options {
                                     format!("option requires an argument -- '{}'", option as char)
                                 })?
                             };
-                            if option == b'I' {
+                            if option == b'E' {
+                                if value.is_empty() {
+                                    return Err(
+                                        "the '-E' option requires a non-empty string argument"
+                                            .into(),
+                                    );
+                                }
+                                if evals_seen.insert(value.clone()) {
+                                    result.evals.push(value);
+                                }
+                            } else if option == b'I' {
                                 result.add_include_directory(OsString::from_vec(value).into())?;
                             } else if option == b'j' {
                                 result.jobs = Some(job_count(&value)?);
@@ -507,6 +557,14 @@ impl Options {
 
     /// Stored MAKEFLAGS is recursive: literal option dollars need one layer
     /// of make quoting, separate from its encoded command-variable reference.
+    pub fn makeflags(&self) -> Vec<u8> {
+        let mut flags = self.recursive_flags();
+        if !self.evals.is_empty() {
+            flags.extend_from_slice(b" $(-*-eval-flags-*-)");
+        }
+        flags
+    }
+
     pub fn recursive_flags(&self) -> Vec<u8> {
         let flags = self.flags();
         if !flags.contains(&b'$') {
@@ -918,5 +976,49 @@ mod tests {
         assert!(updated.trace);
         assert!(updated.ignore_errors);
         assert!(Options::parse([OsString::from("--trace=all")]).is_err());
+    }
+    #[test]
+    fn eval_arguments_deduplicate_bytes_and_survive_live_flags_without_entering_mflags() {
+        let options = Options::parse(
+            [
+                "-EX=one",
+                "--eval",
+                "X=two $X",
+                "--eval=X=one",
+                "-rR",
+                "--no-print-directory",
+            ]
+            .map(OsString::from),
+        )
+        .unwrap();
+        assert_eq!(options.evals, [b"X=one".to_vec(), b"X=two $X".to_vec()]);
+        assert_eq!(options.recursive_flags(), b"rR --no-print-directory");
+        assert_eq!(
+            options.makeflags(),
+            b"rR --no-print-directory $(-*-eval-flags-*-)"
+        );
+        let (updated, _) = options
+            .file_flags(&[b"--eval=X=three --eval=X=one -s".to_vec()])
+            .unwrap();
+        assert_eq!(
+            updated.evals,
+            [b"X=one".to_vec(), b"X=two $X".to_vec(), b"X=three".to_vec()]
+        );
+        assert!(updated.silent);
+    }
+    #[test]
+    fn runtime_big_r_defers_its_implied_rule_flag_until_the_post_read_phase() {
+        let startup = Options::parse([OsString::from("-R")]).unwrap();
+        assert!(startup.no_rules && startup.no_variables);
+        let (live, _) = Options::default()
+            .assigned_flags(&[b"-R".to_vec()], Origin::File)
+            .unwrap();
+        assert!(live.no_variables);
+        assert!(!live.no_rules);
+        assert_eq!(live.flags(), b"R");
+        let (explicit, _) = Options::default()
+            .assigned_flags(&[b"-Rr".to_vec()], Origin::File)
+            .unwrap();
+        assert!(explicit.no_rules && explicit.no_variables);
     }
 }
