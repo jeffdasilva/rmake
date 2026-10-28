@@ -35,3 +35,4 @@ tests/cases/reference-boundary-*/Makefile -text whitespace=-blank-at-eol,-blank-
 # Safety evidence and valid boundary controls retain their original input bytes.
 tests/safety/cases/*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/safety-control-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/late-builtins-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

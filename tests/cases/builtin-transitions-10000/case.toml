@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "builtin-transitions-10000"
+requirement = "performance.builtin-transitions"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Observe both startup defaults and successful late -R cleanup with unused user declarations."
+provenance = "Original output-checked benchmark; explicit expected bytes/status matched two GNU observations and both correct candidate implementations."
+
+[expected]
+exit_code = 0
+stdout_hex = "6265666f72653d64656661756c742f64656661756c740a61667465723d756e646566696e65642f756e646566696e65642f64656661756c742f300a"
+stderr_hex = ""

@@ -2352,3 +2352,25 @@ ordinary open research, without safety exemptions. The complete M3/M6 inventory,
 profiles/native integration and general speed parity are still open. Frozen
 101-sample paired benchmark reports retain mixed small differences; GNU remains
 faster on the standard graph/expansion workloads. No semantic cache is added.
+
+## M3/M6 late built-in transitions
+
+[Late -r/-R cleanup](late-builtins.md) now reconciles newly disabled built-ins
+once after reading: remove default-priority compiler variables and their export
+policies, clear untouched suffix metadata, and remove still-built-in suffix
+recipes while preserving user definitions. Reader snapshots, secondary/recipe
+phases, stronger origins, POSIX defaults and original restart restoration remain
+distinct. Cleanup visits fixed tables instead of scanning the arbitrary graph.
+
+204 new semantic cases include 24 child-environment controls; the preceding
+release fails 93. Three output-checked scaling fixtures bring the curated corpus
+to 9,273 required ordinary cases, no ordinary pending entries, and 17 separate
+safe-error exceptions. Totals are 447 Rust / 372 tooling tests. Full acceptance
+and exact-head CI remain merge gates. The compatibility inventory remains
+incomplete; M3/M6 are open.
+
+In 101 alternating samples the 10,000-unused-declaration cleanup median was
+14.491 ms versus 15.016 ms for the correctness-equivalent scanning prototype and
+6.639 ms for GNU. This removes graph-wide cleanup work but establishes neither
+statistical improvement nor general speed parity. Raw paired common-workload
+reports retain mixed differences; GNU remains faster on standard workloads.

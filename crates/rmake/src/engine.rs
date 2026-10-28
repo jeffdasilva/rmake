@@ -1608,6 +1608,8 @@ impl Engine {
                 return 2;
             }
 
+            let entry_no_rules = self.options.no_rules;
+            let entry_no_variables = self.options.no_variables;
             self.flag_entry_jobs = self.options.jobs;
             self.flag_state.refresh(&self.options);
             let startup_found = match self.read_startup_makefiles() {
@@ -1726,6 +1728,16 @@ impl Engine {
             }
             if self.read_runtime_flags(restarts).is_err() {
                 return 2;
+            }
+            if self.options.no_rules
+                && !entry_no_rules
+                && let Err(error) = self.database.disable_builtin_rules()
+            {
+                self.expansion_error(None, &error);
+                return 2;
+            }
+            if self.options.no_variables && !entry_no_variables {
+                self.database.disable_builtin_variables();
             }
             if restarts == 0
                 && let Some(authentication) = &self.options.sync_mutex
