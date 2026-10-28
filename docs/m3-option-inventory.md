@@ -10,7 +10,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-B`, `-e`, `-i`, `-k`, `-L`, `-n`, `-q`, `-r`, `-R`, `-s`, `-S`, `-t` and aliases | Decoding/runtime slices implemented and exercised; full startup ordering and malformed-option matrix remain open. |
 | `-h`/`--help`, `-v`/`--version` | Deliberately distinct branding/help. Early-exit interactions and malformed-option usage behavior still need acceptance. |
 | `-C`/`--directory`, `-f`/`--file`/`--makefile` | Direct CLI support plus restart namespace slice. Well-formed startup inherited flags are covered by the profile-input slice. Command-variable flag payload startup order, duplicate/expanded paths, usage errors and true self-exec remain open. |
-| `-I`/`--include-dir` | Include search and assignment phase slices exist. Full combined ordering/filename matrix remains open. |
+| `-I`/`--include-dir` | Include search and assignment phase slices exist. [Ordered explicit startup](ordered-cli-startup.md) adds argument-position, tilde/effect and duplicate-operand controls. Complete combined ordering/filename acceptance remains open. |
 | `-j`/`--jobs`, `-l`/`--load-average`/`--max-load`, `-O`/`--output-sync` | Local scheduling/load/output gates implemented; all unrelated option interactions remain part of M3. |
 | `--jobserver-auth`, `--jobserver-fds`, `--jobserver-style`, `--sync-mutex` | Linux transport/authentication slices and gates exist; lifecycle must survive actual self-exec and native integrations. |
 | `--no-silent`, `--no-keep-going`, `--stop` | Negative spellings, origins and recursive propagation implemented; full startup inventory remains open. |

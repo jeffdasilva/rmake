@@ -47,17 +47,11 @@ fn main() -> ExitCode {
         }
     };
     let options = &launch.options;
-    if options.version {
-        println!("rmake {}", env!("CARGO_PKG_VERSION"));
-        println!(
-            "GNU Make {} compatibility target (implementation incomplete)",
-            rmake_core::COMPATIBILITY_VERSION
-        );
-        println!("License GPLv3+: GNU GPL version 3 or later.");
-        println!("This is free software; there is no warranty.");
-        return ExitCode::SUCCESS;
-    }
     if options.help {
+        if options.version {
+            print_version();
+            println!();
+        }
         println!("Usage: rmake [OPTIONS] [TARGETS]");
         println!("  --help     Show this help");
         println!("  --version  Show rmake version and compatibility target");
@@ -80,6 +74,10 @@ fn main() -> ExitCode {
         println!("Complete runtime compatibility remains unfinished.");
         return ExitCode::SUCCESS;
     }
+    if options.version {
+        print_version();
+        return ExitCode::SUCCESS;
+    }
     let status = match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
         Ok(engine) => engine.run(),
         Err(message) => {
@@ -95,4 +93,15 @@ fn main() -> ExitCode {
     };
     drop(signals);
     ExitCode::from(rmake_linux::signals::exit_status(status))
+}
+
+/// Branding is deliberately distinct; exit-phase ordering is still semantic.
+pub(crate) fn print_version() {
+    println!("rmake {}", env!("CARGO_PKG_VERSION"));
+    println!(
+        "GNU Make {} compatibility target (implementation incomplete)",
+        rmake_core::COMPATIBILITY_VERSION
+    );
+    println!("License GPLv3+: GNU GPL version 3 or later.");
+    println!("This is free software; there is no warranty.");
 }

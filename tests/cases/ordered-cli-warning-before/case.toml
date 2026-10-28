@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "ordered-cli-warning-before"
+requirement = "cli.ordered-startup"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "--warn-undefined-variables", "A:=$(MISSING)"]
+timeout_seconds = 5
+description = "Original ordered explicit startup, early metadata, filename, output or restart control."
+provenance = "Independent exact models checked against two bounded pinned GNU observations and the candidate; source-informed model refinements retained during development. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "413d5b5d0a"
+stderr_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"

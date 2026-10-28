@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "ordered-cli-goal-command-binding"
+requirement = "cli.ordered-startup"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "MAKECMDGOALS=own", "one", "A:=$(MAKECMDGOALS)", "two", "B:=$(MAKECMDGOALS)"]
+timeout_seconds = 5
+description = "Original ordered explicit startup, early metadata, filename, output or restart control."
+provenance = "Independent exact models checked against two bounded pinned GNU observations and the candidate; source-informed model refinements retained during development. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "413d5b6f776e5d20423d5b6f776e5d0a"
+stderr_hex = ""

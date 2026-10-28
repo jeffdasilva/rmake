@@ -303,3 +303,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Ordered startup replay](docs/startup-replay.md) now reconstructs pre-assignment state for CLI effects after Makefile remaking, including fresh reads, computed names, warnings and recursive snapshots. Broader M3/M6 acceptance remains open.
 
 [Initial inherited flag expansion](docs/initial-flag-expansion.md) now evaluates variable/function effects before token decoding, transfers prepared state into startup, and repeats early effects on restart. M3/M6 remain open.
+
+[Ordered explicit CLI startup](docs/ordered-cli-startup.md) adds 126 semantic and two scaling controls, a 128-cell exit-phase gate and 42 interruption cells. Full GNU compatibility and performance parity remain open.

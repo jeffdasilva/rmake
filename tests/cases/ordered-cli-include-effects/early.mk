@@ -1,0 +1,2 @@
+V=included
+$(warning INCLUDED)

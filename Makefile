@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -75,6 +75,7 @@ help:
 		'  test-stateful   Compare incremental builds and timestamp boundaries' \
 		'  test-graph-progress Stress repeated parallel barriers, groups and aliases' \
 		'  test-runtime-signals Compare Linux signals, shutdown and token recovery' \
+		'  test-startup-exits Compare early exit effects and cosmetic banner ordering' \
 		'  test-runtime-effects Compare cancellation, lock waits and inherited PTYs' \
 		'  test-output-sync Compare grouping, mutexes and mixed recursive output' \
 		'  test-load       Compare controlled Linux runnable-load and fallback profiles' \
@@ -155,6 +156,10 @@ test-runtime-signals: build oracle-verify
 	$(PYTHON) tools/runtime_signals.py --oracle "$(ORACLE)" --self-test --repeat "$(SIGNAL_REPEAT)" $(if $(SIGNAL_CASE),--case "$(SIGNAL_CASE)") $(if $(filter 1,$(SIGNAL_UNSTAGED)),--unstaged)
 	$(PYTHON) tools/runtime_signals.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --repeat "$(SIGNAL_REPEAT)" $(if $(SIGNAL_CASE),--case "$(SIGNAL_CASE)") $(if $(filter 1,$(SIGNAL_UNSTAGED)),--unstaged)
 
+test-startup-exits: build oracle-verify
+	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --self-test
+	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
+
 test-runtime-effects: build oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
@@ -215,6 +220,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/output_lock.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/runtime_terminals.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/output_sync.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
@@ -287,9 +293,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
 ci: check test-selfhost
 
