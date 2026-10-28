@@ -48,6 +48,50 @@ impl Database {
         Ok(())
     }
 
+    /// A newly selected -R removes only the pinned default-variable names at
+    /// default priority. Runtime metadata and stronger user definitions survive.
+    pub fn disable_builtin_variables(&mut self) {
+        for line in VARIABLES.split(|byte| *byte == b'\n') {
+            if let Some(spec) = assignment(line)
+                && self.variables.undefine(spec.name, Origin::Default)
+            {
+                self.exports.remove(spec.name);
+                self.unexports.remove(spec.name);
+            }
+        }
+    }
+
+    /// Remove still-built-in suffix recipes before conversion after late -r.
+    /// Explicit user recipes/dependencies remain ordinary user declarations.
+    pub fn disable_builtin_rules(&mut self) -> Result<(), ExpandError> {
+        if let Some(rule) = self.rules.get_mut(b".SUFFIXES".as_slice())
+            && rule.record_only
+        {
+            rule.dependencies.clear();
+        }
+        // The source table is bounded independently of the user's graph. Its
+        // set equality with the pinned declarative recipes is tested below.
+        for name in SUFFIX_RECORD_ORDER.split(|byte| *byte == b' ') {
+            let Some(rule) = self.rules.get_mut(name) else {
+                continue;
+            };
+            let builtin = rule.recipes.as_ref().is_some_and(|recipes| {
+                !recipes.is_empty()
+                    && recipes.iter().all(|recipe| {
+                        recipe.location.line == 0 && recipe.location.file.as_ref() == b"<builtin>"
+                    })
+            });
+            if builtin {
+                rule.recipes = None;
+                if rule.record_only {
+                    self.rules.remove(name);
+                }
+            }
+        }
+        self.variables
+            .define_literal(b"SUFFIXES", b"", Origin::Default)
+    }
+
     pub fn initialize_builtin_rules(&mut self) -> Result<(), ParseError> {
         let mut defaults = Self::default();
         defaults.read(SUFFIX_RULES, b"<builtin>")?;
@@ -168,6 +212,49 @@ impl Database {
 mod record_order_tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn disabled_default_variables_preserve_metadata_user_values_and_remove_export_policy() {
+        let mut db = Database::default();
+        db.initialize_builtin_variables().unwrap();
+        db.variables
+            .define_literal(b".FEATURES", b"feature", Origin::Default)
+            .unwrap();
+        db.variables
+            .define_literal(b".SHELLFLAGS", b"-c", Origin::Default)
+            .unwrap();
+        db.variables
+            .define_literal(b"CXX", b"user", Origin::File)
+            .unwrap();
+        db.read(b"export CC\n", b"m").unwrap();
+        db.disable_builtin_variables();
+        assert!(db.variables.get(b"CC").is_none());
+        assert!(!db.exports.contains(b"CC".as_slice()));
+        assert_eq!(db.variables.get(b"CXX").unwrap().raw_value(), b"user");
+        assert_eq!(
+            db.variables.get(b".FEATURES").unwrap().raw_value(),
+            b"feature"
+        );
+        assert_eq!(db.variables.get(b".SHELLFLAGS").unwrap().raw_value(), b"-c");
+    }
+
+    #[test]
+    fn disabled_default_rules_preserve_user_suffix_declarations_and_recipes() {
+        let mut db = Database::default();
+        db.initialize_suffixes(true).unwrap();
+        db.initialize_builtin_rules().unwrap();
+        db.read(
+            b".SUFFIXES: .custom\n.c.o:;@custom\n.f.o: user-dependency\n",
+            b"m",
+        )
+        .unwrap();
+        db.disable_builtin_rules().unwrap();
+        assert!(!db.rules[b".SUFFIXES".as_slice()].dependencies.is_empty());
+        assert_eq!(db.variables.get(b"SUFFIXES").unwrap().raw_value(), b"");
+        assert!(db.rules[b".c.o".as_slice()].recipes.is_some());
+        assert!(db.rules[b".f.o".as_slice()].recipes.is_none());
+        assert!(!db.rules.contains_key(b".p.o".as_slice()));
+    }
 
     #[test]
     fn late_default_record_names_match_the_pinned_declarative_rules() {

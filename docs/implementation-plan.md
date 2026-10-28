@@ -41,6 +41,10 @@ include immediate assignment effects, post-read replay and restart restoration.
 recipe/runtime gates, including safe borrowed-token recovery. Persistent caching remains deferred to its
 correctness design and acceptance gate.
 
+[Late built-in disabling](late-builtins.md) now covers the post-read `-r`/`-R`
+transition, origin/suffix preservation and restart-phase controls. Its cleanup
+visits fixed tables; full startup, self-exec and option inventory remain open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

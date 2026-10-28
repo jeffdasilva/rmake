@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "late-builtins-suffix-r-untouched-prerequisite"
+requirement = "cli.builtin-transitions"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Original late built-in disabling, origin, suffix and phase comparison with semantic assertions."
+provenance = "Original Makefile and owned compiler observer; two GNU Make 4.4.1 runs, raw candidate comparison and independent status/phase/origin/effect anchors. No upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202770726f62652e6f272c206e65656465642062792027616c6c272e202053746f702e0a"

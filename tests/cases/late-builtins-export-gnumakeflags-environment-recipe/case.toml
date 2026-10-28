@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "late-builtins-export-gnumakeflags-environment-recipe"
+requirement = "cli.builtin-transitions"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Late -R destroys only a deleted default binding export policy, preserving stronger origins and new-value behavior."
+provenance = "Original source with explicit child-environment byte/status assertions, two GNU observations and candidate comparison. No upstream test or implementation copied."
+
+[environment]
+"CC" = "ENV"
+
+[expected]
+exit_code = 0
+stdout_hex = "656e763d5b41465445525d0a"
+stderr_hex = ""
