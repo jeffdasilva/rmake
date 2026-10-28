@@ -371,6 +371,16 @@ fn startup_makelevel(value: &[u8]) -> u32 {
     if value.first() == Some(&b'-') {
         return 0;
     }
+    startup_unsigned(value)
+}
+
+/// Imported restart markers affect directory reporting; the public binding
+/// excludes that marker while its original environment bytes remain owned.
+fn startup_restart_value(value: &[u8]) -> &[u8] {
+    value.strip_prefix(b"-").unwrap_or(value)
+}
+
+fn startup_unsigned(value: &[u8]) -> u32 {
     // Rust's ASCII whitespace deliberately excludes vertical tab; GNU's C
     // whitespace includes it, including mixed runs with other whitespace.
     let value = &value[value
@@ -774,7 +784,7 @@ impl Engine {
                 .map_err(InvocationError::Options);
         }
         let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags);
-        plan.decode(None)
+        Box::new(plan).decode(None)
     }
 }
 
@@ -928,19 +938,27 @@ impl Engine {
                     database.variables.set_export_policy(name, Some(false));
                     continue;
                 }
+                let imported_value = if name == b"MAKE_RESTARTS" {
+                    startup_restart_value(value.as_bytes())
+                } else {
+                    value.as_bytes()
+                };
                 database
                     .variables
                     .define(
                         name,
-                        value.as_bytes(),
+                        imported_value,
                         Assignment::Recursive,
                         Origin::Environment,
                     )
                     .map_err(|e| e.diagnostic())?;
                 // Imported export policy belongs to this binding. Ordinary
                 // reassignment retains it; undefine destroys it with the binding.
-                database.variables.set_export_policy(name, Some(true));
-                inherited_exports.insert(name.to_vec());
+                let exported = name != b"MAKE_RESTARTS";
+                database.variables.set_export_policy(name, Some(exported));
+                if exported {
+                    inherited_exports.insert(name.to_vec());
+                }
             }
         }
         for (name, descriptor) in [
@@ -1619,10 +1637,15 @@ impl Engine {
         }
         let mut initial_database = (self.startup_snapshot.is_none() && self.initial_plan.is_none())
             .then(|| self.database.clone());
-        let mut restarts = 0_u32;
+        let mut iterations = 0_u32;
+        let mut restarts = startup_unsigned(startup_restart_value(
+            std::env::var_os("MAKE_RESTARTS")
+                .as_deref()
+                .map_or(b"".as_slice(), OsStrExt::as_bytes),
+        ));
         let mut stdin_bytes = None;
         loop {
-            if restarts > 0 && self.initial_plan.is_some() {
+            if iterations > 0 && self.initial_plan.is_some() {
                 let plan = self.initial_plan.take().expect("initial invocation");
                 self.jobserver.take();
                 self.output.select(None);
@@ -1637,28 +1660,33 @@ impl Engine {
                         return 2;
                     }
                 }
+                let restart_program = plan.program.clone();
+                let restart_invocation = plan.invocation.clone();
                 let launch = match plan.decode(Some((restarts, self.makelevel))) {
                     Ok(launch) => launch,
                     Err(error) => {
-                        initial::emit_error(&plan.program, error);
+                        initial::emit_error(&restart_program, error);
                         return 2;
                     }
                 };
-                let mut next =
-                    match Self::from_invocation(launch, plan.program.clone(), &plan.invocation) {
-                        Ok(next) => next,
-                        Err(error) => {
-                            initial::emit_error(&plan.program, InvocationError::Expansion(error));
-                            return 2;
-                        }
-                    };
+                let mut next = match Self::from_invocation(
+                    launch,
+                    restart_program.clone(),
+                    &restart_invocation,
+                ) {
+                    Ok(next) => next,
+                    Err(error) => {
+                        initial::emit_error(&restart_program, InvocationError::Expansion(error));
+                        return 2;
+                    }
+                };
                 next.database.activate_runtime_metadata();
                 if next.options.evals.is_empty() && next.initialize_makefile_list().is_err() {
                     return 2;
                 }
                 *self = next;
                 initial_database = None;
-            } else if restarts > 0 {
+            } else if iterations > 0 {
                 let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
                 self.jobserver.take();
                 self.output.select(None);
@@ -1797,6 +1825,9 @@ impl Engine {
                             Origin::Environment,
                         )
                         .expect("bounded restart count");
+                    self.database
+                        .variables
+                        .set_export_policy(b"MAKE_RESTARTS", Some(false));
                 }
                 self.done.clear();
                 self.intermediates.clear();
@@ -1819,7 +1850,7 @@ impl Engine {
                 self.double_colon_before.clear();
                 self.optional_remake_failures.clear();
             }
-            if restarts > 0
+            if iterations > 0
                 && let Err(error) = self.database.variables.define(
                     b"MAKEFLAGS",
                     &self.initial_flags,
@@ -1990,7 +2021,7 @@ impl Engine {
             if self.options.no_variables && !entry_no_variables {
                 self.database.disable_builtin_variables();
             }
-            if restarts == 0
+            if iterations == 0
                 && let Some(authentication) = &self.options.sync_mutex
                 && let Err(error) = self.output.decode_mutex(authentication)
             {
@@ -2344,8 +2375,9 @@ impl Engine {
             }
             if changed {
                 self.remove_intermediates();
-                restarts += 1;
-                if restarts > 128 {
+                restarts = restarts.wrapping_add(1);
+                iterations += 1;
+                if iterations > 128 {
                     self.fatal(None, b"rmake: makefile restart limit exceeded");
                     return 2;
                 }

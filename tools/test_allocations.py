@@ -58,6 +58,28 @@ class AllocationProfileTests(unittest.TestCase):
                 self.assertEqual(report['workload'], workload)
                 self.assertTrue((output / 'report.json').is_file())
 
+    def test_effect_profiles_keep_required_arguments_environment_and_output_anchors(self):
+        for workload in ('startup-effects-1000','initial-flags-1000'):
+            case=allocations.conformance.load_case(allocations.ROOT/'tests/cases'/workload)
+            expected=bytes.fromhex(case.expected['stdout_hex'])
+            for broken in (False,True):
+                with self.subTest(workload=workload,broken=broken), tempfile.TemporaryDirectory() as temporary:
+                    output=Path(temporary)
+                    def command(argv,**kwargs):
+                        if argv[0]=='cc':return subprocess.CompletedProcess(argv,0,b'',b'')
+                        self.assertEqual(tuple(argv[1:]),case.args)
+                        for name,value in case.environment.items():self.assertEqual(kwargs['env'][name],value)
+                        Path(kwargs['env']['RMAKE_ALLOC_TRACE']).write_text('summary calls=1 requested_bytes=2 frees=1\n')
+                        return subprocess.CompletedProcess(argv,0,expected.replace(b'value500',b'WRONG') if broken else expected,b'')
+                    with mock.patch.object(allocations.conformance,'executable_identity',return_value={'path':'/candidate','sha256':'test'}), mock.patch.object(allocations.subprocess,'run',side_effect=command), contextlib.redirect_stdout(io.StringIO()):
+                        if broken:
+                            with self.assertRaises(ValueError):allocations.run(Path('/candidate'),workload,output)
+                            self.assertFalse((output/'report.json').exists())
+                        else:
+                            report=allocations.run(Path('/candidate'),workload,output)
+                            self.assertEqual(report['arguments'],list(case.args))
+                            self.assertEqual(report['environment'],case.environment)
+
     def test_empty_process_and_missing_executable_frames_are_distinct(self):
         summary, samples = allocations.parse_trace('summary calls=0 requested_bytes=0 frees=0\n')
         self.assertEqual(summary['calls'], 0)

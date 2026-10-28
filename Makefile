@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -11,6 +11,8 @@ CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
 PROFILE_WORKLOAD ?= large-noop
+PROFILE_CANDIDATE ?= $(CURDIR)/artifacts/profile/target/release/rmake
+PROFILE_OUTPUT ?= $(CURDIR)/artifacts/profile/allocations
 BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
 BENCH_BASELINE ?=
@@ -86,6 +88,7 @@ help:
 		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  bench           Record original GNU oracle workload baselines' \
 		'  profile-allocations  Sample allocation requests in an isolated profile build' \
+		'  profile-allocations-frozen Profile a frozen PROFILE_CANDIDATE with exact output checks' \
 		'  bench-compare   Compare release rmake and GNU with paired timings' \
 		'  check / ci      Run all current development gates' \
 		'  clean           Remove Cargo build output' \
@@ -304,7 +307,10 @@ bench: oracle-verify
 
 profile-allocations:
 	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
-	$(PYTHON) tools/allocations.py --candidate "$(CURDIR)/artifacts/profile/target/release/rmake" --workload "$(PROFILE_WORKLOAD)"
+	$(PYTHON) tools/allocations.py --candidate "$(CURDIR)/artifacts/profile/target/release/rmake" --workload "$(PROFILE_WORKLOAD)" --output "$(PROFILE_OUTPUT)"
+
+profile-allocations-frozen:
+	$(PYTHON) tools/allocations.py --candidate "$(PROFILE_CANDIDATE)" --workload "$(PROFILE_WORKLOAD)" --output "$(PROFILE_OUTPUT)"
 
 
 bench-compare: release oracle-verify

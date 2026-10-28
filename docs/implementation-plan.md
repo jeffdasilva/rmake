@@ -240,3 +240,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Initial inherited flag expansion](initial-flag-expansion.md) adds 111 semantic and two output-checked scaling cases, plus 42 staged runtime interruption cells. Source ordering, owned transfer and iterative restart preparation are implemented without changing M3/M6 exit criteria.
 
 [Ordered explicit CLI startup](ordered-cli-startup.md) adds typed decoder effects before directory/metadata initialization, with 126 semantic and two scaling controls. A 128-cell exit-phase gate and 42 staged interruption cells retain exact behavior around cosmetic help/version blocks. M3/M6 criteria remain unchanged.
+
+[Imported restart state](restart-state.md) separates the GNU process counter from in-process rereads, retains binding export policy, and transfers original startup inputs without copying them a second time. It adds 214 counter/policy and eight activation controls. Directory-marker research and full M3/M6 criteria remain open.

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "restart-state-n00-direct-pipe"
+requirement = "startup.restart-state"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+description = "Original imported counter, startup reconstruction, export-policy or special-activation control."
+provenance = "Independent source-informed exact models and intended file effects checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKE_RESTARTS" = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "523d5b5d20413d5b5d0a523d5b315d20413d5b5d0a"
+stderr_hex = ""

@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "early-flags-inactive-eval-simple"
+requirement = "cli.early-flag-activation"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "A:=$(eval MAKEFLAGS:=s)$(findstring s,$(MFLAGS))"]
+timeout_seconds = 5
+description = "Original imported counter, startup reconstruction, export-policy or special-activation control."
+provenance = "Independent source-informed exact models and intended file effects checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "413d5b5d0a"
+stderr_hex = ""

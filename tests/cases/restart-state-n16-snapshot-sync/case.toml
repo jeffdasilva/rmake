@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "restart-state-n16-snapshot-sync"
+requirement = "startup.restart-state"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j2", "-Otarget", "A="]
+timeout_seconds = 5
+description = "Original imported counter, startup reconstruction, export-policy or special-activation control."
+provenance = "Independent source-informed exact models and intended file effects checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKE_RESTARTS" = " \u000b+2xx"
+"GNUMAKEFLAGS" = "--warn-undefined-variables"
+
+[expected]
+exit_code = 0
+stdout_hex = "523d5b200b2b3278785d20413d5b5d0a523d5b335d20413d5b5d0a"
+stderr_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d414b45464c414753270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d414b45464c414753270a"
