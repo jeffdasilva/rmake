@@ -27,3 +27,7 @@ tests/cases/qualified-define-*/Makefile -text whitespace=-blank-at-eol,-blank-at
 
 # Built-in command data preserves observable spaces before recipe newlines.
 crates/rmake-core/data/*.mk -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Profile/reference fixtures preserve byte names and significant trailing spaces.
+tests/cases/guile-disabled-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/reference-boundary-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

@@ -58,10 +58,6 @@ impl Options {
             Self::append_flags(&mut combined, flags.as_bytes())?;
         }
         let inherited_options = Self::parse(combined.clone())?;
-        // Inspect parsed options: an -I argument can itself contain f or C.
-        if !inherited_options.files.is_empty() || !inherited_options.directories.is_empty() {
-            return Err("inherited file/directory options are not implemented".into());
-        }
         let inherited = inherited_options.jobs;
         let args: Vec<_> = args.into_iter().collect();
         let explicit_options = Self::parse(args.clone())?;
@@ -171,9 +167,6 @@ impl Options {
             Self::append_expanded_flags(&mut incoming, value)?;
         }
         let incoming_options = Self::parse(incoming.clone())?;
-        if !incoming_options.files.is_empty() || !incoming_options.directories.is_empty() {
-            return Err("file/directory switches in make flags are not implemented".into());
-        }
         let mut arguments = Vec::new();
         Self::append_flags(&mut arguments, &self.recursive_flags())?;
         if self.jobserver_pipe {
@@ -845,7 +838,8 @@ mod tests {
         let options =
             Options::with_environment([], Some("-Iconfig -IConfig".into()), None).unwrap();
         assert_eq!(options.include_directories.len(), 2);
-        assert!(Options::with_environment([], Some("-fconfig".into()), None).is_err());
+        let inherited_file = Options::with_environment([], Some("-fconfig".into()), None).unwrap();
+        assert_eq!(inherited_file.files, [PathBuf::from("config")]);
         let non_utf8 = Options::parse([OsString::from_vec(b"-I\xff".to_vec())]).unwrap();
         assert_eq!(non_utf8.flags(), b" -I\xff");
     }

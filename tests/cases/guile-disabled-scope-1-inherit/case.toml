@@ -1,0 +1,11 @@
+id = "guile-disabled-scope-1-inherit"
+requirement = "profiles.guile-disabled"
+candidate = "required"
+args = ["--no-print-directory", "-r"]
+timeout_seconds = 15
+provenance = "Original valid computed-name assignments, Guile-free lookups, effects and scopes. Two raw GNU Make 4.4.1 observations, final prototype comparison and preceding-candidate control; no output normalization or upstream test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d5b504152454e543a4152475d0a706172656e743d5b504152454e543a4152475d0a6f746865723d5b474c4f42414c3a4152475d0a"
+stderr_hex = ""

@@ -1,0 +1,11 @@
+id = "guile-disabled-2-name-effect-restart"
+requirement = "profiles.guile-disabled"
+candidate = "required"
+args = ["--no-print-directory", "-R"]
+timeout_seconds = 15
+provenance = "Original valid computed-name assignments, Guile-free lookups, effects and scopes. Two raw GNU Make 4.4.1 observations, final prototype comparison and preceding-candidate control; no output normalization or upstream test code copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "666561747572653d5b5d0a6e616d652d6566666563740a726573746172743d5b5d20726573756c743d5b464f554e445d0a666561747572653d5b5d0a6e616d652d6566666563740a726573746172743d5b315d20726573756c743d5b464f554e445d0a"
+stderr_hex = ""

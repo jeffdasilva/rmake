@@ -1,0 +1,11 @@
+id = "flag-path-file-3-gnumakeflags-override-both"
+requirement = "cli.flag-paths"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 15
+provenance = "Original startup/profile/reference Makefiles; two raw pinned GNU Make 4.4.1 observations, final prototype comparison and preceding-candidate control. No upstream test code copied or output normalization."
+
+[expected]
+exit_code = 0
+stdout_hex = "70686173653d5b5d20666c6167733d5b202d2d6e6f2d7072696e742d6469726563746f72795d20676e753d5b2d43206e657665722d656e746572202d66206e657665722d726561642e6d6b5d2066696c65733d5b4d616b6566696c655d0a70686173653d5b5d20666c6167733d5b202d2d6e6f2d7072696e742d6469726563746f72795d20676e753d5b5d2066696c65733d5b4d616b6566696c655d0a"
+stderr_hex = ""
