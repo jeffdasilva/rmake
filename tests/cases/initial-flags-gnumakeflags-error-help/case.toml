@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-gnumakeflags-error-help"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory", "--help"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "$(error EARLY)rR"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204541524c592e202053746f702e0a"

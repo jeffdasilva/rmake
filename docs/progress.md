@@ -2473,3 +2473,7 @@ open. See [the evidence and boundaries](cli-assignment-effects.md).
 ## Ordered startup assignment replay — 2026-10-28
 
 Constructor and restart now share ordered CLI preparation, restoring pre-assignment state for effects, conditional priority, computed names, fresh includes/reads and winning recursive snapshots. The exact historical CLI eval file-effect mismatch is now required. 67 semantic controls and two output-checked scaling cases bring the ordinary corpus to 10,247 required / zero pending, with 17 separate safety exceptions. Full self-exec, broader startup and M3/M6 acceptance remain open. See [evidence and boundaries](startup-replay.md).
+
+## Initial inherited flag expansion — 2026-10-28
+
+MAKEFLAGS/GNUMAKEFLAGS expansion now uses the complete early database context before option decoding. Source effects, assignments, includes and export policies transfer into construction once; an owned invocation plan repeats the initial phase on Makefile restart. 111 semantic cases and two output-checked scaling cases bring the ordinary corpus to 10,360 required / zero pending. 42 initial interruption cells extend the runtime gate; 17 safe-error exceptions remain separate. [Evidence and limits](initial-flag-expansion.md) retain full M3/M6 startup/decoder/profile work.

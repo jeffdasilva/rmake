@@ -123,6 +123,7 @@ impl Snapshot {
                 filesystem,
                 warnings: &warnings,
             },
+            Seed::default(),
         )?;
         Ok(Replayed {
             database,
@@ -145,24 +146,35 @@ pub(super) struct Replayed {
     pub(super) setup: Setup,
 }
 
+#[derive(Default)]
+pub(super) struct Seed {
+    pub(super) commands: Vec<Vec<u8>>,
+    pub(super) assignments: usize,
+    pub(super) includes: usize,
+}
+
 pub(super) fn prepare(
     database: &mut Database,
     options: &mut Options,
     inherited_exports: &mut HashSet<Vec<u8>>,
     runtime: Runtime<'_>,
+    seed: Seed,
 ) -> Result<Setup, StartupError> {
     let mut emit = |event: Output<'_>| emit_output(runtime.output, runtime.program, event);
     let mut startup_output = WarningOutput::new(&mut emit, runtime.warnings);
     database
         .variables
         .set_export_policy(b"MAKEFLAGS", Some(true));
-    let mut command_names = Vec::new();
-    let mut seen_commands = HashSet::new();
+    let mut command_names = seed.commands;
+    let mut seen_commands: HashSet<_> = command_names.iter().cloned().collect();
     let mut next_include = 0;
     for index in 0..=options.assignments.len() {
         while options.include_assignment_positions.get(next_include) == Some(&index) {
             let directory = &mut options.include_directories[next_include];
             next_include += 1;
+            if next_include <= seed.includes {
+                continue;
+            }
             *directory = crate::makefiles::prepare_argument(
                 directory.as_os_str().as_bytes(),
                 &mut database.variables,
@@ -185,6 +197,9 @@ pub(super) fn prepare(
         let Some(arg) = options.assignments.get(index) else {
             break;
         };
+        if index < seed.assignments {
+            continue;
+        }
         let name = database
             .define_argument_with(
                 arg,

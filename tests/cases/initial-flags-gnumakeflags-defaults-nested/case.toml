@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-gnumakeflags-defaults-nested"
+requirement = "cli.initial-expansion"
+candidate = "required"
+args = ["--no-print-directory"]
+timeout_seconds = 5
+description = "Original initial inherited expansion, ordering, effect, metadata, byte or lifecycle control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"KEY" = "PRESET"
+"PRESET" = ""
+"GNUMAKEFLAGS" = "$($(KEY))"
+
+[expected]
+exit_code = 0
+stdout_hex = "46494c453d5b64656661756c745d2f5b5d0a"
+stderr_hex = ""

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "initial-flags-0"
+requirement = "performance.initial-flags"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+description = "Observe every inherited eager binding and literal dollar sentinel."
+provenance = "Independently modeled exact stdout, status and every side binding; a middle-value mutation must fail. No upstream source or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "rR FLAG=$$"
+
+[expected]
+exit_code = 0
+stdout_hex = "73656e74696e656c3d5b245d0a76616c7565733d5b5d0a6d616b653a2027616c6c2720697320757020746f20646174652e0a"
+stderr_hex = ""

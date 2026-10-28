@@ -12,7 +12,7 @@ import runtime_terminals as terminals
 class RuntimeEffectTests(unittest.TestCase):
     def test_effect_inventory_covers_every_phase_signal_and_buffering_mode(self):
         cells=effects.inventory()
-        self.assertEqual(len(cells),294)
+        self.assertEqual(len(cells),336)
         self.assertEqual(len({c.id for c in cells}),len(cells))
         self.assertEqual({c.phase for c in cells},set(effects.PHASES))
         self.assertEqual({c.number for c in cells},set(effects.SIGNALS))
@@ -31,6 +31,16 @@ class RuntimeEffectTests(unittest.TestCase):
         buffered=dataclasses.replace(cell,mode='target')
         self.assertTrue(effects.anchors(buffered,correct))
         self.assertEqual(effects.anchors(buffered,dataclasses.replace(correct,stdout=b'')),[])
+
+    def test_initial_expansion_interruption_precedes_reader_and_preserves_wait_status(self):
+        for phase in ('initial-makeflags-shell', 'initial-gnumakeflags-shell'):
+            for mode in ('none', 'target', 'recurse'):
+                cell = effects.Cell(phase, 2, mode)
+                good = conformance.Observation(b'', b'', -2, None, {})
+                self.assertEqual(effects.anchors(cell, good), [])
+                self.assertTrue(effects.anchors(cell, dataclasses.replace(good, returncode=2)))
+                self.assertTrue(effects.anchors(cell, dataclasses.replace(good, stdout=b'before\n')))
+                self.assertTrue(effects.anchors(cell, dataclasses.replace(good, filesystem={'work/forbidden':{}})))
 
     def test_lock_inventory_distinguishes_reader_completed_owner_and_serial_recurse(self):
         cells=locks.inventory()

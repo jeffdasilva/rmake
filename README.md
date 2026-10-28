@@ -301,3 +301,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [CLI assignment effects](docs/cli-assignment-effects.md) now use the full evaluator, retain included-file startup diagnostics, and install shell/default variables after early assignment effects. Full M3/M6 acceptance and process restart reconstruction remain open.
 
 [Ordered startup replay](docs/startup-replay.md) now reconstructs pre-assignment state for CLI effects after Makefile remaking, including fresh reads, computed names, warnings and recursive snapshots. Broader M3/M6 acceptance remains open.
+
+[Initial inherited flag expansion](docs/initial-flag-expansion.md) now evaluates variable/function effects before token decoding, transfers prepared state into startup, and repeats early effects on restart. M3/M6 remain open.

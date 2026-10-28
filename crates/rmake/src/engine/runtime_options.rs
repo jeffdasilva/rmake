@@ -66,6 +66,7 @@ impl State {
         updated.goals = current.goals.clone();
         updated.assignments = current.assignments.clone();
         updated.assignment_context = current.assignment_context.clone();
+        updated.assignment_warnings = current.assignment_warnings.clone();
         updated.include_assignment_positions = current.include_assignment_positions.clone();
         updated.reset_jobserver = current.reset_jobserver;
         let mode = updated
