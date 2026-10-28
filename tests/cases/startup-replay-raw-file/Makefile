@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+.DEFAULT_GOAL=all
+-include generated.mk
+generated.mk:;@printf "\376\n" >value.bin; printf "# generated\n" >$@
+$(info [$(MAKE_RESTARTS)]/[$(SNAP)])
+all:;@:

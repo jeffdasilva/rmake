@@ -5,6 +5,7 @@
 //! No persistent cache and no delegation to GNU Make are involved.
 
 mod runtime_options;
+mod startup;
 
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
@@ -615,6 +616,7 @@ struct FailedOwner {
 pub struct Engine {
     options: Options,
     restart_options: Options,
+    startup_snapshot: Option<Box<startup::Snapshot>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
@@ -945,154 +947,27 @@ impl Engine {
                 .define_literal(b"GNUMAKEFLAGS", b"", Origin::Environment)
                 .map_err(|e| e.diagnostic())?;
         }
-        let mut emit = |event: Output<'_>| emit_output(&output, &program, event);
-        let mut startup_output = WarningOutput::new(&mut emit, &startup_warnings);
-        database
-            .variables
-            .set_export_policy(b"MAKEFLAGS", Some(true));
-        let mut command_names = Vec::new();
-        let mut seen_commands = HashSet::new();
-        let mut next_include = 0;
-        for index in 0..=options.assignments.len() {
-            while options.include_assignment_positions.get(next_include) == Some(&index) {
-                let directory = &mut options.include_directories[next_include];
-                next_include += 1;
-                *directory = crate::makefiles::prepare_argument(
-                    directory.as_os_str().as_bytes(),
-                    &mut database.variables,
-                    runtime_context(None, &mut startup_output)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result =
-                                crate::shell::run(request, &program, startup_level, &output, None);
-                            filesystem.borrow_mut().child_completed();
-                            result
-                        }),
-                )
-                .map_err(|error| error.diagnostic())?;
-            }
-            let Some(arg) = options.assignments.get(index) else {
-                break;
-            };
-            let name = database
-                .define_argument_with(
-                    arg,
-                    Origin::CommandLine,
-                    runtime_context(None, &mut startup_output)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result =
-                                crate::shell::run(request, &program, startup_level, &output, None);
-                            filesystem.borrow_mut().child_completed();
-                            result
-                        })
-                        .with_includes(&mut |name| IncludeSearch::default().read(name)),
-                )
-                .map_err(StartupError::expansion)?
-                .expect("CLI identified assignment");
-            if seen_commands.insert(name.clone()) {
-                command_names.push(name.clone());
-            }
-            if automatic_export_name(&name) {
-                inherited_exports.insert(name);
-            }
-        }
-        database
-            .variables
-            .initialize_shell_default(b"/bin/sh")
-            .map_err(|error| error.diagnostic())?;
-        if !options.no_variables {
-            database
-                .initialize_builtin_variables()
-                .map_err(|error| error.diagnostic())?;
-            database
-                .variables
-                .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
-                .map_err(|error| error.diagnostic())?;
-        }
-        database
-            .variables
-            .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
-            .map_err(|error| error.diagnostic())?;
-        let mut seen_include_arguments = HashSet::new();
-        options
-            .include_directories
-            .retain(|directory| seen_include_arguments.insert(directory.as_os_str().to_owned()));
-        let include_search = IncludeSearch::new(&options.include_directories);
-        database
-            .variables
-            .define(
-                b"MAKEFLAGS",
-                &options.makeflags(),
-                Assignment::Recursive,
-                runtime_options::origin(options.environment_override),
-            )
-            .map_err(|error| error.diagnostic())?;
-        database
-            .variables
-            .define_literal(b".INCLUDE_DIRS", b"", Origin::Default)
-            .map_err(|error| error.diagnostic())?;
-        for directory in include_search.directories() {
-            database
-                .variables
-                .define_with(
-                    b".INCLUDE_DIRS",
-                    directory,
-                    Assignment::Append,
-                    Origin::Default,
-                    None,
-                    runtime_context(None, &mut startup_output)
-                        .with_filesystem(&mut |effect| filesystem.borrow_mut().execute(effect))
-                        .with_shell(&mut |request| {
-                            let result =
-                                crate::shell::run(request, &program, startup_level, &output, None);
-                            filesystem.borrow_mut().child_completed();
-                            result
-                        }),
-                )
-                .map_err(|error| error.diagnostic())?;
-        }
-        let command_replay =
-            crate::command_variables::prepare(&mut database.variables, &command_names)
-                .map_err(|error| error.diagnostic())?;
-        let makelevel = startup_makelevel(
-            database
-                .variables
-                .get(b"MAKELEVEL")
-                .map_or(b"".as_slice(), |variable| variable.raw_value()),
-        );
-        // The special binding exists before reading Makefiles, but only a
-        // genuinely imported/CLI binding belongs to inherited_exports. A later
-        // file assignment must not acquire ordinary export side effects merely
-        // because this synthesized variable has environment origin.
-        database
-            .variables
-            .define_literal(
-                b"MAKELEVEL",
-                makelevel.to_string().as_bytes(),
-                if options.environment_override {
-                    Origin::EnvironmentOverride
-                } else {
-                    Origin::Environment
-                },
-            )
-            .map_err(|e| e.diagnostic())?;
+        let startup_snapshot =
+            startup::Snapshot::capture(&database, &options, &inherited_exports, &program, 0);
+        let setup = startup::prepare(
+            &mut database,
+            &mut options,
+            &mut inherited_exports,
+            startup::Runtime {
+                program: &program,
+                level: 0,
+                output: &output,
+                filesystem: &filesystem,
+                warnings: &startup_warnings,
+            },
+        )?;
+        let include_search = setup.include_search;
+        let command_replay = setup.command_replay;
+        let makelevel = setup.makelevel;
+        let initial_flags = setup.initial_flags;
         let mut program = program;
         if makelevel != 0 {
             program.extend_from_slice(format!("[{makelevel}]").as_bytes());
-        }
-        let mut initial_flags = options.makeflags();
-        if command_replay {
-            initial_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
-            database
-                .variables
-                .define(
-                    b"MAKEFLAGS",
-                    &initial_flags,
-                    Assignment::Recursive,
-                    runtime_options::origin(options.environment_override),
-                )
-                .map_err(|error| error.diagnostic())?;
         }
         if let Some(authentication) = &options.sync_mutex {
             output.decode_mutex(authentication).map_err(|error| {
@@ -1126,6 +1001,7 @@ impl Engine {
         let restart_options = options.clone();
         let mut engine = Self {
             restart_options,
+            startup_snapshot,
             startup_directory,
             output,
             reader_output,
@@ -1610,7 +1486,10 @@ impl Engine {
         if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
             return 2;
         }
-        let initial_database = self.database.clone();
+        let initial_database = self
+            .startup_snapshot
+            .is_none()
+            .then(|| self.database.clone());
         let mut restarts = 0_u32;
         let mut stdin_bytes = None;
         loop {
@@ -1694,26 +1573,66 @@ impl Engine {
                     self.initial_flags
                         .extend_from_slice(b" -- $(MAKEOVERRIDES)");
                 }
-                self.database = initial_database.clone();
-                self.database
-                    .variables
-                    .set_working_directory(restart_directory.as_os_str().as_bytes());
-                if let Err(error) = self.database.variables.define_literal(
-                    b"CURDIR",
-                    restart_directory.as_os_str().as_bytes(),
-                    Origin::File,
-                ) {
-                    self.expansion_error(None, &error);
-                    return 2;
+                if let Some(snapshot) = &self.startup_snapshot {
+                    self.program = snapshot.program(0);
+                    let replay = match snapshot.replay(
+                        &mut self.options,
+                        restart_directory.as_os_str().as_bytes(),
+                        restarts,
+                        self.makelevel,
+                        &self.output,
+                        &self.filesystem,
+                    ) {
+                        Ok(replay) => replay,
+                        Err(error) => {
+                            self.fatal(error.location.as_ref(), error.message.as_bytes());
+                            return 2;
+                        }
+                    };
+                    self.database = replay.database;
+                    self.inherited_exports = replay.inherited_exports;
+                    self.command_replay = replay.setup.command_replay;
+                    self.makelevel = replay.setup.makelevel;
+                    self.program = snapshot.program(self.makelevel);
+                    self.initial_flags = replay.setup.initial_flags;
+                    if let Err(error) = self.database.variables.update_mflags(
+                        &self.options.recursive_flags(),
+                        self.options.environment_override,
+                    ) {
+                        self.expansion_error(None, &error);
+                        return 2;
+                    }
+                    self.include_search.replace(replay.setup.include_search);
+                    self.flag_state.refresh(&self.options);
+                    self.database.activate_runtime_metadata();
+                    if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
+                        return 2;
+                    }
+                } else {
+                    self.database = initial_database
+                        .as_ref()
+                        .expect("ordinary restart snapshot")
+                        .clone();
+                    self.database
+                        .variables
+                        .set_working_directory(restart_directory.as_os_str().as_bytes());
+                    if let Err(error) = self.database.variables.define_literal(
+                        b"CURDIR",
+                        restart_directory.as_os_str().as_bytes(),
+                        Origin::File,
+                    ) {
+                        self.expansion_error(None, &error);
+                        return 2;
+                    }
+                    self.database
+                        .variables
+                        .define_literal(
+                            b"MAKE_RESTARTS",
+                            restarts.to_string().as_bytes(),
+                            Origin::Environment,
+                        )
+                        .expect("bounded restart count");
                 }
-                self.database
-                    .variables
-                    .define_literal(
-                        b"MAKE_RESTARTS",
-                        restarts.to_string().as_bytes(),
-                        Origin::Environment,
-                    )
-                    .expect("bounded restart count");
                 self.done.clear();
                 self.intermediates.clear();
                 self.visiting.clear();

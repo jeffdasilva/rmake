@@ -2469,3 +2469,7 @@ separate safe-error exceptions. A finite repeated CLI file-effect mismatch is
 recorded outside passing fixtures and safety errors: in-process restart still
 restores a post-assignment snapshot. Full startup/reexec and M3/M6 work remain
 open. See [the evidence and boundaries](cli-assignment-effects.md).
+
+## Ordered startup assignment replay — 2026-10-28
+
+Constructor and restart now share ordered CLI preparation, restoring pre-assignment state for effects, conditional priority, computed names, fresh includes/reads and winning recursive snapshots. The exact historical CLI eval file-effect mismatch is now required. 67 semantic controls and two output-checked scaling cases bring the ordinary corpus to 10,247 required / zero pending, with 17 separate safety exceptions. Full self-exec, broader startup and M3/M6 acceptance remain open. See [evidence and boundaries](startup-replay.md).

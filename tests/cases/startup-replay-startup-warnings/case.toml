@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-startup-warnings"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "SNAP:=$(MISSING)"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "--warn-undefined-variables"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d0a5b5d0a"
+stderr_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d414b45464c414753270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d414b45464c414753270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"

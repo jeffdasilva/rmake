@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-r-append-simple"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["-r", "--no-print-directory", "X:=first", "X+=$(info APPEND)second"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "415050454e440a5b5d2f5b6669727374207365636f6e645d0a415050454e440a5b315d2f5b6669727374207365636f6e645d0a"
+stderr_hex = ""

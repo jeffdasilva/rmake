@@ -234,3 +234,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Single-pass explicit startup arguments](startup-arguments.md) removes redundant decoding only when no inherited tokens need merging. Exact-value fixtures and the top-level benchmark suite retain correctness gates; general speed parity remains open.
 
 [CLI assignment effects and default phases](cli-assignment-effects.md) add 186 required original comparisons and close the recorded early CC/default-goal warning controls and inactive-metadata eval control. The ordinary repeated CLI file-effect mismatch remains explicit restart work; full M3/M6 criteria are unchanged.
+
+[Ordered startup replay](startup-replay.md) adds 67 required original controls and two output-checked scaling fixtures. It closes the exact repeated CLI file-effect control while retaining explicit process-replacement and broader startup/profile work. M3/M6 criteria are unchanged.

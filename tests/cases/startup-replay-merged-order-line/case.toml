@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-merged-order-line"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Oline", "BOOT:=$(info FIRST)$(warning WARN)"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "46495253540a6d616b653a205741524e0a524541440a46495253540a6d616b653a205741524e0a524541440a"
+stderr_hex = ""

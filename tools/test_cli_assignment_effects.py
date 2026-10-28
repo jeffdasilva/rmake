@@ -72,11 +72,13 @@ class CliAssignmentEffectsTests(unittest.TestCase):
             self.assertEqual(conformance.expectation_errors(case, good), [])
             self.assertTrue(conformance.expectation_errors(case, dataclasses.replace(good, stdout=good.stdout.replace(raw, b'?'))))
 
-    def test_restart_file_effect_gap_is_neither_a_pass_nor_a_safe_error(self):
+    def test_historical_restart_file_effect_has_a_required_current_control(self):
         research = json.loads((ROOT / 'tests/research/cli-assignment-restart-effect.json').read_text())
         self.assertEqual(research['classification'], 'ordinary CLI assignment restart effect mismatch; not a safety exception or passing fixture')
         row = research['record']
-        self.assertFalse((ROOT / 'tests/cases' / row['id']).exists())
+        current = conformance.load_case(ROOT / 'tests/cases' / row['id'])
+        self.assertEqual(current.candidate, 'required')
+        self.assertEqual(current.expected, row['expected'])
         self.assertFalse((ROOT / 'tests/safety/cases' / row['id']).exists())
         self.assertEqual(row['observations'][0], row['observations'][1])
         self.assertEqual(row['model_errors'][:2], [[], []])

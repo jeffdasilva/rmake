@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-replay-conditional-environment"
+requirement = "cli.startup-replay"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X?=$(file >>forbidden,E)bad", "BOOT:=$(file >>seen,E)"]
+timeout_seconds = 5
+description = "Original ordered startup reconstruction and restart effect control."
+provenance = "Independent exact stream/status and intended-effect model checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"X" = "first"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d2f5b66697273745d2f5b315d2f5b5d0a5b315d2f5b66697273745d2f5b325d2f5b5d0a"
+stderr_hex = ""

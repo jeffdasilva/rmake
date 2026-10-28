@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-effects-0"
+requirement = "performance.startup-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+description = "Observe every eager CLI eval side binding in the startup capture workload."
+provenance = "Independent values and exact status/stream model; every effect is observed, including a middle-value negative control. No upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c7565733d5b5d0a6d616b653a2027616c6c2720697320757020746f20646174652e0a"
+stderr_hex = ""
