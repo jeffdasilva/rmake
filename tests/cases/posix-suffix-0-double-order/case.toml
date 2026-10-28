@@ -1,0 +1,11 @@
+id = "posix-suffix-0-double-order"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "636f6e7665727465646e"
+stderr_hex = "4d616b6566696c653a353a207761726e696e673a2069676e6f72696e672070726572657175697369746573206f6e207375666669782072756c6520646566696e6974696f6e0a"

@@ -2284,3 +2284,16 @@ makefile restarts.
 
 
 See [environment vector evidence](environment-vectors.md) for 278 new required cases, phase transitions, clock-fixture repair and unresolved oracle signals. M3/M6 remain open.
+
+## M3/M6 POSIX mode
+
+The explicit `.POSIX` rejection is replaced by sticky reader activation,
+GNU default variables, continuation folding, per-command shell error flags,
+POSIX suffix conversion eligibility and original command-variable propagation.
+Early special-variable origins under `-e` retain the correct startup phase.
+390 original required comparisons and three core/three tooling tests cover
+profiles, effects, includes, eval, restarts, execution modes and recursion.
+The corpus is 7,357 total / 7,356 required / one pending; unit totals are
+436 Rust / 341 tooling. See [POSIX behavior and performance](posix-mode.md).
+M3/M6 remain open, with native loading, Guile, presentation, locales and broader
+integration acceptance still in the [audit](m3-m6-audit.md).

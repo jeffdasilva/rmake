@@ -1,0 +1,11 @@
+id = "posix-recursion-1-before-flags"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "X=cli"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b725273202d2d6e6f2d7072696e742d6469726563746f7279202d2d2024284d414b454f5645525249444553295d2f5b725273202d2d6e6f2d7072696e742d6469726563746f7279202d2d20583d636c695d0a666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f7279202d2d2024282d2a2d636f6d6d616e642d7661726961626c65732d2a2d295d2f5b725273202d2d6e6f2d7072696e742d6469726563746f7279202d2d20583d636c695d0a583d5b636c695d2f5b636f6d6d616e64206c696e655d0a6368696c6420583d5b636c695d2f5b636f6d6d616e64206c696e655d20593d5b5d0a"
+stderr_hex = ""

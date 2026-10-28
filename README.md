@@ -275,3 +275,5 @@ fault suites, repeated parallel cases and self-hosted flows. The
 and [M4 audit](docs/m4-exit-audit.md) records milestone acceptance and open work.
 
 The [owned environment-vector slice](docs/environment-vectors.md) adds byte/order-preserving Linux child launches and export activation phase checks. [M3/M6 remain open](docs/m3-m6-audit.md).
+
+[POSIX mode](docs/posix-mode.md) now covers reader activation, defaults, folding, shell error flags, suffix eligibility and recursive command variables; M3/M6 remain open.

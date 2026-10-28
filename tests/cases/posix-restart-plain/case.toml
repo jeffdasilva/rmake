@@ -1,0 +1,11 @@
+id = "posix-restart-plain"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616420666c6167733d5b2d635d2072657374617274733d5b5d0a7265616420666c6167733d5b2d65635d2072657374617274733d5b315d0a646f6e656e"
+stderr_hex = ""

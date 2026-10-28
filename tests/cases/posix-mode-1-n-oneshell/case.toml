@@ -1,0 +1,11 @@
+id = "posix-mode-1-n-oneshell"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "66616c73653b207072696e746620726561636865645c6e0a7072696e7466207365636f6e645c6e0a"
+stderr_hex = ""

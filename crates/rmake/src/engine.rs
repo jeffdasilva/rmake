@@ -802,15 +802,23 @@ impl Engine {
             (b"MAKE", invocation.as_bytes()),
             (b"MAKE_COMMAND", invocation.as_bytes()),
         ] {
+            // These specials precede option decoding in GNU. Their imported
+            // environment values have no later default-assignment conflict.
+            let early = matches!(name, b".SHELLFLAGS" | b".RECIPEPREFIX" | b".LOADED" | b".FEATURES");
+            database.variables.set_environment_override(options.environment_override && !early);
             database
                 .variables
                 .define_literal(name, value, Origin::Default)
                 .map_err(|e| e.diagnostic())?;
         }
+        database.variables.set_environment_override(false);
         database
             .variables
             .enable_variable_names()
             .map_err(|error| error.diagnostic())?;
+        database
+            .variables
+            .set_environment_override(options.environment_override);
         database
             .variables
             .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
@@ -1676,12 +1684,12 @@ impl Engine {
             if self
                 .database
                 .variables
-                .get(b"MAKEOVERRIDES")
+                .get(self.database.command_overrides_name())
                 .is_some_and(|value| !value.raw_value().is_empty())
             {
                 let raw = [
                     self.options.recursive_flags(),
-                    b" -- $(MAKEOVERRIDES)".to_vec(),
+                    self.database.command_overrides_reference().to_vec(),
                 ]
                 .concat();
                 if let Err(error) = self.database.variables.define(
@@ -1729,10 +1737,10 @@ impl Engine {
             if self
                 .database
                 .variables
-                .get(b"MAKEFLAGS")
-                .is_some_and(|v| v.raw_value().ends_with(b" -- $(MAKEOVERRIDES)"))
+                .get(self.database.command_overrides_name())
+                .is_some_and(|v| !v.raw_value().is_empty())
             {
-                runtime_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
+                runtime_flags.extend_from_slice(self.database.command_overrides_reference());
             }
             if let Err(error) = self.database.variables.define(
                 b"MAKEFLAGS",
@@ -1972,12 +1980,6 @@ impl Engine {
                 return 2;
             }
             break;
-        }
-        // Reject special execution modes until their semantics are implemented,
-        // rather than accidentally passing cases under serial defaults.
-        if self.database.rules.contains_key(b".POSIX".as_slice()) {
-            self.fatal(None, b"rmake: unsupported special target .POSIX");
-            return 2;
         }
         let goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
@@ -5975,6 +5977,7 @@ impl Engine {
             let mut quiet = self.globally_silent()
                 || self.special(b".SILENT", target, false)
                 || raw_flags.quiet;
+            let mut command_noerror = raw_flags.ignore_errors;
             let mut ignore = self.options.ignore_errors
                 || self.special(b".IGNORE", target, true)
                 || raw_flags.ignore_errors;
@@ -5982,7 +5985,10 @@ impl Engine {
             while let Some(prefix) = command.first() {
                 match prefix {
                     b'@' => quiet = true,
-                    b'-' => ignore = true,
+                    b'-' => {
+                        ignore = true;
+                        command_noerror = true;
+                    }
                     b'+' => force = true,
                     _ => break,
                 }
@@ -6012,7 +6018,17 @@ impl Engine {
             // attributes direct errors to the recipe, not .SHELLFLAGS itself.
             let flag_text = variables
                 .get(b".SHELLFLAGS")
-                .map_or_else(Vec::new, |variable| variable.raw_value().to_vec());
+                .map_or_else(Vec::new, |variable| {
+                    if self.database.posix && variable.origin() == Origin::Default {
+                        if command_noerror {
+                            b"-c".to_vec()
+                        } else {
+                            b"-ec".to_vec()
+                        }
+                    } else {
+                        variable.raw_value().to_vec()
+                    }
+                });
             let flags = match self.expand(variables, &flag_text, Some(&recipe.location)) {
                 Ok(flags) => flags,
                 Err(err) => {

@@ -1,0 +1,11 @@
+id = "posix-shell-1-flags-file-plus"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b7265616465725d2f5b305d0a7265636970656e7365636f6e646e"
+stderr_hex = ""

@@ -214,3 +214,5 @@ startup/default membership and flag phases used for the independently authored
 lazy names cache, scope behavior, interface literals and original comparisons.
 
 The [environment vector notes](environment-vectors.md) identify export-table, dependency-freeze and process-launch references used for the independently authored owned Linux execution adapter, phase behavior and original C/Makefile probes.
+
+The [POSIX mode notes](posix-mode.md) identify special-reader, continuation, suffix, shell and startup references for the original Rust implementation and independently authored phase/profile fixtures.

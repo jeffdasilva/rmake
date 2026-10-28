@@ -1,0 +1,11 @@
+id = "posix-phase-before"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "583d5b6c6566742020202072696768745d2043464c4147533d5b2d4f315d20666c6167733d5b2d65635d0a"
+stderr_hex = ""

@@ -300,6 +300,8 @@ pub struct Database {
     pub exports: HashSet<Vec<u8>>,
     pub unexports: HashSet<Vec<u8>>,
     pub export_all: bool,
+    /// Sticky reader mode selected by an actual .POSIX rule declaration.
+    pub posix: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
@@ -1722,12 +1724,10 @@ impl Database {
         origin: Origin,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
-        let encoded_overrides = self.variables.get(b"MAKEFLAGS").is_some_and(|variable| {
-            variable
-                .raw_value()
-                .windows(b"$(MAKEOVERRIDES)".len())
-                .any(|part| part == b"$(MAKEOVERRIDES)")
-        });
+        let encoded_overrides = self
+            .variables
+            .get(b"MAKEFLAGS")
+            .is_some_and(|variable| Self::has_command_overrides_reference(variable.raw_value()));
         let value = self.expand_with(b"$(MAKEFLAGS)", context.reborrow())?;
         context.update_makeflags(self, origin, value, encoded_overrides)
     }
@@ -2105,6 +2105,35 @@ impl Database {
         Ok(())
     }
 
+    pub fn command_overrides_name(&self) -> &'static [u8] {
+        if self.posix {
+            b"-*-command-variables-*-"
+        } else {
+            b"MAKEOVERRIDES"
+        }
+    }
+
+    pub fn command_overrides_reference(&self) -> &'static [u8] {
+        if self.posix {
+            b" -- $(-*-command-variables-*-)"
+        } else {
+            b" -- $(MAKEOVERRIDES)"
+        }
+    }
+
+    pub fn has_command_overrides_reference(value: &[u8]) -> bool {
+        [
+            b"$(MAKEOVERRIDES)".as_slice(),
+            b"$(-*-command-variables-*-)",
+        ]
+        .iter()
+        .any(|reference| {
+            value
+                .windows(reference.len())
+                .any(|part| part == *reference)
+        })
+    }
+
     pub(crate) fn export_all_for_shell(&self) -> bool {
         self.export_all
     }
@@ -2263,6 +2292,7 @@ impl Database {
                 .get(b".RECIPEPREFIX")
                 .and_then(|v| v.raw_value().first().copied())
                 .unwrap_or(b'\t');
+            reader.set_posix(self.posix);
             let Some(mut line) = reader.next_line(prefix, !declaration.targets.is_empty()) else {
                 break;
             };
@@ -2891,6 +2921,26 @@ impl Database {
                         location: location.clone(),
                         message: err.diagnostic(),
                     })?;
+            }
+            if !self.posix && declaration.targets.iter().any(|target| target == b".POSIX") {
+                self.posix = true;
+                for (name, value) in [
+                    (b".SHELLFLAGS".as_slice(), b"-ec".as_slice()),
+                    (b"CC", b"c99"),
+                    (b"CFLAGS", b"-O1"),
+                    (b"FC", b"fort77"),
+                    (b"FFLAGS", b"-O1"),
+                    (b"SCCSGETFLAGS", b"-s"),
+                    (b"ARFLAGS", b"-rv"),
+                ] {
+                    self.variables
+                        .define_literal(name, value, Origin::Default)
+                        .map_err(|err| ParseError {
+                            unlocated: err.is_unlocated(),
+                            location: location.clone(),
+                            message: err.diagnostic(),
+                        })?;
+                }
             }
             self.second_expansion |= declaration
                 .targets
@@ -5210,5 +5260,80 @@ mod recursive_home_tests {
             .collect();
         assert_eq!(names, [b"early".to_vec(), b"x".to_vec()]);
         assert!(db.filename_scratch.is_none());
+    }
+}
+
+#[cfg(test)]
+mod posix_mode_tests {
+    use super::*;
+
+    #[test]
+    fn activation_controls_later_reads_and_does_not_repeat_defaults() {
+        let mut db = Database::default();
+        db.variables
+            .define_literal(b"CC", b"mine", Origin::File)
+            .unwrap();
+        db.read(
+            b"A:=before  \\\n after\n.POSIX:\nB:=after  \\\n next\n",
+            b"one.mk",
+        )
+        .unwrap();
+        assert!(db.posix);
+        assert_eq!(db.variables.get(b"A").unwrap().raw_value(), b"before after");
+        assert_eq!(db.variables.get(b"B").unwrap().raw_value(), b"after   next");
+        assert_eq!(db.variables.get(b"CC").unwrap().raw_value(), b"mine");
+        assert_eq!(db.variables.get(b"CFLAGS").unwrap().raw_value(), b"-O1");
+        assert_eq!(
+            db.variables.get(b"CFLAGS").unwrap().origin(),
+            Origin::Default
+        );
+        db.read(
+            b"undefine CFLAGS\n.POSIX:\nC:=later  \\\n read\n",
+            b"two.mk",
+        )
+        .unwrap();
+        assert!(db.variables.get(b"CFLAGS").is_none());
+        assert_eq!(db.variables.get(b"C").unwrap().raw_value(), b"later   read");
+    }
+
+    #[test]
+    fn references_and_target_assignments_do_not_activate_the_mode() {
+        for input in [
+            b".PHONY: .POSIX\n".as_slice(),
+            b"all: .POSIX\n",
+            b".POSIX: X=local\n",
+            b"N=.POSIX\n",
+        ] {
+            let mut db = Database::default();
+            db.read(input, b"input.mk").unwrap();
+            assert!(!db.posix);
+            assert!(db.variables.get(b"CFLAGS").is_none());
+        }
+        let mut db = Database::default();
+        db.read(b"$(eval .POSIX:)\n", b"input.mk").unwrap();
+        assert!(db.posix);
+    }
+
+    #[test]
+    fn two_suffix_rule_with_prerequisites_stays_an_ordinary_record() {
+        for posix in [false, true] {
+            let mut db = Database {
+                posix,
+                ..Database::default()
+            };
+            db.read(b".SUFFIXES: .x .y\n.x.y: extra\n\t@true\n", b"input.mk")
+                .unwrap();
+            db.finalize_implicit_rules(false, &mut ExpansionContext::pure())
+                .unwrap();
+            let converted = db
+                .implicit_rules
+                .iter()
+                .any(|(pattern, rule)| pattern.literal_bytes() == b"%.y" && rule.recipes.is_some());
+            assert_eq!(converted, !posix);
+            assert_eq!(
+                db.rules.get(b".x.y".as_slice()).unwrap().dependencies[0].name,
+                b"extra"
+            );
+        }
     }
 }

@@ -125,6 +125,9 @@ impl Database {
                     .cloned()
                 {
                     if !rule.dependencies.is_empty() {
+                        if self.posix {
+                            continue;
+                        }
                         let location = rule
                             .recipe_location
                             .as_ref()
