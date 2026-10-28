@@ -206,6 +206,10 @@ impl Engine {
                 let prefix = self
                     .initial_flags
                     .strip_suffix(b" -- $(MAKEOVERRIDES)")
+                    .or_else(|| {
+                        self.initial_flags
+                            .strip_suffix(b" -- $(-*-command-variables-*-)")
+                    })
                     .unwrap_or(&self.initial_flags);
                 changed.push(prefix.to_vec());
             } else if !unchanged {
@@ -214,10 +218,7 @@ impl Engine {
                     Ok(mut value) => {
                         let encoded = name == b"MAKEFLAGS"
                             && self.database.variables.get(name).is_some_and(|variable| {
-                                variable
-                                    .raw_value()
-                                    .windows(b"$(MAKEOVERRIDES)".len())
-                                    .any(|part| part == b"$(MAKEOVERRIDES)")
+                                Database::has_command_overrides_reference(variable.raw_value())
                             });
                         if encoded
                             && let Some(boundary) =

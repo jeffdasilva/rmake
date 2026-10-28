@@ -229,12 +229,14 @@ impl<'a> ExpansionContext<'a> {
             cursor.set(result.next_argument);
         }
         database.update_mflags(&result.value, result.environment_override)?;
+        let overrides_name = database.command_overrides_name();
+        let overrides_reference = database.command_overrides_reference();
         let variables = &mut database.variables;
         if variables
-            .get(b"MAKEOVERRIDES")
+            .get(overrides_name)
             .is_some_and(|variable| !variable.raw_value().is_empty())
         {
-            result.value.extend_from_slice(b" -- $(MAKEOVERRIDES)");
+            result.value.extend_from_slice(overrides_reference);
         }
         variables.set_environment_override(result.environment_override);
         variables.define(

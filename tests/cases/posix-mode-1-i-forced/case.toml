@@ -1,0 +1,11 @@
+id = "posix-mode-1-i-forced"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-i"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "7365636f6e646e"
+stderr_hex = "6d616b653a205b4d616b6566696c653a333a20616c6c5d204572726f722031202869676e6f726564290a"

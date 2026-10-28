@@ -203,3 +203,5 @@ transport. Keep them in dated decision records once evidence exists, rather than
 choosing a framework or serialization format prematurely.
 
 Owned child environment vectors and export activation phases now have [278 required original comparisons](environment-vectors.md). This closes that specific representation gap, with full M3/M6 exit criteria unchanged.
+
+[POSIX mode](posix-mode.md) now has 390 required original comparisons across reader/default, shell, suffix, recursion and startup-origin phases. Complete M3/M6 criteria remain unchanged.

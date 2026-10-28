@@ -1,0 +1,11 @@
+id = "posix-flags-binding-1-recursive"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d657461646174613d5b2428696e666f20666c6167732d656666656374292d635d2f5b66696c655d2f5b7265637572736976655d0a666c6167732d6566666563740a7368656c6c3d5b726561636865645d2f5b305d0a666c6167732d6566666563740a726561636865646e"
+stderr_hex = ""

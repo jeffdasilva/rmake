@@ -1,0 +1,11 @@
+id = "posix-mode-1-q-ignore"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

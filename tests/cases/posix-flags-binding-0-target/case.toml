@@ -1,0 +1,11 @@
+id = "posix-flags-binding-0-target"
+requirement = "language.posix"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d657461646174613d5b2d635d2f5b64656661756c745d2f5b73696d706c655d0a7368656c6c3d5b726561636865645d2f5b305d0a726561636865646e"
+stderr_hex = ""

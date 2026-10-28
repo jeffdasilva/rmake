@@ -1,0 +1,11 @@
+id = "posix-default-origins-1-command"
+requirement = "language.posix"
+candidate = "required"
+args = ["--no-print-directory", "-r", "CC=user", "CFLAGS=user", "FC=user", "FFLAGS=user", "SCCSGETFLAGS=user", "ARFLAGS=user"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "2e5348454c4c464c4147533d5b2d65635d2f5b73696d706c655d2f5b64656661756c745d0a43433d5b757365725d2f5b7265637572736976655d2f5b636f6d6d616e64206c696e655d0a43464c4147533d5b757365725d2f5b7265637572736976655d2f5b636f6d6d616e64206c696e655d0a46433d5b757365725d2f5b7265637572736976655d2f5b636f6d6d616e64206c696e655d0a46464c4147533d5b757365725d2f5b7265637572736976655d2f5b636f6d6d616e64206c696e655d0a53434353474554464c4147533d5b757365725d2f5b7265637572736976655d2f5b636f6d6d616e64206c696e655d0a4152464c4147533d5b757365725d2f5b7265637572736976655d2f5b636f6d6d616e64206c696e655d0a4f55545055545f4f5054494f4e3d5b2d6f205d2f5b7265637572736976655d2f5b64656661756c745d0a"
+stderr_hex = ""

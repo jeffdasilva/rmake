@@ -1,0 +1,14 @@
+id = "posix-early-origin-0-features-0-none"
+requirement = "language.posix"
+candidate = "required"
+args = ["--no-print-directory", "-rR", "-e"]
+timeout_seconds = 12
+provenance = "Independent POSIX mode Makefile; two raw GNU Make 4.4.1 observations and final candidate comparison. Original mode/default/shell/suffix/recursion and phase inputs; no upstream tests copied."
+
+[environment]
+".FEATURES" = "imported"
+
+[expected]
+exit_code = 0
+stdout_hex = "6e616d653d2e4645415455524553206f726967696e3d5b656e7669726f6e6d656e745d20666c61766f723d5b7265637572736976655d207261773d5b696d706f727465645d0a"
+stderr_hex = ""
