@@ -1,0 +1,11 @@
+id = "switch-origin-audible-file-reader-stop"
+requirement = "cli.switch-origins"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--no-silent"]
+timeout_seconds = 12
+provenance = "Original switch-origin, recursion and scoped metadata Makefiles; two raw GNU Make 4.4.1 observations and final candidate comparison. Controlled include directories; no upstream tests copied or outputs normalized."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b725253202d2d6e6f2d7072696e742d6469726563746f7279202d2d6e6f2d73696c656e745d2f5b2d725253202d2d6e6f2d7072696e742d6469726563746f7279202d2d6e6f2d73696c656e745d0a7265636970653d5b725253202d2d6e6f2d7072696e742d6469726563746f7279202d2d6e6f2d73696c656e745d2f5b2d725253202d2d6e6f2d7072696e742d6469726563746f7279202d2d6e6f2d73696c656e745d0a7072696e7466202725735c6e2720646f6e650a646f6e650a"
+stderr_hex = ""

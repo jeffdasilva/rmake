@@ -231,7 +231,10 @@ impl<'a> ExpansionContext<'a> {
         database.update_mflags(&result.value, result.environment_override)?;
         let overrides_name = database.command_overrides_name();
         let overrides_reference = database.command_overrides_reference();
-        let variables = &mut database.variables;
+        let variables = database
+            .evaluation_scope
+            .as_mut()
+            .unwrap_or(&mut database.variables);
         if variables
             .get(overrides_name)
             .is_some_and(|variable| !variable.raw_value().is_empty())
@@ -239,12 +242,8 @@ impl<'a> ExpansionContext<'a> {
             result.value.extend_from_slice(overrides_reference);
         }
         variables.set_environment_override(result.environment_override);
-        variables.define(
-            b"MAKEFLAGS",
-            &result.value,
-            Assignment::Recursive,
-            result.origin,
-        )?;
+        variables.define_runtime_metadata(b"MAKEFLAGS", &result.value, result.origin)?;
+        let variables = &mut database.variables;
         variables.define_literal(b".INCLUDE_DIRS", b"", crate::variables::Origin::Default)?;
         for directory in result.include_dirs {
             variables.define_with(

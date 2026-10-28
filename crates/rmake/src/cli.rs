@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
+use rmake_core::variables::Origin;
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
@@ -27,9 +28,11 @@ pub struct Options {
     pub flag_word_count: usize,
     pub dry_run: bool,
     pub silent: bool,
+    pub silent_origin: Option<Origin>,
     pub always: bool,
     pub ignore_errors: bool,
     pub keep_going: bool,
+    pub keep_going_origin: Option<Origin>,
     pub check_symlink_times: bool,
     pub question: bool,
     pub touch: bool,
@@ -65,6 +68,14 @@ impl Options {
         let explicit = explicit_options.jobs;
         combined.extend(args);
         let mut result = Self::parse(combined)?;
+        result.silent_origin = explicit_options
+            .silent_origin
+            .or_else(|| inherited_options.silent_origin.map(|_| Origin::Environment));
+        result.keep_going_origin = explicit_options.keep_going_origin.or_else(|| {
+            inherited_options
+                .keep_going_origin
+                .map(|_| Origin::Environment)
+        });
         result.command_jobs = explicit;
         result.inherited_output_sync = inherited_options.output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
@@ -140,15 +151,20 @@ impl Options {
     /// Decode changed file bindings after reading. Existing switches persist;
     /// later file flags can change them, while explicit CLI -j keeps priority.
     pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
-        self.decode_file_flags(flags, true)
+        self.decode_file_flags(flags, true, Origin::Environment)
     }
-    pub fn assigned_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
-        self.decode_file_flags(flags, false)
+    pub fn assigned_flags(
+        &self,
+        flags: &[Vec<u8>],
+        origin: Origin,
+    ) -> Result<(Self, Option<usize>), String> {
+        self.decode_file_flags(flags, false, origin)
     }
     fn decode_file_flags(
         &self,
         flags: &[Vec<u8>],
         restore_cli_jobs: bool,
+        origin: Origin,
     ) -> Result<(Self, Option<usize>), String> {
         let mut incoming = Vec::new();
         for value in flags {
@@ -171,6 +187,27 @@ impl Options {
             *position = *position - prefix_count + 1;
         }
         parsed.flag_word_count = flag_word_count;
+        // GNU only tracks origins for selected switches. Reconstructing the
+        // spelling must not turn an inherited/file setting into a CLI setting.
+        if incoming_options.silent_origin.is_some()
+            && (origin == Origin::CommandLine || self.silent_origin.is_none_or(|old| origin >= old))
+        {
+            parsed.silent_origin = Some(origin);
+            parsed.silent = incoming_options.silent;
+        } else {
+            parsed.silent_origin = self.silent_origin;
+            parsed.silent = self.silent;
+        }
+        if incoming_options.keep_going_origin.is_some()
+            && (origin == Origin::CommandLine
+                || self.keep_going_origin.is_none_or(|old| origin >= old))
+        {
+            parsed.keep_going_origin = Some(origin);
+            parsed.keep_going = incoming_options.keep_going;
+        } else {
+            parsed.keep_going_origin = self.keep_going_origin;
+            parsed.keep_going = self.keep_going;
+        }
         parsed.command_jobs = self.command_jobs;
         if restore_cli_jobs && let Some(jobs) = self.command_jobs {
             parsed.jobs = Some(jobs);
@@ -226,8 +263,30 @@ impl Options {
                         ));
                     }
                     *flag = true;
+                    match name {
+                        b"--silent" | b"--quiet" => {
+                            result.silent_origin = Some(Origin::CommandLine)
+                        }
+                        b"--keep-going" => result.keep_going_origin = Some(Origin::CommandLine),
+                        _ => {}
+                    }
                 } else {
                     match name {
+                        b"--no-silent" | b"--no-keep-going" | b"--stop" => {
+                            if value.is_some() {
+                                return Err(format!(
+                                    "option '{}' doesn't allow an argument",
+                                    String::from_utf8_lossy(name)
+                                ));
+                            }
+                            if name == b"--no-silent" {
+                                result.silent = false;
+                                result.silent_origin = Some(Origin::CommandLine);
+                            } else {
+                                result.keep_going = false;
+                                result.keep_going_origin = Some(Origin::CommandLine);
+                            }
+                        }
                         b"--jobserver-auth" | b"--jobserver-fds" => {
                             result.jobserver_auth = Some(
                                 value
@@ -331,11 +390,21 @@ impl Options {
                         b'h' => result.help = true,
                         b'v' => result.version = true,
                         b'n' => result.dry_run = true,
-                        b's' => result.silent = true,
+                        b's' => {
+                            result.silent = true;
+                            result.silent_origin = Some(Origin::CommandLine);
+                        }
                         b'B' => result.always = true,
                         b'i' => result.ignore_errors = true,
-                        b'k' => result.keep_going = true,
-                        b'S' => result.keep_going = false,
+                        b'k' => {
+                            result.keep_going = true;
+                            result.keep_going_origin = Some(Origin::CommandLine);
+                        }
+                        b'S' => {
+                            result.keep_going = false;
+                            result.keep_going_origin = Some(Origin::CommandLine);
+                        }
+                        b'b' | b'm' => {}
                         b'L' => result.check_symlink_times = true,
                         b'q' => result.question = true,
                         b't' => result.touch = true,
@@ -455,6 +524,7 @@ impl Options {
             (self.no_rules, b'r'),
             (self.no_variables, b'R'),
             (self.silent, b's'),
+            (!self.keep_going && self.keep_going_origin.is_some(), b'S'),
             (self.touch, b't'),
         ] {
             if set {
@@ -505,6 +575,9 @@ impl Options {
         if self.no_print_directory {
             flags.extend_from_slice(b" --no-print-directory");
         }
+        if !self.silent && self.silent_origin.is_some() {
+            flags.extend_from_slice(b" --no-silent");
+        }
         flags
     }
 }
@@ -549,7 +622,9 @@ mod tests {
             )
             .unwrap();
         assert_eq!(variables.expand(b"$(MAKEFLAGS)").unwrap(), options.flags());
-        let (assigned, _) = options.assigned_flags(&[b"-k".to_vec()]).unwrap();
+        let (assigned, _) = options
+            .assigned_flags(&[b"-k".to_vec()], Origin::File)
+            .unwrap();
         assert_eq!(assigned.include_directories, options.include_directories);
     }
 
@@ -558,7 +633,7 @@ mod tests {
         let options = Options::with_environment(["-j1".into()], None, None).unwrap();
         assert_eq!(
             options
-                .assigned_flags(&[b"-j3 -Oline".to_vec()])
+                .assigned_flags(&[b"-j3 -Oline".to_vec()], Origin::File)
                 .unwrap()
                 .0
                 .jobs,
