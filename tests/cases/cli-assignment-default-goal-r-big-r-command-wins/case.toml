@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-assignment-default-goal-r-big-r-command-wins"
+requirement = "cli.assignment-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory", ".DEFAULT_GOAL=chosen", "BOOT:=$(info START=[$(origin .DEFAULT_GOAL)])"]
+timeout_seconds = 5
+description = "Original CLI assignment evaluation, default initialization, diagnostic identity or effect boundary control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "53544152543d5b636f6d6d616e64206c696e655d0a46494c453d5b636f6d6d616e64206c696e655d2f5b63686f73656e5d0a43484f53454e0a"
+stderr_hex = ""

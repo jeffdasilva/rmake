@@ -54,13 +54,12 @@ behavior. The curated corpus is 9,631 ordinary required cases with no ordinary
 pending entries, plus 17 separately gated safety exceptions. Unit totals are
 452 Rust / 377 tooling. Full acceptance and exact-head CI remain merge gates.
 
-This is a verified slice, not full M3/M6 acceptance. The existing startup-order
-architecture still creates defaults before command-line assignments expand.
-Two original `INPUT:=$(CC)` / `INPUT:=$(.DEFAULT_GOAL)` probes retain their raw
-GNU/prototype observations in
+This is a verified slice, not full M3/M6 acceptance. The later
+[CLI assignment phase correction](cli-assignment-effects.md) closes both recorded
+`INPUT:=$(CC)` / `INPUT:=$(.DEFAULT_GOAL)` probes with required controls. Their
+historical GNU/prototype evidence remains in
 [`gnu-441-warning-startup.json`](../tests/research/gnu-441-warning-startup.json).
-They are ordinary open compatibility gaps, receive no passing credit, and have
-no safety exemption. Broader startup/flag expansion, malformed/early-exit option
+These finite controls have no safety exemption. Broader startup/flag expansion, malformed/early-exit option
 interactions, enabled Guile/native profiles, locales and the complete
 [compatibility inventory](m3-m6-audit.md) remain open.
 

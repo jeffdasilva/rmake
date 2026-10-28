@@ -2454,3 +2454,18 @@ curated corpus to 9,992 required ordinary cases, no ordinary pending entries,
 and 17 separately gated safety exceptions. Totals are 457 Rust / 387 tooling
 tests. Full local development/optimized acceptance and exact-head CI remain
 merge gates; broader startup, M3/M6 and general performance parity remain open.
+
+## Database-aware CLI assignment effects — 2026-10-28
+
+Command-line names and eager values now use the shared database evaluator for
+nested eval, includes, scope effects, exports, file I/O and shell requests.
+Startup errors retain real included-file identities and previously emitted
+output. Shell, built-in default variables and default-goal initialization follow
+CLI assignment effects, preserving missing early reads and stronger origins.
+
+186 original required controls match two pinned GNU observations and independent
+exact models. The ordinary corpus is 10,178 required / zero pending, with 17
+separate safe-error exceptions. A finite repeated CLI file-effect mismatch is
+recorded outside passing fixtures and safety errors: in-process restart still
+restores a post-assignment snapshot. Full startup/reexec and M3/M6 work remain
+open. See [the evidence and boundaries](cli-assignment-effects.md).

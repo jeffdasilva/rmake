@@ -81,9 +81,9 @@ fn main() -> ExitCode {
         Err(message) => {
             if rmake_linux::signals::pending().is_none() {
                 let mut stderr = io::stderr().lock();
-                let _ = stderr.write_all(&program);
-                let _ = stderr.write_all(b": *** ");
-                let _ = stderr.write_all(message.as_bytes());
+                let _ = stderr.write_all(&message.prefix(&program));
+                let _ = stderr.write_all(b"*** ");
+                let _ = stderr.write_all(message.message.as_bytes());
                 let _ = stderr.write_all(b".  Stop.\n");
             }
             2

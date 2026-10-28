@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-assignment-shell-environment-selection"
+requirement = "cli.assignment-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "BOOT:=$(eval SIDE:=$(shell printf yes))"]
+timeout_seconds = 5
+description = "Original CLI assignment evaluation, default initialization, diagnostic identity or effect boundary control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = "5b7965735d2f5b2f62696e2f73685d2f5b66696c655d0a"
+stderr_hex = ""

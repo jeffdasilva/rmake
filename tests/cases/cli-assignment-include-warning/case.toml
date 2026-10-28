@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-assignment-include-warning"
+requirement = "cli.assignment-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "BOOT:=$(eval include early.mk)"]
+timeout_seconds = 5
+description = "Original CLI assignment evaluation, default initialization, diagnostic identity or effect boundary control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "6561726c792e6d6b3a313a20494e434c554445440a"

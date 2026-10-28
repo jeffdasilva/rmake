@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-assignment-priority-r-big-r-cli-undefine"
+requirement = "cli.assignment-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "SIDE=CLI", "BOOT:=$(eval undefine SIDE)"]
+timeout_seconds = 5
+description = "Original CLI assignment evaluation, default initialization, diagnostic identity or effect boundary control."
+provenance = "Independent exact stream/status and intended-effect models checked against two bounded pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "534944453d5b434c495d2f5b636f6d6d616e64206c696e655d0a"
+stderr_hex = ""

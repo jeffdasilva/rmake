@@ -232,3 +232,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Startup/profile and reference-boundary acceptance](profile-inputs.md) adds 792 required cases. The [option inventory](m3-option-inventory.md) makes remaining CLI surfaces explicit; enabled Guile, native loading, startup/self-exec, locales and integration gates remain open.
 
 [Single-pass explicit startup arguments](startup-arguments.md) removes redundant decoding only when no inherited tokens need merging. Exact-value fixtures and the top-level benchmark suite retain correctness gates; general speed parity remains open.
+
+[CLI assignment effects and default phases](cli-assignment-effects.md) add 186 required original comparisons and close the recorded early CC/default-goal warning controls and inactive-metadata eval control. The ordinary repeated CLI file-effect mismatch remains explicit restart work; full M3/M6 criteria are unchanged.

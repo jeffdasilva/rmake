@@ -78,7 +78,7 @@ class UndefinedWarningTests(unittest.TestCase):
         self.assertNotIn(b"variable '@'", self.streams('warn-auto-40-recipe')[1])
         self.assertNotIn(b"variable 'HOME'", self.streams('warn-extra-home-local-eval')[1])
 
-    def test_startup_order_limitations_remain_ordinary_open_research(self):
+    def test_historical_startup_mismatches_have_current_required_controls(self):
         record = json.loads((ROOT / 'tests/research/gnu-441-warning-startup.json').read_text())
         self.assertEqual(record['classification'],
                          'ordinary startup-order mismatches; not safety exceptions or passing fixtures')
@@ -89,6 +89,8 @@ class UndefinedWarningTests(unittest.TestCase):
             self.assertEqual(row['observations']['oracle']['returncode'], 0)
             self.assertEqual(row['observations']['oracle'], row['observations']['repeat'])
             self.assertNotEqual(row['observations']['oracle'], row['observations']['candidate'])
+        for name in ('cli-assignment-warning-cc', 'cli-assignment-warning-goal'):
+            self.assertEqual(conformance.load_case(ROOT / 'tests/cases' / name).candidate, 'required')
 
 
 if __name__ == '__main__':
