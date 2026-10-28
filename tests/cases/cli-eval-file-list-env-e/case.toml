@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-file-list-env-e"
+requirement = "cli.eval"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-E", "$(info E=[$(origin MAKEFILE_LIST)/[$(MAKEFILE_LIST)]])", "-e"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKEFILE_LIST" = "ENV"
+
+[expected]
+exit_code = 0
+stdout_hex = "453d5b656e7669726f6e6d656e742f5b454e565d5d0a463d5b656e7669726f6e6d656e74206f766572726964652f5b454e565d5d0a"
+stderr_hex = ""

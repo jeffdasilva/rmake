@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-metadata-commands"
+requirement = "cli.eval"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-E", "$(info E=[$(origin MAKEFILE_LIST)]/[$(MAKEFILE_LIST)]/[$(origin -*-eval-flags-*-)]/[$(value MAKEFLAGS)]/[$(value MFLAGS)])", "X=CLI"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "453d5b756e646566696e65645d2f5b5d2f5b756e646566696e65645d2f5b7252202d2d6e6f2d7072696e742d6469726563746f72792024282d2a2d6576616c2d666c6167732d2a2d29202d2d2024284d414b454f5645525249444553295d2f5b2d7252202d2d6e6f2d7072696e742d6469726563746f72795d0a463d5b66696c655d2f5b4d616b6566696c655d2f5b6175746f6d617469635d2f5b73696d706c655d2f5b2d2d6576616c3d242428696e666f5c20453d5b2424286f726967696e5c204d414b4546494c455f4c495354295d2f5b2424284d414b4546494c455f4c495354295d2f5b2424286f726967696e5c202d2a2d6576616c2d666c6167732d2a2d295d2f5b24242876616c75655c204d414b45464c414753295d2f5b24242876616c75655c204d464c414753295d295d2f5b7252202d2d6e6f2d7072696e742d6469726563746f72792024282d2a2d6576616c2d666c6167732d2a2d29202d2d2024284d414b454f5645525249444553295d2f5b2d7252202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+stderr_hex = ""

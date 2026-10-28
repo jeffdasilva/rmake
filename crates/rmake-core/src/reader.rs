@@ -57,6 +57,18 @@ impl<'a> Reader<'a> {
         self.posix = enabled;
     }
 
+    /// Anonymous/caller-line-one eval buffers remove BOMs before classifying
+    /// the next logical line. File streams retain their ordinary read path.
+    pub(crate) fn skip_eval_bom(&mut self) {
+        if self
+            .source
+            .get(self.offset..)
+            .is_some_and(|rest| rest.starts_with(b"\xef\xbb\xbf"))
+        {
+            self.offset += 3;
+        }
+    }
+
     /// Read a logical line using the state that applies at its first byte.
     ///
     /// Outside rule context a prefix byte is ordinary input. Within rule
@@ -329,6 +341,15 @@ pub fn strip_comment(line: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn memory_bom_is_removed_before_recipe_continuation_classification() {
+        let mut reader = Reader::new(b"\xef\xbb\xbf\tfirst \\\n\tsecond\n");
+        reader.skip_eval_bom();
+        let line = reader.next_line(b'\t', true).unwrap();
+        assert!(line.recipe);
+        assert_eq!(line.bytes, b"\tfirst \\\nsecond");
+    }
     use super::{LogicalLine, Reader, strip_comment};
 
     fn normal(source: &[u8]) -> LogicalLine {

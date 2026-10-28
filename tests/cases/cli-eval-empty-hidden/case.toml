@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-empty-hidden"
+requirement = "cli.eval"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-E", "$(info E=[$(origin -*-eval-flags-*-)]/[$(flavor -*-eval-flags-*-)]/[$(MAKEFILE_LIST)])"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "453d5b756e646566696e65645d2f5b756e646566696e65645d2f5b5d0a"
+stderr_hex = ""

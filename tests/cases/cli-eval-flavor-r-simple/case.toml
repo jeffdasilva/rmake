@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-flavor-r-simple"
+requirement = "cli.eval"
+candidate = "required"
+args = ["-r", "--no-print-directory", "-E", "X := one\n$(info E=[$(X)/$(origin X)/$(flavor X)])"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "453d5b6f6e652f66696c652f73696d706c655d0a463d5b6f6e652f66696c652f73696d706c655d0a"
+stderr_hex = ""

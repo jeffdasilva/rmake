@@ -3249,7 +3249,7 @@ fn join_words<'a>(values: impl IntoIterator<Item = &'a [u8]>) -> Result<Vec<u8>,
 
 // Expansion distinguishes a function invocation from a simple variable name.
 // Reader/argument scans keep their separate structural balancing rules.
-fn expansion_reference_span(
+pub(crate) fn expansion_reference_span(
     input: &[u8],
     opening: usize,
 ) -> Result<(usize, usize, bool), ExpandError> {

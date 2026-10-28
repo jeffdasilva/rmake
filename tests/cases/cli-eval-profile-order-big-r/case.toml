@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "cli-eval-profile-order-big-r"
+requirement = "cli.eval"
+candidate = "required"
+args = ["-R", "--no-print-directory", "-E", "$(info A)\nX=first", "-E", "$(info B=[$(X)])\nX=last"]
+timeout_seconds = 5
+description = "Original command-line eval phase, metadata, diagnostic, priority, encoding or runtime comparison."
+provenance = "Independent exact status/stream and intended-effect models checked against two pinned GNU observations and the candidate. No upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "410a423d5b66697273745d0a463d5b6c6173745d0a"
+stderr_hex = ""

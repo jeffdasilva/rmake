@@ -89,6 +89,7 @@ impl State {
         let include_dirs = search.directories().map(<[u8]>::to_vec).collect();
         self.includes.replace(search);
         let result = rmake_core::diagnostic::MakeflagsResult {
+            eval_reference: !updated.evals.is_empty(),
             value: updated.recursive_flags(),
             origin: origin(updated.environment_override),
             environment_override: updated.environment_override,
