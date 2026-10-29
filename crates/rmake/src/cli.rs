@@ -243,14 +243,48 @@ impl Options {
         }
         let incoming_options = Self::parse_mode::<false>(incoming.clone())?;
         let mut arguments = Vec::new();
-        Self::append_flags(&mut arguments, &self.recursive_flags())?;
+        Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false))?;
         if self.jobserver_pipe {
             arguments.push("--jobserver-style=pipe".into());
         }
         let prefix_count = arguments.len();
         let flag_word_count = incoming.len() + 1;
         arguments.extend(incoming);
-        let mut parsed = Self::parse_mode::<false>(arguments)?;
+        let seeded = Self {
+            include_directories: self.include_directories.clone(),
+            include_assignment_positions: self.include_assignment_positions.clone(),
+            ..Self::default()
+        };
+        let mut seen: std::collections::HashSet<_> = seeded
+            .include_directories
+            .iter()
+            .map(|path| path.as_os_str().to_owned())
+            .collect();
+        let mut parsed = Self::parse_with::<false, String>(
+            arguments,
+            seeded,
+            0,
+            false,
+            &mut |options, argument| {
+                if let Argument::Include(index) = argument {
+                    let raw = options.include_directories[index].as_os_str();
+                    if seen.contains(raw) {
+                        options.include_directories.pop();
+                        options.include_assignment_positions.pop();
+                    } else {
+                        // Runtime HOME expansion still requires a contextual
+                        // decoder; this only preserves literal byte semantics.
+                        let stored: PathBuf = OsString::from_vec(
+                            rmake_core::filenames::without_dot_prefix(raw.as_bytes()).to_vec(),
+                        )
+                        .into();
+                        seen.insert(stored.as_os_str().to_owned());
+                        options.include_directories[index] = stored;
+                    }
+                }
+                Ok(())
+            },
+        )?;
         for (position, _) in &mut parsed.assignment_context {
             *position = *position - prefix_count + 1;
         }
@@ -676,7 +710,15 @@ impl Options {
     }
 
     pub fn recursive_flags(&self) -> Vec<u8> {
-        let flags = self.flags();
+        self.recursive_flags_with_includes(true)
+    }
+
+    fn recursive_flags_with_includes(&self, includes: bool) -> Vec<u8> {
+        let flags = if includes {
+            self.flags()
+        } else {
+            self.flags_with_includes(false)
+        };
         if !flags.contains(&b'$') {
             return flags;
         }
@@ -692,6 +734,10 @@ impl Options {
     }
 
     pub fn flags(&self) -> Vec<u8> {
+        self.flags_with_includes(true)
+    }
+
+    fn flags_with_includes(&self, includes: bool) -> Vec<u8> {
         let mut flags = Vec::new();
         for (set, flag) in [
             (self.always, b'B'),
@@ -711,13 +757,15 @@ impl Options {
                 flags.push(flag);
             }
         }
-        for directory in &self.include_directories {
-            flags.extend_from_slice(b" -I");
-            for &byte in directory.as_os_str().as_bytes() {
-                if byte.is_ascii_whitespace() || byte == b'\\' {
-                    flags.push(b'\\');
+        if includes {
+            for directory in &self.include_directories {
+                flags.extend_from_slice(b" -I");
+                for &byte in directory.as_os_str().as_bytes() {
+                    if byte.is_ascii_whitespace() || byte == b'\\' {
+                        flags.push(b'\\');
+                    }
+                    flags.push(byte);
                 }
-                flags.push(byte);
             }
         }
         if let Some(jobs) = self.jobs {

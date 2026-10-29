@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-operands-passive-target-8-0"
+requirement = "includes.operand-history"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Otarget", "-I-", "-I./inc", "-I./inc/", "all"]
+timeout_seconds = 5
+description = "Original raw-versus-stored include operand history, barrier, effect and reset control."
+provenance = "Independent models qualified by two bounded pinned GNU Make 4.4.1 observations and frozen debug/release builds; no upstream implementation or tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = "4245464f52453d5b325d20464c4147533d5b325d0a504153534956453d5b325d0a41465445523d5b325d20464c4147533d5b325d0a"
+stderr_hex = ""

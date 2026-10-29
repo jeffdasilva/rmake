@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-operands-0"
+requirement = "includes.operand-history"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-I-"]
+timeout_seconds = 5
+description = "Original raw-versus-stored include operand history, barrier, effect and reset control."
+provenance = "Independent models qualified by two bounded pinned GNU Make 4.4.1 observations and frozen debug/release builds; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "444952533d5b5d0a464c4147533d5b2d492d5d0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

@@ -13,8 +13,8 @@ import include_stat_faults as f
 class IncludeStatFaultTests(unittest.TestCase):
     def test_inventory_covers_each_effect_site_recovery_and_fatal_stop(self):
         cells=f.inventory()
-        self.assertEqual(len(cells),12)
-        self.assertEqual(len({c.id for c in cells}),12)
+        self.assertEqual(len(cells),24)
+        self.assertEqual(len({c.id for c in cells}),24)
         self.assertEqual({c.phase for c in cells},set(f.PHASES))
         self.assertEqual({c.mode for c in cells},set(f.MODES))
         history=json.loads((f.ROOT/'tests/research/include-stat-interruptions.json').read_text())
@@ -32,7 +32,7 @@ class IncludeStatFaultTests(unittest.TestCase):
 
         for c in cells:
             self.assertEqual(c.arguments[:3],('-rR','--no-print-directory','-I-'))
-            self.assertEqual('-Iinc' in c.arguments,c.phase=='startup')
+            self.assertEqual(any(a in c.arguments for a in ('-Iinc','-I./inc')),c.phase=='startup')
             self.assertEqual(b'forbidden' in c.source,c.mode=='signal')
 
     def test_trace_gate_rejects_unreached_interruption_and_missing_recovery(self):
@@ -42,6 +42,16 @@ class IncludeStatFaultTests(unittest.TestCase):
             self.assertEqual(f.trace_errors(cell,good),[])
             for bad in ('',good.splitlines()[0]+'\n',good.replace('eintr','real'),good.replace(' 4',' 9')):
                 self.assertTrue(f.trace_errors(cell,bad))
+
+    def test_repeated_operands_require_separate_real_metadata_observations(self):
+        for mode in ('normal','eintr-1','eintr-3'):
+            cell=f.Cell('startup',mode,True)
+            wanted=''.join(f'eintr stat {n+1}\n' for n in range(cell.interrupts))
+            wanted+=f'real stat {cell.interrupts+1}\nreal stat {cell.interrupts+2}\n'
+            self.assertEqual(f.trace_errors(cell,wanted),[])
+            self.assertTrue(f.trace_errors(cell,'\n'.join(wanted.splitlines()[:-1])+'\n'))
+            self.assertEqual(cell.arguments[-2:],('-I./inc','-I./inc'))
+        self.assertEqual(f.trace_errors(f.Cell('recipe','signal',True),'eintr statx 1\n'),[])
 
     def test_fatal_stop_rejects_later_syscalls_effects_diagnostics_and_wrong_status(self):
         cell=f.Cell('recipe','signal');good=h.Observation(b'',b'',-2,None,{})

@@ -23,12 +23,6 @@ pub(super) fn include_metadata(
     options: &mut Options,
     runtime: Runtime<'_>,
 ) -> Result<IncludeSearch, StartupError> {
-    // Operand-history multiplicity is a separate decoder follow-up. Preserve
-    // the existing list policy while changing the definition/effect phase.
-    let mut seen = HashSet::new();
-    options
-        .include_directories
-        .retain(|directory| seen.insert(directory.as_os_str().to_owned()));
     let search = IncludeSearch::new(&options.include_directories);
     if rmake_linux::signals::pending().is_some() {
         return Err(StartupError::expansion(ExpandError::Cancelled));

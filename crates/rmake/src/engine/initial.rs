@@ -159,6 +159,8 @@ impl Plan {
             seed: startup::Seed::default(),
             warnings: Cell::new(false),
             seen_commands: HashSet::new(),
+            seen_includes: HashSet::new(),
+            seen_directories: HashSet::new(),
         };
         let mut prefix_count = 0;
         let mut parsed_prefix = Options::default();
@@ -281,6 +283,8 @@ struct State {
     seed: startup::Seed,
     warnings: Cell<bool>,
     seen_commands: HashSet<Vec<u8>>,
+    seen_includes: HashSet<OsString>,
+    seen_directories: HashSet<OsString>,
 }
 
 impl State {
@@ -351,11 +355,10 @@ impl State {
                 }
                 crate::cli::Argument::Include(index) => {
                     let raw = options.include_directories[index].as_os_str().as_bytes();
-                    if !options.include_directories[..index]
-                        .iter()
-                        .any(|path| path.as_os_str().as_bytes() == raw)
-                    {
-                        options.include_directories[index] = self.path(program, raw)?;
+                    if !self.seen_includes.contains(OsStr::from_bytes(raw)) {
+                        let stored = self.path(program, raw)?;
+                        self.seen_includes.insert(stored.as_os_str().to_owned());
+                        options.include_directories[index] = stored;
                     } else {
                         options.include_directories.pop();
                         options.include_assignment_positions.pop();
@@ -363,11 +366,10 @@ impl State {
                 }
                 crate::cli::Argument::Directory(index) => {
                     let raw = options.directories[index].as_os_str().as_bytes();
-                    if !options.directories[..index]
-                        .iter()
-                        .any(|path| path.as_os_str().as_bytes() == raw)
-                    {
-                        options.directories[index] = self.path(program, raw)?;
+                    if !self.seen_directories.contains(OsStr::from_bytes(raw)) {
+                        let stored = self.path(program, raw)?;
+                        self.seen_directories.insert(stored.as_os_str().to_owned());
+                        options.directories[index] = stored;
                     } else {
                         options.directories.pop();
                     }
