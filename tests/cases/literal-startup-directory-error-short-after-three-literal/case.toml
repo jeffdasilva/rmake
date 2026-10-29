@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "literal-startup-directory-error-short-after-three-literal"
+requirement = "startup.literal-arguments"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Cmissing", "MAKELEVEL=3"]
+timeout_seconds = 5
+description = "Original literal and expression startup operand, diagnostic and reconstruction control."
+provenance = "Independent exact models and intended filesystem effects checked against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No upstream code or tests copied."
+
+[environment]
+"MAKELEVEL" = "2"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b655b335d3a202a2a2a206d697373696e673a204e6f20737563682066696c65206f72206469726563746f72792e202053746f702e0a"

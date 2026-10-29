@@ -315,3 +315,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Startup metadata recursion](docs/startup-metadata-recursion.md) now preserves CLI versus metadata recursion, child environments, diagnostic program levels and real definition sources, with 55 new required cases. Assignment priority and scope preservation share one fresh binding lookup. Eleven startup-metadata research gaps and broader M3/M6 remain open.
 
 [Include-directory interruption handling](docs/include-stat-interruptions.md) now retries transient metadata interruptions and stops on fatal signals. `make test-include-stat` adds twelve separately gated fault profiles with observer ABI qualification; ordinary conformance and safety-exception counts are unchanged.
+
+[Ordered literal startup](docs/literal-startup.md) now uses the same argument and restart phases for all invocations, preserving directory operand comparison, repeated Makefile metadata and recursion diagnostics. There are 146 new required controls; allocation requests fall on the measured literal-argument workloads, while general M3/M6 compatibility and performance parity remain open.

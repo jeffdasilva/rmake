@@ -1,0 +1,2 @@
+$(info GOALS=[$(MAKECMDGOALS)])
+all:;@:

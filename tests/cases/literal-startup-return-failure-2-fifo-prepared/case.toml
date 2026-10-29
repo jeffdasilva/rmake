@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "literal-startup-return-failure-2-fifo-prepared"
+requirement = "startup.literal-arguments"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "DUMMY:=$(subst x,x,)", "-j2", "--jobserver-style=fifo", "-Cd"]
+timeout_seconds = 5
+description = "Original literal and expression startup operand, diagnostic and reconstruction control."
+provenance = "Independent exact models and intended filesystem effects checked against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No upstream code or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = "4245464f52450a"
+stderr_hex = "6d616b653a2063686469723a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b653a20494e5445524e414c3a2045786974696e6720776974682031206a6f6273657276657220746f6b656e7320617661696c61626c653b2073686f756c642062652032210a"
