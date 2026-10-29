@@ -48,3 +48,5 @@ tests/cases/initial-flags-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eo
 tests/cases/initial-flags-*/raw.bin -text
 tests/cases/ordered-cli-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/ordered-cli-*/raw.bin -text
+tests/cases/restart-state-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/early-flags-inactive-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

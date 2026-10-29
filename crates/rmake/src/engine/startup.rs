@@ -98,6 +98,9 @@ impl Snapshot {
             .map_err(|e| e.diagnostic())?;
         database
             .variables
+            .set_export_policy(b"MAKE_RESTARTS", Some(false));
+        database
+            .variables
             .set_environment_override(options.environment_override);
         options.include_directories = self.include_directories.clone();
         let mut exports = self.inherited_exports.clone();

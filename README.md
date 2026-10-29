@@ -305,3 +305,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Initial inherited flag expansion](docs/initial-flag-expansion.md) now evaluates variable/function effects before token decoding, transfers prepared state into startup, and repeats early effects on restart. M3/M6 remain open.
 
 [Ordered explicit CLI startup](docs/ordered-cli-startup.md) adds 126 semantic and two scaling controls, a 128-cell exit-phase gate and 42 interruption cells. Full GNU compatibility and performance parity remain open.
+
+[Imported restart state](docs/restart-state.md) adds 214 counter/policy controls and eight early special-activation controls. It preserves numeric wrap and binding export lifetime while transferring original startup inputs without a redundant full copy. M3/M6 remain open.

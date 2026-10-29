@@ -1,0 +1,482 @@
+{
+  "classification": "finite directory-reporting compatibility gaps; zero conformance or safety-exception credit",
+  "oracle_profile": "GNU Make 4.4.1 pinned disabled-Guile C-locale Linux profile",
+  "source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "before_identities": {
+    "/home/jdasilva/github/rmake/.tools/oracle/bin/make": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+    "/tmp/rmake-ordered-final-debug": "c047c4514c0aa772abed9f7fdf5d8294f7627f3ed241185064a7e847511daf06"
+  },
+  "after_identities": {
+    "/home/jdasilva/github/rmake/.tools/oracle/bin/make": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+    "/home/jdasilva/github/rmake/target/debug/rmake": "c11e29abf2da4d3770901af93b09268fcb7733b733b8dc29bac9c5b22a4bf67e"
+  },
+  "explanation": "GNU strips a leading directory-traced marker and emits a final leaving message even with --no-print-directory. Counter/value behavior is corrected; the remaining raw stdout difference stays ordinary M6 directory work. The first models omitted that message; disagreements are retained, not accepted as passing evidence.",
+  "records": [
+    {
+      "id": "imported-restarts-traced",
+      "inputs_hex": {
+        "Makefile": "2428696e666f20523d5b24284d414b455f5245535441525453295d20413d5b242841295d290a2e44454641554c545f474f414c3d616c6c0a2d696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a3b407072696e74662022232067656e6572617465645c6e22203e24400a616c6c3a3b403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "A:=$(MAKE_RESTARTS)"
+      ],
+      "environment": {
+        "MAKE_RESTARTS": "-5"
+      },
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "523d5b355d20413d5b355d0a523d5b365d20413d5b365d0a",
+        "stderr_hex": ""
+      },
+      "before": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b355d20413d5b355d0a523d5b365d20413d5b365d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d3078687365366d352f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b355d20413d5b355d0a523d5b365d20413d5b365d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d3078687365366d352f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b315d20413d5b315d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "after": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b355d20413d5b355d0a523d5b365d20413d5b365d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d6d5f686572696a762f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b355d20413d5b355d0a523d5b365d20413d5b365d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d6d5f686572696a762f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b355d20413d5b355d0a523d5b365d20413d5b365d0a",
+          "stderr_hex": ""
+        }
+      ]
+    },
+    {
+      "id": "imported-restarts-traced-negative",
+      "inputs_hex": {
+        "Makefile": "2428696e666f20523d5b24284d414b455f5245535441525453295d20413d5b242841295d290a2e44454641554c545f474f414c3d616c6c0a2d696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a3b407072696e74662022232067656e6572617465645c6e22203e24400a616c6c3a3b403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "A:=$(MAKE_RESTARTS)"
+      ],
+      "environment": {
+        "MAKE_RESTARTS": "--5"
+      },
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b343239343936373239325d20413d5b343239343936373239325d0a",
+        "stderr_hex": ""
+      },
+      "before": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b343239343936373239325d20413d5b343239343936373239325d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d3078687365366d352f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b343239343936373239325d20413d5b343239343936373239325d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d3078687365366d352f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d2d355d20413d5b2d2d355d0a523d5b315d20413d5b315d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "after": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b343239343936373239325d20413d5b343239343936373239325d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d6d5f686572696a762f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b343239343936373239325d20413d5b343239343936373239325d0a6d616b653a204c656176696e67206469726563746f727920272f746d702f726d616b652d6f7264657265642d636c692d6f62736572766174696f6e732d6d5f686572696a762f776f726b270a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFI9WyQoTUFLRV9SRVNUQVJUUyldIEE9WyQoQSldKQouREVGQVVMVF9HT0FMPWFsbAotaW5jbHVkZSBnZW5lcmF0ZWQubWsKZ2VuZXJhdGVkLm1rOjtAcHJpbnRmICIjIGdlbmVyYXRlZFxuIiA+JEAKYWxsOjtAOgo=",
+              "size": 128,
+              "sha256": "dc8495e221241be5c2208a44e58807f44884cd1934f7db1de47b459954c5dcb3"
+            },
+            "work/generated.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "IyBnZW5lcmF0ZWQK",
+              "size": 12,
+              "sha256": "8e91845e3b2e8793a97b7a0e7c33c58ad92761e7d2ed7ffe60f8fb0e196649cf"
+            }
+          },
+          "stdout_hex": "523d5b2d355d20413d5b2d355d0a523d5b343239343936373239325d20413d5b343239343936373239325d0a",
+          "stderr_hex": ""
+        }
+      ]
+    }
+  ]
+}

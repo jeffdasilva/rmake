@@ -46,7 +46,10 @@ def parse_trace(text):
 
 def run(candidate, workload, output):
     binary = conformance.executable_identity(candidate)
-    source = dict(benchmark.workloads())[workload]
+    sources = dict(benchmark.workloads()) | dict(benchmark.startup_effect_workloads()) | dict(benchmark.initial_flag_workloads())
+    source = sources[workload]
+    arguments = benchmark.workload_arguments(workload)
+    overrides = benchmark.workload_environment(workload)
     output.mkdir(parents=True, exist_ok=True)
     helper = output / 'allocations.so'
     subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-O2', '-fPIC', '-shared',
@@ -62,11 +65,17 @@ def run(candidate, workload, output):
         (root / 'home').mkdir()
         (root / 'tmp').mkdir()
         environment = conformance.clean_environment(root, {
-            'LD_PRELOAD': str(helper), 'RMAKE_ALLOC_TRACE': str(trace), 'MAKELEVEL': '0'})
-        result = subprocess.run([str(alias), '-rR', '--no-print-directory'], cwd=root,
+            'LD_PRELOAD': str(helper), 'RMAKE_ALLOC_TRACE': str(trace), 'MAKELEVEL': '0', **overrides})
+        result = subprocess.run([str(alias), *arguments], cwd=root,
                                 env=environment, capture_output=True, timeout=30, check=True)
         expected = (b"make: Nothing to be done for 'all'.\n" if workload == 'large-noop'
                     else b"make: 'all' is up to date.\n")
+        if workload.startswith(('startup-effects-', 'initial-flags-')):
+            case = conformance.load_case(ROOT / 'tests/cases' / workload)
+            if (case.args != tuple(arguments) or case.environment != overrides
+                    or (case.path / 'Makefile').read_bytes() != source):
+                raise ValueError('profile inputs differ from required workload fixture')
+            expected = bytes.fromhex(case.expected['stdout_hex'])
         if result.stdout != expected or result.stderr:
             raise ValueError(f'profile workload produced unexpected output: {result.stdout!r} {result.stderr!r}')
     summary, samples = parse_trace(trace.read_text())
@@ -82,7 +91,7 @@ def run(candidate, workload, output):
     for sample in samples:
         counts.update(set(symbols[address] for address in sample['addresses']))
     report = {'workload': workload, 'source_sha256': hashlib.sha256(source).hexdigest(),
-              'binary': binary, 'helper_sha256': conformance.sha256_file(SOURCE), 'limits': LIMITS,
+              'binary': binary, 'arguments': arguments, 'environment': overrides, 'helper_sha256': conformance.sha256_file(SOURCE), 'limits': LIMITS,
               'summary': summary, 'samples': samples, 'symbols': symbols,
               'sampled_callers': [{'symbol': name, 'samples': count} for name, count in counts.most_common()]}
     (output / 'report.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
@@ -96,7 +105,7 @@ def run(candidate, workload, output):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate', type=Path, required=True)
-    parser.add_argument('--workload', choices=('tiny-noop', 'large-noop', 'expansion'), default='large-noop')
+    parser.add_argument('--workload', choices=('tiny-noop', 'large-noop', 'expansion', 'startup-effects-0', 'startup-effects-1000', 'initial-flags-0', 'initial-flags-1000'), default='large-noop')
     parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/profile/allocations')
     args = parser.parse_args(argv)
     try:

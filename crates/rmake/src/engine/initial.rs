@@ -5,7 +5,6 @@
 //! The prepared database/effect runtime is transferred, never replayed in-place.
 use super::*;
 
-#[derive(Clone)]
 pub(super) struct Plan {
     args: Vec<OsString>,
     environment: Vec<(OsString, OsString)>,
@@ -70,7 +69,7 @@ impl Plan {
     }
 
     pub(super) fn decode(
-        &self,
+        self: Box<Self>,
         restart: Option<(u32, u32)>,
     ) -> Result<Invocation, InvocationError> {
         let mut database = Database::default();
@@ -112,12 +111,19 @@ impl Plan {
                 .as_ref()
                 .or(updated_restart.as_ref())
                 .map_or(value.as_bytes(), |value| value.as_bytes());
+            let value = if name == b"MAKE_RESTARTS" {
+                startup_restart_value(value)
+            } else {
+                value
+            };
             database
                 .variables
                 .define(name, value, Assignment::Recursive, Origin::Environment)
                 .map_err(StartupError::expansion)?;
             if name == b"SHELL" {
                 database.variables.set_original_shell(value);
+                database.variables.set_export_policy(name, Some(false));
+            } else if name == b"MAKE_RESTARTS" {
                 database.variables.set_export_policy(name, Some(false));
             } else {
                 database.variables.set_export_policy(name, Some(true));
@@ -138,8 +144,7 @@ impl Plan {
                 .map_err(StartupError::expansion)?;
             database
                 .variables
-                .set_export_policy(b"MAKE_RESTARTS", Some(true));
-            exports.insert(b"MAKE_RESTARTS".to_vec());
+                .set_export_policy(b"MAKE_RESTARTS", Some(false));
         }
         if let Ok(directory) = std::env::current_dir() {
             database
@@ -254,7 +259,7 @@ impl Plan {
                 seed: state.seed,
                 reader_output,
                 construction,
-                plan: Box::new(self.clone()),
+                plan: self,
             })),
         })
     }

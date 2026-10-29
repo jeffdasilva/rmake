@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "restart-state-n10-effect-serial"
+requirement = "startup.restart-state"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "A:=$(MAKE_RESTARTS)"]
+timeout_seconds = 5
+description = "Original imported counter, startup reconstruction, export-policy or special-activation control."
+provenance = "Independent source-informed exact models and intended file effects checked against two bounded pinned GNU observations and candidate. No upstream implementation or tests copied."
+
+[environment]
+"MAKE_RESTARTS" = "4294967296"
+
+[expected]
+exit_code = 0
+stdout_hex = "523d5b343239343936373239365d20413d5b343239343936373239365d0a523d5b315d20413d5b315d0a"
+stderr_hex = ""

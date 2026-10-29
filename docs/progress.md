@@ -2481,3 +2481,7 @@ MAKEFLAGS/GNUMAKEFLAGS expansion now uses the complete early database context be
 ## Ordered explicit CLI startup — 2026-10-28
 
 A typed decoder receiver now applies definitions, goal metadata and filename operands against the early database, before directory changes and late defaults. Owned output buffers preserve inherited synchronization and fatal/version exit phases. Original controls cover 126 semantic and two scaling cases, with 128 separate early-exit cells and 42 new interruption cells. The corpus is 10,488 required ordinary cases, zero pending, plus 17 unchanged separate safety exceptions. Complete final acceptance and exact-head CI remain merge gates; M3/M6 and general performance parity remain open. See [ordered startup](ordered-cli-startup.md).
+
+## Imported restart state — 2026-10-28
+
+Imported restart count, public variable bytes and binding no-export policy now follow their separate phases. Reread reconstruction/budgets are distinct from the wrapping GNU counter, and the startup Plan transfers original owned inputs without an unnecessary full clone. There are 214 new counter/policy cases and eight controls for the already-correct inactive early MAKEFLAGS binding. The corpus is 10,710 required ordinary cases, zero pending, with 17 unchanged separate safe-error exceptions. Two directory-marker observations remain ordinary research. Full final acceptance and exact-head CI remain merge gates; M3/M6 and general performance parity remain open. See [restart state](restart-state.md).
