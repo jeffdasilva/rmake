@@ -24,15 +24,21 @@ TRACE=re.compile(r'^(eintr|real) (stat|stat64|statx) ([1-9][0-9]*)$')
 class Cell:
     phase: str
     mode: str
+    repeated: bool = False
 
     @property
-    def id(self):return f'include-stat-{self.phase}-{self.mode}'
+    def id(self):return f'include-stat-{self.phase}-{self.mode}'+('-repeated' if self.repeated else '')
     @property
     def interrupts(self):return 3 if self.mode=='eintr-3' else int(self.mode!='normal')
     @property
-    def arguments(self):return ('-rR','--no-print-directory','-I-',* (('-Iinc',) if self.phase=='startup' else ()))
+    def operands(self):return ('-I./inc','-I./inc') if self.repeated else ('-Iinc',)
+    @property
+    def arguments(self):return ('-rR','--no-print-directory','-I-',*(self.operands if self.phase=='startup' else ()))
     @property
     def source(self):
+        return self.single_source.replace(b'-Iinc', b'-I./inc -I./inc') if self.repeated else self.single_source
+    @property
+    def single_source(self):
         if self.mode=='signal':
             return {'startup':b'$(file >forbidden)\nall:;@:\n',
                     'reader':b'MAKEFLAGS += -Iinc\n$(file >forbidden)\nall:;@:\n',
@@ -46,14 +52,14 @@ class Cell:
                 'stdout_hex':('' if self.mode=='signal' else b'VALUE=[ok]\n'.hex()),'stderr_hex':''}
 
 
-def inventory():return tuple(Cell(phase,mode) for phase in PHASES for mode in MODES)
+def inventory():return tuple(Cell(phase,mode,repeated) for repeated in (False,True) for phase in PHASES for mode in MODES)
 
 
 def trace_errors(cell,trace):
     lines=trace.splitlines();parsed=[TRACE.fullmatch(line) for line in lines]
     if not lines or any(match is None for match in parsed):return ['metadata fault phase was not qualified']
     kinds=[match[1] for match in parsed]
-    wanted=['eintr'] if cell.mode=='signal' else ['eintr']*cell.interrupts+['real']
+    wanted=['eintr'] if cell.mode=='signal' else ['eintr']*cell.interrupts+['real']*(2 if cell.repeated else 1)
     errors=[]
     if kinds!=wanted:errors.append('metadata retry or cancellation sequence')
     if [int(match[3]) for match in parsed]!=list(range(1,len(parsed)+1)):errors.append('metadata trace cursor')

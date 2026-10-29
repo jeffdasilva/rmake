@@ -56,3 +56,4 @@ tests/cases/constructor-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/include-meta-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/early-abspath-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/early-abspath-*/inc/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/include-operands-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-operands-restart-target-3"
+requirement = "includes.operand-history"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Otarget", "-I-", "-Iinc", "-I./inc/", "all"]
+timeout_seconds = 5
+description = "Original raw-versus-stored include operand history, barrier, effect and reset control."
+provenance = "Independent models qualified by two bounded pinned GNU Make 4.4.1 observations and frozen debug/release builds; no upstream implementation or tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = "504153533d5b5d204e3d5b325d0a504153533d5b315d204e3d5b325d0a"
+stderr_hex = ""

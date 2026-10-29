@@ -64,3 +64,5 @@ metadata attempt.
 | runtime-includes-1000 | 2.709 | 9.315 | 9.220 |
 
 Raw reports: [core](benchmarks/include-stat-core.json), [repeated include metadata](benchmarks/include-stat-runtime-includes.json).
+
+The [include operand history follow-up](include-operands.md) expands the current gate to 24 profiles, including two retained identical physical paths and explicit trace-count rejection. The historical twelve-profile evidence above remains unchanged.

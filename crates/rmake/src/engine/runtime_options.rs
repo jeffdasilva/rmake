@@ -67,7 +67,6 @@ impl State {
         updated.assignments = current.assignments.clone();
         updated.assignment_context = current.assignment_context.clone();
         updated.assignment_warnings = current.assignment_warnings.clone();
-        updated.include_assignment_positions = current.include_assignment_positions.clone();
         updated.reset_jobserver = current.reset_jobserver;
         let mode = updated
             .output_sync
@@ -82,10 +81,6 @@ impl State {
                 .concat()
             })?;
         self.output.set_mode(mode);
-        let mut seen = HashSet::new();
-        updated
-            .include_directories
-            .retain(|path| seen.insert(path.clone()));
         let search = IncludeSearch::new(&updated.include_directories);
         let include_dirs = search.directories().map(<[u8]>::to_vec).collect();
         let result = rmake_core::diagnostic::MakeflagsResult {
@@ -378,8 +373,6 @@ impl Engine {
         updated.goals = std::mem::take(&mut self.options.goals);
         updated.assignments = std::mem::take(&mut self.options.assignments);
         updated.assignment_context = std::mem::take(&mut self.options.assignment_context);
-        updated.include_assignment_positions =
-            std::mem::take(&mut self.options.include_assignment_positions);
         updated.reset_jobserver = self.options.reset_jobserver;
         let mode = updated
             .output_sync
@@ -400,10 +393,6 @@ impl Engine {
         if updated.jobserver_auth != self.options.jobserver_auth {
             self.jobserver.take();
         }
-        let mut seen = HashSet::new();
-        updated
-            .include_directories
-            .retain(|path| seen.insert(path.clone()));
         if let Err(error) = self
             .database
             .variables
