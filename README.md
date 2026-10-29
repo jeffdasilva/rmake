@@ -313,3 +313,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Runtime include phases](docs/runtime-includes.md) now preserve old search during metadata eval, nested publication, current flag state and bindings changed by immediate RHS effects. There are 155 new required cases, 42 staged interruption cells and an output-checked `BENCH_SUITE=runtime-includes`; full M3/M6 and performance parity remain open.
 
 [Startup metadata recursion](docs/startup-metadata-recursion.md) now preserves CLI versus metadata recursion, child environments, diagnostic program levels and real definition sources, with 55 new required cases. Assignment priority and scope preservation share one fresh binding lookup. Eleven startup-metadata research gaps and broader M3/M6 remain open.
+
+[Include-directory interruption handling](docs/include-stat-interruptions.md) now retries transient metadata interruptions and stops on fatal signals. `make test-include-stat` adds twelve separately gated fault profiles with observer ABI qualification; ordinary conformance and safety-exception counts are unchanged.

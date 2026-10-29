@@ -75,7 +75,17 @@ impl IncludeSearch {
     }
 
     fn add_directory(&mut self, name: &[u8]) {
-        if fs::metadata(OsStr::from_bytes(name)).is_ok_and(|metadata| metadata.is_dir()) {
+        let metadata = loop {
+            // A fatal signal must not begin another filesystem observation.
+            if rmake_linux::signals::pending().is_some() {
+                return;
+            }
+            match fs::metadata(OsStr::from_bytes(name)) {
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                result => break result,
+            }
+        };
+        if metadata.is_ok_and(|metadata| metadata.is_dir()) {
             let mut end = name.len();
             while end > 1 && name[end - 1] == b'/' {
                 end -= 1;
