@@ -11,10 +11,6 @@ pub struct Aliases {
 }
 
 impl Aliases {
-    pub fn clear(&mut self) {
-        self.names.clear();
-    }
-
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }

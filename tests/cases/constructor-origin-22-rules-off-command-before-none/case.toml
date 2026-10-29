@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-origin-22-rules-off-command-before-none"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-r", "-Onone", "-I-", "%F=imported", "-Idir-$(file >>observed,$(origin %F))", "all"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "4541524c593d5b636f6d6d616e64206c696e655d0a4c4154453d5b6175746f6d617469635d0a"
+stderr_hex = ""

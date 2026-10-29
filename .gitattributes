@@ -52,3 +52,5 @@ tests/cases/restart-state-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eo
 tests/cases/early-flags-inactive-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/literal-startup-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/literal-startup-*/**/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/constructor-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/include-meta-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

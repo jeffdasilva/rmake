@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-origin-15-variables-off-environment-none"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-R", "-Onone", "-I-", "-Idir-$(file >>observed,$(origin +D))", "all"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[environment]
+"+D" = "imported"
+
+[expected]
+exit_code = 0
+stdout_hex = "4541524c593d5b656e7669726f6e6d656e745d0a4c4154453d5b6175746f6d617469635d0a"
+stderr_hex = ""

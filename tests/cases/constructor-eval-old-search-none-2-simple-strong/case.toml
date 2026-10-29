@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-eval-old-search-none-2-simple-strong"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-rR", "-Onone", "-I-", "-Iold", "-Idir-$(eval include vars.mk)", ".INCLUDE_DIRS:=cli"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[environment]
+"MAKELEVEL" = "2"
+
+[expected]
+exit_code = 0
+stdout_hex = "56414c55453d5b6377645d2046494c45533d5b4d616b6566696c655d0a"
+stderr_hex = ""

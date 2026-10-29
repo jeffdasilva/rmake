@@ -1,19 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Keep finite include-metadata evidence separate from compatibility passes."""
+"""Keep original finite history separate from newly qualified required fixtures."""
 import json
 from pathlib import Path
 import unittest
+import conformance as h
 ROOT=Path(__file__).resolve().parents[1]
 
 class IncludeMetadataResearchTests(unittest.TestCase):
-    def test_original_models_repeat_exactly_and_keep_finite_mismatches_visible(self):
+    def test_original_finite_history_survives_qualified_fixture_promotion(self):
         p=json.loads((ROOT/'tests/research/include-metadata-phases.json').read_text())
         self.assertIn('zero conformance or safety-exception credit',p['classification'])
         self.assertEqual(len(p['records']),19)
         self.assertEqual(sum(bool(r['candidate_differences']) for r in p['records']),13)
         for r in p['records']:
-            self.assertFalse((ROOT/'tests/cases'/r['id']).exists())
+            case=h.load_case(ROOT/'tests/cases'/r['id'])
+            self.assertEqual((case.candidate,case.requirement),('required','startup.constructor-metadata'))
+            self.assertEqual(case.expected,r['expected'])
             self.assertIn('Makefile',r['inputs'])
             self.assertEqual(r['inputs']['Makefile']['type'],'file')
             self.assertEqual(r['oracle_repeat_differences'],[])

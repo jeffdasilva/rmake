@@ -1,0 +1,3 @@
+#!/bin/sh
+printf 'yes:%s\n' "$MAKELEVEL" >>called
+exec /bin/sh "$@"
