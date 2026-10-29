@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-rhs-environment-live-simple"
+requirement = "variables.rhs-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+description = "An immediate RHS enables environment override before final binding priority is selected."
+provenance = "Original source-informed exact model checked against two bounded GNU observations and both candidate builds; no upstream implementation or tests copied."
+
+[environment]
+X = "env"
+
+[expected]
+exit_code = 0
+stdout_hex = "583d5b656e765d204f3d5b656e7669726f6e6d656e74206f766572726964655d20463d5b7265637572736976655d20523d5b5d0a"
+stderr_hex = ""

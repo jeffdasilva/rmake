@@ -149,12 +149,24 @@ pub struct FlagAssignment {
     pub position: usize,
 }
 
+/// Canonical flags selected after include metadata effects have completed.
+pub struct MakeflagsMetadata {
+    pub eval_reference: bool,
+    pub value: Vec<u8>,
+    pub origin: crate::variables::Origin,
+    pub environment_override: bool,
+}
+
 pub struct MakeflagsResult {
     pub eval_reference: bool,
     pub value: Vec<u8>,
     pub origin: crate::variables::Origin,
     pub environment_override: bool,
     pub include_dirs: Vec<Vec<u8>>,
+    /// Own the resolved search until all metadata effects succeed. Finalization
+    /// publishes that search and selects current flags after any nested reset.
+    /// Dropping or refreshing a result discards its unused transaction.
+    pub publish_includes: Option<Box<dyn FnOnce() -> MakeflagsMetadata>>,
     pub assignments: Vec<FlagAssignment>,
     pub next_argument: usize,
 }
@@ -288,6 +300,33 @@ impl<'a> ExpansionContext<'a> {
             }
             cursor.set(result.next_argument);
         }
+        database.variables.define_literal(
+            b".INCLUDE_DIRS",
+            b"",
+            crate::variables::Origin::Default,
+        )?;
+        for directory in result.include_dirs {
+            database.define_variable_with(
+                crate::parser::AssignmentSpec {
+                    name: b".INCLUDE_DIRS",
+                    value: &directory,
+                    kind: Assignment::Append,
+                },
+                crate::variables::Origin::Default,
+                None,
+                self.reborrow(),
+            )?;
+        }
+        if self.is_cancelled() {
+            return Err(ExpandError::Cancelled);
+        }
+        if let Some(publish) = result.publish_includes {
+            let metadata = publish();
+            result.eval_reference = metadata.eval_reference;
+            result.value = metadata.value;
+            result.origin = metadata.origin;
+            result.environment_override = metadata.environment_override;
+        }
         database.update_mflags(&result.value, result.environment_override)?;
         if result.eval_reference {
             result.value.extend_from_slice(b" $(-*-eval-flags-*-)");
@@ -306,18 +345,6 @@ impl<'a> ExpansionContext<'a> {
         }
         variables.set_environment_override(result.environment_override);
         variables.define_runtime_metadata(b"MAKEFLAGS", &result.value, result.origin)?;
-        let variables = &mut database.variables;
-        variables.define_literal(b".INCLUDE_DIRS", b"", crate::variables::Origin::Default)?;
-        for directory in result.include_dirs {
-            variables.define_with(
-                b".INCLUDE_DIRS",
-                &directory,
-                Assignment::Append,
-                crate::variables::Origin::Default,
-                None,
-                self.reborrow(),
-            )?;
-        }
         Ok(())
     }
 

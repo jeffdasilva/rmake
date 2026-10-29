@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-rhs-append-live-recursive"
+requirement = "variables.rhs-effects"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+description = "Original independently modeled runtime include or immediate assignment phase control."
+provenance = "Independent exact models and file-effect anchors checked against two bounded pinned GNU observations and candidate. GNU 4.4.1 source consulted; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "583d5b6e6577207461696c5d204f3d5b66696c655d20463d5b73696d706c655d20523d5b5d0a"
+stderr_hex = ""

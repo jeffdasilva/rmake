@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-runtime-late-gnu-serial-prepared-active"
+requirement = "includes.runtime-metadata"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-I-", "-Iold", "DUMMY:=$(strip)"]
+timeout_seconds = 5
+description = "Original independently modeled runtime include or immediate assignment phase control."
+provenance = "Independent exact models and file-effect anchors checked against two bounded pinned GNU observations and candidate. GNU 4.4.1 source consulted; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "443d5b61667465725d20563d5b6e65775d0a"
+stderr_hex = ""

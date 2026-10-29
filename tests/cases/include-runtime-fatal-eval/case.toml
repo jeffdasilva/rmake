@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-runtime-fatal-eval"
+requirement = "includes.runtime-metadata"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Iold"]
+timeout_seconds = 5
+description = "Original independently modeled runtime include or immediate assignment phase control."
+provenance = "Independent exact models and file-effect anchors checked against two bounded pinned GNU observations and candidate. GNU 4.4.1 source consulted; no upstream implementation or tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a343a202a2a2a2073746f702e202053746f702e0a"
