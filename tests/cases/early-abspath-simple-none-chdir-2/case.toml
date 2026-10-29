@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "early-abspath-simple-none-chdir-2"
+requirement = "startup.abspath-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Onone", "X:=$(abspath /alpha/./beta/../gamma)", "-Cinc", "all"]
+timeout_seconds = 5
+description = "Original early absolute/relative path, argument-effect and restart phase control."
+provenance = "Independent exact models checked against two bounded pinned GNU 4.4.1 observations and frozen debug/release builds; no normalization, upstream implementation or upstream tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "53415645443d5b2f616c7068612f67616d6d615d0a4c4154453d5b61667465725d0a"
+stderr_hex = ""

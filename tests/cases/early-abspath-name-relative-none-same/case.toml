@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "early-abspath-name-relative-none-same"
+requirement = "startup.abspath-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Onone", "$(abspath child)=ok", "all"]
+timeout_seconds = 5
+description = "Original early absolute/relative path, argument-effect and restart phase control."
+provenance = "Independent exact models checked against two bounded pinned GNU 4.4.1 observations and frozen debug/release builds; no normalization, upstream implementation or upstream tests copied."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20656d707479207661726961626c65206e616d652e202053746f702e0a"
