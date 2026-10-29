@@ -1350,18 +1350,12 @@ impl VariableStore {
         // RHS evaluation can install a stronger binding or change -e. GNU's
         // final definition still applies current priority after those effects.
         self.promote_environment(name, origin);
-        if self
-            .variables
-            .get(name)
-            .is_some_and(|current| current.origin > origin)
-        {
+        let current = self.variables.get(name);
+        if current.is_some_and(|current| current.origin > origin) {
             return Ok(());
         }
         variable.definition = definition.cloned().map(Arc::new);
-        variable.scope = self
-            .variables
-            .get(name)
-            .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
+        variable.scope = current.map_or_else(ScopeMetadata::default, |old| old.scope.clone());
         if assignment != Assignment::Append {
             variable.scope.append_outer = false;
         }

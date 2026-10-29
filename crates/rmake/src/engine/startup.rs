@@ -237,6 +237,14 @@ pub(super) fn prepare(
             inherited_exports.insert(name);
         }
     }
+    // CLI effects use the initial level; metadata uses the selection made
+    // after all argument bindings. Keep public bytes raw until setup finishes.
+    let makelevel = startup_makelevel(
+        database
+            .variables
+            .get(b"MAKELEVEL")
+            .map_or(b"".as_slice(), |variable| variable.raw_value()),
+    );
     database
         .variables
         .initialize_shell_default(b"/bin/sh")
@@ -272,6 +280,12 @@ pub(super) fn prepare(
         .variables
         .define_literal(b".INCLUDE_DIRS", b"", Origin::Default)
         .map_err(|error| error.diagnostic())?;
+    let level_program =
+        (makelevel != 0).then(|| [runtime.program, format!("[{makelevel}]").as_bytes()].concat());
+    let metadata_program = level_program.as_deref().unwrap_or(runtime.program);
+    let mut emit_metadata =
+        |event: Output<'_>| emit_output(runtime.output, metadata_program, event);
+    let mut metadata_output = WarningOutput::new(&mut emit_metadata, runtime.warnings);
     for directory in include_search.directories() {
         database
             .variables
@@ -281,13 +295,13 @@ pub(super) fn prepare(
                 Assignment::Append,
                 Origin::Default,
                 None,
-                runtime_context(None, &mut startup_output)
+                runtime_context(None, &mut metadata_output)
                     .with_filesystem(&mut |effect| runtime.filesystem.borrow_mut().execute(effect))
                     .with_shell(&mut |request| {
                         let result = crate::shell::run(
                             request,
-                            runtime.program,
-                            runtime.level,
+                            metadata_program,
+                            makelevel,
                             runtime.output,
                             None,
                         );
@@ -295,16 +309,10 @@ pub(super) fn prepare(
                         result
                     }),
             )
-            .map_err(|error| error.diagnostic())?;
+            .map_err(|error| StartupError::expansion(error).with_program(metadata_program))?;
     }
     let command_replay = crate::command_variables::prepare(&mut database.variables, &command_names)
         .map_err(|error| error.diagnostic())?;
-    let makelevel = startup_makelevel(
-        database
-            .variables
-            .get(b"MAKELEVEL")
-            .map_or(b"".as_slice(), |variable| variable.raw_value()),
-    );
     // The special binding exists before reading Makefiles, but only a
     // genuinely imported/CLI binding belongs to inherited_exports. A later
     // file assignment must not acquire ordinary export side effects merely

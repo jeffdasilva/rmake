@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-metadata-level-error-4294967295-command"
+requirement = "startup.metadata-recursion"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-I-", "MAKELEVEL=4294967295", "-Idir-$(error stop)"]
+timeout_seconds = 5
+description = "Startup include metadata observes selected recursion and source identity; CLI effects retain the initial level."
+provenance = "Original independent phase models checked against two bounded GNU 4.4.1 observations and both candidate builds. No upstream implementation or tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+"MAKELEVEL" = "7"
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b655b343239343936373239355d3a202a2a2a2073746f702e202053746f702e0a"
