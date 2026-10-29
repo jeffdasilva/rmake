@@ -242,3 +242,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Ordered explicit CLI startup](ordered-cli-startup.md) adds typed decoder effects before directory/metadata initialization, with 126 semantic and two scaling controls. A 128-cell exit-phase gate and 42 staged interruption cells retain exact behavior around cosmetic help/version blocks. M3/M6 criteria remain unchanged.
 
 [Imported restart state](restart-state.md) separates the GNU process counter from in-process rereads, retains binding export policy, and transfers original startup inputs without copying them a second time. It adds 214 counter/policy and eight activation controls. Directory-marker research and full M3/M6 criteria remain open.
+
+[Prepared-startup retention](startup-retention.md) removes two unused copies, with repeated allocation and mixed paired timing evidence. Nineteen original include-metadata research cells retain 13 finite ordinary gaps in default visibility, effect context, publication order and passive late options. Fix these against the full database evaluator and owned search publication before declaring startup complete. M3/M6 criteria remain unchanged.

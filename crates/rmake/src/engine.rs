@@ -628,7 +628,7 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
-    restart_options: Options,
+    restart_options: Option<Options>,
     initial_plan: Option<Box<initial::Plan>>,
     startup_snapshot: Option<Box<startup::Snapshot>>,
     startup_directory: Option<std::path::PathBuf>,
@@ -1146,7 +1146,9 @@ impl Engine {
         let flag_state =
             runtime_options::State::new(&options, output.clone(), include_search.clone());
         let flag_entry_jobs = options.jobs;
-        let restart_options = options.clone();
+        // Prepared startup owns its original inputs; only the legacy path
+        // reads an Options snapshot when reconstructing an invocation.
+        let restart_options = initial_plan.is_none().then(|| options.clone());
         let mut engine = Self {
             restart_options,
             initial_plan,
@@ -1691,7 +1693,11 @@ impl Engine {
                 self.jobserver.take();
                 self.output.select(None);
                 self.output.clear();
-                self.options = self.restart_options.clone();
+                self.options = self
+                    .restart_options
+                    .as_ref()
+                    .expect("legacy restart options")
+                    .clone();
                 // GNU re-enters CLI directories only when -C was present.
                 // Without -C, a renamed current directory remains current.
                 if !self.options.directories.is_empty() {

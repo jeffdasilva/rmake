@@ -1,0 +1,3173 @@
+{
+  "classification": "finite ordinary include-metadata compatibility research; zero conformance or safety-exception credit",
+  "source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "oracle_profile_sha256": "92525c9784f4dd471cceb12ce66a9d367e267b638e1384cdc29962b738d16de7",
+  "identities": {
+    "/home/jdasilva/github/rmake/.tools/oracle/bin/make": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+    "/tmp/rmake-retention-final-debug": "eb12da013efed7762a59977a94902abd526938950b8977d93fd0702ebdddae7c"
+  },
+  "harness_sha256": "abbd420e4e48d3386977a6e221a1588aa91f9978d347d38b1f6ab736184a2335",
+  "explanation": "Nineteen original source-informed models match two bounded pinned GNU observations; thirteen finite candidate mismatches remain. MAKE_COMMAND origin was corrected after verifying its definition follows include construction; the original incomplete model is preserved. Data is not a required/pending fixture or safe-error exception. No streams were normalized and no upstream implementation/tests copied.",
+  "records": [
+    {
+      "id": "include-meta-shell",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin SHELL))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin SHELL))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-cc",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin CC))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin CC))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin CC))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin CC))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin CC))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-make_version",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MAKE_VERSION))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_VERSION))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_VERSION))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_VERSION))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin MAKE_VERSION))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-make_host",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MAKE_HOST))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_HOST))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_HOST))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_HOST))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "dir-$(file >>observed,$(origin MAKE_HOST))": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-makefiles",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MAKEFILES))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKEFILES))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKEFILES))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKEFILES))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin MAKEFILES))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-mflags",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MFLAGS))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MFLAGS))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MFLAGS))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MFLAGS))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZW52aXJvbm1lbnQK",
+              "size": 12,
+              "sha256": "2699ff265931c5ccc111fd51ab8228c40e390afb0445c2102a45844af02bcd4c"
+            }
+          },
+          "stdout_hex": "5345454e3d5b656e7669726f6e6d656e745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "dir-$(file >>observed,$(origin MFLAGS))": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-make",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MAKE))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin MAKE))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-dot-default_goal",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin .DEFAULT_GOAL))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .DEFAULT_GOAL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .DEFAULT_GOAL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .DEFAULT_GOAL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZmlsZQo=",
+              "size": 5,
+              "sha256": "8b911a8716b94442f9ca3dff20584048536e4c2f47b8b5bb9096cbd43c3432d5"
+            }
+          },
+          "stdout_hex": "5345454e3d5b66696c655d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "dir-$(file >>observed,$(origin .DEFAULT_GOAL))": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-makelevel",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MAKELEVEL))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [],
+      "model_errors": [
+        [],
+        [],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKELEVEL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKELEVEL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKELEVEL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin MAKELEVEL))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-curdir",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin CURDIR))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b66696c655d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [],
+      "model_errors": [
+        [],
+        [],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin CURDIR))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZmlsZQo=",
+              "size": 5,
+              "sha256": "8b911a8716b94442f9ca3dff20584048536e4c2f47b8b5bb9096cbd43c3432d5"
+            }
+          },
+          "stdout_hex": "5345454e3d5b66696c655d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin CURDIR))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZmlsZQo=",
+              "size": 5,
+              "sha256": "8b911a8716b94442f9ca3dff20584048536e4c2f47b8b5bb9096cbd43c3432d5"
+            }
+          },
+          "stdout_hex": "5345454e3d5b66696c655d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin CURDIR))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZmlsZQo=",
+              "size": 5,
+              "sha256": "8b911a8716b94442f9ca3dff20584048536e4c2f47b8b5bb9096cbd43c3432d5"
+            }
+          },
+          "stdout_hex": "5345454e3d5b66696c655d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "dir-$(file >>observed,$(origin CURDIR))": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-make_command",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin MAKE_COMMAND))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_COMMAND))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_COMMAND))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "dW5kZWZpbmVkCg==",
+              "size": 10,
+              "sha256": "770c2d18aa4ec3159f46da461ef452972949942ff4f6a9771044485faa146398"
+            }
+          },
+          "stdout_hex": "5345454e3d5b756e646566696e65645d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin MAKE_COMMAND))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin MAKE_COMMAND))": {
+          "type": "directory",
+          "mode": 493
+        }
+      },
+      "original_incomplete_model": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b64656661756c745d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "include-meta-dot-shellflags",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin .SHELLFLAGS))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b64656661756c745d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [],
+      "model_errors": [
+        [],
+        [],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .SHELLFLAGS))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .SHELLFLAGS))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .SHELLFLAGS))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin .SHELLFLAGS))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-dot-features",
+      "args": [
+        "--no-print-directory",
+        "-r",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin .FEATURES))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b64656661756c745d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [],
+      "model_errors": [
+        [],
+        [],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .FEATURES))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .FEATURES))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin .FEATURES))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZGVmYXVsdAo=",
+              "size": 8,
+              "sha256": "01666ec060466c14b9fa06c613fbac449163f2a2017558fe16526209ab78c6b0"
+            }
+          },
+          "stdout_hex": "5345454e3d5b64656661756c745d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin .FEATURES))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-shell-env",
+      "args": [
+        "--no-print-directory",
+        "-rR",
+        "-I-",
+        "-Idir-$(file >>observed,$(origin SHELL))"
+      ],
+      "environment": {
+        "SHELL": "/bin/sh"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b656e7669726f6e6d656e745d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZW52aXJvbm1lbnQK",
+              "size": 12,
+              "sha256": "2699ff265931c5ccc111fd51ab8228c40e390afb0445c2102a45844af02bcd4c"
+            }
+          },
+          "stdout_hex": "5345454e3d5b656e7669726f6e6d656e745d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZW52aXJvbm1lbnQK",
+              "size": 12,
+              "sha256": "2699ff265931c5ccc111fd51ab8228c40e390afb0445c2102a45844af02bcd4c"
+            }
+          },
+          "stdout_hex": "5345454e3d5b656e7669726f6e6d656e745d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "ZmlsZQo=",
+              "size": 5,
+              "sha256": "8b911a8716b94442f9ca3dff20584048536e4c2f47b8b5bb9096cbd43c3432d5"
+            }
+          },
+          "stdout_hex": "5345454e3d5b66696c655d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin SHELL))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-shell-command",
+      "args": [
+        "--no-print-directory",
+        "-rR",
+        "-I-",
+        "SHELL=/bin/sh",
+        "-Idir-$(file >>observed,$(origin SHELL))"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b636f6d6d616e64206c696e655d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [],
+      "model_errors": [
+        [],
+        [],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "Y29tbWFuZCBsaW5lCg==",
+              "size": 13,
+              "sha256": "5729507781e4dbcc99cc6ac52312e3f39c36c90241f99bb7990a18e07b2b3aee"
+            }
+          },
+          "stdout_hex": "5345454e3d5b636f6d6d616e64206c696e655d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "Y29tbWFuZCBsaW5lCg==",
+              "size": 13,
+              "sha256": "5729507781e4dbcc99cc6ac52312e3f39c36c90241f99bb7990a18e07b2b3aee"
+            }
+          },
+          "stdout_hex": "5345454e3d5b636f6d6d616e64206c696e655d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(origin SHELL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "Y29tbWFuZCBsaW5lCg==",
+              "size": 13,
+              "sha256": "5729507781e4dbcc99cc6ac52312e3f39c36c90241f99bb7990a18e07b2b3aee"
+            }
+          },
+          "stdout_hex": "5345454e3d5b636f6d6d616e64206c696e655d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(file >>observed,$(origin SHELL))": {
+          "type": "directory",
+          "mode": 493
+        }
+      }
+    },
+    {
+      "id": "include-meta-shell-depth",
+      "args": [
+        "--no-print-directory",
+        "-rR",
+        "-I-",
+        "-Idir-$(file >>observed,$(shell printf D$$MAKELEVEL))"
+      ],
+      "environment": {
+        "SHELL": "/bin/sh",
+        "MAKELEVEL": "3"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5345454e3d5b44345d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "filesystem"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(shell printf D$$MAKELEVEL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "RDQK",
+              "size": 3,
+              "sha256": "a0ed5dfcd27497539d96c680329648d7357864647ef590b96f4f78ba15f6cfb3"
+            }
+          },
+          "stdout_hex": "5345454e3d5b44345d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(shell printf D$$MAKELEVEL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "RDQK",
+              "size": 3,
+              "sha256": "a0ed5dfcd27497539d96c680329648d7357864647ef590b96f4f78ba15f6cfb3"
+            }
+          },
+          "stdout_hex": "5345454e3d5b44345d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIFNFRU49WyQoZmlsZSA8b2JzZXJ2ZWQpXSkKYWxsOjtAOgo=",
+              "size": 41,
+              "sha256": "d0f544b02607d215675538897945546e45a505a805a38dac8aa59f563b5c6384"
+            },
+            "work/dir-$(file >>observed,$(shell printf D$$MAKELEVEL))": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/observed": {
+              "mode": 420,
+              "type": "file",
+              "content": "RDEK",
+              "size": 3,
+              "sha256": "040b16f4fb5c9337bad3a23939c9d5342efda2030a6e744546e629c13f7c5a84"
+            }
+          },
+          "stdout_hex": "5345454e3d5b44315d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "dir-$(file >>observed,$(shell printf D$$MAKELEVEL))": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f205345454e3d5b242866696c65203c6f62736572766564295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-eval-old-search",
+      "args": [
+        "--no-print-directory",
+        "-rR",
+        "-I-",
+        "-Idir-$(eval -include early.mk)"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4245464f52453d5b5d0a41465445523d5b6e65775d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout",
+        "stderr",
+        "returncode"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.exit_code",
+          "oracle disagrees with expected.stdout_hex",
+          "oracle disagrees with expected.stderr_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIEJFRk9SRT1bJChWQUxVRSldKQppbmNsdWRlIGVhcmx5Lm1rCiQoaW5mbyBBRlRFUj1bJChWQUxVRSldKQphbGw6O0A6Cg==",
+              "size": 76,
+              "sha256": "991549fdfc8ac3a09b650df325220a16a437775fd2d8a96b095f95d15cdc3723"
+            },
+            "work/dir-$(eval -include early.mk)": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/dir-$(eval -include early.mk)/early.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            }
+          },
+          "stdout_hex": "4245464f52453d5b5d0a41465445523d5b6e65775d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIEJFRk9SRT1bJChWQUxVRSldKQppbmNsdWRlIGVhcmx5Lm1rCiQoaW5mbyBBRlRFUj1bJChWQUxVRSldKQphbGw6O0A6Cg==",
+              "size": 76,
+              "sha256": "991549fdfc8ac3a09b650df325220a16a437775fd2d8a96b095f95d15cdc3723"
+            },
+            "work/dir-$(eval -include early.mk)": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/dir-$(eval -include early.mk)/early.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            }
+          },
+          "stdout_hex": "4245464f52453d5b5d0a41465445523d5b6e65775d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 2,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "JChpbmZvIEJFRk9SRT1bJChWQUxVRSldKQppbmNsdWRlIGVhcmx5Lm1rCiQoaW5mbyBBRlRFUj1bJChWQUxVRSldKQphbGw6O0A6Cg==",
+              "size": 76,
+              "sha256": "991549fdfc8ac3a09b650df325220a16a437775fd2d8a96b095f95d15cdc3723"
+            },
+            "work/dir-$(eval -include early.mk)": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/dir-$(eval -include early.mk)/early.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            }
+          },
+          "stdout_hex": "",
+          "stderr_hex": "6d616b653a202a2a2a20756e737570706f7274656420657870616e73696f6e206665617475726520276576616c272e202053746f702e0a"
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "2428696e666f204245464f52453d5b242856414c5545295d290a696e636c756465206561726c792e6d6b0a2428696e666f2041465445523d5b242856414c5545295d290a616c6c3a3b403a0a"
+        },
+        "dir-$(eval -include early.mk)": {
+          "type": "directory",
+          "mode": 493
+        },
+        "dir-$(eval -include early.mk)/early.mk": {
+          "type": "file",
+          "mode": 420,
+          "hex": "56414c55453d6e65770a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-late-gnu-passive",
+      "args": [
+        "--no-print-directory",
+        "-rR",
+        "-I-",
+        "-Ibefore"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "443d5b5d20563d5b5d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stdout"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stdout_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTPS1JYWZ0ZXIKYWxsOjtAJChldmFsIC1pbmNsdWRlIHJtYWtlLXBoYXNlLm1rKSQoaW5mbyBEPVskKGZpbHRlciBhZnRlciwkKC5JTkNMVURFX0RJUlMpKV0gVj1bJChWQUxVRSldKToK",
+              "size": 117,
+              "sha256": "6fb87bb13f3076709384e56e664cf2a6c4a86adb71cc9153716d2e94f6b0a2a1"
+            },
+            "work/after": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/after/rmake-phase.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            },
+            "work/before": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/before/keep": {
+              "mode": 420,
+              "type": "file",
+              "content": "",
+              "size": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "stdout_hex": "443d5b5d20563d5b5d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTPS1JYWZ0ZXIKYWxsOjtAJChldmFsIC1pbmNsdWRlIHJtYWtlLXBoYXNlLm1rKSQoaW5mbyBEPVskKGZpbHRlciBhZnRlciwkKC5JTkNMVURFX0RJUlMpKV0gVj1bJChWQUxVRSldKToK",
+              "size": 117,
+              "sha256": "6fb87bb13f3076709384e56e664cf2a6c4a86adb71cc9153716d2e94f6b0a2a1"
+            },
+            "work/after": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/after/rmake-phase.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            },
+            "work/before": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/before/keep": {
+              "mode": 420,
+              "type": "file",
+              "content": "",
+              "size": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "stdout_hex": "443d5b5d20563d5b5d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTPS1JYWZ0ZXIKYWxsOjtAJChldmFsIC1pbmNsdWRlIHJtYWtlLXBoYXNlLm1rKSQoaW5mbyBEPVskKGZpbHRlciBhZnRlciwkKC5JTkNMVURFX0RJUlMpKV0gVj1bJChWQUxVRSldKToK",
+              "size": 117,
+              "sha256": "6fb87bb13f3076709384e56e664cf2a6c4a86adb71cc9153716d2e94f6b0a2a1"
+            },
+            "work/after": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/after/rmake-phase.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            },
+            "work/before": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/before/keep": {
+              "mode": 420,
+              "type": "file",
+              "content": "",
+              "size": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "stdout_hex": "443d5b5d20563d5b6e65775d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "before": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "474e554d414b45464c4147533d2d4961667465720a616c6c3a3b4024286576616c202d696e636c75646520726d616b652d70686173652e6d6b292428696e666f20443d5b242866696c7465722061667465722c24282e494e434c5544455f4449525329295d20563d5b242856414c5545295d293a0a"
+        },
+        "after": {
+          "type": "directory",
+          "mode": 493
+        },
+        "before/keep": {
+          "type": "file",
+          "mode": 420,
+          "hex": ""
+        },
+        "after/rmake-phase.mk": {
+          "type": "file",
+          "mode": 420,
+          "hex": "56414c55453d6e65770a"
+        }
+      }
+    },
+    {
+      "id": "include-meta-late-gnu-activate",
+      "args": [
+        "--no-print-directory",
+        "-rR",
+        "-I-",
+        "-Ibefore"
+      ],
+      "environment": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "443d5b61667465725d20563d5b6e65775d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [],
+      "model_errors": [
+        [],
+        [],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTPS1JYWZ0ZXIKYWxsOjtAJChldmFsIE1BS0VGTEFHUys9cykkKGV2YWwgLWluY2x1ZGUgcm1ha2UtcGhhc2UubWspJChpbmZvIEQ9WyQoZmlsdGVyIGFmdGVyLCQoLklOQ0xVREVfRElSUykpXSBWPVskKFZBTFVFKV0pOgo=",
+              "size": 137,
+              "sha256": "834bfe2124ccfaded5e3f7d8b97eb2e9f8105115d4e8d53c1284717537fb5f29"
+            },
+            "work/after": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/after/rmake-phase.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            },
+            "work/before": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/before/keep": {
+              "mode": 420,
+              "type": "file",
+              "content": "",
+              "size": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "stdout_hex": "443d5b61667465725d20563d5b6e65775d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTPS1JYWZ0ZXIKYWxsOjtAJChldmFsIE1BS0VGTEFHUys9cykkKGV2YWwgLWluY2x1ZGUgcm1ha2UtcGhhc2UubWspJChpbmZvIEQ9WyQoZmlsdGVyIGFmdGVyLCQoLklOQ0xVREVfRElSUykpXSBWPVskKFZBTFVFKV0pOgo=",
+              "size": 137,
+              "sha256": "834bfe2124ccfaded5e3f7d8b97eb2e9f8105115d4e8d53c1284717537fb5f29"
+            },
+            "work/after": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/after/rmake-phase.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            },
+            "work/before": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/before/keep": {
+              "mode": 420,
+              "type": "file",
+              "content": "",
+              "size": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "stdout_hex": "443d5b61667465725d20563d5b6e65775d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTPS1JYWZ0ZXIKYWxsOjtAJChldmFsIE1BS0VGTEFHUys9cykkKGV2YWwgLWluY2x1ZGUgcm1ha2UtcGhhc2UubWspJChpbmZvIEQ9WyQoZmlsdGVyIGFmdGVyLCQoLklOQ0xVREVfRElSUykpXSBWPVskKFZBTFVFKV0pOgo=",
+              "size": 137,
+              "sha256": "834bfe2124ccfaded5e3f7d8b97eb2e9f8105115d4e8d53c1284717537fb5f29"
+            },
+            "work/after": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/after/rmake-phase.mk": {
+              "mode": 420,
+              "type": "file",
+              "content": "VkFMVUU9bmV3Cg==",
+              "size": 10,
+              "sha256": "147655e8ff92d193f0ed454945afb873f67ef6622a35f23986db122b126062ca"
+            },
+            "work/before": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/before/keep": {
+              "mode": 420,
+              "type": "file",
+              "content": "",
+              "size": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "stdout_hex": "443d5b61667465725d20563d5b6e65775d0a",
+          "stderr_hex": ""
+        }
+      ],
+      "inputs": {
+        "before": {
+          "type": "directory",
+          "mode": 493
+        },
+        "Makefile": {
+          "type": "file",
+          "mode": 420,
+          "hex": "474e554d414b45464c4147533d2d4961667465720a616c6c3a3b4024286576616c204d414b45464c4147532b3d732924286576616c202d696e636c75646520726d616b652d70686173652e6d6b292428696e666f20443d5b242866696c7465722061667465722c24282e494e434c5544455f4449525329295d20563d5b242856414c5545295d293a0a"
+        },
+        "after": {
+          "type": "directory",
+          "mode": 493
+        },
+        "before/keep": {
+          "type": "file",
+          "mode": 420,
+          "hex": ""
+        },
+        "after/rmake-phase.mk": {
+          "type": "file",
+          "mode": 420,
+          "hex": "56414c55453d6e65770a"
+        }
+      }
+    }
+  ]
+}

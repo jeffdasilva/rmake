@@ -169,7 +169,13 @@ pub(super) fn prepare(
         .variables
         .set_export_policy(b"MAKEFLAGS", Some(true));
     let mut command_names = seed.commands;
-    let mut seen_commands: HashSet<_> = command_names.iter().cloned().collect();
+    // Prepared arguments already have unique command names. Build the second
+    // membership set only when this phase still has definitions to apply.
+    let mut seen_commands: HashSet<_> = if seed.assignments < options.assignments.len() {
+        command_names.iter().cloned().collect()
+    } else {
+        HashSet::new()
+    };
     let mut next_include = 0;
     for index in 0..=options.assignments.len() {
         while options.include_assignment_positions.get(next_include) == Some(&index) {
