@@ -59,7 +59,7 @@ class AllocationProfileTests(unittest.TestCase):
                 self.assertTrue((output / 'report.json').is_file())
 
     def test_startup_profiles_keep_required_arguments_environment_and_output_anchors(self):
-        for workload in ('startup-arguments-1000','startup-arguments-5000','startup-effects-1000','initial-flags-1000'):
+        for workload in ('startup-arguments-1000','startup-arguments-5000','startup-effects-1000','initial-flags-1000', 'target-context-none','target-context-explicit','target-context-pattern'):
             case=allocations.conformance.load_case(allocations.ROOT/'tests/cases'/workload)
             expected=bytes.fromhex(case.expected['stdout_hex'])
             for broken in (False,True):
@@ -70,7 +70,7 @@ class AllocationProfileTests(unittest.TestCase):
                         self.assertEqual(tuple(argv[1:]),case.args)
                         for name,value in case.environment.items():self.assertEqual(kwargs['env'][name],value)
                         Path(kwargs['env']['RMAKE_ALLOC_TRACE']).write_text('summary calls=1 requested_bytes=2 frees=1\n')
-                        return subprocess.CompletedProcess(argv,0,expected.replace(b'value500',b'WRONG') if broken else expected,b'')
+                        return subprocess.CompletedProcess(argv,0,(b'WRONG\n' if workload.startswith('target-context-') else expected.replace(b'value500',b'WRONG')) if broken else expected,b'')
                     with mock.patch.object(allocations.conformance,'executable_identity',return_value={'path':'/candidate','sha256':'test'}), mock.patch.object(allocations.subprocess,'run',side_effect=command), contextlib.redirect_stdout(io.StringIO()):
                         if broken:
                             with self.assertRaises(ValueError):allocations.run(Path('/candidate'),workload,output)
@@ -80,18 +80,19 @@ class AllocationProfileTests(unittest.TestCase):
                             self.assertEqual(report['arguments'],list(case.args))
                             self.assertEqual(report['environment'],case.environment)
 
-    def test_literal_profile_rejects_arguments_that_diverge_from_the_required_fixture(self):
-        case=allocations.conformance.load_case(allocations.ROOT/'tests/cases/startup-arguments-1000')
-        with tempfile.TemporaryDirectory() as temporary:
-            output=Path(temporary)
-            def command(argv,**kwargs):
-                if argv[0]=='cc':return subprocess.CompletedProcess(argv,0,b'',b'')
-                Path(kwargs['env']['RMAKE_ALLOC_TRACE']).write_text('summary calls=1 requested_bytes=2 frees=1\n')
-                return subprocess.CompletedProcess(argv,0,bytes.fromhex(case.expected['stdout_hex']),b'')
-            with mock.patch.object(allocations.conformance,'executable_identity',return_value={'path':'/candidate','sha256':'test'}), mock.patch.object(allocations.benchmark,'workload_arguments',return_value=['-rR','WRONG=1']), mock.patch.object(allocations.subprocess,'run',side_effect=command):
-                with self.assertRaisesRegex(ValueError,'inputs differ'):
-                    allocations.run(Path('/candidate'),'startup-arguments-1000',output)
-            self.assertFalse((output/'report.json').exists())
+    def test_profiles_reject_arguments_that_diverge_from_the_required_fixture(self):
+        for workload in ('startup-arguments-1000','target-context-none'):
+            case=allocations.conformance.load_case(allocations.ROOT/'tests/cases'/workload)
+            with self.subTest(workload=workload), tempfile.TemporaryDirectory() as temporary:
+                output=Path(temporary)
+                def command(argv,**kwargs):
+                    if argv[0]=='cc':return subprocess.CompletedProcess(argv,0,b'',b'')
+                    Path(kwargs['env']['RMAKE_ALLOC_TRACE']).write_text('summary calls=1 requested_bytes=2 frees=1\n')
+                    return subprocess.CompletedProcess(argv,0,bytes.fromhex(case.expected['stdout_hex']),b'')
+                with mock.patch.object(allocations.conformance,'executable_identity',return_value={'path':'/candidate','sha256':'test'}), mock.patch.object(allocations.benchmark,'workload_arguments',return_value=['-rR','WRONG=1']), mock.patch.object(allocations.subprocess,'run',side_effect=command):
+                    with self.assertRaisesRegex(ValueError,'inputs differ'):
+                        allocations.run(Path('/candidate'),workload,output)
+                self.assertFalse((output/'report.json').exists())
 
     def test_empty_process_and_missing_executable_frames_are_distinct(self):
         summary, samples = allocations.parse_trace('summary calls=0 requested_bytes=0 frees=0\n')

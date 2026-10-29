@@ -3142,7 +3142,7 @@ impl Expansion<'_, '_> {
                 };
                 let paths = words(first)
                     .filter(|path| directory.is_some() || path.starts_with(b"/"))
-                    .map(|path| absolute_path(directory.unwrap_or(b"/"), path))
+                    .filter_map(|path| absolute_path(directory.unwrap_or(b"/"), path))
                     .collect::<Vec<_>>();
                 join_words(paths.iter().map(Vec::as_slice))
             }
@@ -3617,33 +3617,47 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
     Ok(output)
 }
 
-fn absolute_path(directory: &[u8], path: &[u8]) -> Vec<u8> {
-    let combined = if path.starts_with(b"/") {
-        path.to_vec()
+fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
+    const LINUX_PATH_LIMIT: usize = 4096;
+    if path.len() >= LINUX_PATH_LIMIT {
+        return None;
+    }
+    let base = if path.starts_with(b"/") {
+        b"".as_slice()
     } else {
-        let mut combined = directory.to_vec();
-        combined.push(b'/');
-        combined.extend_from_slice(path);
-        combined
+        directory
     };
-    let mut parts = Vec::new();
-    for part in combined.split(|byte| *byte == b'/') {
+    let mut parts: Vec<&[u8]> = Vec::new();
+    let mut length = 1;
+    for part in base
+        .split(|byte| *byte == b'/')
+        .chain(path.split(|byte| *byte == b'/'))
+    {
         match part {
             b"" | b"." => {}
             b".." => {
-                parts.pop();
+                if let Some(previous) = parts.pop() {
+                    length -= previous.len() + usize::from(!parts.is_empty());
+                }
             }
-            _ => parts.push(part),
+            _ => {
+                length += part.len() + usize::from(!parts.is_empty());
+                if length >= LINUX_PATH_LIMIT {
+                    return None;
+                }
+                parts.push(part);
+            }
         }
     }
-    let mut result = vec![b'/'];
+    let mut result = Vec::with_capacity(length);
+    result.push(b'/');
     for (index, part) in parts.iter().enumerate() {
         if index != 0 {
             result.push(b'/');
         }
         result.extend_from_slice(part);
     }
-    result
+    Some(result)
 }
 
 #[cfg(test)]
@@ -4812,6 +4826,40 @@ mod tests {
             store.expand(b"$(abspath child /a/../b)").unwrap(),
             b"/work/child /b"
         );
+    }
+
+    #[test]
+    fn abspath_linux_bound_counts_bytes_before_lexical_reduction() {
+        assert_eq!(absolute_path(b"/", &vec![b'/'; 4095]), Some(b"/".to_vec()));
+        assert_eq!(absolute_path(b"/", &vec![b'/'; 4096]), None);
+        let mut unicode = b"/".to_vec();
+        unicode.extend_from_slice(&[0xc3, 0xa9].repeat(2047));
+        assert_eq!(absolute_path(b"/", &unicode), Some(unicode.clone()));
+        unicode.push(b'x');
+        assert_eq!(absolute_path(b"/", &unicode), None);
+    }
+
+    #[test]
+    fn abspath_selected_base_bounds_each_component_before_later_parent_reduction() {
+        let base = b"/work/project";
+        let mut relative = vec![b'x'; 4095 - base.len() - 1];
+        assert_eq!(absolute_path(base, &relative).unwrap().len(), 4095);
+        relative.extend_from_slice(b"/..");
+        assert_eq!(absolute_path(base, &relative), Some(base.to_vec()));
+        relative.insert(0, b'x');
+        assert!(relative.len() < 4096);
+        assert_eq!(absolute_path(base, &relative), None);
+    }
+
+    #[test]
+    fn abspath_omitted_words_preserve_join_spacing() {
+        let mut store = VariableStore::new();
+        store.set_working_directory(b"/work");
+        let rejected = vec![b'/'; 4096];
+        let expression = [b"$(abspath /first ".as_slice(), &rejected, b" /last)"].concat();
+        assert_eq!(store.expand(&expression).unwrap(), b"/first /last");
+        let expression = [b"$(abspath ".as_slice(), &rejected, b" ", &rejected, b")"].concat();
+        assert_eq!(store.expand(&expression).unwrap(), b"");
     }
 
     #[test]
