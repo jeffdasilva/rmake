@@ -63,6 +63,7 @@ impl Options {
     /// MAKEFLAGS uses make's backslash-separated words, not shell quoting.
     /// Only the CLI subset implemented here is accepted; unsupported inherited
     /// scheduling flags must not silently change a recursive invocation.
+    #[cfg(test)]
     pub fn with_environment(
         args: impl IntoIterator<Item = OsString>,
         makeflags: Option<OsString>,
@@ -76,6 +77,7 @@ impl Options {
         Self::with_inherited_tokens(args, combined, missing_makeflags)
     }
 
+    #[cfg(test)]
     pub(crate) fn with_inherited_tokens(
         args: impl IntoIterator<Item = OsString>,
         combined: Vec<OsString>,
@@ -93,6 +95,7 @@ impl Options {
         Self::with_parsed_inherited(args, inherited_options, prefix_count, missing_makeflags)
     }
 
+    #[cfg(test)]
     pub(crate) fn with_parsed_inherited(
         args: impl IntoIterator<Item = OsString>,
         inherited_options: Self,
@@ -296,6 +299,7 @@ impl Options {
         ))
     }
 
+    #[cfg(test)]
     pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Self, String> {
         Self::parse_mode::<true>(args)
     }

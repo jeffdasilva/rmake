@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "literal-startup-directory-restart-6-prepared"
+requirement = "startup.literal-arguments"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "DUMMY:=$(subst x,x,)", "-C././d", "-Cd"]
+timeout_seconds = 5
+description = "Original literal and expression startup operand, diagnostic and reconstruction control."
+provenance = "Independent exact models and intended filesystem effects checked against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No upstream code or tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "4c4f433d6669727374204e3d5b5d0a4c4f433d6669727374204e3d5b315d0a"
+stderr_hex = ""

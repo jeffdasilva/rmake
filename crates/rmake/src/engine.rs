@@ -774,24 +774,6 @@ impl Engine {
         gnumakeflags: Option<OsString>,
     ) -> Result<Invocation, InvocationError> {
         let args: Vec<_> = args.into_iter().collect();
-        let needs_initial = |value: &[u8]| {
-            value.contains(&b'$')
-                || value.contains(&b'~')
-                || value.windows(2).any(|part| part == b"!=")
-        };
-        if ![makeflags.as_deref(), gnumakeflags.as_deref()]
-            .into_iter()
-            .flatten()
-            .any(|value| needs_initial(value.as_bytes()))
-            && !args.iter().any(|value| needs_initial(value.as_bytes()))
-        {
-            return Options::with_environment(args, makeflags, gnumakeflags)
-                .map(|options| Invocation {
-                    options,
-                    initial: None,
-                })
-                .map_err(InvocationError::Options);
-        }
         let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags);
         Box::new(plan).decode(None)
     }
@@ -836,10 +818,23 @@ impl Engine {
                 })
             })
         };
-        let startup_level = startup_makelevel(
-            std::env::var_os("MAKELEVEL")
-                .as_deref()
-                .map_or(b"".as_slice(), OsStrExt::as_bytes),
+        let startup_level = initial.as_ref().map_or_else(
+            || {
+                startup_makelevel(
+                    std::env::var_os("MAKELEVEL")
+                        .as_deref()
+                        .map_or(b"".as_slice(), OsStrExt::as_bytes),
+                )
+            },
+            |state| {
+                startup_makelevel(
+                    state
+                        .database
+                        .variables
+                        .get(b"MAKELEVEL")
+                        .map_or(b"".as_slice(), |variable| variable.raw_value()),
+                )
+            },
         );
         let warning_program = if startup_level == 0 {
             program.clone()
@@ -892,14 +887,15 @@ impl Engine {
         };
         for dir in &options.directories {
             std::env::set_current_dir(dir).map_err(|error| {
-                Diagnostic::from(
+                StartupError::from(Diagnostic::from(
                     [
                         dir.as_os_str().as_bytes(),
                         b": ",
                         os_error(&error).as_bytes(),
                     ]
                     .concat(),
-                )
+                ))
+                .with_program(&warning_program)
             })?;
         }
         let filesystem = initial.as_mut().map_or_else(
@@ -1658,16 +1654,31 @@ impl Engine {
         loop {
             if iterations > 0 && self.initial_plan.is_some() {
                 let plan = self.initial_plan.take().expect("initial invocation");
+                let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
                 self.jobserver.take();
                 self.output.select(None);
                 self.output.clear();
                 if !self.options.directories.is_empty() {
-                    let restored = self
-                        .startup_directory
-                        .as_ref()
-                        .is_some_and(|directory| std::env::set_current_dir(directory).is_ok());
+                    let restored = if let Some(directory) = &self.startup_directory {
+                        match std::env::set_current_dir(directory) {
+                            Ok(()) => true,
+                            Err(error) => {
+                                self.stderr(
+                                    [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
+                                        .concat()
+                                        .as_slice(),
+                                );
+                                false
+                            }
+                        }
+                    } else {
+                        false
+                    };
                     if !restored {
                         self.fatal(None, b"Couldn't change back to original directory");
+                        if let Some(slots) = retired_slots {
+                            self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
+                        }
                         return 2;
                     }
                 }

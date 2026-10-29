@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "literal-startup-warning-1-literal"
+requirement = "startup.literal-arguments"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+description = "Original literal and expression startup operand, diagnostic and reconstruction control."
+provenance = "Independent exact models and intended filesystem effects checked against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No upstream code or tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "--warn-undefined-variables"
+"MAKELEVEL" = "1"
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d414b45464c414753270a"

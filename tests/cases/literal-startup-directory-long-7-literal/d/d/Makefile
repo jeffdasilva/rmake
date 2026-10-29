@@ -1,0 +1,2 @@
+$(info LOC=second)
+all:;@:
