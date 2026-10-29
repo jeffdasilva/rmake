@@ -534,10 +534,17 @@ impl std::ops::Deref for Bindings {
 }
 
 #[derive(Clone, Debug)]
+enum StartingDirectory {
+    Unconfigured,
+    Pending,
+    Selected(Arc<[u8]>),
+}
+
+#[derive(Clone, Debug)]
 pub struct VariableStore {
     variables: Arc<Bindings>,
     layers: Vec<VariableLayer>,
-    working_directory: Option<Arc<[u8]>>,
+    working_directory: StartingDirectory,
     original_shell: Option<Arc<[u8]>>,
     environment_override: bool,
     scoped: bool,
@@ -549,7 +556,7 @@ impl Default for VariableStore {
         Self {
             variables: empty_bindings(1024),
             layers: Vec::new(),
-            working_directory: None,
+            working_directory: StartingDirectory::Unconfigured,
             original_shell: None,
             environment_override: false,
             scoped: false,
@@ -766,10 +773,16 @@ impl VariableStore {
         true
     }
 
-    /// Set the actual invocation directory for `abspath`, independently of the
-    /// overridable CURDIR variable. This performs no filesystem access.
+    /// GNU has not selected a base for relative abspath words during initial
+    /// flag and argument expansion. Absolute words remain lexical operations.
+    pub fn set_startup_directory_pending(&mut self) {
+        self.working_directory = StartingDirectory::Pending;
+    }
+
+    /// Set GNU's logical starting directory, independently of CURDIR and later
+    /// filesystem renames. This performs no filesystem access.
     pub fn set_working_directory(&mut self, directory: &[u8]) {
-        self.working_directory = Some(Arc::from(directory));
+        self.working_directory = StartingDirectory::Selected(Arc::from(directory));
     }
 
     pub fn get(&self, name: &[u8]) -> Option<&Variable> {
@@ -3118,11 +3131,18 @@ impl Expansion<'_, '_> {
                 }
             }
             b"abspath" => {
-                let directory = self.store.working_directory.as_deref().ok_or_else(|| {
-                    ExpandError::Unsupported(b"abspath without invocation directory".to_vec())
-                })?;
+                let directory = match &self.store.working_directory {
+                    StartingDirectory::Unconfigured => {
+                        return Err(ExpandError::Unsupported(
+                            b"abspath without invocation directory".to_vec(),
+                        ));
+                    }
+                    StartingDirectory::Pending => None,
+                    StartingDirectory::Selected(directory) => Some(directory.as_ref()),
+                };
                 let paths = words(first)
-                    .map(|path| absolute_path(directory, path))
+                    .filter(|path| directory.is_some() || path.starts_with(b"/"))
+                    .map(|path| absolute_path(directory.unwrap_or(b"/"), path))
                     .collect::<Vec<_>>();
                 join_words(paths.iter().map(Vec::as_slice))
             }
@@ -4767,7 +4787,7 @@ mod tests {
     }
 
     #[test]
-    fn abspath_uses_actual_directory_not_curdir_variable() {
+    fn abspath_uses_selected_directory_not_curdir_variable() {
         let mut store = VariableStore::new();
         store.set_working_directory(b"/work/project");
         define(&mut store, b"CURDIR", b"/pretend", Assignment::Recursive);
@@ -4777,6 +4797,32 @@ mod tests {
                 .unwrap(),
             b"/work/project/a /work/b /y /z"
         );
+    }
+
+    #[test]
+    fn startup_abspath_retains_absolute_words_until_relative_base_is_selected() {
+        let mut store = VariableStore::new();
+        store.set_startup_directory_pending();
+        assert_eq!(
+            store.expand(b"$(abspath child /a/../b ./next /c)").unwrap(),
+            b"/b /c"
+        );
+        store.set_working_directory(b"/work");
+        assert_eq!(
+            store.expand(b"$(abspath child /a/../b)").unwrap(),
+            b"/work/child /b"
+        );
+    }
+
+    #[test]
+    fn unconfigured_abspath_context_remains_distinct_from_initial_startup() {
+        let mut store = VariableStore::new();
+        assert!(matches!(
+            store.expand(b"$(abspath /a)"),
+            Err(ExpandError::Unsupported(_))
+        ));
+        store.set_startup_directory_pending();
+        assert_eq!(store.expand(b"$(abspath /a)").unwrap(), b"/a");
     }
 
     #[test]

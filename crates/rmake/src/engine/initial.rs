@@ -148,11 +148,7 @@ impl Plan {
                 .set_export_policy(b"MAKE_RESTARTS", Some(false));
         }
         let initial_directory = std::env::current_dir().ok();
-        if let Some(directory) = &initial_directory {
-            database
-                .variables
-                .set_working_directory(directory.as_os_str().as_bytes());
-        }
+        database.variables.set_startup_directory_pending();
         let filesystem = RefCell::new(FilesystemRuntime::default());
         let output = crate::output::Controller::new(crate::output::Mode::None, &self.program);
         let mut state = State {
