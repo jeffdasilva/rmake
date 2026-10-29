@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-output-line-none-2-normal-separate"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-rR", "X:=$(warning cli)$(info CLI)", "-Onone", "-I-", "-Idir-$(warning META)$(shell echo MARK > /proc/$$PPID/fd/1)$(info OUT)"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[environment]
+"GNUMAKEFLAGS" = "-Oline"
+"MAKELEVEL" = "2"
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = "434c490a4d41524b0a4f55540a"
+stderr_hex = "6d616b653a20636c690a6d616b655b325d3a204d4554410a"

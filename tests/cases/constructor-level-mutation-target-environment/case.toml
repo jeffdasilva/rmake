@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-level-mutation-target-environment"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-rR", "-Otarget", "-I-", "-Idir-$(eval MAKELEVEL=7)$(file >captured,$(shell printf $$MAKELEVEL))$(warning META)"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+"MAKELEVEL" = "3"
+
+[expected]
+exit_code = 0
+stdout_hex = "5055424c49433d5b375d204f524947494e3d5b66696c655d204541524c593d5b345d204c4154453d5b345d0a"
+stderr_hex = "6d616b655b335d3a204d4554410a"

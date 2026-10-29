@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-cwd-cached"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-rR", "DUMMY:=$(shell mv \"$$(pwd)\" \"$$HOME/retired\")"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = "4e414d453d5b776f726b5d2041435455414c3d5b726574697265645d0a"
+stderr_hex = ""

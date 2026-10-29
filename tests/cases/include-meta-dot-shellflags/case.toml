@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "include-meta-dot-shellflags"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-r", "-I-", "-Idir-$(file >>observed,$(origin .SHELLFLAGS))"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "5345454e3d5b64656661756c745d0a"
+stderr_hex = ""

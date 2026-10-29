@@ -308,12 +308,14 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 
 [Imported restart state](docs/restart-state.md) adds 214 counter/policy controls and eight early special-activation controls. It preserves numeric wrap and binding export lifetime while transferring original startup inputs without a redundant full copy. M3/M6 remain open.
 
-[Prepared startup retention](docs/startup-retention.md) removes unused copies, with repeated allocation observations and paired timing reports. Thirteen include-metadata mismatches remain explicit ordinary research; M3/M6 remain open.
+[Prepared startup retention](docs/startup-retention.md) removes unused copies, with repeated allocation observations and paired timing reports. Original include-metadata observations remain as historical research; their qualified closure is recorded in the constructor phase controls. M3/M6 remain open.
 
 [Runtime include phases](docs/runtime-includes.md) now preserve old search during metadata eval, nested publication, current flag state and bindings changed by immediate RHS effects. There are 155 new required cases, 42 staged interruption cells and an output-checked `BENCH_SUITE=runtime-includes`; full M3/M6 and performance parity remain open.
 
-[Startup metadata recursion](docs/startup-metadata-recursion.md) now preserves CLI versus metadata recursion, child environments, diagnostic program levels and real definition sources, with 55 new required cases. Assignment priority and scope preservation share one fresh binding lookup. Eleven startup-metadata research gaps and broader M3/M6 remain open.
+[Startup metadata recursion](docs/startup-metadata-recursion.md) now preserves CLI versus metadata recursion, child environments, diagnostic program levels and real definition sources, with 55 new required cases. Assignment priority and scope preservation share one fresh binding lookup. The eleven original startup-metadata gaps are now covered by the constructor phase controls; broader M3/M6 remains open.
 
 [Include-directory interruption handling](docs/include-stat-interruptions.md) now retries transient metadata interruptions and stops on fatal signals. `make test-include-stat` adds twelve separately gated fault profiles with observer ABI qualification; ordinary conformance and safety-exception counts are unchanged.
 
 [Ordered literal startup](docs/literal-startup.md) now uses the same argument and restart phases for all invocations, preserving directory operand comparison, repeated Makefile metadata and recursion diagnostics. There are 146 new required controls; allocation requests fall on the measured literal-argument workloads, while general M3/M6 compatibility and performance parity remain open.
+
+[Constructor metadata phases](docs/constructor-metadata.md) now preserve early default/automatic visibility, full eval, imported shell use, output-buffer boundaries and cached directory state. 539 new required cases close all nineteen historical probes; the ordinary corpus is 11,605 required / zero pending, plus 17 separate safety exceptions. Complete M3/M6 and general performance parity remain open.

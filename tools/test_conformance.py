@@ -53,6 +53,16 @@ class ManifestTests(unittest.TestCase):
         observed = runner.Observation(b"\x00\xff\x80", b"", 0, None, {})
         self.assertEqual(runner.expectation_errors(case, observed), [])
 
+    def test_imported_automatic_variant_names_retain_exact_shape_and_reserved_guards(self):
+        for base in '@<^+?*%':
+            for suffix in 'DF':
+                key=base+suffix
+                self.write('[environment]\n'+json.dumps(key)+' = "imported"\n')
+                self.assertEqual(runner.load_case(self.case).environment,{key:'imported'})
+        for key in ('@','@Q','@D=bad','@D\0','@D BAD','HOME','PATH'):
+            self.write('[environment]\n'+json.dumps(key)+' = "x"\n')
+            with self.subTest(key=key),self.assertRaises(runner.HarnessError):runner.load_case(self.case)
+
     def test_hex_expectations_reject_non_ascii_odd_and_whitespace_values(self):
         for value in ("0", "abc", "gg", "ff ff", "ff\n", "０１", "é0", "0x00", 0, True, []):
             with self.subTest(value=value):

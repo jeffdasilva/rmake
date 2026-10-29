@@ -628,9 +628,7 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
-    restart_options: Option<Options>,
     initial_plan: Option<Box<initial::Plan>>,
-    startup_snapshot: Option<Box<startup::Snapshot>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
@@ -757,9 +755,10 @@ pub fn emit_invocation_error(program: &[u8], error: InvocationError) {
 
 pub struct Invocation {
     pub options: Options,
-    initial: Option<Box<initial::Prepared>>,
+    initial: Box<initial::Prepared>,
 }
 
+#[derive(Debug)]
 pub enum InvocationError {
     Options(String),
     Expansion(StartupError),
@@ -780,192 +779,108 @@ impl Engine {
 }
 
 impl Engine {
-    #[cfg(test)]
-    pub fn new(
-        options: Options,
-        program: Vec<u8>,
-        invocation: &OsStr,
-    ) -> Result<Self, StartupError> {
-        Self::from_invocation(
-            Invocation {
-                options,
-                initial: None,
-            },
-            program,
-            invocation,
-        )
-    }
-
     pub fn from_invocation(
         launch: Invocation,
-        program: Vec<u8>,
+        mut program: Vec<u8>,
         invocation: &OsStr,
     ) -> Result<Self, StartupError> {
         let Invocation {
             mut options,
-            mut initial,
+            initial,
         } = launch;
-        let prepared = initial.is_some();
-        if !prepared {
-            let mut seen = HashSet::new();
-            options.directories.retain(|path| seen.insert(path.clone()));
-        }
-        let startup_warnings = Cell::new(options.warn_undefined);
-        let parse_mode = |raw: Option<&[u8]>| -> Result<crate::output::Mode, Diagnostic> {
-            raw.map_or(Ok(crate::output::Mode::None), |raw| {
+        let initial::Prepared {
+            mut database,
+            filesystem,
+            output,
+            mut reader_output,
+            mut construction,
+            exports: mut inherited_exports,
+            seed,
+            plan,
+            initial_directory,
+        } = *initial;
+        let mode = options
+            .output_sync
+            .as_deref()
+            .map_or(Ok(crate::output::Mode::None), |raw| {
                 crate::output::Mode::parse(raw).ok_or_else(|| {
                     Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat())
                 })
-            })
-        };
-        let startup_level = initial.as_ref().map_or_else(
-            || {
-                startup_makelevel(
-                    std::env::var_os("MAKELEVEL")
-                        .as_deref()
-                        .map_or(b"".as_slice(), OsStrExt::as_bytes),
-                )
-            },
-            |state| {
-                startup_makelevel(
-                    state
-                        .database
-                        .variables
-                        .get(b"MAKELEVEL")
-                        .map_or(b"".as_slice(), |variable| variable.raw_value()),
-                )
-            },
-        );
-        let warning_program = if startup_level == 0 {
-            program.clone()
-        } else {
-            [program.as_slice(), format!("[{startup_level}]").as_bytes()].concat()
-        };
-        let mode = parse_mode(options.output_sync.as_deref())?;
-        let inherited_mode = parse_mode(options.inherited_output_sync.as_deref())?;
-        let output = initial.as_ref().map_or_else(
-            || crate::output::Controller::new(inherited_mode, &warning_program),
-            |state| state.output.clone(),
-        );
-        output.set_mode(inherited_mode);
-        let mut reader_output = if let Some(state) = initial.as_mut() {
-            state.construction.disarm();
-            state.reader_output.take()
-        } else {
-            output
-                .mode()
-                .root_buffered()
-                .then(|| output.make_buffer())
-                .flatten()
-        };
-        output.select(reader_output.as_ref());
-        if options.startup_missing_makeflags_warning {
-            emit_output(
-                &output,
-                &warning_program,
-                Output::Warning {
-                    location: None,
-                    message: b"warning: undefined variable 'MAKEFLAGS'",
-                },
-            );
+            })?;
+        // Explicit switches select the active context only after every CLI
+        // effect and early exit. Closing an inherited spool still uses level 0.
+        output.set_mode(mode);
+        if !mode.root_buffered() {
+            output.select(None);
+            if let Some(buffer) = reader_output.take() {
+                buffer.dump();
+            }
+        } else if reader_output.is_none() {
+            reader_output = output.make_buffer();
         }
-        // Constructor errors must still expose already-produced expansion output.
-        let mut construction_output =
-            crate::output::Construction::new(output.clone(), reader_output.clone());
+        output.select(reader_output.as_ref());
+        construction.replace_buffer(reader_output.clone());
+        let makelevel = startup_makelevel(
+            database
+                .variables
+                .get(b"MAKELEVEL")
+                .map_or(b"".as_slice(), |variable| variable.raw_value()),
+        );
+        if makelevel != 0 {
+            program.extend_from_slice(format!("[{makelevel}]").as_bytes());
+        }
+        output.set_program(&program);
         let relative_command =
             !Path::new(invocation).is_absolute() && invocation.as_bytes().contains(&b'/');
-        let startup_directory = (!options.directories.is_empty() || relative_command)
-            .then(|| std::env::current_dir().ok())
-            .flatten();
+        let startup_directory = if !options.directories.is_empty() || relative_command {
+            initial_directory.clone()
+        } else {
+            None
+        };
         let make_command = if relative_command {
-            startup_directory.as_ref().map_or_else(
+            initial_directory.as_ref().map_or_else(
                 || invocation.to_owned(),
                 |cwd| cwd.join(invocation).into_os_string(),
             )
         } else {
             invocation.to_owned()
         };
-        for dir in &options.directories {
-            std::env::set_current_dir(dir).map_err(|error| {
+        for directory in &options.directories {
+            std::env::set_current_dir(directory).map_err(|error| {
                 StartupError::from(Diagnostic::from(
                     [
-                        dir.as_os_str().as_bytes(),
+                        directory.as_os_str().as_bytes(),
                         b": ",
                         os_error(&error).as_bytes(),
                     ]
                     .concat(),
                 ))
-                .with_program(&warning_program)
+                .with_program(&program)
             })?;
         }
-        let filesystem = initial.as_mut().map_or_else(
-            || RefCell::new(FilesystemRuntime::default()),
-            |state| std::mem::take(&mut state.filesystem),
-        );
-        let mut database = initial.as_mut().map_or_else(Database::default, |state| {
-            std::mem::take(&mut state.database)
-        });
-        if !prepared {
-            database.variables.reserve_environment_layout(
-                &[
-                    b".VARIABLES",
-                    b".RECIPEPREFIX",
-                    b".SHELLFLAGS",
-                    b".LOADED",
-                    b".FEATURES",
-                ],
-                false,
-            );
+        // GNU retains its initial logical directory without -C, even if a CLI
+        // child renamed it. A real -C list refreshes that value after chdir.
+        let cwd = if options.directories.is_empty() {
+            initial_directory.map_or_else(std::env::current_dir, Ok)
+        } else {
+            std::env::current_dir()
         }
+        .map_err(|error| {
+            StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
+        })?;
         for goal in &options.goals {
             database.file_records.insert(goal);
         }
         database
             .variables
             .set_environment_override(options.environment_override);
-        let mut inherited_exports = initial
-            .as_mut()
-            .map_or_else(HashSet::new, |state| std::mem::take(&mut state.exports));
-        if !prepared {
-            for (name, value) in std::env::vars_os() {
-                let name = name.as_bytes();
-                if name == b"SHELL" {
-                    database.variables.set_original_shell(value.as_bytes());
-                    database
-                        .variables
-                        .define(
-                            name,
-                            value.as_bytes(),
-                            Assignment::Recursive,
-                            Origin::Environment,
-                        )
-                        .map_err(|error| error.diagnostic())?;
-                    database.variables.set_export_policy(name, Some(false));
-                    continue;
-                }
-                let imported_value = if name == b"MAKE_RESTARTS" {
-                    startup_restart_value(value.as_bytes())
-                } else {
-                    value.as_bytes()
-                };
-                database
-                    .variables
-                    .define(
-                        name,
-                        imported_value,
-                        Assignment::Recursive,
-                        Origin::Environment,
-                    )
-                    .map_err(|e| e.diagnostic())?;
-                // Imported export policy belongs to this binding. Ordinary
-                // reassignment retains it; undefine destroys it with the binding.
-                let exported = name != b"MAKE_RESTARTS";
-                database.variables.set_export_policy(name, Some(exported));
-                if exported {
-                    inherited_exports.insert(name.to_vec());
-                }
-            }
-        }
+        database
+            .variables
+            .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
+            .map_err(|error| StartupError::expansion(error).with_program(&program))?;
+        database
+            .variables
+            .set_working_directory(cwd.as_os_str().as_bytes());
         for (name, descriptor) in [
             (b"MAKE_TERMOUT".as_slice(), 1),
             (b"MAKE_TERMERR".as_slice(), 2),
@@ -976,60 +891,26 @@ impl Engine {
                 database
                     .variables
                     .define_literal(name, &value, Origin::Default)
-                    .map_err(|e| e.diagnostic())?;
+                    .map_err(StartupError::expansion)?;
                 database.variables.set_export_policy(name, Some(true));
             }
         }
-        database
-            .initialize_suffixes(!options.no_rules)
-            .map_err(|error| error.diagnostic())?;
-        database
-            .variables
-            .reserve_environment_layout(&[b"MFLAGS"], true);
-        if !options.no_rules {
-            database
-                .initialize_builtin_rules()
-                .map_err(|error| error.message)?;
-        }
-        database.file_records.insert(b".DEFAULT");
-        define_automatic_variants(&mut database.variables).map_err(|error| error.diagnostic())?;
-        database
-            .variables
-            .reserve_environment_layout(&[b"MAKE_HOST", b".DEFAULT_GOAL"], false);
+        let startup_warnings = Cell::new(options.warn_undefined);
+        let include_search = startup::include_metadata(
+            &mut database,
+            &mut options,
+            startup::Runtime {
+                program: &program,
+                level: makelevel,
+                output: &output,
+                filesystem: &filesystem,
+                warnings: &startup_warnings,
+            },
+        )?;
         database
             .variables
-            .reserve_environment_layout(&[b"MFLAGS"], true);
-        database
-            .variables
-            .define_literal(b"MAKEFILES", b"", Origin::Default)
-            .map_err(|error| error.diagnostic())?;
-        database.variables.set_export_if_set(b"MAKEFILES");
-        for (name, value) in [
-            (b".SHELLFLAGS".as_slice(), b"-c".as_slice()),
-            (b"MAKE_VERSION", b"4.4.1"),
-            (b".RECIPEPREFIX", b""),
-            (b".LOADED", b""),
-            (b".FEATURES", FEATURES),
-            (b"MAKE_HOST", b"x86_64-pc-linux-gnu"),
-            (b"MAKE_COMMAND", make_command.as_bytes()),
-        ] {
-            // These specials precede option decoding in GNU. Their imported
-            // environment values have no later default-assignment conflict.
-            let early = matches!(
-                name,
-                b".SHELLFLAGS" | b".RECIPEPREFIX" | b".LOADED" | b".FEATURES"
-            );
-            if prepared && early {
-                continue;
-            }
-            database
-                .variables
-                .set_environment_override(options.environment_override && !early);
-            database
-                .variables
-                .define_literal(name, value, Origin::Default)
-                .map_err(|e| e.diagnostic())?;
-        }
+            .define_literal(b"MAKE_COMMAND", make_command.as_bytes(), Origin::Default)
+            .map_err(StartupError::expansion)?;
         database
             .variables
             .define(
@@ -1038,90 +919,92 @@ impl Engine {
                 Assignment::Recursive,
                 Origin::Default,
             )
-            .map_err(|error| error.diagnostic())?;
-        if !prepared {
-            database.variables.set_environment_override(false);
+            .map_err(StartupError::expansion)?;
+        let command_replay =
+            crate::command_variables::prepare(&mut database.variables, &seed.commands)
+                .map_err(StartupError::expansion)?;
+        database
+            .initialize_suffixes(!options.no_rules)
+            .map_err(StartupError::expansion)?;
+        database
+            .variables
+            .reserve_environment_layout(&[b"MFLAGS"], true);
+        if !options.no_rules {
             database
-                .variables
-                .enable_variable_names()
-                .map_err(|error| error.diagnostic())?;
+                .initialize_builtin_rules()
+                .map_err(|error| error.message)?;
         }
         database
             .variables
-            .set_environment_override(options.environment_override);
+            .reserve_environment_layout(&[b"MAKE_HOST", b".DEFAULT_GOAL"], false);
+        database
+            .variables
+            .reserve_environment_layout(&[b"MFLAGS"], true);
+        database
+            .variables
+            .define_literal(
+                b"MAKELEVEL",
+                makelevel.to_string().as_bytes(),
+                if options.environment_override {
+                    Origin::EnvironmentOverride
+                } else {
+                    Origin::Environment
+                },
+            )
+            .map_err(StartupError::expansion)?;
+        database
+            .variables
+            .define_literal(b"MAKE_VERSION", b"4.4.1", Origin::Default)
+            .map_err(StartupError::expansion)?;
+        database
+            .variables
+            .define_literal(b"MAKE_HOST", b"x86_64-pc-linux-gnu", Origin::Default)
+            .map_err(StartupError::expansion)?;
+        database
+            .variables
+            .initialize_shell_default(b"/bin/sh")
+            .map_err(StartupError::expansion)?;
+        database
+            .variables
+            .define_literal(b"MAKEFILES", b"", Origin::Default)
+            .map_err(StartupError::expansion)?;
+        database.variables.set_export_if_set(b"MAKEFILES");
+        define_automatic_variants(&mut database.variables).map_err(StartupError::expansion)?;
         database
             .variables
             .update_mflags(&options.recursive_flags(), options.environment_override)
-            .map_err(|error| error.diagnostic())?;
+            .map_err(StartupError::expansion)?;
         inherited_exports.insert(b"MFLAGS".to_vec());
-        let cwd = std::env::current_dir().map_err(|e| Diagnostic::from(e.to_string()))?;
-        database
-            .variables
-            .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
-            .map_err(|e| e.diagnostic())?;
-        if !prepared && !options.goals.is_empty() {
-            database
-                .variables
-                .define_literal(b"MAKECMDGOALS", &joined(&options.goals), Origin::Default)
-                .map_err(|e| e.diagnostic())?;
-        }
-        database
-            .variables
-            .set_working_directory(cwd.as_os_str().as_bytes());
-        if !prepared {
-            database.variables.remove(b"MAKEFLAGS");
+        let mut initial_flags = options.makeflags();
+        if command_replay {
+            initial_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
         }
         database
             .variables
             .define(
                 b"MAKEFLAGS",
-                &options.makeflags(),
+                &initial_flags,
                 Assignment::Recursive,
                 runtime_options::origin(options.environment_override),
             )
-            .map_err(|e| e.diagnostic())?;
-        if database
+            .map_err(StartupError::expansion)?;
+        database
             .variables
-            .get(b"GNUMAKEFLAGS")
-            .is_some_and(|variable| variable.origin() != Origin::Default)
-        {
+            .set_export_policy(b"MAKEFLAGS", Some(true));
+        if !options.no_variables {
+            database
+                .initialize_builtin_variables()
+                .map_err(StartupError::expansion)?;
             database
                 .variables
-                .define_literal(b"GNUMAKEFLAGS", b"", Origin::Environment)
-                .map_err(|e| e.diagnostic())?;
+                .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
+                .map_err(StartupError::expansion)?;
         }
-        let startup_snapshot = if prepared {
-            None
-        } else {
-            startup::Snapshot::capture(&database, &options, &inherited_exports, &program, 0)
-        };
-        let seed = initial
-            .as_mut()
-            .map_or_else(startup::Seed::default, |state| {
-                std::mem::take(&mut state.seed)
-            });
-        let initial_plan = initial.map(|state| state.plan);
-        let setup = startup::prepare(
-            &mut database,
-            &mut options,
-            &mut inherited_exports,
-            startup::Runtime {
-                program: &program,
-                level: 0,
-                output: &output,
-                filesystem: &filesystem,
-                warnings: &startup_warnings,
-            },
-            seed,
-        )?;
-        let include_search = setup.include_search;
-        let command_replay = setup.command_replay;
-        let makelevel = setup.makelevel;
-        let initial_flags = setup.initial_flags;
-        let mut program = program;
-        if makelevel != 0 {
-            program.extend_from_slice(format!("[{makelevel}]").as_bytes());
-        }
+        database.file_records.insert(b".DEFAULT");
+        database
+            .variables
+            .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
+            .map_err(StartupError::expansion)?;
         if let Some(authentication) = &options.sync_mutex {
             output.decode_mutex(authentication).map_err(|error| {
                 Diagnostic::from(
@@ -1137,27 +1020,13 @@ impl Engine {
                 )
             })?;
         }
-        output.set_mode(mode);
-        if !mode.root_buffered() {
-            output.select(None);
-            if let Some(buffer) = reader_output.take() {
-                buffer.dump();
-            }
-        } else if reader_output.is_none() {
-            reader_output = output.make_buffer();
-        }
-        output.select(reader_output.as_ref());
         let include_search = std::rc::Rc::new(RefCell::new(include_search));
         let flag_state =
             runtime_options::State::new(&options, output.clone(), include_search.clone());
         let flag_entry_jobs = options.jobs;
-        // Prepared startup owns its original inputs; only the legacy path
-        // reads an Options snapshot when reconstructing an invocation.
-        let restart_options = initial_plan.is_none().then(|| options.clone());
+        let initial_plan = Some(plan);
         let mut engine = Self {
-            restart_options,
             initial_plan,
-            startup_snapshot,
             startup_directory,
             output,
             reader_output,
@@ -1247,7 +1116,7 @@ impl Engine {
             )
             .map_err(|e| e.diagnostic())?;
         engine.flag_state.refresh(&engine.options);
-        construction_output.disarm();
+        construction.disarm();
         Ok(engine)
     }
 
@@ -1637,13 +1506,11 @@ impl Engine {
     fn run_inner(&mut self) -> u8 {
         let mut found_makefile;
         self.database.activate_runtime_metadata();
-        // The empty eval pass has no effects. Keep its old snapshot shape and
-        // avoid inserting a new name into a shared variable table afterward.
+        // Empty command eval initializes this binding before ordinary reading;
+        // nonempty eval retains its separate reader boundary below.
         if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
             return 2;
         }
-        let mut initial_database = (self.startup_snapshot.is_none() && self.initial_plan.is_none())
-            .then(|| self.database.clone());
         let mut iterations = 0_u32;
         let mut restarts = startup_unsigned(startup_restart_value(
             std::env::var_os("MAKE_RESTARTS")
@@ -1652,7 +1519,7 @@ impl Engine {
         ));
         let mut stdin_bytes = None;
         loop {
-            if iterations > 0 && self.initial_plan.is_some() {
+            if iterations > 0 {
                 let plan = self.initial_plan.take().expect("initial invocation");
                 let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
                 self.jobserver.take();
@@ -1707,174 +1574,6 @@ impl Engine {
                     return 2;
                 }
                 *self = next;
-                initial_database = None;
-            } else if iterations > 0 {
-                let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
-                self.jobserver.take();
-                self.output.select(None);
-                self.output.clear();
-                self.options = self
-                    .restart_options
-                    .as_ref()
-                    .expect("legacy restart options")
-                    .clone();
-                // GNU re-enters CLI directories only when -C was present.
-                // Without -C, a renamed current directory remains current.
-                if !self.options.directories.is_empty() {
-                    let restored = if let Some(directory) = &self.startup_directory {
-                        match std::env::set_current_dir(directory) {
-                            Ok(()) => true,
-                            Err(error) => {
-                                self.stderr(
-                                    [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
-                                        .concat()
-                                        .as_slice(),
-                                );
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    };
-                    if !restored {
-                        self.fatal(None, b"Couldn't change back to original directory");
-                        // GNU has already retired its master pool here, but its
-                        // fatal cleanup checks the remembered size a second time.
-                        // Preserve the observable warning with owned metadata;
-                        // RAII still closes our pool and returns every live permit.
-                        if let Some(slots) = retired_slots {
-                            self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
-                        }
-                        return 2;
-                    }
-                    for directory in self.options.directories.clone() {
-                        if let Err(error) = std::env::set_current_dir(&directory) {
-                            self.fatal(
-                                None,
-                                &[
-                                    directory.as_os_str().as_bytes(),
-                                    b": ",
-                                    os_error(&error).as_bytes(),
-                                ]
-                                .concat(),
-                            );
-                            return 2;
-                        }
-                    }
-                }
-                let restart_directory = match std::env::current_dir() {
-                    Ok(directory) => directory,
-                    Err(error) => {
-                        self.fatal(None, os_error(&error).as_bytes());
-                        return 2;
-                    }
-                };
-                self.options.reset_jobserver = false;
-                self.include_search
-                    .replace(IncludeSearch::new(&self.options.include_directories));
-                self.output.set_mode(
-                    self.options
-                        .output_sync
-                        .as_deref()
-                        .and_then(crate::output::Mode::parse)
-                        .unwrap_or_default(),
-                );
-                if self.output.mode().root_buffered() {
-                    self.reader_output = self.output.make_buffer();
-                    self.output.select(self.reader_output.as_ref());
-                }
-                if let Err(error) = self.setup_jobserver(false) {
-                    self.fatal(None, error.as_bytes());
-                    return 2;
-                }
-                self.initial_flags = self.options.makeflags();
-                if self.command_replay {
-                    self.initial_flags
-                        .extend_from_slice(b" -- $(MAKEOVERRIDES)");
-                }
-                if let Some(snapshot) = &self.startup_snapshot {
-                    self.program = snapshot.program(0);
-                    let replay = match snapshot.replay(
-                        &mut self.options,
-                        restart_directory.as_os_str().as_bytes(),
-                        restarts,
-                        self.makelevel,
-                        &self.output,
-                        &self.filesystem,
-                    ) {
-                        Ok(replay) => replay,
-                        Err(error) => {
-                            self.fatal(error.location.as_ref(), error.message.as_bytes());
-                            return 2;
-                        }
-                    };
-                    self.database = replay.database;
-                    self.inherited_exports = replay.inherited_exports;
-                    self.command_replay = replay.setup.command_replay;
-                    self.makelevel = replay.setup.makelevel;
-                    self.program = snapshot.program(self.makelevel);
-                    self.initial_flags = replay.setup.initial_flags;
-                    if let Err(error) = self.database.variables.update_mflags(
-                        &self.options.recursive_flags(),
-                        self.options.environment_override,
-                    ) {
-                        self.expansion_error(None, &error);
-                        return 2;
-                    }
-                    self.include_search.replace(replay.setup.include_search);
-                    self.flag_state.refresh(&self.options);
-                    self.database.activate_runtime_metadata();
-                    if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
-                        return 2;
-                    }
-                } else {
-                    self.database = initial_database
-                        .as_ref()
-                        .expect("ordinary restart snapshot")
-                        .clone();
-                    self.database
-                        .variables
-                        .set_working_directory(restart_directory.as_os_str().as_bytes());
-                    if let Err(error) = self.database.variables.define_literal(
-                        b"CURDIR",
-                        restart_directory.as_os_str().as_bytes(),
-                        Origin::File,
-                    ) {
-                        self.expansion_error(None, &error);
-                        return 2;
-                    }
-                    self.database
-                        .variables
-                        .define_literal(
-                            b"MAKE_RESTARTS",
-                            restarts.to_string().as_bytes(),
-                            Origin::Environment,
-                        )
-                        .expect("bounded restart count");
-                    self.database
-                        .variables
-                        .set_export_policy(b"MAKE_RESTARTS", Some(false));
-                }
-                self.done.clear();
-                self.intermediates.clear();
-                self.visiting.clear();
-                self.scope_parents.clear();
-                self.target_contexts.clear();
-                self.implicit_pattern_scopes.clear();
-                self.impossible_prerequisites.clear();
-                self.resolved_names.clear();
-                self.aliases.clear();
-                self.path_observations.clear();
-                self.waiting_reported.set(false);
-                self.shutdown.set(Shutdown::Running);
-                self.shutdown_launch_failure.borrow_mut().take();
-                *self.archive_vpath_reads.borrow_mut() = None;
-                self.archive_completion_times.clear();
-                self.inferred_peer_flags.clear();
-                self.completed_group_branches.clear();
-                self.active_group_branches.clear();
-                self.double_colon_before.clear();
-                self.optional_remake_failures.clear();
             }
             if iterations > 0
                 && let Err(error) = self.database.variables.define(
@@ -7343,16 +7042,16 @@ mod tests {
         let directory = Directory(path);
         let target = directory.0.join("input.p0");
         let target = target.as_os_str().as_bytes();
-        let mut engine = Engine::new(
-            Options {
-                no_rules: true,
-                no_variables: true,
-                ..Options::default()
-            },
-            b"rmake".to_vec(),
+        let launch = Engine::invocation(
+            [OsString::from("-rR")],
+            b"rmake",
             OsStr::new("rmake"),
+            None,
+            None,
         )
         .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
         let mut source = b".DEFAULT:;echo wrong-recipe\n".to_vec();
         for index in 0..130 {
             source.extend_from_slice(format!("%.p{index}: %.p{};\n", index + 1).as_bytes());
@@ -7571,16 +7270,21 @@ mod tests {
     #[test]
     fn engine_installs_variants_even_when_builtin_variables_disabled() {
         for no_variables in [false, true] {
-            let engine = Engine::new(
-                Options {
-                    no_variables,
-                    assignments: vec![b"@D=ignored".to_vec()],
-                    ..Options::default()
-                },
-                b"rmake".to_vec(),
+            let args = if no_variables {
+                vec!["-R", "@D=ignored"]
+            } else {
+                vec!["@D=ignored"]
+            };
+            let launch = Engine::invocation(
+                args.into_iter().map(OsString::from),
+                b"rmake",
                 OsStr::new("rmake"),
+                None,
+                None,
             )
             .unwrap();
+            let engine =
+                Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
             let variable = engine.database.variables.get(b"@D").unwrap();
             assert_eq!(variable.origin(), Origin::Automatic);
             assert_eq!(variable.flavor(), Flavor::Recursive);

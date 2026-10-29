@@ -36,7 +36,7 @@ struct State {
     mode: Cell<Mode>,
     current: RefCell<Option<Weak<Buffer>>>,
     coordination: RefCell<Option<Coordination>>,
-    program: Vec<u8>,
+    program: RefCell<Vec<u8>>,
     interrupted_owner: RefCell<Option<Owner>>,
 }
 
@@ -49,7 +49,7 @@ impl Controller {
             mode: Cell::new(mode),
             current: RefCell::new(None),
             coordination: RefCell::new(None),
-            program: program.to_vec(),
+            program: RefCell::new(program.to_vec()),
             interrupted_owner: RefCell::new(None),
         }))
     }
@@ -61,6 +61,11 @@ impl Controller {
     }
     pub fn set_mode(&self, mode: Mode) {
         self.0.mode.set(mode);
+    }
+    pub fn set_program(&self, program: &[u8]) {
+        let mut stored = self.0.program.borrow_mut();
+        stored.clear();
+        stored.extend_from_slice(program);
     }
     fn allocate_buffer(&self, enabled: bool) -> Rc<Buffer> {
         Rc::new(Buffer {
@@ -116,7 +121,7 @@ impl Controller {
             None => self.write_parts(
                 true,
                 &[
-                    &self.0.program,
+                    self.0.program.borrow().as_slice(),
                     b": invalid --sync-mutex string '",
                     authentication,
                     b"'\n",
@@ -155,7 +160,7 @@ impl Controller {
     pub fn warning(&self, bytes: &[u8]) {
         plain(
             true,
-            &[self.0.program.as_slice(), b": ", bytes, b"\n"].concat(),
+            &[self.0.program.borrow().as_slice(), b": ", bytes, b"\n"].concat(),
         );
     }
     fn disable(&self) {
@@ -336,6 +341,9 @@ impl Construction {
     }
     pub fn disarm(&mut self) {
         self.armed = false;
+    }
+    pub fn replace_buffer(&mut self, buffer: Option<Rc<Buffer>>) {
+        self.buffer = buffer;
     }
 }
 impl Drop for Construction {

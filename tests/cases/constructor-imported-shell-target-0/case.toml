@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "constructor-imported-shell-target-0"
+requirement = "startup.constructor-metadata"
+candidate = "required"
+args = ["--no-print-directory", "-s", "-rR", "-Otarget", "-I-", "-Idir-$(file >captured,$(shell printf x))"]
+timeout_seconds = 5
+output = "separate"
+description = "Original constructor visibility, evaluator, output ownership, directory or recursion phase control."
+provenance = "Independently modeled inputs checked against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. Qualified Linux parent-descriptor markers observe buffering; no normalization or upstream code/tests copied."
+
+[environment]
+"SHELL" = "./early-shell"
+"MAKELEVEL" = "0"
+
+[expected]
+exit_code = 0
+stdout_hex = "434150545552453d5b785d2043414c4c533d5b7965733a315d204c4154453d5b66696c655d0a"
+stderr_hex = ""

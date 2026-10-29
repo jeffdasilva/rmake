@@ -21,6 +21,7 @@ pub(super) struct Prepared {
     pub(super) exports: HashSet<Vec<u8>>,
     pub(super) seed: startup::Seed,
     pub(super) plan: Box<Plan>,
+    pub(super) initial_directory: Option<std::path::PathBuf>,
 }
 
 impl From<String> for InvocationError {
@@ -146,7 +147,8 @@ impl Plan {
                 .variables
                 .set_export_policy(b"MAKE_RESTARTS", Some(false));
         }
-        if let Ok(directory) = std::env::current_dir() {
+        let initial_directory = std::env::current_dir().ok();
+        if let Some(directory) = &initial_directory {
             database
                 .variables
                 .set_working_directory(directory.as_os_str().as_bytes());
@@ -251,7 +253,7 @@ impl Plan {
         output_mode(options.output_sync.as_deref())?;
         Ok(Invocation {
             options,
-            initial: Some(Box::new(Prepared {
+            initial: Box::new(Prepared {
                 database: state.database,
                 filesystem: state.filesystem,
                 output: state.output,
@@ -260,7 +262,8 @@ impl Plan {
                 reader_output,
                 construction,
                 plan: self,
-            })),
+                initial_directory,
+            }),
         })
     }
 }
@@ -349,7 +352,6 @@ impl State {
                     if automatic_export_name(&name) {
                         self.exports.insert(name);
                     }
-                    self.seed.assignments = options.assignments.len();
                 }
                 crate::cli::Argument::Include(index) => {
                     let raw = options.include_directories[index].as_os_str().as_bytes();
@@ -362,7 +364,6 @@ impl State {
                         options.include_directories.pop();
                         options.include_assignment_positions.pop();
                     }
-                    self.seed.includes = options.include_directories.len();
                 }
                 crate::cli::Argument::Directory(index) => {
                     let raw = options.directories[index].as_os_str().as_bytes();
