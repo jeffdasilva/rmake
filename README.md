@@ -309,3 +309,5 @@ The [owned environment-vector slice](docs/environment-vectors.md) adds byte/orde
 [Imported restart state](docs/restart-state.md) adds 214 counter/policy controls and eight early special-activation controls. It preserves numeric wrap and binding export lifetime while transferring original startup inputs without a redundant full copy. M3/M6 remain open.
 
 [Prepared startup retention](docs/startup-retention.md) removes unused copies, with repeated allocation observations and paired timing reports. Thirteen include-metadata mismatches remain explicit ordinary research; M3/M6 remain open.
+
+[Runtime include phases](docs/runtime-includes.md) now preserve old search during metadata eval, nested publication, current flag state and bindings changed by immediate RHS effects. There are 155 new required cases, 42 staged interruption cells and an output-checked `BENCH_SUITE=runtime-includes`; full M3/M6 and performance parity remain open.

@@ -1308,7 +1308,13 @@ impl VariableStore {
                     if extra.is_empty() {
                         return Ok(());
                     }
-                    let mut combined = old.value.clone();
+                    // Immediate RHS effects can replace this binding. Append
+                    // to its current value, retaining the originally selected
+                    // append flavor. The removed-binding fallback is unchanged.
+                    let mut combined = self
+                        .variables
+                        .get(name)
+                        .map_or_else(|| old.value.clone(), |current| current.value.clone());
                     if !combined.is_empty() && !extra.is_empty() {
                         push(&mut combined, b" ")?;
                     }
@@ -1340,6 +1346,16 @@ impl VariableStore {
         };
         if variable.value.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
+        }
+        // RHS evaluation can install a stronger binding or change -e. GNU's
+        // final definition still applies current priority after those effects.
+        self.promote_environment(name, origin);
+        if self
+            .variables
+            .get(name)
+            .is_some_and(|current| current.origin > origin)
+        {
+            return Ok(());
         }
         variable.definition = definition.cloned().map(Arc::new);
         variable.scope = self

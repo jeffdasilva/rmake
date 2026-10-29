@@ -84,6 +84,30 @@ class BenchmarkTests(unittest.TestCase):
             if count:
                 self.assertTrue(conformance.expectation_errors(case, dataclasses.replace(good, stdout=out.replace(b'value500', b'WRONG'))))
 
+    def test_runtime_include_timing_requires_every_metadata_effect_and_silent_activation(self):
+        import dataclasses
+        import tempfile
+        from pathlib import Path
+        workloads=list(benchmark.runtime_include_workloads())
+        self.assertEqual(workloads,list(benchmark.selected_workloads('runtime-includes')))
+        for (name,source),count in zip(workloads,(0,1000)):
+            case=conformance.load_case(benchmark.ROOT/'tests/cases'/name)
+            self.assertEqual((case.path/'Makefile').read_bytes(),source)
+            self.assertEqual(case.args,tuple(benchmark.workload_arguments(name)))
+            self.assertEqual(source.count(b'MAKEFLAGS += -s'),count)
+            expected=b'tick\n'*(count+1)+f'COUNT=[{count}] S=[{"rRs" if count else ""}]\n'.encode()
+            if not count:expected+=b"make: 'all' is up to date.\n"
+            good=conformance.Observation(expected,b'',0,None,{})
+            self.assertEqual(conformance.expectation_errors(case,good),[])
+            self.assertTrue(conformance.expectation_errors(case,dataclasses.replace(good,stdout=expected[5:])))
+            if count:
+                self.assertTrue(conformance.expectation_errors(case,dataclasses.replace(good,stdout=expected.replace(b'S=[rRs]',b'S=[]'))))
+            with tempfile.TemporaryDirectory() as directory:
+                fixture=benchmark.prepare_files(Path(directory),name)
+                self.assertEqual(fixture['metadata_constructions'],count+1)
+                self.assertTrue((Path(directory)/'counter-$(info tick)').is_dir())
+                self.assertEqual(fixture['recipe_subprocesses'],0)
+
     def test_pair_order_alternates_without_changing_sample_membership(self):
         self.assertEqual(benchmark.paired_order(0, True), ["oracle", "candidate"])
         self.assertEqual(benchmark.paired_order(1, True), ["candidate", "oracle"])
@@ -176,7 +200,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + list(benchmark.startup_workloads()) + list(benchmark.eval_workloads()) + list(benchmark.startup_effect_workloads()) + list(benchmark.initial_flag_workloads()) + list(benchmark.builtin_transition_workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + list(benchmark.startup_workloads()) + list(benchmark.eval_workloads()) + list(benchmark.startup_effect_workloads()) + list(benchmark.initial_flag_workloads()) + list(benchmark.runtime_include_workloads()) + list(benchmark.builtin_transition_workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):

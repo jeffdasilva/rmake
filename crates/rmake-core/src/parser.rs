@@ -800,6 +800,168 @@ mod include_tests {
     }
 
     #[test]
+    fn include_metadata_uses_full_database_before_publication_and_flag_normalization() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+        let published = Rc::new(Cell::new(false));
+        let pending = published.clone();
+        let mut database = Database::default();
+        let mut receiver = move |_: crate::diagnostic::MakeflagsRequest<'_>| {
+            let pending = pending.clone();
+            Ok(crate::diagnostic::MakeflagsResult {
+                eval_reference: false,
+                value: b"normalized".to_vec(),
+                origin: Origin::File,
+                environment_override: false,
+                include_dirs: vec![
+                    b"dir-$(eval include probe.mk)$(eval INSIDE := $(value MAKEFLAGS))".to_vec(),
+                ],
+                publish_includes: Some(Box::new(move || {
+                    pending.set(true);
+                    crate::diagnostic::MakeflagsMetadata {
+                        eval_reference: false,
+                        value: b"normalized".to_vec(),
+                        origin: Origin::File,
+                        environment_override: false,
+                    }
+                })),
+                assignments: Vec::new(),
+                next_argument: 1,
+            })
+        };
+        let mut read = |name: &[u8]| {
+            assert_eq!(name, b"probe.mk");
+            assert!(!published.get());
+            Ok(crate::diagnostic::IncludedFile {
+                name: name.to_vec(),
+                bytes: b"SEEN := old-search\n".to_vec(),
+            })
+        };
+        database
+            .read_with(
+                b"MAKEFLAGS = original\nAFTER := $(SEEN):$(INSIDE):$(MAKEFLAGS)\n",
+                b"Makefile",
+                ExpansionContext::pure()
+                    .with_makeflags(&mut receiver)
+                    .with_includes(&mut read),
+            )
+            .unwrap();
+        assert!(published.get());
+        assert_eq!(
+            database.variables.get(b"AFTER").unwrap().raw_value(),
+            b"old-search:original:normalized"
+        );
+    }
+
+    #[test]
+    fn failed_include_metadata_keeps_prior_search_and_uncanonicalized_flags() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+        let published = Rc::new(Cell::new(false));
+        let pending = published.clone();
+        let mut database = Database::default();
+        let mut receiver = move |_: crate::diagnostic::MakeflagsRequest<'_>| {
+            let pending = pending.clone();
+            Ok(crate::diagnostic::MakeflagsResult {
+                eval_reference: false,
+                value: b"normalized".to_vec(),
+                origin: Origin::File,
+                environment_override: false,
+                include_dirs: vec![b"dir-$(eval SIDE:=yes)$(error metadata-failed)".to_vec()],
+                publish_includes: Some(Box::new(move || {
+                    pending.set(true);
+                    crate::diagnostic::MakeflagsMetadata {
+                        eval_reference: false,
+                        value: b"normalized".to_vec(),
+                        origin: Origin::File,
+                        environment_override: false,
+                    }
+                })),
+                assignments: Vec::new(),
+                next_argument: 1,
+            })
+        };
+        let error = database
+            .read_with(
+                b"MAKEFLAGS = original\n",
+                b"Makefile",
+                ExpansionContext::pure().with_makeflags(&mut receiver),
+            )
+            .unwrap_err();
+        assert_eq!(error.message.as_bytes(), b"metadata-failed");
+        assert!(!published.get());
+        assert_eq!(database.variables.get(b"SIDE").unwrap().raw_value(), b"yes");
+        assert_eq!(
+            database.variables.get(b"MAKEFLAGS").unwrap().raw_value(),
+            b"original"
+        );
+    }
+
+    #[test]
+    fn nested_include_publication_finishes_outer_search_with_current_inner_flags() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let search = Rc::new(RefCell::new(b"initial".to_vec()));
+        let options = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mut database = Database::default();
+        let host_search = search.clone();
+        let mut receiver = move |request: crate::diagnostic::MakeflagsRequest<'_>| {
+            let selection = request.value.to_vec();
+            *options.borrow_mut() = selection.clone();
+            let directories = if selection == b"outer" {
+                vec![b"dir-$(eval MAKEFLAGS = inner)$(eval include probe.mk)".to_vec()]
+            } else {
+                Vec::new()
+            };
+            let pending_search = host_search.clone();
+            let pending_options = options.clone();
+            Ok(crate::diagnostic::MakeflagsResult {
+                eval_reference: false,
+                value: selection.clone(),
+                origin: Origin::File,
+                environment_override: false,
+                include_dirs: directories,
+                publish_includes: Some(Box::new(move || {
+                    *pending_search.borrow_mut() = selection;
+                    crate::diagnostic::MakeflagsMetadata {
+                        eval_reference: false,
+                        value: pending_options.borrow().clone(),
+                        origin: Origin::File,
+                        environment_override: false,
+                    }
+                })),
+                assignments: Vec::new(),
+                next_argument: 1,
+            })
+        };
+        let mut read = |name: &[u8]| {
+            assert_eq!(&*search.borrow(), b"inner");
+            Ok(crate::diagnostic::IncludedFile {
+                name: name.to_vec(),
+                bytes: b"SEEN := inner\n".to_vec(),
+            })
+        };
+        database
+            .read_with(
+                b"MAKEFLAGS = outer\n",
+                b"Makefile",
+                ExpansionContext::pure()
+                    .with_makeflags(&mut receiver)
+                    .with_includes(&mut read),
+            )
+            .unwrap();
+        assert_eq!(&*search.borrow(), b"outer");
+        assert_eq!(
+            database.variables.get(b"SEEN").unwrap().raw_value(),
+            b"inner"
+        );
+        assert_eq!(
+            database.variables.get(b"MAKEFLAGS").unwrap().raw_value(),
+            b"inner"
+        );
+    }
+
+    #[test]
     fn flag_value_eval_runs_before_the_host_callback_and_following_lines() {
         let mut database = Database::default();
         let mut values = Vec::new();
@@ -811,6 +973,7 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: Vec::new(),
+                publish_includes: None,
                 assignments: Vec::new(),
                 next_argument: 1,
             })
@@ -854,6 +1017,7 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: Vec::new(),
+                publish_includes: None,
                 assignments: Vec::new(),
                 next_argument: 1,
             })
@@ -1633,6 +1797,32 @@ impl Database {
         evaluation_location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
+        self.define_variable_with(
+            spec,
+            origin,
+            Some(location),
+            context.at(Some(evaluation_location)),
+        )
+        .map_err(|err| ParseError {
+            unlocated: err.is_unlocated(),
+            location: err
+                .diagnostic_location(Some(evaluation_location))
+                .unwrap_or(evaluation_location)
+                .clone(),
+            message: err.diagnostic(),
+        })
+    }
+
+    /// Define an already-expanded name with complete database effects. The
+    /// assignment engine selects RHS timing and priority; definition provenance
+    /// remains distinct from the immediate evaluation context.
+    pub fn define_variable_with(
+        &mut self,
+        spec: AssignmentSpec<'_>,
+        origin: Origin,
+        definition: Option<&Location>,
+        mut context: ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
         if spec.name == b"MAKEFLAGS"
             && spec.kind == Assignment::Append
             && context.has_makeflags()
@@ -1640,15 +1830,27 @@ impl Database {
         {
             self.variables.strip_makeflags_assignments(origin);
         }
-        let mut variables = std::mem::take(&mut self.variables);
-        let result = variables
-            .define_with_using(
+        // Literal RHS bytes cannot invoke eval or read scoped bindings. Keep
+        // their assignment in the store, but still run special setters below.
+        // Shell definitions retain the full database for environment effects.
+        let result = if spec.kind != Assignment::Shell && !spec.value.contains(&b'$') {
+            self.variables.define_with(
                 spec.name,
                 spec.value,
                 spec.kind,
                 origin,
-                Some(location),
-                context.at(Some(evaluation_location)),
+                definition,
+                context.reborrow(),
+            )
+        } else {
+            let mut variables = std::mem::take(&mut self.variables);
+            let result = variables.define_with_using(
+                spec.name,
+                spec.value,
+                spec.kind,
+                origin,
+                definition,
+                context.reborrow(),
                 |variables, bytes, shell, context| {
                     std::mem::swap(variables, &mut self.variables);
                     let result = if shell {
@@ -1659,27 +1861,13 @@ impl Database {
                     std::mem::swap(variables, &mut self.variables);
                     result
                 },
-            )
-            .map_err(|err| ParseError {
-                unlocated: err.is_unlocated(),
-                location: err
-                    .diagnostic_location(Some(evaluation_location))
-                    .unwrap_or(evaluation_location)
-                    .clone(),
-                message: err.diagnostic(),
-            });
-        self.variables = variables;
+            );
+            self.variables = variables;
+            result
+        };
         result?;
         if spec.name == b"MAKEFLAGS" && context.has_makeflags() {
-            self.reset_assigned_flags(origin, context.at(Some(evaluation_location)))
-                .map_err(|error| ParseError {
-                    unlocated: error.is_unlocated(),
-                    location: error
-                        .diagnostic_location(Some(evaluation_location))
-                        .unwrap_or(evaluation_location)
-                        .clone(),
-                    message: error.diagnostic(),
-                })?;
+            self.reset_assigned_flags(origin, context.reborrow())?;
         }
         Ok(())
     }
@@ -1696,33 +1884,23 @@ impl Database {
             return Ok(None);
         };
         let name = self.expand_with(spec.name, context.reborrow())?;
-        if name == b"MAKEFLAGS" && spec.kind == Assignment::Append && !spec.value.is_empty() {
+        // Option definitions strip the encoded suffix before activation too.
+        if name == b"MAKEFLAGS"
+            && spec.kind == Assignment::Append
+            && !context.has_makeflags()
+            && !spec.value.is_empty()
+        {
             self.variables.strip_makeflags_assignments(origin);
         }
-        let mut variables = std::mem::take(&mut self.variables);
-        let result = variables.define_with_using(
-            &name,
-            spec.value,
-            spec.kind,
+        self.define_variable_with(
+            AssignmentSpec {
+                name: &name,
+                ..spec
+            },
             origin,
             None,
-            context.reborrow(),
-            |variables, bytes, shell, context| {
-                std::mem::swap(variables, &mut self.variables);
-                let result = if shell {
-                    crate::variables::shell_database(self, bytes, context)
-                } else {
-                    self.expand_with(bytes, context)
-                };
-                std::mem::swap(variables, &mut self.variables);
-                result
-            },
-        );
-        self.variables = variables;
-        result?;
-        if name == b"MAKEFLAGS" && context.has_makeflags() {
-            self.reset_assigned_flags(origin, context.reborrow())?;
-        }
+            context,
+        )?;
         Ok(Some(name))
     }
 

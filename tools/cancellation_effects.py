@@ -28,7 +28,12 @@ while True:time.sleep(1)
 '''
 PHASES = ('initial-makeflags-shell', 'initial-gnumakeflags-shell', 'makeflags-shell', 'gnumakeflags-shell', 'cli-shell', 'cli-inherited-shell', 'cli-tilde-shell', 'reader-shell', 'reader-assignment', 'include-shell',
           'recipe-shell', 'export-shell', 'file-read', 'file-write', 'include-read',
-          'main-read', 'stdin-read', 'expansion')
+          'main-read', 'stdin-read', 'expansion', 'metadata-shell', 'metadata-eval-shell')
+
+METADATA_DIRECTORIES = {
+    'metadata-shell': 'metadata-$(shell python3 helper.py)$(file >forbidden)',
+    'metadata-eval-shell': 'metadata-$(eval X:=$(shell python3 helper.py))$(file >forbidden)',
+}
 
 @dataclasses.dataclass(frozen=True)
 class Cell:
@@ -44,6 +49,11 @@ class Cell:
         before = '$(info before)\n'
         after = '\n$(file >forbidden)\n.PHONY: all\nall:;@true\n'
         if self.phase.startswith('initial-'): return (before + after).encode()
+        if self.phase in METADATA_DIRECTORIES:
+            # Decode literal function bytes first; evaluate only after stat has
+            # selected the physical directory for .INCLUDE_DIRS construction.
+            directory = METADATA_DIRECTORIES[self.phase].replace('$', '$$').replace(' ', '\\ ')
+            return (before + 'MAKEFLAGS = -I' + directory + after).encode()
         body = {
             'makeflags-shell': 'MAKEFLAGS = $(shell python3 helper.py)',
             'gnumakeflags-shell': 'GNUMAKEFLAGS = $(shell python3 helper.py)',
@@ -84,6 +94,8 @@ def materialize(cell, fixture):
     fixture.mkdir()
     (fixture / 'Makefile').write_bytes(cell.source)
     (fixture / 'helper.py').write_bytes(HELPER)
+    if cell.phase in METADATA_DIRECTORIES:
+        (fixture / METADATA_DIRECTORIES[cell.phase]).mkdir()
 
 
 def live_group(group):

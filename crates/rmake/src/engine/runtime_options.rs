@@ -6,7 +6,7 @@
 use super::*;
 
 pub(super) struct State {
-    options: RefCell<Options>,
+    options: std::rc::Rc<RefCell<Options>>,
     dirty: Cell<bool>,
     pub(super) warn_undefined: Cell<bool>,
     pub(super) trace_enabled: Cell<bool>,
@@ -21,7 +21,7 @@ impl State {
         includes: std::rc::Rc<RefCell<IncludeSearch>>,
     ) -> Self {
         Self {
-            options: RefCell::new(options.clone()),
+            options: std::rc::Rc::new(RefCell::new(options.clone())),
             dirty: Cell::new(false),
             warn_undefined: Cell::new(options.warn_undefined),
             trace_enabled: Cell::new(options.trace),
@@ -88,13 +88,28 @@ impl State {
             .retain(|path| seen.insert(path.clone()));
         let search = IncludeSearch::new(&updated.include_directories);
         let include_dirs = search.directories().map(<[u8]>::to_vec).collect();
-        self.includes.replace(search);
         let result = rmake_core::diagnostic::MakeflagsResult {
             eval_reference: !updated.evals.is_empty(),
-            value: updated.recursive_flags(),
+            // Finalization selects current flags after nested metadata effects.
+            // Avoid allocating a string that this owned callback replaces.
+            value: Vec::new(),
             origin: origin(updated.environment_override),
             environment_override: updated.environment_override,
             include_dirs,
+            publish_includes: Some(Box::new({
+                let includes = self.includes.clone();
+                let options = self.options.clone();
+                move || {
+                    includes.replace(search);
+                    let options = options.borrow();
+                    rmake_core::diagnostic::MakeflagsMetadata {
+                        eval_reference: !options.evals.is_empty(),
+                        value: options.recursive_flags(),
+                        origin: origin(options.environment_override),
+                        environment_override: options.environment_override,
+                    }
+                }
+            })),
             assignments,
             next_argument: updated.flag_word_count,
         };
@@ -401,8 +416,8 @@ impl Engine {
         self.database
             .variables
             .set_environment_override(self.options.environment_override);
-        self.include_search
-            .replace(IncludeSearch::new(&self.options.include_directories));
+        // Passive post-read decoding accumulates include operands. Only an
+        // actual special MAKEFLAGS reset constructs and publishes a new search.
         self.output.set_mode(mode);
         if !mode.root_buffered() {
             self.output.select(None);

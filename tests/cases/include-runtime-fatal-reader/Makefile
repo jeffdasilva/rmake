@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+
+MAKEFLAGS = -rR --no-print-directory -I- -Inew-$$(file\ >before,yes)$$(eval\ VALUE:=effect)$$(error\ stop)$$(file\ >after,no)
+all:;@:

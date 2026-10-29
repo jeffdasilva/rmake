@@ -12,7 +12,7 @@ import runtime_terminals as terminals
 class RuntimeEffectTests(unittest.TestCase):
     def test_effect_inventory_covers_every_phase_signal_and_buffering_mode(self):
         cells=effects.inventory()
-        self.assertEqual(len(cells),378)
+        self.assertEqual(len(cells),420)
         self.assertEqual(len({c.id for c in cells}),len(cells))
         self.assertEqual({c.phase for c in cells},set(effects.PHASES))
         self.assertEqual({c.number for c in cells},set(effects.SIGNALS))
@@ -50,6 +50,26 @@ class RuntimeEffectTests(unittest.TestCase):
                 self.assertEqual(effects.anchors(cell,good),[])
                 self.assertIn('AFTER:=$(file >forbidden)',cell.arguments)
                 self.assertTrue(effects.anchors(cell,dataclasses.replace(good,filesystem={'work/forbidden':{}})))
+
+    def test_metadata_interruption_preserves_original_cells_and_stages_literal_paths(self):
+        import hashlib
+        import json
+        import tempfile
+        from pathlib import Path
+        original=effects.inventory()[:378]
+        self.assertEqual(hashlib.sha256(b''.join(c.source+json.dumps(c.arguments).encode() for c in original)).hexdigest(),
+                         '90d6c77874be2343a68d1f4ec3a4ddd3da058f237d288df611945b331ecbff86')
+        for phase in effects.METADATA_DIRECTORIES:
+            for mode in ('none','target','recurse'):
+                cell=effects.Cell(phase,15,mode)
+                good=conformance.Observation(b'' if mode=='target' else b'before\n',b'',-15,None,{})
+                self.assertEqual(effects.anchors(cell,good),[])
+                self.assertTrue(effects.anchors(cell,dataclasses.replace(good,filesystem={'work/forbidden':{}})))
+                self.assertIn(b'MAKEFLAGS = -Imetadata-$$(',cell.source)
+                with tempfile.TemporaryDirectory() as directory:
+                    fixture=Path(directory)/'input'
+                    effects.materialize(cell,fixture)
+                    self.assertTrue((fixture/effects.METADATA_DIRECTORIES[phase]).is_dir())
 
     def test_lock_inventory_distinguishes_reader_completed_owner_and_serial_recurse(self):
         cells=locks.inventory()
