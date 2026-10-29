@@ -124,3 +124,5 @@ improve, not evidence of general parity.
 | runtime-includes-1000 | 3.067 | 8.278 | 7.716 |
 
 Raw reports: [core](benchmarks/runtime-includes-core.json), [startup-arguments](benchmarks/runtime-includes-startup-arguments.json), [eval-arguments](benchmarks/runtime-includes-eval-arguments.json), [startup-effects](benchmarks/runtime-includes-startup-effects.json), [initial-flags](benchmarks/runtime-includes-initial-flags.json), [runtime-includes](benchmarks/runtime-includes-runtime-includes.json).
+
+[Startup metadata recursion and diagnostic frames](startup-metadata-recursion.md) subsequently close the recorded shell-depth gap and add source-aware startup error coverage. Eleven of the original nineteen research cells remain finite ordinary gaps.

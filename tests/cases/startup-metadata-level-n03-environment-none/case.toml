@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-metadata-level-n03-environment-none"
+requirement = "startup.metadata-recursion"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-I-", "-Idir-$(file >>observed,$(shell printf D$$MAKELEVEL))"]
+timeout_seconds = 5
+description = "Startup include metadata observes selected recursion and source identity; CLI effects retain the initial level."
+provenance = "Original independent phase models checked against two bounded GNU 4.4.1 observations and both candidate builds. No upstream implementation or tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+"MAKELEVEL" = "+2suffix"
+
+[expected]
+exit_code = 0
+stdout_hex = "5345454e3d5b44335d0a"
+stderr_hex = ""

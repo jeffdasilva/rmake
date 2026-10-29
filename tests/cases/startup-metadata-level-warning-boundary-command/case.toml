@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-metadata-level-warning-boundary-command"
+requirement = "startup.metadata-recursion"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-I-", "MAKELEVEL=2", "DUMMY:=$(warning cli)", "-Idir-$(warning metadata)"]
+timeout_seconds = 5
+description = "Startup include metadata observes selected recursion and source identity; CLI effects retain the initial level."
+provenance = "Original independent phase models checked against two bounded GNU 4.4.1 observations and both candidate builds. No upstream implementation or tests copied."
+
+[environment]
+"SHELL" = "/bin/sh"
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = "6d616b653a20636c690a6d616b655b325d3a206d657461646174610a"

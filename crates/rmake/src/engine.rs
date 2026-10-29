@@ -699,6 +699,7 @@ pub struct StartupError {
     pub location: Option<Location>,
     pub version: bool,
     pub buffered: Option<std::rc::Rc<crate::output::Buffer>>,
+    diagnostic_program: Option<Vec<u8>>,
 }
 
 impl std::fmt::Debug for StartupError {
@@ -718,6 +719,7 @@ impl From<Diagnostic> for StartupError {
             location: None,
             version: false,
             buffered: None,
+            diagnostic_program: None,
         }
     }
 }
@@ -732,13 +734,20 @@ impl StartupError {
             message: error.diagnostic(),
             version: false,
             buffered: None,
+            diagnostic_program: None,
         }
     }
 
+    fn with_program(mut self, program: &[u8]) -> Self {
+        self.diagnostic_program = Some(program.to_vec());
+        self
+    }
+
     pub fn prefix(&self, program: &[u8]) -> Vec<u8> {
-        self.location
-            .as_ref()
-            .map_or_else(|| [program, b": "].concat(), location_prefix)
+        self.location.as_ref().map_or_else(
+            || [self.diagnostic_program.as_deref().unwrap_or(program), b": "].concat(),
+            location_prefix,
+        )
     }
 }
 
