@@ -59,7 +59,7 @@ class AllocationProfileTests(unittest.TestCase):
                 self.assertTrue((output / 'report.json').is_file())
 
     def test_startup_profiles_keep_required_arguments_environment_and_output_anchors(self):
-        for workload in ('startup-arguments-1000','startup-arguments-5000','startup-effects-1000','initial-flags-1000', 'target-context-none','target-context-explicit','target-context-pattern'):
+        for workload in ('startup-arguments-1000','startup-arguments-5000','startup-effects-1000','initial-flags-1000', 'target-context-none','target-context-explicit','target-context-pattern','literal-chains-0','literal-chains-32','literal-chains-96'):
             case=allocations.conformance.load_case(allocations.ROOT/'tests/cases'/workload)
             expected=bytes.fromhex(case.expected['stdout_hex'])
             for broken in (False,True):
@@ -70,7 +70,7 @@ class AllocationProfileTests(unittest.TestCase):
                         self.assertEqual(tuple(argv[1:]),case.args)
                         for name,value in case.environment.items():self.assertEqual(kwargs['env'][name],value)
                         Path(kwargs['env']['RMAKE_ALLOC_TRACE']).write_text('summary calls=1 requested_bytes=2 frees=1\n')
-                        return subprocess.CompletedProcess(argv,0,(b'WRONG\n' if workload.startswith('target-context-') else expected.replace(b'value500',b'WRONG')) if broken else expected,b'')
+                        return subprocess.CompletedProcess(argv,0,(b'WRONG\n' if workload.startswith(('target-context-','literal-chains-')) else expected.replace(b'value500',b'WRONG')) if broken else expected,b'')
                     with mock.patch.object(allocations.conformance,'executable_identity',return_value={'path':'/candidate','sha256':'test'}), mock.patch.object(allocations.subprocess,'run',side_effect=command), contextlib.redirect_stdout(io.StringIO()):
                         if broken:
                             with self.assertRaises(ValueError):allocations.run(Path('/candidate'),workload,output)
@@ -81,7 +81,7 @@ class AllocationProfileTests(unittest.TestCase):
                             self.assertEqual(report['environment'],case.environment)
 
     def test_profiles_reject_arguments_that_diverge_from_the_required_fixture(self):
-        for workload in ('startup-arguments-1000','target-context-none'):
+        for workload in ('startup-arguments-1000','target-context-none','literal-chains-32'):
             case=allocations.conformance.load_case(allocations.ROOT/'tests/cases'/workload)
             with self.subTest(workload=workload), tempfile.TemporaryDirectory() as temporary:
                 output=Path(temporary)
