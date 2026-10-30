@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "alias-cross-numeric-3-target"
+requirement = "functions.literal-chains"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Otarget"]
+timeout_seconds = 5
+description = "Original literal reference-chain depth, cycle, scope, warning, fallback and scaling control."
+provenance = "Independent expectations qualified against two bounded pinned GNU 4.4.1 observations and frozen debug/release builds. No upstream implementation or tests copied or translated."
+
+[expected]
+exit_code = 0
+stdout_hex = "43414c4c3d5b6f757465725d0a4d41534b3d5b6c65785d0a4c45543d5b6c65785d0a4c4f4f503d5b6120625d0a"
+stderr_hex = ""

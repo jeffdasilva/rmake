@@ -48,7 +48,7 @@ def run(candidate, workload, output):
     binary = conformance.executable_identity(candidate)
     sources = (dict(benchmark.workloads()) | dict(benchmark.startup_workloads())
                | dict(benchmark.startup_effect_workloads()) | dict(benchmark.initial_flag_workloads())
-               | dict(benchmark.target_context_workloads()))
+               | dict(benchmark.target_context_workloads()) | dict(benchmark.literal_chain_workloads()))
     source = sources[workload]
     arguments = benchmark.workload_arguments(workload)
     overrides = benchmark.workload_environment(workload)
@@ -72,7 +72,7 @@ def run(candidate, workload, output):
                                 env=environment, capture_output=True, timeout=30, check=True)
         expected = (b"make: Nothing to be done for 'all'.\n" if workload == 'large-noop'
                     else b"make: 'all' is up to date.\n")
-        if workload.startswith(('startup-arguments-', 'startup-effects-', 'initial-flags-', 'target-context-')):
+        if workload.startswith(('startup-arguments-', 'startup-effects-', 'initial-flags-', 'target-context-', 'literal-chains-')):
             case = conformance.load_case(ROOT / 'tests/cases' / workload)
             if (case.args != tuple(arguments) or case.environment != overrides
                     or (case.path / 'Makefile').read_bytes() != source):
@@ -107,7 +107,7 @@ def run(candidate, workload, output):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate', type=Path, required=True)
-    parser.add_argument('--workload', choices=('tiny-noop', 'large-noop', 'expansion', 'startup-arguments-0', 'startup-arguments-1000', 'startup-arguments-5000', 'startup-effects-0', 'startup-effects-1000', 'initial-flags-0', 'initial-flags-1000', 'target-context-none', 'target-context-explicit', 'target-context-pattern'), default='large-noop')
+    parser.add_argument('--workload', choices=('tiny-noop', 'large-noop', 'expansion', 'startup-arguments-0', 'startup-arguments-1000', 'startup-arguments-5000', 'startup-effects-0', 'startup-effects-1000', 'initial-flags-0', 'initial-flags-1000', 'target-context-none', 'target-context-explicit', 'target-context-pattern', 'literal-chains-0', 'literal-chains-32', 'literal-chains-96'), default='large-noop')
     parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/profile/allocations')
     args = parser.parse_args(argv)
     try:

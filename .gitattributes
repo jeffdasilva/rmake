@@ -59,3 +59,6 @@ tests/cases/early-abspath-*/inc/Makefile -text whitespace=-blank-at-eol,-blank-a
 tests/cases/include-operands-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/abspath-bound-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/target-context-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/alias-depth-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/alias-cross-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/literal-chains-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

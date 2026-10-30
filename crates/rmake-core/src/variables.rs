@@ -2080,6 +2080,15 @@ pub(crate) fn shell_database(
     result
 }
 
+enum LiteralChain {
+    Value(Vec<u8>),
+    Missing {
+        name: Vec<u8>,
+        definition: Option<Arc<Location>>,
+    },
+    Error(ExpandError),
+}
+
 struct Expansion<'a, 'b> {
     store: StoreAccess<'a>,
     bindings: Vec<LocalFrame>,
@@ -2265,6 +2274,65 @@ impl Expansion<'_, '_> {
         self.selected_variable(name, &variable, layer)
     }
 
+    /// Resolve only a complete chain with no interpreter effects. A complex
+    /// body, append layer or dynamic binding leaves the full evaluator in charge.
+    fn literal_chain<'c>(
+        &'c self,
+        mut name: &'c [u8],
+        mut variable: &'c Variable,
+        mut layer: Option<usize>,
+    ) -> Option<LiteralChain> {
+        let mut seen: std::collections::HashSet<_> = self
+            .active
+            .iter()
+            .map(|(name, layer)| (name.as_slice(), *layer))
+            .collect();
+        let mut nearest_definition: Option<Arc<Location>> = None;
+        loop {
+            if self.context.is_cancelled() {
+                return Some(LiteralChain::Error(
+                    ExpandError::Cancelled
+                        .at(variable.definition.as_ref().or(nearest_definition.as_ref())),
+                ));
+            }
+            if variable.scope.variable_names
+                || variable.scope.append_outer
+                || variable.value.len() > MAX_OUTPUT
+            {
+                return None;
+            }
+            let value = c_string_prefix(&variable.value);
+            if variable.flavor == Flavor::Simple {
+                return Some(LiteralChain::Value(value.to_vec()));
+            }
+            if !seen.insert((name, layer)) {
+                return Some(LiteralChain::Error(
+                    ExpandError::RecursiveVariable(name.to_vec())
+                        .at(variable.definition.as_ref().or(nearest_definition.as_ref())),
+                ));
+            }
+            if let Some(definition) = &variable.definition {
+                nearest_definition = Some(definition.clone());
+            }
+            let Some(next) = literal_alias(value) else {
+                return (!value.contains(&b'$')).then(|| LiteralChain::Value(value.to_vec()));
+            };
+            if let Some(binding) = self.bindings.iter().rev().find_map(|scope| scope.get(next)) {
+                variable = binding;
+                layer = None;
+            } else if let Some((next_layer, binding)) = self.store.lookup_from(next, 0) {
+                variable = binding;
+                layer = Some(next_layer);
+            } else {
+                return Some(LiteralChain::Missing {
+                    name: next.to_vec(),
+                    definition: nearest_definition,
+                });
+            }
+            name = next;
+        }
+    }
+
     fn selected_variable(
         &mut self,
         name: &[u8],
@@ -2284,6 +2352,31 @@ impl Expansion<'_, '_> {
         if variable.flavor == Flavor::Simple {
             // Already-expanded values need no temporary definition context.
             return Ok(variable.value.clone());
+        }
+        if literal_alias(&variable.value).is_some()
+            && let Some(chain) = self.literal_chain(name, variable, layer)
+        {
+            return match chain {
+                LiteralChain::Value(value) => Ok(value),
+                LiteralChain::Error(error) => Err(error),
+                LiteralChain::Missing { name, definition } => {
+                    let entered = self.binding_context.is_none();
+                    if entered {
+                        self.binding_context = Some(variable.definition.clone());
+                    }
+                    let result = if self.context.warns_undefined() {
+                        self.warn_missing(&name)
+                    } else {
+                        Ok(())
+                    };
+                    if entered {
+                        self.binding_context = None;
+                    }
+                    result
+                        .map(|()| Vec::new())
+                        .map_err(|error| error.at(definition.as_ref()))
+                }
+            };
         }
         if self
             .active
@@ -3232,6 +3325,27 @@ impl<'a> Decimal<'a> {
             .then_with(|| self.digits.len().cmp(&other.digits.len()))
             .then_with(|| self.digits.cmp(other.digits))
     }
+}
+
+fn c_string_prefix(value: &[u8]) -> &[u8] {
+    &value[..value
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(value.len())]
+}
+
+/// These names cannot be functions, computed names or substitution references.
+fn literal_alias(value: &[u8]) -> Option<&[u8]> {
+    let name = match c_string_prefix(value) {
+        [b'$', b'(', name @ .., b')'] | [b'$', b'{', name @ .., b'}'] => name,
+        [b'$', name] => std::slice::from_ref(name),
+        _ => return None,
+    };
+    (!name.is_empty()
+        && name
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_'))
+    .then_some(name)
 }
 
 fn push(output: &mut Vec<u8>, value: &[u8]) -> Result<(), ExpandError> {
@@ -4950,6 +5064,84 @@ mod tests {
             store.expand(b"$(call f,$(shell forbidden))"),
             Err(ExpandError::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn literal_reference_chains_use_heap_storage_and_preserve_cycles() {
+        let mut store = VariableStore::new();
+        for index in 0..5000 {
+            define(
+                &mut store,
+                format!("R{index}").as_bytes(),
+                format!("$(R{})", index + 1).as_bytes(),
+                Assignment::Recursive,
+            );
+        }
+        define(&mut store, b"R5000", b"end", Assignment::Simple);
+        assert_eq!(store.expand(b"$(R0):after").unwrap(), b"end:after");
+        define(&mut store, b"R5000", b"$(R0)", Assignment::Recursive);
+        assert_eq!(
+            store.expand(b"$(R0)"),
+            Err(ExpandError::RecursiveVariable(b"R0".to_vec()))
+        );
+    }
+
+    #[test]
+    fn literal_alias_boundaries_truncate_nuls_without_expanding_simple_dollars() {
+        let mut store = VariableStore::new();
+        define(&mut store, b"A", b"${B}", Assignment::Recursive);
+        store
+            .define_literal(b"B", b"$data\0$(error forbidden)", Origin::File)
+            .unwrap();
+        assert_eq!(store.expand(b"$(A):after").unwrap(), b"$data:after");
+        define(
+            &mut store,
+            b"A",
+            b"$(B)\0$(error forbidden)",
+            Assignment::Recursive,
+        );
+        assert_eq!(store.expand(b"$(A):after").unwrap(), b"$data:after");
+    }
+
+    #[test]
+    fn literal_chain_warnings_restore_first_binding_and_caller_context() {
+        let mut store = VariableStore::new();
+        store
+            .define(b"A", b"$(B)", Assignment::Recursive, Origin::CommandLine)
+            .unwrap();
+        let binding = source(19);
+        store
+            .define_at(
+                b"B",
+                b"$(MISSING)",
+                Assignment::Recursive,
+                Origin::File,
+                &binding,
+            )
+            .unwrap();
+        let caller = source(27);
+        for context in [None, Some(&caller)] {
+            let mut captured = Vec::new();
+            let enabled = std::cell::Cell::new(true);
+            {
+                let mut emit = |event: Output<'_>| capture_output(event, &mut captured);
+                let mut output = crate::diagnostic::WarningOutput::new(&mut emit, &enabled);
+                store
+                    .expand_with(
+                        b"$(A)$(B)",
+                        ExpansionContext::with_receiver(context, &mut output),
+                    )
+                    .unwrap();
+            }
+            let locations: Vec<_> = captured
+                .into_iter()
+                .map(|(_, location, _)| location)
+                .collect();
+            assert_eq!(
+                locations,
+                vec![context.cloned(), context.cloned().or(Some(binding.clone()))]
+            );
+        }
     }
 
     #[test]
