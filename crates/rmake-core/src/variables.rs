@@ -17,6 +17,8 @@ use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
 };
 
+mod text;
+
 const MAX_DEPTH: usize = 128;
 pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
@@ -2202,34 +2204,7 @@ impl Expansion<'_, '_> {
     }
 
     fn warn_missing(&mut self, name: &[u8]) -> Result<(), ExpandError> {
-        if matches!(
-            name,
-            b"MAKECMDGOALS"
-                | b"MAKE_RESTARTS"
-                | b"MAKE_TERMOUT"
-                | b"MAKE_TERMERR"
-                | b"MAKEOVERRIDES"
-                | b".DEFAULT"
-                | b"-*-command-variables-*-"
-                | b"-*-eval-flags-*-"
-                | b"VPATH"
-                | b"GPATH"
-        ) {
-            return Ok(());
-        }
-        let message = [b"warning: undefined variable '".as_slice(), name, b"'"].concat();
-        if !self.context.emit(Output::Warning {
-            location: self.context.location.or(self
-                .binding_context
-                .as_ref()
-                .and_then(|location| location.as_deref())),
-            message: &message,
-        }) {
-            return Err(ExpandError::Unsupported(
-                b"--warn-undefined-variables".to_vec(),
-            ));
-        }
-        Ok(())
+        warn_missing(&mut self.context, &self.binding_context, name)
     }
 
     fn reference_variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
@@ -2377,6 +2352,11 @@ impl Expansion<'_, '_> {
                         .map_err(|error| error.at(definition.as_ref()))
                 }
             };
+        }
+        if variable.value.contains(&b'$')
+            && let Some(result) = self.expand_text_program(name, variable, layer)
+        {
+            return result;
         }
         if self
             .active
@@ -7136,4 +7116,38 @@ mod runtime_metadata_scope_tests {
             b"override|global"
         );
     }
+}
+
+fn warn_missing(
+    context: &mut ExpansionContext<'_>,
+    binding_context: &Option<Option<Arc<Location>>>,
+    name: &[u8],
+) -> Result<(), ExpandError> {
+    if matches!(
+        name,
+        b"MAKECMDGOALS"
+            | b"MAKE_RESTARTS"
+            | b"MAKE_TERMOUT"
+            | b"MAKE_TERMERR"
+            | b"MAKEOVERRIDES"
+            | b".DEFAULT"
+            | b"-*-command-variables-*-"
+            | b"-*-eval-flags-*-"
+            | b"VPATH"
+            | b"GPATH"
+    ) {
+        return Ok(());
+    }
+    let message = [b"warning: undefined variable '".as_slice(), name, b"'"].concat();
+    if !context.emit(Output::Warning {
+        location: context.location.or(binding_context
+            .as_ref()
+            .and_then(|location| location.as_deref())),
+        message: &message,
+    }) {
+        return Err(ExpandError::Unsupported(
+            b"--warn-undefined-variables".to_vec(),
+        ));
+    }
+    Ok(())
 }

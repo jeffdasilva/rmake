@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "text-frame-bracket-96-cycle-reader-target"
+requirement = "functions.text-frames"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Otarget"]
+timeout_seconds = 5
+description = "Original pure text/reference graph, warning, scope, boundary, fallback or output-checked scaling control."
+provenance = "Independent expected model qualified against two bounded pinned GNU 4.4.1 observations and frozen debug/release builds. No upstream implementation or tests copied or translated."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a20526563757273697665207661726961626c652027523027207265666572656e63657320697473656c6620286576656e7475616c6c79292e202053746f702e0a"
