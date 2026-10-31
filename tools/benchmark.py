@@ -99,6 +99,17 @@ def text_frame_workloads():
         yield f'text-frames-{depth}', source.encode()
 
 
+
+def linear_leaf_workloads():
+    """Observe every read through valid chains with an opaque function leaf."""
+    for depth in (0, 32, 96):
+        source = ''.join(f'T{i} = [$(T{i+1})]\n' for i in range(depth))
+        source += f'T{depth} = $(strip   end  )\n'
+        source += ''.join(f'READ_{i} := $(T0)\n' for i in range(100))
+        source += '$(info READS=[' + '|'.join(f'$(READ_{i})' for i in range(100)) + '])\nall:;\n'
+        yield f'linear-leaves-{depth}', source.encode()
+
+
 def workload_environment(name):
     if name.startswith('initial-flags-'):
         count = int(name.rsplit('-', 1)[1])
@@ -148,6 +159,8 @@ def selected_workloads(suite):
         yield from initial_flag_workloads()
     if suite in ("include-operands", "all"):
         yield from include_operand_workloads()
+    if suite in ("linear-leaves", "all"):
+        yield from linear_leaf_workloads()
     if suite in ("text-frames", "all"):
         yield from text_frame_workloads()
     if suite in ("literal-chains", "all"):
@@ -723,7 +736,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "runtime-includes", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "runtime-includes", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
