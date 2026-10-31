@@ -17,10 +17,14 @@ use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
 };
 
+mod direct;
 mod linear;
+mod machine;
 mod text;
 
 const MAX_DEPTH: usize = 128;
+const DIRECT_DEPTH: usize = 96;
+const DIRECT_MACHINES: usize = 8;
 pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
 #[cfg(test)]
@@ -1480,6 +1484,8 @@ impl VariableStore {
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
+            logical_depth: 0,
+            machine_nesting: 0,
             context,
             binding_context: None,
         }
@@ -1496,6 +1502,8 @@ impl VariableStore {
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
+            logical_depth: 0,
+            machine_nesting: 0,
             context,
             binding_context: None,
         };
@@ -1519,6 +1527,8 @@ impl VariableStore {
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
+            logical_depth: 0,
+            machine_nesting: 0,
             context,
             binding_context: None,
         };
@@ -1580,6 +1590,8 @@ impl VariableStore {
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
+            logical_depth: 0,
+            machine_nesting: 0,
             context,
             binding_context: None,
         };
@@ -1605,6 +1617,8 @@ impl VariableStore {
             bindings: Vec::new(),
             active: Vec::new(),
             depth: 0,
+            logical_depth: 0,
+            machine_nesting: 0,
             context,
             binding_context: None,
         }
@@ -1953,6 +1967,8 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
         bindings,
         active: Vec::new(),
         depth: 0,
+        logical_depth: 0,
+        machine_nesting: 0,
         context,
         binding_context: None,
     };
@@ -1992,6 +2008,8 @@ pub(crate) fn expand_environment_database(
         bindings,
         active: Vec::new(),
         depth: 0,
+        logical_depth: 0,
+        machine_nesting: 0,
         context,
         binding_context: None,
     };
@@ -2030,6 +2048,8 @@ pub(crate) fn expand_database<const NAMED: bool>(
         bindings,
         active: Vec::new(),
         depth: 0,
+        logical_depth: 0,
+        machine_nesting: 0,
         context,
         binding_context: None,
     };
@@ -2068,6 +2088,8 @@ pub(crate) fn shell_database(
             bindings,
             active: Vec::new(),
             depth: 0,
+            logical_depth: 0,
+            machine_nesting: 0,
             context,
             binding_context: None,
         };
@@ -2097,6 +2119,8 @@ struct Expansion<'a, 'b> {
     bindings: Vec<LocalFrame>,
     active: Vec<(Vec<u8>, Option<usize>)>,
     depth: usize,
+    logical_depth: usize,
+    machine_nesting: usize,
     context: ExpansionContext<'b>,
     // Outer None means no binding entered; Some(None) means an unlocated one.
     binding_context: Option<Option<Arc<Location>>>,
@@ -2142,16 +2166,29 @@ impl Expansion<'_, '_> {
             return Err(ExpandError::ExpansionLimit);
         }
         self.depth += 1;
-        let result = self.expand_inner(input).map(|mut result| {
-            if result.contains(&0) {
-                let nul = result
-                    .iter()
-                    .position(|byte| *byte == 0)
-                    .expect("contains NUL");
+        let prior_logical = self.logical_depth;
+        self.logical_depth += 1;
+        let result = if input.windows(2).any(|pair| matches!(pair, b"$(" | b"${")) {
+            if self.depth < DIRECT_DEPTH
+                && self.machine_nesting < DIRECT_MACHINES
+                && direct::references_only(input)
+            {
+                self.expand_inner(input)
+            } else if let Some(result) = self.direct_expression(input) {
+                result
+            } else {
+                self.expand_machine(input)
+            }
+        } else {
+            self.expand_inner(input)
+        }
+        .map(|mut result| {
+            if let Some(nul) = result.iter().position(|byte| *byte == 0) {
                 result.truncate(nul);
             }
             result
         });
+        self.logical_depth = prior_logical;
         self.depth -= 1;
         if self.context.is_cancelled() {
             Err(ExpandError::Cancelled)
@@ -2161,6 +2198,7 @@ impl Expansion<'_, '_> {
     }
 
     fn expand_inner(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        debug_assert!(direct::references_only(input));
         let mut result = Vec::new();
         let mut cursor = 0;
         while cursor < input.len() {
@@ -2184,14 +2222,9 @@ impl Expansion<'_, '_> {
                     cursor += 2;
                 }
                 b'(' | b'{' => {
-                    let (end, next, raw_name) = expansion_reference_span(input, cursor + 1)?;
-                    let body = &input[cursor + 2..end];
-                    let expanded = if raw_name {
-                        self.variable_reference(body)?
-                    } else {
-                        self.reference(body, input[cursor + 1])?
-                    };
-                    push(&mut result, &expanded)?;
+                    let (end, next, _) = expansion_reference_span(input, cursor + 1)?;
+                    let value = self.reference_variable(&input[cursor + 2..end])?;
+                    push(&mut result, &value)?;
                     cursor = next;
                 }
                 _ => {
@@ -2414,243 +2447,6 @@ impl Expansion<'_, '_> {
             push(&mut value, &self.expand_binding(variable)?)?;
         }
         Ok(value)
-    }
-
-    fn reference(&mut self, body: &[u8], delimiter: u8) -> Result<Vec<u8>, ExpandError> {
-        if let Some(end) = body.iter().position(gnu_whitespace) {
-            let name = &body[..end];
-            if let Some((minimum, maximum)) = arity(name) {
-                let argument_text = trim_function_start(&body[end..]);
-                let args = split_args(argument_text, delimiter, maximum)?;
-                if args.len() < minimum && !matches!(name, b"word" | b"wordlist") {
-                    return Err(too_few_arguments(name, args.len()));
-                }
-                return self.function(name, &args);
-            }
-        }
-        let name = self.expand(body)?;
-        self.variable_reference(&name)
-    }
-
-    fn variable_reference(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        if let Some(colon) = name.iter().position(|byte| *byte == b':')
-            && let Some(equals) = name[colon + 1..].iter().position(|byte| *byte == b'=')
-        {
-            let equals = colon + 1 + equals;
-            let value = self.reference_variable(&name[..colon])?;
-            let from = &name[colon + 1..equals];
-            let to = &name[equals + 1..];
-            if Pattern::new(from).wildcard.is_some() {
-                return pattern_substitute(from, to, &value);
-            }
-            let mut pattern = b"%".to_vec();
-            pattern.extend_from_slice(from);
-            let mut replacement = b"%".to_vec();
-            replacement.extend_from_slice(to);
-            return pattern_substitute(&pattern, &replacement, &value);
-        }
-        self.reference_variable(name)
-    }
-
-    fn function(&mut self, name: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, ExpandError> {
-        match name {
-            b"intcmp" => {
-                // Both expansions precede either numeric validation.
-                let left = self.expand(args[0])?;
-                let right = self.expand(args[1])?;
-                let left = Decimal::parse(&left, false)?;
-                let right = Decimal::parse(&right, true)?;
-                let ordering = left.compare(&right);
-                if args.len() == 2 {
-                    return if ordering == std::cmp::Ordering::Equal {
-                        let mut result = Vec::new();
-                        if left.negative {
-                            push(&mut result, b"-")?;
-                        }
-                        push(&mut result, left.digits)?;
-                        Ok(result)
-                    } else {
-                        Ok(Vec::new())
-                    };
-                }
-                let index = match ordering {
-                    std::cmp::Ordering::Less => 2,
-                    std::cmp::Ordering::Equal => 3,
-                    std::cmp::Ordering::Greater => {
-                        if args.len() == 5 {
-                            4
-                        } else {
-                            3
-                        }
-                    }
-                };
-                args.get(index)
-                    .map_or_else(|| Ok(Vec::new()), |body| self.expand(body))
-            }
-            b"if" => {
-                let condition = self.expand(trim(args[0]))?;
-                let index = if condition.is_empty() { 2 } else { 1 };
-                args.get(index)
-                    .map_or_else(|| Ok(Vec::new()), |body| self.expand(body))
-            }
-            b"or" => {
-                for arg in args {
-                    let value = self.expand(trim(arg))?;
-                    if !value.is_empty() {
-                        return Ok(value);
-                    }
-                }
-                Ok(Vec::new())
-            }
-            b"and" => {
-                let mut last = Vec::new();
-                for arg in args {
-                    last = self.expand(trim(arg))?;
-                    if last.is_empty() {
-                        break;
-                    }
-                }
-                Ok(last)
-            }
-            b"foreach" => {
-                let variable = self.expand(args[0])?;
-                let variable = words(&variable).next().unwrap_or_default().to_vec();
-                let list = self.expand(args[1])?;
-                let mut output = Vec::new();
-                for (index, word) in words(&list).enumerate() {
-                    let bindings = BTreeMap::from([(variable.clone(), local(word.to_vec()))]);
-                    self.bindings.push(LocalFrame {
-                        values: bindings,
-                        call: false,
-                    });
-                    let expanded = self.expand(args[2]);
-                    self.bindings.pop();
-                    if index != 0 {
-                        push(&mut output, b" ")?;
-                    }
-                    push(&mut output, &expanded?)?;
-                }
-                Ok(output)
-            }
-            b"let" => {
-                let names = self.expand(args[0])?;
-                let values = self.expand(args[1])?;
-                let names: Vec<_> = words(&names).collect();
-                let mut value_spans = word_spans(&values);
-                if names.len() > 1 && word_spans(&values).next().is_none() {
-                    return Err(ExpandError::Safety(crate::safety::SafetyError::EmptyLet));
-                }
-                let mut bindings = BTreeMap::new();
-                for (index, name) in names.iter().enumerate() {
-                    let value = match value_spans.next() {
-                        Some((start, _)) if index + 1 == names.len() => values[start..].to_vec(),
-                        Some((start, end)) => values[start..end].to_vec(),
-                        None => Vec::new(),
-                    };
-                    bindings.insert(name.to_vec(), local(value));
-                }
-                self.bindings.push(LocalFrame {
-                    values: bindings,
-                    call: false,
-                });
-                let result = self.expand(args[2]);
-                self.bindings.pop();
-                result
-            }
-            b"call" => self.call(args),
-            b"shell" => {
-                if !self.context.has_shell() || matches!(self.store, StoreAccess::Read(_)) {
-                    return Err(ExpandError::Unsupported(name.to_vec()));
-                }
-                let command = self.expand(args[0])?;
-                self.shell(&command)
-            }
-            _ => {
-                let expanded = args
-                    .iter()
-                    .map(|arg| self.expand(arg))
-                    .collect::<Result<Vec<_>, _>>()?;
-                self.eager_function(name, &expanded)
-            }
-        }
-    }
-
-    fn call(&mut self, args: &[&[u8]]) -> Result<Vec<u8>, ExpandError> {
-        let expanded = args
-            .iter()
-            .map(|arg| self.expand(arg))
-            .collect::<Result<Vec<_>, _>>()?;
-        // GNU takes the first whitespace-delimited word as the function or
-        // variable name, even when a longer variable name is defined.
-        let name_text = trim_function_start(&expanded[0]);
-        let name = name_text.split(gnu_whitespace).next().unwrap_or_default();
-        if let Some((minimum, maximum)) = arity(name) {
-            let mut values = expanded[1..].to_vec();
-            if values.len() < minimum {
-                return Err(too_few_arguments(name, values.len()));
-            }
-            if let Some(maximum) = maximum {
-                values.truncate(maximum);
-            }
-            // Builtins normally receive either eager values or raw arguments.
-            // `call` itself is eager, but lazy builtins must still perform their
-            // own evaluation (notably foreach/let bodies with escaped dollars).
-            if matches!(
-                name,
-                b"if" | b"or" | b"and" | b"intcmp" | b"foreach" | b"let" | b"call"
-            ) {
-                let refs: Vec<&[u8]> = values.iter().map(Vec::as_slice).collect();
-                return self.function(name, &refs);
-            }
-            return self.eager_function(name, &values);
-        }
-        let Some(variable) = self.lookup(name).cloned() else {
-            if !name.is_empty() && self.context.warns_undefined() {
-                self.warn_missing(name)?;
-            }
-            return Ok(Vec::new());
-        };
-        let layer = if self
-            .bindings
-            .iter()
-            .rev()
-            .any(|scope| scope.contains_key(name))
-        {
-            None
-        } else {
-            self.store.lookup_from(name, 0).map(|(layer, _)| layer)
-        };
-        let mut bindings = BTreeMap::new();
-        // Inner calls hide missing outer positional parameters as well.
-        for scope in self.bindings.iter().filter(|scope| scope.call) {
-            for key in scope.keys() {
-                if !key.is_empty() && key.iter().all(u8::is_ascii_digit) {
-                    bindings.insert(key.clone(), local(Vec::new()));
-                }
-            }
-        }
-        // Parameter zero retains leading whitespace from the expanded name,
-        // but GNU terminates it at the end of the lookup token.
-        let zero_end = expanded[0].len() - name_text.len() + name.len();
-        for (index, value) in expanded.iter().enumerate() {
-            let value = if index == 0 {
-                &value[..zero_end]
-            } else {
-                value
-            };
-            bindings.insert(index.to_string().into_bytes(), local(value.to_vec()));
-        }
-        self.bindings.push(LocalFrame {
-            values: bindings,
-            call: true,
-        });
-        let result = if variable.flavor == Flavor::Simple {
-            Ok(variable.value)
-        } else {
-            self.expand_layer(name, &variable, layer, 0)
-        };
-        self.bindings.pop();
-        result.map_err(|error| error.at(variable.definition.as_ref()))
     }
 
     fn filesystem(
@@ -3467,11 +3263,11 @@ fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
     }
 }
 
-fn split_args(
+fn split_arg_ranges(
     input: &[u8],
     delimiter: u8,
     maximum: Option<usize>,
-) -> Result<Vec<&[u8]>, ExpandError> {
+) -> Result<Vec<std::ops::Range<usize>>, ExpandError> {
     let close = if delimiter == b'(' { b')' } else { b'}' };
     let mut result = Vec::new();
     let mut start = 0;
@@ -3496,12 +3292,12 @@ fn split_args(
             && nesting == 0
             && maximum.is_none_or(|max| result.len() + 1 < max)
         {
-            result.push(&input[start..position]);
+            result.push(start..position);
             start = position + 1;
         }
         position += 1;
     }
-    result.push(&input[start..]);
+    result.push(start..input.len());
     Ok(result)
 }
 

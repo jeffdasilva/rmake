@@ -52,12 +52,12 @@ fn append_literal(output: &mut Vec<u8>, bytes: &[u8]) {
         }
     }
 }
-struct Frame {
-    prefix: Range<usize>,
-    suffix: Range<usize>,
-    nearest: Option<Arc<Location>>,
+pub(super) struct Frame {
+    pub(super) prefix: Range<usize>,
+    pub(super) suffix: Range<usize>,
+    pub(super) nearest: Option<Arc<Location>>,
 }
-enum Tail {
+pub(super) enum Tail {
     Value(Vec<u8>),
     Missing(Vec<u8>),
     Error(ExpandError),
@@ -67,14 +67,50 @@ enum Tail {
         layer: Option<usize>,
     },
 }
-struct Plan {
-    bytes: Vec<u8>,
-    frames: Vec<Frame>,
-    active: Vec<(Vec<u8>, Option<usize>)>,
-    tail: Tail,
+pub(super) struct Plan {
+    pub(super) bytes: Vec<u8>,
+    pub(super) frames: Vec<Frame>,
+    pub(super) active: Vec<(Vec<u8>, Option<usize>)>,
+    pub(super) tail: Tail,
 }
+impl Plan {
+    pub(super) fn finish(self, value: Vec<u8>) -> Result<Vec<u8>, ExpandError> {
+        // Check each raw return before its NUL boundary. Only the innermost
+        // suffix is discarded by a raw NUL supplied by the leaf.
+        let nul = value.iter().position(|byte| *byte == 0);
+        let visible = nul.unwrap_or(value.len());
+        let mut len = value.len();
+        for (index, frame) in self.frames.iter().enumerate().rev() {
+            let raw = frame
+                .prefix
+                .len()
+                .saturating_add(len)
+                .saturating_add(frame.suffix.len());
+            if raw > MAX_OUTPUT {
+                return Err(ExpandError::ExpansionLimit.at(frame.nearest.as_ref()));
+            }
+            len = if nul.is_some() && index + 1 == self.frames.len() {
+                frame.prefix.len() + visible
+            } else {
+                raw
+            };
+        }
+        let mut output = Vec::with_capacity(len);
+        for frame in &self.frames {
+            output.extend_from_slice(&self.bytes[frame.prefix.clone()]);
+        }
+        output.extend_from_slice(&value[..visible]);
+        for (index, frame) in self.frames.iter().enumerate().rev() {
+            if nul.is_none() || index + 1 != self.frames.len() {
+                output.extend_from_slice(&self.bytes[frame.suffix.clone()]);
+            }
+        }
+        Ok(output)
+    }
+}
+
 impl Expansion<'_, '_> {
-    fn linear_plan<'c>(
+    pub(super) fn linear_plan<'c>(
         &'c self,
         mut name: &'c [u8],
         mut variable: &'c Variable,
@@ -197,19 +233,19 @@ impl Expansion<'_, '_> {
         variable: &Variable,
         layer: Option<usize>,
     ) -> Option<Result<Vec<u8>, ExpandError>> {
-        let plan = self.linear_plan(name, variable, layer)?;
+        let mut plan = self.linear_plan(name, variable, layer)?;
         let entered = self.binding_context.is_none();
         if entered {
             self.binding_context = Some(variable.definition.clone());
         }
         let active_start = self.active.len();
-        self.active.extend(plan.active);
-        let nearest = plan.frames.last().and_then(|frame| frame.nearest.as_ref());
+        self.active.extend(std::mem::take(&mut plan.active));
+        let nearest = plan.frames.last().and_then(|frame| frame.nearest.clone());
         let result = (|| {
             if self.context.is_cancelled() {
                 return Err(ExpandError::Cancelled);
             }
-            let value = match plan.tail {
+            let value = match std::mem::replace(&mut plan.tail, Tail::Value(Vec::new())) {
                 Tail::Value(value) => Ok(value),
                 Tail::Error(error) => Err(error),
                 Tail::Missing(name) => {
@@ -225,41 +261,11 @@ impl Expansion<'_, '_> {
                     layer,
                 } => self.selected_variable(&name, &variable, layer),
             }
-            .map_err(|error| error.at(nearest))?;
+            .map_err(|error| error.at(nearest.as_ref()))?;
             if self.context.is_cancelled() {
                 return Err(ExpandError::Cancelled);
             }
-            // Check each raw return before its NUL boundary. Only the innermost
-            // suffix is discarded by a raw NUL supplied by the leaf.
-            let nul = value.iter().position(|byte| *byte == 0);
-            let visible = nul.unwrap_or(value.len());
-            let mut len = value.len();
-            for (index, frame) in plan.frames.iter().enumerate().rev() {
-                let raw = frame
-                    .prefix
-                    .len()
-                    .saturating_add(len)
-                    .saturating_add(frame.suffix.len());
-                if raw > MAX_OUTPUT {
-                    return Err(ExpandError::ExpansionLimit.at(frame.nearest.as_ref()));
-                }
-                len = if nul.is_some() && index + 1 == plan.frames.len() {
-                    frame.prefix.len() + visible
-                } else {
-                    raw
-                };
-            }
-            let mut output = Vec::with_capacity(len);
-            for frame in &plan.frames {
-                output.extend_from_slice(&plan.bytes[frame.prefix.clone()]);
-            }
-            output.extend_from_slice(&value[..visible]);
-            for (index, frame) in plan.frames.iter().enumerate().rev() {
-                if nul.is_none() || index + 1 != plan.frames.len() {
-                    output.extend_from_slice(&plan.bytes[frame.suffix.clone()]);
-                }
-            }
-            Ok(output)
+            plan.finish(value)
         })();
         self.active.truncate(active_start);
         if entered {
