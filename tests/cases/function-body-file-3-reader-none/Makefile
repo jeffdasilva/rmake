@@ -1,0 +1,9 @@
+R0 = $(file >>seen,E)[$(R1)]
+R1 = $(file >>seen,E)[$(R2)]
+R2 = $(file >>seen,E)[$(R3)]
+R3:=end
+WRAP=[$(1)]
+COUNT:=
+$(info VALUE=[$(R0)])$(info EFFECT=[$(words $(file <seen))])
+.PHONY: all
+all:;
