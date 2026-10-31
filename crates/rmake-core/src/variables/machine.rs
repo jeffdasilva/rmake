@@ -143,7 +143,7 @@ enum Kind<'a> {
     Selected(Vec<u8>, Variable, Option<usize>),
     VariableEnd(usize, usize),
     Layer(Vec<u8>, Variable, Option<usize>, usize),
-    LayerOuter(Variable),
+    LayerOuter(Variable, usize),
     LayerBody(Variable, Vec<u8>),
     LayerJoin(Vec<u8>),
     BindingEnd(bool),
@@ -172,7 +172,7 @@ impl Kind<'_> {
             Self::Read(r) | Self::Append(r) => r.output.capacity(),
             Self::Variable(n) => n.capacity(),
             Self::Selected(n, v, _) | Self::Layer(n, v, _, _) => n.capacity() + v.value.capacity(),
-            Self::LayerOuter(v) => v.value.capacity(),
+            Self::LayerOuter(v, _) => v.value.capacity(),
             Self::LayerBody(v, out) => v.value.capacity() + out.capacity(),
             Self::LayerJoin(v) => v.capacity(),
             Self::VariableEnd(_, bytes) | Self::ScopeEnd(_, bytes) => *bytes,
@@ -229,7 +229,11 @@ impl<'a> Machine<'a> {
     ) -> Result<(), ExpandError> {
         // Keep legacy-depth acceptance unchanged. Additional heap continuations
         // reserve live metadata and payload storage, released as jobs complete.
-        let lease = if depth >= MAX_DEPTH {
+        let append_depth = match &kind {
+            Kind::Layer(_, _, _, nesting) | Kind::LayerOuter(_, nesting) => *nesting,
+            _ => 0,
+        };
+        let lease = if depth.saturating_add(append_depth) >= MAX_DEPTH {
             Some(
                 self.extra
                     .reserve(512usize.saturating_add(kind.storage()))
@@ -566,9 +570,6 @@ impl Expansion<'_, '_> {
             }
             Kind::VariableEnd(active, _) => self.active.truncate(active),
             Kind::Layer(name, mut variable, layer, nesting) => {
-                if nesting >= MAX_DEPTH {
-                    return Err(ExpandError::ExpansionLimit);
-                }
                 if variable.scope.variable_names {
                     variable.value = self.store.variable_names(false)?;
                     variable.scope.variable_names = false;
@@ -578,7 +579,7 @@ impl Expansion<'_, '_> {
                     && let Some((outer_layer, outer)) = self.store.lookup_from(&name, layer + 1)
                 {
                     let outer = outer.clone();
-                    m.job(Kind::LayerOuter(variable), depth, nearest.clone())?;
+                    m.job(Kind::LayerOuter(variable, nesting), depth, nearest.clone())?;
                     m.job(
                         Kind::Layer(name, outer, Some(outer_layer), nesting + 1),
                         depth,
@@ -588,7 +589,7 @@ impl Expansion<'_, '_> {
                     m.job(Kind::LayerBody(variable, Vec::new()), depth, nearest)?;
                 }
             }
-            Kind::LayerOuter(variable) => {
+            Kind::LayerOuter(variable, _) => {
                 let mut outer = m.value();
                 if !outer.is_empty() {
                     push(&mut outer, b" ")?;
