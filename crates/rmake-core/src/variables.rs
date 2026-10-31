@@ -17,6 +17,7 @@ use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
 };
 
+mod linear;
 mod text;
 
 const MAX_DEPTH: usize = 128;
@@ -2352,6 +2353,11 @@ impl Expansion<'_, '_> {
                         .map_err(|error| error.at(definition.as_ref()))
                 }
             };
+        }
+        if variable.value.contains(&b'$')
+            && let Some(result) = self.expand_linear(name, variable, layer)
+        {
+            return result;
         }
         if variable.value.contains(&b'$')
             && let Some(result) = self.expand_text_program(name, variable, layer)
