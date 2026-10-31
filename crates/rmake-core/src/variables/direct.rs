@@ -13,13 +13,23 @@ pub(super) fn references_only(input: &[u8]) -> bool {
         } else if input[cursor + 1] == b'$' {
             cursor += 2;
         } else if matches!(input[cursor + 1], b'(' | b'{') {
-            let Ok((_, next, raw)) = expansion_reference_span(input, cursor + 1) else {
-                return false;
+            let start = cursor + 2;
+            let mut end = start;
+            while input
+                .get(end)
+                .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+            {
+                end += 1;
+            }
+            let close = if input[cursor + 1] == b'(' {
+                b')'
+            } else {
+                b'}'
             };
-            if raw || literal_alias(&input[cursor..next]).is_none() {
+            if end == start || input.get(end) != Some(&close) {
                 return false;
             }
-            cursor = next;
+            cursor = end + 1;
         } else {
             cursor += 2;
         }
@@ -121,7 +131,20 @@ impl Expansion<'_, '_> {
         &mut self,
         input: &[u8],
     ) -> Option<Result<Vec<u8>, ExpandError>> {
-        if let Some(result) = self.pure_bytes(input) {
+        // A recognized eager function cannot be a pure literal reference.
+        // Reject that preparation with a short name scan, before walking its
+        // balanced argument syntax. This selects dispatch, never a value.
+        let eager_prefix = matches!(input.get(..2), Some(b"$(" | b"${")) && {
+            let length = input[2..]
+                .iter()
+                .take_while(|b| b.is_ascii_alphabetic() || **b == b'-')
+                .count();
+            let name = &input[2..2 + length];
+            input.get(2 + length).is_some_and(gnu_whitespace)
+                && arity(name).is_some()
+                && !super::machine::lazy(name)
+        };
+        if !eager_prefix && let Some(result) = self.pure_bytes(input) {
             return Some(result);
         }
         if !matches!(input.get(..2), Some(b"$(" | b"${")) {
@@ -218,6 +241,40 @@ mod tests {
             (2, 1, 1)
         );
     }
+    #[test]
+    fn eager_preparation_crosses_heap_dispatch_without_replaying_an_earlier_argument() {
+        let mut store = VariableStore::new();
+        for index in 0..1024 {
+            store
+                .define(
+                    format!("R{index}").as_bytes(),
+                    format!("$(strip [$(R{})])", index + 1).as_bytes(),
+                    Assignment::Recursive,
+                    Origin::File,
+                )
+                .unwrap();
+        }
+        store
+            .define_literal(b"R1024", b"end", Origin::File)
+            .unwrap();
+        let mut writes = 0;
+        let mut filesystem = |_: FilesystemEffect<'_>| -> Result<Vec<u8>, FilesystemError> {
+            writes += 1;
+            Ok(Vec::new())
+        };
+        let value = store
+            .expand_with(
+                b"$(subst $(file >>seen,E)q,q,$(R0))",
+                ExpansionContext::pure().with_filesystem(&mut filesystem),
+            )
+            .unwrap();
+        assert_eq!(
+            value,
+            [vec![b'['; 1024], b"end".to_vec(), vec![b']'; 1024]].concat()
+        );
+        assert_eq!(writes, 1);
+    }
+
     #[test]
     fn later_syntax_failure_preserves_an_earlier_effect_once() {
         let store = VariableStore::new();

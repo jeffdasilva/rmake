@@ -1570,7 +1570,7 @@ impl VariableStore {
             };
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, first, Some(first_layer), 0)
+            expansion.expand_layer(name, first, Some(first_layer))
         } else {
             expansion.selected_variable(name, variable, Some(layer))
         }
@@ -1605,7 +1605,7 @@ impl VariableStore {
             let first = first.clone();
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, &first, Some(first_layer), 0)
+            expansion.expand_layer(name, &first, Some(first_layer))
         } else {
             expansion.selected_variable(name, variable, Some(layer))
         }
@@ -2023,7 +2023,7 @@ pub(crate) fn expand_environment_database(
         let first = first.clone();
         expansion.active.push((name.to_vec(), Some(layer)));
         expansion.binding_context = Some(variable.definition.clone());
-        expansion.expand_layer(name, &first, Some(first_layer), 0)
+        expansion.expand_layer(name, &first, Some(first_layer))
     } else {
         expansion.selected_variable(name, variable, Some(layer))
     };
@@ -2407,7 +2407,7 @@ impl Expansion<'_, '_> {
             );
         }
         self.active.push((name.to_vec(), layer));
-        let result = self.expand_layer(name, variable, layer, 0);
+        let result = self.expand_layer(name, variable, layer);
         self.active.pop();
         result
     }
@@ -2417,36 +2417,76 @@ impl Expansion<'_, '_> {
         name: &[u8],
         variable: &Variable,
         layer: Option<usize>,
-        depth: usize,
     ) -> Result<Vec<u8>, ExpandError> {
         if variable.scope.variable_names {
-            // Outer appends use the stored global value, without performing a
-            // second special lookup or refreshing its membership snapshot.
+            // Outer metadata uses its stored snapshot, without a second lookup.
             let mut dynamic = variable.clone();
             dynamic.scope.variable_names = false;
             dynamic.value = self.store.variable_names(false)?;
-            return self.expand_layer(name, &dynamic, layer, depth);
-        }
-        if depth >= MAX_DEPTH {
-            return Err(ExpandError::ExpansionLimit);
+            return self.expand_layer(name, &dynamic, layer);
         }
         let mut value = Vec::new();
-        if variable.scope.append_outer
-            && let Some(layer) = layer
-            && let Some((outer_layer, outer)) = self.store.lookup_from(name, layer + 1)
+        if !variable.scope.append_outer {
+            self.append_layer_body(&mut value, variable)?;
+            return Ok(value);
+        }
+        // Snapshot each outer binding before any body effects, just as the
+        // former recursive descent did. The innermost binding is already owned
+        // by our caller and needs no additional clone.
+        let mut outers = Vec::new();
+        let mut append = true;
+        let mut selected = layer;
+        let mut extra = 0usize;
+        while append {
+            if self.context.is_cancelled() {
+                return Err(ExpandError::Cancelled);
+            }
+            let Some((outer_layer, outer)) =
+                selected.and_then(|index| self.store.lookup_from(name, index + 1))
+            else {
+                break;
+            };
+            let mut outer = outer.clone();
+            if outer.scope.variable_names {
+                outer.scope.variable_names = false;
+                outer.value = self.store.variable_names(false)?;
+            }
+            if outers.len() >= MAX_DEPTH - 1 {
+                extra = extra.saturating_add(
+                    outer.value.capacity() + 2 * std::mem::size_of::<Variable>() + 256,
+                );
+                if extra > MAX_OUTPUT {
+                    return Err(ExpandError::ExpansionLimit);
+                }
+            }
+            append = outer.scope.append_outer;
+            selected = Some(outer_layer);
+            outers.push(outer);
+        }
+        for (index, body) in outers
+            .iter()
+            .rev()
+            .chain(std::iter::once(variable))
+            .enumerate()
         {
-            let outer = outer.clone();
-            value = self.expand_layer(name, &outer, Some(outer_layer), depth + 1)?;
-            if !value.is_empty() {
+            if index != 0 && !value.is_empty() {
                 push(&mut value, b" ")?;
             }
-        }
-        if variable.flavor == Flavor::Simple {
-            push(&mut value, &variable.value)?;
-        } else {
-            push(&mut value, &self.expand_binding(variable)?)?;
+            self.append_layer_body(&mut value, body)?;
         }
         Ok(value)
+    }
+
+    fn append_layer_body(
+        &mut self,
+        value: &mut Vec<u8>,
+        variable: &Variable,
+    ) -> Result<(), ExpandError> {
+        if variable.flavor == Flavor::Simple {
+            push(value, &variable.value)
+        } else {
+            push(value, &self.expand_binding(variable)?)
+        }
     }
 
     fn filesystem(
@@ -2494,7 +2534,7 @@ impl Expansion<'_, '_> {
             let first = first.clone();
             self.active.push((name.to_vec(), Some(layer)));
             let prior = self.binding_context.replace(variable.definition.clone());
-            let result = self.expand_layer(name, &first, Some(first_layer), 0);
+            let result = self.expand_layer(name, &first, Some(first_layer));
             self.binding_context = prior;
             self.active.pop();
             result
@@ -5678,6 +5718,161 @@ mod tests {
                 ExpansionContext::pure(),
             )
             .unwrap();
+    }
+
+    fn append_stress_context(depth: usize, body: impl Fn(usize) -> Vec<u8>) -> VariableStore {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"V", b"base", Assignment::Recursive);
+        for index in 0..192 {
+            define(
+                &mut globals,
+                format!("R{index}").as_bytes(),
+                format!("$(if yes,[$(R{})])", index + 1).as_bytes(),
+                Assignment::Recursive,
+            );
+        }
+        define(&mut globals, b"R192", b"$(V)", Assignment::Recursive);
+        let mut scopes = Vec::new();
+        for index in 0..depth {
+            let mut scope = TargetScope::default();
+            scoped_define(
+                &mut scope,
+                &mut globals,
+                b"V",
+                &body(index),
+                Assignment::Append,
+            );
+            scopes.push(scope);
+        }
+        globals.with_target_scopes(&scopes.iter().collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn thousands_of_append_layers_preserve_body_and_effect_order() {
+        let store =
+            append_stress_context(2048, |i| format!("$(file >>seen,e{i})e{i}").into_bytes());
+        for (input, wrapped) in [(b"$(V)".as_slice(), false), (b"$(R0)", true)] {
+            let mut events = Vec::new();
+            let mut filesystem =
+                |effect: FilesystemEffect<'_>| -> Result<Vec<u8>, FilesystemError> {
+                    if let FilesystemEffect::WriteFile {
+                        text: Some(text), ..
+                    } = effect
+                    {
+                        events.push(text.to_vec());
+                    } else {
+                        panic!("unexpected effect");
+                    }
+                    Ok(Vec::new())
+                };
+            let value = store
+                .expand_with(
+                    input,
+                    ExpansionContext::pure().with_filesystem(&mut filesystem),
+                )
+                .unwrap();
+            let mut expected = b"base".to_vec();
+            for i in 0..2048 {
+                expected.extend_from_slice(format!(" e{i}").as_bytes());
+            }
+            if wrapped {
+                expected = [vec![b'['; 192], expected, vec![b']'; 192]].concat();
+            }
+            assert_eq!(value, expected);
+            assert_eq!(
+                events,
+                (0..2048)
+                    .map(|i| format!("e{i}").into_bytes())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn cancellation_during_append_bodies_restores_active_state() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let store = append_stress_context(512, |_| b"$(file >>seen,E)x".to_vec());
+        for input in [b"$(V)".as_slice(), b"$(R0)"] {
+            let cancelled = AtomicBool::new(false);
+            let mut writes = 0;
+            let mut filesystem = |_: FilesystemEffect<'_>| -> Result<Vec<u8>, FilesystemError> {
+                writes += 1;
+                if writes == 20 {
+                    cancelled.store(true, Ordering::Relaxed);
+                }
+                Ok(Vec::new())
+            };
+            let context = ExpansionContext::pure()
+                .with_filesystem(&mut filesystem)
+                .with_cancellation(&cancelled);
+            let mut expansion = store.expansion(context);
+            assert!(matches!(
+                expansion.expand(input),
+                Err(ExpandError::Cancelled)
+            ));
+            assert!(expansion.active.is_empty());
+            assert!(expansion.bindings.is_empty());
+            assert!(expansion.binding_context.is_none());
+            cancelled.store(false, Ordering::Relaxed);
+            assert_eq!(expansion.expand(b"after").unwrap(), b"after");
+            drop(expansion);
+            assert_eq!(writes, 20);
+        }
+    }
+
+    #[test]
+    fn additional_append_storage_rejects_before_the_outer_body_effect() {
+        let mut store = append_stress_context(260, |_| vec![b'x'; 128 * 1024]);
+        let global = Arc::make_mut(&mut store.layers.last_mut().unwrap().variables)
+            .get_mut(b"V".as_slice())
+            .unwrap();
+        global.value = b"$(file >>seen,E)base".to_vec();
+        for input in [b"$(V)".as_slice(), b"$(R0)"] {
+            let mut writes = 0;
+            let mut filesystem = |_: FilesystemEffect<'_>| -> Result<Vec<u8>, FilesystemError> {
+                writes += 1;
+                Ok(Vec::new())
+            };
+            let error = store
+                .expand_with(
+                    input,
+                    ExpansionContext::pure().with_filesystem(&mut filesystem),
+                )
+                .unwrap_err();
+            assert_eq!(
+                error.diagnostic().as_bytes(),
+                ExpandError::ExpansionLimit.diagnostic().as_bytes()
+            );
+            assert_eq!(writes, 0);
+        }
+    }
+
+    #[test]
+    fn append_separator_overflow_prevents_the_next_body_effect() {
+        let mut store = append_stress_context(1, |_| b"$(file >>seen,E)x".to_vec());
+        let global = Arc::make_mut(&mut store.layers.last_mut().unwrap().variables)
+            .get_mut(b"V".as_slice())
+            .unwrap();
+        global.flavor = Flavor::Simple;
+        global.value = vec![b'x'; MAX_OUTPUT];
+        for input in [b"$(V)".as_slice(), b"$(R0)"] {
+            let mut writes = 0;
+            let mut filesystem = |_: FilesystemEffect<'_>| -> Result<Vec<u8>, FilesystemError> {
+                writes += 1;
+                Ok(Vec::new())
+            };
+            let error = store
+                .expand_with(
+                    input,
+                    ExpansionContext::pure().with_filesystem(&mut filesystem),
+                )
+                .unwrap_err();
+            assert_eq!(
+                error.diagnostic().as_bytes(),
+                ExpandError::ExpansionLimit.diagnostic().as_bytes()
+            );
+            assert_eq!(writes, 0);
+        }
     }
 
     #[test]

@@ -121,6 +121,16 @@ def function_body_workloads():
         yield f'function-bodies-{depth}', source.encode()
 
 
+def deep_append_workloads():
+    """Observe every inherited append read at valid preceding depths."""
+    for depth in (0, 32, 96):
+        source = 'V=base\n.PHONY: all ' + ' '.join(f'n{i}' for i in range(depth + 1)) + '\nall: n0\n'
+        for index in range(depth):
+            source += f'n{index}: V += e{index}\nn{index}: n{index + 1}\n'
+        source += f'n{depth}:;@$(info READS=[' + '|'.join(['$(V)'] * 200) + ']):\n'
+        yield f'deep-appends-{depth}', source.encode()
+
+
 def workload_environment(name):
     if name.startswith('initial-flags-'):
         count = int(name.rsplit('-', 1)[1])
@@ -170,6 +180,8 @@ def selected_workloads(suite):
         yield from initial_flag_workloads()
     if suite in ("include-operands", "all"):
         yield from include_operand_workloads()
+    if suite in ("deep-appends", "all"):
+        yield from deep_append_workloads()
     if suite in ("function-bodies", "all"):
         yield from function_body_workloads()
     if suite in ("linear-leaves", "all"):
@@ -749,7 +761,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "runtime-includes", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "runtime-includes", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
