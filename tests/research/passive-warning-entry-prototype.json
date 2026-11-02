@@ -1,0 +1,9 @@
+{
+  "classification": "Unselected entry-capture prototype; zero extra conformance or timing credit.",
+  "source_commit": "e2bb5db2ec76a874356c713500b5f2ff574d252f",
+  "source_tree": "98c15f64fc959dd773e4fedbb118e2a8e29ec81e",
+  "raw_observations": "tests/research/passive-warning-entry-prototype.json.gz",
+  "compressed_sha256": "60f4c76aff88b8435059faf3ef26f5c440782ac85fa42f5dd2cc4f1f1794c3d0",
+  "uncompressed_sha256": "8a94f2072edcc24a9f6f8fcc55d3a41b57cda4033a0ee11bf961f471511b1552",
+  "explanation": "All 1728 literal-source models pass. Separate source-expansion controls found 48 regressions, retained per final source-policy record; full local acceptance was intentionally interrupted, not credited."
+}

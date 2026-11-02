@@ -402,7 +402,9 @@ impl<'a> ExpansionContext<'a> {
         self.apply_flag_steps(database, assignments, origin, terminal, &[], false)
     }
 
-    fn apply_flag_steps(
+    /// Replay definitions and warning policies with the same owned cursor.
+    /// Passive callers supply their policy before preliminary flag inspection.
+    pub fn apply_flag_steps(
         &mut self,
         database: &mut crate::parser::Database,
         assignments: &[FlagAssignment],

@@ -236,6 +236,7 @@ impl Engine {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
+        let mut warning_entry = self.flag_state.warn_undefined.get();
         let mut changed = Vec::new();
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
             if self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none() {
@@ -287,6 +288,12 @@ impl Engine {
                     }
                 }
             }
+            // Expanding this source can itself decode MAKEFLAGS. Keep that
+            // resulting policy before preliminary option inspection enables
+            // warnings for the following source; then replay actual positions.
+            if name == b"GNUMAKEFLAGS" {
+                warning_entry = self.flag_state.warn_undefined.get();
+            }
             if name == b"GNUMAKEFLAGS"
                 && !self.flag_state.warn_undefined.get()
                 && let Some(value) = changed.last()
@@ -312,13 +319,16 @@ impl Engine {
         if changed.is_empty() {
             return Ok(());
         }
-        let (mut updated, file_jobs) = match self.options.file_flags(&changed) {
-            Ok(updated) => updated,
-            Err(message) => {
-                self.fatal(None, message.as_bytes());
-                return Err(());
-            }
-        };
+        let (mut updated, file_jobs, warning_positions) =
+            match self.options.file_flags_with_positions(&changed) {
+                Ok(updated) => updated,
+                Err(message) => {
+                    self.fatal(None, message.as_bytes());
+                    return Err(());
+                }
+            };
+        // A flag-only stream has no payload effects to interleave. Keep that
+        // path unchanged instead of cloning and replaying an inert policy.
         if !updated.assignments.is_empty() {
             let assignments = std::mem::take(&mut updated.assignments);
             self.flag_state.refresh(&updated);
@@ -353,11 +363,13 @@ impl Engine {
                 self.filesystem.borrow_mut().child_completed();
                 result
             })
-            .apply_flag_assignments(
+            .apply_flag_steps(
                 &mut self.database,
                 &assignments,
                 Origin::Environment,
                 updated.flag_word_count,
+                &warning_positions,
+                warning_entry,
             );
             match names {
                 Ok(names) => {
