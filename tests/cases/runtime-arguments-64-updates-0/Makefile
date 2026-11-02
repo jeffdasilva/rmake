@@ -1,0 +1,7 @@
+MAKEOVERRIDES=
+GNUMAKEFLAGS:=
+$(info BEFORE=[$(ARG_0)|$(ARG_1)|$(ARG_2)|$(ARG_3)|$(ARG_4)|$(ARG_5)|$(ARG_6)|$(ARG_7)|$(ARG_8)|$(ARG_9)|$(ARG_10)|$(ARG_11)|$(ARG_12)|$(ARG_13)|$(ARG_14)|$(ARG_15)|$(ARG_16)|$(ARG_17)|$(ARG_18)|$(ARG_19)|$(ARG_20)|$(ARG_21)|$(ARG_22)|$(ARG_23)|$(ARG_24)|$(ARG_25)|$(ARG_26)|$(ARG_27)|$(ARG_28)|$(ARG_29)|$(ARG_30)|$(ARG_31)|$(ARG_32)|$(ARG_33)|$(ARG_34)|$(ARG_35)|$(ARG_36)|$(ARG_37)|$(ARG_38)|$(ARG_39)|$(ARG_40)|$(ARG_41)|$(ARG_42)|$(ARG_43)|$(ARG_44)|$(ARG_45)|$(ARG_46)|$(ARG_47)|$(ARG_48)|$(ARG_49)|$(ARG_50)|$(ARG_51)|$(ARG_52)|$(ARG_53)|$(ARG_54)|$(ARG_55)|$(ARG_56)|$(ARG_57)|$(ARG_58)|$(ARG_59)|$(ARG_60)|$(ARG_61)|$(ARG_62)|$(ARG_63)])
+$(info AFTER=[$(ARG_0)|$(ARG_1)|$(ARG_2)|$(ARG_3)|$(ARG_4)|$(ARG_5)|$(ARG_6)|$(ARG_7)|$(ARG_8)|$(ARG_9)|$(ARG_10)|$(ARG_11)|$(ARG_12)|$(ARG_13)|$(ARG_14)|$(ARG_15)|$(ARG_16)|$(ARG_17)|$(ARG_18)|$(ARG_19)|$(ARG_20)|$(ARG_21)|$(ARG_22)|$(ARG_23)|$(ARG_24)|$(ARG_25)|$(ARG_26)|$(ARG_27)|$(ARG_28)|$(ARG_29)|$(ARG_30)|$(ARG_31)|$(ARG_32)|$(ARG_33)|$(ARG_34)|$(ARG_35)|$(ARG_36)|$(ARG_37)|$(ARG_38)|$(ARG_39)|$(ARG_40)|$(ARG_41)|$(ARG_42)|$(ARG_43)|$(ARG_44)|$(ARG_45)|$(ARG_46)|$(ARG_47)|$(ARG_48)|$(ARG_49)|$(ARG_50)|$(ARG_51)|$(ARG_52)|$(ARG_53)|$(ARG_54)|$(ARG_55)|$(ARG_56)|$(ARG_57)|$(ARG_58)|$(ARG_59)|$(ARG_60)|$(ARG_61)|$(ARG_62)|$(ARG_63)])
+$(info GOALS=[$(MAKECMDGOALS)] S=[$(filter rRs,$(firstword $(MAKEFLAGS)))])
+.PHONY: all last
+all last:;

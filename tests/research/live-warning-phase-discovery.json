@@ -1,0 +1,378 @@
+{
+  "classification": "Ordinary unresolved warning-phase discovery; zero conformance, timing or safety-exception credit. Original models and all raw observations retained unchanged.",
+  "identities": {
+    "/home/jdasilva/github/rmake/.tools/oracle/bin/make": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+    "/tmp/rmake-live-arity-final-debug": "358f65eb9711ba154ec4d5d90260aa7cf2593252a65b12b790883f859edce65d"
+  },
+  "records": [
+    {
+      "id": "live-warning-pilot-late",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "env": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "413d5b5d0a",
+        "stderr_hex": ""
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stderr"
+      ],
+      "model_errors": [
+        [],
+        [],
+        [
+          "oracle disagrees with expected.stderr_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gQTo9JCQoTUlTU0lORykgLS13YXJuLXVuZGVmaW5lZC12YXJpYWJsZXMKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 94,
+              "sha256": "366c1b9ae2bfaba107f223d90aa65a3f50402e81af875c225d24d82170a566ad"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gQTo9JCQoTUlTU0lORykgLS13YXJuLXVuZGVmaW5lZC12YXJpYWJsZXMKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 94,
+              "sha256": "366c1b9ae2bfaba107f223d90aa65a3f50402e81af875c225d24d82170a566ad"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": ""
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gQTo9JCQoTUlTU0lORykgLS13YXJuLXVuZGVmaW5lZC12YXJpYWJsZXMKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 94,
+              "sha256": "366c1b9ae2bfaba107f223d90aa65a3f50402e81af875c225d24d82170a566ad"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "mode": 420,
+          "hex": "474e554d414b45464c4147533a3d0a4d414b45464c414753203d20413a3d2424284d495353494e4729202d2d7761726e2d756e646566696e65642d7661726961626c65730a2428696e666f20413d5b242841295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "live-warning-pilot-early",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "env": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "413d5b5d0a",
+        "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stderr"
+      ],
+      "model_errors": [
+        [
+          "oracle disagrees with expected.stderr_hex"
+        ],
+        [
+          "oracle disagrees with expected.stderr_hex"
+        ],
+        []
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gLS13YXJuLXVuZGVmaW5lZC12YXJpYWJsZXMgQTo9JCQoTUlTU0lORykKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 94,
+              "sha256": "bfdae630a2cd2ba2bc1d53a71af048494f5103d6ddccd50da48625c876a544d3"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "4d616b6566696c653a323a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gLS13YXJuLXVuZGVmaW5lZC12YXJpYWJsZXMgQTo9JCQoTUlTU0lORykKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 94,
+              "sha256": "bfdae630a2cd2ba2bc1d53a71af048494f5103d6ddccd50da48625c876a544d3"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "4d616b6566696c653a323a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gLS13YXJuLXVuZGVmaW5lZC12YXJpYWJsZXMgQTo9JCQoTUlTU0lORykKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 94,
+              "sha256": "bfdae630a2cd2ba2bc1d53a71af048494f5103d6ddccd50da48625c876a544d3"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e47270a"
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "mode": 420,
+          "hex": "474e554d414b45464c4147533a3d0a4d414b45464c414753203d202d2d7761726e2d756e646566696e65642d7661726961626c657320413a3d2424284d495353494e47290a2428696e666f20413d5b242841295d290a616c6c3a3b403a0a"
+        }
+      }
+    },
+    {
+      "id": "live-warning-pilot-mid",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "env": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "413d5b5d0a",
+        "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520275345434f4e44270a"
+      },
+      "oracle_repeat_differences": [],
+      "candidate_differences": [
+        "stderr"
+      ],
+      "model_errors": [
+        [
+          "oracle disagrees with expected.stderr_hex"
+        ],
+        [
+          "oracle disagrees with expected.stderr_hex"
+        ],
+        [
+          "oracle disagrees with expected.stderr_hex"
+        ]
+      ],
+      "bounds": [
+        false,
+        false,
+        false
+      ],
+      "observations": [
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gQTo9JCQoRklSU1QpIC0td2Fybi11bmRlZmluZWQtdmFyaWFibGVzIEI6PSQkKFNFQ09ORCkKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 106,
+              "sha256": "95ed25c28077f096e5b33b2a466d9e8233f6e2f46b889e4c0be55d88f703f927"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "4d616b6566696c653a323a207761726e696e673a20756e646566696e6564207661726961626c6520275345434f4e44270a"
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gQTo9JCQoRklSU1QpIC0td2Fybi11bmRlZmluZWQtdmFyaWFibGVzIEI6PSQkKFNFQ09ORCkKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 106,
+              "sha256": "95ed25c28077f096e5b33b2a466d9e8233f6e2f46b889e4c0be55d88f703f927"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "4d616b6566696c653a323a207761726e696e673a20756e646566696e6564207661726961626c6520275345434f4e44270a"
+        },
+        {
+          "returncode": 0,
+          "limit": null,
+          "leftover_processes": false,
+          "filesystem": {
+            "home": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "tmp": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work": {
+              "mode": 493,
+              "type": "directory"
+            },
+            "work/Makefile": {
+              "mode": 420,
+              "type": "file",
+              "content": "R05VTUFLRUZMQUdTOj0KTUFLRUZMQUdTID0gQTo9JCQoRklSU1QpIC0td2Fybi11bmRlZmluZWQtdmFyaWFibGVzIEI6PSQkKFNFQ09ORCkKJChpbmZvIEE9WyQoQSldKQphbGw6O0A6Cg==",
+              "size": 106,
+              "sha256": "95ed25c28077f096e5b33b2a466d9e8233f6e2f46b889e4c0be55d88f703f927"
+            }
+          },
+          "stdout_hex": "413d5b5d0a",
+          "stderr_hex": "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520274649525354270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520275345434f4e44270a"
+        }
+      ],
+      "inputs": {
+        "Makefile": {
+          "mode": 420,
+          "hex": "474e554d414b45464c4147533a3d0a4d414b45464c414753203d20413a3d242428464952535429202d2d7761726e2d756e646566696e65642d7661726961626c657320423a3d2424285345434f4e44290a2428696e666f20413d5b242841295d290a616c6c3a3b403a0a"
+        }
+      }
+    }
+  ]
+}

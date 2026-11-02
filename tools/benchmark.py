@@ -70,6 +70,19 @@ def runtime_include_workloads():
             + f'$(info COUNT=[{count}] S=[$(filter rRs,$(firstword $(MAKEFLAGS)))])\nall: ;\n'.encode())
 
 
+def runtime_argument_workloads():
+    """Observe saved CLI inputs across live updates and every include effect."""
+    for count in (0, 64, 512):
+        for updates in (0, 100):
+            refs = b'|'.join(f'$(ARG_{index})'.encode() for index in range(count))
+            yield f'runtime-arguments-{count}-updates-{updates}', (
+                b'MAKEOVERRIDES=\nGNUMAKEFLAGS:=\n$(info BEFORE=[' + refs + b'])\n'
+                + b'MAKEFLAGS += -s\n' * updates
+                + b'$(info AFTER=[' + refs + b'])\n'
+                + b'$(info GOALS=[$(MAKECMDGOALS)] S=[$(filter rRs,$(firstword $(MAKEFLAGS)))])\n'
+                + b'.PHONY: all last\nall last:;\n')
+
+
 def include_operand_workloads():
     """Retain ordered argv and freshly stat every distinct missing directory."""
     for count in (0, 1000, 5000):
@@ -204,6 +217,8 @@ def selected_workloads(suite):
         yield from literal_chain_workloads()
     if suite in ("runtime-includes", "all"):
         yield from runtime_include_workloads()
+    if suite in ("runtime-arguments", "all"):
+        yield from runtime_argument_workloads()
     if suite in ("builtin-transitions", "all"):
         yield from builtin_transition_workloads()
     if suite in ("word-spans", "all"):
@@ -468,6 +483,10 @@ def workload_arguments(name):
         arguments += ['-I-', *(f'-Imissing-{index:05d}' for index in range(count))]
     if name.startswith('runtime-includes-'):
         arguments += ['-I-', '-Icounter-$(info tick)']
+    if name.startswith('runtime-arguments-'):
+        count = int(name.split('-')[2])
+        arguments += ['-fMakefile', '-fextra.mk', '-C.', '-I-', '-Icounter-$(info tick)']
+        arguments += [f'ARG_{index}=value{index}' for index in range(count)] + ['all', 'last']
     if name.startswith('startup-arguments-'):
         count = int(name.removeprefix('startup-arguments-'))
         arguments.extend(f"ARG_{index}=value{index}" for index in range(count))
@@ -554,6 +573,14 @@ def prepare_archive_names(path, kind, count):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('runtime-arguments-'):
+        directory = path / 'counter-$(info tick)'
+        directory.mkdir(exist_ok=True)
+        (directory / '.keep').write_bytes(b'')
+        (path / 'extra.mk').write_bytes(b'$(info AUX=[kept])\n')
+        return {'metadata_constructions': int(workload.rsplit('-', 1)[1]) + 1,
+                'saved_definitions': int(workload.split('-')[2]),
+                'recipe_subprocesses': 0, 'physical_directories': 1}
     if workload.startswith('runtime-includes-'):
         (path / 'counter-$(info tick)').mkdir(exist_ok=True)
         return {'metadata_constructions': int(workload.rsplit('-', 1)[1]) + 1,
@@ -773,7 +800,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "runtime-arguments", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
