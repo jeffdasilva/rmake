@@ -8,13 +8,93 @@
 
 pub use crate::diagnostic::Location;
 use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Output};
-use crate::reader::{Reader, strip_comment};
+use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
     Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
     VariableStore, reference_end,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+
+fn source_read_error(file: &[u8], message: Vec<u8>) -> ParseError {
+    ParseError {
+        location: Location {
+            file: file.into(),
+            line: 1,
+        },
+        unlocated: true,
+        message: Diagnostic::Unlocated([file, b": ", &message].concat()),
+    }
+}
+
+struct IncludeWork {
+    paths: std::vec::IntoIter<Vec<u8>>,
+    retained: usize,
+    optional: bool,
+    location: Location,
+}
+struct ReadFrame<'a> {
+    reader: ParserReader<'a>,
+    source_name: std::sync::Arc<[u8]>,
+    evaluated_at: Option<usize>,
+    declaration: RuleDeclaration,
+    conditions: Vec<Conditional>,
+    last_line: usize,
+    pending: Option<IncludeWork>,
+    extra: bool,
+    charged: usize,
+}
+impl<'a> ReadFrame<'a> {
+    fn new(
+        reader: ParserReader<'a>,
+        file: &[u8],
+        evaluated_at: Option<usize>,
+        extra: bool,
+    ) -> Self {
+        Self {
+            reader,
+            source_name: file.into(),
+            evaluated_at,
+            declaration: RuleDeclaration::default(),
+            conditions: Vec::new(),
+            last_line: 0,
+            pending: None,
+            extra,
+            charged: 0,
+        }
+    }
+    fn account(&mut self, used: &mut usize) -> Result<(), ParseError> {
+        if !self.extra {
+            return Ok(());
+        }
+        let cost = 1024usize
+            .saturating_add(self.reader.retained_bytes())
+            .saturating_add(self.conditions.capacity() * std::mem::size_of::<Conditional>())
+            .saturating_add(self.pending.as_ref().map_or(0, |p| p.retained))
+            .saturating_add(self.declaration.prerequisites.capacity())
+            .saturating_add(
+                self.declaration
+                    .targets
+                    .iter()
+                    .map(Vec::capacity)
+                    .sum::<usize>(),
+            );
+        let next = used.saturating_sub(self.charged).saturating_add(cost);
+        if next > MAX_OUTPUT {
+            return Err(ParseError {
+                unlocated: false,
+                location: Location {
+                    file: self.source_name.clone(),
+                    line: self.last_line.max(1),
+                },
+                message: "rmake: include continuation storage limit exceeded".into(),
+            });
+        }
+        *used = next;
+        self.charged = cost;
+        Ok(())
+    }
+}
 
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
 /// This metadata does not install implicit rules or suffix-rule conversions.
@@ -316,6 +396,7 @@ pub struct Database {
     // One warning per category across includes/eval: prerequisites=1, commands=2.
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<crate::variables::LocalFrame>,
+    pub(crate) evaluation_active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
     // Active only while parsing a potentially recursive HOME filename. Owned
     // bytes preserve shared-name overwrites without aliased or dangling pointers.
     filename_scratch: Option<Vec<u8>>,
@@ -834,7 +915,7 @@ mod include_tests {
             assert!(!published.get());
             Ok(crate::diagnostic::IncludedFile {
                 name: name.to_vec(),
-                bytes: b"SEEN := old-search\n".to_vec(),
+                input: crate::reader::Input::Bytes(b"SEEN := old-search\n".to_vec()),
             })
         };
         database
@@ -938,7 +1019,7 @@ mod include_tests {
             assert_eq!(&*search.borrow(), b"inner");
             Ok(crate::diagnostic::IncludedFile {
                 name: name.to_vec(),
-                bytes: b"SEEN := inner\n".to_vec(),
+                input: crate::reader::Input::Bytes(b"SEEN := inner\n".to_vec()),
             })
         };
         database
@@ -1067,7 +1148,7 @@ mod include_tests {
         let mut read = |name: &[u8]| match name {
             b"child.mk" => Ok(IncludedFile {
                 name: name.to_vec(),
-                bytes: b"V=child\n-include absent.mk\n".to_vec(),
+                input: crate::reader::Input::Bytes(b"V=child\n-include absent.mk\n".to_vec()),
             }),
             _ => Err(b"No such file or directory".to_vec()),
         };
@@ -2168,7 +2249,33 @@ impl Database {
         file: &[u8],
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        self.read_at(bytes, file, None, context)
+        self.read_at(ParserReader::memory(bytes), file, None, context)
+    }
+
+    pub fn read_input(
+        &mut self,
+        input: Input,
+        file: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        match input {
+            Input::Bytes(bytes) => self.read_with(&bytes, file, context),
+            Input::Stream(source) => {
+                self.read_at(ParserReader::stream(source), file, None, context)
+            }
+        }
+    }
+
+    pub fn read_preload_input(
+        &mut self,
+        input: Input,
+        file: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let previous = std::mem::replace(&mut self.suppress_default_goal, true);
+        let result = self.read_input(input, file, context);
+        self.suppress_default_goal = previous;
+        result
     }
 
     /// MAKEFILES preloads and their includes do not select an implicit default
@@ -2421,12 +2528,15 @@ impl Database {
         location: Option<&Location>,
         scope: Option<&mut VariableStore>,
         bindings: Vec<crate::variables::LocalFrame>,
+        active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let previous_scope =
             std::mem::replace(&mut self.evaluation_scope, scope.as_deref().cloned());
         let previous_bindings = std::mem::replace(&mut self.evaluation_bindings, bindings);
+        let previous_active = std::mem::replace(&mut self.evaluation_active, active);
         let result = self.read_evaluated(bytes, location, context);
+        self.evaluation_active = previous_active;
         if let Some(scope) = scope {
             *scope = self.evaluation_scope.take().expect("evaluation scope");
         }
@@ -2443,10 +2553,42 @@ impl Database {
         location: Option<&Location>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
+        if let Some(stack) = context.evaluation_stack {
+            let mut context = Some(context);
+            return stack
+                .run(&mut || {
+                    self.read_evaluated_inner(
+                        bytes,
+                        location,
+                        context
+                            .take()
+                            .expect("evaluation stack callback invoked once"),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    Err(ParseError {
+                        location: location.cloned().unwrap_or(Location {
+                            file: b"".as_slice().into(),
+                            line: 1,
+                        }),
+                        unlocated: location.is_none(),
+                        message: "rmake: evaluation stack storage limit exceeded".into(),
+                    })
+                });
+        }
+        self.read_evaluated_inner(bytes, location, context)
+    }
+
+    fn read_evaluated_inner(
+        &mut self,
+        bytes: &[u8],
+        location: Option<&Location>,
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
         let (file, offset) = location.map_or((b"".as_slice(), 0), |location| {
             (location.file.as_ref(), location.line.saturating_sub(1))
         });
-        if self.evaluation_depth >= 128 {
+        if context.evaluation_stack.is_none() && self.evaluation_depth >= 128 {
             return Err(ParseError {
                 location: Location {
                     file: file.into(),
@@ -2461,10 +2603,12 @@ impl Database {
         let suppress_default = std::mem::replace(&mut self.suppress_default_goal, false);
         let result = self
             .read_at(
-                &bytes[..bytes
-                    .iter()
-                    .position(|byte| *byte == 0)
-                    .unwrap_or(bytes.len())],
+                ParserReader::memory(
+                    &bytes[..bytes
+                        .iter()
+                        .position(|byte| *byte == 0)
+                        .unwrap_or(bytes.len())],
+                ),
                 file,
                 Some(offset + 1),
                 context,
@@ -2482,30 +2626,108 @@ impl Database {
 
     fn read_at(
         &mut self,
-        bytes: &[u8],
+        reader: ParserReader<'_>,
         file: &[u8],
         evaluated_at: Option<usize>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let context = &mut context;
-        let source_name: std::sync::Arc<[u8]> = file.into();
-        let mut reader = Reader::new(bytes);
-        // Keep declaration boundaries until its first recipe is seen: GNU
-        // places that declaration's prerequisites before earlier declarations.
-        let mut declaration = RuleDeclaration::default();
-        let mut conditions = Vec::<Conditional>::new();
-        let mut last_line = 0;
-        loop {
+        let entry_depth = self.include_depth;
+        let result = self.read_frames(reader, file, evaluated_at, &mut context);
+        self.include_depth = entry_depth;
+        result
+    }
+
+    fn read_frames(
+        &mut self,
+        reader: ParserReader<'_>,
+        file: &[u8],
+        evaluated_at: Option<usize>,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        let mut frames = vec![ReadFrame::new(
+            reader,
+            file,
+            evaluated_at,
+            self.include_depth >= 128,
+        )];
+        let mut extra = 0;
+        while !frames.is_empty() {
+            let frame = frames.last_mut().expect("active reader frame");
             if context.is_cancelled() {
                 return Err(ParseError {
-                    location: Location {
-                        file: source_name.clone(),
-                        line: last_line.max(1),
-                    },
-                    message: Diagnostic::from("interrupted"),
                     unlocated: true,
+                    location: Location {
+                        file: frame.source_name.clone(),
+                        line: frame.last_line.max(1),
+                    },
+                    message: "interrupted".into(),
                 });
             }
+            frame.account(&mut extra)?;
+            if let Some(pending) = &mut frame.pending {
+                let location = pending.location.clone();
+                let optional = pending.optional;
+                if let Some(path) = pending.paths.next() {
+                    self.file_records.insert(&path);
+                    let result = context.read_include(&path).ok_or_else(|| ParseError {
+                        unlocated: false,
+                        location: location.clone(),
+                        message: "rmake: include requires a makefile reader".into(),
+                    })?;
+                    match result {
+                        Ok(included) => {
+                            self.makefiles.push(Makefile {
+                                name: included.name.clone(),
+                                optional,
+                                missing: false,
+                                read_error: None,
+                            });
+                            self.variables
+                                .append_literal_at(
+                                    b"MAKEFILE_LIST",
+                                    &included.name,
+                                    Origin::File,
+                                    &location,
+                                )
+                                .map_err(|e| ParseError {
+                                    unlocated: false,
+                                    location: location.clone(),
+                                    message: e.diagnostic(),
+                                })?;
+                            self.include_depth += 1;
+                            frames.push(ReadFrame::new(
+                                ParserReader::owned(included.input),
+                                &path,
+                                None,
+                                self.include_depth >= 128,
+                            ));
+                        }
+                        Err(error) => {
+                            if error == b"Is a directory" {
+                                return Err(source_read_error(&path, error));
+                            }
+                            self.makefiles.push(Makefile {
+                                name: path,
+                                optional,
+                                missing: true,
+                                read_error: Some((location, error)),
+                            });
+                        }
+                    }
+                    continue;
+                }
+                frame.pending = None;
+            }
+            let ReadFrame {
+                reader,
+                source_name,
+                evaluated_at,
+                declaration,
+                conditions,
+                last_line,
+                ..
+            } = frame;
+            let evaluated_at = *evaluated_at;
             let prefix = self
                 .variables
                 .get(b".RECIPEPREFIX")
@@ -2515,15 +2737,52 @@ impl Database {
             if evaluated_at == Some(1) {
                 reader.skip_eval_bom();
             }
-            let Some(mut line) = reader.next_line(prefix, !declaration.targets.is_empty()) else {
-                break;
+            let Some(mut line) = reader
+                .next_line(prefix, !declaration.targets.is_empty())
+                .map_err(|message| source_read_error(source_name, message))?
+            else {
+                if !conditions.is_empty() {
+                    return Err(ParseError {
+                        unlocated: false,
+                        location: Location {
+                            file: source_name.clone(),
+                            line: evaluated_at.unwrap_or(*last_line + 1),
+                        },
+                        message: "missing 'endif'".into(),
+                    });
+                }
+                self.finish_declaration(
+                    declaration,
+                    &Location {
+                        file: source_name.clone(),
+                        line: evaluated_at.unwrap_or(*last_line + 1),
+                    },
+                    context,
+                )?;
+                reader.finish();
+                let finished = frames.pop().expect("finished source");
+                extra -= finished.charged;
+                if !frames.is_empty() {
+                    self.include_depth -= 1;
+                }
+                continue;
             };
+            if context.is_cancelled() {
+                return Err(ParseError {
+                    unlocated: true,
+                    location: Location {
+                        file: source_name.clone(),
+                        line: line.line,
+                    },
+                    message: "interrupted".into(),
+                });
+            }
             // GNU strips one UTF-8 BOM from the first observed logical line,
             // after file-stream reads have already counted its bytes.
             if evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
                 line.bytes.drain(..3);
             }
-            last_line = line.end_line;
+            *last_line = line.end_line;
             let location = Location {
                 file: source_name.clone(),
                 line: evaluated_at.unwrap_or(line.line),
@@ -2540,7 +2799,7 @@ impl Database {
             if line.recipe {
                 if active {
                     self.add_recipe(
-                        &mut declaration,
+                        declaration,
                         Recipe {
                             bytes: line.bytes[1..].to_vec(),
                             location,
@@ -2562,7 +2821,7 @@ impl Database {
             // branch. Recognition itself has no expansion effects.
             if let Some(spec) = assignment(text) {
                 if active {
-                    self.finish_declaration(&mut declaration, &location, context)?;
+                    self.finish_declaration(declaration, &location, context)?;
                     self.define(spec, Origin::File, &location, &location, context)?;
                 }
                 continue;
@@ -2660,7 +2919,7 @@ impl Database {
                 && let Some(header) = directive(variable_text, b"define")
             {
                 let definition = if active {
-                    self.finish_declaration(&mut declaration, &location, context)?;
+                    self.finish_declaration(declaration, &location, context)?;
                     let spec = assignment(header);
                     if spec.as_ref().is_some_and(|spec| !spec.value.is_empty()) {
                         record_warning(
@@ -2697,7 +2956,17 @@ impl Database {
                 let mut depth = 1;
                 let mut warning_line = location.line;
                 loop {
-                    let Some(part) = reader.next_line(prefix, false) else {
+                    if context.is_cancelled() {
+                        return Err(ParseError {
+                            unlocated: true,
+                            location: location.clone(),
+                            message: "interrupted".into(),
+                        });
+                    }
+                    let Some(part) = reader
+                        .next_line(prefix, false)
+                        .map_err(|message| source_read_error(source_name, message))?
+                    else {
                         if !active {
                             // Ignored definitions are skipped by the outer
                             // reader, whose EOF error is the open conditional.
@@ -2709,6 +2978,13 @@ impl Database {
                             message: "missing 'endef', unterminated 'define'".into(),
                         });
                     };
+                    if context.is_cancelled() {
+                        return Err(ParseError {
+                            unlocated: true,
+                            location: location.clone(),
+                            message: "interrupted".into(),
+                        });
+                    }
                     for _ in 0..reader.take_nul_warnings() {
                         record_warning(
                             &mut self.warnings,
@@ -2721,7 +2997,7 @@ impl Database {
                         );
                     }
                     warning_line += part.end_line - part.line + 1;
-                    last_line = part.end_line;
+                    *last_line = part.end_line;
                     if !active {
                         // Ignored definitions have no nesting counter: the
                         // first standalone endef resumes conditional reading.
@@ -2773,7 +3049,7 @@ impl Database {
                         &location,
                         &Location {
                             file: source_name.clone(),
-                            line: last_line,
+                            line: *last_line,
                         },
                         context,
                     )?;
@@ -2790,7 +3066,7 @@ impl Database {
                 continue;
             }
             if let Some(spec) = variable_assignment {
-                self.finish_declaration(&mut declaration, &location, context)?;
+                self.finish_declaration(declaration, &location, context)?;
                 let name = self.define(spec, origin, &location, &location, context)?;
                 if private {
                     self.variables.set_private(&name, true);
@@ -2801,7 +3077,7 @@ impl Database {
                 continue;
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
-                self.finish_declaration(&mut declaration, &location, context)?;
+                self.finish_declaration(declaration, &location, context)?;
                 let name = self.expand(rest, &location, context)?;
                 let name = trim(&name);
                 if self.variables.can_undefine(name, origin) {
@@ -2832,7 +3108,7 @@ impl Database {
                 .map(|names| (true, names))
                 .or_else(|| directive(text, b"unexport").map(|names| (false, names)));
             if let Some((export, text)) = export_list {
-                self.finish_declaration(&mut declaration, &location, context)?;
+                self.finish_declaration(declaration, &location, context)?;
                 // Only a syntactically empty directive changes export-all.
                 // An expression that expands to no names still has its effects,
                 // but does not become an empty directive after evaluation.
@@ -2860,10 +3136,13 @@ impl Database {
                 continue;
             }
             if [b"include".as_slice(), b"-include", b"sinclude"].contains(&keyword) {
-                self.finish_declaration(&mut declaration, &location, context)?;
-                let names = self.expand(directive(text, keyword).unwrap(), &location, context)?;
-                let optional = keyword != b"include";
-                for mut name in crate::filenames::sequence(&names) {
+                self.finish_declaration(declaration, &location, context)?;
+                let expanded =
+                    self.expand(directive(text, keyword).unwrap(), &location, context)?;
+                let mut paths = Vec::new();
+                // Filename interpretation completes before the first child is
+                // read. Child effects cannot alter this prepared path list.
+                for mut name in crate::filenames::sequence(&expanded) {
                     name = crate::filenames::without_dot_prefix(&name).to_vec();
                     if self.filename_scratch.is_some() {
                         self.write_filename(&name, 0);
@@ -2871,17 +3150,17 @@ impl Database {
                     if name.starts_with(b"~") {
                         name = self
                             .rule_tilde(&name, &mut context.at(Some(&location)))
-                            .map_err(|error| ParseError {
-                                unlocated: error.is_unlocated(),
-                                location: error
+                            .map_err(|e| ParseError {
+                                unlocated: e.is_unlocated(),
+                                location: e
                                     .diagnostic_location(Some(&location))
                                     .unwrap_or(&location)
                                     .clone(),
-                                message: error.diagnostic(),
+                                message: e.diagnostic(),
                             })?
                             .into_owned();
                     }
-                    let matches = if name.iter().any(|byte| matches!(byte, b'*' | b'?' | b'[')) {
+                    let matches = if name.iter().any(|b| matches!(b, b'*' | b'?' | b'[')) {
                         context
                             .perform_filesystem(FilesystemEffect::Wildcard(&name))
                             .and_then(Result::ok)
@@ -2889,74 +3168,24 @@ impl Database {
                     } else {
                         Vec::new()
                     };
-                    let paths = if matches.is_empty() {
-                        vec![name.to_vec()]
+                    if matches.is_empty() {
+                        paths.push(name);
                     } else {
-                        words(&matches).map(Vec::from).collect()
-                    };
-                    for path in paths {
-                        self.file_records.insert(&path);
-                        let result = context.read_include(&path).ok_or_else(|| ParseError {
-                            unlocated: false,
-                            location: location.clone(),
-                            message: "rmake: include requires a makefile reader".into(),
-                        })?;
-                        match result {
-                            Ok(included) => {
-                                if self.include_depth >= 128 {
-                                    return Err(ParseError {
-                                        unlocated: false,
-                                        location: location.clone(),
-                                        message: "rmake: makefile inclusion nesting limit exceeded"
-                                            .into(),
-                                    });
-                                }
-                                self.makefiles.push(Makefile {
-                                    name: included.name.clone(),
-                                    optional,
-                                    missing: false,
-                                    read_error: None,
-                                });
-                                self.variables
-                                    .append_literal_at(
-                                        b"MAKEFILE_LIST",
-                                        &included.name,
-                                        Origin::File,
-                                        &location,
-                                    )
-                                    .map_err(|error| ParseError {
-                                        unlocated: false,
-                                        location: location.clone(),
-                                        message: error.diagnostic(),
-                                    })?;
-                                self.include_depth += 1;
-                                let result =
-                                    self.read_with(&included.bytes, &path, context.reborrow());
-                                self.include_depth -= 1;
-                                result?;
-                            }
-                            Err(error) => {
-                                if error == b"Is a directory" {
-                                    return Err(ParseError {
-                                        unlocated: true,
-                                        location: location.clone(),
-                                        message: [path.as_slice(), b": ", &error].concat().into(),
-                                    });
-                                }
-                                self.makefiles.push(Makefile {
-                                    name: path,
-                                    optional,
-                                    missing: true,
-                                    read_error: Some((location.clone(), error)),
-                                });
-                            }
-                        }
+                        paths.extend(words(&matches).map(Vec::from));
                     }
                 }
+                let retained = paths.iter().map(Vec::capacity).sum::<usize>()
+                    + paths.capacity() * std::mem::size_of::<Vec<u8>>();
+                frame.pending = Some(IncludeWork {
+                    paths: paths.into_iter(),
+                    retained,
+                    optional: keyword != b"include",
+                    location,
+                });
                 continue;
             }
             if keyword == b"vpath" {
-                self.finish_declaration(&mut declaration, &location, context)?;
+                self.finish_declaration(declaration, &location, context)?;
                 let value = self.expand(directive(text, b"vpath").unwrap(), &location, context)?;
                 let mut names = words(&value);
                 if let Some(pattern) = names.next() {
@@ -2980,7 +3209,7 @@ impl Database {
                 continue;
             }
             if keyword == b"load" {
-                self.finish_declaration(&mut declaration, &location, context)?;
+                self.finish_declaration(declaration, &location, context)?;
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -2991,7 +3220,7 @@ impl Database {
                     .into(),
                 });
             }
-            self.finish_declaration(&mut declaration, &location, context)?;
+            self.finish_declaration(declaration, &location, context)?;
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
                 return Err(ParseError {
                     unlocated: false,
@@ -3193,7 +3422,7 @@ impl Database {
                 .or_else(|| expanded_inline.map(|i| expanded_line[i + 1..].to_vec()));
             if let Some(bytes) = recipe {
                 self.add_recipe(
-                    &mut declaration,
+                    declaration,
                     Recipe {
                         bytes,
                         location,
@@ -3202,24 +3431,6 @@ impl Database {
                 );
             }
         }
-        if !conditions.is_empty() {
-            return Err(ParseError {
-                unlocated: false,
-                location: Location {
-                    file: source_name.clone(),
-                    line: evaluated_at.unwrap_or(last_line + 1),
-                },
-                message: "missing 'endif'".into(),
-            });
-        }
-        self.finish_declaration(
-            &mut declaration,
-            &Location {
-                file: source_name.clone(),
-                line: evaluated_at.unwrap_or(last_line + 1),
-            },
-            context,
-        )?;
         Ok(())
     }
 
@@ -3650,7 +3861,7 @@ mod tests {
         let mut include = |_: &[u8]| {
             Ok(crate::diagnostic::IncludedFile {
                 name: b"child.mk".to_vec(),
-                bytes: b"$(error included)\n".to_vec(),
+                input: crate::reader::Input::Bytes(b"$(error included)\n".to_vec()),
             })
         };
         let error = db

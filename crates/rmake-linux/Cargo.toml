@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 rmake-core = { path = "../rmake-core" }
+stacker = "=0.1.25"
 
 # Semantic and application crates retain the workspace-wide forbid. Only the
 # private stdio and POSIX adapters may contain reviewed FFI.

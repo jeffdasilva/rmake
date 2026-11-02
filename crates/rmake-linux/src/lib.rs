@@ -7,6 +7,7 @@
 compile_error!("rmake-linux requires Linux");
 
 pub mod archive;
+pub mod evaluation;
 pub mod filesystem;
 pub mod timestamp;
 // The public surface owns descriptors/tokens; only this adapter performs the

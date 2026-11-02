@@ -546,7 +546,7 @@ impl Expansion<'_, '_> {
                     m.values.push(result?);
                     return Ok(());
                 }
-                if self.active.iter().any(|(n, l)| *n == name && *l == layer) {
+                if self.active_keys().any(|(n, l)| *n == name && *l == layer) {
                     return Err(
                         ExpandError::RecursiveVariable(name).at(variable.definition.as_ref())
                     );

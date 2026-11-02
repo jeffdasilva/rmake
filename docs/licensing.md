@@ -222,3 +222,5 @@ The [switch-origin notes](switch-origins.md) identify option, flag-definition, i
 The [restart directory notes](restart-directories.md) identify the fixed-reference invocation, restart and jobserver cleanup behavior consulted for independently authored Rust code and original namespace/byte-path fixtures.
 
 The [profile-input notes](profile-inputs.md) identify the fixed-reference switch-source, Guile registration and expansion-boundary sources consulted for independently authored Rust code, Makefiles and tooling tests. The option inventory is an acceptance audit rather than copied implementation.
+
+The Linux evaluation-stack adapter uses the pinned `stacker` package through its safe API. Exact runtime/build dependency versions, checksums and retained license texts are listed in [third-party notices](../THIRD_PARTY_NOTICES.md) and [the license manifest](../licenses/third-party/manifest.json). No dependency implementation is represented as rmake-authored material.

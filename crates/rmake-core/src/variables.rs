@@ -353,8 +353,8 @@ impl ExpandError {
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
             Self::Located { error, .. } => error.diagnostic(),
+            Self::UnlocatedError(message) => Diagnostic::Unlocated(message.clone()),
             Self::FileError(message)
-            | Self::UnlocatedError(message)
             | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => message.clone().into(),
@@ -1483,6 +1483,7 @@ impl VariableStore {
             store: StoreAccess::Write(self),
             bindings: Vec::new(),
             active: Vec::new(),
+            inherited_active: None,
             depth: 0,
             logical_depth: 0,
             machine_nesting: 0,
@@ -1501,6 +1502,7 @@ impl VariableStore {
             store: StoreAccess::Write(self),
             bindings: Vec::new(),
             active: Vec::new(),
+            inherited_active: None,
             depth: 0,
             logical_depth: 0,
             machine_nesting: 0,
@@ -1526,6 +1528,7 @@ impl VariableStore {
             store: StoreAccess::Write(self),
             bindings: Vec::new(),
             active: Vec::new(),
+            inherited_active: None,
             depth: 0,
             logical_depth: 0,
             machine_nesting: 0,
@@ -1589,6 +1592,7 @@ impl VariableStore {
             store: StoreAccess::Write(self),
             bindings: Vec::new(),
             active: Vec::new(),
+            inherited_active: None,
             depth: 0,
             logical_depth: 0,
             machine_nesting: 0,
@@ -1616,6 +1620,7 @@ impl VariableStore {
             store: StoreAccess::Read(self),
             bindings: Vec::new(),
             active: Vec::new(),
+            inherited_active: None,
             depth: 0,
             logical_depth: 0,
             machine_nesting: 0,
@@ -1954,6 +1959,7 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
+    let inherited_active = db.evaluation_active.clone();
     let bindings = if db.evaluation_bindings.is_empty() {
         Vec::new()
     } else {
@@ -1966,6 +1972,7 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
         },
         bindings,
         active: Vec::new(),
+        inherited_active,
         depth: 0,
         logical_depth: 0,
         machine_nesting: 0,
@@ -1989,6 +1996,7 @@ pub(crate) fn expand_environment_database(
     let Some((layer, variable)) = environment.lookup_from(name, 0) else {
         return Ok(Vec::new());
     };
+    let inherited_active = db.evaluation_active.clone();
     let bindings = if db.evaluation_bindings.is_empty() {
         Vec::new()
     } else {
@@ -2007,6 +2015,7 @@ pub(crate) fn expand_environment_database(
         },
         bindings,
         active: Vec::new(),
+        inherited_active,
         depth: 0,
         logical_depth: 0,
         machine_nesting: 0,
@@ -2038,6 +2047,7 @@ pub(crate) fn expand_database<const NAMED: bool>(
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
+    let inherited_active = db.evaluation_active.clone();
     let bindings = if db.evaluation_bindings.is_empty() {
         Vec::new()
     } else {
@@ -2047,6 +2057,7 @@ pub(crate) fn expand_database<const NAMED: bool>(
         store: StoreAccess::Database(db),
         bindings,
         active: Vec::new(),
+        inherited_active,
         depth: 0,
         logical_depth: 0,
         machine_nesting: 0,
@@ -2065,6 +2076,7 @@ pub(crate) fn shell_database(
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
+    let inherited_active = db.evaluation_active.clone();
     let bindings = if db.evaluation_bindings.is_empty() {
         Vec::new()
     } else {
@@ -2087,6 +2099,7 @@ pub(crate) fn shell_database(
             store,
             bindings,
             active: Vec::new(),
+            inherited_active,
             depth: 0,
             logical_depth: 0,
             machine_nesting: 0,
@@ -2114,10 +2127,18 @@ enum LiteralChain {
     Error(ExpandError),
 }
 
+#[derive(Clone)]
+pub(crate) struct ActiveContext {
+    keys: Vec<(Vec<u8>, Option<usize>)>,
+    parent: Option<Arc<ActiveContext>>,
+    count: usize,
+}
+
 struct Expansion<'a, 'b> {
     store: StoreAccess<'a>,
     bindings: Vec<LocalFrame>,
     active: Vec<(Vec<u8>, Option<usize>)>,
+    inherited_active: Option<Arc<ActiveContext>>,
     depth: usize,
     logical_depth: usize,
     machine_nesting: usize,
@@ -2145,6 +2166,29 @@ impl Expansion<'_, '_> {
             .rev()
             .find_map(|scope| scope.get(name))
             .or_else(|| self.store.get(name))
+    }
+
+    fn active_keys(&self) -> impl Iterator<Item = &(Vec<u8>, Option<usize>)> {
+        self.active.iter().chain(
+            std::iter::successors(self.inherited_active.as_deref(), |node| {
+                node.parent.as_deref()
+            })
+            .flat_map(|node| node.keys.iter()),
+        )
+    }
+    fn active_count(&self) -> usize {
+        self.active.len() + self.inherited_active.as_ref().map_or(0, |node| node.count)
+    }
+    fn snapshot_active(&self) -> Option<Arc<ActiveContext>> {
+        if self.active.is_empty() {
+            self.inherited_active.clone()
+        } else {
+            Some(Arc::new(ActiveContext {
+                keys: self.active.clone(),
+                parent: self.inherited_active.clone(),
+                count: self.active_count(),
+            }))
+        }
     }
 
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
@@ -2292,8 +2336,7 @@ impl Expansion<'_, '_> {
         mut layer: Option<usize>,
     ) -> Option<LiteralChain> {
         let mut seen: std::collections::HashSet<_> = self
-            .active
-            .iter()
+            .active_keys()
             .map(|(name, layer)| (name.as_slice(), *layer))
             .collect();
         let mut nearest_definition: Option<Arc<Location>> = None;
@@ -2398,8 +2441,7 @@ impl Expansion<'_, '_> {
             return result;
         }
         if self
-            .active
-            .iter()
+            .active_keys()
             .any(|(active, active_layer)| active == name && *active_layer == layer)
         {
             return Err(
@@ -2627,7 +2669,7 @@ impl Expansion<'_, '_> {
             }
             // GNU uses the original process environment when constructing an
             // exported recursive variable would re-enter the current binding.
-            if self.active.iter().any(|(active, _)| *active == name) {
+            if self.active_keys().any(|(active, _)| *active == name) {
                 environment.push((name, crate::diagnostic::EnvironmentValue::Original));
                 continue;
             }
@@ -2697,7 +2739,61 @@ impl Expansion<'_, '_> {
         Ok(output)
     }
 
+    fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        let location = self.context.location.cloned();
+        let active = self.snapshot_active();
+        let result = match &mut self.store {
+            StoreAccess::Database(db) => db.evaluate_in(
+                first,
+                location.as_ref(),
+                None,
+                self.bindings.clone(),
+                active,
+                self.context.reborrow(),
+            ),
+            StoreAccess::Scoped {
+                database,
+                variables,
+            } => {
+                let result = database.evaluate_in(
+                    first,
+                    location.as_ref(),
+                    Some(*variables),
+                    self.bindings.clone(),
+                    active,
+                    self.context.reborrow(),
+                );
+                variables.refresh_globals(&database.variables);
+                result
+            }
+            _ => return Err(ExpandError::Unsupported(b"eval".to_vec())),
+        };
+        result.map_err(|error| {
+            if error.message.is_unlocated() {
+                ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
+            } else if error.unlocated {
+                // Without a caller, an eval syntax/phase error still
+                // inherits its enclosing binding's validation locus.
+                ExpandError::FileError(error.message.as_bytes().to_vec())
+            } else {
+                ExpandError::Located {
+                    location: Arc::new(error.location),
+                    error: Box::new(ExpandError::FileError(error.message.as_bytes().to_vec())),
+                }
+            }
+        })?;
+        Ok(Vec::new())
+    }
+
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
+        if name == b"eval" {
+            self.evaluate_buffer(args.first().map(Vec::as_slice).unwrap_or_default())
+        } else {
+            self.eager_builtin(name, args)
+        }
+    }
+
+    fn eager_builtin(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
         if matches!(name, b"word" | b"wordlist") {
             let minimum = if name == b"word" { 2 } else { 3 };
             if args.len() < minimum {
@@ -2707,48 +2803,6 @@ impl Expansion<'_, '_> {
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
             b"shell" => self.shell(first),
-            b"eval" => {
-                let location = self.context.location.cloned();
-                let result = match &mut self.store {
-                    StoreAccess::Database(db) => db.evaluate_in(
-                        first,
-                        location.as_ref(),
-                        None,
-                        self.bindings.clone(),
-                        self.context.reborrow(),
-                    ),
-                    StoreAccess::Scoped {
-                        database,
-                        variables,
-                    } => {
-                        let result = database.evaluate_in(
-                            first,
-                            location.as_ref(),
-                            Some(*variables),
-                            self.bindings.clone(),
-                            self.context.reborrow(),
-                        );
-                        variables.refresh_globals(&database.variables);
-                        result
-                    }
-                    _ => return Err(ExpandError::Unsupported(name.to_vec())),
-                };
-                result.map_err(|error| {
-                    if error.unlocated {
-                        // Without a caller, an eval syntax/phase error still
-                        // inherits its enclosing binding's validation locus.
-                        ExpandError::FileError(error.message.as_bytes().to_vec())
-                    } else {
-                        ExpandError::Located {
-                            location: Arc::new(error.location),
-                            error: Box::new(ExpandError::FileError(
-                                error.message.as_bytes().to_vec(),
-                            )),
-                        }
-                    }
-                })?;
-                Ok(Vec::new())
-            }
 
             b"wildcard" => {
                 let session = self.store.begin_filename_session(first.contains(&b'~'));

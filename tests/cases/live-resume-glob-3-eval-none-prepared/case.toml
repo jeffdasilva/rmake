@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-resume-glob-3-eval-none-prepared"
+requirement = "includes.live-sources"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Onone"]
+timeout_seconds = 5
+description = "Original live source lifetime, include/eval continuation, identity, buffering, error or output-checked scaling model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "4f4c440a444f4e450a"
+"stderr_hex" = ""

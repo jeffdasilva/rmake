@@ -1,0 +1,5 @@
+ifeq (yes,yes)
+$(file >>seen,b107)
+-include f108.mk
+$(file >>seen,a107)
+endif
