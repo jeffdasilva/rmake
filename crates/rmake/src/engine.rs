@@ -4,6 +4,7 @@
 //! Linux filesystem, dependency traversal and process execution boundary.
 //! No persistent cache and no delegation to GNU Make are involved.
 
+mod assumptions;
 mod initial;
 mod runtime_options;
 mod startup;
@@ -267,13 +268,17 @@ enum CompletionTime {
     Unchanged,
     Preserve,
     AssumeNew,
+    AssumeNewPhony,
     Refresh,
     ArchiveUnknown,
 }
 
 impl CompletionTime {
     fn preserves(self) -> bool {
-        matches!(self, Self::Preserve | Self::AssumeNew)
+        matches!(
+            self,
+            Self::Preserve | Self::AssumeNew | Self::AssumeNewPhony
+        )
     }
 }
 
@@ -564,7 +569,7 @@ struct DoubleColonState {
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
-    branches: std::collections::VecDeque<Rule>,
+    branches: std::collections::VecDeque<Option<Rule>>,
     active: bool,
     last_epoch: Option<u64>,
     combined: Outcome,
@@ -629,6 +634,7 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
+    assumptions: Option<Box<assumptions::Files>>,
     initial_plan: Option<Box<initial::Plan>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
@@ -1028,6 +1034,8 @@ impl Engine {
         let initial_plan = Some(plan);
         let mut engine = Self {
             initial_plan,
+            assumptions: assumptions::Files::from_options(&options)
+                .map_err(|message| StartupError::from(Diagnostic::from(message.to_vec())))?,
             startup_directory,
             output,
             reader_output,
@@ -1993,6 +2001,9 @@ impl Engine {
                 .iter()
                 .map(|file| file.name.clone())
                 .collect();
+            if let Some(files) = &mut self.assumptions {
+                files.bind(&mut self.database);
+            }
             self.output.select(None);
             if let Some(buffer) = self.reader_output.take() {
                 buffer.dump();
@@ -2047,7 +2058,9 @@ impl Engine {
                 if promoted_required {
                     makefile.optional = false;
                 }
-                if !self.resolve_implicit(&makefile.name) {
+                if !self.ignores_file_rules(&makefile.name)
+                    && !self.resolve_implicit(&makefile.name)
+                {
                     self.remove_intermediates();
                     return 2;
                 }
@@ -2562,6 +2575,7 @@ impl Engine {
         };
         let target = prepared.as_deref().unwrap_or(target);
         let direct = depth >= 512
+            || self.assumed_time(target).is_some()
             || self.done.contains_key(target)
             || self.pending(target)
             || !self.intermediate(target)
@@ -3156,6 +3170,9 @@ impl Engine {
         outcome.ran = true;
         outcome.failed |= failed;
         self.record_graph_failure(outcome);
+        if !self.parallel_jobs.contains_key(&target) {
+            self.release_assumed_new(&target);
+        }
         outcome.time = if job.phony {
             None
         } else if self.parallel_jobs.contains_key(&target) {
@@ -3188,6 +3205,7 @@ impl Engine {
         if (!self.database.has_vpaths() && self.vpath_dirs.is_empty() && !target.starts_with(b"-l"))
             || self.makefile_names.contains(target)
             || self.path_observations.contains_key(target)
+            || self.assumed_time(target).is_some()
             || self.done.contains_key(target)
             || self.pending(target)
             || self.visiting.contains(target)
@@ -3529,6 +3547,9 @@ impl Engine {
     }
 
     fn modified(&self, name: &[u8]) -> Option<SystemTime> {
+        if let Some(time) = self.assumed_time(name) {
+            return Some(time);
+        }
         if let Some(cached) = self.archive_completion_times.get(name) {
             return cached.time;
         }
@@ -3575,11 +3596,13 @@ impl Engine {
                 // a stale positive when a fresh stat no longer finds it.
                 let physical = modified(&name);
                 if declared || physical.is_some() {
-                    let time = if self.options.check_symlink_times {
-                        self.name_time(&name)
-                    } else {
-                        physical
-                    };
+                    let time = self.assumed_time(&lookup).or_else(|| {
+                        if self.options.check_symlink_times {
+                            self.name_time(&name)
+                        } else {
+                            physical
+                        }
+                    });
                     return Ok(Some((Some(name), time)));
                 }
             }
@@ -3700,6 +3723,9 @@ impl Engine {
     }
 
     fn find_vpath(&mut self, target: &[u8]) -> Result<PathObservation, ExpandError> {
+        if let Some(time) = self.assumed_time(target) {
+            return Ok(Some((None, Some(time))));
+        }
         if rmake_core::filenames::archive_parts(target).is_some() {
             return self
                 .archive_observation(target)
@@ -4642,6 +4668,7 @@ impl Engine {
         let previously_done = archive_target && self.done.contains_key(target);
         let mut outcome = if archive_target
             && !previously_done
+            && self.assumed_time(target).is_none()
             && !self.pending(target)
             && self.archive_metadata_error(target, true)
         {
@@ -4725,6 +4752,15 @@ impl Engine {
             self.apply_graph_abort(&mut outcome);
             return outcome;
         }
+        if self.ignores_file_rules(target) {
+            let outcome = Outcome {
+                time: self.assumed_time(target),
+                completion: CompletionTime::Preserve,
+                ..Outcome::default()
+            };
+            self.done.insert(target.to_vec(), outcome);
+            return outcome;
+        }
         if depth >= 512 {
             self.fatal(None, b"rmake: dependency nesting limit exceeded");
             return Outcome {
@@ -4742,7 +4778,7 @@ impl Engine {
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
         let observed = self.path_observations.remove(target);
-        let resolved = if phony && observed.is_none() {
+        let resolved = if phony && observed.is_none() && self.assumed_time(target).is_none() {
             None
         } else {
             match observed.map(Ok).unwrap_or_else(|| self.find_vpath(target)) {
@@ -4816,13 +4852,18 @@ impl Engine {
             return result;
         };
         if let Some(branches) = rule.double_colon.take() {
+            let mut branches: std::collections::VecDeque<_> =
+                branches.into_iter().map(Some).collect();
+            if self.new_double_colon_entry(target) {
+                branches.push_back(None);
+            }
             self.pending_double_colon.insert(
                 target.to_vec(),
                 DoubleColonState {
                     depth,
                     before,
                     phony,
-                    branches: branches.into(),
+                    branches,
                     active: false,
                     last_epoch: None,
                     combined: Outcome {
@@ -4891,7 +4932,7 @@ impl Engine {
             if self.graph_abort.is_some() {
                 state.branches.clear();
             }
-            let Some(branch) = state.branches.pop_front() else {
+            let Some(entry) = state.branches.pop_front() else {
                 state.combined.time = if state.phony {
                     None
                 } else if state.combined.completion.preserves() {
@@ -4901,6 +4942,20 @@ impl Engine {
                 };
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
+            };
+            let Some(branch) = entry else {
+                // An input-only double-colon record has no declared rule or
+                // parent diagnostic locus. Process it in the same ordered queue.
+                if !self.optional_remake {
+                    self.show_makefile_error();
+                    self.report_missing_rule(target, None);
+                }
+                state.combined.failed = true;
+                self.record_graph_failure(state.combined);
+                if !self.options.keep_going {
+                    state.branches.clear();
+                }
+                continue;
             };
             if let Some(id) = branch.grouped_double_id() {
                 if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
@@ -4919,7 +4974,7 @@ impl Engine {
                     continue;
                 }
                 if self.active_group_branches.contains(&id) {
-                    state.branches.push_front(branch);
+                    state.branches.push_front(Some(branch));
                     let outcome = state.combined;
                     self.pending_double_colon.insert(target.to_vec(), state);
                     return outcome;
@@ -5506,9 +5561,23 @@ impl Engine {
     }
 
     fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
-        self.options.always
-            || child.completion == CompletionTime::AssumeNew
-            || before.is_none()
+        if self.options.always {
+            return true;
+        }
+        if child.completion == CompletionTime::AssumeNew
+            && self
+                .assumptions
+                .as_ref()
+                .is_some_and(|files| files.is_new_time(before))
+        {
+            // A non-executed ordinary prerequisite gets the same logical
+            // newest time; it cannot be newer than an explicitly newest parent.
+            return false;
+        }
+        matches!(
+            child.completion,
+            CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
+        ) || before.is_none()
             || child.time.is_none()
             || child.time > before
     }
@@ -5750,7 +5819,11 @@ impl Engine {
                         && !execution.all_recursive
                     {
                         if rule.grouped_targets().is_none() || execution.ran {
-                            CompletionTime::AssumeNew
+                            if phony {
+                                CompletionTime::AssumeNewPhony
+                            } else {
+                                CompletionTime::AssumeNew
+                            }
                         } else {
                             CompletionTime::Preserve
                         }
@@ -5794,6 +5867,12 @@ impl Engine {
                 .is_some_and(|stamp| !stamp.known)
             {
                 outcome.completion = CompletionTime::ArchiveUnknown;
+            }
+            if outcome.ran
+                && !self.parallel_jobs.contains_key(target)
+                && !outcome.completion.preserves()
+            {
+                self.release_assumed_new(target);
             }
             outcome.time = if phony {
                 None

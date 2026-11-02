@@ -2553,3 +2553,23 @@ Outer append bindings now retain their pre-effect snapshots and evaluate iterati
 ## M3/M6 eval allocation profiling controls
 
 [Recipe-free eval profiles](eval-allocation-profiles.md) add three required every-read controls and extend the frozen allocation flow. The ordinary corpus is 15,396 required / zero pending, plus 17 unchanged separate safe errors. Experimental ownership/frame changes lowered measured allocation requests but showed repeated elapsed regressions; their source patches, all observations and build controls are retained, and the validated runtime from PR #142 is preserved. Formatting, lint, 509 Rust and 510 tooling tests pass; exact-head CI remains the merge gate. Full M3/M6 and general performance parity remain open.
+
+## M3/M6: assumed file options (2026-11-01)
+
+[Invocation-only old and what-if files](assumed-files.md) implement `-o`/`-W`
+and exact aliases, initial byte/path handling, ordinary traversal suppression,
+logical old/new timestamps, phony hypothetical completion, ordered double-colon
+input tails, VPATH/GPATH and makefile-remake behavior. Assumptions do not write
+physical timestamps or propagate automatically to child makes. Initial inherited
+flags participate; later reader/eval/recipe and command-binding flags do not add
+assumed files.
+
+631 original required models are qualified against two bounded GNU observations
+and frozen development/optimized executables. Original rejected expectations
+remain in raw evidence with zero credit. Five new Rust tests and tooling
+qualification/witness/phase checks accompany the standard and frozen self-hosted
+acceptance flows. The corpus becomes 16,027 required / zero pending; the same
+17 approved safe-error exceptions remain separate. Full M3/M6, enabled native/
+Guile profiles, remaining presentation/startup/decoder surfaces and general
+performance parity remain open. Validation and measurements are recorded with
+the PR; this entry is not a milestone-complete claim.
