@@ -90,7 +90,12 @@ Broader passive/source ordering and complete M3/M6 acceptance remain open.
 
 [Passive warning steps](passive-warning-phases.md) add 1,872 required models for
 post-read argument positions, source expansion, eager/lazy effects, priorities and `-e` phases.
-Complete GNUMAKEFLAGS/MAKEFLAGS source-effect ordering and M3/M6 remain open.
+Source completion is covered by the follow-up below; complete M3/M6 remains open.
+
+[Sequential passive sources](passive-source-order.md) add 1,290 required models
+for definition/source/clear ordering, diagnostic loci, retained invocation inputs
+and actual jobserver capacity. Within-source malformed values, contextual HOME
+and complete M3/M6 acceptance remain open.
 
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,

@@ -60,13 +60,18 @@ safe-error exceptions remain separately gated with zero exact-conformance credit
 
 ## Boundaries
 
-This orders policies among decoded passive definitions. The collector still
+This stage orders policies among decoded passive definitions. Its collector still
 expands the MAKEFLAGS source value before applying preceding GNUMAKEFLAGS payload
 definitions: complete source/effect ordering remains ordinary compatibility work.
 Effects before later malformed known values, contextual runtime HOME, finite
 nested getopt behavior, directory/debug/database output, startup usage, real
 exec/stdin, native loading, enabled Guile, broader Linux/locale/integration
 acceptance and general performance parity remain open. M3/M6 are not complete.
+
+The subsequent [sequential source follow-up](passive-source-order.md) closes the
+collector ordering gap. The observations above remain specific to this earlier
+stage; within-source malformed values, contextual HOME and broader acceptance
+still need their own qualification.
 
 The reference is x86-64 Linux/glibc, C locale, disabled Guile; profile
 `92525c9784f4dd471cceb12ce66a9d367e267b638e1384cdc29962b738d16de7`.

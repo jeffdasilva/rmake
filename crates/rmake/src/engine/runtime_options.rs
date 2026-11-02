@@ -236,8 +236,9 @@ impl Engine {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
-        let mut warning_entry = self.flag_state.warn_undefined.get();
-        let mut changed = Vec::new();
+        let entry_auth = self.options.jobserver_auth.clone();
+        let mut changed = false;
+        let mut file_jobs = None;
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
             if self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none() {
                 let expression = [b"$(".as_slice(), name, b")"].concat();
@@ -256,7 +257,7 @@ impl Engine {
                 .variables
                 .get(name)
                 .is_none_or(|value| value.raw_value() == *initial);
-            if unchanged && name == b"MAKEFLAGS" && !changed.is_empty() {
+            let value = if unchanged && name == b"MAKEFLAGS" && changed {
                 let prefix = self
                     .initial_flags
                     .strip_suffix(b" -- $(MAKEOVERRIDES)")
@@ -265,7 +266,7 @@ impl Engine {
                             .strip_suffix(b" -- $(-*-command-variables-*-)")
                     })
                     .unwrap_or(&self.initial_flags);
-                changed.push(prefix.to_vec());
+                Some(prefix.to_vec())
             } else if !unchanged {
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 match self.expand_global(&expression, None) {
@@ -280,31 +281,23 @@ impl Engine {
                         {
                             value.truncate(boundary);
                         }
-                        changed.push(value);
+                        Some(value)
                     }
                     Err(error) => {
                         self.expansion_error(None, &error);
                         return Err(());
                     }
                 }
-            }
-            // Expanding this source can itself decode MAKEFLAGS. Keep that
-            // resulting policy before preliminary option inspection enables
-            // warnings for the following source; then replay actual positions.
-            if name == b"GNUMAKEFLAGS" {
-                warning_entry = self.flag_state.warn_undefined.get();
-            }
-            if name == b"GNUMAKEFLAGS"
-                && !self.flag_state.warn_undefined.get()
-                && let Some(value) = changed.last()
-                && self
-                    .options
-                    .file_flags(std::slice::from_ref(value))
-                    .is_ok_and(|(options, _)| options.warn_undefined)
-            {
-                self.options.warn_undefined = true;
-                self.flag_state.warn_undefined.set(true);
-                self.flag_state.options.borrow_mut().warn_undefined = true;
+            } else {
+                None
+            };
+            if let Some(value) = value {
+                changed = true;
+                // Finish this owned source before expanding the next one.
+                // Nested effects therefore see and publish current state.
+                if let Some(jobs) = self.apply_runtime_flag_source(value)? {
+                    file_jobs = Some(jobs);
+                }
             }
             if name == b"GNUMAKEFLAGS"
                 && let Err(error) =
@@ -316,11 +309,69 @@ impl Engine {
                 return Err(());
             }
         }
-        if changed.is_empty() {
+        if !changed {
             return Ok(());
         }
+        if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs) {
+            if restarts == 0 && entry_auth.is_some() {
+                self.stderr(
+                    format!(
+                        "warning: -j{} forced in makefile: resetting jobserver mode.",
+                        if jobs == usize::MAX { 0 } else { jobs }
+                    )
+                    .as_bytes(),
+                );
+            }
+            self.jobserver.take();
+            self.options.jobserver_auth = None;
+        }
+        let mode = self
+            .options
+            .output_sync
+            .as_deref()
+            .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
+        let Some(mode) = mode else {
+            self.fatal(
+                None,
+                &[
+                    b"unknown output-sync type '".as_slice(),
+                    self.options.output_sync.as_deref().unwrap_or_default(),
+                    b"'",
+                ]
+                .concat(),
+            );
+            return Err(());
+        };
+        if self.options.jobserver_auth != entry_auth {
+            self.jobserver.take();
+        }
+        if let Err(error) = self.database.variables.update_mflags(
+            &self.options.recursive_flags(),
+            self.options.environment_override,
+        ) {
+            self.expansion_error(None, &error);
+            return Err(());
+        }
+        // Passive operands accumulate without rebuilding include search.
+        // Live MAKEFLAGS resets retain their separate publication boundary.
+        self.output.set_mode(mode);
+        if !mode.root_buffered() {
+            self.output.select(None);
+            if let Some(buffer) = self.reader_output.take() {
+                buffer.dump();
+            }
+        } else if self.reader_output.is_none() {
+            self.reader_output = self.output.make_buffer();
+            self.output.select(self.reader_output.as_ref());
+        }
+        Ok(())
+    }
+
+    fn apply_runtime_flag_source(&mut self, value: Vec<u8>) -> Result<Option<usize>, ()> {
+        // Source expansion can itself change policy; capture its completed state.
+        let warning_entry = self.flag_state.warn_undefined.get();
         let (mut updated, file_jobs, warning_positions) =
-            match self.options.file_flags_with_positions(&changed) {
+            match self.options.file_flags_with_positions(&[value]) {
                 Ok(updated) => updated,
                 Err(message) => {
                     self.fatal(None, message.as_bytes());
@@ -393,68 +444,19 @@ impl Engine {
                 updated = options;
             }
         }
-        if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs) {
-            if restarts == 0 && self.options.jobserver_auth.is_some() {
-                self.stderr(
-                    format!(
-                        "warning: -j{} forced in makefile: resetting jobserver mode.",
-                        if jobs == usize::MAX { 0 } else { jobs }
-                    )
-                    .as_bytes(),
-                );
-            }
-            self.jobserver.take();
-            updated.jobserver_auth = None;
-        }
         updated.files = std::mem::take(&mut self.options.files);
         updated.directories = std::mem::take(&mut self.options.directories);
         updated.goals = std::mem::take(&mut self.options.goals);
         updated.assignments = std::mem::take(&mut self.options.assignments);
         updated.assignment_context = std::mem::take(&mut self.options.assignment_context);
+        updated.assignment_warnings = std::mem::take(&mut self.options.assignment_warnings);
         updated.reset_jobserver = self.options.reset_jobserver;
-        let mode = updated
-            .output_sync
-            .as_deref()
-            .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
-        let Some(mode) = mode else {
-            self.fatal(
-                None,
-                &[
-                    b"unknown output-sync type '".as_slice(),
-                    updated.output_sync.as_deref().unwrap_or_default(),
-                    b"'",
-                ]
-                .concat(),
-            );
-            return Err(());
-        };
-        if updated.jobserver_auth != self.options.jobserver_auth {
-            self.jobserver.take();
-        }
-        if let Err(error) = self
-            .database
-            .variables
-            .update_mflags(&updated.recursive_flags(), updated.environment_override)
-        {
-            self.expansion_error(None, &error);
-            return Err(());
-        }
         self.options = updated;
         self.database
             .variables
             .set_environment_override(self.options.environment_override);
-        // Passive post-read decoding accumulates include operands. Only an
-        // actual special MAKEFLAGS reset constructs and publishes a new search.
-        self.output.set_mode(mode);
-        if !mode.root_buffered() {
-            self.output.select(None);
-            if let Some(buffer) = self.reader_output.take() {
-                buffer.dump();
-            }
-        } else if self.reader_output.is_none() {
-            self.reader_output = self.output.make_buffer();
-            self.output.select(self.reader_output.as_ref());
-        }
-        Ok(())
+        // The following source may re-enter the live receiver or take its state.
+        self.flag_state.refresh(&self.options);
+        Ok(file_jobs)
     }
 }

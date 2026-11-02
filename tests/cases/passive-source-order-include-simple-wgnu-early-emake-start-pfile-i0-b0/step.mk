@@ -1,0 +1,2 @@
+override GNUMAKEFLAGS = --warn-undefined-variables READY:=yes STATE:=$$(if\ $$(value\ GNUMAKEFLAGS),pending,cleared) A:=$$(file\ >>seen,A)$$(info\ GNU_A)$$(MISSING_A)
+override MAKEFLAGS = $(if $(filter environment,$(origin READY)),$(file >>seen,FLAGS)$(info FLAGS A=[$(A)]/$(origin A)/$(flavor A) STATE=[$(STATE)] GNU=[$(if $(value GNUMAKEFLAGS),pending,cleared)] SEEN=[$(file <seen)]) -e B:=$$(file\ >>seen,B)$$(info\ GNU_B)$$(MISSING_B))

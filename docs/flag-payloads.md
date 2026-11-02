@@ -17,7 +17,12 @@ from `-e X=value` when an imported X already exists.
 [Ordered warning events](live-warning-phases.md) now share that cursor and retain
 active diagnostic locations. Eager RHS effects still run before selecting which
 value survives stronger priority; conditional definitions retain their skips.
-Complete passive/source ordering and contextual runtime HOME remain open.
+Within-source malformed-value ordering and contextual runtime HOME remain open.
+
+[Sequential passive sources](passive-source-order.md) now finish GNU payload
+definitions before expanding MAKEFLAGS and clear the GNU source afterward.
+Within-source malformed-value ordering, contextual runtime HOME and complete
+decoder/lifecycle acceptance remain open.
 
 The host returns owned assignment tokens and their option positions/policies.
 The ordinary database evaluator expands their names and evaluates recursive,

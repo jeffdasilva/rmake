@@ -55,6 +55,11 @@ GNUMAKEFLAGS definition positions. A 1,872-case phase/priority/byte/source matri
 the corpus to 21,601 required cases. Complete source/effect ordering and M3/M6
 remain open.
 
+[Sequential post-read sources](docs/passive-source-order.md) now finish GNU
+definitions before expanding MAKEFLAGS and clear the GNU source afterward.
+Exact effects, diagnostic locations and real jobserver tokens bring the corpus
+to 22,891 required cases. Broader decoder and M3/M6 work remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

@@ -2716,3 +2716,36 @@ general performance win is claimed. Full frozen acceptance and exact-head
 development/optimized CI remain merge gates. Complete source/effect ordering,
 malformed values, runtime HOME and other M3/M6/profile/integration surfaces,
 general performance parity and persistent caching remain open.
+
+## M3/M6: sequential passive source completion (2026-11-02)
+
+[GNU then ordinary source evaluation](passive-source-order.md) now completes
+GNUMAKEFLAGS payload definitions before expanding MAKEFLAGS and clears the GNU
+source afterward. Each owned source publishes current state without a mutable
+Options borrow across core callbacks. Explicit job priority, saved invocation
+inputs, include publication and final output/jobserver activation retain their
+separate boundaries.
+
+1,290 independent required models agree with two bounded GNU observations and
+both selected builds, closing every preceding mismatch. Coverage includes three
+declaration phases, four assignment forms, environment/warning positions, stored
+priority, raw bytes, merged descriptor order, fresh snapshots, the six exact
+pilot sources and 36 actual FIFO/pipe token controls with explicit files/goals.
+132 wrong initial warning-locus models remain unchanged, with separately named
+definition-locus refinements. No comparison normalization or exception is added.
+
+A correct final-copy-elision experiment reduced measured allocation requests
+but showed large-case elapsed regressions in two direct batches; reverse controls
+were mixed. Its source, complete proof and every measurement remain recorded.
+The simpler publication path is selected with 527 extra requests on the existing
+512-definition control versus preceding rmake; no general performance win is
+claimed. Four timing reports overlapped final tooling validation and are retained
+separately with zero performance credit; fresh selected batches replace them.
+
+Formatting, Clippy, 523 Rust and 561 tooling tests pass. The ordinary corpus is
+22,891 required / zero pending across 149 families, with 17 unchanged separately
+gated safe-error exceptions. Full selected frozen acceptance and exact-head CI
+remain merge gates. Within-source malformed values, runtime HOME, finite nested
+decoding, directory/debug/database/shuffle behavior, real exec/stdin, native
+loading, enabled Guile, Linux/locale/integration acceptance, general performance
+parity and persistent caching remain open; M3/M6 are not complete.
