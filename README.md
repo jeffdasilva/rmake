@@ -51,8 +51,8 @@ positions and nested cursors while retaining active diagnostic locations. The
 corpus totals 19,729 required cases; full M3/M6 remains open.
 
 [Post-read warning policy](docs/passive-warning-phases.md) now follows passive
-GNUMAKEFLAGS definition positions. A 1,728-case phase/priority/byte matrix brings
-the corpus to 21,457 required cases. Complete source/effect ordering and M3/M6
+GNUMAKEFLAGS definition positions. A 1,872-case phase/priority/byte/source matrix brings
+the corpus to 21,601 required cases. Complete source/effect ordering and M3/M6
 remain open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds

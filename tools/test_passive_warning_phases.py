@@ -3,6 +3,8 @@
 """Protect original post-read warning models and exact frozen observations."""
 import base64
 import dataclasses
+import gzip
+import hashlib
 import json
 from pathlib import Path
 import tomllib
@@ -22,7 +24,7 @@ class PassiveWarningPhaseTests(unittest.TestCase):
     def test_inventory_inputs_and_complete_frozen_observations(self):
         ledger = tomllib.loads((ROOT / 'tests/requirements.toml').read_text())
         family = next(r for r in ledger['requirements'] if r['id'] == 'options.passive-warning-phases')
-        self.assertEqual((family['fixture_count'], family['candidate_required']), (1728, 1728))
+        self.assertEqual((family['fixture_count'], family['candidate_required']), (1872, 1872))
         self.assertEqual(set(family['cases']), set(self.records))
         self.assertEqual(sum(bool(r['baseline']['candidate_differences']) for r in self.records.values()), 288)
         for row in self.records.values():
@@ -47,7 +49,7 @@ class PassiveWarningPhaseTests(unittest.TestCase):
                                      bytes.fromhex(row['expected_seen']))
 
     def test_phase_kind_policy_priority_environment_and_bytes_matrix(self):
-        names = list(self.records)
+        names = [name for name in self.records if name.startswith('passive-warning-')]
         for phase in ('reader', 'eval', 'include'):
             self.assertEqual(sum(name.startswith('passive-warning-' + phase + '-') for name in names), 576)
         for kind in ('simple', 'immediate', 'recursive', 'conditional'):
@@ -70,6 +72,8 @@ class PassiveWarningPhaseTests(unittest.TestCase):
 
     def test_eager_priority_and_conditional_skip_keep_exact_effects(self):
         for name, row in self.records.items():
+            if name.startswith('passive-source-warning-'):
+                continue
             seen = bytes.fromhex(row['expected_seen'])
             stderr = bytes.fromhex(row['expected']['stderr_hex'])
             if '-simple-' in name or '-immediate-' in name:
@@ -106,6 +110,40 @@ class PassiveWarningPhaseTests(unittest.TestCase):
             self.assertEqual((row['model_errors'][:2], row['oracle_repeat_differences'], row['bounds']),
                              ([[], []], [], [False] * 3))
             self.assertTrue(row['inputs'])
+
+    def test_source_expansion_policy_is_captured_after_its_effects(self):
+        rows = [r for name, r in self.records.items() if name.startswith('passive-source-warning-')]
+        self.assertEqual(len(rows), 144)
+        self.assertEqual(sum(bool(r['prototype']['candidate_differences']) for r in rows), 48)
+        for row in rows:
+            self.assertEqual(row['baseline']['candidate_differences'], [])
+            self.assertEqual(bytes.fromhex(row['expected_seen']), b'anchor\nSOURCE\nA\nB\nDONE\n')
+            stderr = bytes.fromhex(row['expected']['stderr_hex'])
+            self.assertEqual(stderr.count(b'make: warning: undefined variable'), 2)
+            self.assertNotIn(b'Makefile:', stderr)
+            prototype = row['prototype']
+            self.assertEqual((prototype['model_errors'][:2], prototype['oracle_repeat_differences'], prototype['bounds']),
+                             ([[], []], [], [False] * 3))
+            if prototype['candidate_differences']:
+                self.assertIn('-i0-', row['id'])
+                self.assertTrue('-mid-' in row['id'] or '-late-' in row['id'])
+                self.assertEqual(prototype['candidate_differences'], ['stderr'])
+
+    def test_unselected_prototype_keeps_complete_observations_and_identity(self):
+        manifest = json.loads((ROOT / self.proof['unselected_prototype']).read_text())
+        packed = (ROOT / manifest['raw_observations']).read_bytes()
+        raw = gzip.decompress(packed)
+        self.assertEqual(hashlib.sha256(packed).hexdigest(), manifest['compressed_sha256'])
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), manifest['uncompressed_sha256'])
+        original = json.loads(raw)
+        self.assertEqual(len(original['records']), 1728)
+        self.assertEqual(manifest['source_commit'], 'e2bb5db2ec76a874356c713500b5f2ff574d252f')
+        for row in original['records']:
+            selected = self.records[row['id']]
+            for field in ('inputs', 'args', 'environment', 'expected', 'expected_seen'):
+                self.assertEqual(row[field], selected[field])
+            for build in ('debug', 'release'):
+                self.assertEqual(row[build]['candidate_differences'], [])
 
 
 if __name__ == '__main__':

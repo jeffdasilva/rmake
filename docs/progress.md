@@ -2693,18 +2693,26 @@ inspection still prepares warnings for MAKEFLAGS source expansion; eager RHS
 effects before a late flag retain their earlier warning policy. The existing
 owned cursor handles actual positions without persistent policy vectors.
 
-1,728 independent original models cover three declaration phases, four assignment
+1,872 independent original models cover three declaration phases, four assignment
 forms, three warning positions, both initial policies, four `-e` positions,
 three binding priorities and raw bytes. Two GNU observations and both selected
 frozen builds agree throughout, closing 288 preceding warning mismatches and
-retaining 1,440 controls. Nine original discovery records remain separate with
+retaining 1,584 controls. Nine original discovery records remain separate with
 zero extra credit. Exact file witnesses retain eager effects under stronger
 values and conditional skips; no observation normalization or exception is added.
 
-Formatting, Clippy, 523 Rust and 551 tooling tests pass. The ordinary corpus is
-21,457 required / zero pending across 148 families, with 17 unchanged separate
-approved safe errors. Four 101-sample elapsed reports remain mixed; GNU remains
-faster and no performance win is claimed. Full frozen acceptance and exact-head
+144 source-expansion controls exposed 48 regressions in the first prototype,
+which captured entry policy before nested source effects. Capturing after
+GNUMAKEFLAGS expansion closes every regression. Original source identity, the
+complete earlier proof, all regression observations and timing reports remain
+retained with zero extra credit; its interrupted full run is not a pass.
+
+Formatting, Clippy, 523 Rust and 553 tooling tests pass. The ordinary corpus is
+21,601 required / zero pending across 148 families, with 17 unchanged separate
+approved safe errors. Four selected 101-sample elapsed reports remain mixed,
+including roughly 2% higher large-noop medians and 2% lower expansion medians.
+Four earlier prototype reports remain separate. GNU remains faster and no
+general performance win is claimed. Full frozen acceptance and exact-head
 development/optimized CI remain merge gates. Complete source/effect ordering,
 malformed values, runtime HOME and other M3/M6/profile/integration surfaces,
 general performance parity and persistent caching remain open.

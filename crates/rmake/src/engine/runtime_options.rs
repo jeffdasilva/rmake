@@ -236,10 +236,7 @@ impl Engine {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
-        // GNUMAKEFLAGS inspection can enable warnings before expanding the
-        // following MAKEFLAGS value. Payload replay still starts at the
-        // policy that preceded that inspection, then visits actual positions.
-        let warning_entry = self.flag_state.warn_undefined.get();
+        let mut warning_entry = self.flag_state.warn_undefined.get();
         let mut changed = Vec::new();
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
             if self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none() {
@@ -290,6 +287,12 @@ impl Engine {
                         return Err(());
                     }
                 }
+            }
+            // Expanding this source can itself decode MAKEFLAGS. Keep that
+            // resulting policy before preliminary option inspection enables
+            // warnings for the following source; then replay actual positions.
+            if name == b"GNUMAKEFLAGS" {
+                warning_entry = self.flag_state.warn_undefined.get();
             }
             if name == b"GNUMAKEFLAGS"
                 && !self.flag_state.warn_undefined.get()
