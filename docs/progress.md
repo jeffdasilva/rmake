@@ -2606,3 +2606,20 @@ required / zero pending, with the same 17 separate approved exceptions. Full
 frozen acceptance and exact-head CI remain merge gates. Small timing slowdowns
 on argument controls are retained; no general speed or milestone-complete claim.
 Ambiguous-reader behavior and full malformed usage remain ordinary M3/M6 work.
+
+## M3/M6: live invalid-option continuation (2026-11-02)
+
+[Phase-specific option handling](live-invalid-options.md) ignores unknown and
+ambiguous options in live MAKEFLAGS, continues known cluster letters and later
+definitions, and preserves strict startup validation. Registered unimplemented
+features still error; late -R activation keeps its existing boundary.
+
+641 original required models agree with two GNU observations and both frozen
+builds. Preceding rmake fails 481 and passes 160 inactive controls. The exact
+previous reader --w source is closed; 64 rejected initial secondary sources
+remain unchanged as history. Payload/pure forms, scopes, origins, raw bytes and
+ordered file witnesses have two Rust and five tooling tests. Totals are 518 Rust
+and 529 tooling tests; the ordinary corpus becomes 17,736 required / zero pending,
+plus 17 unchanged separate approved exceptions. The preceding corpus and safety
+cells pass. Full frozen acceptance and exact-head CI remain merge gates. Broader
+M3/M6 and general performance parity remain open.

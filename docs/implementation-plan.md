@@ -71,6 +71,10 @@ directory reporting and complete lifecycle/profile acceptance remain open.
 cases, with owned byte operands, single callback delivery and the complete
 namespace for uniqueness. Ambiguity/usage and broader M3/M6 remain open.
 
+[Live invalid-option continuation](live-invalid-options.md) adds 641 required
+cases and closes the exact recorded reader --w form. Startup validation and
+registered-feature boundaries remain intact; broader decoder work remains open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

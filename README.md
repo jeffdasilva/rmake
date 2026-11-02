@@ -32,8 +32,11 @@ M3/M6 remain open.
 once across rereads and failures, with 482 additional controlled profiles.
 
 [Unambiguous long-option prefixes](docs/long-option-prefixes.md) now have 1,068
-required cases for metadata, operands and selection effects. The ordinary corpus
-totals 17,095 required cases; full M3/M6 remains open.
+required cases for metadata, operands and selection effects. Full M3/M6 remains open.
+
+[Live invalid-option handling](docs/live-invalid-options.md) now ignores invalid
+MAKEFLAGS syntax while continuing later options, assignments and effects. The
+ordinary corpus totals 17,736 required cases; full M3/M6 remains open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
