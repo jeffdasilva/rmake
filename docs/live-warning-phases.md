@@ -66,6 +66,12 @@ Linux/locale/integration acceptance and general performance parity remain ordina
 M3/M6 work. Persistent caching keeps its separate safety design.
 
 The reference is x86-64 Linux/glibc, C locale and disabled Guile.
+
+Later [passive policy](passive-warning-phases.md) and
+[sequential source completion](passive-source-order.md) cover the post-read
+ordering gaps left by this stage. Within-source malformed-value effects,
+contextual HOME and the other ordinary acceptance boundaries remain open.
+
 Profile: `92525c9784f4dd471cceb12ce66a9d367e267b638e1384cdc29962b738d16de7`.
 Oracle SHA256: `b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974`.
 GNU definition phase order was consulted from the verified 4.4.1 archive,

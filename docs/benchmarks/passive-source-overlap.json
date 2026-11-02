@@ -1,0 +1,10 @@
+{
+  "classification": "Excluded timing sequence; zero performance acceptance credit.",
+  "reason": "The timing sequence was launched while final tooling tests were still running. The tests passed, but all four reports are excluded from timing conclusions and retained unchanged. Fresh qualified batches run only after validation and this sequence finish.",
+  "reports": [
+    "docs/benchmarks/passive-source-overlap-core-a.json",
+    "docs/benchmarks/passive-source-overlap-core-b.json",
+    "docs/benchmarks/passive-source-overlap-runtime-a.json",
+    "docs/benchmarks/passive-source-overlap-runtime-b.json"
+  ]
+}

@@ -298,6 +298,7 @@ impl Options {
 
     /// Decode changed file bindings after reading. Existing switches persist;
     /// later file flags can change them, while explicit CLI -j keeps priority.
+    #[cfg(test)]
     pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
         self.file_flags_with_positions(flags)
             .map(|(options, jobs, _)| (options, jobs))
