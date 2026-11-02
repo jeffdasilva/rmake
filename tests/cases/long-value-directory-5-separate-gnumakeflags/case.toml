@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "long-value-directory-5-separate-gnumakeflags"
+requirement = "options.long-prefixes"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+description = "Original unambiguous long-option prefix, flag metadata, operand byte, path, eval or transport model."
+provenance = "Independent exact model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = "--direc child=one"
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "4449523d5b6368696c643d6f6e655d0a"
+"stderr_hex" = ""

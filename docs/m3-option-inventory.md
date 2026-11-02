@@ -6,6 +6,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 
 | GNU switch family | Current implementation boundary |
 | --- | --- |
+| Unambiguous long-option prefixes | [Valid-prefix resolution](long-option-prefixes.md) adds 1,068 required cases for implemented switches, aliases, attached/separate operands, origins and byte-preserving effects. Exact names win; the complete namespace prevents false unique matches. Ambiguity, invalid usage and broader decoder/profile behavior remain open. |
 | `-b`, `-m` | Accepted and ignored; original alias fixtures exist. |
 | `-B`, `-e`, `-i`, `-k`, `-L`, `-n`, `-q`, `-r`, `-R`, `-s`, `-S`, `-t` and aliases | Decoding/runtime slices implemented and exercised; full startup ordering and malformed-option matrix remain open. |
 | `-h`/`--help`, `-v`/`--version` | Deliberately distinct branding/help. Early-exit interactions and malformed-option usage behavior still need acceptance. |

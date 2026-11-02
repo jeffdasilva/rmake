@@ -1,0 +1,4 @@
+MAKEFLAGS += --warn-undefi
+$(file >all,anchor)
+$(info FLAGS=[$(MAKEFLAGS)] MFLAGS=[$(MFLAGS)])
+all:;@:

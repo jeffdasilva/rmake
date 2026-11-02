@@ -26,10 +26,14 @@ and cache lifetime, pinned metadata values and scoped `MFLAGS` updates.
 
 [Old and what-if file options](docs/assumed-files.md) now have 631 required
 cases covering logical ages, execution modes, flag phases, VPATH and remakes.
-The corpus totals 16,027 required cases; M3/M6 remain open.
+M3/M6 remain open.
 
 [Imported restart-directory traces](docs/imported-directory-trace.md) now close
 once across rereads and failures, with 482 additional controlled profiles.
+
+[Unambiguous long-option prefixes](docs/long-option-prefixes.md) now have 1,068
+required cases for metadata, operands and selection effects. The ordinary corpus
+totals 17,095 required cases; full M3/M6 remains open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it

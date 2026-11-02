@@ -67,6 +67,10 @@ remakes with 631 required cases. Complete CLI/profile acceptance remains open.
 recorded restart-output gaps with 482 separately gated profiles. General
 directory reporting and complete lifecycle/profile acceptance remain open.
 
+[Unambiguous long-option prefixes](long-option-prefixes.md) add 1,068 required
+cases, with owned byte operands, single callback delivery and the complete
+namespace for uniqueness. Ambiguity/usage and broader M3/M6 remain open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

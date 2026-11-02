@@ -6,6 +6,77 @@ use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
+// Resolve only the fallback path: exact options retain their existing fast
+// dispatch. Include the complete GNU namespace so unsupported or alias spellings
+// still prevent accepting an ambiguous prefix. No parser/global cursor is shared.
+#[cold]
+fn expand_unique_long_option(argument: &[u8]) -> Option<Vec<u8>> {
+    let end = argument
+        .iter()
+        .position(|&byte| byte == b'=')
+        .unwrap_or(argument.len());
+    let name = &argument[..end];
+    let names: &[&[u8]] = &[
+        b"--always-make",
+        b"--assume-new",
+        b"--assume-old",
+        b"--check-symlink-times",
+        b"--debug",
+        b"--directory",
+        b"--dry-run",
+        b"--environment-overrides",
+        b"--eval",
+        b"--file",
+        b"--help",
+        b"--ignore-errors",
+        b"--include-dir",
+        b"--jobs",
+        b"--jobserver-auth",
+        b"--jobserver-fds",
+        b"--jobserver-style",
+        b"--just-print",
+        b"--keep-going",
+        b"--load-average",
+        b"--makefile",
+        b"--max-load",
+        b"--new-file",
+        b"--no-builtin-rules",
+        b"--no-builtin-variables",
+        b"--no-keep-going",
+        b"--no-print-directory",
+        b"--no-silent",
+        b"--old-file",
+        b"--output-sync",
+        b"--print-data-base",
+        b"--print-directory",
+        b"--question",
+        b"--quiet",
+        b"--recon",
+        b"--shuffle",
+        b"--silent",
+        b"--stop",
+        b"--sync-mutex",
+        b"--temp-stdin",
+        b"--touch",
+        b"--trace",
+        b"--version",
+        b"--warn-undefined-variables",
+        b"--what-if",
+    ];
+    let mut matches = names
+        .iter()
+        .copied()
+        .filter(|candidate| candidate.starts_with(name));
+    let selected = matches.next()?;
+    if selected == name || matches.next().is_some() {
+        return None;
+    }
+    let mut expanded = Vec::with_capacity(selected.len() + argument.len() - end);
+    expanded.extend_from_slice(selected);
+    expanded.extend_from_slice(&argument[end..]);
+    Some(expanded)
+}
+
 /// A decoded non-option or filename operand, at its original argument position.
 #[derive(Clone, Copy)]
 pub(crate) enum Argument {
@@ -374,7 +445,7 @@ impl Options {
         track_jobs: bool,
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
     ) -> Result<Self, E> {
-        let args: Vec<Vec<u8>> = args.into_iter().map(OsString::into_vec).collect();
+        let mut args: Vec<Vec<u8>> = args.into_iter().map(OsString::into_vec).collect();
         let mut evals_seen: std::collections::HashSet<_> = result.evals.iter().cloned().collect();
         let mut i = 0;
         let mut end_options = false;
@@ -588,6 +659,12 @@ impl Options {
                             }
                         }
                         _ => {
+                            if let Some(expanded) = expand_unique_long_option(arg) {
+                                // Retry the same argument before any operand
+                                // receiver or definition can observe it.
+                                args[i] = expanded;
+                                continue;
+                            }
                             return Err(format!(
                                 "unsupported option '{}'",
                                 String::from_utf8_lossy(arg)
@@ -1023,6 +1100,44 @@ mod tests {
         assert_eq!(changed.load_limit, Some(4.0));
         let cleared = Options::with_environment(["-l".into()], Some("-l2.5".into()), None).unwrap();
         assert_eq!(cleared.load_limit, None);
+    }
+
+    #[test]
+    fn long_prefix_retry_preserves_raw_operands_and_notifies_receivers_once() {
+        let mut events = Vec::new();
+        let options = Options::parse_with::<true, String>(
+            [
+                OsString::from_vec(b"--fi=left=\xff".to_vec()),
+                OsString::from("TAIL=value"),
+            ],
+            Options::default(),
+            0,
+            false,
+            &mut |_, event| {
+                events.push(event);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(options.files[0].as_os_str().as_bytes(), b"left=\xff");
+        assert_eq!(options.assignment_context, [(1, false)]);
+        assert!(matches!(
+            events.as_slice(),
+            [Argument::File(0), Argument::Definition(0)]
+        ));
+    }
+
+    #[test]
+    fn long_prefixes_respect_exact_names_ambiguity_and_the_end_marker() {
+        assert_eq!(parse(&["--jobs=1"]).unwrap().jobs, Some(1));
+        for value in ["--w", "--jo", "--no-builtin"] {
+            assert!(parse(&[value]).is_err());
+        }
+        let stopped = parse(&["--", "--fi"]).unwrap();
+        assert!(stopped.files.is_empty());
+        assert_eq!(stopped.goals, [b"--fi".to_vec()]);
+        assert!(parse(&["--hel"]).unwrap().help);
+        assert!(parse(&["--ver"]).unwrap().version);
     }
 
     #[test]
