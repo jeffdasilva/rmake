@@ -6,6 +6,54 @@ use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
+const GNU_LONG_OPTIONS: &[&[u8]] = &[
+    b"--always-make",
+    b"--assume-new",
+    b"--assume-old",
+    b"--check-symlink-times",
+    b"--debug",
+    b"--directory",
+    b"--dry-run",
+    b"--environment-overrides",
+    b"--eval",
+    b"--file",
+    b"--help",
+    b"--ignore-errors",
+    b"--include-dir",
+    b"--jobs",
+    b"--jobserver-auth",
+    b"--jobserver-fds",
+    b"--jobserver-style",
+    b"--just-print",
+    b"--keep-going",
+    b"--load-average",
+    b"--makefile",
+    b"--max-load",
+    b"--new-file",
+    b"--no-builtin-rules",
+    b"--no-builtin-variables",
+    b"--no-keep-going",
+    b"--no-print-directory",
+    b"--no-silent",
+    b"--old-file",
+    b"--output-sync",
+    b"--print-data-base",
+    b"--print-directory",
+    b"--question",
+    b"--quiet",
+    b"--recon",
+    b"--shuffle",
+    b"--silent",
+    b"--stop",
+    b"--sync-mutex",
+    b"--temp-stdin",
+    b"--touch",
+    b"--trace",
+    b"--version",
+    b"--warn-undefined-variables",
+    b"--what-if",
+];
+
 // Resolve only the fallback path: exact options retain their existing fast
 // dispatch. Include the complete GNU namespace so unsupported or alias spellings
 // still prevent accepting an ambiguous prefix. No parser/global cursor is shared.
@@ -16,54 +64,7 @@ fn expand_unique_long_option(argument: &[u8]) -> Option<Vec<u8>> {
         .position(|&byte| byte == b'=')
         .unwrap_or(argument.len());
     let name = &argument[..end];
-    let names: &[&[u8]] = &[
-        b"--always-make",
-        b"--assume-new",
-        b"--assume-old",
-        b"--check-symlink-times",
-        b"--debug",
-        b"--directory",
-        b"--dry-run",
-        b"--environment-overrides",
-        b"--eval",
-        b"--file",
-        b"--help",
-        b"--ignore-errors",
-        b"--include-dir",
-        b"--jobs",
-        b"--jobserver-auth",
-        b"--jobserver-fds",
-        b"--jobserver-style",
-        b"--just-print",
-        b"--keep-going",
-        b"--load-average",
-        b"--makefile",
-        b"--max-load",
-        b"--new-file",
-        b"--no-builtin-rules",
-        b"--no-builtin-variables",
-        b"--no-keep-going",
-        b"--no-print-directory",
-        b"--no-silent",
-        b"--old-file",
-        b"--output-sync",
-        b"--print-data-base",
-        b"--print-directory",
-        b"--question",
-        b"--quiet",
-        b"--recon",
-        b"--shuffle",
-        b"--silent",
-        b"--stop",
-        b"--sync-mutex",
-        b"--temp-stdin",
-        b"--touch",
-        b"--trace",
-        b"--version",
-        b"--warn-undefined-variables",
-        b"--what-if",
-    ];
-    let mut matches = names
+    let mut matches = GNU_LONG_OPTIONS
         .iter()
         .copied()
         .filter(|candidate| candidate.starts_with(name));
@@ -417,28 +418,25 @@ impl Options {
         Self::parse_mode::<true>(args)
     }
 
-    fn parse_mode<const BIG_R_IMPLIES_RULES: bool>(
+    fn parse_mode<const STARTUP: bool>(
         args: impl IntoIterator<Item = OsString>,
     ) -> Result<Self, String> {
-        Self::parse_into_mode::<BIG_R_IMPLIES_RULES>(args, Self::default(), 0, false)
+        Self::parse_into_mode::<STARTUP>(args, Self::default(), 0, false)
     }
 
-    fn parse_into_mode<const BIG_R_IMPLIES_RULES: bool>(
+    fn parse_into_mode<const STARTUP: bool>(
         args: impl IntoIterator<Item = OsString>,
         result: Self,
         offset: usize,
         track_jobs: bool,
     ) -> Result<Self, String> {
-        Self::parse_with::<BIG_R_IMPLIES_RULES, String>(
-            args,
-            result,
-            offset,
-            track_jobs,
-            &mut |_, _| Ok(()),
-        )
+        Self::parse_with::<STARTUP, String>(args, result, offset, track_jobs, &mut |_, _| Ok(()))
     }
 
-    fn parse_with<const BIG_R_IMPLIES_RULES: bool, E: From<String> + From<&'static str>>(
+    // Startup rejects invalid options and immediately applies -R's implied
+    // rule disabling. Live MAKEFLAGS decoding ignores invalid option results
+    // and leaves the existing post-read built-in activation boundary intact.
+    fn parse_with<const STARTUP: bool, E: From<String> + From<&'static str>>(
         args: impl IntoIterator<Item = OsString>,
         mut result: Self,
         offset: usize,
@@ -476,7 +474,7 @@ impl Options {
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
                     b"--no-builtin-variables" => {
-                        if BIG_R_IMPLIES_RULES {
+                        if STARTUP {
                             result.no_rules = true;
                         }
                         Some(&mut result.no_variables)
@@ -665,6 +663,13 @@ impl Options {
                                 args[i] = expanded;
                                 continue;
                             }
+                            if !STARTUP && !GNU_LONG_OPTIONS.contains(&name) {
+                                // A live flag decode ignores getopt's invalid
+                                // option result and continues with later words.
+                                // Registered, unimplemented features still fail.
+                                i += 1;
+                                continue;
+                            }
                             return Err(format!(
                                 "unsupported option '{}'",
                                 String::from_utf8_lossy(arg)
@@ -702,7 +707,7 @@ impl Options {
                         b'r' => result.no_rules = true,
                         b'R' => {
                             result.no_variables = true;
-                            if BIG_R_IMPLIES_RULES {
+                            if STARTUP {
                                 result.no_rules = true;
                             }
                         }
@@ -793,7 +798,11 @@ impl Options {
                             break;
                         }
                         option => {
-                            return Err(format!("unsupported option '-{}'", option as char).into());
+                            if STARTUP || matches!(option, b'd' | b'p' | b'w') {
+                                return Err(
+                                    format!("unsupported option '-{}'", option as char).into()
+                                );
+                            }
                         }
                     }
                     j += 1;
@@ -1100,6 +1109,42 @@ mod tests {
         assert_eq!(changed.load_limit, Some(4.0));
         let cleared = Options::with_environment(["-l".into()], Some("-l2.5".into()), None).unwrap();
         assert_eq!(cleared.load_limit, None);
+    }
+
+    #[test]
+    fn live_invalid_options_continue_through_clusters_and_payload_positions() {
+        let (live, _) = Options::default()
+            .assigned_flags(&[b"--w -Qsk SIDE:=after".to_vec()], Origin::File)
+            .unwrap();
+        assert!(live.silent && live.keep_going);
+        assert_eq!(live.silent_origin, Some(Origin::File));
+        assert_eq!(live.keep_going_origin, Some(Origin::File));
+        assert_eq!(live.assignments, [b"SIDE:=after".to_vec()]);
+        assert_eq!(live.assignment_context, [(3, false)]);
+        assert_eq!(live.flag_word_count, 4);
+        assert_eq!(live.flags(), b"ks");
+    }
+
+    #[test]
+    fn startup_validation_and_registered_unimplemented_features_remain_errors() {
+        for value in ["--w", "--not-an-option", "-Qsk"] {
+            assert!(parse(&[value]).is_err());
+            assert!(Options::with_environment([], Some(value.into()), None).is_err());
+        }
+        for value in [
+            "--debug=basic",
+            "--deb=basic",
+            "--shuffle=reverse",
+            "-d",
+            "-p",
+            "-w",
+        ] {
+            assert!(
+                Options::default()
+                    .assigned_flags(&[value.as_bytes().to_vec()], Origin::File)
+                    .is_err()
+            );
+        }
     }
 
     #[test]

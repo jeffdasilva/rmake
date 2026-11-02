@@ -53,7 +53,7 @@ The ordinary corpus becomes 17,095 required / zero pending, with 17 unchanged,
 separately gated approved safe-error exceptions. This is a valid-prefix slice,
 not complete M3/M6. In particular GNU silently ignores the recorded ambiguous
 reader `--w` while startup reports usage errors; that finite ordinary decoder
-gap is retained without passing or safety-exception credit. Complete ambiguous/
+gap is retained without passing or safety-exception credit. The later [live invalid-option tranche](live-invalid-options.md) closes that exact reader form with 641 required cases while retaining the original evidence. Complete ambiguous/
 invalid argument diagnostics, exact usage output, remaining option/profile/
 lifecycle interactions, directory/debug/database output, native/Guile profiles,
 locales and integration acceptance remain open in the [audit](m3-m6-audit.md).
