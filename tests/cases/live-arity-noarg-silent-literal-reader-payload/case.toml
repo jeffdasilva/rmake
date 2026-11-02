@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-arity-noarg-silent-literal-reader-payload"
+requirement = "options.live-arity"
+candidate = "required"
+args = ["-r", "--no-print-directory"]
+timeout_seconds = 5
+description = "Original live option arity, exact skipped-effect, cluster, operand and ordered file witness model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "4d464c4147533d5b2d72202d2d6e6f2d7072696e742d6469726563746f72795d20413d5b61667465725d204f3d5b66696c655d20463d5b73696d706c655d2043433d5b64656661756c745d0a5345454e3d5b616e63686f720a454e443a61667465725d0a"
+"stderr_hex" = ""
