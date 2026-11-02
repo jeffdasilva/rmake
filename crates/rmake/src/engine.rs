@@ -419,6 +419,7 @@ fn runtime_context<'a>(
     output: &'a mut dyn OutputReceiver,
 ) -> ExpansionContext<'a> {
     ExpansionContext::with_receiver(location, output)
+        .with_evaluation_stack(rmake_linux::evaluation::adapter())
         .with_cancellation(rmake_linux::signals::cancellation())
 }
 
@@ -1357,8 +1358,8 @@ impl Engine {
                 self.expansion_error(None, &error);
                 return Err(());
             }
-            if let Err(error) = self.database.read_preload_with(
-                &file.bytes,
+            if let Err(error) = self.database.read_preload_input(
+                file.input,
                 name,
                 runtime_context(
                     None,
@@ -1638,46 +1639,42 @@ impl Engine {
                 self.database
                     .file_records
                     .insert(file.as_os_str().as_bytes());
-                let mut bytes = Vec::new();
-                let read = if file == Path::new("-") {
+                let input = if file == Path::new("-") {
                     if let Some(saved) = &stdin_bytes {
-                        bytes = Vec::clone(saved);
-                        Ok(bytes.len())
+                        Ok(rmake_core::reader::Input::Bytes(Vec::clone(saved)))
                     } else {
-                        rmake_linux::child::read_stdin().map(|content| {
-                            bytes = content;
+                        rmake_linux::child::read_stdin().map(|bytes| {
                             stdin_bytes = Some(bytes.clone());
-                            bytes.len()
+                            rmake_core::reader::Input::Bytes(bytes)
                         })
                     }
                 } else {
-                    rmake_linux::filesystem::read_source(file.as_os_str().as_bytes()).map(
-                        |content| {
-                            bytes = content;
-                            bytes.len()
-                        },
-                    )
+                    rmake_linux::filesystem::open_source(file.as_os_str().as_bytes())
                 };
-                if let Err(err) = read {
-                    if rmake_linux::signals::pending().is_some() {
-                        return 2;
+                let input = match input {
+                    Ok(input) => input,
+                    Err(err) => {
+                        if rmake_linux::signals::pending().is_some() {
+                            return 2;
+                        }
+                        emit_output(
+                            &self.output,
+                            &self.program,
+                            Output::Warning {
+                                location: None,
+                                message: format!("{}: {}", file.display(), os_error(&err))
+                                    .as_bytes(),
+                            },
+                        );
+                        self.database.makefiles.push(Makefile {
+                            name: file.as_os_str().as_bytes().to_vec(),
+                            optional: false,
+                            missing: true,
+                            read_error: None,
+                        });
+                        continue;
                     }
-                    emit_output(
-                        &self.output,
-                        &self.program,
-                        Output::Warning {
-                            location: None,
-                            message: format!("{}: {}", file.display(), os_error(&err)).as_bytes(),
-                        },
-                    );
-                    self.database.makefiles.push(Makefile {
-                        name: file.as_os_str().as_bytes().to_vec(),
-                        optional: false,
-                        missing: true,
-                        read_error: None,
-                    });
-                    continue;
-                }
+                };
                 if file != Path::new("-") {
                     self.database.makefiles.push(Makefile {
                         name: file.as_os_str().as_bytes().to_vec(),
@@ -1698,8 +1695,8 @@ impl Engine {
                     self.expansion_error(None, &err);
                     return 2;
                 }
-                if let Err(err) = self.database.read_with(
-                    &bytes,
+                if let Err(err) = self.database.read_input(
+                    input,
                     file.as_os_str().as_bytes(),
                     runtime_context(
                         None,

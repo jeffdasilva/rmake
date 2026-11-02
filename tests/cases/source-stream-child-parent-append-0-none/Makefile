@@ -1,0 +1,5 @@
+.PHONY: Makefile child.mk later.mk all
+include child.mk
+$(info BODY)
+# 
+all:;

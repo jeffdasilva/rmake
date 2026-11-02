@@ -96,7 +96,7 @@ impl Expansion<'_, '_> {
             let value = if variable.flavor == Flavor::Simple {
                 Cow::Borrowed(variable.value.as_slice())
             } else if !variable.scope.append_outer && !variable.value.contains(&b'$') {
-                if self.active.iter().any(|(n, l)| n == name && *l == layer) {
+                if self.active_keys().any(|(n, l)| n == name && *l == layer) {
                     return None;
                 }
                 Cow::Borrowed(c_string_prefix(&variable.value))

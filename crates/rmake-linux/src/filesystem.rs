@@ -163,6 +163,56 @@ fn diagnostic(stage: &[u8], path: &[u8], error: io::Error) -> Vec<u8> {
     [stage, b": ", path, b": ", message.as_bytes()].concat()
 }
 
+/// Open now and retain the source descriptor through interpretation. The
+/// interpreter requests each C-string fragment at its actual read boundary.
+pub fn open_source(path: &[u8]) -> io::Result<rmake_core::reader::Input> {
+    let mut stream = Stream::open(path, c"r")?;
+    stream.prevent_inheritance()?;
+    Ok(rmake_core::reader::Input::Stream(Box::new(SourceFile {
+        stream,
+        scratch: Vec::new(),
+        scratch_clean: false,
+        error: None,
+    })))
+}
+struct SourceFile {
+    stream: Stream,
+    scratch: Vec<u8>,
+    scratch_clean: bool,
+    error: Option<io::Error>,
+}
+impl rmake_core::reader::Source for SourceFile {
+    fn fragment(&mut self, count: usize) -> Option<Vec<u8>> {
+        let (value, error) =
+            self.stream
+                .source_fragment(count, &mut self.scratch, &mut self.scratch_clean);
+        if error.is_some() {
+            self.error = error;
+        }
+        value
+    }
+    fn finish(&mut self) {
+        self.stream.finish_source();
+    }
+    fn retained_bytes(&self) -> usize {
+        self.scratch.capacity()
+    }
+    fn error(&self) -> Option<Vec<u8>> {
+        self.error.as_ref().map(|e| {
+            let message = e.to_string();
+            let suffix = e
+                .raw_os_error()
+                .map(|n| format!(" (os error {n})"))
+                .unwrap_or_default();
+            message
+                .strip_suffix(&suffix)
+                .unwrap_or(&message)
+                .as_bytes()
+                .to_vec()
+        })
+    }
+}
+
 /// Whole-source reads retain the interpreter's existing source representation,
 /// while honoring cancellation during fopen/fread instead of retrying forever.
 pub fn read_source(path: &[u8]) -> std::io::Result<Vec<u8>> {
@@ -178,4 +228,87 @@ pub fn read_source(path: &[u8]) -> std::io::Result<Vec<u8>> {
     }
     stream.close()?;
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    fn path() -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "rmake-live-source-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
+    #[test]
+    fn source_observes_a_tail_appended_after_its_first_line() {
+        use std::io::Write;
+        let path = path();
+        fs::write(&path, b"first\nsecond\n").unwrap();
+        let rmake_core::reader::Input::Stream(mut source) =
+            open_source(path.as_os_str().as_bytes()).unwrap()
+        else {
+            panic!("stream expected")
+        };
+        assert_eq!(source.fragment(200), Some(b"first\n".to_vec()));
+        fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"tail\n")
+            .unwrap();
+        assert_eq!(source.fragment(200), Some(b"second\n".to_vec()));
+        assert_eq!(source.fragment(200), Some(b"tail\n".to_vec()));
+        assert_eq!(source.fragment(200), None);
+        assert_eq!(source.error(), None);
+        drop(source);
+        fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn retained_large_buffer_keeps_short_and_hidden_nul_boundaries() {
+        let path = path();
+        let long = vec![b'x'; 100_000];
+        let bytes = [b"small\n".as_slice(), &long, b"\nvisible\0hidden\nlast\n"].concat();
+        fs::write(&path, bytes).unwrap();
+        let rmake_core::reader::Input::Stream(mut source) =
+            open_source(path.as_os_str().as_bytes()).unwrap()
+        else {
+            panic!("stream expected")
+        };
+        assert_eq!(source.fragment(200), Some(b"small\n".to_vec()));
+        assert_eq!(
+            source.fragment(200_000),
+            Some([long, b"\n".to_vec()].concat())
+        );
+        assert_eq!(source.fragment(200_000), Some(b"visible".to_vec()));
+        assert_eq!(source.fragment(200_000), Some(b"last\n".to_vec()));
+        assert_eq!(source.fragment(200_000), None);
+        assert_eq!(source.error(), None);
+        drop(source);
+        fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn source_descriptor_is_not_inherited_by_a_child() {
+        let path = path();
+        fs::write(&path, b"source\n").unwrap();
+        let input = open_source(path.as_os_str().as_bytes()).unwrap();
+        let result = std::process::Command::new("/bin/sh")
+            .args([
+                "-c",
+                "for f in /proc/$$/fd/*; do readlink \"$f\" || :; done",
+            ])
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert!(
+            !result
+                .stdout
+                .windows(path.as_os_str().as_bytes().len())
+                .any(|p| p == path.as_os_str().as_bytes())
+        );
+        drop(input);
+        fs::remove_file(path).unwrap();
+    }
 }

@@ -7,6 +7,10 @@
 //! Reading and comment removal remain separate: recipes and `define` bodies do
 //! not use the ordinary-line comment rules. No UTF-8 conversion is performed.
 
+mod stream;
+pub(crate) use stream::ParserReader;
+pub use stream::{Input, Source};
+
 /// A logical line and its inclusive, one-based physical source locations.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LogicalLine {
