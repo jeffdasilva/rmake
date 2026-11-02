@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-eval-512-simple-target"
+requirement = "includes.live-sources"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Otarget"]
+timeout_seconds = 5
+description = "Original live source lifetime, include/eval continuation, identity, buffering, error or output-checked scaling model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "56414c55453d5b73696d706c655d0a41465445520a"
+"stderr_hex" = ""

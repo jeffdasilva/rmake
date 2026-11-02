@@ -107,7 +107,7 @@ type FilesystemReceiver<'a> =
 /// for the remake phase, and successful reads retain their resolved filename.
 pub struct IncludedFile {
     pub name: Vec<u8>,
-    pub bytes: Vec<u8>,
+    pub input: crate::reader::Input,
 }
 
 type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, Vec<u8>> + 'a;
@@ -173,6 +173,16 @@ pub struct MakeflagsResult {
 type MakeflagsReceiver<'a> =
     dyn FnMut(MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>> + 'a;
 
+/// Host stack ownership for synchronous parser reentry. A runtime adapter
+/// executes the callback exactly once, on the same thread, or rejects before
+/// invoking it when additional stack storage cannot be reserved.
+pub trait EvaluationStack {
+    fn run(
+        &self,
+        action: &mut dyn FnMut() -> Result<(), crate::parser::ParseError>,
+    ) -> Option<Result<(), crate::parser::ParseError>>;
+}
+
 /// Explicit caller context and output receiver. This is never stored in or
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
@@ -183,6 +193,7 @@ pub struct ExpansionContext<'a> {
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
     makeflags: Option<&'a mut MakeflagsReceiver<'a>>,
+    pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
     makeflags_depth: usize,
     makeflags_terminal: usize,
     makeflags_cursor: Option<std::rc::Rc<std::cell::Cell<usize>>>,
@@ -205,6 +216,7 @@ impl<'a> ExpansionContext<'a> {
             includes: None,
             shell: None,
             makeflags: None,
+            evaluation_stack: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
             makeflags_cursor: None,
@@ -221,10 +233,16 @@ impl<'a> ExpansionContext<'a> {
             includes: None,
             shell: None,
             makeflags: None,
+            evaluation_stack: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
             makeflags_cursor: None,
         }
+    }
+
+    pub fn with_evaluation_stack(mut self, stack: Option<&'a dyn EvaluationStack>) -> Self {
+        self.evaluation_stack = stack;
+        self
     }
 
     pub fn with_makeflags(mut self, receiver: &'a mut MakeflagsReceiver<'a>) -> Self {
@@ -497,6 +515,7 @@ impl<'a> ExpansionContext<'a> {
                 Some(receiver) => Some(&mut **receiver),
                 None => None,
             },
+            evaluation_stack: self.evaluation_stack,
             makeflags_depth: self.makeflags_depth,
             makeflags_terminal: self.makeflags_terminal,
             makeflags_cursor: self.makeflags_cursor.clone(),
@@ -512,13 +531,19 @@ impl<'a> ExpansionContext<'a> {
 pub enum Diagnostic {
     Text(String),
     Bytes(Vec<u8>),
+    /// The selected error has no source/caller location; later eval transport
+    /// must preserve that decision rather than attaching a binding locus.
+    Unlocated(Vec<u8>),
 }
 
 impl Diagnostic {
+    pub fn is_unlocated(&self) -> bool {
+        matches!(self, Self::Unlocated(_))
+    }
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::Text(text) => text.as_bytes(),
-            Self::Bytes(bytes) => bytes,
+            Self::Bytes(bytes) | Self::Unlocated(bytes) => bytes,
         }
     }
 }

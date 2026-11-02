@@ -123,11 +123,10 @@ impl Expansion<'_, '_> {
         // Every suspended suffix is literal and cannot observe a later mutation.
         let mut root = Some(parts(c_string_prefix(&variable.value))?);
         let mut seen: HashSet<_> = self
-            .active
-            .iter()
+            .active_keys()
             .map(|(name, layer)| (name.as_slice(), *layer))
             .collect();
-        let mut used = self.active.len().checked_mul(128)?;
+        let mut used = self.active_count().checked_mul(128)?;
         let mut nearest: Option<Arc<Location>> = None;
         let mut pending = Vec::new();
         let mut text_len = 0usize;

@@ -15,6 +15,7 @@ struct CFile {
 
 unsafe extern "C" {
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
+    fn fgets(buffer: *mut c_char, count: c_int, stream: *mut CFile) -> *mut c_char;
     fn fread(buffer: *mut c_void, size: usize, count: usize, stream: *mut CFile) -> usize;
     fn ferror(stream: *mut CFile) -> c_int;
     fn clearerr(stream: *mut CFile);
@@ -47,6 +48,124 @@ impl Stream {
             let error = io::Error::last_os_error();
             if error.kind() != io::ErrorKind::Interrupted {
                 return Err(error);
+            }
+        }
+    }
+
+    pub(super) fn prevent_inheritance(&mut self) -> io::Result<()> {
+        let pointer = self.0.expect("live stream");
+        // SAFETY: exclusively owned live FILE; fcntl operates on its descriptor.
+        let fd = unsafe { fileno(pointer.as_ptr()) };
+        let flags = unsafe { fcntl(fd, 1) };
+        if flags < 0 || unsafe { fcntl(fd, 2, flags | 1) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    /// Source reads preserve sticky errors. In particular, an interrupted fgets
+    /// is not the retrying $(file) read operation implemented below.
+    pub(super) fn source_fragment(
+        &mut self,
+        count: usize,
+        scratch: &mut Vec<u8>,
+        clean: &mut bool,
+    ) -> (Option<Vec<u8>>, Option<io::Error>) {
+        if crate::signals::pending().is_some() {
+            return (None, Some(io::ErrorKind::Interrupted.into()));
+        }
+        let pointer = self.0.expect("live stream");
+        const BLOCK: usize = 64 * 1024;
+        let mut visible = Vec::new();
+        let mut remaining = count - 1;
+        let mut consumed = false;
+        let mut nul = false;
+        let mut error = None;
+        while remaining != 0 {
+            if crate::signals::pending().is_some() {
+                return (None, Some(io::ErrorKind::Interrupted.into()));
+            }
+            let size = (remaining + 1).min(BLOCK);
+            if scratch
+                .try_reserve(size.saturating_sub(scratch.len()))
+                .is_err()
+            {
+                return (
+                    None,
+                    Some(io::Error::other("source buffer allocation failed")),
+                );
+            }
+            scratch.resize(size, 0xff);
+            let split = count > BLOCK;
+            if split && !*clean {
+                scratch.fill(0xff);
+                *clean = true;
+            } else if !split {
+                *clean = false;
+            }
+            // SAFETY: initialized writable storage of size bytes; size fits
+            // c_int. FILE is live and exclusively borrowed for this fragment.
+            let result =
+                unsafe { fgets(scratch.as_mut_ptr().cast(), size as c_int, pointer.as_ptr()) };
+            // Capture the source errno before any allocation or interpreter
+            // work, including a partial read that sets the sticky error bit.
+            error = (unsafe { ferror(pointer.as_ptr()) } != 0).then(io::Error::last_os_error);
+            if result.is_null() {
+                *clean = false;
+                break;
+            }
+            consumed = true;
+            let end = scratch
+                .iter()
+                .position(|b| *b == 0)
+                .expect("fgets terminator");
+            if !nul {
+                if visible.len().saturating_add(end) > rmake_core::variables::MAX_OUTPUT {
+                    return (
+                        None,
+                        Some(io::Error::other("source line size limit exceeded")),
+                    );
+                }
+                visible.extend_from_slice(&scratch[..end]);
+            }
+            if !split {
+                break;
+            }
+            // Unwritten bytes contain no NUL. The final NUL is consequently
+            // the terminator after all consumed bytes, including hidden NULs.
+            let newline = end != 0 && scratch[end - 1] == b'\n';
+            let read = if newline {
+                end
+            } else {
+                scratch
+                    .iter()
+                    .rposition(|b| *b == 0)
+                    .expect("fgets terminator")
+            };
+            nul |= end != read;
+            remaining -= read;
+            let complete = read == 0 || scratch[read - 1] == b'\n';
+            // Keep unwritten storage non-NUL without clearing/scanning the
+            // entire retained buffer for every subsequent short source line.
+            scratch[..=read].fill(0xff);
+            if complete {
+                break;
+            }
+            // A sticky I/O error ends the logical read before any effects.
+            if error.is_some() {
+                break;
+            }
+        }
+        (consumed.then_some(visible), error)
+    }
+
+    pub(super) fn finish_source(&mut self) {
+        if let Some(pointer) = self.0.take() {
+            // SAFETY: the sole live owner is consumed once. Source close errors
+            // do not change a successfully interpreted file's result.
+            unsafe {
+                fclose(pointer.as_ptr());
+                *__errno_location() = 0;
             }
         }
     }

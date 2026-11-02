@@ -183,10 +183,13 @@ struct Prepared {
 }
 
 impl Expansion<'_, '_> {
-    fn text_program<'c>(
+    fn text_program<'c, 'active>(
         store: &'c StoreAccess<'_>,
         bindings: &'c [LocalFrame],
-        active: &[(Vec<u8>, Option<usize>)],
+        active: (
+            usize,
+            impl Iterator<Item = &'active (Vec<u8>, Option<usize>)>,
+        ),
         context: &ExpansionContext<'_>,
         name: &'c [u8],
         variable: &'c Variable,
@@ -196,7 +199,7 @@ impl Expansion<'_, '_> {
         // Conservative allowance covers indexed source/node/frame bookkeeping;
         // instruction capacity and source-work bytes are charged separately.
         budget.charge(1024 + name.len() + variable.value.len())?;
-        budget.charge(active.len().checked_mul(128)?)?;
+        budget.charge(active.0.checked_mul(128)?)?;
         let mut instructions = Vec::new();
         let root_ops = operations(
             c_string_prefix(&variable.value),
@@ -210,7 +213,7 @@ impl Expansion<'_, '_> {
             return None;
         }
         let external: HashSet<_> = active
-            .iter()
+            .1
             .map(|(name, layer)| (name.as_slice(), *layer))
             .collect();
         let mut sources = vec![(name, variable, layer)];
@@ -425,7 +428,7 @@ impl Expansion<'_, '_> {
         let program = Self::text_program(
             &self.store,
             &self.bindings,
-            &self.active,
+            (self.active_count(), self.active_keys()),
             &self.context,
             name,
             variable,
@@ -669,7 +672,7 @@ mod tests {
         let program = Expansion::text_program(
             &expansion.store,
             &expansion.bindings,
-            &expansion.active,
+            (expansion.active_count(), expansion.active_keys()),
             &expansion.context,
             b"R0",
             store.get(b"R0").unwrap(),
