@@ -78,7 +78,7 @@ fn expand_unique_long_option(argument: &[u8]) -> Option<Vec<u8>> {
     Some(expanded)
 }
 
-/// A decoded non-option or filename operand, at its original argument position.
+/// A decoded operand or live warning-policy event, at its argument position.
 #[derive(Clone, Copy)]
 pub(crate) enum Argument {
     Definition(usize),
@@ -88,6 +88,7 @@ pub(crate) enum Argument {
     Directory(usize),
     Include(usize),
     Goal(usize),
+    Warning(usize),
 }
 
 #[derive(Clone, Default, Debug)]
@@ -299,12 +300,22 @@ impl Options {
     /// later file flags can change them, while explicit CLI -j keeps priority.
     pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
         self.decode_file_flags(flags, true, Origin::Environment)
+            .map(|(options, jobs, _)| (options, jobs))
     }
+    #[cfg(test)]
     pub fn assigned_flags(
         &self,
         flags: &[Vec<u8>],
         origin: Origin,
     ) -> Result<(Self, Option<usize>), String> {
+        self.assigned_flags_with_positions(flags, origin)
+            .map(|(options, jobs, _)| (options, jobs))
+    }
+    pub fn assigned_flags_with_positions(
+        &self,
+        flags: &[Vec<u8>],
+        origin: Origin,
+    ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
         self.decode_file_flags(flags, false, origin)
     }
     fn decode_file_flags(
@@ -312,7 +323,7 @@ impl Options {
         flags: &[Vec<u8>],
         restore_cli_jobs: bool,
         origin: Origin,
-    ) -> Result<(Self, Option<usize>), String> {
+    ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
         let mut incoming = Vec::new();
         for value in flags {
             Self::append_expanded_flags(&mut incoming, value)?;
@@ -336,12 +347,20 @@ impl Options {
             .iter()
             .map(|path| path.as_os_str().to_owned())
             .collect();
+        // Capture only new events. Persistent options and the pure incoming
+        // validation pass need no temporary policy vector or prefix allocation.
+        let mut warning_positions = Vec::new();
         let mut parsed = Self::parse_with::<false, String>(
             arguments,
             seeded,
             0,
             false,
             &mut |options, argument| {
+                if let Argument::Warning(position) = argument
+                    && position >= prefix_count
+                {
+                    warning_positions.push(position - prefix_count + 1);
+                }
                 if let Argument::Include(index) = argument {
                     let raw = options.include_directories[index].as_os_str();
                     if seen.contains(raw) {
@@ -410,6 +429,7 @@ impl Options {
             incoming_options
                 .jobs
                 .filter(|_| self.command_jobs.is_none()),
+            warning_positions,
         ))
     }
 
@@ -521,6 +541,9 @@ impl Options {
                         result.no_rules = true;
                     }
                     match name {
+                        b"--warn-undefined-variables" if !STARTUP => {
+                            receiver(&mut result, Argument::Warning(i + offset))?;
+                        }
                         b"--silent" | b"--quiet" => {
                             result.silent_origin = Some(Origin::CommandLine)
                         }
@@ -1157,6 +1180,27 @@ mod tests {
         assert_eq!(live.assignment_context, [(3, false)]);
         assert_eq!(live.flag_word_count, 4);
         assert_eq!(live.flags(), b"ks");
+    }
+
+    #[test]
+    fn live_warning_positions_exclude_prefix_flags_and_rejected_arguments() {
+        let inherited = parse(&["--warn-undefined-variables"]).unwrap();
+        let (live, _, positions) = inherited
+            .assigned_flags_with_positions(
+                &[b"A:=before --warn-undef B:=after".to_vec()],
+                Origin::File,
+            )
+            .unwrap();
+        assert_eq!(positions, [2]);
+        assert_eq!(live.assignment_context, [(1, false), (3, false)]);
+        let (rejected, _, positions) = inherited
+            .assigned_flags_with_positions(
+                &[b"--warn-undefined-variables=bad".to_vec()],
+                Origin::File,
+            )
+            .unwrap();
+        assert!(positions.is_empty());
+        assert!(rejected.warn_undefined);
     }
 
     #[test]

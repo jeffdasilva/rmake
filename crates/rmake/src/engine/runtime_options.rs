@@ -14,7 +14,27 @@ pub(super) struct State {
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
 }
 
+pub(super) struct Receiver<'a>(&'a State);
+
+impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
+    fn decode(
+        &mut self,
+        request: rmake_core::diagnostic::MakeflagsRequest<'_>,
+    ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
+        self.0.assigned(request)
+    }
+
+    fn set_warning_policy(&mut self, enabled: bool) {
+        self.0.options.borrow_mut().warn_undefined = enabled;
+        self.0.warn_undefined.set(enabled);
+        self.0.dirty.set(true);
+    }
+}
+
 impl State {
+    pub(super) fn receiver(&self) -> Receiver<'_> {
+        Receiver(self)
+    }
     pub(super) fn new(
         options: &Options,
         output: crate::output::Controller,
@@ -47,8 +67,8 @@ impl State {
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
     ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
         let current = self.options.borrow();
-        let (mut updated, _) = current
-            .assigned_flags(&[request.value.to_vec()], request.origin)
+        let (mut updated, _, warning_positions) = current
+            .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
             .map_err(String::into_bytes)?;
         let assignments = std::mem::take(&mut updated.assignments)
             .into_iter()
@@ -100,6 +120,8 @@ impl State {
                 }
             })),
             assignments,
+            warning_positions,
+            warning_entry: current.warn_undefined,
             next_argument: updated.flag_word_count,
         };
         drop(current);
@@ -318,7 +340,7 @@ impl Engine {
                     &self.flag_state.warn_undefined,
                 ),
             )
-            .with_makeflags(&mut |request| self.flag_state.assigned(request))
+            .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
                 let result = crate::shell::run(

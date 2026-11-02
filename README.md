@@ -44,7 +44,11 @@ ordinary corpus totals 18,506 required cases.
 
 [Saved invocation inputs](docs/runtime-argument-retention.md) now move across
 live flag resets without repeated buffer copies. Ten original controls bring
-the corpus to 18,516 required cases; full M3/M6 remains open.
+the corpus to 18,516 required cases.
+
+[Ordered warning policy](docs/live-warning-phases.md) now follows live payload
+positions and nested cursors while retaining active diagnostic locations. The
+corpus totals 19,729 required cases; full M3/M6 remains open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it

@@ -2660,3 +2660,27 @@ Three exploratory warning models remain uncredited research, including a
 qualified premature-warning mismatch and two wrong initial diagnostic-location
 models. Ordered nested decoding, other M3/M6 surfaces, general performance parity
 and persistent caching remain open.
+
+## M3/M6: ordered live warning events (2026-11-02)
+
+[Live policy and caller context](live-warning-phases.md) now follow argument
+positions and the owned nested cursor. A visited policy changes the shared
+runtime cell without repeating decode or I/O; skipped flags stay inactive.
+Transient capture excludes initial/pure passes and serialized prefixes.
+
+1,213 original required models agree with two GNU observations and both selected
+frozen builds, closing 713 preceding mismatches and retaining 500 controls.
+Coverage includes five phases, eager/lazy/conditional priority, override replay,
+bytes, finite nested resets, cursor skips, merged descriptors and the three exact
+historical sources. 275 rejected hypotheses remain unchanged. The complete proof
+and source patch for the correct but unselected capture prototype are retained
+with checked hashes. No new exception or output normalization is introduced.
+
+Formatting, Clippy, 522 Rust and 546 tooling tests pass. The corpus becomes
+19,729 required / zero pending across 147 families, with 17 unchanged separate
+approved exceptions. Twelve retained timing reports remain mixed, including a
+roughly 2% large-noop slowdown and some higher runtime medians. Removing persistent
+bookkeeping did not eliminate that cost; no performance win is claimed. Full
+selected frozen acceptance and exact-head CI remain merge gates. Complete M3/M6,
+passive/source ordering, runtime HOME, other compatibility/profile surfaces,
+general performance parity and persistent caching remain open.

@@ -349,6 +349,8 @@ impl State {
             .set_environment_override(options.environment_override);
         let result: Result<(), ExpandError> = (|| {
             match argument {
+                // The startup decoder does not emit live policy events.
+                crate::cli::Argument::Warning(_) => {}
                 crate::cli::Argument::Definition(index) => {
                     let name = self
                         .evaluate(program, |database, context| {

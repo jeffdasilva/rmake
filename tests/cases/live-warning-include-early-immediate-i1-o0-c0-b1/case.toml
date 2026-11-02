@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-warning-include-early-immediate-i1-o0-c0-b1"
+requirement = "options.live-warning-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables"]
+timeout_seconds = 5
+description = "Original ordered warning activation, eager/lazy priority, diagnostic context, finite nested reset and file witness model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No upstream implementation or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c5420413d5b5d2f66696c652f72656375727369766520423d5b5d2f66696c652f7265637572736976650a5345454e3d5b616e63686f720a410a420a444f4e455d0a"
+"stderr_hex" = "737465702e6d6b3a313a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353ff5f41270a737465702e6d6b3a313a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353ff5f42270a"
