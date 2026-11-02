@@ -32,16 +32,24 @@ fn main() -> ExitCode {
     let mut args = std::env::args_os();
     let invocation = args.next().unwrap_or_else(|| "rmake".into());
     let program = cli::invocation_name(&invocation);
-    let launch = match engine::Engine::invocation(
+    let output = std::env::var_os("MAKE_RESTARTS")
+        .filter(|value| std::os::unix::ffi::OsStrExt::as_bytes(value.as_os_str()).starts_with(b"-"))
+        .map(|_| output::Controller::new(output::Mode::None, &program));
+    let process_output = output.as_ref().map(output::Controller::process_lifetime);
+    let launch = match engine::Engine::invocation_with_output(
         args,
         &program,
         &invocation,
         std::env::var_os("MAKEFLAGS"),
         std::env::var_os("GNUMAKEFLAGS"),
+        output,
     ) {
         Ok(launch) => launch,
         Err(error) => {
             engine::emit_invocation_error(&program, error);
+            if let Some(process_output) = &process_output {
+                process_output.finish();
+            }
             drop(signals);
             return ExitCode::from(rmake_linux::signals::exit_status(2));
         }
@@ -93,6 +101,9 @@ fn main() -> ExitCode {
             2
         }
     };
+    if let Some(process_output) = &process_output {
+        process_output.finish();
+    }
     drop(signals);
     ExitCode::from(rmake_linux::signals::exit_status(status))
 }

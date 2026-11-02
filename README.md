@@ -28,6 +28,9 @@ and cache lifetime, pinned metadata values and scoped `MFLAGS` updates.
 cases covering logical ages, execution modes, flag phases, VPATH and remakes.
 The corpus totals 16,027 required cases; M3/M6 remain open.
 
+[Imported restart-directory traces](docs/imported-directory-trace.md) now close
+once across rereads and failures, with 482 additional controlled profiles.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

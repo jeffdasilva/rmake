@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
+.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -31,6 +31,7 @@ MODE_CASE ?=
 DIAGNOSTIC_CASE ?=
 INCLUDE_STAT_CASE ?=
 SOURCE_STREAM_CASE ?=
+IMPORTED_TRACE_CASE ?=
 FILESYSTEM_CASE ?=
 WHITESPACE_CASE ?=
 ARCHIVE_TIME_CASE ?=
@@ -63,6 +64,7 @@ help:
 		'  test-safety     Check documented safe errors without invoking GNU' \
 		'  test-include-stat Check include-directory EINTR and cancellation behavior' \
 		'  test-source-streams Check live source read, close and interruption ordering' \
+		'  test-imported-trace Check imported restart-directory output lifetime' \
 		'  test-generated  Compare seeded pure-expansion programs' \
 		'  test-graphs     Compare seeded explicit dependency graphs' \
 		'  test-scopes     Compare scoped variables across seeded dependency graphs' \
@@ -208,6 +210,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FILESYSTEM_CASE=close-eio-write test-filesystem
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INCLUDE_STAT_CASE=include-stat-reader-eintr-1 test-include-stat
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SOURCE_STREAM_CASE=source-deep-read-eintr test-source-streams
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" IMPORTED_TRACE_CASE=traced-restart-traced-remake-l2-target-i1 test-imported-trace
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_CASE=stream-limit-and-exec test-directory-search
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SYMLINK_CASE=readlink-eintr-normal test-symlink-times
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" ARCHIVE_TIME_CASE=local-container-default-touch-read-header-eio test-archive-times
@@ -235,6 +238,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/source_streams.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/imported_trace.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/output_lock.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/runtime_terminals.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
@@ -284,6 +288,10 @@ test-filesystem: build oracle-verify
 	$(PYTHON) tools/stdio_faults.py --oracle "$(ORACLE)" --self-test $(if $(FILESYSTEM_CASE),--case "$(FILESYSTEM_CASE)")
 	$(PYTHON) tools/stdio_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(FILESYSTEM_CASE),--case "$(FILESYSTEM_CASE)")
 
+test-imported-trace: build oracle-verify
+	$(PYTHON) tools/imported_trace.py --oracle "$(ORACLE)" --self-test $(if $(IMPORTED_TRACE_CASE),--case "$(IMPORTED_TRACE_CASE)")
+	$(PYTHON) tools/imported_trace.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(IMPORTED_TRACE_CASE),--case "$(IMPORTED_TRACE_CASE)")
+
 test-source-streams: build oracle-verify
 	$(PYTHON) tools/source_streams.py --oracle "$(ORACLE)" --self-test $(if $(SOURCE_STREAM_CASE),--case "$(SOURCE_STREAM_CASE)")
 	$(PYTHON) tools/source_streams.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(SOURCE_STREAM_CASE),--case "$(SOURCE_STREAM_CASE)")
@@ -312,9 +320,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
 ci: check test-selfhost
 

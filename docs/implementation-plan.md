@@ -63,6 +63,10 @@ complete M3/M6.
 logical ages, traversal suppression, mode/phase controls, VPATH and makefile
 remakes with 631 required cases. Complete CLI/profile acceptance remains open.
 
+[Imported directory-trace ownership](imported-directory-trace.md) closes two
+recorded restart-output gaps with 482 separately gated profiles. General
+directory reporting and complete lifecycle/profile acceptance remain open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;
