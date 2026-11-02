@@ -55,7 +55,7 @@ GNU emits a final leaving-directory message for an imported traced marker even
 with `--no-print-directory`. The counter/value behavior is corrected; complete
 directory reporting remains M6 work. Initial incomplete models, two raw GNU runs,
 before/after candidate observations, inputs and binary identities are retained.
-These are not passing fixtures, pending curated cases or safe-error exceptions.
+These are not passing fixtures, pending curated cases or safe-error exceptions. The recorded output gaps are now closed by [imported directory-trace lifetime](imported-directory-trace.md), with 482 separately gated profiles and both exact original reproducers; the historical evidence remains unchanged.
 
 The initial snapshot-warning models also exposed an unrelated undefined A read;
 the refined inputs define A explicitly while retaining the two intended missing

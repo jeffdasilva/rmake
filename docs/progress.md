@@ -2573,3 +2573,19 @@ acceptance flows. The corpus becomes 16,027 required / zero pending; the same
 Guile profiles, remaining presentation/startup/decoder surfaces and general
 performance parity remain open. Validation and measurements are recorded with
 the PR; this entry is not a milestone-complete claim.
+
+## M3/M6: imported restart-directory trace ownership (2026-11-02)
+
+[Process-owned final output](imported-directory-trace.md) closes both exact
+historical imported-marker reproducers. An optional outer owner survives
+constructor failures and logical rereads, retains selected identity/directory
+state, and emits one final leaving message before signal teardown. Ordinary
+invocations keep their previous interpreter ownership and avoid directory copies.
+
+482 original separately gated profiles agree with two GNU observations and both
+frozen builds; preceding rmake fails 242 and passes 240 controls. Five new tooling
+tests protect models, byte-exact path inputs, original history, output and file
+witnesses. The ordinary corpus stays 16,027 required / zero pending with the same
+17 separately gated approved exceptions. The unconditionally shared prototype
+and timing observations remain as rejected performance evidence. General
+directory reporting, complete M3/M6 and performance parity remain open.

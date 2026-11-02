@@ -15,7 +15,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `--jobserver-auth`, `--jobserver-fds`, `--jobserver-style`, `--sync-mutex` | Linux transport/authentication slices and gates exist; lifecycle must survive actual self-exec and native integrations. |
 | `--no-silent`, `--no-keep-going`, `--stop` | Negative spellings, origins and recursive propagation implemented; full startup inventory remains open. |
 | `--no-print-directory` | State/spelling retained; complete directory reporting is still open. |
-| `-w`/`--print-directory` | Unsupported: needs origin-aware policy, deferred entering/leaving, synchronized spool boundaries, constructor errors and restart behavior. |
+| `-w`/`--print-directory` | Entry-point support remains open: needs origin-aware policy, deferred entering/leaving and synchronized spool boundaries. [Imported restart-trace closure](imported-directory-trace.md) now covers its recorded final-message slice, including constructor errors and remakes. |
 | `-d`, `--debug[=...]` | Unsupported: must implement debug categories, ordering, restart/child identities and output. |
 | `-p`/`--print-data-base` | Unsupported: needs semantic database validator with narrow treatment of documented nondeterministic fields. |
 | `--trace` | [Trace output](trace.md) has 165 required cases for rebuild reasons, identity, echo, modes, synchronization and remake reactivation. Full debug-category, startup, option/profile and locale interactions remain open. |

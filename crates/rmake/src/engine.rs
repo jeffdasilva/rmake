@@ -772,6 +772,7 @@ pub enum InvocationError {
 }
 
 impl Engine {
+    #[cfg(test)]
     pub fn invocation(
         args: impl IntoIterator<Item = OsString>,
         program: &[u8],
@@ -779,8 +780,18 @@ impl Engine {
         makeflags: Option<OsString>,
         gnumakeflags: Option<OsString>,
     ) -> Result<Invocation, InvocationError> {
+        Self::invocation_with_output(args, program, invocation, makeflags, gnumakeflags, None)
+    }
+    pub fn invocation_with_output(
+        args: impl IntoIterator<Item = OsString>,
+        program: &[u8],
+        invocation: &OsStr,
+        makeflags: Option<OsString>,
+        gnumakeflags: Option<OsString>,
+        output: Option<crate::output::Controller>,
+    ) -> Result<Invocation, InvocationError> {
         let args: Vec<_> = args.into_iter().collect();
-        let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags);
+        let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags, output);
         Box::new(plan).decode(None)
     }
 }
@@ -852,6 +863,11 @@ impl Engine {
         } else {
             invocation.to_owned()
         };
+        output.set_imported_directory(
+            initial_directory
+                .as_ref()
+                .map(|path| path.as_os_str().as_bytes()),
+        );
         for directory in &options.directories {
             std::env::set_current_dir(directory).map_err(|error| {
                 StartupError::from(Diagnostic::from(
@@ -875,6 +891,7 @@ impl Engine {
         .map_err(|error| {
             StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
         })?;
+        output.set_imported_directory(Some(cwd.as_os_str().as_bytes()));
         for goal in &options.goals {
             database.file_records.insert(goal);
         }

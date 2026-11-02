@@ -38,6 +38,8 @@ struct State {
     coordination: RefCell<Option<Coordination>>,
     program: RefCell<Vec<u8>>,
     interrupted_owner: RefCell<Option<Owner>>,
+    directory: RefCell<Option<Vec<u8>>>,
+    directory_traced: Cell<bool>,
 }
 
 #[derive(Clone)]
@@ -51,7 +53,45 @@ impl Controller {
             coordination: RefCell::new(None),
             program: RefCell::new(program.to_vec()),
             interrupted_owner: RefCell::new(None),
+            directory: RefCell::new(None),
+            directory_traced: Cell::new(false),
         }))
+    }
+    pub fn process_lifetime(&self) -> ProcessOutput {
+        ProcessOutput(self.clone())
+    }
+    pub fn set_imported_directory(&self, directory: Option<&[u8]>) {
+        // Ordinary invocations have no imported trace to close. Keep their
+        // constructor path free of directory-string copies.
+        if directory.is_none() || self.0.directory_traced.get() {
+            self.0.directory.replace(directory.map(<[u8]>::to_vec));
+        }
+    }
+    pub fn import_directory_trace(&self) {
+        self.0.directory_traced.set(true);
+    }
+    fn finish_directory(&self) {
+        if self.0.directory_traced.replace(false) {
+            let program = self.0.program.borrow();
+            let directory = self.0.directory.borrow();
+            if let Some(directory) = directory.as_deref() {
+                plain_parts(
+                    false,
+                    &[
+                        program.as_slice(),
+                        b": Leaving directory '",
+                        directory,
+                        b"'\n",
+                    ],
+                );
+            } else {
+                plain_parts(
+                    false,
+                    &[program.as_slice(), b": Leaving an unknown directory\n"],
+                );
+            }
+        }
+        self.clear();
     }
     pub fn take_interrupted_owner(&self) -> Option<Owner> {
         self.0.interrupted_owner.borrow_mut().take()
@@ -166,6 +206,21 @@ impl Controller {
     fn disable(&self) {
         self.0.mode.set(Mode::None);
         self.clear();
+    }
+}
+
+/// The process owns final output across constructor errors and logical rereads.
+/// Recipe spools and successive interpreters may share the controller, but only
+/// this outer owner closes an imported directory trace.
+pub struct ProcessOutput(Controller);
+impl ProcessOutput {
+    pub fn finish(&self) {
+        self.0.finish_directory();
+    }
+}
+impl Drop for ProcessOutput {
+    fn drop(&mut self) {
+        self.finish();
     }
 }
 

@@ -10,6 +10,7 @@ pub(super) struct Plan {
     environment: Vec<(OsString, OsString)>,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
+    output: Option<crate::output::Controller>,
 }
 
 pub(super) struct Prepared {
@@ -48,6 +49,7 @@ impl Plan {
         invocation: &OsStr,
         makeflags: Option<OsString>,
         gnumakeflags: Option<OsString>,
+        output: Option<crate::output::Controller>,
     ) -> Self {
         let mut environment: Vec<_> = std::env::vars_os().collect();
         for (name, value) in [("MAKEFLAGS", makeflags), ("GNUMAKEFLAGS", gnumakeflags)] {
@@ -66,6 +68,7 @@ impl Plan {
             environment,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
+            output,
         }
     }
 
@@ -73,6 +76,14 @@ impl Plan {
         self: Box<Self>,
         restart: Option<(u32, u32)>,
     ) -> Result<Invocation, InvocationError> {
+        let output = if let Some(output) = &self.output {
+            output.set_mode(crate::output::Mode::None);
+            output.set_program(&self.program);
+            output.set_imported_directory(None);
+            output.clone()
+        } else {
+            crate::output::Controller::new(crate::output::Mode::None, &self.program)
+        };
         let mut database = Database::default();
         database.variables.reserve_environment_layout(
             &[
@@ -102,6 +113,9 @@ impl Plan {
         let mut exports = HashSet::new();
         for (name, value) in &self.environment {
             let name = name.as_bytes();
+            if name == b"MAKE_RESTARTS" && value.as_bytes().starts_with(b"-") {
+                output.import_directory_trace();
+            }
             let updated_level = restart
                 .filter(|_| name == b"MAKELEVEL")
                 .map(|(_, level)| level.to_string());
@@ -150,7 +164,6 @@ impl Plan {
         let initial_directory = std::env::current_dir().ok();
         database.variables.set_startup_directory_pending();
         let filesystem = RefCell::new(FilesystemRuntime::default());
-        let output = crate::output::Controller::new(crate::output::Mode::None, &self.program);
         let mut state = State {
             database,
             filesystem,
