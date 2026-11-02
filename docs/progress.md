@@ -2684,3 +2684,27 @@ bookkeeping did not eliminate that cost; no performance win is claimed. Full
 selected frozen acceptance and exact-head CI remain merge gates. Complete M3/M6,
 passive/source ordering, runtime HOME, other compatibility/profile surfaces,
 general performance parity and persistent caching remain open.
+
+## M3/M6: post-read warning argument positions (2026-11-02)
+
+[Passive warning policy](passive-warning-phases.md) now replays GNUMAKEFLAGS
+definitions and policy events from the captured entry policy. The preliminary
+inspection still prepares warnings for MAKEFLAGS source expansion; eager RHS
+effects before a late flag retain their earlier warning policy. The existing
+owned cursor handles actual positions without persistent policy vectors.
+
+1,728 independent original models cover three declaration phases, four assignment
+forms, three warning positions, both initial policies, four `-e` positions,
+three binding priorities and raw bytes. Two GNU observations and both selected
+frozen builds agree throughout, closing 288 preceding warning mismatches and
+retaining 1,440 controls. Nine original discovery records remain separate with
+zero extra credit. Exact file witnesses retain eager effects under stronger
+values and conditional skips; no observation normalization or exception is added.
+
+Formatting, Clippy, 523 Rust and 551 tooling tests pass. The ordinary corpus is
+21,457 required / zero pending across 148 families, with 17 unchanged separate
+approved safe errors. Four 101-sample elapsed reports remain mixed; GNU remains
+faster and no performance win is claimed. Full frozen acceptance and exact-head
+development/optimized CI remain merge gates. Complete source/effect ordering,
+malformed values, runtime HOME and other M3/M6/profile/integration surfaces,
+general performance parity and persistent caching remain open.

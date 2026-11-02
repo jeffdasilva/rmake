@@ -88,6 +88,10 @@ the selected improvement; full M3/M6 and general performance parity remain open.
 order, nested cursors, active locations, eager priority and post-read replay.
 Broader passive/source ordering and complete M3/M6 acceptance remain open.
 
+[Passive warning steps](passive-warning-phases.md) add 1,728 required models for
+post-read argument positions, eager/lazy effects, priorities and `-e` phases.
+Complete GNUMAKEFLAGS/MAKEFLAGS source-effect ordering and M3/M6 remain open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

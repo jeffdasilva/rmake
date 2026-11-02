@@ -50,6 +50,11 @@ the corpus to 18,516 required cases.
 positions and nested cursors while retaining active diagnostic locations. The
 corpus totals 19,729 required cases; full M3/M6 remains open.
 
+[Post-read warning policy](docs/passive-warning-phases.md) now follows passive
+GNUMAKEFLAGS definition positions. A 1,728-case phase/priority/byte matrix brings
+the corpus to 21,457 required cases. Complete source/effect ordering and M3/M6
+remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

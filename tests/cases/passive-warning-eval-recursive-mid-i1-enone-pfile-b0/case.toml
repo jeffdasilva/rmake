@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "passive-warning-eval-recursive-mid-i1-enone-pfile-b0"
+requirement = "options.passive-warning-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables"]
+timeout_seconds = 5
+description = "Original post-read warning position, assignment timing, variable priority, environment option and exact file witness model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c5420413d5b62617365415d2f66696c652f72656375727369766520423d5b62617365425d2f66696c652f7265637572736976650a5345454e3d5b616e63686f720a444f4e455d0a"
+"stderr_hex" = ""

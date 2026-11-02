@@ -299,8 +299,14 @@ impl Options {
     /// Decode changed file bindings after reading. Existing switches persist;
     /// later file flags can change them, while explicit CLI -j keeps priority.
     pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
-        self.decode_file_flags(flags, true, Origin::Environment)
+        self.file_flags_with_positions(flags)
             .map(|(options, jobs, _)| (options, jobs))
+    }
+    pub fn file_flags_with_positions(
+        &self,
+        flags: &[Vec<u8>],
+    ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
+        self.decode_file_flags(flags, true, Origin::Environment)
     }
     #[cfg(test)]
     pub fn assigned_flags(
@@ -1201,6 +1207,19 @@ mod tests {
             .unwrap();
         assert!(positions.is_empty());
         assert!(rejected.warn_undefined);
+    }
+
+    #[test]
+    fn passive_warning_positions_preserve_explicit_cli_job_priority() {
+        let initial = Options::with_environment(["-j4".into()], None, None).unwrap();
+        let (passive, jobs, positions) = initial
+            .file_flags_with_positions(&[b"A:=before --warn-undef -j2 B:=after".to_vec()])
+            .unwrap();
+        assert_eq!(positions, [2]);
+        assert_eq!(passive.assignment_context, [(1, false), (4, false)]);
+        assert_eq!(passive.jobs, Some(4));
+        assert_eq!(jobs, None);
+        assert!(passive.warn_undefined);
     }
 
     #[test]
