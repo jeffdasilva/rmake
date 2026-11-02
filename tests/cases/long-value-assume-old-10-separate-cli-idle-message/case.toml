@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "long-value-assume-old-10-separate-cli-idle-message"
+requirement = "options.long-prefixes"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--assume-old", "dep"]
+timeout_seconds = 5
+description = "Original unambiguous long-option prefix, flag metadata, operand byte, path, eval or transport model."
+provenance = "Independent exact model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "6d616b653a2027616c6c2720697320757020746f20646174652e0a"
+"stderr_hex" = ""

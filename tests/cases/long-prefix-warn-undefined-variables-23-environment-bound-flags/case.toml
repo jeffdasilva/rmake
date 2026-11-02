@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "long-prefix-warn-undefined-variables-23-environment-bound-flags"
+requirement = "options.long-prefixes"
+candidate = "required"
+args = ["-rR", "-q", "--no-print-directory"]
+timeout_seconds = 5
+description = "Original unambiguous long-option prefix, flag metadata, operand byte, path, eval or transport model."
+provenance = "Independent exact model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+"MAKEFLAGS" = "--warn-undefined-variable"
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "464c4147533d5b717252202d2d6e6f2d7072696e742d6469726563746f7279202d2d7761726e2d756e646566696e65642d7661726961626c65735d204d464c4147533d5b2d717252202d2d6e6f2d7072696e742d6469726563746f7279202d2d7761726e2d756e646566696e65642d7661726961626c65735d0a"
+"stderr_hex" = ""

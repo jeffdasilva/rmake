@@ -2589,3 +2589,20 @@ witnesses. The ordinary corpus stays 16,027 required / zero pending with the sam
 17 separately gated approved exceptions. The unconditionally shared prototype
 and timing observations remain as rejected performance evidence. General
 directory reporting, complete M3/M6 and performance parity remain open.
+
+## M3/M6: unambiguous long-option prefixes (2026-11-02)
+
+[Owned prefix resolution](long-option-prefixes.md) adds valid unique prefixes
+for implemented long options and aliases. Exact options retain direct dispatch;
+the fallback considers the entire GNU namespace, preserves raw equality/operand
+bytes and retries before notifying any receiver. The scan stays iterative.
+
+1,068 required original models agree with two GNU observations and both frozen
+builds. Preceding rmake fails 921 and passes 147 controls. 162 rejected original
+expectations remain unchanged, with independently named refinements and no extra
+credit. Two Rust and five tooling tests protect byte/callback/phase invariants;
+unit totals are 516 Rust / 524 tooling. The ordinary corpus becomes 17,095
+required / zero pending, with the same 17 separate approved exceptions. Full
+frozen acceptance and exact-head CI remain merge gates. Small timing slowdowns
+on argument controls are retained; no general speed or milestone-complete claim.
+Ambiguous-reader behavior and full malformed usage remain ordinary M3/M6 work.

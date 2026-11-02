@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "long-prefix-quiet-5-reader"
+requirement = "options.long-prefixes"
+candidate = "required"
+args = ["-rR", "-q", "--no-print-directory"]
+timeout_seconds = 5
+description = "Original unambiguous long-option prefix, flag metadata, operand byte, path, eval or transport model."
+provenance = "Independent exact model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "464c4147533d5b71725273202d2d6e6f2d7072696e742d6469726563746f72795d204d464c4147533d5b2d71725273202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+"stderr_hex" = ""
