@@ -13,10 +13,15 @@ option in GNU's observed order. Includes, secondary expansion, recursive exports
 recipe configuration, restarts, recursion and directory changes share the same
 live policy and output boundary.
 
+[Ordered live payloads](live-warning-phases.md) now retain warning-enable
+positions, finite nested cursor selection and active diagnostic locations.
+The original three discovery inputs now pass; complete passive/source ordering
+and broader decoder acceptance remain open.
+
 ## Diagnostic boundaries
 
 Reader/recipe locations, the first binding context when no caller exists, and
-unlocated decoder warnings remain distinct. In particular:
+unlocated passive decoder warnings remain distinct. In particular:
 
 - With initial `-R`, absent `GNUMAKEFLAGS` can itself produce an unlocated
   post-read warning. It is not a generally silent internal lookup.

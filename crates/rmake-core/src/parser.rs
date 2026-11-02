@@ -881,6 +881,103 @@ mod include_tests {
     }
 
     #[test]
+    fn flag_warning_steps_keep_argument_order_active_location_and_final_policy() {
+        use crate::diagnostic::{
+            FlagAssignment, MakeflagsReceiver, MakeflagsResult, WarningOutput,
+        };
+        use std::cell::{Cell, RefCell};
+        use std::rc::Rc;
+        struct Receiver {
+            enabled: Rc<Cell<bool>>,
+            policies: Rc<RefCell<Vec<bool>>>,
+        }
+        impl MakeflagsReceiver for Receiver {
+            fn decode(
+                &mut self,
+                request: crate::diagnostic::MakeflagsRequest<'_>,
+            ) -> Result<MakeflagsResult, Vec<u8>> {
+                let first = !request.value.is_empty();
+                if first {
+                    // A host may already have decoded the final option state.
+                    self.enabled.set(true);
+                }
+                Ok(MakeflagsResult {
+                    eval_reference: false,
+                    value: b"--warn-undefined-variables".to_vec(),
+                    origin: Origin::File,
+                    environment_override: false,
+                    include_dirs: Vec::new(),
+                    publish_includes: None,
+                    assignments: if first {
+                        vec![
+                            FlagAssignment {
+                                argument: b"A:=$(MISSING_A)".to_vec(),
+                                environment_override: false,
+                                position: 1,
+                            },
+                            FlagAssignment {
+                                argument: b"B:=$(MISSING_B)".to_vec(),
+                                environment_override: false,
+                                position: 3,
+                            },
+                        ]
+                    } else {
+                        Vec::new()
+                    },
+                    warning_positions: if first { vec![2] } else { Vec::new() },
+                    warning_entry: false,
+                    next_argument: 4,
+                })
+            }
+            fn set_warning_policy(&mut self, enabled: bool) {
+                self.enabled.set(enabled);
+                self.policies.borrow_mut().push(enabled);
+            }
+        }
+        let enabled = Rc::new(Cell::new(false));
+        let policies = Rc::new(RefCell::new(Vec::new()));
+        let mut receiver = Receiver {
+            enabled: enabled.clone(),
+            policies: policies.clone(),
+        };
+        let mut warnings = Vec::new();
+        Database::default()
+            .read_with(
+                b"MAKEFLAGS=seed\nNEXT:=$(MISSING_NEXT)\n",
+                b"case.mk",
+                ExpansionContext::with_receiver(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| {
+                            if let Output::Warning { location, message } = event {
+                                warnings.push((location.cloned(), message.to_vec()));
+                            }
+                        },
+                        &enabled,
+                    ),
+                )
+                .with_makeflags(&mut receiver),
+            )
+            .unwrap();
+        assert_eq!(*policies.borrow(), [false, true]);
+        assert!(enabled.get());
+        assert_eq!(warnings.len(), 2);
+        for ((location, message), (line, name)) in
+            warnings.iter().zip([(1, "MISSING_B"), (2, "MISSING_NEXT")])
+        {
+            let location = location.as_ref().unwrap();
+            assert_eq!(
+                (location.file.as_ref(), location.line),
+                (b"case.mk".as_slice(), line)
+            );
+            assert_eq!(
+                message,
+                format!("warning: undefined variable '{name}'").as_bytes()
+            );
+        }
+    }
+
+    #[test]
     fn include_metadata_uses_full_database_before_publication_and_flag_normalization() {
         use std::cell::Cell;
         use std::rc::Rc;
@@ -907,6 +1004,8 @@ mod include_tests {
                     }
                 })),
                 assignments: Vec::new(),
+                warning_positions: Vec::new(),
+                warning_entry: false,
                 next_argument: 1,
             })
         };
@@ -959,6 +1058,8 @@ mod include_tests {
                     }
                 })),
                 assignments: Vec::new(),
+                warning_positions: Vec::new(),
+                warning_entry: false,
                 next_argument: 1,
             })
         };
@@ -1012,6 +1113,8 @@ mod include_tests {
                     }
                 })),
                 assignments: Vec::new(),
+                warning_positions: Vec::new(),
+                warning_entry: false,
                 next_argument: 1,
             })
         };
@@ -1056,6 +1159,8 @@ mod include_tests {
                 include_dirs: Vec::new(),
                 publish_includes: None,
                 assignments: Vec::new(),
+                warning_positions: Vec::new(),
+                warning_entry: false,
                 next_argument: 1,
             })
         };
@@ -1100,6 +1205,8 @@ mod include_tests {
                 include_dirs: Vec::new(),
                 publish_includes: None,
                 assignments: Vec::new(),
+                warning_positions: Vec::new(),
+                warning_entry: false,
                 next_argument: 1,
             })
         };

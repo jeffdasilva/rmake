@@ -14,6 +14,11 @@ with environment origin and the then-applicable environment override policy.
 The policy at each assignment's argument position matters: `X=value -e` differs
 from `-e X=value` when an imported X already exists.
 
+[Ordered warning events](live-warning-phases.md) now share that cursor and retain
+active diagnostic locations. Eager RHS effects still run before selecting which
+value survives stronger priority; conditional definitions retain their skips.
+Complete passive/source ordering and contextual runtime HOME remain open.
+
 The host returns owned assignment tokens and their option positions/policies.
 The ordinary database evaluator expands their names and evaluates recursive,
 simple, immediate-recursive, append, conditional and shell forms. Definitions

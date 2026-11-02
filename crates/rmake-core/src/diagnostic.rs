@@ -168,10 +168,25 @@ pub struct MakeflagsResult {
     /// Dropping or refreshing a result discards its unused transaction.
     pub publish_includes: Option<Box<dyn FnOnce() -> MakeflagsMetadata>>,
     pub assignments: Vec<FlagAssignment>,
+    /// Input positions of warning-enabling options, excluding serialized
+    /// preexisting flags. They share the definition stream's owned cursor.
+    pub warning_positions: Vec<usize>,
+    pub warning_entry: bool,
     pub next_argument: usize,
 }
-type MakeflagsReceiver<'a> =
-    dyn FnMut(MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>> + 'a;
+
+pub trait MakeflagsReceiver {
+    fn decode(&mut self, request: MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>>;
+    /// Apply an ordered policy step without decoding or repeating I/O. Quiet
+    /// frontends can retain the default; warning-aware hosts share their cell.
+    fn set_warning_policy(&mut self, _enabled: bool) {}
+}
+
+impl<F: FnMut(MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>>> MakeflagsReceiver for F {
+    fn decode(&mut self, request: MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>> {
+        self(request)
+    }
+}
 
 /// Host stack ownership for synchronous parser reentry. A runtime adapter
 /// executes the callback exactly once, on the same thread, or rejects before
@@ -192,7 +207,7 @@ pub struct ExpansionContext<'a> {
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
-    makeflags: Option<&'a mut MakeflagsReceiver<'a>>,
+    makeflags: Option<&'a mut dyn MakeflagsReceiver>,
     pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
     makeflags_depth: usize,
     makeflags_terminal: usize,
@@ -245,7 +260,7 @@ impl<'a> ExpansionContext<'a> {
         self
     }
 
-    pub fn with_makeflags(mut self, receiver: &'a mut MakeflagsReceiver<'a>) -> Self {
+    pub fn with_makeflags(mut self, receiver: &'a mut dyn MakeflagsReceiver) -> Self {
         self.makeflags = Some(receiver);
         self
     }
@@ -279,28 +294,37 @@ impl<'a> ExpansionContext<'a> {
         let has_input = value
             .iter()
             .any(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'));
-        let mut result = self.makeflags.as_mut().expect("configured receiver")(MakeflagsRequest {
-            value: &value,
-            origin,
-        })
-        .map_err(ExpandError::UnlocatedError)?;
+        let mut result = self
+            .makeflags
+            .as_mut()
+            .expect("configured receiver")
+            .decode(MakeflagsRequest {
+                value: &value,
+                origin,
+            })
+            .map_err(ExpandError::UnlocatedError)?;
         database
             .variables
             .set_environment_override(result.environment_override);
-        if !result.assignments.is_empty() {
-            self.apply_flag_assignments(
+        if !result.assignments.is_empty() || !result.warning_positions.is_empty() {
+            self.apply_flag_steps(
                 database,
                 &result.assignments,
                 origin,
                 result.next_argument,
+                &result.warning_positions,
+                result.warning_entry,
             )?;
             // Nested definitions can change switches, but refreshing does not
             // repeat the outer assignment stream or reset its owned cursor.
-            result = self.makeflags.as_mut().expect("configured receiver")(MakeflagsRequest {
-                value: b"",
-                origin,
-            })
-            .map_err(ExpandError::UnlocatedError)?;
+            if !result.assignments.is_empty() {
+                result = self
+                    .makeflags
+                    .as_mut()
+                    .expect("configured receiver")
+                    .decode(MakeflagsRequest { value: b"", origin })
+                    .map_err(ExpandError::UnlocatedError)?;
+            }
         } else if has_input && let Some(cursor) = &self.makeflags_cursor {
             // A nested single short-option word rewinds GNU's process-global
             // cursor into an already-applied outer assignment. Refuse the
@@ -375,9 +399,27 @@ impl<'a> ExpansionContext<'a> {
         origin: crate::variables::Origin,
         terminal: usize,
     ) -> Result<Vec<Vec<u8>>, crate::variables::ExpandError> {
+        self.apply_flag_steps(database, assignments, origin, terminal, &[], false)
+    }
+
+    fn apply_flag_steps(
+        &mut self,
+        database: &mut crate::parser::Database,
+        assignments: &[FlagAssignment],
+        origin: crate::variables::Origin,
+        terminal: usize,
+        warning_positions: &[usize],
+        warning_entry: bool,
+    ) -> Result<Vec<Vec<u8>>, crate::variables::ExpandError> {
         use crate::variables::{ExpandError, Origin};
         if self.makeflags_depth >= 128 {
             return Err(ExpandError::ExpansionLimit);
+        }
+        if !warning_positions.is_empty() {
+            self.makeflags
+                .as_mut()
+                .expect("configured policy receiver")
+                .set_warning_policy(warning_entry);
         }
         let cursor = self
             .makeflags_cursor
@@ -389,9 +431,28 @@ impl<'a> ExpansionContext<'a> {
         let previous_terminal = std::mem::replace(&mut self.makeflags_terminal, terminal);
         self.makeflags_depth += 1;
         let applied = (|| {
-            for _ in 0..128_usize.saturating_mul(assignments.len().max(1)) {
+            for _ in 0..128_usize.saturating_mul(
+                assignments
+                    .len()
+                    .saturating_add(warning_positions.len())
+                    .max(1),
+            ) {
                 let index =
                     assignments.partition_point(|assignment| assignment.position < cursor.get());
+                let next_warning = warning_positions
+                    .get(warning_positions.partition_point(|position| *position < cursor.get()));
+                if let Some(position) = next_warning
+                    && assignments
+                        .get(index)
+                        .is_none_or(|assignment| *position < assignment.position)
+                {
+                    cursor.set(position + 1);
+                    self.makeflags
+                        .as_mut()
+                        .expect("configured policy receiver")
+                        .set_warning_policy(true);
+                    continue;
+                }
                 let Some(assignment) = assignments.get(index) else {
                     cursor.set(cursor.get().max(terminal));
                     return Ok(());
@@ -406,9 +467,11 @@ impl<'a> ExpansionContext<'a> {
                 } else {
                     origin
                 };
-                if let Some(name) =
-                    database.define_argument_with(&assignment.argument, effective, self.at(None))?
-                {
+                if let Some(name) = database.define_argument_with(
+                    &assignment.argument,
+                    effective,
+                    self.reborrow(),
+                )? {
                     names.push(name);
                 }
             }

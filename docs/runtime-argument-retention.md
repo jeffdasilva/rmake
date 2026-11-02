@@ -101,16 +101,20 @@ and 5.042/5.061. GNU remains faster. Raw reports: [core A](benchmarks/runtime-re
 
 ## Newly recorded warning gap
 
+The exact three historical sources now pass under [ordered live warning policy](live-warning-phases.md).
+The original observations and wrong initial hypotheses remain unchanged below.
+
 [Uncredited exploratory observations](../tests/research/live-warning-phase-discovery.json)
 record three original live payload hypotheses. The late-warning model agrees
 with two GNU runs: a later `--warn-undefined-variables` must not warn about an
-earlier eager definition. Current rmake warns too early. Two other initial
+earlier eager definition. The preceding rmake warned too early. Two other initial
 models incorrectly predicted program-only diagnostic locations; GNU uses the
 active Makefile line. Their original inputs, expectations and all observations
 remain unchanged. No case is promoted, excused or given performance credit.
 
 A complete fix must preserve ordered policy and diagnostic context through
-nested flag resets, not merely overwrite the final warning bit. This remains
+nested flag resets, not merely overwrite the final warning bit. The linked live
+slice now supplies those controls; broader passive/source ordering remains
 ordinary M3/M6 work alongside runtime HOME, the finite nested decoder mismatch,
 startup usage/presentation, real exec/stdin, native loading, enabled Guile,
 Linux/locale/integration acceptance and persistent-cache correctness.

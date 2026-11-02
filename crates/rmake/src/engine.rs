@@ -1162,7 +1162,7 @@ impl Engine {
                     &self.flag_state.warn_undefined,
                 ),
             )
-            .with_makeflags(&mut |request| self.flag_state.assigned(request))
+            .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
                 let result = crate::shell::run(
@@ -1197,7 +1197,7 @@ impl Engine {
                     &self.flag_state.warn_undefined,
                 ),
             )
-            .with_makeflags(&mut |request| self.flag_state.assigned(request))
+            .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
                 let result = crate::shell::run(
@@ -1326,7 +1326,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -1393,7 +1393,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -1472,7 +1472,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -1730,7 +1730,7 @@ impl Engine {
                             &self.flag_state.warn_undefined,
                         ),
                     )
-                    .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                    .with_makeflags(&mut self.flag_state.receiver())
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                     .with_shell(&mut |request| {
                         let result = crate::shell::run(
@@ -1801,7 +1801,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -1910,7 +1910,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -1945,7 +1945,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request)),
+                .with_makeflags(&mut self.flag_state.receiver()),
             ) {
                 self.fatal(error.source_location(), error.message.as_bytes());
                 return 2;
@@ -1958,7 +1958,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -2176,7 +2176,7 @@ impl Engine {
                                     &self.flag_state.warn_undefined,
                                 ),
                             )
-                            .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                            .with_makeflags(&mut self.flag_state.receiver())
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
@@ -4306,7 +4306,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -4369,7 +4369,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -4513,9 +4513,7 @@ impl Engine {
                 result
             };
             let mut includes = |name: &[u8]| self.include_search.borrow().read(name);
-            let mut makeflags = |request: rmake_core::diagnostic::MakeflagsRequest<'_>| {
-                self.flag_state.assigned(request)
-            };
+            let mut makeflags = self.flag_state.receiver();
             let mut diagnostic_output =
                 WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
             let mut context = runtime_context(None, &mut diagnostic_output)
@@ -5992,7 +5990,7 @@ impl Engine {
                         &self.flag_state.warn_undefined,
                     ),
                 )
-                .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
                     let result = crate::shell::run(
@@ -6569,7 +6567,7 @@ impl Engine {
                                     &self.flag_state.warn_undefined,
                                 ),
                             )
-                            .with_makeflags(&mut |request| self.flag_state.assigned(request))
+                            .with_makeflags(&mut self.flag_state.receiver())
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })

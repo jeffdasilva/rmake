@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-warning-cursor-reader-n1-i1-b1"
+requirement = "options.live-warning-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables"]
+timeout_seconds = 5
+description = "Original finite nested long-option cursor selects whether a later warning policy is visited."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen builds; no copied or translated upstream code/tests."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c5420413d5b5d20464c4147533d5b2d2d7761726e2d756e646566696e65642d7661726961626c65735d0a41465445523d5b5d0a5345454e3d5b616e63686f720a410a444f4e455d0a"
+"stderr_hex" = "4d616b6566696c653a353a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353ff5f57495448494e270a4d616b6566696c653a363a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353ff5f4146544552270a"
