@@ -1,0 +1,180 @@
+diff --git a/crates/rmake-core/src/variables.rs b/crates/rmake-core/src/variables.rs
+index 7604e87e..a45c2a1c 100644
+--- a/crates/rmake-core/src/variables.rs
++++ b/crates/rmake-core/src/variables.rs
+@@ -2127,11 +2127,38 @@ enum LiteralChain {
+     Error(ExpandError),
+ }
+ 
++/// Conservative name membership only. A hit always requires exact key/layer
++/// comparison; saturation and collisions can only select the slower path.
++#[derive(Clone, Copy, Default)]
++struct ActiveNames([u64; 16]);
++impl ActiveNames {
++    fn positions(name: &[u8]) -> [(usize, u64); 2] {
++        let mut hash = 0xcbf29ce484222325u64;
++        for byte in name {
++            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
++        }
++        hash ^= hash >> 32;
++        [hash, hash.rotate_right(29)]
++            .map(|value| (((value >> 6) as usize) & 15, 1u64 << (value & 63)))
++    }
++    fn insert(&mut self, name: &[u8]) {
++        for (word, bit) in Self::positions(name) {
++            self.0[word] |= bit;
++        }
++    }
++    fn may_contain(&self, name: &[u8]) -> bool {
++        Self::positions(name)
++            .iter()
++            .all(|(word, bit)| self.0[*word] & bit != 0)
++    }
++}
++
+ #[derive(Clone)]
+ pub(crate) struct ActiveContext {
+     keys: Vec<(Vec<u8>, Option<usize>)>,
+     parent: Option<Arc<ActiveContext>>,
+     count: usize,
++    names: ActiveNames,
+ }
+ 
+ struct Expansion<'a, 'b> {
+@@ -2176,6 +2203,26 @@ impl Expansion<'_, '_> {
+             .flat_map(|node| node.keys.iter()),
+         )
+     }
++    fn is_active(&self, name: &[u8], layer: Option<usize>) -> bool {
++        if self
++            .active
++            .iter()
++            .any(|(key, selected)| key == name && *selected == layer)
++        {
++            return true;
++        }
++        let Some(parent) = self.inherited_active.as_deref() else {
++            return false;
++        };
++        if !parent.names.may_contain(name) {
++            return false;
++        }
++        std::iter::successors(Some(parent), |node| node.parent.as_deref()).any(|node| {
++            node.keys
++                .iter()
++                .any(|(key, selected)| key == name && *selected == layer)
++        })
++    }
+     fn active_count(&self) -> usize {
+         self.active.len() + self.inherited_active.as_ref().map_or(0, |node| node.count)
+     }
+@@ -2183,10 +2230,18 @@ impl Expansion<'_, '_> {
+         if self.active.is_empty() {
+             self.inherited_active.clone()
+         } else {
++            let mut names = self
++                .inherited_active
++                .as_ref()
++                .map_or_else(ActiveNames::default, |parent| parent.names);
++            for (name, _) in &self.active {
++                names.insert(name);
++            }
+             Some(Arc::new(ActiveContext {
+                 keys: self.active.clone(),
+                 parent: self.inherited_active.clone(),
+                 count: self.active_count(),
++                names,
+             }))
+         }
+     }
+@@ -2440,10 +2495,7 @@ impl Expansion<'_, '_> {
+         {
+             return result;
+         }
+-        if self
+-            .active_keys()
+-            .any(|(active, active_layer)| active == name && *active_layer == layer)
+-        {
++        if self.is_active(name, layer) {
+             return Err(
+                 ExpandError::RecursiveVariable(name.to_vec()).at(variable.definition.as_ref())
+             );
+@@ -7202,3 +7254,52 @@ fn warn_missing(
+     }
+     Ok(())
+ }
++
++#[cfg(test)]
++mod active_context_tests {
++    use super::*;
++    use std::collections::HashSet;
++
++    #[test]
++    fn inherited_membership_keeps_exact_keys_shared_snapshots_and_collisions() {
++        let store = VariableStore::new();
++        let mut expansion = store.expansion(ExpansionContext::pure());
++        let name = |index: u16| [b"key-".as_slice(), &index.to_le_bytes(), &[0xff]].concat();
++        let mut expected = HashSet::new();
++        for index in 0..256 {
++            let key = (
++                name(index),
++                (index % 3 != 0).then_some(usize::from(index % 3)),
++            );
++            expected.insert(key.clone());
++            expansion.active.push(key);
++            expansion.inherited_active = expansion.snapshot_active();
++            expansion.active.clear();
++            assert!(expansion.is_active(&name(0), None));
++        }
++        let parent = expansion.inherited_active.clone();
++        expansion.active.push((b"child".to_vec(), None));
++        expansion.inherited_active = expansion.snapshot_active();
++        expansion.active.clear();
++        assert!(expansion.is_active(b"child", None));
++        expansion.inherited_active = parent;
++        assert!(!expansion.is_active(b"child", None));
++        for saturated in [false, true] {
++            // Force every lookup through the collision path on the second
++            // pass. Exact names/layers, rather than bits, must decide cycles.
++            if saturated {
++                Arc::make_mut(expansion.inherited_active.as_mut().unwrap()).names =
++                    ActiveNames([u64::MAX; 16]);
++            }
++            for index in 0..512 {
++                let name = name(index);
++                for layer in [None, Some(0), Some(1), Some(2), Some(3)] {
++                    assert_eq!(
++                        expansion.is_active(&name, layer),
++                        expected.contains(&(name.clone(), layer))
++                    );
++                }
++            }
++        }
++    }
++}
+diff --git a/crates/rmake-core/src/variables/direct.rs b/crates/rmake-core/src/variables/direct.rs
+index 371894f0..d2d88952 100644
+--- a/crates/rmake-core/src/variables/direct.rs
++++ b/crates/rmake-core/src/variables/direct.rs
+@@ -96,7 +96,7 @@ impl Expansion<'_, '_> {
+             let value = if variable.flavor == Flavor::Simple {
+                 Cow::Borrowed(variable.value.as_slice())
+             } else if !variable.scope.append_outer && !variable.value.contains(&b'$') {
+-                if self.active_keys().any(|(n, l)| n == name && *l == layer) {
++                if self.is_active(name, layer) {
+                     return None;
+                 }
+                 Cow::Borrowed(c_string_prefix(&variable.value))
+diff --git a/crates/rmake-core/src/variables/machine.rs b/crates/rmake-core/src/variables/machine.rs
+index ec52f356..ca04d0ea 100644
+--- a/crates/rmake-core/src/variables/machine.rs
++++ b/crates/rmake-core/src/variables/machine.rs
+@@ -546,7 +546,7 @@ impl Expansion<'_, '_> {
+                     m.values.push(result?);
+                     return Ok(());
+                 }
+-                if self.active_keys().any(|(n, l)| *n == name && *l == layer) {
++                if self.is_active(&name, layer) {
+                     return Err(
+                         ExpandError::RecursiveVariable(name).at(variable.definition.as_ref())
+                     );

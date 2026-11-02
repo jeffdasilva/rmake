@@ -275,3 +275,8 @@ Owned child environment vectors and export activation phases now have [278 requi
 ## M3/M6 live source and parser continuations
 
 [Live source streams and parser continuations](live-sources.md) retain open-file identity, libc read/error/EOF phases, prepared include filenames and nested evaluation cycle state. Heap include frames and a bounded same-thread x86-64 Linux eval-stack adapter extend finite depth acceptance; other profiles retain their earlier guard. 269 required models close 158 preceding mismatches and retain 111 controls. The corpus is 15,393 ordinary required / zero pending, plus 17 unchanged separate safe errors; 36 separate source-I/O profiles cover interruption, errors, close and fatal cancellation. Eleven Rust and thirteen tooling tests extend coverage to 509 / 507. Rejected model assumptions and all raw observations remain recorded. Full frozen acceptance and exact-head CI remain merge gates. Complete M3/M6, native/Guile/profile/resource acceptance and general performance parity remain open.
+
+
+## M3/M6 eval allocation profiling controls
+
+[Recipe-free eval profiles](eval-allocation-profiles.md) add three required every-read controls and extend the frozen allocation flow. The ordinary corpus is 15,396 required / zero pending, plus 17 unchanged separate safe errors. Experimental ownership/frame changes lowered measured allocation requests but showed repeated elapsed regressions; their source patches, all observations and build controls are retained, and the validated runtime from PR #142 is preserved. Formatting, lint, 509 Rust and 510 tooling tests pass; exact-head CI remains the merge gate. Full M3/M6 and general performance parity remain open.

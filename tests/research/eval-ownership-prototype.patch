@@ -1,0 +1,125 @@
+diff --git a/crates/rmake-core/src/variables.rs b/crates/rmake-core/src/variables.rs
+index 7604e87e..22e3e850 100644
+--- a/crates/rmake-core/src/variables.rs
++++ b/crates/rmake-core/src/variables.rs
+@@ -2179,14 +2179,15 @@ impl Expansion<'_, '_> {
+     fn active_count(&self) -> usize {
+         self.active.len() + self.inherited_active.as_ref().map_or(0, |node| node.count)
+     }
+-    fn snapshot_active(&self) -> Option<Arc<ActiveContext>> {
++    fn suspend_active(&mut self) -> Option<Arc<ActiveContext>> {
+         if self.active.is_empty() {
+             self.inherited_active.clone()
+         } else {
++            let count = self.active_count();
+             Some(Arc::new(ActiveContext {
+-                keys: self.active.clone(),
++                keys: std::mem::take(&mut self.active),
+                 parent: self.inherited_active.clone(),
+-                count: self.active_count(),
++                count,
+             }))
+         }
+     }
+@@ -2740,15 +2741,22 @@ impl Expansion<'_, '_> {
+     }
+ 
+     fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
++        if !matches!(
++            self.store,
++            StoreAccess::Database(_) | StoreAccess::Scoped { .. }
++        ) {
++            return Err(ExpandError::Unsupported(b"eval".to_vec()));
++        }
+         let location = self.context.location.cloned();
+-        let active = self.snapshot_active();
++        let suspended = !self.active.is_empty();
++        let active = self.suspend_active();
+         let result = match &mut self.store {
+             StoreAccess::Database(db) => db.evaluate_in(
+                 first,
+                 location.as_ref(),
+                 None,
+                 self.bindings.clone(),
+-                active,
++                active.clone(),
+                 self.context.reborrow(),
+             ),
+             StoreAccess::Scoped {
+@@ -2760,14 +2768,20 @@ impl Expansion<'_, '_> {
+                     location.as_ref(),
+                     Some(*variables),
+                     self.bindings.clone(),
+-                    active,
++                    active.clone(),
+                     self.context.reborrow(),
+                 );
+                 variables.refresh_globals(&database.variables);
+                 result
+             }
+-            _ => return Err(ExpandError::Unsupported(b"eval".to_vec())),
++            _ => unreachable!("checked database access before suspending active keys"),
+         };
++        if suspended {
++            // The parser has restored its previous active context. Ordinarily
++            // this is the sole remaining owner, so reclaim the original Vec
++            // and names; retained host snapshots fall back to an owned clone.
++            self.active = Arc::unwrap_or_clone(active.expect("suspended local keys")).keys;
++        }
+         result.map_err(|error| {
+             if error.message.is_unlocated() {
+                 ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
+@@ -7202,3 +7216,53 @@ fn warn_missing(
+     }
+     Ok(())
+ }
++
++#[cfg(test)]
++mod active_ownership_tests {
++    use super::*;
++    use crate::parser::Database;
++    #[test]
++    fn eval_reclaims_local_keys_after_success_cycle_error_and_unsupported_access() {
++        let backing = VariableStore::new();
++        let mut database = Database::default();
++        database
++            .variables
++            .define(b"R0", b"$(R0)", Assignment::Recursive, Origin::File)
++            .unwrap();
++        let mut expansion = backing.expansion(ExpansionContext::pure());
++        expansion.store = StoreAccess::Database(&mut database);
++        let keys = vec![(b"R0".to_vec(), Some(0)), (b"binary-\xff".to_vec(), None)];
++        expansion.active = keys.clone();
++        let vector = expansion.active.as_ptr();
++        let name = expansion.active[0].0.as_ptr();
++        assert!(expansion.evaluate_buffer(b"VALUE=one\n").is_ok());
++        assert_eq!(expansion.active, keys);
++        assert_eq!(expansion.active.as_ptr(), vector);
++        assert_eq!(expansion.active[0].0.as_ptr(), name);
++        let error = expansion.evaluate_buffer(b"RESULT := $(R0)\n").unwrap_err();
++        assert!(
++            error
++                .diagnostic()
++                .as_bytes()
++                .starts_with(b"Recursive variable 'R0'")
++        );
++        assert_eq!(expansion.active, keys);
++        assert_eq!(expansion.active.as_ptr(), vector);
++        assert_eq!(expansion.active[0].0.as_ptr(), name);
++        expansion.store = StoreAccess::Read(&backing);
++        assert!(matches!(
++            expansion.evaluate_buffer(b"VALUE=two\n"),
++            Err(ExpandError::Unsupported(_))
++        ));
++        assert_eq!(expansion.active, keys);
++        assert_eq!(expansion.active.as_ptr(), vector);
++        // A retained host context must keep its immutable keys if reclaiming
++        // ownership needs to take the shared-snapshot clone path.
++        let suspended = expansion.suspend_active().unwrap();
++        let retained = suspended.clone();
++        expansion.active = Arc::unwrap_or_clone(suspended).keys;
++        assert_eq!(expansion.active, keys);
++        expansion.active[0].0.push(b'!');
++        assert_eq!(retained.keys, keys);
++    }
++}
