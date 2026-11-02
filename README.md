@@ -40,7 +40,11 @@ ordinary corpus totals 17,736 required cases.
 
 [Live option arity](docs/live-option-arity.md) now skips rejected arguments without
 applying their effects and retains valid cluster letters and definitions. The
-ordinary corpus totals 18,506 required cases; full M3/M6 remains open.
+ordinary corpus totals 18,506 required cases.
+
+[Saved invocation inputs](docs/runtime-argument-retention.md) now move across
+live flag resets without repeated buffer copies. Ten original controls bring
+the corpus to 18,516 required cases; full M3/M6 remains open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it

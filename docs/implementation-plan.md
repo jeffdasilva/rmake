@@ -79,6 +79,11 @@ registered-feature boundaries remain intact; broader decoder work remains open.
 arguments, omitted operands and preserved cluster/definition order. Startup
 validation remains strict; full decoder and M3/M6 acceptance stay open.
 
+[Saved invocation buffers](runtime-argument-retention.md) now move across live
+flag resets after validation, retaining fresh include observations and effects.
+Ten required controls, repeated allocation profiles and elapsed reports qualify
+the selected improvement; full M3/M6 and general performance parity remain open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

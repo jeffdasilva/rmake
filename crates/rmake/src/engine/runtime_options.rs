@@ -61,12 +61,6 @@ impl State {
                 }
             })
             .collect();
-        updated.files = current.files.clone();
-        updated.directories = current.directories.clone();
-        updated.goals = current.goals.clone();
-        updated.assignments = current.assignments.clone();
-        updated.assignment_context = current.assignment_context.clone();
-        updated.assignment_warnings = current.assignment_warnings.clone();
         updated.reset_jobserver = current.reset_jobserver;
         let mode = updated
             .output_sync
@@ -111,7 +105,17 @@ impl State {
         drop(current);
         self.trace_enabled.set(updated.trace);
         self.warn_undefined.set(updated.warn_undefined);
-        self.options.replace(updated);
+        // These invocation inputs survive a live reset unchanged. Move them
+        // only after fallible decoding and search preparation have succeeded.
+        // No evaluator callback runs while this exclusive borrow is held.
+        let mut previous = self.options.borrow_mut();
+        updated.files = std::mem::take(&mut previous.files);
+        updated.directories = std::mem::take(&mut previous.directories);
+        updated.goals = std::mem::take(&mut previous.goals);
+        updated.assignments = std::mem::take(&mut previous.assignments);
+        updated.assignment_context = std::mem::take(&mut previous.assignment_context);
+        updated.assignment_warnings = std::mem::take(&mut previous.assignment_warnings);
+        *previous = updated;
         self.dirty.set(true);
         Ok(result)
     }

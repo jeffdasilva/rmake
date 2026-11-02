@@ -2640,3 +2640,23 @@ zero pending, plus 17 unchanged separate approved exceptions. Four repeated
 paired timing reports retain mixed results, including a roughly 2% large-noop
 slowdown. Full frozen acceptance and exact-head development/optimized CI remain
 merge gates. Complete M3/M6 and general performance parity remain open.
+
+## M3/M6: retained invocation buffers (2026-11-02)
+
+[Runtime argument retention](runtime-argument-retention.md) moves saved invocation
+inputs only after fallible live decoding and fresh search construction succeed.
+It removes repeated copies without caching effects or filesystem observations.
+Ten original already-compatible controls match GNU, preceding rmake and both
+frozen builds, including actual requested-goal execution and all include effects.
+Twelve raw allocation profiles repeat exact counts; the largest selected case
+uses about 72% fewer requests and 71% fewer requested bytes. Four argument timing
+batches show about 34–42% lower medians on that case, while smaller cases vary
+and GNU remains faster. All six elapsed reports retain unfavorable observations.
+
+Formatting, Clippy, 520 Rust and 540 tooling tests pass; the corpus becomes
+18,516 required / zero pending across 146 families, with 17 unchanged separate
+approved exceptions. Full frozen acceptance and exact-head CI remain merge gates.
+Three exploratory warning models remain uncredited research, including a
+qualified premature-warning mismatch and two wrong initial diagnostic-location
+models. Ordered nested decoding, other M3/M6 surfaces, general performance parity
+and persistent caching remain open.

@@ -1,0 +1,693 @@
+{
+  "arguments": [
+    "-rR",
+    "--no-print-directory",
+    "-fMakefile",
+    "-fextra.mk",
+    "-C.",
+    "-I-",
+    "-Icounter-$(info tick)",
+    "all",
+    "last"
+  ],
+  "binary": {
+    "path": "/tmp/rmake-runtime-retention-final-release",
+    "sha256": "59008ffddff17ae10e6cee5613146a679fae47e5c3e90f186fbbe8496f8cfef0",
+    "version_stderr": "",
+    "version_stdout": "rmake 0.1.0\nGNU Make 4.4.1 compatibility target (implementation incomplete)\nLicense GPLv3+: GNU GPL version 3 or later.\nThis is free software; there is no warranty.\n"
+  },
+  "environment": {},
+  "helper_sha256": "2c85ac1c0733e07c3d6db81708ac6bc86809ccd86661f5370ed81841f5a57776",
+  "limits": "glibc malloc/calloc/realloc/free after helper initialization; aligned allocation entry points excluded; requested bytes are not live/peak memory; stride samples are call-stack hints, not CPU or elapsed time",
+  "sampled_callers": [
+    {
+      "samples": 18,
+      "symbol": "rmake_core::parser::Database::read_frames at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 18,
+      "symbol": "std::sys::backtrace::__rust_begin_short_backtrace at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 18,
+      "symbol": "rmake_core::parser::Database::define_variable_with at ??:?"
+    },
+    {
+      "samples": 18,
+      "symbol": "rmake::engine::Engine::run_inner at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 18,
+      "symbol": "rmake::main at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 18,
+      "symbol": "rmake_core::parser::Database::read_input at ??:?"
+    },
+    {
+      "samples": 18,
+      "symbol": "rmake_core::parser::Database::define at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 17,
+      "symbol": "std::rt::lang_start_internal at ??:?"
+    },
+    {
+      "samples": 17,
+      "symbol": "std::rt::lang_start::{{closure}} at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 15,
+      "symbol": "main at ??:?"
+    },
+    {
+      "samples": 15,
+      "symbol": "rmake_core::diagnostic::ExpansionContext::update_makeflags at ??:?"
+    },
+    {
+      "samples": 10,
+      "symbol": "rmake::engine::runtime_options::State::assigned at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 10,
+      "symbol": "rmake::engine::runtime_options::<impl rmake::engine::Engine>::read_runtime_flags::{{closure}} at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 9,
+      "symbol": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 8,
+      "symbol": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?"
+    },
+    {
+      "samples": 6,
+      "symbol": "_start at ??:?"
+    },
+    {
+      "samples": 5,
+      "symbol": "rmake_core::parser::Database::expand_entry_with at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 5,
+      "symbol": "rmake_core::variables::Expansion::expand at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 4,
+      "symbol": "alloc::raw_vec::finish_grow at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 4,
+      "symbol": "rmake::cli::Options::append_expanded_flags at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 4,
+      "symbol": "alloc::raw_vec::finish_grow at alloc.252dd2b3abdfe4a-cgu.0:?"
+    },
+    {
+      "samples": 3,
+      "symbol": "rmake_core::variables::machine::<impl rmake_core::variables::Expansion>::machine_step at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 3,
+      "symbol": "rmake_core::parser::Database::define_variable_with::{{closure}} at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "alloc::raw_vec::finish_grow at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake::cli::Options::recursive_flags_with_includes at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake_core::variables::Expansion::variable_with_warning at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake_core::variables::Expansion::expand_inner at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake_core::variables::Expansion::selected_variable at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake_core::variables::VariableStore::define_with_using at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake::cli::Options::add_include_directory at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake::cli::Options::parse_with at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::expand_layer at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::append_layer_body at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "alloc::vec::Vec<T,A>::push_mut at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "alloc::raw_vec::finish_grow at std.9479b33d5e275715-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "<alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "core::ops::function::FnOnce::call_once{{vtable.shim}} at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Bindings::insert at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::VariableStore::define_runtime_metadata at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "alloc::raw_vec::finish_grow at rmake_linux.cd4180b5dfe66d02-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "<alloc::vec::Vec<T,A> as core::clone::Clone>::clone at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "core::option::Option<T>::map_or_else at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::split_arg_ranges at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    }
+  ],
+  "samples": [
+    {
+      "addresses": [
+        "0x10aa58",
+        "0x10b9fe",
+        "0x1463b3",
+        "0x15d842",
+        "0x12d183",
+        "0x12654c",
+        "0x1258d1",
+        "0x117ecc",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 8,
+      "call": 512
+    },
+    {
+      "addresses": [
+        "0x6890a",
+        "0x6926e",
+        "0x8cd7d",
+        "0x78e55",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 24,
+      "call": 1024
+    },
+    {
+      "addresses": [
+        "0x10a9b6",
+        "0x10b9fe",
+        "0x15e347",
+        "0x15d394",
+        "0x161e5f",
+        "0x161191",
+        "0x160c9f",
+        "0x15ea51",
+        "0x15e108",
+        "0x15d394",
+        "0x12d183",
+        "0x1252c5",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393"
+      ],
+      "bytes": 72,
+      "call": 1536
+    },
+    {
+      "addresses": [
+        "0x1b0373",
+        "0x1b0462",
+        "0x10a040",
+        "0x148b3a",
+        "0x15d842",
+        "0x12d183",
+        "0x12654c",
+        "0x1258d1",
+        "0x117ecc",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51"
+      ],
+      "bytes": 96,
+      "call": 2048
+    },
+    {
+      "addresses": [
+        "0x4c337",
+        "0x4c20b",
+        "0x784f5",
+        "0x78f71",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 32,
+      "call": 2560
+    },
+    {
+      "addresses": [
+        "0x4c3d3",
+        "0x4c20b",
+        "0x784f5",
+        "0x78b65",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 8,
+      "call": 3072
+    },
+    {
+      "addresses": [
+        "0x6890a",
+        "0x6926e",
+        "0x8cd7d",
+        "0x57b09",
+        "0x10cace",
+        "0x1180e6",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 64,
+      "call": 3584
+    },
+    {
+      "addresses": [
+        "0x7920c",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5",
+        "0x4b725"
+      ],
+      "bytes": 16,
+      "call": 4096
+    },
+    {
+      "addresses": [
+        "0x4c337",
+        "0x4c20b",
+        "0x784f5",
+        "0x78b65",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 32,
+      "call": 4608
+    },
+    {
+      "addresses": [
+        "0x1543b3",
+        "0x159cff",
+        "0x1565c6",
+        "0x11829d",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5",
+        "0x4b725"
+      ],
+      "bytes": 32,
+      "call": 5120
+    },
+    {
+      "addresses": [
+        "0x1783e6",
+        "0x178571",
+        "0x8bdfc",
+        "0x8494e",
+        "0x794ca",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 96,
+      "call": 5632
+    },
+    {
+      "addresses": [
+        "0x6a226",
+        "0x78b96",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5",
+        "0x4b725"
+      ],
+      "bytes": 4,
+      "call": 6144
+    },
+    {
+      "addresses": [
+        "0x1061a7",
+        "0x159985",
+        "0x123db0",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5",
+        "0x4b725"
+      ],
+      "bytes": 53,
+      "call": 6656
+    },
+    {
+      "addresses": [
+        "0x9476e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5",
+        "0x4b725"
+      ],
+      "bytes": 40,
+      "call": 7168
+    },
+    {
+      "addresses": [
+        "0x10aa58",
+        "0x10b65e",
+        "0x8bdbc",
+        "0x7bdb4",
+        "0x78d15",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 32,
+      "call": 7680
+    },
+    {
+      "addresses": [
+        "0x160bc8",
+        "0x15ea51",
+        "0x15e108",
+        "0x15d394",
+        "0x12d183",
+        "0x1252c5",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5",
+        "0x4b725"
+      ],
+      "bytes": 9,
+      "call": 8192
+    },
+    {
+      "addresses": [
+        "0x10aa58",
+        "0x10ab3d",
+        "0x16b7e9",
+        "0x1495b5",
+        "0x15d842",
+        "0x12d183",
+        "0x12654c",
+        "0x1258d1",
+        "0x117ecc",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51"
+      ],
+      "bytes": 64,
+      "call": 8704
+    },
+    {
+      "addresses": [
+        "0x4c3d3",
+        "0x4c20b",
+        "0x784f5",
+        "0x78f71",
+        "0x9427e",
+        "0x95b6c",
+        "0x1177c2",
+        "0x125347",
+        "0x123726",
+        "0x13006b",
+        "0x12a852",
+        "0xa3cd0",
+        "0xf36bd",
+        "0x57393",
+        "0x57379",
+        "0x1bcc51",
+        "0xf52f5"
+      ],
+      "bytes": 8,
+      "call": 9216
+    }
+  ],
+  "source_sha256": "f825b6261da74741ebe8c0eb1a8542497b59b544da4913d708a004acbd273595",
+  "summary": {
+    "calls": 9593,
+    "frees": 7738,
+    "requested_bytes": 531752
+  },
+  "symbols": {
+    "0x1061a7": "core::option::Option<T>::map_or_else at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x10a040": "alloc::vec::Vec<T,A>::push_mut at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x10a9b6": "alloc::raw_vec::finish_grow at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x10aa58": "alloc::raw_vec::finish_grow at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x10ab3d": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?",
+    "0x10b65e": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?",
+    "0x10b9fe": "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x10cace": "<alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1177c2": "rmake_core::diagnostic::ExpansionContext::update_makeflags at ??:?",
+    "0x117ecc": "rmake_core::diagnostic::ExpansionContext::update_makeflags at ??:?",
+    "0x1180e6": "rmake_core::diagnostic::ExpansionContext::update_makeflags at ??:?",
+    "0x11829d": "rmake_core::diagnostic::ExpansionContext::update_makeflags at ??:?",
+    "0x123726": "rmake_core::parser::Database::define at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x123db0": "rmake_core::parser::Database::define_variable_with at ??:?",
+    "0x1252c5": "rmake_core::parser::Database::define_variable_with at ??:?",
+    "0x125347": "rmake_core::parser::Database::define_variable_with at ??:?",
+    "0x1258d1": "rmake_core::parser::Database::define_variable_with at ??:?",
+    "0x12654c": "rmake_core::parser::Database::define_variable_with::{{closure}} at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x12a852": "rmake_core::parser::Database::read_input at ??:?",
+    "0x12d183": "rmake_core::parser::Database::expand_entry_with at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x13006b": "rmake_core::parser::Database::read_frames at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1463b3": "rmake_core::variables::machine::<impl rmake_core::variables::Expansion>::machine_step at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x148b3a": "rmake_core::variables::machine::<impl rmake_core::variables::Expansion>::machine_step at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1495b5": "rmake_core::variables::machine::<impl rmake_core::variables::Expansion>::machine_step at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1543b3": "rmake_core::variables::Bindings::insert at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1565c6": "rmake_core::variables::VariableStore::define_runtime_metadata at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x159985": "rmake_core::variables::VariableStore::define_with_using at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x159cff": "rmake_core::variables::VariableStore::define_with_using at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15d394": "rmake_core::variables::Expansion::expand at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15d842": "rmake_core::variables::Expansion::expand at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15e108": "rmake_core::variables::Expansion::expand_inner at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15e347": "rmake_core::variables::Expansion::expand_inner at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15ea51": "rmake_core::variables::Expansion::variable_with_warning at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x160bc8": "rmake_core::variables::Expansion::selected_variable at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x160c9f": "rmake_core::variables::Expansion::selected_variable at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x161191": "rmake_core::variables::Expansion::expand_layer at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x161e5f": "rmake_core::variables::Expansion::append_layer_body at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x16b7e9": "rmake_core::variables::split_arg_ranges at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1783e6": "alloc::raw_vec::finish_grow at rmake_linux.cd4180b5dfe66d02-cgu.0:?",
+    "0x178571": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?",
+    "0x1b0373": "alloc::raw_vec::finish_grow at std.9479b33d5e275715-cgu.0:?",
+    "0x1b0462": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?",
+    "0x1bcc51": "std::rt::lang_start_internal at ??:?",
+    "0x4b725": "_start at ??:?",
+    "0x4c20b": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?",
+    "0x4c337": "alloc::raw_vec::finish_grow at alloc.252dd2b3abdfe4a-cgu.0:?",
+    "0x4c3d3": "alloc::raw_vec::finish_grow at alloc.252dd2b3abdfe4a-cgu.0:?",
+    "0x57379": "std::rt::lang_start::{{closure}} at rmake.49c0817408230120-cgu.0:?",
+    "0x57393": "std::sys::backtrace::__rust_begin_short_backtrace at rmake.49c0817408230120-cgu.0:?",
+    "0x57b09": "core::ops::function::FnOnce::call_once{{vtable.shim}} at rmake.49c0817408230120-cgu.0:?",
+    "0x6890a": "alloc::raw_vec::finish_grow at rmake.49c0817408230120-cgu.0:?",
+    "0x6926e": "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle at rmake.49c0817408230120-cgu.0:?",
+    "0x6a226": "<alloc::vec::Vec<T,A> as core::clone::Clone>::clone at rmake.49c0817408230120-cgu.0:?",
+    "0x784f5": "rmake::cli::Options::append_expanded_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x78b65": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x78b96": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x78d15": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x78e55": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x78f71": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x7920c": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x794ca": "rmake::cli::Options::decode_file_flags at rmake.49c0817408230120-cgu.0:?",
+    "0x7bdb4": "rmake::cli::Options::parse_with at rmake.49c0817408230120-cgu.0:?",
+    "0x8494e": "rmake::cli::Options::parse_with at rmake.49c0817408230120-cgu.0:?",
+    "0x8bdbc": "rmake::cli::Options::add_include_directory at rmake.49c0817408230120-cgu.0:?",
+    "0x8bdfc": "rmake::cli::Options::add_include_directory at rmake.49c0817408230120-cgu.0:?",
+    "0x8cd7d": "rmake::cli::Options::recursive_flags_with_includes at rmake.49c0817408230120-cgu.0:?",
+    "0x9427e": "rmake::engine::runtime_options::State::assigned at rmake.49c0817408230120-cgu.0:?",
+    "0x9476e": "rmake::engine::runtime_options::State::assigned at rmake.49c0817408230120-cgu.0:?",
+    "0x95b6c": "rmake::engine::runtime_options::<impl rmake::engine::Engine>::read_runtime_flags::{{closure}} at rmake.49c0817408230120-cgu.0:?",
+    "0xa3cd0": "rmake::engine::Engine::run_inner at rmake.49c0817408230120-cgu.0:?",
+    "0xf36bd": "rmake::main at rmake.49c0817408230120-cgu.0:?",
+    "0xf52f5": "main at ??:?"
+  },
+  "workload": "runtime-arguments-0-updates-100"
+}

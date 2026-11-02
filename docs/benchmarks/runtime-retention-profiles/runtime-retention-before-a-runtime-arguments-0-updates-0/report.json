@@ -1,0 +1,95 @@
+{
+  "arguments": [
+    "-rR",
+    "--no-print-directory",
+    "-fMakefile",
+    "-fextra.mk",
+    "-C.",
+    "-I-",
+    "-Icounter-$(info tick)",
+    "all",
+    "last"
+  ],
+  "binary": {
+    "path": "/tmp/rmake-live-arity-final-release",
+    "sha256": "3ab6131d069f871016629667136d9cbabcff0ae7ba939d05ce4049f2aa8d2ca5",
+    "version_stderr": "",
+    "version_stdout": "rmake 0.1.0\nGNU Make 4.4.1 compatibility target (implementation incomplete)\nLicense GPLv3+: GNU GPL version 3 or later.\nThis is free software; there is no warranty.\n"
+  },
+  "environment": {},
+  "helper_sha256": "2c85ac1c0733e07c3d6db81708ac6bc86809ccd86661f5370ed81841f5a57776",
+  "limits": "glibc malloc/calloc/realloc/free after helper initialization; aligned allocation entry points excluded; requested bytes are not live/peak memory; stride samples are call-stack hints, not CPU or elapsed time",
+  "sampled_callers": [
+    {
+      "samples": 1,
+      "symbol": "std::sys::backtrace::__rust_begin_short_backtrace at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "<T as alloc::slice::<impl [T]>::to_vec_in::ConvertVec>::to_vec at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake::engine::Engine::run_inner at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "std::rt::lang_start_internal at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake::main at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "main at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "std::rt::lang_start::{{closure}} at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake::engine::Engine::build at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "_start at ??:?"
+    }
+  ],
+  "samples": [
+    {
+      "addresses": [
+        "0x6b2f0",
+        "0xcd0cf",
+        "0xaca4a",
+        "0xf367d",
+        "0x573e3",
+        "0x573c9",
+        "0x1bcc11",
+        "0xf52b5",
+        "0x4b775"
+      ],
+      "bytes": 3,
+      "call": 512
+    }
+  ],
+  "source_sha256": "a223a720cc8a36db7d134abe9a8d1a46a70c5a747fecfabe01f83fc682bdf341",
+  "summary": {
+    "calls": 525,
+    "frees": 485,
+    "requested_bytes": 62492
+  },
+  "symbols": {
+    "0x1bcc11": "std::rt::lang_start_internal at ??:?",
+    "0x4b775": "_start at ??:?",
+    "0x573c9": "std::rt::lang_start::{{closure}} at rmake.49c0817408230120-cgu.0:?",
+    "0x573e3": "std::sys::backtrace::__rust_begin_short_backtrace at rmake.49c0817408230120-cgu.0:?",
+    "0x6b2f0": "<T as alloc::slice::<impl [T]>::to_vec_in::ConvertVec>::to_vec at rmake.49c0817408230120-cgu.0:?",
+    "0xaca4a": "rmake::engine::Engine::run_inner at rmake.49c0817408230120-cgu.0:?",
+    "0xcd0cf": "rmake::engine::Engine::build at rmake.49c0817408230120-cgu.0:?",
+    "0xf367d": "rmake::main at rmake.49c0817408230120-cgu.0:?",
+    "0xf52b5": "main at ??:?"
+  },
+  "workload": "runtime-arguments-0-updates-0"
+}
