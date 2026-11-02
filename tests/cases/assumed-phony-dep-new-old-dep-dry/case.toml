@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "assumed-phony-dep-new-old-dep-dry"
+requirement = "options.assumed-files"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-Wdep", "-odep", "-n"]
+timeout_seconds = 5
+description = "Original invocation-only old/new file age, traversal, mode, phase, double-colon, VPATH, remake or physical-time model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "7072696e74662027414c4c3d5b25735d5c6e272027646570273b207072696e74662027616c6c2d6275696c745c6e27203e20616c6c0a"
+"stderr_hex" = ""

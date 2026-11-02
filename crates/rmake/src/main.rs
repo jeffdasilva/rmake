@@ -62,6 +62,8 @@ fn main() -> ExitCode {
         println!("  -C DIR     Change directory before reading Makefiles");
         println!("  -I DIR     Search for included Makefiles; -I- resets the search path");
         println!("  -L         Include symlink timestamps (--check-symlink-times)");
+        println!("  -o FILE    Ignore this file and its rules (--old-file)");
+        println!("  -W FILE    Assume this file is newest (--what-if)");
         println!("  -n / -s    Print commands without running / suppress command echo");
         println!("  -B / -q    Always rebuild / query whether recipes are needed");
         println!("  -i / -k    Ignore recipe errors / continue independent targets");

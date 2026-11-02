@@ -24,6 +24,10 @@ and cache lifetime, pinned metadata values and scoped `MFLAGS` updates.
 [Documented safety exceptions](docs/safety-exceptions.md) return fatal errors for
 17 recorded GNU crash/hang inputs and are gated separately from exact conformance.
 
+[Old and what-if file options](docs/assumed-files.md) now have 631 required
+cases covering logical ages, execution modes, flag phases, VPATH and remakes.
+The corpus totals 16,027 required cases; M3/M6 remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

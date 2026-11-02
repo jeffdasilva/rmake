@@ -378,6 +378,14 @@ impl State {
                     let raw = options.files[index].as_os_str().as_bytes();
                     options.files[index] = self.path(program, raw)?;
                 }
+                crate::cli::Argument::OldFile(index) => {
+                    let raw = options.old_files[index].as_os_str().as_bytes();
+                    options.old_files[index] = self.path(program, raw)?;
+                }
+                crate::cli::Argument::NewFile(index) => {
+                    let raw = options.new_files[index].as_os_str().as_bytes();
+                    options.new_files[index] = self.path(program, raw)?;
+                }
                 crate::cli::Argument::Goal(index) => {
                     let path = self.path(program, &options.goals[index])?;
                     let name = path.as_os_str().as_bytes();

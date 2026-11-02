@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "assumed-delete-unchanged-new"
+requirement = "options.assumed-files"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "-B", "-Wall"]
+timeout_seconds = 5
+description = "Original invocation-only old/new file age, traversal, mode, phase, double-colon, VPATH, remake or physical-time model."
+provenance = "Independent model qualified against two bounded GNU Make 4.4.1 observations and frozen debug/release builds. No GNU implementation or tests copied or translated."
+
+[environment]
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = ""
+"stderr_hex" = "6d616b653a202a2a2a205b4d616b6566696c653a343a20616c6c5d204572726f7220310a6d616b653a202a2a2a2044656c6574696e672066696c652027616c6c270a"

@@ -11,6 +11,8 @@ use std::path::PathBuf;
 pub(crate) enum Argument {
     Definition(usize),
     File(usize),
+    OldFile(usize),
+    NewFile(usize),
     Directory(usize),
     Include(usize),
     Goal(usize),
@@ -19,6 +21,8 @@ pub(crate) enum Argument {
 #[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
+    pub old_files: Vec<PathBuf>,
+    pub new_files: Vec<PathBuf>,
     pub evals: Vec<Vec<u8>>,
     pub jobs: Option<usize>,
     pub command_jobs: Option<usize>,
@@ -299,6 +303,10 @@ impl Options {
             );
             parsed.evals = evals;
         }
+        // File-age operands are invocation inputs. A later MAKEFLAGS decode
+        // neither exports them nor declares additional assumed files.
+        parsed.old_files = self.old_files.clone();
+        parsed.new_files = self.new_files.clone();
         parsed.flag_word_count = flag_word_count;
         // GNU only tracks origins for selected switches. Reconstructing the
         // spelling must not turn an inherited/file setting into a CLI setting.
@@ -464,7 +472,9 @@ impl Options {
                         b"--no-print-directory" if value.is_none() => {
                             result.no_print_directory = true
                         }
-                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir" => {
+                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir"
+                        | b"--old-file" | b"--assume-old" | b"--new-file" | b"--assume-new"
+                        | b"--what-if" => {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
@@ -476,8 +486,33 @@ impl Options {
                                         String::from_utf8_lossy(name)
                                     )
                                 })?;
+                            if value.is_empty()
+                                && matches!(
+                                    name,
+                                    b"--old-file"
+                                        | b"--assume-old"
+                                        | b"--new-file"
+                                        | b"--assume-new"
+                                        | b"--what-if"
+                                )
+                            {
+                                return Err(format!(
+                                    "the '{}' option requires a non-empty string argument",
+                                    String::from_utf8_lossy(name)
+                                )
+                                .into());
+                            }
                             let path = PathBuf::from(OsString::from_vec(value));
-                            if name == b"--include-dir" {
+                            if matches!(name, b"--old-file" | b"--assume-old") {
+                                result.old_files.push(path);
+                                let index = result.old_files.len() - 1;
+                                receiver(&mut result, Argument::OldFile(index))?;
+                            } else if matches!(name, b"--new-file" | b"--assume-new" | b"--what-if")
+                            {
+                                result.new_files.push(path);
+                                let index = result.new_files.len() - 1;
+                                receiver(&mut result, Argument::NewFile(index))?;
+                            } else if name == b"--include-dir" {
                                 result.add_include_directory(path)?;
                                 let index = result.include_directories.len() - 1;
                                 receiver(&mut result, Argument::Include(index))?;
@@ -617,7 +652,7 @@ impl Options {
                                 value.map(|v| rmake_linux::process::load_number(&v));
                             break;
                         }
-                        option @ (b'f' | b'C' | b'j' | b'I' | b'E') => {
+                        option @ (b'f' | b'C' | b'j' | b'I' | b'E' | b'o' | b'W') => {
                             let value = if j + 1 < arg.len() {
                                 arg[j + 1..].to_vec()
                             } else if option == b'j'
@@ -632,7 +667,25 @@ impl Options {
                                     format!("option requires an argument -- '{}'", option as char)
                                 })?
                             };
-                            if option == b'E' {
+                            if matches!(option, b'o' | b'W') {
+                                if value.is_empty() {
+                                    return Err(format!(
+                                        "the '-{}' option requires a non-empty string argument",
+                                        option as char
+                                    )
+                                    .into());
+                                }
+                                let path = OsString::from_vec(value).into();
+                                if option == b'o' {
+                                    result.old_files.push(path);
+                                    let index = result.old_files.len() - 1;
+                                    receiver(&mut result, Argument::OldFile(index))?;
+                                } else {
+                                    result.new_files.push(path);
+                                    let index = result.new_files.len() - 1;
+                                    receiver(&mut result, Argument::NewFile(index))?;
+                                }
+                            } else if option == b'E' {
                                 if value.is_empty() {
                                     return Err(
                                         "the '-E' option requires a non-empty string argument"
@@ -970,6 +1023,22 @@ mod tests {
         assert_eq!(changed.load_limit, Some(4.0));
         let cleared = Options::with_environment(["-l".into()], Some("-l2.5".into()), None).unwrap();
         assert_eq!(cleared.load_limit, None);
+    }
+
+    #[test]
+    fn assumed_file_operands_remain_initial_and_are_not_exported() {
+        let options = parse(&["-odep", "--assume-new", "./new", "all"]).unwrap();
+        assert_eq!(options.old_files, [PathBuf::from("dep")]);
+        assert_eq!(options.new_files, [PathBuf::from("./new")]);
+        assert_eq!(options.goals, [b"all".to_vec()]);
+        let child =
+            Options::with_environment([], Some(OsString::from_vec(options.flags())), None).unwrap();
+        assert!(child.old_files.is_empty() && child.new_files.is_empty());
+        let (late, _) = options.file_flags(&[b"-oother -Wlater".to_vec()]).unwrap();
+        assert_eq!(late.old_files, options.old_files);
+        assert_eq!(late.new_files, options.new_files);
+        let raw = Options::parse([OsString::from_vec(b"-W\xff".to_vec())]).unwrap();
+        assert_eq!(raw.new_files[0].as_os_str().as_bytes(), b"\xff");
     }
 
     #[test]

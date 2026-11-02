@@ -59,6 +59,10 @@ reader/runtime policy, diagnostic scopes and numeric call-frame correction.
 Startup default ordering remains an ordinary compatibility gap; this does not
 complete M3/M6.
 
+[Invocation-only file assumptions](assumed-files.md) add `-o`/`-W` and aliases,
+logical ages, traversal suppression, mode/phase controls, VPATH and makefile
+remakes with 631 required cases. Complete CLI/profile acceptance remains open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;
