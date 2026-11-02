@@ -1,0 +1,186 @@
+{
+  "arguments": [
+    "-rR",
+    "--no-print-directory"
+  ],
+  "binary": {
+    "path": "/tmp/rmake-active-final-release",
+    "sha256": "2ba5dd19ece620b3680483b3a9309d7cdfeb9f8dbecfae0f09f40bfccae4f00d",
+    "version_stderr": "",
+    "version_stdout": "rmake 0.1.0\nGNU Make 4.4.1 compatibility target (implementation incomplete)\nLicense GPLv3+: GNU GPL version 3 or later.\nThis is free software; there is no warranty.\n"
+  },
+  "environment": {},
+  "helper_sha256": "2c85ac1c0733e07c3d6db81708ac6bc86809ccd86661f5370ed81841f5a57776",
+  "limits": "glibc malloc/calloc/realloc/free after helper initialization; aligned allocation entry points excluded; requested bytes are not live/peak memory; stride samples are call-stack hints, not CPU or elapsed time",
+  "sampled_callers": [
+    {
+      "samples": 2,
+      "symbol": "rmake_core::parser::Database::read_frame_loop at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake::engine::Engine::run_inner at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake_core::parser::Database::read_at at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake::main at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 2,
+      "symbol": "rmake_core::parser::Database::read_input at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::selected_variable at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::variable_with_warning at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::expand at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::direct::<impl rmake_core::variables::Expansion>::direct_expression at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "alloc::raw_vec::finish_grow at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::split_arg_ranges at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::parser::Database::expand_rule_prefix at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::parser::Database::expand_entry_with at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::append_layer_body at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::expand_inner at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::variables::Expansion::expand_layer at rmake_core.c0b910b61b5d6df6-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "std::rt::lang_start_internal at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "_start at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "main at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "std::rt::lang_start::{{closure}} at rmake.49c0817408230120-cgu.0:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "rmake_core::reader::strip_comment at ??:?"
+    },
+    {
+      "samples": 1,
+      "symbol": "std::sys::backtrace::__rust_begin_short_backtrace at rmake.49c0817408230120-cgu.0:?"
+    }
+  ],
+  "samples": [
+    {
+      "addresses": [
+        "0x103868",
+        "0x10394d",
+        "0x16ad69",
+        "0x142278",
+        "0x15c74c",
+        "0x16107f",
+        "0x1603b1",
+        "0x15febf",
+        "0x15dc71",
+        "0x15d328",
+        "0x15c5b4",
+        "0x128373",
+        "0x11de35",
+        "0x132afd",
+        "0x129dac",
+        "0x125968",
+        "0x9c410",
+        "0xeb793"
+      ],
+      "bytes": 64,
+      "call": 512
+    },
+    {
+      "addresses": [
+        "0x13f52f",
+        "0x131bca",
+        "0x129dac",
+        "0x125968",
+        "0x9c410",
+        "0xeb793",
+        "0x56523",
+        "0x56509",
+        "0x1bc1d1",
+        "0xed135",
+        "0x4aa35"
+      ],
+      "bytes": 5,
+      "call": 1024
+    }
+  ],
+  "source_sha256": "eedd4de622af626fafb7c6c6bee86616386b9f4a5e8d893cee48568f3986e07f",
+  "summary": {
+    "calls": 1407,
+    "frees": 1387,
+    "requested_bytes": 77362
+  },
+  "symbols": {
+    "0x103868": "alloc::raw_vec::finish_grow at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x10394d": "alloc::raw_vec::RawVec<T,A>::grow_one at ??:?",
+    "0x11de35": "rmake_core::parser::Database::expand_rule_prefix at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x125968": "rmake_core::parser::Database::read_input at ??:?",
+    "0x128373": "rmake_core::parser::Database::expand_entry_with at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x129dac": "rmake_core::parser::Database::read_at at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x131bca": "rmake_core::parser::Database::read_frame_loop at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x132afd": "rmake_core::parser::Database::read_frame_loop at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x13f52f": "rmake_core::reader::strip_comment at ??:?",
+    "0x142278": "rmake_core::variables::direct::<impl rmake_core::variables::Expansion>::direct_expression at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15c5b4": "rmake_core::variables::Expansion::expand at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15c74c": "rmake_core::variables::Expansion::expand at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15d328": "rmake_core::variables::Expansion::expand_inner at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15dc71": "rmake_core::variables::Expansion::variable_with_warning at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x15febf": "rmake_core::variables::Expansion::selected_variable at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1603b1": "rmake_core::variables::Expansion::expand_layer at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x16107f": "rmake_core::variables::Expansion::append_layer_body at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x16ad69": "rmake_core::variables::split_arg_ranges at rmake_core.c0b910b61b5d6df6-cgu.0:?",
+    "0x1bc1d1": "std::rt::lang_start_internal at ??:?",
+    "0x4aa35": "_start at ??:?",
+    "0x56509": "std::rt::lang_start::{{closure}} at rmake.49c0817408230120-cgu.0:?",
+    "0x56523": "std::sys::backtrace::__rust_begin_short_backtrace at rmake.49c0817408230120-cgu.0:?",
+    "0x9c410": "rmake::engine::Engine::run_inner at rmake.49c0817408230120-cgu.0:?",
+    "0xeb793": "rmake::main at rmake.49c0817408230120-cgu.0:?",
+    "0xed135": "main at ??:?"
+  },
+  "workload": "profile-nested-evals-0"
+}
