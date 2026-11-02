@@ -6,7 +6,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 
 | GNU switch family | Current implementation boundary |
 | --- | --- |
-| Live invalid option results | [Ignored invalid/ambiguous options](live-invalid-options.md) add 641 required cases across scopes, origins, pure/payload continuations and raw bytes. Startup remains strict; registered unimplemented features are not hidden. Known-value/arity and complete usage behavior remain open. |
+| Live invalid option results | [Ignored invalid/ambiguous options](live-invalid-options.md) add 641 required cases across scopes, origins, pure/payload continuations and raw bytes. [Arity and skipped effects](live-option-arity.md) add 770 required cases for forbidden attached values, missing operands, clusters and later definitions. Startup remains strict; registered unimplemented features are not hidden. Broader known-value/arity and complete usage behavior remain open. |
 | Unambiguous long-option prefixes | [Valid-prefix resolution](long-option-prefixes.md) adds 1,068 required cases for implemented switches, aliases, attached/separate operands, origins and byte-preserving effects. Exact names win; the complete namespace prevents false unique matches. Ambiguity, invalid usage and broader decoder/profile behavior remain open. |
 | `-b`, `-m` | Accepted and ignored; original alias fixtures exist. |
 | `-B`, `-e`, `-i`, `-k`, `-L`, `-n`, `-q`, `-r`, `-R`, `-s`, `-S`, `-t` and aliases | Decoding/runtime slices implemented and exercised; full startup ordering and malformed-option matrix remain open. |

@@ -75,6 +75,10 @@ namespace for uniqueness. Ambiguity/usage and broader M3/M6 remain open.
 cases and closes the exact recorded reader --w form. Startup validation and
 registered-feature boundaries remain intact; broader decoder work remains open.
 
+[Live option arity](live-option-arity.md) adds 770 required cases for skipped
+arguments, omitted operands and preserved cluster/definition order. Startup
+validation remains strict; full decoder and M3/M6 acceptance stay open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;

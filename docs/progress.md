@@ -2623,3 +2623,20 @@ and 529 tooling tests; the ordinary corpus becomes 17,736 required / zero pendin
 plus 17 unchanged separate approved exceptions. The preceding corpus and safety
 cells pass. Full frozen acceptance and exact-head CI remain merge gates. Broader
 M3/M6 and general performance parity remain open.
+
+## M3/M6: live option arity and skipped effects (2026-11-02)
+
+[Arity handling](live-option-arity.md) skips forbidden attached arguments and
+missing final operands during live MAKEFLAGS decoding, preserving earlier valid
+cluster letters, later definitions and exact receiver/metadata suppression.
+Startup validation and separate empty/numeric/unsupported-feature errors remain.
+
+770 original required models agree with two GNU observations and both frozen
+builds. Preceding rmake fails 700 and passes 70 inactive controls. Five source
+phases cover pure/payload forms, retained built-ins, origins/flavors and ordered
+file witnesses. Two Rust and five tooling tests protect the slice. Formatting,
+Clippy, 520 Rust and 534 tooling tests pass; the corpus becomes 18,506 required /
+zero pending, plus 17 unchanged separate approved exceptions. Four repeated
+paired timing reports retain mixed results, including a roughly 2% large-noop
+slowdown. Full frozen acceptance and exact-head development/optimized CI remain
+merge gates. Complete M3/M6 and general performance parity remain open.

@@ -458,6 +458,33 @@ impl Options {
                 let split = arg.iter().position(|b| *b == b'=');
                 let name = split.map_or(arg.as_slice(), |n| &arg[..n]);
                 let value = split.map(|n| arg[n + 1..].to_vec());
+                // A missing required operand is an invalid getopt result.
+                // Live decoding skips it without applying a switch or calling
+                // an operand receiver. Startup still reports the usage error.
+                if !STARTUP
+                    && value.is_none()
+                    && i + 1 == args.len()
+                    && matches!(
+                        name,
+                        b"--file"
+                            | b"--makefile"
+                            | b"--directory"
+                            | b"--include-dir"
+                            | b"--old-file"
+                            | b"--assume-old"
+                            | b"--new-file"
+                            | b"--assume-new"
+                            | b"--what-if"
+                            | b"--eval"
+                            | b"--jobserver-auth"
+                            | b"--jobserver-fds"
+                            | b"--jobserver-style"
+                            | b"--sync-mutex"
+                    )
+                {
+                    i += 1;
+                    continue;
+                }
                 let flag = match name {
                     b"--help" => Some(&mut result.help),
                     b"--version" => Some(&mut result.version),
@@ -473,16 +500,16 @@ impl Options {
                     b"--warn-undefined-variables" => Some(&mut result.warn_undefined),
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
-                    b"--no-builtin-variables" => {
-                        if STARTUP {
-                            result.no_rules = true;
-                        }
-                        Some(&mut result.no_variables)
-                    }
+                    b"--no-builtin-variables" => Some(&mut result.no_variables),
+                    b"--no-print-directory" => Some(&mut result.no_print_directory),
                     _ => None,
                 };
                 if let Some(flag) = flag {
                     if value.is_some() {
+                        if !STARTUP {
+                            i += 1;
+                            continue;
+                        }
                         return Err(format!(
                             "option '{}' doesn't allow an argument",
                             String::from_utf8_lossy(name)
@@ -490,6 +517,9 @@ impl Options {
                         .into());
                     }
                     *flag = true;
+                    if STARTUP && name == b"--no-builtin-variables" {
+                        result.no_rules = true;
+                    }
                     match name {
                         b"--silent" | b"--quiet" => {
                             result.silent_origin = Some(Origin::CommandLine)
@@ -501,6 +531,10 @@ impl Options {
                     match name {
                         b"--no-silent" | b"--no-keep-going" | b"--stop" => {
                             if value.is_some() {
+                                if !STARTUP {
+                                    i += 1;
+                                    continue;
+                                }
                                 return Err(format!(
                                     "option '{}' doesn't allow an argument",
                                     String::from_utf8_lossy(name)
@@ -537,9 +571,6 @@ impl Options {
                                 b"pipe" => true,
                                 _ => return Err("unknown jobserver style".into()),
                             };
-                        }
-                        b"--no-print-directory" if value.is_none() => {
-                            result.no_print_directory = true
                         }
                         b"--file" | b"--makefile" | b"--directory" | b"--include-dir"
                         | b"--old-file" | b"--assume-old" | b"--new-file" | b"--assume-new"
@@ -745,6 +776,9 @@ impl Options {
                                 Vec::new()
                             } else {
                                 i += 1;
+                                if !STARTUP && i == args.len() {
+                                    break;
+                                }
                                 args.get(i).cloned().ok_or_else(|| {
                                     format!("option requires an argument -- '{}'", option as char)
                                 })?
@@ -1123,6 +1157,59 @@ mod tests {
         assert_eq!(live.assignment_context, [(3, false)]);
         assert_eq!(live.flag_word_count, 4);
         assert_eq!(live.flags(), b"ks");
+    }
+
+    #[test]
+    fn live_arity_errors_preserve_prior_letters_and_later_definition_positions() {
+        let (live, _) = Options::default()
+            .assigned_flags(
+                &[b"--silent=bad --no-builtin-v=bad SIDE:=after -kI".to_vec()],
+                Origin::File,
+            )
+            .unwrap();
+        assert!(!live.silent && !live.no_variables && !live.no_rules);
+        assert!(live.keep_going);
+        assert_eq!(live.keep_going_origin, Some(Origin::File));
+        assert_eq!(live.assignments, [b"SIDE:=after".to_vec()]);
+        assert_eq!(live.assignment_context, [(3, false)]);
+        assert_eq!(live.flag_word_count, 5);
+        assert!(live.include_directories.is_empty());
+        assert!(live.include_assignment_positions.is_empty());
+    }
+
+    #[test]
+    fn missing_live_operands_do_not_call_receivers_or_accept_empty_values() {
+        for raw in ["-C", "-f", "-I", "-o", "-W", "--eval", "--jobserver-auth"] {
+            let mut received = Vec::new();
+            let live = Options::parse_with::<false, String>(
+                [raw.into()],
+                Options::default(),
+                0,
+                false,
+                &mut |_, argument| {
+                    received.push(argument);
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert!(received.is_empty(), "{raw}");
+            assert!(live.files.is_empty() && live.directories.is_empty());
+            assert!(live.evals.is_empty() && live.include_directories.is_empty());
+            assert!(parse(&[raw]).is_err(), "{raw}");
+            assert!(Options::with_environment([], Some(raw.into()), None).is_err());
+        }
+        for raw in ["--silent=", "--no-silent=bad", "--no-print-directory=bad"] {
+            assert!(parse(&[raw]).is_err(), "{raw}");
+            assert!(Options::with_environment([], Some(raw.into()), None).is_err());
+        }
+        for raw in ["--old-file=", "--new-file=", "--eval=", "--jobs=zero"] {
+            assert!(
+                Options::default()
+                    .assigned_flags(&[raw.as_bytes().to_vec()], Origin::File)
+                    .is_err(),
+                "{raw}"
+            );
+        }
     }
 
     #[test]
