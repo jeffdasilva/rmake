@@ -643,16 +643,6 @@ impl Engine {
     fn apply_runtime_flag_source(&mut self, value: Vec<u8>) -> Result<Option<usize>, ()> {
         // Source expansion can itself change policy; capture its completed state.
         let warning_entry = self.flag_state.warn_undefined.get();
-        let (mut updated, file_jobs, warning_positions) = match self
-            .options
-            .file_flags_with_positions(std::slice::from_ref(&value))
-        {
-            Ok(updated) => updated,
-            Err(message) => {
-                self.fatal(None, message.as_bytes());
-                return Err(());
-            }
-        };
         if value.contains(&b'~') {
             self.flag_state.refresh(&self.options);
             let decoder = match self.flag_state.begin_include_decoder(
@@ -720,6 +710,16 @@ impl Engine {
                 return Ok(jobs);
             }
         }
+        let (mut updated, file_jobs, warning_positions) = match self
+            .options
+            .file_flags_with_positions(std::slice::from_ref(&value))
+        {
+            Ok(updated) => updated,
+            Err(message) => {
+                self.fatal(None, message.as_bytes());
+                return Err(());
+            }
+        };
         // A flag-only stream has no payload effects to interleave. Keep that
         // path unchanged instead of cloning and replaying an inert policy.
         if !updated.assignments.is_empty() {

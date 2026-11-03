@@ -488,6 +488,7 @@ impl<'a> ExpansionContext<'a> {
                 else {
                     let jobs = decoder.requested_jobs();
                     let result = decoder.finish().map_err(ExpandError::UnlocatedError)?;
+                    cursor.set(cursor.get().max(result.next_argument));
                     self.makeflags
                         .as_mut()
                         .expect("configured receiver")

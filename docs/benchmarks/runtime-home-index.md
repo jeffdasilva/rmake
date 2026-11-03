@@ -9,14 +9,14 @@ performance acceptance proof.
 
 | Input / batch | GNU ms | Selected ms | Preceding ms |
 | --- | ---: | ---: | ---: |
-| tiny-noop / A | 0.705 | 0.857 | 0.875 |
-| tiny-noop / B | 0.609 | 0.714 | 0.707 |
-| large-noop / A | 11.350 | 30.267 | 30.421 |
-| large-noop / B | 11.133 | 29.928 | 30.089 |
-| expansion / A | 2.809 | 5.202 | 5.151 |
-| expansion / B | 2.886 | 5.205 | 5.167 |
-| 512 overrides, 100 updates / A | 1.268 | 2.557 | 2.502 |
-| 512 overrides, 100 updates / B | 1.227 | 3.645 | 3.612 |
+| tiny-noop / A | 0.691 | 0.840 | 0.851 |
+| tiny-noop / B | 0.616 | 0.727 | 0.720 |
+| large-noop / A | 11.469 | 31.261 | 30.567 |
+| large-noop / B | 11.223 | 30.721 | 30.352 |
+| expansion / A | 2.927 | 5.285 | 5.247 |
+| expansion / B | 2.808 | 5.138 | 5.194 |
+| 512 overrides, 100 updates / A | 1.235 | 4.334 | 4.058 |
+| 512 overrides, 100 updates / B | 1.234 | 3.685 | 3.815 |
 
 Timing is mixed, including higher runtime-update medians in some batches and
 lower medians in others. These controls do not establish a general speedup or
@@ -24,8 +24,8 @@ performance parity. GNU remains faster. No effectful HOME evaluation is cached.
 
 Raw samples, identities, arguments, source hashes and output checks:
 
-- Core [A](runtime-home-byte-core-a.json) / [B](runtime-home-byte-core-b.json).
-- Runtime arguments [A](runtime-home-byte-runtime-arguments-a.json) / [B](runtime-home-byte-runtime-arguments-b.json).
+- Core [A](runtime-home-selected-core-a.json) / [B](runtime-home-selected-core-b.json).
+- Runtime arguments [A](runtime-home-selected-runtime-arguments-a.json) / [B](runtime-home-selected-runtime-arguments-b.json).
 
 Twelve glibc allocation-request profiles repeat each build/input twice. Counts
 and frees are unchanged. The four-byte requested-size difference is not treated
@@ -34,15 +34,15 @@ allocator coverage. Compiled preload libraries are excluded.
 
 | Input | Requests | Frees | Preceding bytes | Selected bytes |
 | --- | ---: | ---: | ---: | ---: |
-| large-noop | 244,699 | 234,749 | 20,327,426 | 20,327,422 |
-| expansion | 66,074 | 61,048 | 2,659,107 | 2,659,103 |
-| runtime-arguments-512-updates-100 | 21,071 | 19,142 | 1,211,230 | 1,211,226 |
+| large-noop | 244,699 | 234,749 | 20,327,442 | 20,327,438 |
+| expansion | 66,074 | 61,048 | 2,659,123 | 2,659,119 |
+| runtime-arguments-512-updates-100 | 21,071 | 19,142 | 1,211,246 | 1,211,242 |
 
 Unmodified reports and traces:
 
-- preceding large-noop: [1](runtime-home-byte-profiles/preceding-large-noop-1/report.json) / [2](runtime-home-byte-profiles/preceding-large-noop-2/report.json).
-- selected large-noop: [1](runtime-home-byte-profiles/selected-large-noop-1/report.json) / [2](runtime-home-byte-profiles/selected-large-noop-2/report.json).
-- preceding expansion: [1](runtime-home-byte-profiles/preceding-expansion-1/report.json) / [2](runtime-home-byte-profiles/preceding-expansion-2/report.json).
-- selected expansion: [1](runtime-home-byte-profiles/selected-expansion-1/report.json) / [2](runtime-home-byte-profiles/selected-expansion-2/report.json).
-- preceding runtime-arguments-512-updates-100: [1](runtime-home-byte-profiles/preceding-runtime-arguments-512-updates-100-1/report.json) / [2](runtime-home-byte-profiles/preceding-runtime-arguments-512-updates-100-2/report.json).
-- selected runtime-arguments-512-updates-100: [1](runtime-home-byte-profiles/selected-runtime-arguments-512-updates-100-1/report.json) / [2](runtime-home-byte-profiles/selected-runtime-arguments-512-updates-100-2/report.json).
+- preceding large-noop: [1](runtime-home-selected-profiles/preceding-large-noop-1/report.json) / [2](runtime-home-selected-profiles/preceding-large-noop-2/report.json).
+- selected large-noop: [1](runtime-home-selected-profiles/selected-large-noop-1/report.json) / [2](runtime-home-selected-profiles/selected-large-noop-2/report.json).
+- preceding expansion: [1](runtime-home-selected-profiles/preceding-expansion-1/report.json) / [2](runtime-home-selected-profiles/preceding-expansion-2/report.json).
+- selected expansion: [1](runtime-home-selected-profiles/selected-expansion-1/report.json) / [2](runtime-home-selected-profiles/selected-expansion-2/report.json).
+- preceding runtime-arguments-512-updates-100: [1](runtime-home-selected-profiles/preceding-runtime-arguments-512-updates-100-1/report.json) / [2](runtime-home-selected-profiles/preceding-runtime-arguments-512-updates-100-2/report.json).
+- selected runtime-arguments-512-updates-100: [1](runtime-home-selected-profiles/selected-runtime-arguments-512-updates-100-1/report.json) / [2](runtime-home-selected-profiles/selected-runtime-arguments-512-updates-100-2/report.json).

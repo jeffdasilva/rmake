@@ -538,6 +538,8 @@ impl Decoder {
                             } else {
                                 i += 1;
                                 if !STARTUP && i == args.len() {
+                                    // The missing operand does not consume an argv slot.
+                                    i -= 1;
                                     break;
                                 }
                                 args.get(i).cloned().ok_or_else(|| {
@@ -737,7 +739,15 @@ impl Options {
     // GNU skips C whitespace once at the start, then separates only SP/TAB.
     pub(crate) fn append_expanded_flags(
         combined: &mut Vec<OsString>,
+        bytes: &[u8],
+    ) -> Result<(), String> {
+        Self::append_flag_arguments(combined, bytes, false)
+    }
+
+    fn append_flag_arguments(
+        combined: &mut Vec<OsString>,
         mut bytes: &[u8],
+        preserve_end: bool,
     ) -> Result<(), String> {
         while bytes
             .first()
@@ -774,9 +784,12 @@ impl Options {
         for token in tokens {
             if token == b"--" {
                 inherited_end = true;
+                if preserve_end {
+                    combined.push(OsString::from_vec(token));
+                }
                 continue;
             }
-            if inherited_end && token.starts_with(b"-") {
+            if inherited_end && token.starts_with(b"-") && !preserve_end {
                 return Err("option-like goals in inherited make flags are not implemented".into());
             }
             combined.push(OsString::from_vec(token));
@@ -820,7 +833,7 @@ impl Options {
             return Ok(None);
         }
         let mut incoming = Vec::new();
-        Self::append_expanded_flags(&mut incoming, value)?;
+        Self::append_flag_arguments(&mut incoming, value, true)?;
         let inspected = Self::parse_mode::<false>(incoming.clone())?;
         if !inspected
             .include_directories
@@ -1726,5 +1739,50 @@ mod owned_decoder_tests {
         assert!(matches!(step.argument, Some(Argument::Definition(0))));
         assert_eq!(step.position, 5);
         assert_eq!(decoder.options.assignment_context, [(5, true)]);
+    }
+}
+
+#[cfg(test)]
+mod decoder_missing_operand_tests {
+    use super::*;
+    #[test]
+    fn a_missing_ignored_operand_never_publishes_a_cursor_past_argc() {
+        let mut decoder = Decoder::new(
+            ["-I~/inc", "-f"].map(OsString::from),
+            Options::default(),
+            1,
+            false,
+        );
+        assert_eq!(decoder.advance::<false>().unwrap().unwrap().position, 1);
+        let last = decoder.advance::<false>().unwrap().unwrap();
+        assert_eq!(last.position, 2);
+        assert_eq!(decoder.cursor, 2);
+        assert_eq!(decoder.terminal(), 3);
+        assert!(decoder.advance::<false>().unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod runtime_marker_tests {
+    use super::*;
+    #[test]
+    fn runtime_suspension_keeps_end_markers_and_their_argument_positions() {
+        let mut decoder = Options::default()
+            .include_decoder(b"-I~/inc -- -fshadow Z=one")
+            .unwrap()
+            .unwrap();
+        assert_eq!(decoder.terminal(), 5);
+        assert!(matches!(
+            decoder.advance::<false>().unwrap().unwrap().argument,
+            Some(Argument::Include(0))
+        ));
+        let goal = decoder.advance::<false>().unwrap().unwrap();
+        assert_eq!(goal.position, 3);
+        assert!(matches!(goal.argument, Some(Argument::Goal(0))));
+        let definition = decoder.advance::<false>().unwrap().unwrap();
+        assert_eq!(definition.position, 4);
+        assert!(matches!(definition.argument, Some(Argument::Definition(0))));
+        assert_eq!(decoder.options.goals, [b"-fshadow".to_vec()]);
+        assert!(decoder.advance::<false>().unwrap().is_none());
     }
 }
