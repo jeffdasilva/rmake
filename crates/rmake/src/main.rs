@@ -19,6 +19,7 @@ mod output;
 mod process;
 mod recipe_flow;
 mod shell;
+mod shuffle;
 
 fn main() -> ExitCode {
     rmake_linux::output::initialize();

@@ -2749,3 +2749,33 @@ remain merge gates. Within-source malformed values, runtime HOME, finite nested
 decoding, directory/debug/database/shuffle behavior, real exec/stdin, native
 loading, enabled Guile, Linux/locale/integration acceptance, general performance
 parity and persistent caching remain open; M3/M6 are not complete.
+
+## M3/M6: owned shuffle traversal (2026-11-02)
+
+[Shuffle modes and traversal](shuffle.md) now have separate owned permutation
+indices, preserving declaration-order automatic variables and original barriers.
+Startup-active policy remains distinct from later requested/exported flags.
+Secondary/implicit seed boundaries, double-colon branches, remake ordering,
+recursive flags and failure suffixes have explicit models. Secondary expansion
+retains normalized per-file flags without leaking automatic variables; scoped
+appends select their visible base independently of global destination priority.
+
+1,995 original required models agree with two bounded GNU observations and both
+frozen builds, closing every preceding mismatch. They include graph/mode/source/
+raw-byte matrices, parallel FIFO/pipe transports and synchronization, scopes,
+failures, recursion, restarts and invalid startup modes with preceding effects.
+The separately gated random/zero campaign has 72 repeated engine cells and
+nonzero fixed-seed replay, with zero extra exact-conformance credit. Original
+duplicate-ID/wrong-model discoveries and two corrected scoped append regressions
+remain archived unchanged.
+
+Formatting, Clippy, 525 Rust and 569 tooling tests pass. The ordinary corpus is
+24,886 required / zero pending across 150 families, with the same 17 separately
+gated approved safe-error exceptions. Four output-checked 101-sample elapsed
+reports are mixed; GNU remains faster. Eight allocation-request profiles show
+unchanged core request counts. General performance parity is not established.
+Full selected frozen rmake-driven acceptance and exact-head CI remain merge
+gates. Complete malformed usage/lifecycle, shuffle cycle freshness/trace and
+alias/search cross-products, directory/debug/database output, native loading,
+enabled Guile, real exec/stdin, Linux/locale/integration acceptance and safe
+persistent caching remain open; M3/M6 are not complete.

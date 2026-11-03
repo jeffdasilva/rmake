@@ -23,6 +23,7 @@ pub(super) struct Prepared {
     pub(super) seed: startup::Seed,
     pub(super) plan: Box<Plan>,
     pub(super) initial_directory: Option<std::path::PathBuf>,
+    pub(super) shuffle: crate::shuffle::Mode,
 }
 
 impl From<String> for InvocationError {
@@ -239,7 +240,7 @@ impl Plan {
             false,
             &mut |options, argument| state.argument(&self.program, options, argument),
         );
-        let options = match decoded {
+        let mut options = match decoded {
             Ok(options) => options,
             Err(InvocationError::Expansion(mut error)) => {
                 if rmake_linux::signals::pending().is_none()
@@ -262,6 +263,20 @@ impl Plan {
             Err(error) => return Err(error),
         };
         output_mode(options.output_sync.as_deref())?;
+        let shuffle = if options.help || options.version {
+            crate::shuffle::Mode::None
+        } else {
+            options
+                .shuffle
+                .as_deref()
+                .map(crate::shuffle::Mode::parse)
+                .transpose()
+                .map_err(|message| StartupError::from(Diagnostic::from(message)))?
+                .unwrap_or_default()
+        };
+        if !options.help && !options.version {
+            options.shuffle = shuffle.spelling();
+        }
         Ok(Invocation {
             options,
             initial: Box::new(Prepared {
@@ -274,6 +289,7 @@ impl Plan {
                 construction,
                 plan: self,
                 initial_directory,
+                shuffle,
             }),
         })
     }

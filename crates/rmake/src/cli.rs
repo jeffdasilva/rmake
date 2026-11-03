@@ -100,6 +100,7 @@ pub struct Options {
     pub jobs: Option<usize>,
     pub command_jobs: Option<usize>,
     pub output_sync: Option<Vec<u8>>,
+    pub shuffle: Option<Vec<u8>>,
     pub inherited_output_sync: Option<Vec<u8>>,
     pub sync_mutex: Option<Vec<u8>>,
     pub load_limit: Option<f64>,
@@ -579,6 +580,9 @@ impl Options {
                                 result.keep_going_origin = Some(Origin::CommandLine);
                             }
                         }
+                        b"--shuffle" => {
+                            result.shuffle = Some(value.unwrap_or_else(|| b"random".to_vec()));
+                        }
                         b"--jobserver-auth" | b"--jobserver-fds" => {
                             result.jobserver_auth = Some(
                                 value
@@ -1015,6 +1019,15 @@ impl Options {
         if !self.silent && self.silent_origin.is_some() {
             flags.extend_from_slice(b" --no-silent");
         }
+        if let Some(mode) = &self.shuffle {
+            flags.extend_from_slice(b" --shuffle=");
+            for &byte in mode {
+                if byte.is_ascii_whitespace() || byte == 0x0b || byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(byte);
+            }
+        }
         flags
     }
 }
@@ -1282,14 +1295,7 @@ mod tests {
             assert!(parse(&[value]).is_err());
             assert!(Options::with_environment([], Some(value.into()), None).is_err());
         }
-        for value in [
-            "--debug=basic",
-            "--deb=basic",
-            "--shuffle=reverse",
-            "-d",
-            "-p",
-            "-w",
-        ] {
+        for value in ["--debug=basic", "--deb=basic", "-d", "-p", "-w"] {
             assert!(
                 Options::default()
                     .assigned_flags(&[value.as_bytes().to_vec()], Origin::File)

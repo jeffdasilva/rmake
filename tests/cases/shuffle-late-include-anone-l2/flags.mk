@@ -1,0 +1,1 @@
+MAKEFLAGS += --shuffle=2

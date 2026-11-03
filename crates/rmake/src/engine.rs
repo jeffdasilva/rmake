@@ -550,6 +550,7 @@ struct RuleState {
     before: Option<SystemTime>,
     phony: bool,
     next: usize,
+    order: Vec<usize>,
     serial_dependency: Option<usize>,
     serial_phase: bool,
     inspections: HashMap<usize, (u64, Outcome)>,
@@ -560,6 +561,10 @@ struct RuleState {
     stale: bool,
     outcome: Outcome,
     dropped: HashSet<Vec<u8>>,
+    // A shuffled circular visit removes the current declaration slot while
+    // suppressing the visited edge. Keep those two identities owned and separate.
+    #[allow(clippy::box_collection)]
+    presentation_drops: Option<Box<HashSet<usize>>>,
     deferred_intermediates: Vec<Vec<u8>>,
 }
 
@@ -695,6 +700,7 @@ pub struct Engine {
     intermediates: HashSet<Vec<u8>>,
     created_intermediates: Vec<Vec<u8>>,
     jobserver: Option<Jobserver>,
+    shuffle: crate::shuffle::Planner,
 }
 
 /// Startup errors can originate inside real files read by a CLI eval. Keep the
@@ -816,6 +822,7 @@ impl Engine {
             seed,
             plan,
             initial_directory,
+            shuffle,
         } = *initial;
         let mode = options
             .output_sync
@@ -1113,6 +1120,7 @@ impl Engine {
             intermediates: HashSet::new(),
             created_intermediates: Vec::new(),
             jobserver: None,
+            shuffle: crate::shuffle::Planner::new(shuffle),
         };
         // Inherited pipe descriptors must become close-on-exec before reader
         // shell functions run. Creating a new owned pool waits until after read.
@@ -2141,7 +2149,7 @@ impl Engine {
             }
             break;
         }
-        let goals = if self.options.goals.is_empty() {
+        let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
             // references still carry their own definition locations.
@@ -2226,6 +2234,10 @@ impl Engine {
         } else {
             self.options.goals.clone()
         };
+        if self.shuffle.enabled() {
+            let disabled = self.special(b".NOTPARALLEL", b"", true);
+            self.shuffle.start(&mut goals, &self.database, disabled);
+        }
         let mut failed = false;
         let mut requested = Vec::new();
         for goal in goals {
@@ -2428,6 +2440,7 @@ impl Engine {
                             } else {
                                 b"] Error 127"
                             },
+                            self.shuffle.suffix(),
                         ]
                         .concat(),
                     );
@@ -2686,9 +2699,11 @@ impl Engine {
         let serial = self.special(b".NOTPARALLEL", target, false);
         self.visiting.insert(target.to_vec());
         let mut next = 0;
+        let mut order = self.shuffle.order(target, rule.dependencies.len());
         let mut dropped = false;
         while next < rule.dependencies.len() {
-            let dep = &rule.dependencies[next];
+            let index = order.get(next).copied().unwrap_or(next);
+            let dep = &rule.dependencies[index];
             if dep.name == b".WAIT" {
                 if waiting {
                     break;
@@ -2707,7 +2722,16 @@ impl Engine {
                     ]
                     .concat(),
                 );
-                rule.dependencies.remove(next);
+                rule.dependencies.remove(index);
+                self.shuffle.discard(target, index);
+                if !order.is_empty() {
+                    order.retain(|i| *i != index);
+                    for i in &mut order {
+                        if *i > index {
+                            *i -= 1;
+                        }
+                    }
+                }
                 dropped = true;
                 continue;
             }
@@ -3100,6 +3124,7 @@ impl Engine {
                 &location_prefix(&job.location),
                 &target,
                 format!("] {error}{}", if job.ignore { " (ignored)" } else { "" }).as_bytes(),
+                self.shuffle.suffix(),
             ]
             .concat();
             self.stderr(&message);
@@ -4056,6 +4081,11 @@ impl Engine {
                     self.intermediates.insert(name.clone());
                 }
                 self.intermediates.extend(intermediate_names);
+                if self.shuffle.enabled() {
+                    let disabled = self.special(b".NOTPARALLEL", b"", true);
+                    self.shuffle
+                        .regenerate(&name, &rule, &self.database, disabled);
+                }
                 self.database.rules.insert(name, rule);
             }
         } else if existing.as_ref().is_none_or(|rule| rule.record_only)
@@ -4547,6 +4577,14 @@ impl Engine {
             ready_count += expanded.len();
             ready.splice(index..=index, std::iter::repeat_n(true, expanded.len()));
             rule.dependencies.splice(index..=index, expanded);
+        }
+        if let Some(context) = self.target_contexts.get_mut(target) {
+            context.retain_runtime_metadata(&variables);
+        }
+        if self.shuffle.enabled() {
+            let disabled = self.special(b".NOTPARALLEL", b"", true);
+            self.shuffle
+                .regenerate(target, rule, &self.database, disabled);
         }
         Ok(())
     }
@@ -5188,6 +5226,7 @@ impl Engine {
                 members.push((peer.clone(), time, self.special(b".PHONY", peer, false)));
             }
         }
+        let had_secondary = rule.secondary.is_some();
         if let Err(error) = self.expand_dependencies(target, &mut rule) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
@@ -5243,6 +5282,24 @@ impl Engine {
         let serial_phase = !rule.dependencies.is_empty()
             && rule.grouped_double_id().is_none()
             && self.special(b".NOTPARALLEL", target, false);
+        let first_branch = self.shuffle.enabled()
+            && double_colon
+            && self
+                .database
+                .rules
+                .get(target)
+                .and_then(|root| root.double_colon.as_ref())
+                .and_then(|branches| branches.first())
+                .is_some_and(|first| {
+                    first.recipe_location == rule.recipe_location
+                        && (first.recipe_location.is_some()
+                            || first.prerequisite_location == rule.prerequisite_location)
+                });
+        let order = if double_colon && !first_branch && !had_secondary {
+            Vec::new()
+        } else {
+            self.shuffle.order(target, rule.dependencies.len())
+        };
         let state = RuleState {
             rule,
             group,
@@ -5252,6 +5309,7 @@ impl Engine {
             before,
             phony,
             next: 0,
+            order,
             serial_dependency: None,
             serial_phase,
             inspections: HashMap::new(),
@@ -5263,6 +5321,7 @@ impl Engine {
                 ..Outcome::default()
             },
             dropped: HashSet::new(),
+            presentation_drops: None,
             deferred_intermediates: Vec::new(),
         };
         // A leaf cannot suspend dependency traversal. Keep the same recipe
@@ -5350,6 +5409,22 @@ impl Engine {
                     .expect("peer traversal has group state")
                     .peer_segments
                     .push((state.rule.dependencies.len(), peer.clone(), ordinal));
+                let peer_order = self.shuffle.order(&peer, peer_rule.dependencies.len());
+                let offset = state.rule.dependencies.len();
+                if !peer_order.is_empty() && state.order.is_empty() {
+                    state.order.extend(0..offset);
+                }
+                if !state.order.is_empty() {
+                    if peer_order.is_empty() {
+                        state
+                            .order
+                            .extend(offset..offset + peer_rule.dependencies.len());
+                    } else {
+                        state
+                            .order
+                            .extend(peer_order.into_iter().map(|index| offset + index));
+                    }
+                }
                 state
                     .rule
                     .dependencies
@@ -5370,11 +5445,12 @@ impl Engine {
                     break;
                 }
             }
+            let index = state.order.get(state.next).copied().unwrap_or(state.next);
             if (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
-                && state.rule.dependencies[state.next].name != b".WAIT"
+                && state.rule.dependencies[index].name != b".WAIT"
             {
-                match self.prepare_search_name(&state.rule.dependencies[state.next].name) {
-                    Ok(Some(name)) => state.rule.dependencies[state.next].name = name,
+                match self.prepare_search_name(&state.rule.dependencies[index].name) {
+                    Ok(Some(name)) => state.rule.dependencies[index].name = name,
                     Ok(None) => {}
                     Err(()) => {
                         state.outcome.failed = true;
@@ -5384,10 +5460,11 @@ impl Engine {
                     }
                 }
             }
-            let occurrence = &state.rule.dependencies[state.next];
+            let occurrence = &state.rule.dependencies[index];
             let dependency = &occurrence.name;
             if dependency == b".WAIT" {
-                for index in 0..state.next {
+                for position in 0..state.next {
+                    let index = state.order.get(position).copied().unwrap_or(position);
                     let prior = &state.rule.dependencies[index];
                     if prior.name == b".WAIT" || state.dropped.contains(&prior.name) {
                         continue;
@@ -5408,6 +5485,12 @@ impl Engine {
             }
             state.next += 1;
             if self.visiting.contains(dependency) {
+                if self.shuffle.enabled() {
+                    state
+                        .presentation_drops
+                        .get_or_insert_with(Default::default)
+                        .insert(state.next - 1);
+                }
                 self.stderr(
                     &[
                         b"Circular ".as_slice(),
@@ -5435,7 +5518,6 @@ impl Engine {
                 state.dropped.insert(dependency.clone());
                 continue;
             }
-            let index = state.next - 1;
             let (child, _) = self.visit_prerequisite(target, &mut state, index, true);
             merge_child(&mut state.outcome, child);
             if state.serial_phase {
@@ -5447,9 +5529,10 @@ impl Engine {
                 state.stopped = true;
             }
         }
-        // Revisit suspended children in declaration order without replaying the
+        // Revisit suspended children in traversal order without replaying the
         // parent's dependency expansion, circular diagnostics or scope setup.
-        for index in 0..state.next {
+        for position in 0..state.next {
+            let index = state.order.get(position).copied().unwrap_or(position);
             let dependency = &state.rule.dependencies[index].name;
             if dependency == b".WAIT" || state.dropped.contains(dependency) {
                 continue;
@@ -5630,6 +5713,7 @@ impl Engine {
             mut stale,
             mut outcome,
             dropped,
+            presentation_drops,
             intermediate_stale,
             ..
         } = state;
@@ -5650,6 +5734,18 @@ impl Engine {
             }
         }
         let recipe_rule = group.as_ref().map_or(&rule, |group| &group.recipe_rule);
+        let display_rule = presentation_drops.as_ref().map(|positions| {
+            let mut display = recipe_rule.clone();
+            let mut ordinal = 0;
+            display.dependencies.retain(|_| {
+                let retain = !positions.contains(&ordinal);
+                ordinal += 1;
+                retain
+            });
+            display
+        });
+        let recipe_rule = display_rule.as_ref().unwrap_or(recipe_rule);
+        let automatic_drops = display_rule.is_none().then_some(&dropped);
         // Ungrouped rules without a nonempty recipe need only normal-name
         // membership for freshness. Keep grouped canonical views separate from
         // peer edges. Empty recipe vectors never read automatic bindings.
@@ -5724,12 +5820,12 @@ impl Engine {
             if let Some(recipes) = &rule.recipes {
                 let normal: Vec<_> = normal
                     .iter()
-                    .filter(|name| !dropped.contains(*name))
+                    .filter(|name| automatic_drops.is_none_or(|set| !set.contains(*name)))
                     .cloned()
                     .collect();
                 let order: Vec<_> = order
                     .iter()
-                    .filter(|name| !dropped.contains(*name))
+                    .filter(|name| automatic_drops.is_none_or(|set| !set.contains(*name)))
                     .cloned()
                     .collect();
                 let repeated: Vec<_> = recipe_rule
@@ -5737,7 +5833,7 @@ impl Engine {
                     .iter()
                     .filter(|dep| !dep.hidden && !dep.order_only && dep.name != b".WAIT")
                     .map(|dep| dep.name.as_slice())
-                    .filter(|name| !dropped.contains(*name))
+                    .filter(|name| automatic_drops.is_none_or(|set| !set.contains(*name)))
                     .map(Vec::from)
                     .collect();
                 self.resolved_names.remove(target);
@@ -6776,6 +6872,7 @@ impl Engine {
                     message.extend_from_slice(
                         format!("] {error}{}", if ignore { " (ignored)" } else { "" }).as_bytes(),
                     );
+                    message.extend_from_slice(self.shuffle.suffix());
                     self.stderr(&message);
                 }
                 if !ignore {

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "shuffle-invalid-10-gnu"
+requirement = "options.shuffle"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "V:=$(file >seen,cli)"]
+timeout_seconds = 5
+output = "merged"
+description = "Original shuffle traversal, declaration metadata, phase, scope, barrier, jobserver, failure, recursion or restart model."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/release builds. No GNU code or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = "--shuffle=0x10"
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = "6d616b653a202a2a2a20696e76616c69642073687566666c65206d6f64653a20496e76616c69642076616c75653a202730783130272e202053746f702e0a"
+"stderr_hex" = ""

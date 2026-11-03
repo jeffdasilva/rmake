@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "shuffle-matrix-flat-4294967297-make-b0"
+requirement = "options.shuffle"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+output = "merged"
+description = "Original shuffle traversal, declaration metadata, phase, scope, barrier, jobserver, failure, recursion or restart model."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/release builds. No GNU code or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+"MAKEFLAGS" = "--shuffle=4294967297"
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "464c41473d5b2d2d73687566666c653d315d20474f414c533d5b616c6c5d0a4255494c44206220504c55533d5b5d204e4f524d414c3d5b5d204f524445523d5b5d0a4255494c44206320504c55533d5b5d204e4f524d414c3d5b5d204f524445523d5b5d0a4255494c44206420504c55533d5b5d204e4f524d414c3d5b5d204f524445523d5b5d0a4255494c44206120504c55533d5b5d204e4f524d414c3d5b5d204f524445523d5b5d0a4255494c4420616c6c20504c55533d5b612062206320645d204e4f524d414c3d5b612062206320645d204f524445523d5b5d0a"
+"stderr_hex" = ""

@@ -2011,6 +2011,17 @@ impl Database {
         definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
+        let append_base = if spec.name == b"MAKEFLAGS"
+            && spec.kind == Assignment::Append
+            && context.has_makeflags()
+        {
+            self.evaluation_scope.as_mut().and_then(|scope| {
+                scope.refresh_globals(&self.variables);
+                scope.scoped_makeflags_append().map(std::cell::RefCell::new)
+            })
+        } else {
+            None
+        };
         if spec.name == b"MAKEFLAGS"
             && spec.kind == Assignment::Append
             && context.has_makeflags()
@@ -2021,7 +2032,10 @@ impl Database {
         // Literal RHS bytes cannot invoke eval or read scoped bindings. Keep
         // their assignment in the store, but still run special setters below.
         // Shell definitions retain the full database for environment effects.
-        let result = if spec.kind != Assignment::Shell && !spec.value.contains(&b'$') {
+        let result = if append_base.is_none()
+            && spec.kind != Assignment::Shell
+            && !spec.value.contains(&b'$')
+        {
             self.variables.define_with(
                 spec.name,
                 spec.value,
@@ -2039,6 +2053,7 @@ impl Database {
                 origin,
                 definition,
                 context.reborrow(),
+                append_base.as_ref(),
                 |variables, bytes, shell, context| {
                     std::mem::swap(variables, &mut self.variables);
                     let result = if shell {
@@ -2046,6 +2061,14 @@ impl Database {
                     } else {
                         self.expand_with(bytes, context)
                     };
+                    if let Some(base) = &append_base
+                        && let Some(value) = self
+                            .evaluation_scope
+                            .as_ref()
+                            .and_then(VariableStore::scoped_makeflags_append)
+                    {
+                        *base.borrow_mut() = value;
+                    }
                     std::mem::swap(variables, &mut self.variables);
                     result
                 },

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "shuffle-branch-double-none"
+requirement = "options.shuffle"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--shuffle=none", "all"]
+timeout_seconds = 5
+output = "separate"
+description = "Original shuffle traversal, declaration metadata, phase, scope, barrier, jobserver, failure, recursion or restart model."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/release builds. No GNU code or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "610a620a74313d5b6120625d0a630a640a74323d5b6320645d0a616c6c0a"
+"stderr_hex" = ""

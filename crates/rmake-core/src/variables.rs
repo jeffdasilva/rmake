@@ -727,6 +727,17 @@ impl VariableStore {
         self.define(name, value, Assignment::Recursive, origin)
     }
 
+    /// Retain normalized per-file switch bindings across secondary expansion.
+    /// Automatic variables belong to that expansion and must not enter the
+    /// reusable target context or be inherited by its prerequisites.
+    pub fn retain_runtime_metadata(&mut self, expanded: &Self) {
+        for name in [b"MAKEFLAGS".as_slice(), b"MFLAGS"] {
+            if let Some(value) = expanded.variables.get(name) {
+                Arc::make_mut(&mut self.variables).insert(name, value.clone());
+            }
+        }
+    }
+
     /// GNU's legacy switch variable excludes command overrides and retains
     /// recursive make-dollar quoting. File/CLI definitions keep their priority.
     pub fn update_mflags(
@@ -1161,6 +1172,7 @@ impl VariableStore {
             origin,
             definition,
             context,
+            None,
             |store, bytes, shell, context| {
                 if shell {
                     store.shell_with(bytes, context)
@@ -1193,6 +1205,20 @@ impl VariableStore {
         }
     }
 
+    /// Select a visible per-file append base independently of the global
+    /// destination's origin. Its encoded command suffix is reconstructed later.
+    pub(crate) fn scoped_makeflags_append(&self) -> Option<Variable> {
+        let (index, value) = self.lookup_from(b"MAKEFLAGS", 0)?;
+        if !self.file_locals || (index > 0 && self.layers[index - 1].global) {
+            return None;
+        }
+        let mut value = value.clone();
+        if let Some(boundary) = value.value.windows(4).position(|part| part == b" -- ") {
+            value.value.truncate(boundary);
+        }
+        Some(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn define_with_using(
         &mut self,
@@ -1202,6 +1228,7 @@ impl VariableStore {
         origin: Origin,
         definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
+        append_base: Option<&std::cell::RefCell<Variable>>,
         mut expand: impl FnMut(
             &mut VariableStore,
             &[u8],
@@ -1252,7 +1279,9 @@ impl VariableStore {
                 if matches!(
                     assignment,
                     Assignment::Simple | Assignment::ImmediateRecursive | Assignment::Shell
-                ) || (assignment == Assignment::Append && old.flavor == Flavor::Simple)
+                ) || (assignment == Assignment::Append
+                    && append_base.map_or(old.flavor, |base| base.borrow().flavor)
+                        == Flavor::Simple)
                 {
                     expand(
                         self,
@@ -1313,7 +1342,10 @@ impl VariableStore {
                 }
             }
             Assignment::Append => {
-                if let Some(old) = self.variables.get(name).cloned() {
+                if let Some(old) = append_base
+                    .map(|base| base.borrow().clone())
+                    .or_else(|| self.variables.get(name).cloned())
+                {
                     let extra = match old.flavor {
                         Flavor::Recursive => value.to_vec(),
                         Flavor::Simple => expand(
@@ -1331,10 +1363,14 @@ impl VariableStore {
                     // Immediate RHS effects can replace this binding. Append
                     // to its current value, retaining the originally selected
                     // append flavor. The removed-binding fallback is unchanged.
-                    let mut combined = self
-                        .variables
-                        .get(name)
-                        .map_or_else(|| old.value.clone(), |current| current.value.clone());
+                    let mut combined = append_base.map_or_else(
+                        || {
+                            self.variables
+                                .get(name)
+                                .map_or_else(|| old.value.clone(), |current| current.value.clone())
+                        },
+                        |base| base.borrow().value.clone(),
+                    );
                     if !combined.is_empty() && !extra.is_empty() {
                         push(&mut combined, b" ")?;
                     }
@@ -7125,6 +7161,25 @@ mod variable_names_tests {
 #[cfg(test)]
 mod runtime_metadata_scope_tests {
     use super::*;
+
+    #[test]
+    fn retained_flags_do_not_leak_secondary_automatic_variables() {
+        let globals = VariableStore::new();
+        let mut base = globals.with_target_scopes(&[]);
+        let mut secondary = base.clone();
+        secondary.update_mflags(b"k", false).unwrap();
+        secondary
+            .define_literal(b"MAKEFLAGS", b"k", Origin::Environment)
+            .unwrap();
+        secondary
+            .define_literal(b"@", b"parent", Origin::Automatic)
+            .unwrap();
+        base.retain_runtime_metadata(&secondary);
+        assert_eq!(base.expand(b"$(MAKEFLAGS)|$(MFLAGS)|$@").unwrap(), b"k|-k|");
+        assert!(globals.get(b"MAKEFLAGS").is_none());
+        assert!(base.get(b"@").is_none());
+        assert_eq!(secondary.expand(b"$@").unwrap(), b"parent");
+    }
 
     #[test]
     fn normalization_preserves_this_files_value_and_shadows_ancestors() {
