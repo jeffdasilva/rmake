@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "shared-implicit-quoted-d1-b0-literal-percent-rejection"
+requirement = "resolution.implicit-prerequisite-spelling"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+output = "merged"
+description = "Original raw implicit prerequisite substitution, literal spelling, file effects, automatic metadata or scaling control."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/optimized builds. No GNU code or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276469722f6974656d2e6f7574272c206e65656465642062792027616c6c272e202053746f702e0a"
+"stderr_hex" = ""
