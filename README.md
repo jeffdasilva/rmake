@@ -95,6 +95,12 @@ handles nested resets without holding option-state borrows. 474 original cases
 close 240 recorded mismatches, bringing the corpus to 26,846 required cases.
 Full M3/M6 and general performance parity remain open.
 
+[Runtime flag inspection](docs/runtime-flag-inspection.md) now records incoming
+switch selections during the existing parse. The runtime-update control uses
+1,009 fewer allocation requests (about 4.8%). 96 new regression cases bring the
+corpus to 26,942 required cases. Timing evidence is mixed; full M3/M6 and general
+performance parity remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

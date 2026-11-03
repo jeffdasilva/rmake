@@ -150,6 +150,13 @@ pub(crate) struct Decoder {
     evals_seen: std::collections::HashSet<Vec<u8>>,
 }
 
+#[derive(Default)]
+struct IncomingSwitches {
+    silent: Option<bool>,
+    keep_going: Option<bool>,
+    jobs: Option<usize>,
+}
+
 pub(crate) struct DecodedArgument {
     pub(crate) argument: Option<Argument>,
     pub(crate) position: usize,
@@ -873,9 +880,9 @@ impl Options {
         for value in flags {
             Self::append_expanded_flags(&mut incoming, value)?;
         }
-        let incoming_options = Self::parse_mode::<false>(incoming.clone())?;
         let mut arguments = Vec::new();
-        Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false))?;
+        Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false))
+            .map_err(|error| Self::incoming_error(flags, error))?;
         if self.jobserver_pipe {
             arguments.push("--jobserver-style=pipe".into());
         }
@@ -892,14 +899,15 @@ impl Options {
             .iter()
             .map(|path| path.as_os_str().to_owned())
             .collect();
-        // Capture only new events. Persistent options and the pure incoming
-        // validation pass need no temporary policy vector or prefix allocation.
+        // Capture incoming switch selections during the merged decode. Prefix
+        // reconstruction must not manufacture new source-origin selections.
         let mut warning_positions = Vec::new();
-        let mut parsed = Self::parse_with::<false, String>(
+        let (mut parsed, incoming_options) = Self::parse_with_inspection::<false, true, String>(
             arguments,
             seeded,
             0,
             false,
+            prefix_count,
             &mut |options, argument| {
                 if let Argument::Warning(position) = argument
                     && position >= prefix_count
@@ -924,7 +932,8 @@ impl Options {
                 }
                 Ok(())
             },
-        )?;
+        )
+        .map_err(|error| Self::incoming_error(flags, error))?;
         for (position, _) in &mut parsed.assignment_context {
             *position = *position - prefix_count + 1;
         }
@@ -946,21 +955,23 @@ impl Options {
         parsed.flag_word_count = flag_word_count;
         // GNU only tracks origins for selected switches. Reconstructing the
         // spelling must not turn an inherited/file setting into a CLI setting.
-        if incoming_options.silent_origin.is_some()
+        if incoming_options.silent.is_some()
             && (origin == Origin::CommandLine || self.silent_origin.is_none_or(|old| origin >= old))
         {
             parsed.silent_origin = Some(origin);
-            parsed.silent = incoming_options.silent;
+            parsed.silent = incoming_options.silent.expect("selected incoming switch");
         } else {
             parsed.silent_origin = self.silent_origin;
             parsed.silent = self.silent;
         }
-        if incoming_options.keep_going_origin.is_some()
+        if incoming_options.keep_going.is_some()
             && (origin == Origin::CommandLine
                 || self.keep_going_origin.is_none_or(|old| origin >= old))
         {
             parsed.keep_going_origin = Some(origin);
-            parsed.keep_going = incoming_options.keep_going;
+            parsed.keep_going = incoming_options
+                .keep_going
+                .expect("selected incoming switch");
         } else {
             parsed.keep_going_origin = self.keep_going_origin;
             parsed.keep_going = self.keep_going;
@@ -976,6 +987,21 @@ impl Options {
                 .filter(|_| self.command_jobs.is_none()),
             warning_positions,
         ))
+    }
+
+    /// Preserve the preliminary incoming-error precedence on the cold path.
+    /// Both parses are pure: callbacks only update owned decoder bookkeeping.
+    #[cold]
+    fn incoming_error(flags: &[Vec<u8>], merged_error: String) -> String {
+        let mut incoming = Vec::new();
+        for value in flags {
+            if let Err(error) = Self::append_expanded_flags(&mut incoming, value) {
+                return error;
+            }
+        }
+        Self::parse_mode::<false>(incoming)
+            .err()
+            .unwrap_or(merged_error)
     }
 
     #[cfg(test)]
@@ -1007,13 +1033,71 @@ impl Options {
         track_jobs: bool,
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
     ) -> Result<Self, E> {
+        Self::parse_with_inspection::<STARTUP, false, E>(
+            args, result, offset, track_jobs, 0, receiver,
+        )
+        .map(|(options, _)| options)
+    }
+
+    fn parse_with_inspection<
+        const STARTUP: bool,
+        const INSPECT: bool,
+        E: From<String> + From<&'static str>,
+    >(
+        args: impl IntoIterator<Item = OsString>,
+        result: Self,
+        offset: usize,
+        track_jobs: bool,
+        incoming_start: usize,
+        receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+    ) -> Result<(Self, IncomingSwitches), E> {
         let mut decoder = Decoder::new(args, result, offset, track_jobs);
-        while let Some(step) = decoder.advance::<STARTUP>().map_err(E::from)? {
+        let mut incoming = IncomingSwitches::default();
+        loop {
+            let previous = if INSPECT {
+                (
+                    decoder.options.silent_origin.take(),
+                    decoder.options.keep_going_origin.take(),
+                    decoder.options.jobs.take(),
+                )
+            } else {
+                (None, None, None)
+            };
+            let step = decoder.advance::<STARTUP>().map_err(E::from)?;
+            if INSPECT {
+                let options = &mut decoder.options;
+                if step
+                    .as_ref()
+                    .is_some_and(|step| step.position >= incoming_start)
+                {
+                    if options.silent_origin.is_some() {
+                        incoming.silent = Some(options.silent);
+                    }
+                    if options.keep_going_origin.is_some() {
+                        incoming.keep_going = Some(options.keep_going);
+                    }
+                    if let Some(jobs) = options.jobs {
+                        incoming.jobs = Some(jobs);
+                    }
+                }
+                if options.silent_origin.is_none() {
+                    options.silent_origin = previous.0;
+                }
+                if options.keep_going_origin.is_none() {
+                    options.keep_going_origin = previous.1;
+                }
+                if options.jobs.is_none() {
+                    options.jobs = previous.2;
+                }
+            }
+            let Some(step) = step else {
+                break;
+            };
             if let Some(argument) = step.argument {
                 receiver(&mut decoder.options, argument)?;
             }
         }
-        Ok(decoder.options)
+        Ok((decoder.options, incoming))
     }
 
     fn add_include_directory(&mut self, path: PathBuf) -> Result<(), String> {
@@ -1813,5 +1897,57 @@ mod runtime_marker_tests {
             vec![std::path::PathBuf::from("~/inc")]
         );
         assert!(persistent.include_decoder(b"").unwrap().is_some());
+    }
+    #[test]
+    fn runtime_inspection_distinguishes_prefix_and_ignored_operands_from_switches() {
+        let previous = Options {
+            silent: true,
+            silent_origin: Some(Origin::Environment),
+            keep_going: true,
+            keep_going_origin: Some(Origin::CommandLine),
+            jobs: Some(4),
+            ..Options::default()
+        };
+        let (ignored, jobs) = previous
+            .assigned_flags(&[b"-f -sk -I -kj3 X=one".to_vec()], Origin::Override)
+            .unwrap();
+        assert!(ignored.silent && ignored.keep_going);
+        assert_eq!(ignored.silent_origin, Some(Origin::Environment));
+        assert_eq!(ignored.keep_going_origin, Some(Origin::CommandLine));
+        assert_eq!((ignored.jobs, jobs), (Some(4), None));
+        let (selected, jobs) = previous
+            .assigned_flags(&[b"--no-silent -S -j2".to_vec()], Origin::Override)
+            .unwrap();
+        assert!(!selected.silent && !selected.keep_going);
+        assert_eq!(selected.silent_origin, Some(Origin::Override));
+        assert_eq!(selected.keep_going_origin, Some(Origin::Override));
+        assert_eq!((selected.jobs, jobs), (Some(2), Some(2)));
+        let pinned = Options {
+            command_jobs: Some(8),
+            ..previous
+        };
+        let (selected, jobs) = pinned
+            .file_flags(&[b"--no-silent -S -j2".to_vec()])
+            .unwrap();
+        assert!(!selected.silent && selected.keep_going);
+        assert_eq!((selected.jobs, jobs), (Some(8), None));
+    }
+
+    #[test]
+    fn incoming_error_wins_over_an_invalid_reconstructed_prefix() {
+        let invalid_prefix = Options {
+            jobs: Some(0),
+            ..Options::default()
+        };
+        let error = invalid_prefix
+            .assigned_flags(&[b"--include-dir=".to_vec()], Origin::File)
+            .err()
+            .unwrap();
+        assert!(error.contains("'-I'"), "{error}");
+        let prefix_error = invalid_prefix
+            .assigned_flags(&[b"-s".to_vec()], Origin::File)
+            .err()
+            .unwrap();
+        assert!(prefix_error.contains("'-j'"), "{prefix_error}");
     }
 }

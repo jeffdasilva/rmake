@@ -2913,3 +2913,24 @@ directory/debug/database, native/Guile, exec/stdin, integration, persistent cach
 acceptance, complete M3/M6 and general performance parity remain open.
 
 [Four output-checked 101-sample timing reports](benchmarks/secondary-search-index.md) are mixed: large no-op medians are lower, while expansion and runtime-update medians are higher. Twelve glibc profiles show unchanged request/free counts. Neither general speedup nor parity is established.
+
+
+## M3/M6: runtime inspection during the existing parse (2026-11-03)
+
+[Runtime flag inspection](runtime-flag-inspection.md) removes the duplicate
+successful incoming parse. A typed summary records only incoming silent,
+keep-going and jobs selections while the shared decoder preserves prefix origins,
+clusters, ignored operands, positions and command-job precedence. Only failures
+retry the pure incoming parse to preserve error priority; no interpreter effects
+are repeated. Startup and owned tilde decoder paths retain their behavior.
+
+96 independently authored recipe echo/keep-going cases agree with two bounded
+GNU observations and both selected frozen builds. The preceding candidate also
+passes all96: these are regression controls, with no mismatch closed or new
+exception. Twenty-four initial public-flag proxy predictions were wrong; their
+raw observations remain separate from the independently modeled recipe controls.
+The selected debug build also passes 3,064 preceding focused cases. Formatting,
+Clippy and 536 Rust tests pass; tooling has 592 tests. The corpus is 26,942
+required / zero pending across 156 families, plus 32 separate approved exceptions.
+
+[Six paired timing reports and twelve request profiles](benchmarks/runtime-inspection-index.md) show 1,009 fewer runtime-control requests/frees (about 4.8% fewer requests). Four unpinned101-sample reports are mixed; two targeted301-sample inherited-CPU follow-ups show a small improvement. No general elapsed speedup, exclusive CPU isolation, confidence intervals or GNU performance parity are claimed. Full frozen rmake-driven acceptance and exact-head CI remain merge gates. Complete M3/M6, broader decoder/profile/integration and persistent cache acceptance remain open.

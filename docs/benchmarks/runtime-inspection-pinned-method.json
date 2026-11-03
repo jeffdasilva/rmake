@@ -1,0 +1,62 @@
+{
+  "cpu": 23,
+  "affinity_before": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "limitation": "one inherited CPU, not exclusive CPU ownership or frequency control",
+  "runs": [
+    {
+      "args": [
+        "taskset",
+        "-c",
+        "23",
+        ".tools/oracle/bin/make",
+        "--no-print-directory",
+        "bench-compare",
+        "BENCH_CANDIDATE=/tmp/rmake-fused-inspection-selected-release",
+        "BENCH_BASELINE=/tmp/rmake-secondary-search-selected-release",
+        "BENCH_REPEAT=301",
+        "BENCH_SUITE=runtime-arguments"
+      ],
+      "report": "artifacts/research/fused-runtime/bench/runtime-arguments-pinned-a.json"
+    },
+    {
+      "args": [
+        "taskset",
+        "-c",
+        "23",
+        "/tmp/rmake-fused-inspection-selected-release",
+        "--no-print-directory",
+        "bench-compare",
+        "BENCH_CANDIDATE=/tmp/rmake-fused-inspection-selected-release",
+        "BENCH_BASELINE=/tmp/rmake-secondary-search-selected-release",
+        "BENCH_REPEAT=301",
+        "BENCH_SUITE=runtime-arguments"
+      ],
+      "report": "artifacts/research/fused-runtime/bench/runtime-arguments-pinned-b.json"
+    }
+  ]
+}
