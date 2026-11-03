@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "fused-effects-file-unset-long-negative-none"
+requirement = "performance.runtime-flag-inspection"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+output = "separate"
+description = "Original recipe echo, keep-going, switch origin, alias and output-mode regression control for runtime parsing."
+provenance = "Independently modeled, qualified against two bounded pinned GNU Make 4.4.1 observations and both frozen builds. No GNU code or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = "66616c73650a"
+"stderr_hex" = "6d616b653a202a2a2a205b4d616b6566696c653a363a2066697273745d204572726f7220310a"
