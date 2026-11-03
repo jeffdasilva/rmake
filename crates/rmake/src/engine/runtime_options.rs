@@ -70,7 +70,7 @@ impl State {
         let (mut updated, _, warning_positions) = current
             .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
             .map_err(String::into_bytes)?;
-        let assignments = std::mem::take(&mut updated.assignments)
+        let assignments: Vec<_> = std::mem::take(&mut updated.assignments)
             .into_iter()
             .zip(std::mem::take(&mut updated.assignment_context))
             .map(|(argument, (position, environment_override))| {
@@ -85,18 +85,25 @@ impl State {
         let mode = updated
             .output_sync
             .as_deref()
-            .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse)
-            .ok_or_else(|| {
-                [
-                    b"unknown output-sync type '".as_slice(),
-                    updated.output_sync.as_deref().unwrap_or_default(),
-                    b"'",
-                ]
-                .concat()
-            })?;
-        self.output.set_mode(mode);
-        let search = IncludeSearch::new(&updated.include_directories);
-        let include_dirs = search.directories().map(<[u8]>::to_vec).collect();
+            .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
+        if mode.is_none() && assignments.is_empty() {
+            return Err([
+                b"unknown output-sync type '".as_slice(),
+                updated.output_sync.as_deref().unwrap_or_default(),
+                b"'",
+            ]
+            .concat());
+        }
+        // GNU validates output synchronization after payload definitions. The
+        // core refreshes this receiver when they finish, so an invalid pending
+        // selection must not skip their effects or construct a new search yet.
+        let search = mode.map(|mode| {
+            self.output.set_mode(mode);
+            IncludeSearch::new(&updated.include_directories)
+        });
+        let include_dirs = search.as_ref().map_or_else(Vec::new, |search| {
+            search.directories().map(<[u8]>::to_vec).collect()
+        });
         let result = rmake_core::diagnostic::MakeflagsResult {
             eval_reference: !updated.evals.is_empty(),
             // Finalization selects current flags after nested metadata effects.
@@ -105,20 +112,24 @@ impl State {
             origin: origin(updated.environment_override),
             environment_override: updated.environment_override,
             include_dirs,
-            publish_includes: Some(Box::new({
-                let includes = self.includes.clone();
-                let options = self.options.clone();
-                move || {
-                    includes.replace(search);
-                    let options = options.borrow();
-                    rmake_core::diagnostic::MakeflagsMetadata {
-                        eval_reference: !options.evals.is_empty(),
-                        value: options.recursive_flags(),
-                        origin: origin(options.environment_override),
-                        environment_override: options.environment_override,
+            publish_includes: if let Some(search) = search {
+                Some(Box::new({
+                    let includes = self.includes.clone();
+                    let options = self.options.clone();
+                    move || {
+                        includes.replace(search);
+                        let options = options.borrow();
+                        rmake_core::diagnostic::MakeflagsMetadata {
+                            eval_reference: !options.evals.is_empty(),
+                            value: options.recursive_flags(),
+                            origin: origin(options.environment_override),
+                            environment_override: options.environment_override,
+                        }
                     }
-                }
-            })),
+                }))
+            } else {
+                None
+            },
             assignments,
             warning_positions,
             warning_entry: current.warn_undefined,
@@ -443,6 +454,18 @@ impl Engine {
             if let Some(options) = self.flag_state.take() {
                 updated = options;
             }
+        }
+        // Each source validates its final selection before the next source is
+        // expanded. A later MAKEFLAGS value cannot rescue invalid GNU flags or
+        // observe their post-source clearing after GNU has already stopped.
+        if let Some(value) = updated.output_sync.as_deref()
+            && crate::output::Mode::parse(value).is_none()
+        {
+            self.fatal(
+                None,
+                &[b"unknown output-sync type '".as_slice(), value, b"'"].concat(),
+            );
+            return Err(());
         }
         updated.files = std::mem::take(&mut self.options.files);
         updated.directories = std::mem::take(&mut self.options.directories);
