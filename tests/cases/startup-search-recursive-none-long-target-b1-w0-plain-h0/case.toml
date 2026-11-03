@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-search-recursive-none-long-target-b1-w0-plain-h0"
+requirement = "startup.second-include-search"
+candidate = "required"
+timeout_seconds = 5
+output = "separate"
+description = "Original startup HOME second lookup, deferred flags, raw spelling/bytes, warning, callback, error, fallback or metadata control."
+provenance = "Independent models qualified against two bounded pinned GNU Make 4.4.1 observations and frozen builds. No GNU implementation or tests copied or translated."
+args_hex = ["2d7252", "2d2d6e6f2d7072696e742d6469726563746f7279", "2d73", "2d4f746172676574", "484f4d453d242866696c65203e3e7365656e2c484f4d45297e", "2d2d696e636c7564652d6469723d7e2f696e63ff"]
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c543d5b6c69746572616c5d20444952533d5b7e2f696e63ff5d205241573d5b2d497e2f696e63ff5d0a"
+"stderr_hex" = ""

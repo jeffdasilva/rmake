@@ -32,6 +32,9 @@ The initial manifest records:
 - `candidate`: `pending` or `required`; `description` and `provenance`.
 - `args`: normally `-rR --no-print-directory`, to isolate specified behavior from
   the reference's built-in rules; special cases explicitly add required options.
+- `args_hex`: an alternative complete argv list of even-length ASCII hex strings,
+  preserving Linux byte arguments and empty arguments; it is exclusive with
+  `args`, and encoded NUL is rejected.
 - `timeout_seconds`: a per-invocation bound; these fixtures use five seconds.
 - Optional `[environment]` entries for explicit input variables.
 - `[expected]`: an independently specified `exit_code` and exact UTF-8 `stdout`.

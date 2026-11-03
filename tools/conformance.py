@@ -38,7 +38,7 @@ MAX_OUTPUT = 1024 * 1024
 MAX_FILES = 4096
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_CHILDREN = 128
-CASE_KEYS = {"id", "requirement", "candidate", "args", "timeout_seconds",
+CASE_KEYS = {"id", "requirement", "candidate", "args", "args_hex", "timeout_seconds",
              "environment", "expected", "output", "description", "provenance"}
 ENV_PROTECTED = {"PATH", "HOME", "TMPDIR", "PWD", "OLDPWD", "LC_ALL", "LANG", "TZ"}
 
@@ -129,9 +129,22 @@ def load_case(path: Path) -> Case:
     candidate = data.get("candidate", "pending")
     if candidate not in ("pending", "required"):
         raise HarnessError(f"candidate must be pending or required: {manifest}")
-    args = data.get("args", ["-rR", "--no-print-directory"])
-    if not isinstance(args, list) or any(not isinstance(x, str) or "\0" in x for x in args):
-        raise HarnessError(f"args must be strings without NUL: {manifest}")
+    if "args_hex" in data:
+        if "args" in data:
+            raise HarnessError(f"args and args_hex are mutually exclusive: {manifest}")
+        encoded = data["args_hex"]
+        if not isinstance(encoded, list) or any(
+                not isinstance(value, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2})*", value)
+                for value in encoded):
+            raise HarnessError(f"args_hex must be a list of even-length ASCII hexadecimal: {manifest}")
+        raw_args = [bytes.fromhex(value) for value in encoded]
+        if any(b"\0" in value for value in raw_args):
+            raise HarnessError(f"args_hex cannot encode NUL: {manifest}")
+        args = [os.fsdecode(value) for value in raw_args]
+    else:
+        args = data.get("args", ["-rR", "--no-print-directory"])
+        if not isinstance(args, list) or any(not isinstance(x, str) or "\0" in x for x in args):
+            raise HarnessError(f"args must be strings without NUL: {manifest}")
     timeout = data.get("timeout_seconds", 5)
     if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
             or not math.isfinite(timeout) or not 0 < timeout <= 60):

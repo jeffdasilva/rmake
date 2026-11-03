@@ -37,6 +37,35 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(case.expected["stdout"], "ok\n")
         self.assertEqual(case.candidate, "pending")
 
+    def test_hex_argv_preserves_empty_raw_bytes_and_unicode_without_loss(self):
+        self.write('args_hex = ["", "ff", "e29883", "2d49ff"]\n')
+        case = runner.load_case(self.case)
+        self.assertEqual(tuple(os.fsencode(arg) for arg in case.args), (b"", b"\xff", b"\xe2\x98\x83", b"-I\xff"))
+        self.assertEqual(json.loads(json.dumps(case.args)), list(case.args))
+
+    def test_hex_argv_executes_the_exact_linux_byte_vector(self):
+        self.write('args_hex = ["ff", "e29883", ""]\n[expected]\nstdout_hex = "ff7ce298837c"\nstderr_hex = ""\nexit_code = 0\n')
+        script = self.root / 'argv-bytes'
+        script.write_text('#!/usr/bin/python3\nimport os,sys\nos.write(1,b"|".join(os.fsencode(arg) for arg in sys.argv[1:]))\n')
+        script.chmod(0o755)
+        workspace = self.root / 'execute'
+        workspace.mkdir()
+        observed = runner.execute(runner.load_case(self.case), workspace, script)
+        self.assertEqual((observed.stdout, observed.stderr, observed.returncode, observed.limit, observed.leftover_processes), (b"\xff|\xe2\x98\x83|", b"", 0, None, False))
+        self.assertEqual(runner.expectation_errors(runner.load_case(self.case), observed), [])
+
+    def test_hex_argv_rejects_invalid_encoding_and_non_list_values(self):
+        for value in ("ff", 0, True, [0], [False], ["f"], ["fg"], ["ff ff"], ["ff\n"], ["０１"], ["é0"], ["0x00"]):
+            with self.subTest(value=value):
+                self.write('args_hex = ' + json.dumps(value) + '\n')
+                with self.assertRaises(runner.HarnessError): runner.load_case(self.case)
+
+    def test_hex_argv_rejects_nul_and_mixed_argument_representations(self):
+        for extra in ('args_hex = ["00"]\n', 'args_hex = ["ff00"]\n', 'args = []\nargs_hex = []\n'):
+            with self.subTest(extra=extra):
+                self.write(extra)
+                with self.assertRaises(runner.HarnessError): runner.load_case(self.case)
+
     def test_dot_make_variable_environment_retains_reserved_name_guards(self):
         self.write('[environment]\n".LIBPATTERNS" = "lib%.a"\n')
         self.assertEqual(runner.load_case(self.case).environment, {'.LIBPATTERNS': 'lib%.a'})

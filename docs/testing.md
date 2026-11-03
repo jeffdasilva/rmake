@@ -31,6 +31,13 @@ files and input data, and a declarative `case.toml`. The manifest records:
 - Comparison mode, required observable events and precisely scoped nondeterminism.
 - Reproducible seed and shrinking constraints for a generated case.
 
+The current single-invocation runner accepts `args` as text, or `args_hex` as a
+complete list of hexadecimal byte arguments. The representations are exclusive.
+For example, `args_hex = ["2d7252", "4e414d453dff"]` passes `-rR` and a
+`NAME=` assignment ending in byte `ff`. Empty strings encode empty arguments;
+NUL is rejected because Linux argv cannot contain it. This keeps raw-byte probes
+replayable without lossy Unicode conversion.
+
 The runner creates separate isolated environments with identical absolute paths,
 for example `/work/case` and `/opt/test/bin/make`. It mounts the appropriate
 executable at the latter path; never use different workspace prefixes and then

@@ -2934,3 +2934,30 @@ Clippy and 536 Rust tests pass; tooling has 592 tests. The corpus is 26,942
 required / zero pending across 156 families, plus 32 separate approved exceptions.
 
 [Six paired timing reports and twelve request profiles](benchmarks/runtime-inspection-index.md) show 1,009 fewer runtime-control requests/frees (about 4.8% fewer requests). Four unpinned101-sample reports are mixed; two targeted301-sample inherited-CPU follow-ups show a small improvement. No general elapsed speedup, exclusive CPU isolation, confidence intervals or GNU performance parity are claimed. Full frozen rmake-driven acceptance and exact-head CI remain merge gates. Complete M3/M6, broader decoder/profile/integration and persistent cache acceptance remain open.
+
+
+## M3/M6: second startup HOME lookup (2026-11-03)
+
+[Startup include search](startup-include-search.md) expands residual tilde operands
+against the pre-default full database before metadata publication. Argument and
+search processing share the tilde resolver while retaining their own dot-prefix
+boundaries. Callback names are owned; HOME warning suppression restores on
+success and failure. Stored argv stays separate from physical search.
+
+500 original required models agree with two bounded GNU observations and both
+selected frozen builds, closing 438 preceding mismatches. Coverage includes
+warnings, forms, modes, raw bytes, slash history, metadata, nested/deferred flags,
+error/export boundaries, fallbacks, shell/eval/include/call callbacks and NUL
+HOME-file data. The earlier 24 pilots receive no additional credit. An over-eager
+prototype incorrectly activated constructor flag resets; its complete source and
+24 differing controls are retained with original hypotheses and separate
+phase-correct refinements. No exception is added. 192 byte-argv fixtures use
+the validated, mutually exclusive args_hex manifest form.
+
+Formatting, Clippy and 537 Rust tests pass. Tooling has 600 tests, including
+raw-vector execution and format guards. The selected debug build passes 2,346
+preceding focused cases. The corpus is 27,442 required / zero pending across
+157 families, plus the same 32 approved exceptions / 128 cells. Full frozen
+rmake-driven acceptance and exact-head CI remain merge gates.
+
+[Four paired101-sample reports and twelve profiles](benchmarks/startup-search-index.md) show unchanged request/free counts on the three controls and mixed timing, including higher large no-op medians. General speedup and GNU parity are not established. Complete M3/M6, broader decoder/profile/integration and persistent cache acceptance remain open.
