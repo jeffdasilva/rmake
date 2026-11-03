@@ -2,6 +2,7 @@
 # Copyright 2026 Jeff DaSilva
 """Independent anchors and negative controls for the exception-only gate."""
 import contextlib
+import copy
 import dataclasses
 import io
 import json
@@ -35,15 +36,46 @@ class SafetyTests(unittest.TestCase):
         self.assertIn(b'<c "extra words">\n', bytes.fromhex(case.expected['stdout_hex']))
         self.assertEqual(harness.load_case(safety.ROOT / 'tests/cases/safety-control-export-local-shell').expected['exit_code'], 0)
 
-    def test_every_recorded_fault_has_separate_immutable_evidence(self):
+    def test_every_approved_exception_has_separate_immutable_evidence(self):
         cases = safety.inventory()
-        self.assertEqual(len(cases), 17)
+        self.assertEqual(len(cases), 32)
         self.assertEqual({case.requirement for case in cases},
                          {'safety.' + code for code in safety.CODES})
-        # This record exits normally: it remains an open compatibility mismatch.
-        self.assertNotIn('flag-payload-ordered-14', {case.id for case in cases})
+        # The owner explicitly extended S004 to this formerly ordinary gap.
+        self.assertIn('flag-payload-ordered-14', {case.id for case in cases})
         for case in cases:
             self.assertFalse((safety.ROOT / 'tests/cases' / case.id).exists())
+
+    def test_normal_exit_approval_requires_exact_scope_and_real_policy_instability(self):
+        approval = json.loads((safety.ROOT / 'tests/safety/nested-short-normal-approval.json').read_text())
+        records = json.loads((safety.ROOT / approval['evidence']).read_text())['records']
+        self.assertEqual(set(safety.validate_normal_approval(approval, records)), safety.NORMAL_SHORT_SCOPE)
+        for kind in ('unapproved', 'decision', 'scope', 'missing', 'instability'):
+            changed = copy.deepcopy(approval)
+            if kind == 'unapproved': changed['approved'] = False
+            elif kind == 'decision': changed['owner_decision'] = 'not reviewed'
+            elif kind == 'scope': changed['scope'][0]['id'] = 'ordinary-unapproved-input'
+            elif kind == 'missing': changed['scope'].pop()
+            else: changed['instability_evidence'].pop()
+            with self.subTest(kind=kind), self.assertRaises(harness.HarnessError):
+                safety.validate_normal_approval(changed, records)
+        changed = copy.deepcopy(records)
+        record = next(r for r in changed if r['id'] == 'nested-cursor-tail-4-recursive-short')
+        record['oracle_runs'][1]['stdout'] = (bytes.fromhex(record['oracle_runs'][0]['stdout']) + b'PID 999\n').hex()
+        with self.assertRaisesRegex(harness.HarnessError, 'PID/address'):
+            safety.validate_normal_approval(approval, changed)
+
+    def test_normal_exit_records_cannot_borrow_the_fault_validator(self):
+        original = json.loads(safety.MANIFEST.read_text())
+        for kind in ('untagged-normal', 'tagged-fault', 'missing-approval'):
+            changed = copy.deepcopy(original)
+            if kind == 'untagged-normal': changed['exceptions'][-1].pop('approval')
+            elif kind == 'tagged-fault': changed['exceptions'][0]['approval'] = safety.NORMAL_SHORT_APPROVAL
+            else: changed.pop('normal_exit_approval')
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'manifest.json'
+                path.write_text(json.dumps(changed))
+                with self.assertRaises(harness.HarnessError): safety.inventory(path)
 
     def test_errors_reject_success_signals_limits_leftovers_and_wrong_bytes(self):
         for case in safety.inventory():

@@ -2808,3 +2808,22 @@ exceptions remain separate. Full frozen rmake-driven acceptance and exact-head
 CI remain merge gates. M3/M6, broader rule/resource/profile interactions, native
 loading, enabled Guile, directory/debug/database behavior, real exec/stdin,
 integration, general performance parity and safe persistent caching remain open.
+
+## M3/M6: approved nested short-option boundary (2026-11-02)
+
+The owner explicitly approved S004 for fifteen recorded normal-exit inputs in
+the unstable nested short-option class. Four retained GNU observation pairs
+show unrequested keep-going, debug or version behavior. These are separate from
+the seventeen original crash/hang exceptions and earn no exact-conformance
+credit. The evidence validator requires the exact approval, finite scope, input
+bytes, invocation and policy-instability evidence; PID/address differences alone
+cannot authorize exceptions. Historical unapproved proposal archives stay intact.
+
+The guard rejects the nested reset before later payload effects, preserving
+long-option, single-tail and intervening-option-before-binding controls. Eighteen
+original controls become required ordinary cases. The corpus is 25,048 required /
+zero pending across 152 families; 32 approved exceptions have 128 separately
+gated cells. The retained discovery replay adds no acceptance credit. Formatting,
+Clippy, 525 Rust and 578 tooling tests pass. Full frozen rmake-driven acceptance
+and exact-head development/optimized CI remain merge gates. M3/M6 and general
+performance parity remain open.

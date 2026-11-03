@@ -1,0 +1,184 @@
+{
+  "schema": 1,
+  "id": "nested-short-state-2026-11-02",
+  "code": "S004",
+  "approved": true,
+  "date": "2026-11-02",
+  "owner_decision": "Extend documented S004 errors (Recommended)",
+  "decision_scope": "The15 recorded normal-exit inputs from draft PR155; no blanket normal-input exemption.",
+  "evidence": "tests/research/gnu-441-nested-short-state.json",
+  "evidence_sha256": "69229cfc7d01bf1899fdf40956bc9fa0af7e9ead92cd78db1f40dcc70478e47c",
+  "scope": [
+    {
+      "id": "nested-cursor-tail-2-simple-short",
+      "inputs": {
+        "Makefile": "b8dc398ac8d13ac197471272c4efe6ed975cb1f5e8e1de151df1e47c655f0e2c"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-2-recursive-short",
+      "inputs": {
+        "Makefile": "11e9c672c01aa4cabede3cd65855764fec59dfcd9ab6ea33e7e4ea121576ab24"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-3-simple-short",
+      "inputs": {
+        "Makefile": "c1d6f38e51a6e166eee81e01c241d19e7c065afd59da14d3a55a2e4f73ef3008"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-3-recursive-short",
+      "inputs": {
+        "Makefile": "417fcdd56c27a89cb5177aa0b8a1f8a62b6c4521b1c0e4ac42c42b7abdce1399"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-4-simple-short",
+      "inputs": {
+        "Makefile": "ea684f993fa3cbadb2854cbd9a783656ca8ae4e4fe52884a1b6de23b37f76fcd"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-4-recursive-short",
+      "inputs": {
+        "Makefile": "36387ffe81bf6af76333cc48d0721e5cffbdab0a141b7e4851ba6a6072ca2d55"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-5-simple-short",
+      "inputs": {
+        "Makefile": "d4d300f3a163f1e87cb01f18ffb3be9dbac0e71a97ee16ee25fef4ff67e490c7"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-5-recursive-short",
+      "inputs": {
+        "Makefile": "6887f4388a07d4da2dc1743e9a2bb76c1980a5badf960855e66329ac21e0c1ef"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-6-simple-short",
+      "inputs": {
+        "Makefile": "6a16efcf5b4b82fe2d63e5fdb9254100e2a1ce31b5494e60f25297d698394dd2"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-cursor-tail-6-recursive-short",
+      "inputs": {
+        "Makefile": "a4f3d4147d44c225424df9ec11013d41c2b9be45326e4f377c331e174a9eeb34"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-boundary-simple-p1-short",
+      "inputs": {
+        "Makefile": "0ccc79547f53bde39446d124e16793e5f3da8620cd021368ed8c493eb7b58348"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-boundary-simple-p1-long",
+      "inputs": {
+        "Makefile": "98e36ab09be4dd0c59a184511268e5ed41e41b2ff1eaec6033e79069ca223c01"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-boundary-recursive-p1-short",
+      "inputs": {
+        "Makefile": "f21394ab267b1f5f1305f5f5dced014ac9ba520554b4112d6b0b3d9650c76ecf"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "nested-boundary-recursive-p1-long",
+      "inputs": {
+        "Makefile": "33e439f0e4c91e0d7a4a4cc160ed51a2df11866573988127865e46f0ca9aa994"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    },
+    {
+      "id": "flag-payload-ordered-14",
+      "inputs": {
+        "Makefile": "a5ef3942bfb37dc260329047e91eea78b6f4124a6cb614589272f81aedc86f50"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {}
+    }
+  ],
+  "instability_evidence": [
+    "nested-cursor-tail-4-recursive-short",
+    "nested-cursor-tail-5-simple-short",
+    "nested-cursor-tail-5-recursive-short",
+    "nested-boundary-simple-p1-short"
+  ]
+}

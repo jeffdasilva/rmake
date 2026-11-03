@@ -332,7 +332,7 @@ impl<'a> ExpansionContext<'a> {
             // A nested single short-option word rewinds GNU's process-global
             // cursor into an already-applied outer assignment. Refuse the
             // recorded nonterminating class before replaying those effects.
-            // Proposal: the first outer definition can also leave short-option
+            // The first outer definition can also leave short-option
             // state referring into a retired nested argument buffer; normal
             // exits in this class can activate unrequested switches.
             let token = value.trim_ascii();

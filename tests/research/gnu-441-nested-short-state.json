@@ -1,0 +1,532 @@
+{
+  "schema": 1,
+  "classification": "Owner-approved normal-exit S004 state hazards, zero exact-conformance credit. Original observations preserved.",
+  "oracle_sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+  "records": [
+    {
+      "id": "nested-cursor-tail-2-simple-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d74687265650a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-2-simple-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-2-recursive-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f205a3d74687265650a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-2-recursive-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b74687265655d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-3-simple-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d746872656520573a3d666f75720a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-3-simple-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-3-recursive-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f205a3d746872656520573d666f75720a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-3-recursive-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b74687265655d20573d5b666f75725d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-4-simple-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d746872656520573a3d666f757220553a3d666976650a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-4-simple-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-4-recursive-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f205a3d746872656520573d666f757220553d666976650a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b5d20543d5b5d20464c4147533d5b6b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-4-recursive-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b74687265655d20573d5b666f75725d20553d5b666976655d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-5-simple-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d746872656520573a3d666f757220553a3d6669766520563a3d7369780a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a474e55204d616b6520342e342e310a4275696c7420666f72207838365f36342d70632d6c696e75782d676e750a436f707972696768742028432920313938382d32303233204672656520536f66747761726520466f756e646174696f6e2c20496e632e0a4c6963656e73652047504c76332b3a20474e552047504c2076657273696f6e2033206f72206c61746572203c68747470733a2f2f676e752e6f72672f6c6963656e7365732f67706c2e68746d6c3e0a54686973206973206672656520736f6674776172653a20796f7520617265206672656520746f206368616e676520616e64207265646973747269627574652069742e0a5468657265206973204e4f2057415252414e54592c20746f2074686520657874656e74207065726d6974746564206279206c61772e0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-5-simple-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-5-recursive-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f205a3d746872656520573d666f757220553d6669766520563d7369780a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b5d20464c4147533d5b64725273202d2d6e6f2d7072696e742d6469726563746f72795d0a5570646174696e67206d616b6566696c65732e2e2e2e0a20436f6e7369646572696e67207461726765742066696c6520274d616b6566696c65272e0a20204c6f6f6b696e6720666f7220616e20696d706c696369742072756c6520666f7220274d616b6566696c65272e0a20204e6f20696d706c696369742072756c6520666f756e6420666f7220274d616b6566696c65272e0a2046696e69736865642070726572657175697369746573206f66207461726765742066696c6520274d616b6566696c65272e0a204e6f206e65656420746f2072656d616b652074617267657420274d616b6566696c65272e0a5570646174696e6720676f616c20746172676574732e2e2e2e0a436f6e7369646572696e67207461726765742066696c652027616c6c272e0a2046696c652027616c6c2720646f6573206e6f742065786973742e0a46696e69736865642070726572657175697369746573206f66207461726765742066696c652027616c6c272e0a4d7573742072656d616b65207461726765742027616c6c272e0a4d616b6566696c653a333a20757064617465207461726765742027616c6c272064756520746f3a2074617267657420646f6573206e6f742065786973740a747275650a50757474696e67206368696c642030783535363464393366346363302028616c6c29205049442032393037393932206f6e2074686520636861696e2e0a4c697665206368696c642030783535363464393366346363302028616c6c29205049442032393037393932200a52656170696e672077696e6e696e67206368696c64203078353536346439336634636330205049442032393037393932200a52656d6f76696e67206368696c642030783535363464393366346363302050494420323930373939322066726f6d20636861696e2e0a5375636365737366756c6c792072656d616465207461726765742066696c652027616c6c272e0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-5-recursive-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b74687265655d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-6-simple-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d746872656520573a3d666f757220553a3d6669766520563a3d73697820543a3d736576656e0a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b736576656e5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b736576656e5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-6-simple-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b5d20573d5b5d20553d5b5d20563d5b5d20543d5b5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-cursor-tail-6-recursive-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f205a3d746872656520573d666f757220553d6669766520563d73697820543d736576656e0a2428696e666f20535441544520593d5b242859295d205a3d5b24285a295d20573d5b242857295d20553d5b242855295d20563d5b242856295d20543d5b242854295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b736576656e5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "535441544520593d5b74776f5d205a3d5b5d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b736576656e5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-cursor-tail-6-recursive-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "535441544520593d5b74776f5d205a3d5b74687265655d20573d5b666f75725d20553d5b666976655d20563d5b7369785d20543d5b736576656e5d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-boundary-simple-p1-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f202d73205a3a3d74687265650a2428696e666f20593d5b242859295d205a3d5b24285a295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b6b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-boundary-simple-p1-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-boundary-simple-p1-long",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f202d2d73696c656e74205a3a3d74687265650a2428696e666f20593d5b242859295d205a3d5b24285a295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-boundary-simple-p1-long",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-boundary-recursive-p1-short",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f202d73205a3d74687265650a2428696e666f20593d5b242859295d205a3d5b24285a295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-boundary-recursive-p1-short",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "nested-boundary-recursive-p1-long",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593d74776f202d2d73696c656e74205a3d74687265650a2428696e666f20593d5b242859295d205a3d5b24285a295d20464c4147533d5b24284d414b45464c414753295d290a616c6c3a3b40747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-boundary-recursive-p1-long",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "593d5b74776f5d205a3d5b74687265655d20464c4147533d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "id": "flag-payload-ordered-14",
+      "classification": "owner-approved normal-exit nested short-option state hazard",
+      "inputs_hex": {
+        "Makefile": "4d414b45464c414753203d204d414b45464c4147533d2d7320593a3d74776f205a3a3d74687265650a2428696e666f20616674657220583d5b242858295d2f5b242876616c75652058295d20593d5b242859295d205a3d5b24285a295d20666c6167733d5b24284d414b45464c414753295d206f7665723d5b24284d414b454f5645525249444553295d290a616c6c3a203b2040747275650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {},
+      "timeout_seconds": 5,
+      "oracle_runs": [
+        {
+          "stdout": "616674657220583d5b5d2f5b5d20593d5b74776f5d205a3d5b5d20666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d206f7665723d5b5d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        },
+        {
+          "stdout": "616674657220583d5b5d2f5b5d20593d5b74776f5d205a3d5b5d20666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d206f7665723d5b5d0a",
+          "stderr": "",
+          "status": 0,
+          "limit": null,
+          "leftovers": false
+        }
+      ],
+      "source_record": "nested-flag-cursor-exact-14",
+      "initial_model": {
+        "exit_code": 0,
+        "stdout_hex": "616674657220583d5b5d2f5b5d20593d5b74776f5d205a3d5b5d20666c6167733d5b725273202d2d6e6f2d7072696e742d6469726563746f72795d206f7665723d5b5d0a",
+        "stderr_hex": ""
+      }
+    }
+  ]
+}

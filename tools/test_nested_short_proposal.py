@@ -50,8 +50,8 @@ class NestedShortProposalTests(unittest.TestCase):
             banners = [b'GNU Make 4.4.1\n' in out for out in outputs]
             self.assertTrue(policy[0] != policy[1] or banners[0] != banners[1])
         self.assertEqual(sum(any(r['model_errors'][:2]) for r in records), 10)
-        self.assertEqual(len(safety.inventory()), 17)
-        self.assertNotIn('flag-payload-ordered-14', {c.id for c in safety.inventory()})
+        self.assertEqual(len(safety.inventory()), 32)
+        self.assertIn('flag-payload-ordered-14', {c.id for c in safety.inventory()})
 
     def test_proposed_errors_and_normal_controls_retain_all_raw_checks(self):
         for build in ('debug', 'release'):

@@ -1,8 +1,10 @@
 # Documented GNU Make 4.4.1 safety exceptions
 
 On 2026-10-28 the project owner explicitly selected deterministic safe errors for
-recorded inputs that crash or hang GNU Make. These exceptions do **not** count as
-exact conformance. Other ordinary mismatches remain compatibility work. M3/M6
+recorded inputs that crash or hang GNU Make. On 2026-11-02 the owner explicitly
+extended S004 to fifteen recorded normal-exit inputs from the unstable nested
+short-option class. The total is 32 documented inputs. These exceptions do
+**not** count as exact conformance. Other ordinary mismatches remain compatibility work. M3/M6
 and general performance parity remain open.
 
 | Code | Hazard class | Recorded inputs | Boundary |
@@ -10,7 +12,7 @@ and general performance parity remain open.
 | S001 | Multiple `let` names with an empty expanded value list | 1 | Expand names and values in order, then fail before binding/evaluating the body. Zero names, one name, a nonempty short list and unreachable lazy branches retain normal behavior. |
 | S002 | Deletion of live global `.DEFAULT_GOAL` metadata | 1 | Reject an effective `undefine` after runtime metadata activation. Respect origin precedence; ordinary empty assignment resets remain supported. |
 | S003 | Deleting a global binding while expanding its exported value | 3 | Track selected global recursive exports capable of evaluation effects. Reject effective deletion of an active binding before removing it. Unwind markers on errors; target-local selection does not refer to the deleted global object. |
-| S004 | Reentrant flag decoding that rewinds/repeats an outer assignment stream | 5 | Refuse the recorded single-short-option rewind; retain the bounded assignment replay limit with a safety diagnostic. Single-word outer streams and normal nested flag decodes remain supported. |
+| S004 | Reentrant flag decoding that rewinds/repeats an outer stream or retains unstable short-option scan state | 20 | Five recorded hangs plus fifteen owner-approved normal-exit state hazards. Refuse the first nested short word when a following definition and additional words leave the recorded hazardous continuation; retain the original rewind/replay guard. One-tail streams, long-option resets and an intervening option before that definition remain supported. |
 | S005 | Custom-shell `.ONESHELL` argument preparation with recorded allocator hazards | 7 | Refuse unquoted interpreter syntax, unmatched quotes, and the literal-SHELL-LF/leading-double-quoted-flag case. Preserve ordinary quoted/escaped flags and Bourne shells. Apply only when execution is selected; ordinary dry-run/query/touch skips remain supported. |
 
 Errors exit normally with status 2 and a stable `rmake safety error [S00x]`
@@ -25,7 +27,7 @@ origin checks occur before deletion guards, preserving ineffective undefines.
 
 ## Evidence and separate acceptance
 
-[`tests/safety/manifest.json`](../tests/safety/manifest.json) maps 17 original
+[`tests/safety/manifest.json`](../tests/safety/manifest.json) maps 32 original
 inputs to immutable raw GNU observations in `tests/research`, the exact input
 bytes, observer modes, invocation and independent candidate error expectations.
 The historical candidate observations are retained unchanged. The former pending
@@ -33,7 +35,7 @@ empty-`let` fixture moves out of the ordinary corpus; two bounded GNU SIGSEGV
 observations are retained in its research record.
 
 `make test-safety` runs only rmake. It checks four modes per exception (normal,
-`-i`, `-k`, `-j4`), each twice: 68 cells / 136 observations. Status, raw streams,
+`-i`, `-k`, `-j4`), each twice: 128 cells / 256 observations. Status, raw streams,
 resource limits, leftover processes and repeatable filesystem effects are
 checked. Inputs must remain unchanged and no extra files may appear; only the
 three original export probes may compile their owned observer before failure.
@@ -56,19 +58,31 @@ the guard was narrowed. A new balanced-double-quote control also exposed a real
 argv mismatch: a slow flag parse re-enters `.ONESHELL` body preparation and
 consumes the initial make modifier. rmake now preserves those resulting bytes.
 
-## Remaining ordinary gaps
+## Explicit normal-exit extension and remaining gaps
 
-`flag-payload-ordered-14` exits normally in both recorded GNU observations. It
-remains a research-only compatibility mismatch, **not** one of these exceptions.
-Its source-informed lifetime explanation does not turn a status-0 observation
-into crash/hang evidence.
+`flag-payload-ordered-14` exits normally in both recorded GNU observations. It is
+now one of the fifteen explicitly owner-approved normal-exit S004 exceptions,
+not crash/hang evidence. The [approval record](../tests/safety/nested-short-normal-approval.json)
+limits this extension to the fifteen recorded inputs and identifies four pairs
+with unrequested keep-going/debug/version differences. The
+[immutable GNU observations](../tests/research/gnu-441-nested-short-state.json)
+remain separate from candidate-only expectations. The validator still requires
+actual fault evidence for all other rows; normal-exit rows require the exact
+approval scope, inputs, invocation and policy-instability evidence. PID/address
+differences alone cannot qualify a normal-exit exception.
+
+The [boundary implementation and discovery](nested-short-options-proposal.md)
+retain both the initial proposal and the four additional normal regressions that
+narrowed its guard. Eighteen ordinary controls are required exact GNU matches.
+The approved gate now has 128 candidate-only cells; its discovery replay earns
+no additional acceptance credit.
 
 The original boundary probe `BOOT:=$(eval undefine .DEFAULT_GOAL)` succeeds
 before metadata activation. [CLI assignment effects](cli-assignment-effects.md)
 now implement that finite control as a required ordinary fixture. Historical
 prototype evidence remains in
 [`safety-boundary-cli-eval.json`](../tests/research/safety-boundary-cli-eval.json).
-This does not extend the 17 approved safe-error exceptions. The recorded CLI restart file-effect mismatch is now a required control under
+This CLI control adds no safety exception. The recorded CLI restart file-effect mismatch is now a required control under
 [ordered startup replay](startup-replay.md). Complete startup/profile work remains
 ordinary [M3/M6 compatibility work](m3-m6-audit.md).
 

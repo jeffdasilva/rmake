@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 import json
 from pathlib import Path
+import re
 import tempfile
 
 import conformance as harness
@@ -20,6 +22,68 @@ import conformance as harness
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'tests/safety/manifest.json'
 CODES = {'S001', 'S002', 'S003', 'S004', 'S005'}
+NORMAL_SHORT_APPROVAL = 'nested-short-state-2026-11-02'
+NORMAL_SHORT_SCOPE = ({'flag-payload-ordered-14'}
+    | {f'nested-cursor-tail-{count}-{kind}-short' for count in range(2, 7)
+       for kind in ('simple', 'recursive')}
+    | {f'nested-boundary-{kind}-p1-{word}' for kind in ('simple', 'recursive')
+       for word in ('short', 'long')})
+
+
+def validate_normal_approval(approval, records):
+    """Validate the explicit owner's finite scope; never waive normal inputs generally."""
+    if (approval.get('schema') != 1 or approval.get('id') != NORMAL_SHORT_APPROVAL
+            or approval.get('approved') is not True or approval.get('code') != 'S004'
+            or approval.get('owner_decision') != 'Extend documented S004 errors (Recommended)'):
+        raise harness.HarnessError('normal-exit safety scope lacks explicit owner approval')
+    scope = {item['id']: item for item in approval['scope']}
+    if len(scope) != len(approval['scope']) or set(scope) != NORMAL_SHORT_SCOPE:
+        raise harness.HarnessError('normal-exit approval differs from the 15 approved inputs')
+    by_id = {item['id']: item for item in records}
+    if len(by_id) != len(records) or set(by_id) != NORMAL_SHORT_SCOPE:
+        raise harness.HarnessError('normal-exit evidence differs from approved scope')
+    for name, record in by_id.items():
+        runs = record.get('oracle_runs', [])
+        if len(runs) < 2 or not all(run.get('status') == 0 and not run.get('limit')
+                and not run.get('leftovers') for run in runs):
+            raise harness.HarnessError(f'{name}: normal-exit approval needs bounded status-0 evidence')
+        expected = scope[name]
+        inputs = {file: hashlib.sha256(bytes.fromhex(value)).hexdigest()
+                  for file, value in evidence_inputs(record).items()}
+        if (expected['inputs'] != inputs or expected['args'] != record['args']
+                or expected['environment'] != record['environment']):
+            raise harness.HarnessError(f'{name}: approved invocation/input evidence changed')
+    unstable = approval.get('instability_evidence', [])
+    required = {'nested-cursor-tail-4-recursive-short', 'nested-cursor-tail-5-simple-short',
+                'nested-cursor-tail-5-recursive-short', 'nested-boundary-simple-p1-short'}
+    if len(unstable) != 4 or set(unstable) != required:
+        raise harness.HarnessError('missing explicit GNU policy-instability evidence')
+    for name in unstable:
+        signatures = set()
+        for run in by_id[name]['oracle_runs']:
+            stdout = bytes.fromhex(run['stdout'])
+            flags = re.search(rb'FLAGS=\[([^]]*)\]', stdout)
+            if flags is None:
+                raise harness.HarnessError(f'{name}: missing policy snapshot')
+            signatures.add((flags[1], b'GNU Make 4.4.1\n' in stdout))
+        if len(signatures) < 2:
+            raise harness.HarnessError(f'{name}: PID/address differences do not establish a policy hazard')
+    return scope
+
+
+def normal_approval(ledger):
+    reference = ledger.get('normal_exit_approval')
+    if reference is None:
+        return {}, None
+    path = ROOT / reference['path']
+    if path != ROOT / 'tests/safety/nested-short-normal-approval.json' or harness.sha256_file(path) != reference['sha256']:
+        raise harness.HarnessError('normal-exit approval path/hash changed')
+    approval = json.loads(path.read_text())
+    evidence = ROOT / approval['evidence']
+    if evidence != ROOT / 'tests/research/gnu-441-nested-short-state.json' or harness.sha256_file(evidence) != approval['evidence_sha256']:
+        raise harness.HarnessError('normal-exit approval evidence path/hash changed')
+    records = json.loads(evidence.read_text())['records']
+    return validate_normal_approval(approval, records), approval
 
 
 def evidence_inputs(record):
@@ -35,8 +99,10 @@ def inventory(manifest=MANIFEST):
     ledger = json.loads(manifest.read_text())
     if ledger.get('schema') != 1:
         raise harness.HarnessError('unsupported safety manifest schema')
+    normal_scope, approval = normal_approval(ledger)
     cases = []
     seen = set()
+    normal_seen = set()
     for row in ledger['exceptions']:
         name = row['id']
         if name in seen or not name or Path(name).name != name or name in ('.', '..'):
@@ -55,7 +121,16 @@ def inventory(manifest=MANIFEST):
             raise harness.HarnessError(f'{name}: missing or duplicate research record')
         record = matches[0]
         runs = record.get('oracle_runs', [record])
-        if not runs or not all(run.get('status', run.get('exit_status',
+        if row.get('approval') is not None:
+            if (row['approval'] != NORMAL_SHORT_APPROVAL or name not in normal_scope
+                    or row['code'] != 'S004' or row['evidence'] != approval['evidence']
+                    or row['evidence_sha256'] != approval['evidence_sha256']
+                    or normal_scope[name]['inputs'] != row['inputs']
+                    or normal_scope[name]['args'] != row['args']
+                    or normal_scope[name]['environment'] != row['environment']):
+                raise harness.HarnessError(f'{name}: normal-exit exception is outside approved scope')
+            normal_seen.add(name)
+        elif not runs or not all(run.get('status', run.get('exit_status',
                 run.get('observed_exit_status', 0))) < 0 or run.get('limit') for run in runs):
             raise harness.HarnessError(f'{name}: evidence does not record an oracle fault')
         if row['args'] != record.get('args', record.get('argv')) or row['environment'] != record.get('environment', {}):
@@ -77,6 +152,8 @@ def inventory(manifest=MANIFEST):
             raise harness.HarnessError(f'{name}: a normal fatal error with a safety code is required')
         cases.append(harness.Case(fixture, name, 'safety.' + row['code'],
             'required', tuple(row['args']), 5, row['environment'], expected))
+    if normal_seen != set(normal_scope):
+        raise harness.HarnessError('approved normal-exit scope is not fully mapped')
     if seen != {p.name for p in (ROOT / 'tests/safety/cases').iterdir()}:
         raise harness.HarnessError('unmapped safety fixture')
     if seen & {p.name for p in (ROOT / 'tests/cases').iterdir()}:
