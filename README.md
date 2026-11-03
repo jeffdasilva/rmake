@@ -89,6 +89,12 @@ invocation ownership across callbacks and errors. 506 original cases close 444
 recorded mismatches, bringing the corpus to 26,372 required cases. Full M3/M6 and
 general performance parity remain open.
 
+[Second-stage include search](docs/secondary-include-search.md) now expands stored
+tilde operands after argument decoding, preserves their raw MAKEFLAGS history and
+handles nested resets without holding option-state borrows. 474 original cases
+close 240 recorded mismatches, bringing the corpus to 26,846 required cases.
+Full M3/M6 and general performance parity remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

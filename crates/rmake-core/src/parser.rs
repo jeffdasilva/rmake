@@ -930,6 +930,7 @@ mod include_tests {
                     origin: Origin::File,
                     environment_override: false,
                     include_dirs: Vec::new(),
+                    prepare_includes: None,
                     publish_includes: None,
                     assignments: if first {
                         vec![
@@ -1017,6 +1018,7 @@ mod include_tests {
                 include_dirs: vec![
                     b"dir-$(eval include probe.mk)$(eval INSIDE := $(value MAKEFLAGS))".to_vec(),
                 ],
+                prepare_includes: None,
                 publish_includes: Some(Box::new(move || {
                     pending.set(true);
                     crate::diagnostic::MakeflagsMetadata {
@@ -1057,6 +1059,73 @@ mod include_tests {
     }
 
     #[test]
+    fn failed_search_home_drops_owned_preparation_before_metadata_publication() {
+        use crate::diagnostic::{IncludePreparation, MakeflagsResult, PreparedIncludes};
+        use std::cell::Cell;
+        use std::rc::Rc;
+        struct Pending(Rc<Cell<usize>>);
+        impl Drop for Pending {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() + 1);
+            }
+        }
+        impl IncludePreparation for Pending {
+            fn next(&mut self) -> Option<Vec<u8>> {
+                Some(b"~/inc".to_vec())
+            }
+            fn directory(&mut self, _: Vec<u8>) {
+                panic!("failed HOME reached a directory observation");
+            }
+            fn finish(self: Box<Self>) -> PreparedIncludes {
+                panic!("failed HOME published a search");
+            }
+        }
+        let dropped = Rc::new(Cell::new(0));
+        let host_dropped = dropped.clone();
+        let mut receiver = move |_: crate::diagnostic::MakeflagsRequest<'_>| {
+            Ok(MakeflagsResult {
+                eval_reference: false,
+                value: b"normalized".to_vec(),
+                origin: Origin::File,
+                environment_override: false,
+                include_dirs: Vec::new(),
+                prepare_includes: Some(Box::new(Pending(host_dropped.clone()))),
+                publish_includes: None,
+                assignments: Vec::new(),
+                warning_positions: Vec::new(),
+                warning_entry: false,
+                next_argument: 1,
+            })
+        };
+        let mut database = Database::default();
+        let error = database.read_with(
+            b".INCLUDE_DIRS := prior\nHOME = $(eval SIDE:=yes)$(error search-failed)\nMAKEFLAGS = raw\n",
+            b"case.mk", ExpansionContext::pure().with_makeflags(&mut receiver),
+        ).unwrap_err();
+        assert!(
+            error
+                .message
+                .as_bytes()
+                .windows(b"search-failed".len())
+                .any(|p| p == b"search-failed")
+        );
+        assert_eq!(dropped.get(), 1);
+        assert_eq!(database.variables.get(b"SIDE").unwrap().raw_value(), b"yes");
+        assert_eq!(
+            database
+                .variables
+                .get(b".INCLUDE_DIRS")
+                .unwrap()
+                .raw_value(),
+            b"prior"
+        );
+        assert_eq!(
+            database.variables.get(b"MAKEFLAGS").unwrap().raw_value(),
+            b"raw"
+        );
+    }
+
+    #[test]
     fn failed_include_metadata_keeps_prior_search_and_uncanonicalized_flags() {
         use std::cell::Cell;
         use std::rc::Rc;
@@ -1071,6 +1140,7 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: vec![b"dir-$(eval SIDE:=yes)$(error metadata-failed)".to_vec()],
+                prepare_includes: None,
                 publish_includes: Some(Box::new(move || {
                     pending.set(true);
                     crate::diagnostic::MakeflagsMetadata {
@@ -1126,6 +1196,7 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: directories,
+                prepare_includes: None,
                 publish_includes: Some(Box::new(move || {
                     *pending_search.borrow_mut() = selection;
                     crate::diagnostic::MakeflagsMetadata {
@@ -1180,6 +1251,7 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: Vec::new(),
+                prepare_includes: None,
                 publish_includes: None,
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
@@ -1226,6 +1298,7 @@ mod include_tests {
                 origin: Origin::File,
                 environment_override: false,
                 include_dirs: Vec::new(),
+                prepare_includes: None,
                 publish_includes: None,
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),

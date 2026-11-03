@@ -2885,3 +2885,31 @@ real exec/stdin, integration, persistent caching and complete M3/M6 remain open.
 A read-only review found that PathBuf equality incorrectly collapsed eight of sixteen new raw spelling-history controls. Byte comparison now preserves GNU membership; a direct suspension regression also covers trailing slashes. The preceding full acceptance was interrupted with status 130 and is not credited. Its finite proof and earlier measurements remain historical; the selected revision requires fresh full acceptance and CI.
 
 Cursor review added twenty-four nested end/missing-operand controls and six post-marker goal/definition controls. Twenty-two boundaries fail in the prior build; one origin hypothesis is retained separately with an explicitly undefined-binding refinement. The selected tokenizer retains end markers, missing operands do not advance beyond argc, and completion publishes the final cursor. The second earlier full run was also interrupted with status 130 and is not credited; selected acceptance restarts at the new head.
+
+
+## M3/M6: second-stage include search (2026-11-03)
+
+[Owned search preparation](secondary-include-search.md) runs after argument
+decoding restores its parent frame. Each name is owned before HOME callbacks;
+nested additions remain visible, and physical search never rewrites stored argv.
+Literal dash directories stay distinct from -I-, raw path spelling survives
+search expansion, later stored-tilde resets preserve end markers, and empty
+streams retain the shared cursor. Search preparation has an aggregate byte
+budget and publishes only after all preparation/metadata effects succeed.
+
+474 original required models agree with two bounded GNU observations and frozen
+development/optimized builds, closing 240 preceding mismatches. The cases cover
+six phases, simple/recursive HOME, reset histories, warning policy, bytes, output
+modes, nested updates, enclosing cursors, fatal effects and output validation.
+Initial definition-warning assumptions and self-referential GNU crash/timeout
+hypotheses remain unchanged research evidence; separately authored refinements
+are qualified without adding exceptions or credit for rejected attempts.
+
+Formatting, Clippy and 534 Rust tests pass. Tooling has 590 tests. The corpus is
+26,846 required / zero pending across 155 families, plus the same 32 approved
+safe-error exceptions / 128 cells. Selected full frozen rmake-driven acceptance
+and exact-head CI remain merge gates. Broader nested/malformed decoding,
+directory/debug/database, native/Guile, exec/stdin, integration, persistent cache
+acceptance, complete M3/M6 and general performance parity remain open.
+
+[Four output-checked 101-sample timing reports](benchmarks/secondary-search-index.md) are mixed: large no-op medians are lower, while expansion and runtime-update medians are higher. Twelve glibc profiles show unchanged request/free counts. Neither general speedup nor parity is established.

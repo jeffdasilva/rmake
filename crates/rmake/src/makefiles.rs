@@ -50,28 +50,11 @@ pub struct IncludeSearch {
 
 impl IncludeSearch {
     pub fn new(arguments: &[PathBuf]) -> Self {
-        let mut result = Self::default();
-        let mut defaults = true;
+        let mut builder = IncludeSearchBuilder::default();
         for argument in arguments {
-            let name = argument.as_os_str().as_bytes();
-            if name == b"-" {
-                defaults = false;
-                result.directories.clear();
-            } else {
-                result.add_directory(name);
-            }
+            builder.push(argument.as_os_str().as_bytes());
         }
-        if defaults {
-            for name in [
-                option_env!("RMAKE_INCLUDEDIR").unwrap_or("/usr/local/include"),
-                "/usr/gnu/include",
-                "/usr/local/include",
-                "/usr/include",
-            ] {
-                result.add_directory(name.as_bytes());
-            }
-        }
-        result
+        builder.finish()
     }
 
     fn add_directory(&mut self, name: &[u8]) {
@@ -122,5 +105,50 @@ impl IncludeSearch {
             name: name.to_vec(),
             input,
         })
+    }
+}
+
+/// Incremental search owns only selected directories, independently of argv.
+pub struct IncludeSearchBuilder {
+    search: IncludeSearch,
+    defaults: bool,
+}
+
+impl Default for IncludeSearchBuilder {
+    fn default() -> Self {
+        Self {
+            search: IncludeSearch::default(),
+            defaults: true,
+        }
+    }
+}
+
+impl IncludeSearchBuilder {
+    pub fn push(&mut self, name: &[u8]) {
+        if name == b"-" {
+            self.defaults = false;
+            self.search.directories.clear();
+        } else {
+            self.push_resolved(name);
+        }
+    }
+
+    /// Expanded names are directories even when HOME produces a literal '-'.
+    pub fn push_resolved(&mut self, name: &[u8]) {
+        self.search.add_directory(name);
+    }
+
+    pub fn finish(mut self) -> IncludeSearch {
+        if self.defaults {
+            for name in [
+                option_env!("RMAKE_INCLUDEDIR").unwrap_or("/usr/local/include"),
+                "/usr/gnu/include",
+                "/usr/local/include",
+                "/usr/include",
+            ] {
+                self.search.add_directory(name.as_bytes());
+            }
+        }
+        self.search
     }
 }

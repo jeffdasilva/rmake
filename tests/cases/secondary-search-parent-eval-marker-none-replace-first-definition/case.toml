@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "secondary-search-parent-eval-marker-none-replace-first-definition"
+requirement = "options.secondary-include-search"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s"]
+timeout_seconds = 5
+output = "separate"
+description = "Original second-stage include search, stored operand identity, HOME effects, nested cursor, reset, byte, warning, fatal or validation ordering control."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/optimized candidates. No GNU source or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c543d5b7965735d20413d5b6f6e655d20423d5b6f6c645d20433d5b74687265655d0a"
+"stderr_hex" = ""

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "secondary-search-eval-simple-literal-r1-none-w1-b0-definition-warning"
+requirement = "options.secondary-include-search"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-s", "--warn-undefined-variables"]
+timeout_seconds = 5
+output = "separate"
+description = "Original second-stage include search, stored operand identity, HOME effects, nested cursor, reset, byte, warning, fatal or validation ordering control."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/optimized candidates. No GNU source or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c543d5b6c69746572616c5d20444952533d5b7e2f696e635d205241573d5b2d497e2f696e635d0a"
+"stderr_hex" = "4d616b6566696c653a353a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e475f484f4d45270a"
