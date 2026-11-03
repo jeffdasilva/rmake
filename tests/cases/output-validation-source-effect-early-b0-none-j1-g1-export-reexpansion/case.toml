@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "output-validation-source-effect-early-b0-none-j1-g1-export-reexpansion"
+requirement = "options.output-validation-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+output = "merged"
+description = "Original output-sync validation ordering, payload effects, source boundaries or exported flag re-expansion control."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/optimized candidates. No GNU source or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "52454144593d5b7965735d2f656e7669726f6e6d656e740a"
+"stderr_hex" = ""

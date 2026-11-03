@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "output-validation-include-conditional-cli-late-b0-target"
+requirement = "options.output-validation-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-Otarget", "A=cliA", "B=cliB"]
+timeout_seconds = 5
+output = "merged"
+description = "Original output-sync validation ordering, payload effects, source boundaries or exported flag re-expansion control."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations and frozen debug/optimized candidates. No GNU source or tests copied or translated."
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = "56414c55455320413d5b636c69415d2f636f6d6d616e64206c696e652f72656375727369766520423d5b636c69425d2f636f6d6d616e64206c696e652f7265637572736976650a6d616b653a202a2a2a20756e6b6e6f776e206f75747075742d73796e6320747970652027626164272e202053746f702e0a"
+"stderr_hex" = ""

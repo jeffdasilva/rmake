@@ -77,6 +77,12 @@ adds 18 ordinary exact-match controls and a tightly scoped S004 evidence path.
 The corpus totals 25,048 required cases; the 32 documented safety exceptions remain
 separate and earn no exact-conformance credit. Full M3/M6 remains open.
 
+[Output-sync validation ordering](docs/output-validation-order.md) now preserves
+payload effects before invalid-mode errors and validates each completed flag
+source before expanding the next. 818 original controls close 553 preceding
+mismatches, bringing the corpus to 25,866 required cases. Full M3/M6 and general
+performance parity remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.

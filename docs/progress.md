@@ -2827,3 +2827,29 @@ gated cells. The retained discovery replay adds no acceptance credit. Formatting
 Clippy, 525 Rust and 578 tooling tests pass. Full frozen rmake-driven acceptance
 and exact-head development/optimized CI remain merge gates. M3/M6 and general
 performance parity remain open.
+
+## M3/M6: output-sync validation ordering (2026-11-02)
+
+[Output-sync validation](output-validation-order.md) now completes payload
+definitions before rejecting an invalid final mode. A later valid mode within
+that source can replace it; a different source cannot rescue invalid GNU flags
+or observe their post-source clearing. Invalid pending selections do not activate
+an output mode or construct replacement include search before definitions finish.
+
+818 original required models cover reader/eval/include/secondary/recipe phases,
+assignment forms, priorities, option positions, raw bytes, GNU versus ordinary
+sources, recursive exports and exact ordered filesystem effects. Two bounded
+GNU observations and both fresh frozen builds agree, closing 553 preceding
+mismatches. Original pilot hypotheses, 128 premature secondary syntax failures,
+48 rejected cross-source rescue models and 24 incomplete export witnesses remain
+unchanged, with separately named refinements. No safety exceptions are added.
+
+Formatting, Clippy, 525 Rust and 582 tooling tests pass. The ordinary corpus is
+25,866 required / zero pending across 153 families, with 32 unchanged separate
+safe-error exceptions / 128 cells. Six output-checked 101-sample timing reports
+are mixed, including both higher and lower runtime-update medians across batches.
+Twelve allocation profiles show unchanged request counts. General performance
+parity is not established. Full frozen rmake-driven acceptance and exact-head CI
+remain merge gates. Broader malformed decoding, contextual HOME, directory/debug/
+database output, native/Guile profiles, real exec/stdin, integration, persistent
+caching and complete M3/M6 remain open.
