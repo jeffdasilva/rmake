@@ -62,6 +62,7 @@ help:
 		'  regenerate-builtins Refresh declarative Linux defaults from the oracle' \
 		'  test-diff       Compare rmake against the oracle; report pending cases' \
 		'  test-shuffle    Validate random/zero-seed permutations and numeric replay' \
+		'  test-nested-short-proposal Review the unapproved short-option error boundary' \
 		'  test-safety     Check documented safe errors without invoking GNU' \
 		'  test-include-stat Check include-directory EINTR and cancellation behavior' \
 		'  test-source-streams Check live source read, close and interruption ordering' \
@@ -203,6 +204,10 @@ test-diff: build oracle-verify
 test-shuffle: build oracle-verify
 	$(PYTHON) tools/shuffle_modes.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
+.PHONY: test-nested-short-proposal
+test-nested-short-proposal: build oracle-verify
+	$(PYTHON) tools/nested_short_proposal.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
+
 test-include-stat: build oracle-verify
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --self-test $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
@@ -238,6 +243,7 @@ test-m5-release: test-m4-release
 test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/nested_short_proposal.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/nested-short-proposal/release.json
 	$(PYTHON) tools/shuffle_modes.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shuffle-modes/release.json
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
@@ -326,9 +332,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-shuffle test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-safety test-shuffle test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-safety test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
 ci: check test-selfhost
 

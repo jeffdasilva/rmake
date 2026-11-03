@@ -22,7 +22,8 @@ the [M3/M6 audit](docs/m3-m6-audit.md) tracks remaining compatibility surfaces.
 [Variable metadata](docs/variable-metadata.md) adds ordered `.VARIABLES` lookup
 and cache lifetime, pinned metadata values and scoped `MFLAGS` updates.
 [Documented safety exceptions](docs/safety-exceptions.md) return fatal errors for
-17 recorded GNU crash/hang inputs and are gated separately from exact conformance.
+32 recorded inputs (17 GNU crash/hang cases and15 explicitly approved normal-exit
+nested short-option hazards), gated separately from exact conformance.
 
 [Old and what-if file options](docs/assumed-files.md) now have 631 required
 cases covering logical ages, execution modes, flag phases, VPATH and remakes.
@@ -70,6 +71,11 @@ now retains backslashes around literal percent substitution and borrows unchange
 names. Forty preceding mismatches are closed; the corpus totals 25,030 required
 cases. Rejected-search timing controls improve about 4–5.5%; general performance
 parity and full M3/M6 remain open.
+
+[The approved nested short-option boundary](docs/nested-short-options-proposal.md)
+adds 18 ordinary exact-match controls and a tightly scoped S004 evidence path.
+The corpus totals 25,048 required cases; the 32 documented safety exceptions remain
+separate and earn no exact-conformance credit. Full M3/M6 remains open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it

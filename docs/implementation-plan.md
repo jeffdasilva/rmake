@@ -324,3 +324,5 @@ Owned child environment vectors and export activation phases now have [278 requi
 ## M3/M6 eval allocation profiling controls
 
 [Recipe-free eval profiles](eval-allocation-profiles.md) add three required every-read controls and extend the frozen allocation flow. The ordinary corpus is 15,396 required / zero pending, plus 17 unchanged separate safe errors. Experimental ownership/frame changes lowered measured allocation requests but showed repeated elapsed regressions; their source patches, all observations and build controls are retained, and the validated runtime from PR #142 is preserved. Formatting, lint, 509 Rust and 510 tooling tests pass; exact-head CI remains the merge gate. Full M3/M6 and general performance parity remain open.
+
+[The approved nested short-option boundary](nested-short-options-proposal.md) adds eighteen required ordinary controls and a separately validated, owner-approved S004 scope for fifteen normal-exit state hazards. The corpus is 25,048 required / zero pending; 32 documented exceptions earn no exact-conformance credit. Complete M3/M6, ordinary decoder behavior and general performance criteria remain open.

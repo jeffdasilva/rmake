@@ -211,6 +211,7 @@ pub struct ExpansionContext<'a> {
     pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
     makeflags_depth: usize,
     makeflags_terminal: usize,
+    makeflags_next_is_definition: bool,
     makeflags_cursor: Option<std::rc::Rc<std::cell::Cell<usize>>>,
 }
 
@@ -234,6 +235,7 @@ impl<'a> ExpansionContext<'a> {
             evaluation_stack: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
+            makeflags_next_is_definition: false,
             makeflags_cursor: None,
         }
     }
@@ -251,6 +253,7 @@ impl<'a> ExpansionContext<'a> {
             evaluation_stack: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
+            makeflags_next_is_definition: false,
             makeflags_cursor: None,
         }
     }
@@ -329,10 +332,17 @@ impl<'a> ExpansionContext<'a> {
             // A nested single short-option word rewinds GNU's process-global
             // cursor into an already-applied outer assignment. Refuse the
             // recorded nonterminating class before replaying those effects.
+            // The first outer definition can also leave short-option
+            // state referring into a retired nested argument buffer; normal
+            // exits in this class can activate unrequested switches.
             let token = value.trim_ascii();
+            let retired_short_state = cursor.get() > 2
+                || (cursor.get() == 2
+                    && self.makeflags_terminal > 3
+                    && self.makeflags_next_is_definition);
             if self.makeflags_depth > 0
                 && self.makeflags_terminal > 2
-                && cursor.get() > 2
+                && retired_short_state
                 && result.next_argument == 2
                 && token.starts_with(b"-")
                 && token.len() > 1
@@ -431,6 +441,7 @@ impl<'a> ExpansionContext<'a> {
         let mut names = Vec::new();
         let depth = self.makeflags_depth;
         let previous_terminal = std::mem::replace(&mut self.makeflags_terminal, terminal);
+        let previous_following = self.makeflags_next_is_definition;
         self.makeflags_depth += 1;
         let applied = (|| {
             for _ in 0..128_usize.saturating_mul(
@@ -460,6 +471,10 @@ impl<'a> ExpansionContext<'a> {
                     return Ok(());
                 };
                 cursor.set(assignment.position + 1);
+                self.makeflags_next_is_definition = assignment.position == 1
+                    && assignments
+                        .get(index + 1)
+                        .is_some_and(|next| next.position == assignment.position + 1);
                 database
                     .variables
                     .set_environment_override(assignment.environment_override);
@@ -481,6 +496,7 @@ impl<'a> ExpansionContext<'a> {
         })();
         self.makeflags_depth = depth;
         self.makeflags_terminal = previous_terminal;
+        self.makeflags_next_is_definition = previous_following;
         applied?;
         Ok(names)
     }
@@ -583,6 +599,7 @@ impl<'a> ExpansionContext<'a> {
             evaluation_stack: self.evaluation_stack,
             makeflags_depth: self.makeflags_depth,
             makeflags_terminal: self.makeflags_terminal,
+            makeflags_next_is_definition: self.makeflags_next_is_definition,
             makeflags_cursor: self.makeflags_cursor.clone(),
         }
     }
