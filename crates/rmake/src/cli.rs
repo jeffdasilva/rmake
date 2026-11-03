@@ -137,6 +137,493 @@ pub struct Options {
     pub version: bool,
 }
 
+/// An owned argument cursor. A yielded operand leaves no borrowed argv,
+/// option state or parser callback on the stack.
+#[derive(Default)]
+pub(crate) struct Decoder {
+    args: Vec<Vec<u8>>,
+    pub(crate) options: Options,
+    pub(crate) cursor: usize,
+    end_options: bool,
+    offset: usize,
+    track_jobs: bool,
+    evals_seen: std::collections::HashSet<Vec<u8>>,
+}
+
+pub(crate) struct DecodedArgument {
+    pub(crate) argument: Option<Argument>,
+    pub(crate) position: usize,
+}
+
+impl Decoder {
+    pub(crate) fn terminal(&self) -> usize {
+        self.args.len() + 1
+    }
+    pub(crate) fn following_definition(&self) -> bool {
+        self.cursor == 1
+            && self
+                .args
+                .get(self.cursor)
+                .is_some_and(|arg| rmake_core::parser::assignment(arg).is_some())
+    }
+
+    pub(crate) fn new(
+        args: impl IntoIterator<Item = OsString>,
+        options: Options,
+        offset: usize,
+        track_jobs: bool,
+    ) -> Self {
+        Self {
+            args: args.into_iter().map(OsString::into_vec).collect(),
+            evals_seen: options.evals.iter().cloned().collect(),
+            options,
+            offset,
+            track_jobs,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn advance<const STARTUP: bool>(
+        &mut self,
+    ) -> Result<Option<DecodedArgument>, String> {
+        let mut args = std::mem::take(&mut self.args);
+        let mut evals_seen = std::mem::take(&mut self.evals_seen);
+        let result = &mut self.options;
+        let mut i = self.cursor;
+        let mut end_options = self.end_options;
+        let offset = self.offset;
+        let track_jobs = self.track_jobs;
+        macro_rules! pause {
+            ($event:expr) => {{
+                let step = DecodedArgument {
+                    argument: $event,
+                    position: i + offset,
+                };
+                self.args = args;
+                self.evals_seen = evals_seen;
+                self.cursor = i + 1;
+                self.end_options = end_options;
+                return Ok(Some(step));
+            }};
+        }
+        while i < args.len() {
+            let arg = &args[i];
+            if !end_options && arg == b"--" {
+                end_options = true;
+                i += 1;
+                continue;
+            }
+            if !end_options && arg.starts_with(b"--") {
+                let split = arg.iter().position(|b| *b == b'=');
+                let name = split.map_or(arg.as_slice(), |n| &arg[..n]);
+                let value = split.map(|n| arg[n + 1..].to_vec());
+                // A missing required operand is an invalid getopt result.
+                // Live decoding skips it without applying a switch or calling
+                // an operand receiver. Startup still reports the usage error.
+                if !STARTUP
+                    && value.is_none()
+                    && i + 1 == args.len()
+                    && matches!(
+                        name,
+                        b"--file"
+                            | b"--makefile"
+                            | b"--directory"
+                            | b"--include-dir"
+                            | b"--old-file"
+                            | b"--assume-old"
+                            | b"--new-file"
+                            | b"--assume-new"
+                            | b"--what-if"
+                            | b"--eval"
+                            | b"--jobserver-auth"
+                            | b"--jobserver-fds"
+                            | b"--jobserver-style"
+                            | b"--sync-mutex"
+                    )
+                {
+                    i += 1;
+                    continue;
+                }
+                let flag = match name {
+                    b"--help" => Some(&mut result.help),
+                    b"--version" => Some(&mut result.version),
+                    b"--dry-run" | b"--just-print" | b"--recon" => Some(&mut result.dry_run),
+                    b"--silent" | b"--quiet" => Some(&mut result.silent),
+                    b"--always-make" => Some(&mut result.always),
+                    b"--ignore-errors" => Some(&mut result.ignore_errors),
+                    b"--keep-going" => Some(&mut result.keep_going),
+                    b"--check-symlink-times" => Some(&mut result.check_symlink_times),
+                    b"--question" => Some(&mut result.question),
+                    b"--touch" => Some(&mut result.touch),
+                    b"--trace" => Some(&mut result.trace),
+                    b"--warn-undefined-variables" => Some(&mut result.warn_undefined),
+                    b"--environment-overrides" => Some(&mut result.environment_override),
+                    b"--no-builtin-rules" => Some(&mut result.no_rules),
+                    b"--no-builtin-variables" => Some(&mut result.no_variables),
+                    b"--no-print-directory" => Some(&mut result.no_print_directory),
+                    _ => None,
+                };
+                if let Some(flag) = flag {
+                    if value.is_some() {
+                        if !STARTUP {
+                            i += 1;
+                            continue;
+                        }
+                        return Err(format!(
+                            "option '{}' doesn't allow an argument",
+                            String::from_utf8_lossy(name)
+                        ));
+                    }
+                    *flag = true;
+                    if STARTUP && name == b"--no-builtin-variables" {
+                        result.no_rules = true;
+                    }
+                    match name {
+                        b"--warn-undefined-variables" if !STARTUP => {
+                            pause!(Some(Argument::Warning(i + offset)));
+                        }
+                        b"--silent" | b"--quiet" => {
+                            result.silent_origin = Some(Origin::CommandLine)
+                        }
+                        b"--keep-going" => result.keep_going_origin = Some(Origin::CommandLine),
+                        _ => {}
+                    }
+                } else {
+                    match name {
+                        b"--no-silent" | b"--no-keep-going" | b"--stop" => {
+                            if value.is_some() {
+                                if !STARTUP {
+                                    i += 1;
+                                    continue;
+                                }
+                                return Err(format!(
+                                    "option '{}' doesn't allow an argument",
+                                    String::from_utf8_lossy(name)
+                                ));
+                            }
+                            if name == b"--no-silent" {
+                                result.silent = false;
+                                result.silent_origin = Some(Origin::CommandLine);
+                            } else {
+                                result.keep_going = false;
+                                result.keep_going_origin = Some(Origin::CommandLine);
+                            }
+                        }
+                        b"--shuffle" => {
+                            result.shuffle = Some(value.unwrap_or_else(|| b"random".to_vec()));
+                        }
+                        b"--jobserver-auth" | b"--jobserver-fds" => {
+                            result.jobserver_auth = Some(
+                                value
+                                    .or_else(|| {
+                                        i += 1;
+                                        args.get(i).cloned()
+                                    })
+                                    .ok_or("jobserver authentication requires an argument")?,
+                            );
+                        }
+                        b"--jobserver-style" => {
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    args.get(i).cloned()
+                                })
+                                .ok_or("jobserver style requires an argument")?;
+                            result.jobserver_pipe = match value.as_slice() {
+                                b"fifo" => false,
+                                b"pipe" => true,
+                                _ => return Err("unknown jobserver style".into()),
+                            };
+                        }
+                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir"
+                        | b"--old-file" | b"--assume-old" | b"--new-file" | b"--assume-new"
+                        | b"--what-if" => {
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    args.get(i).cloned()
+                                })
+                                .ok_or_else(|| {
+                                    format!(
+                                        "option '{}' requires an argument",
+                                        String::from_utf8_lossy(name)
+                                    )
+                                })?;
+                            if value.is_empty()
+                                && matches!(
+                                    name,
+                                    b"--old-file"
+                                        | b"--assume-old"
+                                        | b"--new-file"
+                                        | b"--assume-new"
+                                        | b"--what-if"
+                                )
+                            {
+                                return Err(format!(
+                                    "the '{}' option requires a non-empty string argument",
+                                    String::from_utf8_lossy(name)
+                                ));
+                            }
+                            let path = PathBuf::from(OsString::from_vec(value));
+                            if matches!(name, b"--old-file" | b"--assume-old") {
+                                result.old_files.push(path);
+                                let index = result.old_files.len() - 1;
+                                pause!(Some(Argument::OldFile(index)));
+                            } else if matches!(name, b"--new-file" | b"--assume-new" | b"--what-if")
+                            {
+                                result.new_files.push(path);
+                                let index = result.new_files.len() - 1;
+                                pause!(Some(Argument::NewFile(index)));
+                            } else if name == b"--include-dir" {
+                                result.add_include_directory(path)?;
+                                let index = result.include_directories.len() - 1;
+                                pause!(Some(Argument::Include(index)));
+                            } else if name == b"--directory" {
+                                result.directories.push(path);
+                                let index = result.directories.len() - 1;
+                                pause!(Some(Argument::Directory(index)));
+                            } else {
+                                result.files.push(path);
+                                let index = result.files.len() - 1;
+                                pause!(Some(Argument::File(index)));
+                            }
+                        }
+                        b"--eval" => {
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    args.get(i).cloned()
+                                })
+                                .ok_or("option '--eval' requires an argument")?;
+                            if value.is_empty() {
+                                return Err(
+                                    "the '--eval' option requires a non-empty string argument"
+                                        .into(),
+                                );
+                            }
+                            if evals_seen.insert(value.clone()) {
+                                result.evals.push(value);
+                            }
+                        }
+                        b"--output-sync" => {
+                            result.output_sync = Some(value.unwrap_or_else(|| b"target".to_vec()))
+                        }
+                        b"--sync-mutex" => {
+                            result.sync_mutex = Some(
+                                value
+                                    .or_else(|| {
+                                        i += 1;
+                                        args.get(i).cloned()
+                                    })
+                                    .ok_or("option '--sync-mutex' requires an argument")?,
+                            );
+                        }
+                        b"--load-average" | b"--max-load" => {
+                            let value = value.or_else(|| {
+                                if args.get(i + 1).is_some_and(|v| {
+                                    v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
+                                }) {
+                                    i += 1;
+                                    Some(args[i].clone())
+                                } else {
+                                    None
+                                }
+                            });
+                            result.load_limit =
+                                value.map(|v| rmake_linux::process::load_number(&v));
+                        }
+                        b"--jobs" => {
+                            let value = value.or_else(|| {
+                                if args
+                                    .get(i + 1)
+                                    .is_some_and(|v| v.iter().all(u8::is_ascii_digit))
+                                {
+                                    i += 1;
+                                    Some(args[i].clone())
+                                } else {
+                                    None
+                                }
+                            });
+                            result.jobs = Some(job_count(value.as_deref().unwrap_or_default())?);
+                            if track_jobs {
+                                result.command_jobs = result.jobs;
+                            }
+                        }
+                        _ => {
+                            if let Some(expanded) = expand_unique_long_option(arg) {
+                                // Retry the same argument before any operand
+                                // receiver or definition can observe it.
+                                args[i] = expanded;
+                                continue;
+                            }
+                            if !STARTUP && !GNU_LONG_OPTIONS.contains(&name) {
+                                // A live flag decode ignores getopt's invalid
+                                // option result and continues with later words.
+                                // Registered, unimplemented features still fail.
+                                i += 1;
+                                continue;
+                            }
+                            return Err(format!(
+                                "unsupported option '{}'",
+                                String::from_utf8_lossy(arg)
+                            ));
+                        }
+                    }
+                }
+            } else if !end_options && arg.starts_with(b"-") && arg.len() > 1 {
+                let mut j = 1;
+                while j < arg.len() {
+                    match arg[j] {
+                        b'h' => result.help = true,
+                        b'v' => result.version = true,
+                        b'n' => result.dry_run = true,
+                        b's' => {
+                            result.silent = true;
+                            result.silent_origin = Some(Origin::CommandLine);
+                        }
+                        b'B' => result.always = true,
+                        b'i' => result.ignore_errors = true,
+                        b'k' => {
+                            result.keep_going = true;
+                            result.keep_going_origin = Some(Origin::CommandLine);
+                        }
+                        b'S' => {
+                            result.keep_going = false;
+                            result.keep_going_origin = Some(Origin::CommandLine);
+                        }
+                        b'b' | b'm' => {}
+                        b'L' => result.check_symlink_times = true,
+                        b'q' => result.question = true,
+                        b't' => result.touch = true,
+                        b'e' => result.environment_override = true,
+                        b'r' => result.no_rules = true,
+                        b'R' => {
+                            result.no_variables = true;
+                            if STARTUP {
+                                result.no_rules = true;
+                            }
+                        }
+                        b'O' => {
+                            result.output_sync = Some(if j + 1 < arg.len() {
+                                arg[j + 1..].to_vec()
+                            } else {
+                                b"target".to_vec()
+                            });
+                            break;
+                        }
+                        b'l' => {
+                            let value = if j + 1 < arg.len() {
+                                Some(arg[j + 1..].to_vec())
+                            } else if args.get(i + 1).is_some_and(|v| {
+                                v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
+                            }) {
+                                i += 1;
+                                Some(args[i].clone())
+                            } else {
+                                None
+                            };
+                            result.load_limit =
+                                value.map(|v| rmake_linux::process::load_number(&v));
+                            break;
+                        }
+                        option @ (b'f' | b'C' | b'j' | b'I' | b'E' | b'o' | b'W') => {
+                            let value = if j + 1 < arg.len() {
+                                arg[j + 1..].to_vec()
+                            } else if option == b'j'
+                                && !args.get(i + 1).is_some_and(|v| {
+                                    !v.is_empty() && v.iter().all(u8::is_ascii_digit)
+                                })
+                            {
+                                Vec::new()
+                            } else {
+                                i += 1;
+                                if !STARTUP && i == args.len() {
+                                    break;
+                                }
+                                args.get(i).cloned().ok_or_else(|| {
+                                    format!("option requires an argument -- '{}'", option as char)
+                                })?
+                            };
+                            if matches!(option, b'o' | b'W') {
+                                if value.is_empty() {
+                                    return Err(format!(
+                                        "the '-{}' option requires a non-empty string argument",
+                                        option as char
+                                    ));
+                                }
+                                let path = OsString::from_vec(value).into();
+                                if option == b'o' {
+                                    result.old_files.push(path);
+                                    let index = result.old_files.len() - 1;
+                                    pause!(Some(Argument::OldFile(index)));
+                                } else {
+                                    result.new_files.push(path);
+                                    let index = result.new_files.len() - 1;
+                                    pause!(Some(Argument::NewFile(index)));
+                                }
+                            } else if option == b'E' {
+                                if value.is_empty() {
+                                    return Err(
+                                        "the '-E' option requires a non-empty string argument"
+                                            .into(),
+                                    );
+                                }
+                                if evals_seen.insert(value.clone()) {
+                                    result.evals.push(value);
+                                }
+                            } else if option == b'I' {
+                                result.add_include_directory(OsString::from_vec(value).into())?;
+                                let index = result.include_directories.len() - 1;
+                                pause!(Some(Argument::Include(index)));
+                            } else if option == b'j' {
+                                result.jobs = Some(job_count(&value)?);
+                                if track_jobs {
+                                    result.command_jobs = result.jobs;
+                                }
+                            } else if option == b'f' {
+                                result.files.push(OsString::from_vec(value).into());
+                                let index = result.files.len() - 1;
+                                pause!(Some(Argument::File(index)));
+                            } else {
+                                result.directories.push(OsString::from_vec(value).into());
+                                let index = result.directories.len() - 1;
+                                pause!(Some(Argument::Directory(index)));
+                            }
+                            break;
+                        }
+                        option => {
+                            if STARTUP || matches!(option, b'd' | b'p' | b'w') {
+                                return Err(format!("unsupported option '-{}'", option as char));
+                            }
+                        }
+                    }
+                    j += 1;
+                }
+            } else if rmake_core::parser::assignment(arg).is_some() {
+                result.assignments.push(arg.clone());
+                result.assignment_warnings.push(result.warn_undefined);
+                result
+                    .assignment_context
+                    .push((i + offset, result.environment_override));
+                let index = result.assignments.len() - 1;
+                pause!(Some(Argument::Definition(index)));
+            } else if !arg.is_empty() && arg != b"-" {
+                result
+                    .goals
+                    .push(rmake_core::filenames::without_dot_prefix(arg).to_vec());
+                let index = result.goals.len() - 1;
+                pause!(Some(Argument::Goal(index)));
+            }
+            pause!(None);
+        }
+        self.args = args;
+        self.evals_seen = evals_seen;
+        self.cursor = i;
+        self.end_options = end_options;
+        Ok(None)
+    }
+}
+
 impl Options {
     /// MAKEFLAGS uses make's backslash-separated words, not shell quoting.
     /// Only the CLI subset implemented here is accepted; unsupported inherited
@@ -326,6 +813,38 @@ impl Options {
     ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
         self.decode_file_flags(flags, false, origin)
     }
+    /// Select only effectful include operands. The ordinary decoder remains
+    /// the allocation baseline for streams with no tilde operand.
+    pub(crate) fn include_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
+        if !value.contains(&b'~') {
+            return Ok(None);
+        }
+        let mut incoming = Vec::new();
+        Self::append_expanded_flags(&mut incoming, value)?;
+        let inspected = Self::parse_mode::<false>(incoming.clone())?;
+        if !inspected
+            .include_directories
+            .iter()
+            .any(|path| path.as_os_str().as_bytes().starts_with(b"~"))
+        {
+            return Ok(None);
+        }
+        let mut prefix = Vec::new();
+        Self::append_flags(&mut prefix, &self.recursive_flags_with_includes(false))?;
+        if self.jobserver_pipe {
+            prefix.push("--jobserver-style=pipe".into());
+        }
+        let mut seeded = Self::parse_mode::<false>(prefix)?;
+        seeded.include_directories = self.include_directories.clone();
+        seeded.include_assignment_positions = self.include_assignment_positions.clone();
+        seeded.evals = self.evals.clone();
+        seeded.silent_origin = self.silent_origin;
+        seeded.keep_going_origin = self.keep_going_origin;
+        seeded.command_jobs = self.command_jobs;
+        seeded.reset_jobserver = self.reset_jobserver;
+        Ok(Some(Decoder::new(incoming, seeded, 1, false)))
+    }
+
     fn decode_file_flags(
         &self,
         flags: &[Vec<u8>],
@@ -461,438 +980,22 @@ impl Options {
         Self::parse_with::<STARTUP, String>(args, result, offset, track_jobs, &mut |_, _| Ok(()))
     }
 
-    // Startup rejects invalid options and immediately applies -R's implied
-    // rule disabling. Live MAKEFLAGS decoding ignores invalid option results
-    // and leaves the existing post-read built-in activation boundary intact.
+    // The same owned decoder drives synchronous startup callbacks and runtime
+    // suspension. No parser-local reference survives an argument boundary.
     fn parse_with<const STARTUP: bool, E: From<String> + From<&'static str>>(
         args: impl IntoIterator<Item = OsString>,
-        mut result: Self,
+        result: Self,
         offset: usize,
         track_jobs: bool,
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
     ) -> Result<Self, E> {
-        let mut args: Vec<Vec<u8>> = args.into_iter().map(OsString::into_vec).collect();
-        let mut evals_seen: std::collections::HashSet<_> = result.evals.iter().cloned().collect();
-        let mut i = 0;
-        let mut end_options = false;
-        while i < args.len() {
-            let arg = &args[i];
-            if !end_options && arg == b"--" {
-                end_options = true;
-                i += 1;
-                continue;
+        let mut decoder = Decoder::new(args, result, offset, track_jobs);
+        while let Some(step) = decoder.advance::<STARTUP>().map_err(E::from)? {
+            if let Some(argument) = step.argument {
+                receiver(&mut decoder.options, argument)?;
             }
-            if !end_options && arg.starts_with(b"--") {
-                let split = arg.iter().position(|b| *b == b'=');
-                let name = split.map_or(arg.as_slice(), |n| &arg[..n]);
-                let value = split.map(|n| arg[n + 1..].to_vec());
-                // A missing required operand is an invalid getopt result.
-                // Live decoding skips it without applying a switch or calling
-                // an operand receiver. Startup still reports the usage error.
-                if !STARTUP
-                    && value.is_none()
-                    && i + 1 == args.len()
-                    && matches!(
-                        name,
-                        b"--file"
-                            | b"--makefile"
-                            | b"--directory"
-                            | b"--include-dir"
-                            | b"--old-file"
-                            | b"--assume-old"
-                            | b"--new-file"
-                            | b"--assume-new"
-                            | b"--what-if"
-                            | b"--eval"
-                            | b"--jobserver-auth"
-                            | b"--jobserver-fds"
-                            | b"--jobserver-style"
-                            | b"--sync-mutex"
-                    )
-                {
-                    i += 1;
-                    continue;
-                }
-                let flag = match name {
-                    b"--help" => Some(&mut result.help),
-                    b"--version" => Some(&mut result.version),
-                    b"--dry-run" | b"--just-print" | b"--recon" => Some(&mut result.dry_run),
-                    b"--silent" | b"--quiet" => Some(&mut result.silent),
-                    b"--always-make" => Some(&mut result.always),
-                    b"--ignore-errors" => Some(&mut result.ignore_errors),
-                    b"--keep-going" => Some(&mut result.keep_going),
-                    b"--check-symlink-times" => Some(&mut result.check_symlink_times),
-                    b"--question" => Some(&mut result.question),
-                    b"--touch" => Some(&mut result.touch),
-                    b"--trace" => Some(&mut result.trace),
-                    b"--warn-undefined-variables" => Some(&mut result.warn_undefined),
-                    b"--environment-overrides" => Some(&mut result.environment_override),
-                    b"--no-builtin-rules" => Some(&mut result.no_rules),
-                    b"--no-builtin-variables" => Some(&mut result.no_variables),
-                    b"--no-print-directory" => Some(&mut result.no_print_directory),
-                    _ => None,
-                };
-                if let Some(flag) = flag {
-                    if value.is_some() {
-                        if !STARTUP {
-                            i += 1;
-                            continue;
-                        }
-                        return Err(format!(
-                            "option '{}' doesn't allow an argument",
-                            String::from_utf8_lossy(name)
-                        )
-                        .into());
-                    }
-                    *flag = true;
-                    if STARTUP && name == b"--no-builtin-variables" {
-                        result.no_rules = true;
-                    }
-                    match name {
-                        b"--warn-undefined-variables" if !STARTUP => {
-                            receiver(&mut result, Argument::Warning(i + offset))?;
-                        }
-                        b"--silent" | b"--quiet" => {
-                            result.silent_origin = Some(Origin::CommandLine)
-                        }
-                        b"--keep-going" => result.keep_going_origin = Some(Origin::CommandLine),
-                        _ => {}
-                    }
-                } else {
-                    match name {
-                        b"--no-silent" | b"--no-keep-going" | b"--stop" => {
-                            if value.is_some() {
-                                if !STARTUP {
-                                    i += 1;
-                                    continue;
-                                }
-                                return Err(format!(
-                                    "option '{}' doesn't allow an argument",
-                                    String::from_utf8_lossy(name)
-                                )
-                                .into());
-                            }
-                            if name == b"--no-silent" {
-                                result.silent = false;
-                                result.silent_origin = Some(Origin::CommandLine);
-                            } else {
-                                result.keep_going = false;
-                                result.keep_going_origin = Some(Origin::CommandLine);
-                            }
-                        }
-                        b"--shuffle" => {
-                            result.shuffle = Some(value.unwrap_or_else(|| b"random".to_vec()));
-                        }
-                        b"--jobserver-auth" | b"--jobserver-fds" => {
-                            result.jobserver_auth = Some(
-                                value
-                                    .or_else(|| {
-                                        i += 1;
-                                        args.get(i).cloned()
-                                    })
-                                    .ok_or("jobserver authentication requires an argument")?,
-                            );
-                        }
-                        b"--jobserver-style" => {
-                            let value = value
-                                .or_else(|| {
-                                    i += 1;
-                                    args.get(i).cloned()
-                                })
-                                .ok_or("jobserver style requires an argument")?;
-                            result.jobserver_pipe = match value.as_slice() {
-                                b"fifo" => false,
-                                b"pipe" => true,
-                                _ => return Err("unknown jobserver style".into()),
-                            };
-                        }
-                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir"
-                        | b"--old-file" | b"--assume-old" | b"--new-file" | b"--assume-new"
-                        | b"--what-if" => {
-                            let value = value
-                                .or_else(|| {
-                                    i += 1;
-                                    args.get(i).cloned()
-                                })
-                                .ok_or_else(|| {
-                                    format!(
-                                        "option '{}' requires an argument",
-                                        String::from_utf8_lossy(name)
-                                    )
-                                })?;
-                            if value.is_empty()
-                                && matches!(
-                                    name,
-                                    b"--old-file"
-                                        | b"--assume-old"
-                                        | b"--new-file"
-                                        | b"--assume-new"
-                                        | b"--what-if"
-                                )
-                            {
-                                return Err(format!(
-                                    "the '{}' option requires a non-empty string argument",
-                                    String::from_utf8_lossy(name)
-                                )
-                                .into());
-                            }
-                            let path = PathBuf::from(OsString::from_vec(value));
-                            if matches!(name, b"--old-file" | b"--assume-old") {
-                                result.old_files.push(path);
-                                let index = result.old_files.len() - 1;
-                                receiver(&mut result, Argument::OldFile(index))?;
-                            } else if matches!(name, b"--new-file" | b"--assume-new" | b"--what-if")
-                            {
-                                result.new_files.push(path);
-                                let index = result.new_files.len() - 1;
-                                receiver(&mut result, Argument::NewFile(index))?;
-                            } else if name == b"--include-dir" {
-                                result.add_include_directory(path)?;
-                                let index = result.include_directories.len() - 1;
-                                receiver(&mut result, Argument::Include(index))?;
-                            } else if name == b"--directory" {
-                                result.directories.push(path);
-                                let index = result.directories.len() - 1;
-                                receiver(&mut result, Argument::Directory(index))?;
-                            } else {
-                                result.files.push(path);
-                                let index = result.files.len() - 1;
-                                receiver(&mut result, Argument::File(index))?;
-                            }
-                        }
-                        b"--eval" => {
-                            let value = value
-                                .or_else(|| {
-                                    i += 1;
-                                    args.get(i).cloned()
-                                })
-                                .ok_or("option '--eval' requires an argument")?;
-                            if value.is_empty() {
-                                return Err(
-                                    "the '--eval' option requires a non-empty string argument"
-                                        .into(),
-                                );
-                            }
-                            if evals_seen.insert(value.clone()) {
-                                result.evals.push(value);
-                            }
-                        }
-                        b"--output-sync" => {
-                            result.output_sync = Some(value.unwrap_or_else(|| b"target".to_vec()))
-                        }
-                        b"--sync-mutex" => {
-                            result.sync_mutex = Some(
-                                value
-                                    .or_else(|| {
-                                        i += 1;
-                                        args.get(i).cloned()
-                                    })
-                                    .ok_or("option '--sync-mutex' requires an argument")?,
-                            );
-                        }
-                        b"--load-average" | b"--max-load" => {
-                            let value = value.or_else(|| {
-                                if args.get(i + 1).is_some_and(|v| {
-                                    v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
-                                }) {
-                                    i += 1;
-                                    Some(args[i].clone())
-                                } else {
-                                    None
-                                }
-                            });
-                            result.load_limit =
-                                value.map(|v| rmake_linux::process::load_number(&v));
-                        }
-                        b"--jobs" => {
-                            let value = value.or_else(|| {
-                                if args
-                                    .get(i + 1)
-                                    .is_some_and(|v| v.iter().all(u8::is_ascii_digit))
-                                {
-                                    i += 1;
-                                    Some(args[i].clone())
-                                } else {
-                                    None
-                                }
-                            });
-                            result.jobs = Some(job_count(value.as_deref().unwrap_or_default())?);
-                            if track_jobs {
-                                result.command_jobs = result.jobs;
-                            }
-                        }
-                        _ => {
-                            if let Some(expanded) = expand_unique_long_option(arg) {
-                                // Retry the same argument before any operand
-                                // receiver or definition can observe it.
-                                args[i] = expanded;
-                                continue;
-                            }
-                            if !STARTUP && !GNU_LONG_OPTIONS.contains(&name) {
-                                // A live flag decode ignores getopt's invalid
-                                // option result and continues with later words.
-                                // Registered, unimplemented features still fail.
-                                i += 1;
-                                continue;
-                            }
-                            return Err(format!(
-                                "unsupported option '{}'",
-                                String::from_utf8_lossy(arg)
-                            )
-                            .into());
-                        }
-                    }
-                }
-            } else if !end_options && arg.starts_with(b"-") && arg.len() > 1 {
-                let mut j = 1;
-                while j < arg.len() {
-                    match arg[j] {
-                        b'h' => result.help = true,
-                        b'v' => result.version = true,
-                        b'n' => result.dry_run = true,
-                        b's' => {
-                            result.silent = true;
-                            result.silent_origin = Some(Origin::CommandLine);
-                        }
-                        b'B' => result.always = true,
-                        b'i' => result.ignore_errors = true,
-                        b'k' => {
-                            result.keep_going = true;
-                            result.keep_going_origin = Some(Origin::CommandLine);
-                        }
-                        b'S' => {
-                            result.keep_going = false;
-                            result.keep_going_origin = Some(Origin::CommandLine);
-                        }
-                        b'b' | b'm' => {}
-                        b'L' => result.check_symlink_times = true,
-                        b'q' => result.question = true,
-                        b't' => result.touch = true,
-                        b'e' => result.environment_override = true,
-                        b'r' => result.no_rules = true,
-                        b'R' => {
-                            result.no_variables = true;
-                            if STARTUP {
-                                result.no_rules = true;
-                            }
-                        }
-                        b'O' => {
-                            result.output_sync = Some(if j + 1 < arg.len() {
-                                arg[j + 1..].to_vec()
-                            } else {
-                                b"target".to_vec()
-                            });
-                            break;
-                        }
-                        b'l' => {
-                            let value = if j + 1 < arg.len() {
-                                Some(arg[j + 1..].to_vec())
-                            } else if args.get(i + 1).is_some_and(|v| {
-                                v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
-                            }) {
-                                i += 1;
-                                Some(args[i].clone())
-                            } else {
-                                None
-                            };
-                            result.load_limit =
-                                value.map(|v| rmake_linux::process::load_number(&v));
-                            break;
-                        }
-                        option @ (b'f' | b'C' | b'j' | b'I' | b'E' | b'o' | b'W') => {
-                            let value = if j + 1 < arg.len() {
-                                arg[j + 1..].to_vec()
-                            } else if option == b'j'
-                                && !args.get(i + 1).is_some_and(|v| {
-                                    !v.is_empty() && v.iter().all(u8::is_ascii_digit)
-                                })
-                            {
-                                Vec::new()
-                            } else {
-                                i += 1;
-                                if !STARTUP && i == args.len() {
-                                    break;
-                                }
-                                args.get(i).cloned().ok_or_else(|| {
-                                    format!("option requires an argument -- '{}'", option as char)
-                                })?
-                            };
-                            if matches!(option, b'o' | b'W') {
-                                if value.is_empty() {
-                                    return Err(format!(
-                                        "the '-{}' option requires a non-empty string argument",
-                                        option as char
-                                    )
-                                    .into());
-                                }
-                                let path = OsString::from_vec(value).into();
-                                if option == b'o' {
-                                    result.old_files.push(path);
-                                    let index = result.old_files.len() - 1;
-                                    receiver(&mut result, Argument::OldFile(index))?;
-                                } else {
-                                    result.new_files.push(path);
-                                    let index = result.new_files.len() - 1;
-                                    receiver(&mut result, Argument::NewFile(index))?;
-                                }
-                            } else if option == b'E' {
-                                if value.is_empty() {
-                                    return Err(
-                                        "the '-E' option requires a non-empty string argument"
-                                            .into(),
-                                    );
-                                }
-                                if evals_seen.insert(value.clone()) {
-                                    result.evals.push(value);
-                                }
-                            } else if option == b'I' {
-                                result.add_include_directory(OsString::from_vec(value).into())?;
-                                let index = result.include_directories.len() - 1;
-                                receiver(&mut result, Argument::Include(index))?;
-                            } else if option == b'j' {
-                                result.jobs = Some(job_count(&value)?);
-                                if track_jobs {
-                                    result.command_jobs = result.jobs;
-                                }
-                            } else if option == b'f' {
-                                result.files.push(OsString::from_vec(value).into());
-                                let index = result.files.len() - 1;
-                                receiver(&mut result, Argument::File(index))?;
-                            } else {
-                                result.directories.push(OsString::from_vec(value).into());
-                                let index = result.directories.len() - 1;
-                                receiver(&mut result, Argument::Directory(index))?;
-                            }
-                            break;
-                        }
-                        option => {
-                            if STARTUP || matches!(option, b'd' | b'p' | b'w') {
-                                return Err(
-                                    format!("unsupported option '-{}'", option as char).into()
-                                );
-                            }
-                        }
-                    }
-                    j += 1;
-                }
-            } else if rmake_core::parser::assignment(arg).is_some() {
-                result.assignments.push(arg.clone());
-                result.assignment_warnings.push(result.warn_undefined);
-                result
-                    .assignment_context
-                    .push((i + offset, result.environment_override));
-                let index = result.assignments.len() - 1;
-                receiver(&mut result, Argument::Definition(index))?;
-            } else if !arg.is_empty() && arg != b"-" {
-                result
-                    .goals
-                    .push(rmake_core::filenames::without_dot_prefix(arg).to_vec());
-                let index = result.goals.len() - 1;
-                receiver(&mut result, Argument::Goal(index))?;
-            }
-            i += 1;
         }
-        Ok(result)
+        Ok(decoder.options)
     }
 
     fn add_include_directory(&mut self, path: PathBuf) -> Result<(), String> {
@@ -1564,5 +1667,64 @@ mod tests {
             .assigned_flags(&[b"-Rr".to_vec()], Origin::File)
             .unwrap();
         assert!(explicit.no_rules && explicit.no_variables);
+    }
+}
+
+#[cfg(test)]
+mod owned_decoder_tests {
+    use super::*;
+
+    #[test]
+    fn suspended_operands_preserve_intervening_owned_state_and_end_marker() {
+        let mut decoder = Decoder::new(
+            ["-sIpath", "X:=one", "--include-d=other", "--", "-Igoal"].map(OsString::from),
+            Options::default(),
+            1,
+            false,
+        );
+        let step = decoder.advance::<false>().unwrap().unwrap();
+        assert!(matches!(step.argument, Some(Argument::Include(0))));
+        assert_eq!(step.position, 1);
+        decoder.options.include_directories[0] = "changed".into();
+        decoder.options.jobs = Some(7);
+        assert!(matches!(
+            decoder.advance::<false>().unwrap().unwrap().argument,
+            Some(Argument::Definition(0))
+        ));
+        assert!(matches!(
+            decoder.advance::<false>().unwrap().unwrap().argument,
+            Some(Argument::Include(1))
+        ));
+        let last = decoder.advance::<false>().unwrap().unwrap();
+        assert!(matches!(last.argument, Some(Argument::Goal(0))));
+        assert_eq!(last.position, 5);
+        assert_eq!(decoder.options.goals, [b"-Igoal".to_vec()]);
+        assert_eq!(decoder.options.jobs, Some(7));
+        assert_eq!(
+            decoder.options.include_directories,
+            [
+                std::path::PathBuf::from("changed"),
+                std::path::PathBuf::from("other")
+            ]
+        );
+        assert!(decoder.advance::<false>().unwrap().is_none());
+    }
+
+    #[test]
+    fn consumed_optional_and_separate_operands_resume_at_the_next_definition() {
+        let mut decoder = Decoder::new(
+            ["-j", "2", "-I", "path", "X=one"].map(OsString::from),
+            Options::default(),
+            1,
+            false,
+        );
+        assert_eq!(decoder.advance::<false>().unwrap().unwrap().position, 2);
+        assert_eq!(decoder.options.jobs, Some(2));
+        assert_eq!(decoder.advance::<false>().unwrap().unwrap().position, 4);
+        decoder.options.environment_override = true;
+        let step = decoder.advance::<false>().unwrap().unwrap();
+        assert!(matches!(step.argument, Some(Argument::Definition(0))));
+        assert_eq!(step.position, 5);
+        assert_eq!(decoder.options.assignment_context, [(5, true)]);
     }
 }

@@ -2853,3 +2853,31 @@ parity is not established. Full frozen rmake-driven acceptance and exact-head CI
 remain merge gates. Broader malformed decoding, contextual HOME, directory/debug/
 database output, native/Guile profiles, real exec/stdin, integration, persistent
 caching and complete M3/M6 remain open.
+
+## M3/M6: contextual HOME include operands (2026-11-03)
+
+[Owned argument cursors](runtime-home-includes.md) let runtime filename processing
+suspend before expanding HOME. The same parser drives startup callbacks; ordinary
+non-tilde runtime streams keep their established replay path. No option-state
+borrow survives interpreter callbacks. Raw membership precedes normalization,
+expanded operands survive later resets, and post-read sources do not rebuild
+active include search. Invocation-only operands remain ignored. Cancellation and
+failure restore invocation ownership while retaining completed effects; HOME's
+warning mask also restores after an error.
+
+460 required original models agree with two bounded GNU observations and both
+selected frozen builds, closing 398 preceding mismatches. The matrix covers six
+phases, forms, positions, warnings and bytes, plus parallel output modes,
+shell/eval/include callbacks, fallback/user-name behavior, ignored operands and
+fatal errors under ignore/keep-going/parallel modes. Initial quoting and absent
+GNU-source warning hypotheses, and sixteen failed prototype controls, remain
+unchanged with separately named refinements and zero extra acceptance credit.
+
+Formatting, Clippy, 529 Rust and 586 tooling tests pass. The corpus is 26,326
+required / zero pending across 154 families; 32 approved safe-error exceptions /
+128 cells remain separate. Both safety builds pass. Six output-checked paired
+101-sample timing reports are mixed; twelve allocation profiles show unchanged
+request counts. General performance parity is not established. Full frozen
+rmake-driven acceptance and exact-head CI remain merge gates. Malformed-value,
+nested flag-reset, secondary tilde/search, directory/debug/database, native/Guile,
+real exec/stdin, integration, persistent caching and complete M3/M6 remain open.

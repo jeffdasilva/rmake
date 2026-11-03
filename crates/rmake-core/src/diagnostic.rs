@@ -175,7 +175,45 @@ pub struct MakeflagsResult {
     pub next_argument: usize,
 }
 
+/// A resumable host decoder owns argv and returns before interpreter effects.
+pub trait FlagDecoder {
+    fn next(&mut self, cursor: usize) -> Result<Option<FlagStep>, Vec<u8>>;
+    fn filename(&mut self, value: Vec<u8>) -> Result<(), Vec<u8>>;
+    fn finish(self: Box<Self>) -> Result<MakeflagsResult, Vec<u8>>;
+    fn terminal(&self) -> usize;
+    fn requested_jobs(&self) -> Option<usize> {
+        None
+    }
+}
+
+pub struct DecodedFlags {
+    pub result: MakeflagsResult,
+    pub names: Vec<Vec<u8>>,
+    pub jobs: Option<usize>,
+}
+
+pub struct FlagStep {
+    pub position: usize,
+    pub environment_override: bool,
+    pub following_definition: bool,
+    pub action: FlagAction,
+}
+
+pub enum FlagAction {
+    Policy,
+    Definition(Vec<u8>),
+    Filename(Vec<u8>),
+}
+
 pub trait MakeflagsReceiver {
+    fn begin(
+        &mut self,
+        _request: MakeflagsRequest<'_>,
+        _passive: bool,
+    ) -> Result<Option<Box<dyn FlagDecoder>>, Vec<u8>> {
+        Ok(None)
+    }
+    fn sync_decoded_flags(&mut self) {}
     fn decode(&mut self, request: MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>>;
     /// Apply an ordered policy step without decoding or repeating I/O. Quiet
     /// frontends can retain the default; warning-aware hosts share their cell.
@@ -297,61 +335,78 @@ impl<'a> ExpansionContext<'a> {
         let has_input = value
             .iter()
             .any(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'));
-        let mut result = self
+        let decoder = self
             .makeflags
             .as_mut()
             .expect("configured receiver")
-            .decode(MakeflagsRequest {
-                value: &value,
-                origin,
-            })
+            .begin(
+                MakeflagsRequest {
+                    value: &value,
+                    origin,
+                },
+                false,
+            )
             .map_err(ExpandError::UnlocatedError)?;
-        database
-            .variables
-            .set_environment_override(result.environment_override);
-        if !result.assignments.is_empty() || !result.warning_positions.is_empty() {
-            self.apply_flag_steps(
-                database,
-                &result.assignments,
-                origin,
-                result.next_argument,
-                &result.warning_positions,
-                result.warning_entry,
-            )?;
-            // Nested definitions can change switches, but refreshing does not
-            // repeat the outer assignment stream or reset its owned cursor.
-            if !result.assignments.is_empty() {
-                result = self
-                    .makeflags
-                    .as_mut()
-                    .expect("configured receiver")
-                    .decode(MakeflagsRequest { value: b"", origin })
-                    .map_err(ExpandError::UnlocatedError)?;
+        let mut result = if let Some(decoder) = decoder {
+            self.drive_flag_decoder(database, decoder, origin)?.result
+        } else {
+            let mut result = self
+                .makeflags
+                .as_mut()
+                .expect("configured receiver")
+                .decode(MakeflagsRequest {
+                    value: &value,
+                    origin,
+                })
+                .map_err(ExpandError::UnlocatedError)?;
+            database
+                .variables
+                .set_environment_override(result.environment_override);
+            if !result.assignments.is_empty() || !result.warning_positions.is_empty() {
+                self.apply_flag_steps(
+                    database,
+                    &result.assignments,
+                    origin,
+                    result.next_argument,
+                    &result.warning_positions,
+                    result.warning_entry,
+                )?;
+                // Nested definitions can change switches, but refreshing does not
+                // repeat the outer assignment stream or reset its owned cursor.
+                if !result.assignments.is_empty() {
+                    result = self
+                        .makeflags
+                        .as_mut()
+                        .expect("configured receiver")
+                        .decode(MakeflagsRequest { value: b"", origin })
+                        .map_err(ExpandError::UnlocatedError)?;
+                }
+            } else if has_input && let Some(cursor) = &self.makeflags_cursor {
+                // A nested single short-option word rewinds GNU's process-global
+                // cursor into an already-applied outer assignment. Refuse the
+                // recorded nonterminating class before replaying those effects.
+                // The first outer definition can also leave short-option
+                // state referring into a retired nested argument buffer; normal
+                // exits in this class can activate unrequested switches.
+                let token = value.trim_ascii();
+                let retired_short_state = cursor.get() > 2
+                    || (cursor.get() == 2
+                        && self.makeflags_terminal > 3
+                        && self.makeflags_next_is_definition);
+                if self.makeflags_depth > 0
+                    && self.makeflags_terminal > 2
+                    && retired_short_state
+                    && result.next_argument == 2
+                    && token.starts_with(b"-")
+                    && token.len() > 1
+                    && !token.starts_with(b"--")
+                {
+                    return Err(ExpandError::Safety(crate::safety::SafetyError::NestedFlags));
+                }
+                cursor.set(result.next_argument);
             }
-        } else if has_input && let Some(cursor) = &self.makeflags_cursor {
-            // A nested single short-option word rewinds GNU's process-global
-            // cursor into an already-applied outer assignment. Refuse the
-            // recorded nonterminating class before replaying those effects.
-            // The first outer definition can also leave short-option
-            // state referring into a retired nested argument buffer; normal
-            // exits in this class can activate unrequested switches.
-            let token = value.trim_ascii();
-            let retired_short_state = cursor.get() > 2
-                || (cursor.get() == 2
-                    && self.makeflags_terminal > 3
-                    && self.makeflags_next_is_definition);
-            if self.makeflags_depth > 0
-                && self.makeflags_terminal > 2
-                && retired_short_state
-                && result.next_argument == 2
-                && token.starts_with(b"-")
-                && token.len() > 1
-                && !token.starts_with(b"--")
-            {
-                return Err(ExpandError::Safety(crate::safety::SafetyError::NestedFlags));
-            }
-            cursor.set(result.next_argument);
-        }
+            result
+        };
         database.variables.define_literal(
             b".INCLUDE_DIRS",
             b"",
@@ -398,6 +453,141 @@ impl<'a> ExpansionContext<'a> {
         variables.set_environment_override(result.environment_override);
         variables.define_runtime_metadata(b"MAKEFLAGS", &result.value, result.origin)?;
         Ok(())
+    }
+
+    /// Drive an owned decoder without retaining a host borrow across effects.
+    pub fn drive_flag_decoder(
+        &mut self,
+        database: &mut crate::parser::Database,
+        mut decoder: Box<dyn FlagDecoder>,
+        origin: crate::variables::Origin,
+    ) -> Result<DecodedFlags, crate::variables::ExpandError> {
+        use crate::variables::{ExpandError, Origin};
+        if self.makeflags_depth >= 128 {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        let terminal = decoder.terminal();
+        let cursor = self
+            .makeflags_cursor
+            .get_or_insert_with(Default::default)
+            .clone();
+        cursor.set(1);
+        let depth = self.makeflags_depth;
+        self.makeflags_depth += 1;
+        let old_terminal = std::mem::replace(&mut self.makeflags_terminal, terminal);
+        let old_following = self.makeflags_next_is_definition;
+        let driven = (|| {
+            let mut names = Vec::new();
+            for _ in 0..128_usize.saturating_mul(terminal.max(1)) {
+                if self.is_cancelled() {
+                    return Err(ExpandError::Cancelled);
+                }
+                let Some(step) = decoder
+                    .next(cursor.get())
+                    .map_err(ExpandError::UnlocatedError)?
+                else {
+                    let jobs = decoder.requested_jobs();
+                    let result = decoder.finish().map_err(ExpandError::UnlocatedError)?;
+                    self.makeflags
+                        .as_mut()
+                        .expect("configured receiver")
+                        .sync_decoded_flags();
+                    return Ok(DecodedFlags {
+                        result,
+                        names,
+                        jobs,
+                    });
+                };
+                cursor.set(step.position + 1);
+                self.makeflags_next_is_definition = step.following_definition;
+                self.makeflags
+                    .as_mut()
+                    .expect("configured receiver")
+                    .sync_decoded_flags();
+                database
+                    .variables
+                    .set_environment_override(step.environment_override);
+                match step.action {
+                    FlagAction::Policy => {}
+                    FlagAction::Definition(argument) => {
+                        let effective =
+                            if origin == Origin::Environment && step.environment_override {
+                                Origin::EnvironmentOverride
+                            } else {
+                                origin
+                            };
+                        if let Some(name) =
+                            database.define_argument_with(&argument, effective, self.reborrow())?
+                        {
+                            names.push(name);
+                        }
+                    }
+                    FlagAction::Filename(raw) => {
+                        let value = self.flag_filename(database, &raw)?;
+                        decoder
+                            .filename(value)
+                            .map_err(ExpandError::UnlocatedError)?;
+                        self.makeflags
+                            .as_mut()
+                            .expect("configured receiver")
+                            .sync_decoded_flags();
+                    }
+                }
+            }
+            Err(ExpandError::Safety(crate::safety::SafetyError::NestedFlags))
+        })();
+        self.makeflags
+            .as_mut()
+            .expect("configured receiver")
+            .sync_decoded_flags();
+        self.makeflags_depth = depth;
+        self.makeflags_terminal = old_terminal;
+        self.makeflags_next_is_definition = old_following;
+        driven
+    }
+
+    fn flag_filename(
+        &mut self,
+        database: &mut crate::parser::Database,
+        raw: &[u8],
+    ) -> Result<Vec<u8>, crate::variables::ExpandError> {
+        use crate::variables::ExpandError;
+        let mut expanded = Vec::new();
+        if raw.starts_with(b"~") {
+            if raw.len() == 1 || raw[1] == b'/' {
+                let warning = self.warns_undefined();
+                self.makeflags
+                    .as_mut()
+                    .expect("configured receiver")
+                    .set_warning_policy(false);
+                let result = database.expand_with(b"$(HOME)", self.reborrow());
+                self.makeflags
+                    .as_mut()
+                    .expect("configured receiver")
+                    .set_warning_policy(warning);
+                let mut home = result?;
+                if let Some(end) = home.iter().position(|b| *b == 0) {
+                    home.truncate(end);
+                }
+                if !home.is_empty() {
+                    if home.len().saturating_add(raw.len() - 1) > crate::variables::MAX_OUTPUT {
+                        return Err(ExpandError::ExpansionLimit);
+                    }
+                    expanded = [home.as_slice(), &raw[1..]].concat();
+                }
+            }
+            if expanded.is_empty() {
+                expanded = self
+                    .perform_filesystem(FilesystemEffect::Tilde(raw))
+                    .unwrap_or_else(|| Ok(Vec::new()))
+                    .map_err(|e| match e {
+                        FilesystemError::Caller(v) => ExpandError::FileError(v),
+                        FilesystemError::Unlocated(v) => ExpandError::UnlocatedError(v),
+                    })?;
+            }
+        }
+        let name = if expanded.is_empty() { raw } else { &expanded };
+        Ok(crate::filenames::without_dot_prefix(name).to_vec())
     }
 
     /// Replay option definitions in argument order. A nested MAKEFLAGS decode
@@ -676,5 +866,67 @@ mod tests {
         assert_eq!(message.as_bytes(), b"bad '\xff'");
         assert_eq!(message.to_string(), "bad '\u{fffd}'");
         assert_eq!(Diagnostic::from("text").as_bytes(), b"text");
+    }
+}
+
+#[cfg(test)]
+mod flag_filename_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct Policy<'a>(&'a Cell<bool>);
+    impl MakeflagsReceiver for Policy<'_> {
+        fn decode(&mut self, _: MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>> {
+            unreachable!("filename preparation must not replay decoding")
+        }
+        fn set_warning_policy(&mut self, enabled: bool) {
+            self.0.set(enabled);
+        }
+    }
+
+    #[test]
+    fn home_warning_mask_restores_on_success_and_failure() {
+        for failing in [false, true] {
+            let mut database = crate::parser::Database::default();
+            database
+                .read(
+                    if failing {
+                        b"HOME = $(MISSING)$(error stop)\n"
+                    } else {
+                        b"HOME = $(MISSING)hdir\n"
+                    },
+                    b"Makefile",
+                )
+                .unwrap();
+            let enabled = Cell::new(true);
+            let mut warnings = Vec::new();
+            {
+                let mut emit = |event: Output<'_>| {
+                    if let Output::Warning { message, .. } = event {
+                        warnings.push(message.to_vec());
+                    }
+                };
+                let mut output = WarningOutput::new(&mut emit, &enabled);
+                let mut receiver = Policy(&enabled);
+                let mut context = ExpansionContext::with_receiver(None, &mut output)
+                    .with_makeflags(&mut receiver);
+                let result = context.flag_filename(&mut database, b"~/inc");
+                if failing {
+                    assert!(result.is_err());
+                } else {
+                    assert_eq!(result.unwrap(), b"hdir/inc");
+                }
+                assert!(enabled.get());
+                database
+                    .expand_with(b"$(AFTER_HOME)", context.reborrow())
+                    .unwrap();
+            }
+            assert_eq!(warnings.len(), 1);
+            assert!(
+                warnings[0]
+                    .windows(b"AFTER_HOME".len())
+                    .any(|s| s == b"AFTER_HOME")
+            );
+        }
     }
 }
