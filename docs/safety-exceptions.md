@@ -88,6 +88,8 @@ ordinary [M3/M6 compatibility work](m3-m6-audit.md).
 
 ## Performance observations
 
+The measurements below describe the original crash/hang guard, retained as
+historical observations. They are not new measurements of the normal-exit extension.
 Frozen development/release candidates are identified in the raw benchmark
 reports. Each workload used 101 alternating samples against GNU and the preceding
 release; no build or acceptance campaign ran concurrently. Host activity was not

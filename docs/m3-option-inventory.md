@@ -10,6 +10,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | Live warning policy | [Ordered warning events](live-warning-phases.md) add 1,213 required cases for live argument positions, nested cursor selection, active diagnostics, eager priority and replay. Within-source malformed-value effects and runtime HOME remain open. |
 | Passive warning policy | [Post-read argument events](passive-warning-phases.md) add 1,872 required cases for source expansion, warning and `-e` positions, assignment forms, priorities and raw bytes. Source completion is covered below; malformed-value effects and runtime HOME remain open. |
 | Passive source sequence | [GNU then ordinary source completion](passive-source-order.md) add 1,290 required cases for effects, clearing, binding locations, priorities, explicit invocation inputs and actual FIFO/pipe capacity. Within-source malformed-value effects, runtime HOME and complete decoder/lifecycle acceptance remain open. |
+| Output-sync validation | [Ordered invalid-mode validation](output-validation-order.md) adds 818 required models for completed definitions, within-source replacement, per-source fatal boundaries and recursive export effects. Other malformed values, contextual HOME and full decoder/lifecycle behavior remain open. |
 | Unambiguous long-option prefixes | [Valid-prefix resolution](long-option-prefixes.md) adds 1,068 required cases for implemented switches, aliases, attached/separate operands, origins and byte-preserving effects. Exact names win; the complete namespace prevents false unique matches. Ambiguity, invalid usage and broader decoder/profile behavior remain open. |
 | `-b`, `-m` | Accepted and ignored; original alias fixtures exist. |
 | `-B`, `-e`, `-i`, `-k`, `-L`, `-n`, `-q`, `-r`, `-R`, `-s`, `-S`, `-t` and aliases | Decoding/runtime slices implemented and exercised; full startup ordering and malformed-option matrix remain open. |
@@ -37,7 +38,8 @@ makefiles, source origins, invalid arguments, original raw argument bytes,
 MAKEFLAGS/GNUMAKEFLAGS precedence, and all permitted recursive propagation.
 Do not turn oracle crashes/hangs into passing fixtures or deliberately reproduce
 memory corruption. The owner approved [separately gated safe errors](safety-exceptions.md)
-for recorded crash/hang inputs. Finite ordinary mismatches remain compatibility work.
+for recorded crash/hang inputs and the explicitly approved fifteen-input normal-exit
+nested-short class. Other finite ordinary mismatches remain compatibility work.
 
 Other M3/M6 surfaces include enabled Guile profiles, broader disabled-profile interactions, native loading
 and APIs, locales, Linux/build metadata, startup/reexec semantics, pinned external
