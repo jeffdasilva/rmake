@@ -2779,3 +2779,32 @@ gates. Complete malformed usage/lifecycle, shuffle cycle freshness/trace and
 alias/search cross-products, directory/debug/database output, native loading,
 enabled Guile, real exec/stdin, Linux/locale/integration acceptance and safe
 persistent caching remain open; M3/M6 are not complete.
+
+## M3/M6: raw implicit prerequisite spelling (2026-11-02)
+
+[Implicit prerequisite substitution](implicit-prerequisite-spelling.md) now
+replaces the first literal percent while preserving backslashes. Target-pattern
+quoting retains its separate meaning. Unchanged literal names are borrowed;
+changed results retain directory and initial-read normalization phases.
+
+144 required original models agree with two bounded GNU observations and both
+frozen builds, closing forty preceding mismatches. Coverage includes 96 raw
+filename/backslash/directory cells, 32 substitution controls, fourteen shared
+graph/automatic-variable controls and two exact rejected-search profiling inputs.
+Four quote-selection hypotheses, eighteen missing-parent attempts and two
+initial-read normalization hypotheses remain archived with separate refinements.
+
+An unselected copy-on-write list experiment reduced large-noop request counts
+but made rejected searches 8–12% slower in two batches. Its source, fourteen-case
+proof, eight elapsed reports and twelve request profiles remain unchanged. The
+selected smaller correction preserves public Rust field types and has eight
+output-checked 101-sample elapsed reports plus twenty request profiles. Rejected
+search medians are about 4–5.5% lower and requests 28–32% lower; core results are
+mixed, including 0.8–1.3% higher large-noop medians. No general parity is claimed.
+
+Formatting, Clippy, 525 Rust and 573 tooling tests pass. The corpus becomes
+25,030 required / zero pending across 151 families; all 17 approved safe-error
+exceptions remain separate. Full frozen rmake-driven acceptance and exact-head
+CI remain merge gates. M3/M6, broader rule/resource/profile interactions, native
+loading, enabled Guile, directory/debug/database behavior, real exec/stdin,
+integration, general performance parity and safe persistent caching remain open.

@@ -97,11 +97,17 @@ for definition/source/clear ordering, diagnostic loci, retained invocation input
 and actual jobserver capacity. Within-source malformed values, contextual HOME
 and complete M3/M6 acceptance remain open.
 
+[Raw implicit prerequisites](implicit-prerequisite-spelling.md) add 144 required
+models for literal percent/backslash spelling, directory/read phases, shared
+metadata and exact rejected-search controls. Borrowed unchanged names reduce
+measured requests and targeted elapsed time; broader M3/M6 and performance work
+remain open.
+
 M4 includes explicit/static/implicit/suffix/grouped/double-colon rules; built-ins;
 secondary candidate phases; VPATH/GPATH and library resolution; archive formats,
 timestamps and errors; intermediate/special-target policy; hidden prerequisites;
 file-record phases/order; filename queries and safe recursive HOME byte effects.
-The ledger has 32 rule/archive/resolution families and 2,599 required cases, with
+The ledger has 33 rule/archive/resolution families and 2,743 required cases, with
 no pending exemptions in those families. The full corpus and cross-family,
 stateful, fault, parallel and self-hosted suites also gate the milestone.
 

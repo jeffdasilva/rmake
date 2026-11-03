@@ -656,7 +656,7 @@ impl Database {
             }
             let mut valid = true;
             let mut stem_dependencies = Vec::new();
-            for (index, dependency) in candidate.dependencies.iter_mut().enumerate() {
+            for index in 0..candidate.dependencies.len() {
                 if candidate
                     .secondary
                     .as_ref()
@@ -664,20 +664,43 @@ impl Database {
                 {
                     continue;
                 }
-                let pattern = Pattern::new(&dependency.name);
-                if pattern.has_wildcard() {
+                let original = &candidate.dependencies[index].name;
+                let percent = original.iter().position(|byte| *byte == b'%');
+                if percent.is_some() {
                     stem_dependencies.push(index);
                 }
-                let Ok(name) = pattern.replace(stem) else {
-                    valid = false;
-                    break;
-                };
-                let name = crate::filenames::without_dot_prefix(&name);
-                dependency.name = if stripped && pattern.has_wildcard() {
-                    [directory, name].concat()
+                // Implicit prerequisites substitute their first literal %;
+                // target-pattern backslash quoting does not apply here. Keep
+                // unchanged literals borrowed until a real rewrite is needed.
+                let substituted = if let Some(percent) = percent {
+                    let directory = if stripped { directory } else { b"" };
+                    let Some(capacity) = original
+                        .len()
+                        .checked_sub(1)
+                        .and_then(|n| n.checked_add(stem.len()))
+                        .and_then(|n| n.checked_add(directory.len()))
+                        .filter(|n| *n <= MAX_OUTPUT)
+                    else {
+                        valid = false;
+                        break;
+                    };
+                    let mut value = Vec::with_capacity(capacity);
+                    value.extend_from_slice(directory);
+                    value.extend_from_slice(&original[..percent]);
+                    value.extend_from_slice(stem);
+                    value.extend_from_slice(&original[percent + 1..]);
+                    Cow::Owned(value)
                 } else {
-                    name.to_vec()
+                    Cow::Borrowed(original.as_slice())
                 };
+                let normalized = crate::filenames::without_dot_prefix(&substituted);
+                if normalized != original.as_slice() {
+                    candidate.dependencies[index].name = if normalized.len() == substituted.len() {
+                        substituted.into_owned()
+                    } else {
+                        normalized.to_vec()
+                    };
+                }
             }
             if valid {
                 result.push(ImplicitCandidate {

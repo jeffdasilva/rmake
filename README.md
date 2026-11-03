@@ -65,6 +65,12 @@ permutations, barriers, recursive flags and startup/live policy boundaries.
 The corpus totals 24,886 required cases, with a separate random-seed replay gate.
 Full M3/M6 and general performance parity remain open.
 
+[Raw implicit prerequisite spelling](docs/implicit-prerequisite-spelling.md)
+now retains backslashes around literal percent substitution and borrows unchanged
+names. Forty preceding mismatches are closed; the corpus totals 25,030 required
+cases. Rejected-search timing controls improve about 4–5.5%; general performance
+parity and full M3/M6 remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
