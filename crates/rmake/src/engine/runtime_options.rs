@@ -24,6 +24,20 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0.assigned(request)
     }
 
+    fn begin(
+        &mut self,
+        request: rmake_core::diagnostic::MakeflagsRequest<'_>,
+        passive: bool,
+    ) -> Result<Option<Box<dyn rmake_core::diagnostic::FlagDecoder>>, Vec<u8>> {
+        self.0.begin_include_decoder(request, passive)
+    }
+    fn sync_decoded_flags(&mut self) {
+        let options = self.0.options.borrow();
+        self.0.warn_undefined.set(options.warn_undefined);
+        self.0.trace_enabled.set(options.trace);
+        self.0.dirty.set(true);
+    }
+
     fn set_warning_policy(&mut self, enabled: bool) {
         self.0.options.borrow_mut().warn_undefined = enabled;
         self.0.warn_undefined.set(enabled);
@@ -62,6 +76,39 @@ impl State {
         self.dirty.set(false);
         Some(self.options.borrow().clone())
     }
+    fn begin_include_decoder(
+        &self,
+        request: rmake_core::diagnostic::MakeflagsRequest<'_>,
+        passive: bool,
+    ) -> Result<Option<Box<dyn rmake_core::diagnostic::FlagDecoder>>, Vec<u8>> {
+        let prepared = self
+            .options
+            .borrow()
+            .include_decoder(request.value)
+            .map_err(String::into_bytes)?;
+        let Some(mut decoder) = prepared else {
+            return Ok(None);
+        };
+        let mut options = self.options.borrow_mut();
+        let invocation = InvocationInputs::take(&mut options);
+        let initial = std::mem::take(&mut decoder.options);
+        *options = initial;
+        drop(options);
+        self.dirty.set(true);
+        Ok(Some(Box::new(IncludeDecoder {
+            decoder,
+            options: self.options.clone(),
+            includes: self.includes.clone(),
+            output: self.output.clone(),
+            invocation: Some(invocation),
+            active: false,
+            pending: None,
+            origin: request.origin,
+            passive,
+            file_jobs: None,
+        })))
+    }
+
     pub(super) fn assigned(
         &self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
@@ -151,6 +198,221 @@ impl State {
         *previous = updated;
         self.dirty.set(true);
         Ok(result)
+    }
+}
+
+/// Invocation operands live outside the suspended stream and are restored once.
+#[derive(Default)]
+struct InvocationInputs {
+    files: Vec<std::path::PathBuf>,
+    directories: Vec<std::path::PathBuf>,
+    old_files: Vec<std::path::PathBuf>,
+    new_files: Vec<std::path::PathBuf>,
+    goals: Vec<Vec<u8>>,
+    assignments: Vec<Vec<u8>>,
+    assignment_context: Vec<(usize, bool)>,
+    assignment_warnings: Vec<bool>,
+}
+impl InvocationInputs {
+    fn take(options: &mut Options) -> Self {
+        Self {
+            files: std::mem::take(&mut options.files),
+            directories: std::mem::take(&mut options.directories),
+            old_files: std::mem::take(&mut options.old_files),
+            new_files: std::mem::take(&mut options.new_files),
+            goals: std::mem::take(&mut options.goals),
+            assignments: std::mem::take(&mut options.assignments),
+            assignment_context: std::mem::take(&mut options.assignment_context),
+            assignment_warnings: std::mem::take(&mut options.assignment_warnings),
+        }
+    }
+    fn restore(self, options: &mut Options) {
+        options.files = self.files;
+        options.directories = self.directories;
+        options.old_files = self.old_files;
+        options.new_files = self.new_files;
+        options.goals = self.goals;
+        options.assignments = self.assignments;
+        options.assignment_context = self.assignment_context;
+        options.assignment_warnings = self.assignment_warnings;
+    }
+}
+
+struct IncludeDecoder {
+    decoder: crate::cli::Decoder,
+    options: std::rc::Rc<RefCell<Options>>,
+    includes: std::rc::Rc<RefCell<IncludeSearch>>,
+    output: crate::output::Controller,
+    invocation: Option<InvocationInputs>,
+    active: bool,
+    pending: Option<crate::cli::Argument>,
+    origin: Origin,
+    passive: bool,
+    file_jobs: Option<usize>,
+}
+
+impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
+    fn terminal(&self) -> usize {
+        self.decoder.terminal()
+    }
+    fn requested_jobs(&self) -> Option<usize> {
+        self.file_jobs
+            .filter(|_| self.options.borrow().command_jobs.is_none())
+    }
+    fn next(&mut self, cursor: usize) -> Result<Option<rmake_core::diagnostic::FlagStep>, Vec<u8>> {
+        use crate::cli::Argument;
+        use rmake_core::diagnostic::{FlagAction, FlagStep};
+        self.active = true;
+        self.decoder.options = std::mem::take(&mut *self.options.borrow_mut());
+        let options = &mut self.decoder.options;
+        let silent = (options.silent, options.silent_origin.take());
+        let keep = (options.keep_going, options.keep_going_origin.take());
+        let jobs = options.jobs.take();
+        self.decoder.cursor = cursor.saturating_sub(1);
+        let next = self
+            .decoder
+            .advance::<false>()
+            .map_err(String::into_bytes)?;
+        let options = &mut self.decoder.options;
+        if options.silent_origin.is_some()
+            && (self.origin == Origin::CommandLine || silent.1.is_none_or(|old| self.origin >= old))
+        {
+            options.silent_origin = Some(self.origin);
+        } else {
+            options.silent = silent.0;
+            options.silent_origin = silent.1;
+        }
+        if options.keep_going_origin.is_some()
+            && (self.origin == Origin::CommandLine || keep.1.is_none_or(|old| self.origin >= old))
+        {
+            options.keep_going_origin = Some(self.origin);
+        } else {
+            options.keep_going = keep.0;
+            options.keep_going_origin = keep.1;
+        }
+        if options.jobs.is_some() {
+            self.file_jobs = options.jobs;
+        } else {
+            options.jobs = jobs;
+        }
+        let action = match next.as_ref().and_then(|step| step.argument) {
+            Some(Argument::Definition(index)) => {
+                FlagAction::Definition(options.assignments[index].clone())
+            }
+            Some(argument @ Argument::Include(_)) => {
+                let path = options
+                    .include_directories
+                    .pop()
+                    .expect("just decoded operand");
+                options.include_assignment_positions.pop();
+                if options
+                    .include_directories
+                    .iter()
+                    .any(|stored| stored.as_os_str().as_bytes() == path.as_os_str().as_bytes())
+                {
+                    FlagAction::Policy
+                } else {
+                    self.pending = Some(argument);
+                    FlagAction::Filename(path.into_os_string().into_vec())
+                }
+            }
+            // GNU ignores invocation-only switches in runtime sources. Their
+            // operands must not expand HOME, change directories or open files.
+            _ => FlagAction::Policy,
+        };
+        let environment_override = options.environment_override;
+        let following_definition =
+            matches!(&action, FlagAction::Definition(_)) && self.decoder.following_definition();
+        *self.options.borrow_mut() = std::mem::take(&mut self.decoder.options);
+        self.active = false;
+        Ok(next.map(|step| FlagStep {
+            position: step.position,
+            environment_override,
+            following_definition,
+            action,
+        }))
+    }
+    fn filename(&mut self, value: Vec<u8>) -> Result<(), Vec<u8>> {
+        let mut options = self.options.borrow_mut();
+        match self.pending.take().expect("suspended filename") {
+            crate::cli::Argument::Include(_) => {
+                options
+                    .include_directories
+                    .push(std::ffi::OsString::from_vec(value).into());
+                let count = options.assignments.len();
+                options.include_assignment_positions.push(count);
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+    fn finish(mut self: Box<Self>) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
+        let terminal = self.decoder.terminal();
+        let options = self.options.clone();
+        let includes = self.includes.clone();
+        let output = self.output.clone();
+        let passive = self.passive;
+        let invocation = self.invocation.take().expect("owned invocation");
+        let mut current = options.borrow_mut();
+        invocation.restore(&mut current);
+        current.flag_word_count = terminal;
+        if passive && let Some(jobs) = current.command_jobs {
+            current.jobs = Some(jobs);
+        }
+        let mode = current
+            .output_sync
+            .as_deref()
+            .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse)
+            .ok_or_else(|| {
+                [
+                    b"unknown output-sync type '".as_slice(),
+                    current.output_sync.as_deref().unwrap_or_default(),
+                    b"'",
+                ]
+                .concat()
+            })?;
+        let mut result = rmake_core::diagnostic::MakeflagsResult {
+            eval_reference: !current.evals.is_empty(),
+            value: current.recursive_flags(),
+            origin: origin(current.environment_override),
+            environment_override: current.environment_override,
+            include_dirs: Vec::new(),
+            publish_includes: None,
+            assignments: Vec::new(),
+            warning_positions: Vec::new(),
+            warning_entry: current.warn_undefined,
+            next_argument: current.flag_word_count,
+        };
+        if !passive {
+            output.set_mode(mode);
+            let search = IncludeSearch::new(&current.include_directories);
+            result.include_dirs = search.directories().map(<[u8]>::to_vec).collect();
+            let captured = options.clone();
+            result.publish_includes = Some(Box::new(move || {
+                includes.replace(search);
+                let options = captured.borrow();
+                rmake_core::diagnostic::MakeflagsMetadata {
+                    eval_reference: !options.evals.is_empty(),
+                    value: options.recursive_flags(),
+                    origin: origin(options.environment_override),
+                    environment_override: options.environment_override,
+                }
+            }));
+        }
+        Ok(result)
+    }
+}
+
+impl Drop for IncludeDecoder {
+    fn drop(&mut self) {
+        // Restore invocation ownership on errors and cancellation as well as
+        // success. Previously completed option/variable effects remain live.
+        if self.active {
+            *self.options.borrow_mut() = std::mem::take(&mut self.decoder.options);
+        }
+        if let Some(invocation) = self.invocation.take() {
+            invocation.restore(&mut self.options.borrow_mut());
+        }
     }
 }
 
@@ -381,14 +643,83 @@ impl Engine {
     fn apply_runtime_flag_source(&mut self, value: Vec<u8>) -> Result<Option<usize>, ()> {
         // Source expansion can itself change policy; capture its completed state.
         let warning_entry = self.flag_state.warn_undefined.get();
-        let (mut updated, file_jobs, warning_positions) =
-            match self.options.file_flags_with_positions(&[value]) {
-                Ok(updated) => updated,
-                Err(message) => {
-                    self.fatal(None, message.as_bytes());
+        if value.contains(&b'~') {
+            self.flag_state.refresh(&self.options);
+            let decoder = match self.flag_state.begin_include_decoder(
+                rmake_core::diagnostic::MakeflagsRequest {
+                    value: &value,
+                    origin: Origin::Environment,
+                },
+                true,
+            ) {
+                Ok(decoder) => decoder,
+                Err(error) => {
+                    self.fatal(None, &error);
                     return Err(());
                 }
             };
+            if let Some(decoder) = decoder {
+                let driven = runtime_context(
+                    None,
+                    &mut WarningOutput::new(
+                        &mut |event| emit_output(&self.output, &self.program, event),
+                        &self.flag_state.warn_undefined,
+                    ),
+                )
+                .with_makeflags(&mut self.flag_state.receiver())
+                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
+                .with_shell(&mut |request| {
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                })
+                .drive_flag_decoder(
+                    &mut self.database,
+                    decoder,
+                    Origin::Environment,
+                );
+                let rmake_core::diagnostic::DecodedFlags { names, jobs, .. } = match driven {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.expansion_error(None, &error);
+                        return Err(());
+                    }
+                };
+                for name in names {
+                    if self.database.variables.get(&name).is_some_and(|v| {
+                        matches!(
+                            v.origin(),
+                            Origin::Environment | Origin::EnvironmentOverride
+                        )
+                    }) {
+                        self.inherited_exports.insert(name);
+                    }
+                }
+                if let Some(options) = self.flag_state.take() {
+                    self.options = options;
+                }
+                self.database
+                    .variables
+                    .set_environment_override(self.options.environment_override);
+                return Ok(jobs);
+            }
+        }
+        let (mut updated, file_jobs, warning_positions) = match self
+            .options
+            .file_flags_with_positions(std::slice::from_ref(&value))
+        {
+            Ok(updated) => updated,
+            Err(message) => {
+                self.fatal(None, message.as_bytes());
+                return Err(());
+            }
+        };
         // A flag-only stream has no payload effects to interleave. Keep that
         // path unchanged instead of cloning and replaying an inert policy.
         if !updated.assignments.is_empty() {
@@ -481,5 +812,115 @@ impl Engine {
         // The following source may re-enter the live receiver or take its state.
         self.flag_state.refresh(&self.options);
         Ok(file_jobs)
+    }
+}
+
+#[cfg(test)]
+mod decoder_ownership_tests {
+    use super::*;
+    use rmake_core::diagnostic::{FlagAction, MakeflagsRequest};
+
+    #[test]
+    fn suspended_and_failed_decoders_restore_invocation_and_keep_completed_effects() {
+        for fail in [false, true] {
+            let original = Options {
+                files: vec!["main.mk".into()],
+                directories: vec!["working".into()],
+                old_files: vec!["old".into()],
+                new_files: vec!["new".into()],
+                goals: vec![b"requested".to_vec()],
+                assignments: vec![b"X=one".to_vec()],
+                assignment_context: vec![(1, false)],
+                assignment_warnings: vec![false],
+                ..Options::default()
+            };
+            let state = State::new(
+                &original,
+                crate::output::Controller::new(crate::output::Mode::None, b"make"),
+                std::rc::Rc::new(RefCell::new(IncludeSearch::default())),
+            );
+            let mut decoder = state
+                .begin_include_decoder(
+                    MakeflagsRequest {
+                        value: b"-I~/inc -f -jbad",
+                        origin: Origin::File,
+                    },
+                    false,
+                )
+                .unwrap()
+                .unwrap();
+            assert!(matches!(
+                decoder.next(1).unwrap().unwrap().action,
+                FlagAction::Filename(_)
+            ));
+            if fail {
+                decoder.filename(b"hdir/inc".to_vec()).unwrap();
+                // A nested reset can move the observable cursor into what was
+                // previously a consumed filename operand.
+                assert!(decoder.next(3).is_err());
+            }
+            drop(decoder);
+            let restored = state.take().unwrap();
+            assert_eq!(restored.files, original.files);
+            assert_eq!(restored.directories, original.directories);
+            assert_eq!(restored.old_files, original.old_files);
+            assert_eq!(restored.new_files, original.new_files);
+            assert_eq!(restored.goals, original.goals);
+            assert_eq!(restored.assignments, original.assignments);
+            assert_eq!(restored.assignment_context, original.assignment_context);
+            assert_eq!(restored.assignment_warnings, original.assignment_warnings);
+            assert_eq!(
+                restored.include_directories,
+                if fail {
+                    vec![std::path::PathBuf::from("hdir/inc")]
+                } else {
+                    vec![]
+                }
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod raw_include_history_tests {
+    use super::*;
+    use rmake_core::diagnostic::{FlagAction, MakeflagsRequest};
+
+    #[test]
+    fn a_distinct_raw_trailing_slash_operand_is_not_discarded_before_expansion() {
+        let options = Options {
+            include_directories: vec!["same/inc".into()],
+            include_assignment_positions: vec![0],
+            ..Options::default()
+        };
+        let state = State::new(
+            &options,
+            crate::output::Controller::new(crate::output::Mode::None, b"make"),
+            std::rc::Rc::new(RefCell::new(IncludeSearch::default())),
+        );
+        let mut decoder = state
+            .begin_include_decoder(
+                MakeflagsRequest {
+                    value: b"-Isame/inc/ -I~/inc",
+                    origin: Origin::File,
+                },
+                false,
+            )
+            .unwrap()
+            .unwrap();
+        let step = decoder.next(1).unwrap().unwrap();
+        assert!(matches!(step.action, FlagAction::Filename(ref name) if name == b"same/inc/"));
+        decoder.filename(b"same/inc/".to_vec()).unwrap();
+        drop(decoder);
+        let selected = state.take().unwrap();
+        assert_eq!(selected.include_directories.len(), 2);
+        assert_eq!(
+            selected.include_directories[0].as_os_str().as_bytes(),
+            b"same/inc"
+        );
+        assert_eq!(
+            selected.include_directories[1].as_os_str().as_bytes(),
+            b"same/inc/"
+        );
     }
 }
