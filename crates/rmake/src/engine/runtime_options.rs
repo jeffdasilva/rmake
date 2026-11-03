@@ -305,7 +305,11 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
                     .pop()
                     .expect("just decoded operand");
                 options.include_assignment_positions.pop();
-                if options.include_directories.contains(&path) {
+                if options
+                    .include_directories
+                    .iter()
+                    .any(|stored| stored.as_os_str().as_bytes() == path.as_os_str().as_bytes())
+                {
                     FlagAction::Policy
                 } else {
                     self.pending = Some(argument);
@@ -874,5 +878,49 @@ mod decoder_ownership_tests {
                 }
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod raw_include_history_tests {
+    use super::*;
+    use rmake_core::diagnostic::{FlagAction, MakeflagsRequest};
+
+    #[test]
+    fn a_distinct_raw_trailing_slash_operand_is_not_discarded_before_expansion() {
+        let options = Options {
+            include_directories: vec!["same/inc".into()],
+            include_assignment_positions: vec![0],
+            ..Options::default()
+        };
+        let state = State::new(
+            &options,
+            crate::output::Controller::new(crate::output::Mode::None, b"make"),
+            std::rc::Rc::new(RefCell::new(IncludeSearch::default())),
+        );
+        let mut decoder = state
+            .begin_include_decoder(
+                MakeflagsRequest {
+                    value: b"-Isame/inc/ -I~/inc",
+                    origin: Origin::File,
+                },
+                false,
+            )
+            .unwrap()
+            .unwrap();
+        let step = decoder.next(1).unwrap().unwrap();
+        assert!(matches!(step.action, FlagAction::Filename(ref name) if name == b"same/inc/"));
+        decoder.filename(b"same/inc/".to_vec()).unwrap();
+        drop(decoder);
+        let selected = state.take().unwrap();
+        assert_eq!(selected.include_directories.len(), 2);
+        assert_eq!(
+            selected.include_directories[0].as_os_str().as_bytes(),
+            b"same/inc"
+        );
+        assert_eq!(
+            selected.include_directories[1].as_os_str().as_bytes(),
+            b"same/inc/"
+        );
     }
 }

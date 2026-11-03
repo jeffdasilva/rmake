@@ -85,8 +85,8 @@ performance parity remain open.
 
 [Runtime HOME include operands](docs/runtime-home-includes.md) now expand at
 argument positions through owned decoder suspensions, with warning masking and
-invocation ownership across callbacks and errors. 460 original cases close 398
-recorded mismatches, bringing the corpus to 26,326 required cases. Full M3/M6 and
+invocation ownership across callbacks and errors. 476 original cases close 414
+recorded mismatches, bringing the corpus to 26,342 required cases. Full M3/M6 and
 general performance parity remain open.
 
 The executable now reads Makefiles, expands core variables/functions, and builds

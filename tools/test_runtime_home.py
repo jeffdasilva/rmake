@@ -34,10 +34,10 @@ class RuntimeHomeTests(unittest.TestCase):
     def test_inventory_input_bytes_and_every_frozen_observation(self):
         family = next(r for r in tomllib.loads((ROOT / 'tests/requirements.toml').read_text())['requirements']
                       if r['id'] == 'options.runtime-home-includes')
-        self.assertEqual((family['fixture_count'], family['candidate_required']), (460, 460))
+        self.assertEqual((family['fixture_count'], family['candidate_required']), (476, 476))
         self.assertEqual(set(family['cases']), set(self.records))
-        self.assertEqual(self.proof['baseline_mismatches'], 398)
-        self.assertEqual(sum(bool(r['baseline']['candidate_differences']) for r in self.records.values()), 398)
+        self.assertEqual(self.proof['baseline_mismatches'], 414)
+        self.assertEqual(sum(bool(r['baseline']['candidate_differences']) for r in self.records.values()), 414)
         for row in self.records.values():
             case = h.load_case(ROOT / 'tests/cases' / row['id'])
             self.assertEqual((case.args, case.environment, case.output, case.expected),
@@ -62,6 +62,7 @@ class RuntimeHomeTests(unittest.TestCase):
         for phase in ('reader', 'eval', 'include', 'secondary', 'recipe', 'gnu'):
             self.assertEqual(sum(n.startswith('owned-home-' + phase + '-') and '-parallel-' not in n for n in self.records), 64)
         self.assertEqual(sum('-parallel-' in n for n in self.records), 24)
+        self.assertEqual(sum(n.startswith('owned-home-byte-history-') for n in self.records), 16)
         self.assertEqual(sum(n.startswith('owned-home-callback-') for n in self.records), 16)
         ignored = [r for n, r in self.records.items() if n.startswith('owned-home-ignored-')]
         self.assertEqual(len(ignored), 16)
@@ -84,7 +85,11 @@ class RuntimeHomeTests(unittest.TestCase):
         for row in controls:
             self.assertEqual(base64.b64decode(row['observations'][0]['filesystem']['work/seen']['content']), b'anchor\nHOME\nINCLUDE\n')
             self.assertEqual(base64.b64decode(row['observations'][2]['filesystem']['work/seen']['content']).count(b'HOME\n'), 2)
+        raw = original('owned-home/byte-history-first-debug.json')['records']
+        self.assertEqual(sum(bool(r['candidate_differences']) for r in raw), 8)
+        self.assertTrue(all(r['model_errors'][:2] == [[], []] and not any(r['bounds']) for r in raw))
         self.assertIn('owned-home/first-source/crates/rmake/src/cli.rs', self.history['files'])
+        self.assertFalse(any(name.endswith('.so') for name in self.history['files']))
         self.assertEqual(len(self.history['final_source_files']), 3)
         for source in self.history['final_source_files'].values():
             self.assertEqual(hashlib.sha256(bytes.fromhex(source['hex'])).hexdigest(), source['sha256'])

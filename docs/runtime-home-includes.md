@@ -20,12 +20,12 @@ completed option and variable effects. HOME warnings are masked and restored,
 including when expansion fails. Post-read sources expand operands without
 rebuilding active include search.
 
-The required family has 460 original models across reader, eval, include,
+The required family has 476 original models across reader, eval, include,
 secondary, recipe and post-read GNU sources, simple/recursive HOME, argument
 positions, warning policy, raw bytes, parallel output modes, shell/eval/include
 callbacks, environment/user-name fallbacks, ignored operands and fatal effects.
 Independent raw stream/status and ordered file witnesses agree with two bounded
-GNU observations and both selected frozen builds, closing 398 preceding
+GNU observations and both selected frozen builds, closing 414 preceding
 mismatches. The [manifest](../tests/research/runtime-home-includes.json),
 [raw proof](../tests/research/runtime-home-includes.json.gz) and
 [discovery archive](../tests/research/runtime-home-discovery.json.gz) retain
@@ -42,4 +42,6 @@ Broader malformed-value, nested flag-reset, secondary tilde/search construction,
 directory/debug/database, native/Guile, exec/profile, integration and persistent
 cache acceptance remain open.
 
-[Six elapsed reports and twelve allocation-request profiles](benchmarks/runtime-home-index.md) show mixed timing and unchanged request counts on the existing controls. No general performance gain or parity is claimed.
+[Four selected elapsed reports and twelve allocation-request profiles](benchmarks/runtime-home-index.md) show mixed timing and unchanged request counts on the existing controls. No general performance gain or parity is claimed.
+
+Sixteen additional spelling-history controls distinguish byte identity from path-component equality. Eight fail in the preceding prototype and pass after byte comparison. The [earlier finite proof](../tests/research/runtime-home-before-byte-includes.json.gz) and [six prior timing reports](benchmarks/runtime-home-before-byte-index.md) remain historical evidence with no additional acceptance credit. The earlier full run was interrupted before completion; selected frozen acceptance must restart.
