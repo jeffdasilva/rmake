@@ -2961,3 +2961,25 @@ preceding focused cases. The corpus is 27,442 required / zero pending across
 rmake-driven acceptance and exact-head CI remain merge gates.
 
 [Four paired101-sample reports and twelve profiles](benchmarks/startup-search-index.md) show unchanged request/free counts on the three controls and mixed timing, including higher large no-op medians. General speedup and GNU parity are not established. Complete M3/M6, broader decoder/profile/integration and persistent cache acceptance remain open.
+
+
+## M3/M6: native load reader preparation (2026-11-03)
+
+[Reader-side module requests](load-reader.md) now support empty `load` and `-load`
+operands, ordered full-database effects and empty setup-symbol failures. Physical
+filenames share rule preparation with an explicit non-archive policy; all
+operands finish preparation before the first module is examined. Real module
+execution, native function registration/expansion/eval, `.LOADED` publication and
+module remake/unload/reload remain explicitly unsupported and open.
+
+324 independent original stream/status/filesystem models pass two GNU runs and
+both selected frozen builds, closing 312 preceding mismatches. Original incorrect
+dot-prefix and child-environment HOME predictions remain unchanged in separate
+discovery records with no additional credit. No safety exception is added.
+Three Rust regressions bring the total to 540; four tooling regressions bring it
+to 604. The curated corpus is 27,766 required / zero pending across 158 families,
+plus the unchanged 32 approved exceptions / 128 separately gated cells.
+
+Full frozen rmake-driven local acceptance and exact-head development/optimized
+CI remain merge gates. No speedup or general GNU parity is claimed. Complete
+M3/M6, native/profile/integration and persistent cache acceptance remain open.

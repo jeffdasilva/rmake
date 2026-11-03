@@ -101,6 +101,12 @@ switch selections during the existing parse. The runtime-update control uses
 corpus to 26,942 required cases. Timing evidence is mixed; full M3/M6 and general
 performance parity remain open.
 
+[Native load reader preparation](docs/load-reader.md) supports empty `load` and
+`-load` requests, complete operand effects and byte-preserving empty setup-symbol
+errors. 324 original cases close 312 preceding mismatches, bringing the corpus
+to 27,766 required cases. Actual shared-library loading and its native ABI remain
+open, along with complete M3/M6 and general GNU performance parity.
+
 [Startup include search](docs/startup-include-search.md) now performs the second
 HOME lookup before Makefiles are read, preserving stored operands and delayed
 flag activation. 500 original cases close 438 recorded mismatches, bringing the

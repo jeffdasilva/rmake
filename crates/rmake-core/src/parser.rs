@@ -1581,9 +1581,19 @@ impl Database {
         bytes: &'a [u8],
         context: &mut ExpansionContext<'_>,
     ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
+        self.prepared_filenames::<true>(bytes, context)
+    }
+
+    // Module setup symbols use parentheses, so load filenames bypass archive
+    // grouping and member lookup while sharing quoting, tilde and glob policy.
+    fn prepared_filenames<'a, const ARCHIVES: bool>(
+        &mut self,
+        bytes: &'a [u8],
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a, ARCHIVES>, ExpandError> {
         let scan = bytes
             .iter()
-            .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'[' | b'~'));
+            .any(|byte| matches!(byte, b'*' | b'?' | b'[' | b'~') || (ARCHIVES && *byte == b'('));
         let session = self.begin_filename_session(scan && bytes.contains(&b'~'));
         let result = (|| {
             if !scan && self.filename_scratch.is_some() {
@@ -1594,7 +1604,7 @@ impl Database {
             let names = if scan {
                 let mut names = Vec::new();
                 let mut size = 0usize;
-                for (mut name, emit, offset) in crate::filenames::sequence_events(bytes) {
+                for (mut name, emit, offset) in crate::filenames::sequence_events(bytes, ARCHIVES) {
                     let skip = name.len() - crate::filenames::without_dot_prefix(&name).len();
                     name.drain(..skip);
                     if session {
@@ -1608,7 +1618,8 @@ impl Database {
                     }
                     let glob = name.iter().any(|b| matches!(b, b'*' | b'?' | b'['));
                     if glob {
-                        let effect = if crate::filenames::archive_parts(&name).is_some() {
+                        let effect = if ARCHIVES && crate::filenames::archive_parts(&name).is_some()
+                        {
                             FilesystemEffect::ArchiveGlob(&name)
                         } else {
                             FilesystemEffect::RuleGlob(&name)
@@ -3434,8 +3445,36 @@ impl Database {
                 }
                 continue;
             }
-            if keyword == b"load" {
+            if matches!(keyword, b"load" | b"-load") {
                 self.finish_declaration(declaration, &location, context)?;
+                let expanded =
+                    self.expand(directive(text, keyword).unwrap(), &location, context)?;
+                let paths = self
+                    .prepared_filenames::<false>(&expanded, &mut context.at(Some(&location)))
+                    .map_err(|error| ParseError {
+                        unlocated: error.is_unlocated(),
+                        location: error
+                            .diagnostic_location(Some(&location))
+                            .unwrap_or(&location)
+                            .clone(),
+                        message: error.diagnostic(),
+                    })?;
+                // Prepare every operand before attempting the first module.
+                // Even an optional load rejects an explicitly empty setup name.
+                let Some(name) = paths.into_iter().next() else {
+                    continue;
+                };
+                if let Some(open) = name.iter().position(|&byte| byte == b'(')
+                    && name.get(open + 1..) == Some(b")")
+                {
+                    return Err(ParseError {
+                        unlocated: false,
+                        location,
+                        message: [b"Empty symbol name for load: ".as_slice(), &name]
+                            .concat()
+                            .into(),
+                    });
+                }
                 return Err(ParseError {
                     unlocated: false,
                     location,
@@ -4080,6 +4119,59 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn load_prepares_every_glob_without_interpreting_setup_names_as_archives() {
+        let mut db = Database::default();
+        let mut requests = Vec::new();
+        let mut filesystem = |effect: FilesystemEffect<'_>| {
+            let FilesystemEffect::RuleGlob(name) = effect else {
+                panic!("module filename used an archive or function effect")
+            };
+            requests.push(name.to_vec());
+            Ok(b"module one()\0module two()\0".to_vec())
+        };
+        let error = db
+            .read_with(
+                b"-load ./unit*() second*()\n",
+                b"module.mk",
+                ExpansionContext::pure().with_filesystem(&mut filesystem),
+            )
+            .unwrap_err();
+        assert_eq!(requests, [b"unit*()".to_vec(), b"second*()".to_vec()]);
+        assert_eq!(error.location.file.as_ref(), b"module.mk");
+        assert_eq!(error.location.line, 1);
+        assert_eq!(
+            error.message.as_bytes(),
+            b"Empty symbol name for load: module one()"
+        );
+    }
+
+    #[test]
+    fn empty_load_finishes_the_previous_rule_before_expanding_its_operand() {
+        let mut db = Database::default();
+        let mut output = Vec::new();
+        let error = db
+            .read_with(
+                b"all: dep\n\t@echo previous\nload $(info visited)\n\t@echo orphan\n",
+                b"module.mk",
+                ExpansionContext::new(None, &mut |event| {
+                    if let Output::Info(bytes) = event {
+                        output.push(bytes.to_vec());
+                    }
+                }),
+            )
+            .unwrap_err();
+        assert_eq!(output, [b"visited".to_vec()]);
+        assert_eq!(error.location.line, 4);
+        assert_eq!(
+            error.message.as_bytes(),
+            b"recipe commences before first target"
+        );
+        let all = db.rules.get(b"all".as_slice()).unwrap();
+        assert_eq!(all.dependencies[0].name, b"dep");
+        assert_eq!(all.recipes.as_ref().unwrap()[0].bytes, b"@echo previous");
+    }
 
     #[test]
     fn anonymous_eval_preserves_real_included_file_errors() {

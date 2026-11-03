@@ -2844,7 +2844,9 @@ impl Expansion<'_, '_> {
                 let session = self.store.begin_filename_session(first.contains(&b'~'));
                 let result = (|| {
                     let mut output = Vec::new();
-                    for (mut pattern, emit, offset) in crate::filenames::sequence_events(first) {
+                    for (mut pattern, emit, offset) in
+                        crate::filenames::sequence_events(first, true)
+                    {
                         if session {
                             pattern = self.store.write_filename(&pattern, offset);
                         }
