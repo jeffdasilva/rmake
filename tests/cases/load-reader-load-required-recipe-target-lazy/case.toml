@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "load-reader-load-required-recipe-target-lazy"
+requirement = "native.load-reader"
+candidate = "required"
+timeout_seconds = 5
+output = "separate"
+description = "Original load reader no-op, ordered effects, physical filename preparation, setup-symbol diagnostics or source-boundary control."
+provenance = "Independent expected models qualified against two bounded GNU Make 4.4.1 runs and both frozen builds. No GNU implementation, header or tests copied or translated."
+args = ["-rR", "--no-print-directory", "-Otarget"]
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "444f4e450a"
+"stderr_hex" = ""

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "load-reader-prepared-false-eval-none-glob-byte"
+requirement = "native.load-reader"
+candidate = "required"
+timeout_seconds = 5
+output = "separate"
+description = "Original load reader no-op, ordered effects, physical filename preparation, setup-symbol diagnostics or source-boundary control."
+provenance = "Independent expected models qualified against two bounded GNU Make 4.4.1 runs and both frozen builds. No GNU implementation, header or tests copied or translated."
+args = ["-rR", "--no-print-directory"]
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = ""
+"stderr_hex" = "4d616b6566696c653a343a202a2a2a20456d7074792073796d626f6c206e616d6520666f72206c6f61643a20706c7567696eff28292e202053746f702e0a"

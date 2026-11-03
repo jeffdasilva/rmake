@@ -202,7 +202,12 @@ pub fn sequence(input: &[u8]) -> Vec<Vec<u8>> {
 
 /// Include the writes for empty archive-group members. They produce no
 /// filename but can overwrite a name held by a recursive HOME expansion.
-pub(crate) fn sequence_events(input: &[u8]) -> Vec<(Vec<u8>, bool, usize)> {
+pub(crate) fn sequence_events(input: &[u8], archives: bool) -> Vec<(Vec<u8>, bool, usize)> {
+    if !archives {
+        return words(input)
+            .map(|name| (name.into_owned(), true, 0))
+            .collect();
+    }
     let mut result = Vec::new();
     visit_sequence(input, |name, emit, offset| {
         result.push((name, emit, offset))
@@ -310,6 +315,19 @@ mod tests {
         assert_eq!(
             sequence(b"a\\\\ b a\\\\\\ b"),
             [b"a\\".to_vec(), b"b".to_vec(), b"a\\ b".to_vec()]
+        );
+    }
+
+    #[test]
+    fn module_filenames_keep_parentheses_and_blanks_separate() {
+        let events = super::sequence_events(b"module(first second) empty()", false);
+        assert_eq!(
+            events,
+            [
+                (b"module(first".to_vec(), true, 0),
+                (b"second)".to_vec(), true, 0),
+                (b"empty()".to_vec(), true, 0),
+            ]
         );
     }
 

@@ -336,3 +336,12 @@ Owned child environment vectors and export activation phases now have [278 requi
 [Runtime flag inspection](runtime-flag-inspection.md) adds 96 original regression models while removing duplicate successful parsing. Incoming switch selection preserves origin, arity and command-job priority; errors retain preliminary incoming-error precedence through pure retry. The runtime-update control saves 1,009 requests/frees; paired timing remains mixed, with small improvements in pinned follow-ups. The corpus is 26,942 required / zero pending across 156 families; 32 separate approved exceptions remain unchanged. Full frozen acceptance and exact-head CI remain merge gates; M3/M6 and general parity remain open.
 
 [Startup include search](startup-include-search.md) adds 500 original required models and closes 438 preceding mismatches. HOME lookup uses the pre-default full database and preserves delayed switch activation, warning restoration, raw stored operands and distinct filename/search normalization. 192 byte-argv manifests use the validated args_hex form. The corpus is 27,442 required / zero pending across 157 families, with the same 32 separate approved exceptions. Full frozen acceptance and exact-head CI remain gates; complete M3/M6, broader profiles/integration/cache correctness and general performance parity remain open.
+
+
+[Native load reader preparation](load-reader.md) adds 324 original required
+models and closes 312 preceding mismatches. Empty requests and setup-symbol
+errors preserve full expansion, physical filename and pending-rule phases.
+The corpus is 27,766 required / zero pending across 158 families; the same 32
+approved exceptions remain separate. Native execution/ABI/remaking, enabled
+Guile and broader profiles/integration, complete M3/M6 and general performance
+parity remain open. Frozen local acceptance and exact-head CI remain merge gates.
