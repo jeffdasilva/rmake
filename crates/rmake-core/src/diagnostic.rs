@@ -163,6 +163,8 @@ pub struct MakeflagsResult {
     pub origin: crate::variables::Origin,
     pub environment_override: bool,
     pub include_dirs: Vec<Vec<u8>>,
+    /// Effectful search construction runs after the argument cursor is retired.
+    pub prepare_includes: Option<Box<dyn IncludePreparation>>,
     /// Own the resolved search until all metadata effects succeed. Finalization
     /// publishes that search and selects current flags after any nested reset.
     /// Dropping or refreshing a result discards its unused transaction.
@@ -173,6 +175,18 @@ pub struct MakeflagsResult {
     pub warning_positions: Vec<usize>,
     pub warning_entry: bool,
     pub next_argument: usize,
+}
+
+/// Owns search traversal without borrowing host state across HOME effects.
+pub trait IncludePreparation {
+    fn next(&mut self) -> Option<Vec<u8>>;
+    fn directory(&mut self, value: Vec<u8>);
+    fn finish(self: Box<Self>) -> PreparedIncludes;
+}
+
+pub struct PreparedIncludes {
+    pub directories: Vec<Vec<u8>>,
+    pub publish: Box<dyn FnOnce() -> MakeflagsMetadata>,
 }
 
 /// A resumable host decoder owns argv and returns before interpreter effects.
@@ -407,6 +421,30 @@ impl<'a> ExpansionContext<'a> {
             }
             result
         };
+        if let Some(mut preparation) = result.prepare_includes.take() {
+            // Argument-driving depth, terminal and following-definition state
+            // have been restored. Search effects retain any enclosing frame,
+            // but must not impersonate a completed decoder's argv scope.
+            let mut bytes = 0usize;
+            while let Some(raw) = preparation.next() {
+                if self.is_cancelled() {
+                    return Err(ExpandError::Cancelled);
+                }
+                bytes = bytes.saturating_add(raw.len().max(1));
+                if bytes > crate::variables::MAX_OUTPUT {
+                    return Err(ExpandError::ExpansionLimit);
+                }
+                let value = self.flag_tilde(database, &raw)?;
+                bytes = bytes.saturating_add(value.len());
+                if bytes > crate::variables::MAX_OUTPUT {
+                    return Err(ExpandError::ExpansionLimit);
+                }
+                preparation.directory(value);
+            }
+            let prepared = preparation.finish();
+            result.include_dirs = prepared.directories;
+            result.publish_includes = Some(prepared.publish);
+        }
         database.variables.define_literal(
             b".INCLUDE_DIRS",
             b"",
@@ -471,7 +509,9 @@ impl<'a> ExpansionContext<'a> {
             .makeflags_cursor
             .get_or_insert_with(Default::default)
             .clone();
-        cursor.set(1);
+        if terminal > 1 {
+            cursor.set(1);
+        }
         let depth = self.makeflags_depth;
         self.makeflags_depth += 1;
         let old_terminal = std::mem::replace(&mut self.makeflags_terminal, terminal);
@@ -552,6 +592,17 @@ impl<'a> ExpansionContext<'a> {
         database: &mut crate::parser::Database,
         raw: &[u8],
     ) -> Result<Vec<u8>, crate::variables::ExpandError> {
+        let mut expanded = self.flag_tilde(database, raw)?;
+        let prefix = expanded.len() - crate::filenames::without_dot_prefix(&expanded).len();
+        expanded.drain(..prefix);
+        Ok(expanded)
+    }
+
+    fn flag_tilde(
+        &mut self,
+        database: &mut crate::parser::Database,
+        raw: &[u8],
+    ) -> Result<Vec<u8>, crate::variables::ExpandError> {
         use crate::variables::ExpandError;
         let mut expanded = Vec::new();
         if raw.starts_with(b"~") {
@@ -587,8 +638,11 @@ impl<'a> ExpansionContext<'a> {
                     })?;
             }
         }
-        let name = if expanded.is_empty() { raw } else { &expanded };
-        Ok(crate::filenames::without_dot_prefix(name).to_vec())
+        Ok(if expanded.is_empty() {
+            raw.to_vec()
+        } else {
+            expanded
+        })
     }
 
     /// Replay option definitions in argument order. A nested MAKEFLAGS decode

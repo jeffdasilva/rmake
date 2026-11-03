@@ -12,6 +12,7 @@ __pycache__/
 *.swp
 *.swo
 *~
-!/tests/cases/wildcard-escaped-tilde/~
+# Literal tilde files/directories are compatibility inputs.
+!/tests/cases/**/~
 .DS_Store
 Thumbs.db

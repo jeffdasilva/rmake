@@ -144,9 +144,13 @@ impl State {
         // GNU validates output synchronization after payload definitions. The
         // core refreshes this receiver when they finish, so an invalid pending
         // selection must not skip their effects or construct a new search yet.
-        let search = mode.map(|mode| {
+        let effectful_search = updated
+            .include_directories
+            .iter()
+            .any(|name| name.as_os_str().as_bytes().starts_with(b"~"));
+        let search = mode.and_then(|mode| {
             self.output.set_mode(mode);
-            IncludeSearch::new(&updated.include_directories)
+            (!effectful_search).then(|| IncludeSearch::new(&updated.include_directories))
         });
         let include_dirs = search.as_ref().map_or_else(Vec::new, |search| {
             search.directories().map(<[u8]>::to_vec).collect()
@@ -159,6 +163,12 @@ impl State {
             origin: origin(updated.environment_override),
             environment_override: updated.environment_override,
             include_dirs,
+            prepare_includes: (effectful_search && mode.is_some()).then(|| {
+                Box::new(SearchPreparation::new(
+                    self.options.clone(),
+                    self.includes.clone(),
+                )) as Box<dyn rmake_core::diagnostic::IncludePreparation>
+            }),
             publish_includes: if let Some(search) = search {
                 Some(Box::new({
                     let includes = self.includes.clone();
@@ -235,6 +245,73 @@ impl InvocationInputs {
         options.assignments = self.assignments;
         options.assignment_context = self.assignment_context;
         options.assignment_warnings = self.assignment_warnings;
+    }
+}
+
+/// The stored operand list remains live during callbacks. Each step owns its
+/// name; no RefCell borrow or pointer into the list survives an interpreter call.
+struct SearchPreparation {
+    options: std::rc::Rc<RefCell<Options>>,
+    includes: std::rc::Rc<RefCell<IncludeSearch>>,
+    cursor: usize,
+    reset: bool,
+    builder: crate::makefiles::IncludeSearchBuilder,
+}
+
+impl SearchPreparation {
+    fn new(
+        options: std::rc::Rc<RefCell<Options>>,
+        includes: std::rc::Rc<RefCell<IncludeSearch>>,
+    ) -> Self {
+        Self {
+            options,
+            includes,
+            cursor: 0,
+            reset: false,
+            builder: Default::default(),
+        }
+    }
+}
+
+impl rmake_core::diagnostic::IncludePreparation for SearchPreparation {
+    fn next(&mut self) -> Option<Vec<u8>> {
+        let value = self
+            .options
+            .borrow()
+            .include_directories
+            .get(self.cursor)?
+            .as_os_str()
+            .as_bytes()
+            .to_vec();
+        self.cursor += 1;
+        self.reset = value == b"-";
+        Some(value)
+    }
+    fn directory(&mut self, value: Vec<u8>) {
+        if self.reset {
+            self.builder.push(b"-");
+        } else {
+            self.builder.push_resolved(&value);
+        }
+    }
+    fn finish(self: Box<Self>) -> rmake_core::diagnostic::PreparedIncludes {
+        let search = self.builder.finish();
+        let directories = search.directories().map(<[u8]>::to_vec).collect();
+        let options = self.options;
+        let includes = self.includes;
+        rmake_core::diagnostic::PreparedIncludes {
+            directories,
+            publish: Box::new(move || {
+                includes.replace(search);
+                let options = options.borrow();
+                rmake_core::diagnostic::MakeflagsMetadata {
+                    eval_reference: !options.evals.is_empty(),
+                    value: options.recursive_flags(),
+                    origin: origin(options.environment_override),
+                    environment_override: options.environment_override,
+                }
+            }),
+        }
     }
 }
 
@@ -377,6 +454,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             origin: origin(current.environment_override),
             environment_override: current.environment_override,
             include_dirs: Vec::new(),
+            prepare_includes: None,
             publish_includes: None,
             assignments: Vec::new(),
             warning_positions: Vec::new(),
@@ -385,6 +463,15 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         };
         if !passive {
             output.set_mode(mode);
+            if current
+                .include_directories
+                .iter()
+                .any(|name| name.as_os_str().as_bytes().starts_with(b"~"))
+            {
+                result.prepare_includes =
+                    Some(Box::new(SearchPreparation::new(options.clone(), includes)));
+                return Ok(result);
+            }
             let search = IncludeSearch::new(&current.include_directories);
             result.include_dirs = search.directories().map(<[u8]>::to_vec).collect();
             let captured = options.clone();

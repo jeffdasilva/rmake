@@ -829,16 +829,21 @@ impl Options {
     /// Select only effectful include operands. The ordinary decoder remains
     /// the allocation baseline for streams with no tilde operand.
     pub(crate) fn include_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
-        if !value.contains(&b'~') {
+        let stored_tilde = self
+            .include_directories
+            .iter()
+            .any(|path| path.as_os_str().as_bytes().starts_with(b"~"));
+        if !value.contains(&b'~') && !stored_tilde {
             return Ok(None);
         }
         let mut incoming = Vec::new();
         Self::append_flag_arguments(&mut incoming, value, true)?;
         let inspected = Self::parse_mode::<false>(incoming.clone())?;
-        if !inspected
-            .include_directories
-            .iter()
-            .any(|path| path.as_os_str().as_bytes().starts_with(b"~"))
+        if !stored_tilde
+            && !inspected
+                .include_directories
+                .iter()
+                .any(|path| path.as_os_str().as_bytes().starts_with(b"~"))
         {
             return Ok(None);
         }
@@ -1784,5 +1789,29 @@ mod runtime_marker_tests {
         assert!(matches!(definition.argument, Some(Argument::Definition(0))));
         assert_eq!(decoder.options.goals, [b"-fshadow".to_vec()]);
         assert!(decoder.advance::<false>().unwrap().is_none());
+    }
+    #[test]
+    fn persistent_tilde_selects_owned_runtime_markers_without_affecting_plain_flags() {
+        let plain = Options {
+            include_directories: vec!["ordinary".into()],
+            ..Options::default()
+        };
+        assert!(plain.include_decoder(b"-s").unwrap().is_none());
+        let persistent = Options {
+            include_directories: vec!["~/inc".into()],
+            ..plain
+        };
+        let mut decoder = persistent.include_decoder(b"-- -x").unwrap().unwrap();
+        assert_eq!(decoder.terminal(), 3);
+        assert!(matches!(
+            decoder.advance::<false>().unwrap().unwrap().argument,
+            Some(Argument::Goal(0))
+        ));
+        assert!(decoder.advance::<false>().unwrap().is_none());
+        assert_eq!(
+            decoder.options.include_directories,
+            vec![std::path::PathBuf::from("~/inc")]
+        );
+        assert!(persistent.include_decoder(b"").unwrap().is_some());
     }
 }
