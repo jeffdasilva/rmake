@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-search-fatal-home-keep"
+requirement = "startup.second-include-search"
+candidate = "required"
+timeout_seconds = 5
+output = "separate"
+description = "Original startup HOME second lookup, deferred flags, raw spelling/bytes, warning, callback, error, fallback or metadata control."
+provenance = "Independent models qualified against two bounded pinned GNU Make 4.4.1 observations and frozen builds. No GNU implementation or tests copied or translated."
+args = ["-rR", "--no-print-directory", "-s", "-k", "HOME=$(file >>seen,HOME)~", "-I~/inc", "HOME=$(file >>seen,LATE)$(error startup-home-stop)"]
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 2
+"stdout_hex" = ""
+"stderr_hex" = "6d616b653a202a2a2a20737461727475702d686f6d652d73746f702e202053746f702e0a"

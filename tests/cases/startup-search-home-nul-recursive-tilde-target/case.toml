@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "startup-search-home-nul-recursive-tilde-target"
+requirement = "startup.second-include-search"
+candidate = "required"
+timeout_seconds = 5
+output = "separate"
+description = "Original startup HOME second lookup, deferred flags, raw spelling/bytes, warning, callback, error, fallback or metadata control."
+provenance = "Independent models qualified against two bounded pinned GNU Make 4.4.1 observations and frozen builds. No GNU implementation or tests copied or translated."
+args = ["-rR", "--no-print-directory", "-s", "-Otarget", "HOME=$(file >>seen,HOME)$(file <home-value)", "-I~/inc"]
+
+[environment]
+"GNUMAKEFLAGS" = ""
+
+[expected]
+"exit_code" = 0
+"stdout_hex" = "524553554c543d5b6c69746572616c5d20444952533d5b7e2f696e635d0a"
+"stderr_hex" = ""

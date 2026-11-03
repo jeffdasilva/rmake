@@ -26,6 +26,18 @@ pub fn prepare_argument_with(
     name: &[u8],
     home: impl FnOnce() -> Result<Vec<u8>, ExpandError>,
 ) -> Result<PathBuf, ExpandError> {
+    let mut expanded = expand_tilde_with(name, home)?;
+    let prefix = expanded.len() - rmake_core::filenames::without_dot_prefix(&expanded).len();
+    expanded.drain(..prefix);
+    Ok(OsString::from_vec(expanded).into())
+}
+
+/// Resolve tilde bytes without argument-only dot-prefix normalization. The
+/// caller supplies HOME at the current evaluation phase and warning policy.
+pub fn expand_tilde_with(
+    name: &[u8],
+    home: impl FnOnce() -> Result<Vec<u8>, ExpandError>,
+) -> Result<Vec<u8>, ExpandError> {
     let mut expanded = Vec::new();
     if name.starts_with(b"~") {
         if name.len() == 1 || name[1] == b'/' {
@@ -39,8 +51,11 @@ pub fn prepare_argument_with(
                 rmake_linux::filesystem::execute(FilesystemEffect::Tilde(name)).unwrap_or_default();
         }
     }
-    let path = if expanded.is_empty() { name } else { &expanded };
-    Ok(OsString::from_vec(rmake_core::filenames::without_dot_prefix(path).to_vec()).into())
+    Ok(if expanded.is_empty() {
+        name.to_vec()
+    } else {
+        expanded
+    })
 }
 
 #[derive(Default)]
@@ -150,5 +165,19 @@ impl IncludeSearchBuilder {
             }
         }
         self.search
+    }
+}
+
+#[cfg(test)]
+mod spelling_tests {
+    use super::*;
+
+    #[test]
+    fn argument_and_search_expansion_keep_their_own_spelling_boundaries() {
+        let raw = b"~/inc///";
+        let selected = expand_tilde_with(raw, || Ok(b"./hdir\xff".to_vec())).unwrap();
+        assert_eq!(selected, b"./hdir\xff/inc///");
+        let argument = prepare_argument_with(raw, || Ok(b"./hdir\xff".to_vec())).unwrap();
+        assert_eq!(argument.as_os_str().as_bytes(), b"hdir\xff/inc///");
     }
 }

@@ -808,10 +808,7 @@ impl Engine {
         mut program: Vec<u8>,
         invocation: &OsStr,
     ) -> Result<Self, StartupError> {
-        let Invocation {
-            mut options,
-            initial,
-        } = launch;
+        let Invocation { options, initial } = launch;
         let initial::Prepared {
             mut database,
             filesystem,
@@ -929,7 +926,7 @@ impl Engine {
         let startup_warnings = Cell::new(options.warn_undefined);
         let include_search = startup::include_metadata(
             &mut database,
-            &mut options,
+            &options,
             startup::Runtime {
                 program: &program,
                 level: makelevel,

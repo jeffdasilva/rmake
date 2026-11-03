@@ -101,6 +101,12 @@ switch selections during the existing parse. The runtime-update control uses
 corpus to 26,942 required cases. Timing evidence is mixed; full M3/M6 and general
 performance parity remain open.
 
+[Startup include search](docs/startup-include-search.md) now performs the second
+HOME lookup before Makefiles are read, preserving stored operands and delayed
+flag activation. 500 original cases close 438 recorded mismatches, bringing the
+corpus to 27,442 required cases. Raw byte arguments are replayable through
+hexadecimal manifests. Full M3/M6 and general performance parity remain open.
+
 The executable now reads Makefiles, expands core variables/functions, and builds
 explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
 with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
