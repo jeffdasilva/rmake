@@ -140,6 +140,8 @@ pub struct Options {
     pub no_rules: bool,
     pub no_variables: bool,
     pub trace: bool,
+    pub debug: crate::debug::Requests,
+    pub debug_mask: crate::debug::Mask,
     pub warn_undefined: bool,
     pub startup_missing_makeflags_warning: bool,
     pub directory_choice: DirectoryChoice,
@@ -308,6 +310,9 @@ impl Decoder {
                     }
                 } else {
                     match name {
+                        b"--debug" => result
+                            .debug
+                            .push(value.unwrap_or_else(|| b"basic".to_vec())),
                         b"--print-directory" | b"--no-print-directory" => {
                             if value.is_some() {
                                 if !STARTUP {
@@ -512,6 +517,7 @@ impl Decoder {
                     match arg[j] {
                         b'h' => result.help = true,
                         b'v' => result.version = true,
+                        b'd' => result.debug.all = true,
                         b'n' => result.dry_run = true,
                         b's' => {
                             result.silent = true;
@@ -634,7 +640,7 @@ impl Decoder {
                             break;
                         }
                         option => {
-                            if STARTUP || matches!(option, b'd' | b'p') {
+                            if STARTUP || matches!(option, b'p') {
                                 return Err(format!("unsupported option '-{}'", option as char));
                             }
                         }
@@ -914,6 +920,7 @@ impl Options {
         seeded.evals = self.evals.clone();
         seeded.silent_origin = self.silent_origin;
         seeded.keep_going_origin = self.keep_going_origin;
+        seeded.debug_mask = self.debug_mask;
         seeded.directory_choice = self.directory_choice;
         seeded.directory_origin = self.directory_origin;
         seeded.command_jobs = self.command_jobs;
@@ -1038,6 +1045,7 @@ impl Options {
             parsed.directory_choice = self.directory_choice;
             parsed.directory_origin = self.directory_origin;
         }
+        parsed.decode_debug()?;
         parsed.command_jobs = self.command_jobs;
         if restore_cli_jobs && let Some(jobs) = self.command_jobs {
             parsed.jobs = Some(jobs);
@@ -1194,6 +1202,11 @@ impl Options {
 
     /// Stored MAKEFLAGS is recursive: literal option dollars need one layer
     /// of make quoting, separate from its encoded command-variable reference.
+    pub fn decode_debug(&mut self) -> Result<(), String> {
+        self.debug_mask = self.debug.decode(self.trace)?;
+        Ok(())
+    }
+
     pub fn makeflags(&self) -> Vec<u8> {
         let mut flags = self.recursive_flags();
         if !self.evals.is_empty() {
@@ -1234,6 +1247,7 @@ impl Options {
         let mut flags = Vec::new();
         for (set, flag) in [
             (self.always, b'B'),
+            (self.debug.all, b'd'),
             (self.environment_override, b'e'),
             (self.ignore_errors, b'i'),
             (self.keep_going, b'k'),
@@ -1292,6 +1306,15 @@ impl Options {
                     flags.push(b'\\');
                 }
                 flags.push(*byte);
+            }
+        }
+        for value in &self.debug.values {
+            flags.extend_from_slice(b" --debug=");
+            for &byte in value {
+                if byte.is_ascii_whitespace() || byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(byte);
             }
         }
         if self.trace {
@@ -1582,13 +1605,11 @@ mod tests {
             assert!(parse(&[value]).is_err());
             assert!(Options::with_environment([], Some(value.into()), None).is_err());
         }
-        for value in ["--debug=basic", "--deb=basic", "-d", "-p"] {
-            assert!(
-                Options::default()
-                    .assigned_flags(&[value.as_bytes().to_vec()], Origin::File)
-                    .is_err()
-            );
-        }
+        assert!(
+            Options::default()
+                .assigned_flags(&[b"-p".to_vec()], Origin::File)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1723,6 +1744,32 @@ mod tests {
         assert!(pipe.jobserver_pipe);
         assert_eq!(pipe.jobs, Some(3));
         assert!(parse(&["--jobserver-style=invalid"]).is_err());
+    }
+
+    #[test]
+    fn debug_history_survives_live_lower_origin_selection_and_serialization() {
+        let mut options = parse(&["-rR", "--debug=b none", "--trace"]).unwrap();
+        options.decode_debug().unwrap();
+        assert_eq!(options.debug_mask, crate::debug::Mask::NONE);
+        assert_eq!(options.flags(), b"rR --debug=b\\ none --trace");
+        let mut basic = parse(&["--debug=b"]).unwrap();
+        basic.decode_debug().unwrap();
+        let selected = basic
+            .assigned_flags(&[b"--debug=none".to_vec()], Origin::File)
+            .unwrap()
+            .0;
+        assert_eq!(selected.debug_mask, crate::debug::Mask::NONE);
+        assert_eq!(selected.debug.values, [b"b".to_vec(), b"none".to_vec()]);
+        let repeated = selected
+            .assigned_flags(&[b"--debug=b".to_vec()], Origin::Environment)
+            .unwrap()
+            .0;
+        assert_eq!(repeated.debug_mask, crate::debug::Mask::NONE);
+        let resumed = selected
+            .assigned_flags(&[b"--debug=B".to_vec()], Origin::Environment)
+            .unwrap()
+            .0;
+        assert!(resumed.debug_mask.has(crate::debug::Mask::BASIC));
     }
 
     #[test]

@@ -26,9 +26,9 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `--no-silent`, `--no-keep-going`, `--stop` | Negative spellings, origins and recursive propagation implemented; full startup inventory remains open. |
 | `--no-print-directory` | [Ordered directory selection](directory-reporting.md) preserves CLI priority and incoming flag order, including automatic silence and process closure. Broader profile and formatting interactions remain open. |
 | `-w`/`--print-directory` | [Directory reporting](directory-reporting.md) has 40 independently modeled profiles for lazy entry, quiet child launches, synchronized spool boundaries, early metadata and restart/native closure. [Imported restart traces](imported-directory-trace.md) retain their separate gate. Database/debug, broader path/stdio/resource and cross-family acceptance remain open. |
-| `-d`, `--debug[=...]` | Unsupported: must implement debug categories, ordering, restart/child identities and output. |
+| `-d`, `--debug[=...]` | [Structured debug output](debug-output.md) has 54 exact selected profiles for original request/reset/serialization, effective BASIC/VERBOSE/IMPLICIT/MAKEFILE/PRINT/WHY selection, reader/eval/BOM phases, TRACE interaction and controlled restart output. Actual-child JOBS identities, asynchronous remake completion, full implicit chains/default discovery, database and broader profile/resource interactions remain open. Automatic debug GNU headers are exact; only one explicit-version error boundary permits anchored branding. |
 | `-p`/`--print-data-base` | Unsupported: needs semantic database validator with narrow treatment of documented nondeterministic fields. |
-| `--trace` | [Trace output](trace.md) has 165 required cases for rebuild reasons, identity, echo, modes, synchronization and remake reactivation. Full debug-category, startup, option/profile and locale interactions remain open. |
+| `--trace` | [Trace output](trace.md) has 165 required cases for rebuild reasons, identity, echo, modes, synchronization and remake reactivation. PRINT/WHY now share effective debug selection; broader debug-category, startup, option/profile and locale interactions remain open. |
 | `-E`/`--eval` | [Command-line evaluation](command-line-eval.md) has 194 required semantic cases and two output-checked scaling cases across phases, metadata, diagnostics, effects, priority, recursion and restarts. Broader startup/usage/self-exec/profile acceptance remains open. |
 | `-o`/`--old-file`/`--assume-old` | [Invocation-only file assumptions](assumed-files.md) add filename preparation, ordinary rule/traversal suppression, logical ages, modes, source phases, recursion, VPATH and makefile-remake controls. Complete decoder/profile interactions remain open. |
 | `-W`/`--what-if`/`--new-file`/`--assume-new` | [Logical newest file records](assumed-files.md) add prerequisite traversal, virtual completion comparisons, phony and ordered double-colon behavior, physical-time witnesses and initial/non-exported flag phases. Complete decoder/profile interactions remain open. |
@@ -49,3 +49,12 @@ Other M3/M6 surfaces include enabled Guile profiles, broader disabled-profile in
 and APIs, locales, Linux/build metadata, startup/reexec semantics, pinned external
 project builds and full top-level developer flows. General performance parity
 and persistent caching have independent correctness and measurement gates.
+
+
+The selected debug slice passes both frozen builds; preceding main passes one
+and fails 53. Formatting, Clippy, 576 Rust and 634 tooling tests pass. Native 215
+and directory 40 profiles remain unchanged. The ordinary ledger stays 27,766
+required / zero pending across 158 families; 32 approved exceptions / 128 cells
+remain separate. These counts do not complete the option inventory or M3/M6.
+Enabled Guile/GC, locale/Linux/resource profiles, integration/developer flows,
+persistent caching and general GNU parity retain their acceptance work.

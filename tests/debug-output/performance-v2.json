@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable final debug-output v2 performance:all three complete elapsed reports,16 allocation reports and16 raw traces,including every negative/mixed result and requested-byte delta. No general GNU parity or performance acceptance claim.",
+  "sha256": "30b96d7e8565458c8694861cbd5354d713e87aaa8044c5327cb6357f36bfa2d1",
+  "raw_sha256": "24fe9a4238fb51286b9331ebc52d5d5b93d2b0c238f9df747c4bf2c5f24fa393",
+  "raw_bytes": 5111773
+}

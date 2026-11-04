@@ -3062,3 +3062,31 @@ both versions, regressions and the remaining extra allocation pair. Snapshot
 reuse removes one pair without changing publication. Full frozen local
 acceptance and exact-head CI remain merge gates. Complete M3/M6, broader profiles,
 Guile/GC, integration, persistent caches and general GNU parity remain open.
+
+
+## M3/M6: deterministic structured debug output
+
+[Structured debug output](debug-output.md) implements selected category/reset,
+raw-serialization, reader, traversal, PRINT/WHY and TRACE interactions. Original
+requests stay separate from effective masks; borrowed reader events preserve
+actual parse/effect order. Rendering checks categories before allocating debug
+text, and implicit labels/rebuild reasons are constructed only when selected.
+Automatic GNU debug headers remain exact; only the explicitly requested version
+boundary has one strictly anchored branding slot.
+
+Both selected frozen builds pass all 54 original debug profiles; preceding main
+passes one and fails 53. The original forty-model history is unchanged. Fourteen
+independently qualified review boundaries close twelve v1 differences in eval
+header timing, BASIC BOM output, annotations and malformed debug suffixes. All
+raw observations and rejected earlier hypotheses remain retained. Native 215 and
+directory 40 profiles are unchanged. Formatting, Clippy, 576 Rust tests and 634
+tooling tests pass. The ordinary corpus remains 27,766 required / zero pending
+across 158 families, with the same 32 approved exceptions / 128 cells; the new
+separate profiles earn no additional ordinary or exception credit.
+
+Actual-child JOBS identities/lifetimes, asynchronously remade output, broader
+implicit chains and default-reader discovery, database output, Guile/GC,
+locale/Linux/resource/native cross-products, integration and complete developer
+flows remain open. [Measurements](benchmarks/debug-output.md) retain their own
+limits and do not establish general speed parity. Persistent caching and complete
+M3/M6 remain open; full frozen local acceptance and exact-head CI remain gates.

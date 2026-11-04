@@ -15,7 +15,7 @@ use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output, OutputReceiver, WarningOutput};
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output, OutputReceiver};
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
@@ -448,6 +448,37 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
                 controller.write_parts(true, &[program, b": ", message, b"\n"]);
             }
         }
+    }
+}
+
+/// All reader/expansion contexts observe the same live diagnostic policy.
+struct RuntimeOutput<'a> {
+    controller: &'a crate::output::Controller,
+    program: &'a [u8],
+    warnings: &'a Cell<bool>,
+}
+impl<'a> RuntimeOutput<'a> {
+    fn new(
+        controller: &'a crate::output::Controller,
+        program: &'a [u8],
+        warnings: &'a Cell<bool>,
+    ) -> Self {
+        Self {
+            controller,
+            program,
+            warnings,
+        }
+    }
+}
+impl OutputReceiver for RuntimeOutput<'_> {
+    fn emit(&mut self, event: Output<'_>) {
+        emit_output(self.controller, self.program, event);
+    }
+    fn warns_undefined(&self) -> bool {
+        self.warnings.get()
+    }
+    fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
+        crate::debug::reader(self.controller, event);
     }
 }
 
@@ -900,6 +931,10 @@ impl Engine {
                 })
             }
         ));
+        if options.debug_mask.has(crate::debug::Mask::BASIC) {
+            crate::debug::print_header();
+        }
+        output.set_debug_mask(options.debug_mask);
         // Explicit switches select the active context only after every CLI
         // effect and early exit. Closing an inherited spool still uses level 0.
         output.set_mode(mode);
@@ -1291,8 +1326,9 @@ impl Engine {
             bytes,
             runtime_context(
                 location,
-                &mut WarningOutput::new(
-                    &mut |event| emit_output(&self.output, &self.program, event),
+                &mut RuntimeOutput::new(
+                    &self.output,
+                    &self.program,
                     &self.flag_state.warn_undefined,
                 ),
             )
@@ -1326,8 +1362,9 @@ impl Engine {
             bytes,
             runtime_context(
                 location,
-                &mut WarningOutput::new(
-                    &mut |event| emit_output(&self.output, &self.program, event),
+                &mut RuntimeOutput::new(
+                    &self.output,
+                    &self.program,
                     &self.flag_state.warn_undefined,
                 ),
             )
@@ -1359,8 +1396,8 @@ impl Engine {
         reload: bool,
     ) -> Result<bool, ExpandError> {
         let result = {
-            let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
-            let mut output = WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
+            let mut output =
+                RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
             let mut flags = self.flag_state.receiver();
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
@@ -1422,8 +1459,11 @@ impl Engine {
         }
         loop {
             let result = {
-                let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
-                let mut output = WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
+                let mut output = RuntimeOutput::new(
+                    &self.output,
+                    &self.program,
+                    &self.flag_state.warn_undefined,
+                );
                 let mut flags = self.flag_state.receiver();
                 let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                     self.filesystem.borrow_mut().execute(effect)
@@ -1563,8 +1603,9 @@ impl Engine {
                 &mut self.database.variables,
                 runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -1589,6 +1630,16 @@ impl Engine {
                 }
             };
             let name = path.as_os_str().as_bytes();
+            crate::debug::reader(
+                &self.output,
+                rmake_core::diagnostic::ReaderEvent::Reading {
+                    name,
+                    search: true,
+                    optional: true,
+                    no_default_goal: true,
+                    no_tilde: false,
+                },
+            );
             self.database.file_records.insert(name);
             let file = match self.include_search.borrow().read(name) {
                 Ok(file) => file,
@@ -1630,8 +1681,9 @@ impl Engine {
                 name,
                 runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -1709,8 +1761,9 @@ impl Engine {
                 None,
                 runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -1822,6 +1875,9 @@ impl Engine {
                         return 2;
                     }
                 }
+                if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
+                    plan.debug_restart(restarts);
+                }
                 if crate::native::has_modules() {
                     let error =
                         plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
@@ -1910,6 +1966,7 @@ impl Engine {
                 }
             }
 
+            crate::debug::emit(&self.output, crate::debug::Event::Reading);
             let entry_no_rules = self.options.no_rules;
             let entry_no_variables = self.options.no_variables;
             self.flag_entry_jobs = self.options.jobs;
@@ -1943,6 +2000,16 @@ impl Engine {
                 self.database
                     .file_records
                     .insert(file.as_os_str().as_bytes());
+                crate::debug::reader(
+                    &self.output,
+                    rmake_core::diagnostic::ReaderEvent::Reading {
+                        name: file.as_os_str().as_bytes(),
+                        search: false,
+                        optional: false,
+                        no_default_goal: false,
+                        no_tilde: false,
+                    },
+                );
                 let input = if file == Path::new("-") {
                     if let Some(saved) = &stdin_bytes {
                         Ok(rmake_core::reader::Input::Bytes(Vec::clone(saved)))
@@ -2004,8 +2071,9 @@ impl Engine {
                     file.as_os_str().as_bytes(),
                     runtime_context(
                         None,
-                        &mut WarningOutput::new(
-                            &mut |event| emit_output(&self.output, &self.program, event),
+                        &mut RuntimeOutput::new(
+                            &self.output,
+                            &self.program,
                             &self.flag_state.warn_undefined,
                         ),
                     )
@@ -2075,8 +2143,9 @@ impl Engine {
                 },
                 runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -2184,8 +2253,9 @@ impl Engine {
                 self.intermediate_policy.all_secondary,
                 &mut runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -2219,8 +2289,9 @@ impl Engine {
                 !self.options.no_rules,
                 &mut runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -2232,8 +2303,9 @@ impl Engine {
             if let Err(error) = self.database.snap_implicit_extra_prerequisites(
                 &mut runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -2308,6 +2380,7 @@ impl Engine {
             if self.interrupt.is_some() {
                 return 2;
             }
+            crate::debug::emit(&self.output, crate::debug::Event::UpdatingMakefiles);
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
             let modes = (
@@ -2322,7 +2395,10 @@ impl Engine {
             if restarts > 0 {
                 self.options.always = false;
             }
-            let trace_before_remake = self.flag_state.trace_enabled.replace(false);
+            let debug_before_remake = self.output.debug_mask();
+            if !debug_before_remake.has(crate::debug::Mask::MAKEFILES) {
+                self.output.set_debug_mask(crate::debug::Mask::NONE);
+            }
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
@@ -2403,7 +2479,7 @@ impl Engine {
                 self.options.touch,
                 self.options.always,
             ) = modes;
-            self.flag_state.trace_enabled.set(trace_before_remake);
+            self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
             if self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
@@ -2432,6 +2508,7 @@ impl Engine {
             }
             break;
         }
+        crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
@@ -2462,8 +2539,9 @@ impl Engine {
                             &goal,
                             &mut runtime_context(
                                 None,
-                                &mut WarningOutput::new(
-                                    &mut |event| emit_output(&self.output, &self.program, event),
+                                &mut RuntimeOutput::new(
+                                    &self.output,
+                                    &self.program,
                                     &self.flag_state.warn_undefined,
                                 ),
                             )
@@ -4283,18 +4361,32 @@ impl Engine {
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
     fn resolve_implicit(&mut self, target: &[u8]) -> bool {
+        self.resolve_implicit_at(target, usize::from(self.remaking))
+    }
+    fn resolve_implicit_at(&mut self, target: &[u8], debug_depth: usize) -> bool {
         let existing = match self.database.rules.get(target) {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
             rule => rule.cloned(),
         };
         let mut budget = 100_000;
-        let plan = match self.implicit_plan(target, &mut Vec::new(), false, &mut budget) {
-            Ok(plan) => plan,
-            Err(error) => {
-                self.expansion_error(None, &error);
-                return false;
-            }
-        };
+        crate::debug::emit(
+            &self.output,
+            crate::debug::Event::Looking(target, debug_depth + 1),
+        );
+        let plan =
+            match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
+                Ok(plan) => plan,
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    return false;
+                }
+            };
+        if plan.is_none() {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::NoRule(target, debug_depth + 1),
+            );
+        }
         if plan.is_none() && budget == 0 {
             self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
             return false;
@@ -4398,6 +4490,7 @@ impl Engine {
         active: &mut Vec<usize>,
         compatibility: bool,
         budget: &mut usize,
+        debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         if active.len() >= 128 {
             *budget = 0;
@@ -4406,9 +4499,14 @@ impl Engine {
             return Ok(None);
         }
         for archive_search in [false, true] {
-            if let Some(plan) =
-                self.implicit_search(target, active, compatibility, archive_search, budget)?
-            {
+            if let Some(plan) = self.implicit_search(
+                target,
+                active,
+                compatibility,
+                archive_search,
+                budget,
+                debug_depth,
+            )? {
                 return Ok(Some(plan));
             }
         }
@@ -4422,6 +4520,7 @@ impl Engine {
         compatibility: bool,
         archive_search: bool,
         budget: &mut usize,
+        debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         let candidates = if archive_search {
             self.database
@@ -4446,6 +4545,21 @@ impl Engine {
                     || (intermediate && candidate.match_anything && !candidate.rule.terminal)
                 {
                     continue;
+                }
+                let debug_label = self
+                    .output
+                    .debug_mask()
+                    .has(crate::debug::Mask::IMPLICIT)
+                    .then(|| crate::debug::rule_label(&self.database, candidate.identity));
+                if let Some(label) = &debug_label {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::TryingRule(
+                            label,
+                            candidate.rule.stem.as_deref().unwrap_or_default(),
+                            debug_depth + active.len() + 2,
+                        ),
+                    );
                 }
                 let mut plan = Vec::new();
                 let mut explicit_names = Vec::new();
@@ -4540,6 +4654,13 @@ impl Engine {
                             {
                                 intermediate_names.push(name.clone());
                             }
+                            crate::debug::emit(
+                                &self.output,
+                                crate::debug::Event::TryingPrerequisite(
+                                    name,
+                                    debug_depth + active.len() + 1,
+                                ),
+                            );
                             let explicit = (self.has_file_record(name)
                                 && self.record_is_target(name))
                                 || self.database.rules.get(target).is_some_and(|rule| {
@@ -4550,6 +4671,15 @@ impl Engine {
                                             })
                                     })
                                 });
+                            if explicit {
+                                crate::debug::emit(
+                                    &self.output,
+                                    crate::debug::Event::OughtToExist(
+                                        name,
+                                        debug_depth + active.len() + 1,
+                                    ),
+                                );
+                            }
                             if name != b".WAIT" && !explicit && !self.implicit_vpath_exists(name)? {
                                 if self.implicit_known_file(name) {
                                     if compatibility {
@@ -4559,9 +4689,13 @@ impl Engine {
                                     compatibility_needed = true;
                                 }
                                 if chain {
-                                    if let Some(child) =
-                                        self.implicit_plan(name, active, compatibility, budget)?
-                                    {
+                                    if let Some(child) = self.implicit_plan(
+                                        name,
+                                        active,
+                                        compatibility,
+                                        budget,
+                                        debug_depth,
+                                    )? {
                                         plan.extend(child);
                                     } else {
                                         if !self.implicit_known_file(name) {
@@ -4582,6 +4716,16 @@ impl Engine {
                 }
                 active.pop();
                 if valid {
+                    if let Some(label) = &debug_label {
+                        crate::debug::emit(
+                            &self.output,
+                            crate::debug::Event::FoundRule(
+                                label,
+                                target,
+                                debug_depth + active.len() + 1,
+                            ),
+                        );
+                    }
                     let mut selected = candidate.rule.clone();
                     selected.dependencies = dependencies;
                     selected.secondary = None;
@@ -4598,7 +4742,7 @@ impl Engine {
             }
         }
         if compatibility_needed && !compatibility {
-            return self.implicit_search(target, active, true, archive_search, budget);
+            return self.implicit_search(target, active, true, archive_search, budget, debug_depth);
         }
         Ok(None)
     }
@@ -4614,8 +4758,9 @@ impl Engine {
                 target,
                 runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -4677,8 +4822,9 @@ impl Engine {
                 name,
                 &mut runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -4813,7 +4959,6 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
             let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
                 let result = crate::shell::run(
                     request,
@@ -4828,7 +4973,7 @@ impl Engine {
             let mut includes = |name: &[u8]| self.include_search.borrow().read(name);
             let mut makeflags = self.flag_state.receiver();
             let mut diagnostic_output =
-                WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
+                RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
             let mut context = runtime_context(None, &mut diagnostic_output)
                 .with_makeflags(&mut makeflags)
                 .with_filesystem(&mut filesystem)
@@ -5054,6 +5199,10 @@ impl Engine {
             return self.resume_rule(target);
         }
         if let Some(mut outcome) = self.done.get(target).copied() {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Already(target, depth + usize::from(self.remaking)),
+            );
             if outcome.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(target).is_some()
             {
@@ -5105,6 +5254,11 @@ impl Engine {
                 ..Outcome::default()
             };
         }
+        let debug_depth = depth + usize::from(self.remaking);
+        crate::debug::emit(
+            &self.output,
+            crate::debug::Event::Considering(target, debug_depth),
+        );
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
         self.scope_parents
@@ -5130,6 +5284,12 @@ impl Engine {
             }
         };
         let mut before = resolved.as_ref().and_then(|(_, time)| *time);
+        if before.is_none() {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Missing(target, debug_depth + 1),
+            );
+        }
         let double_colon = self
             .database
             .rules
@@ -5140,7 +5300,7 @@ impl Engine {
         } else {
             self.comparison_time(target, before)
         };
-        if !phony && !self.resolve_implicit(target) {
+        if !phony && !self.resolve_implicit_at(target, debug_depth) {
             return Outcome {
                 failed: true,
                 fatal: true,
@@ -5168,7 +5328,15 @@ impl Engine {
             .cloned()
             .or_else(|| phony.then(Rule::default))
         else {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Finished(target, debug_depth),
+            );
             if before.is_some() {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::NoNeed(target, debug_depth),
+                );
                 let result = Outcome {
                     time: before,
                     ..Outcome::default()
@@ -5176,6 +5344,10 @@ impl Engine {
                 self.done.insert(target.to_vec(), result);
                 return result;
             }
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::MustRemake(target, debug_depth),
+            );
             if !self.optional_remake {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent);
@@ -5998,6 +6170,7 @@ impl Engine {
             dropped,
             presentation_drops,
             intermediate_stale,
+            depth,
             ..
         } = state;
         if !self.aliases.is_empty() {
@@ -6099,7 +6272,17 @@ impl Engine {
                 }
             }
         }
-        if stale && !outcome.failed && !outcome.question_outdated {
+        let debug_depth = depth + usize::from(self.remaking);
+        crate::debug::emit(
+            &self.output,
+            crate::debug::Event::Finished(target, debug_depth),
+        );
+        let debug_remake = stale && !outcome.failed && !outcome.question_outdated;
+        if debug_remake {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::MustRemake(target, debug_depth),
+            );
             if let Some(recipes) = &rule.recipes {
                 let normal: Vec<_> = normal
                     .iter()
@@ -6279,6 +6462,20 @@ impl Engine {
                 before
             };
         }
+        if !self.parallel_jobs.contains_key(target) {
+            crate::debug::emit(
+                &self.output,
+                if debug_remake {
+                    if outcome.failed {
+                        crate::debug::Event::Failed(target, debug_depth)
+                    } else {
+                        crate::debug::Event::Remade(target, debug_depth)
+                    }
+                } else {
+                    crate::debug::Event::NoNeed(target, debug_depth)
+                },
+            );
+        }
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);
         if !self.parallel_jobs.contains_key(target) {
@@ -6364,8 +6561,9 @@ impl Engine {
                 &inherited,
                 runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -6567,7 +6765,7 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        if self.flag_state.trace_enabled.get() {
+        if self.output.debug_mask().has(crate::debug::Mask::WHY) {
             let reason = if phony {
                 b"target is .PHONY".to_vec()
             } else if before.is_none() {
@@ -6842,7 +7040,10 @@ impl Engine {
             if self.interrupt.is_some() {
                 return Execution::fatal(ran);
             }
-            if self.options.dry_run || self.flag_state.trace_enabled.get() || !quiet {
+            if self.options.dry_run
+                || self.output.debug_mask().has(crate::debug::Mask::PRINT)
+                || !quiet
+            {
                 self.stdout(echo);
             }
             ran = true;
@@ -6948,8 +7149,9 @@ impl Engine {
                             name,
                             runtime_context(
                                 variable.definition(),
-                                &mut WarningOutput::new(
-                                    &mut |event| emit_output(&self.output, &self.program, event),
+                                &mut RuntimeOutput::new(
+                                    &self.output,
+                                    &self.program,
                                     &self.flag_state.warn_undefined,
                                 ),
                             )

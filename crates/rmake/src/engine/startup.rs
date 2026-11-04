@@ -91,8 +91,7 @@ fn evaluate<T>(
     runtime: &Runtime<'_>,
     operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> Result<T, ExpandError>,
 ) -> Result<T, ExpandError> {
-    let mut emit = |event: Output<'_>| emit_output(runtime.output, runtime.program, event);
-    let mut receiver = WarningOutput::new(&mut emit, runtime.warnings);
+    let mut receiver = RuntimeOutput::new(runtime.output, runtime.program, runtime.warnings);
     operation(
         database,
         runtime_context(None, &mut receiver)

@@ -53,6 +53,7 @@ struct State {
     silent: Cell<bool>,
     changed_directory: Cell<bool>,
     recursive: Cell<bool>,
+    debug: Cell<crate::debug::Mask>,
 }
 
 #[derive(Clone)]
@@ -72,7 +73,14 @@ impl Controller {
             silent: Cell::new(false),
             changed_directory: Cell::new(false),
             recursive: Cell::new(false),
+            debug: Cell::new(crate::debug::Mask::NONE),
         }))
+    }
+    pub fn debug_mask(&self) -> crate::debug::Mask {
+        self.0.debug.get()
+    }
+    pub fn set_debug_mask(&self, mask: crate::debug::Mask) {
+        self.0.debug.set(mask);
     }
     pub fn process_lifetime(&self) -> ProcessOutput {
         ProcessOutput(self.clone())

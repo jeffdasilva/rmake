@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable final v2 debug/native/directory qualification: both selected development/release builds pass 54 debug, 215 native and 40 directory profiles. The immutable preceding-main debug control passes 1 and fails 53. All seven complete reports and coherent source/input/module hashes are retained. Ordinary and full developer acceptance remain separate gates; zero additional ordinary-ledger or safety-exception credit.",
+  "sha256": "3ebe52895426a0408a1118c8c8db9646c38eb21fc56af441f2404e6d035cc847",
+  "raw_sha256": "f0dbed32ea167c65e220169ef9b9a5daf2ccfa051ffb8fa718cedfa671946d52",
+  "raw_bytes": 96765776
+}

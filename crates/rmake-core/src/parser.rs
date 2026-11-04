@@ -577,6 +577,13 @@ impl Database {
         self.implicit_candidates_excluding(target, &[])
     }
 
+    /// Source syntax for an existing implicit candidate; no expansion or search.
+    pub fn implicit_rule_source(&self, identity: usize) -> Option<(&Pattern, &Rule)> {
+        self.implicit_rules
+            .get(identity)
+            .map(|(pattern, rule)| (pattern, rule))
+    }
+
     pub fn implicit_candidates_excluding(
         &self,
         target: &[u8],
@@ -3034,6 +3041,13 @@ impl Database {
                 let optional = pending.optional;
                 if let Some(path) = pending.paths.next() {
                     self.file_records.insert(&path);
+                    context.reader_event(crate::diagnostic::ReaderEvent::Reading {
+                        name: &path,
+                        search: true,
+                        optional,
+                        no_default_goal: self.suppress_default_goal,
+                        no_tilde: true,
+                    });
                     let result = context.read_include(&path).ok_or_else(|| ParseError {
                         unlocated: false,
                         location: location.clone(),
@@ -3145,6 +3159,7 @@ impl Database {
             // GNU strips one UTF-8 BOM from the first observed logical line,
             // after file-stream reads have already counted its bytes.
             if evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
+                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_ref()));
                 line.bytes.drain(..3);
             }
             *last_line = line.end_line;
@@ -6362,5 +6377,66 @@ mod posix_mode_tests {
                 b"extra"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod reader_event_tests {
+    use super::*;
+    use crate::diagnostic::{IncludedFile, OutputReceiver, ReaderEvent};
+    struct Events(Vec<Vec<u8>>);
+    impl OutputReceiver for Events {
+        fn emit(&mut self, event: Output<'_>) {
+            if let Output::Info(text) = event {
+                self.0.push(text.to_vec());
+            }
+        }
+        fn reader_event(&mut self, event: ReaderEvent<'_>) {
+            self.0.push(match event {
+                ReaderEvent::Reading { name, optional, .. } => [
+                    if optional {
+                        b"optional:".as_slice()
+                    } else {
+                        b"include:"
+                    },
+                    name,
+                ]
+                .concat(),
+                ReaderEvent::Bom(name) => [b"bom:".as_slice(), name].concat(),
+            });
+        }
+    }
+    #[test]
+    fn nested_reader_events_precede_effects_without_replaying_include_or_bom() {
+        let mut database = Database::default();
+        let mut events = Events(Vec::new());
+        let mut reads = 0;
+        database
+            .read_with(
+                b"-include absent.mk\ninclude child.mk\n$(info parent)\n",
+                b"parent.mk",
+                ExpansionContext::with_receiver(None, &mut events).with_includes(&mut |name| {
+                    reads += 1;
+                    if name == b"absent.mk" {
+                        return Err(b"No such file or directory".to_vec());
+                    }
+                    Ok(IncludedFile {
+                        name: name.to_vec(),
+                        input: Input::Bytes(b"\xef\xbb\xbf$(info child)\n".to_vec()),
+                    })
+                }),
+            )
+            .unwrap();
+        assert_eq!(reads, 2);
+        assert_eq!(
+            events.0,
+            [
+                b"optional:absent.mk".to_vec(),
+                b"include:child.mk".to_vec(),
+                b"bom:child.mk".to_vec(),
+                b"child".to_vec(),
+                b"parent".to_vec()
+            ]
+        );
     }
 }

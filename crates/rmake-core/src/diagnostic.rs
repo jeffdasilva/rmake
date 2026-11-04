@@ -78,10 +78,24 @@ pub enum Output<'a> {
     },
 }
 
+/// Borrowed reader observations; hosts choose whether and how to display them.
+#[derive(Clone, Copy, Debug)]
+pub enum ReaderEvent<'a> {
+    Reading {
+        name: &'a [u8],
+        search: bool,
+        optional: bool,
+        no_default_goal: bool,
+        no_tilde: bool,
+    },
+    Bom(&'a [u8]),
+}
+
 /// Output receivers can expose live diagnostic policy without growing every
 /// expansion context. Ordinary closures retain the default quiet policy.
 pub trait OutputReceiver {
     fn emit(&mut self, event: Output<'_>);
+    fn reader_event(&mut self, _event: ReaderEvent<'_>) {}
     fn warns_undefined(&self) -> bool {
         false
     }
@@ -847,6 +861,12 @@ impl<'a> ExpansionContext<'a> {
     pub fn with_includes(mut self, includes: &'a mut IncludeReceiver<'a>) -> Self {
         self.includes = Some(includes);
         self
+    }
+
+    pub fn reader_event(&mut self, event: ReaderEvent<'_>) {
+        if let Some(output) = self.output.as_mut() {
+            output.reader_event(event);
+        }
     }
 
     pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, Vec<u8>>> {
