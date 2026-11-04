@@ -67,6 +67,9 @@ impl Controller {
             self.0.directory.replace(directory.map(<[u8]>::to_vec));
         }
     }
+    pub fn has_directory_trace(&self) -> bool {
+        self.0.directory_traced.get()
+    }
     pub fn import_directory_trace(&self) {
         self.0.directory_traced.set(true);
     }

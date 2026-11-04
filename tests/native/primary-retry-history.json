@@ -1,0 +1,5 @@
+{
+  "sha256": "aa185d71aebdc83ae98b35f75e725a4d5617a3191b3dbb06d6626496073bd3ab",
+  "raw_sha256": "4bffd0f00a99361a799c56fc913b05ef23b9ea53794d0c7e416b4ca256258fe4",
+  "classification": "Original independently modeled primary setup failure and process-exit retry. Both bounded GNU observations match. Zero additional conformance or exception credit."
+}

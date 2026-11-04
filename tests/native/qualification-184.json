@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable corrected 184-model native qualification: both frozen builds184pass and precedingmain184fail. Complete reports plus source/input identity hashes; zero additional ordinary-ledger or exception credit. Full developer and ordinary conformance acceptance remain separate gates.",
+  "sha256": "7d37c3200bc05339992acbc2b5cb5e173f604afc42dfac23e5cb609280237fd1",
+  "raw_sha256": "80f934c08b2490215aedd9b6564ec935c05862613b620933345d85a6df0d79b3",
+  "raw_bytes": 107339345
+}

@@ -101,6 +101,12 @@ switch selections during the existing parse. The runtime-update control uses
 corpus to 26,942 required cases. Timing evidence is mixed; full M3/M6 and general
 performance parity remain open.
 
+[Linux native modules](docs/native-modules.md) now support GNU-compatible shared
+libraries, registered functions, expansion/eval callbacks, module metadata and
+qualified rebuild/finalizer behavior. 184 original compiled module models are
+checked against GNU through `make test-native-modules`. Full native/profile
+acceptance and complete M3/M6 remain open; no general performance parity is claimed.
+
 [Native load reader preparation](docs/load-reader.md) supports empty `load` and
 `-load` requests, complete operand effects and byte-preserving empty setup-symbol
 errors. 324 original cases close 312 preceding mismatches, bringing the corpus

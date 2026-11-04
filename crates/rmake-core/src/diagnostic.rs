@@ -5,11 +5,65 @@
 
 use std::fmt;
 
+/// Source identity preserves the native ABI distinction between NULL and a
+/// non-NULL pointer to an empty filename. Clones share named source bytes.
+#[repr(transparent)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct SourceName(Option<std::sync::Arc<[u8]>>);
+
+impl SourceName {
+    pub const fn null() -> Self {
+        Self(None)
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0.is_none()
+    }
+
+    pub fn as_option(&self) -> Option<&[u8]> {
+        self.0.as_deref()
+    }
+}
+
+impl AsRef<[u8]> for SourceName {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_deref().unwrap_or_default()
+    }
+}
+
+impl std::ops::Deref for SourceName {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl From<std::sync::Arc<[u8]>> for SourceName {
+    fn from(name: std::sync::Arc<[u8]>) -> Self {
+        Self(Some(name))
+    }
+}
+impl From<&[u8]> for SourceName {
+    fn from(name: &[u8]) -> Self {
+        Self(Some(name.into()))
+    }
+}
+impl<const N: usize> From<&[u8; N]> for SourceName {
+    fn from(name: &[u8; N]) -> Self {
+        Self::from(name.as_slice())
+    }
+}
+impl From<Vec<u8>> for SourceName {
+    fn from(name: Vec<u8>) -> Self {
+        Self(Some(name.into()))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Location {
     /// Immutable source spelling shared by locations from the same read.
     /// Sharing bytes does not cache file contents, lookup results or effects.
-    pub file: std::sync::Arc<[u8]>,
+    pub file: SourceName,
     pub line: usize,
 }
 
@@ -261,6 +315,7 @@ pub struct ExpansionContext<'a> {
     shell: Option<&'a mut ShellReceiver<'a>>,
     makeflags: Option<&'a mut dyn MakeflagsReceiver>,
     pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
+    native_runtime: Option<std::rc::Rc<dyn crate::native::NativeRuntime>>,
     makeflags_depth: usize,
     makeflags_terminal: usize,
     makeflags_next_is_definition: bool,
@@ -285,6 +340,7 @@ impl<'a> ExpansionContext<'a> {
             shell: None,
             makeflags: None,
             evaluation_stack: None,
+            native_runtime: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
             makeflags_next_is_definition: false,
@@ -303,6 +359,7 @@ impl<'a> ExpansionContext<'a> {
             shell: None,
             makeflags: None,
             evaluation_stack: None,
+            native_runtime: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
             makeflags_next_is_definition: false,
@@ -313,6 +370,26 @@ impl<'a> ExpansionContext<'a> {
     pub fn with_evaluation_stack(mut self, stack: Option<&'a dyn EvaluationStack>) -> Self {
         self.evaluation_stack = stack;
         self
+    }
+
+    pub fn with_native_runtime(
+        mut self,
+        runtime: std::rc::Rc<dyn crate::native::NativeRuntime>,
+    ) -> Self {
+        self.native_runtime = Some(runtime);
+        self
+    }
+
+    pub fn native_runtime(&self) -> Option<std::rc::Rc<dyn crate::native::NativeRuntime>> {
+        self.native_runtime.clone()
+    }
+
+    /// Classification returns an owned registration without cloning its runtime.
+    pub fn lookup_native_function(
+        &self,
+        name: &[u8],
+    ) -> Option<std::rc::Rc<crate::native::NativeFunction>> {
+        self.native_runtime.as_ref()?.lookup(name)
     }
 
     pub fn with_makeflags(mut self, receiver: &'a mut dyn MakeflagsReceiver) -> Self {
@@ -842,6 +919,7 @@ impl<'a> ExpansionContext<'a> {
                 None => None,
             },
             evaluation_stack: self.evaluation_stack,
+            native_runtime: self.native_runtime.clone(),
             makeflags_depth: self.makeflags_depth,
             makeflags_terminal: self.makeflags_terminal,
             makeflags_next_is_definition: self.makeflags_next_is_definition,
@@ -983,5 +1061,43 @@ mod flag_filename_tests {
                     .any(|s| s == b"AFTER_HOME")
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod source_name_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn null_and_empty_sources_keep_distinct_provenance_without_location_growth() {
+        let absent = SourceName::null();
+        let empty = SourceName::from(b"".as_slice());
+        assert_ne!(absent, empty);
+        assert!(absent.is_null());
+        assert!(!empty.is_null());
+        assert_eq!(absent.as_ref(), empty.as_ref());
+        assert_eq!(absent.as_option(), None);
+        assert_eq!(empty.as_option(), Some(b"".as_slice()));
+        assert_eq!(absent.clone(), absent);
+        assert_eq!(empty.clone(), empty);
+        assert_eq!(
+            std::mem::size_of::<SourceName>(),
+            std::mem::size_of::<Arc<[u8]>>()
+        );
+        assert_eq!(
+            std::mem::size_of::<Location>(),
+            std::mem::size_of::<Arc<[u8]>>() + std::mem::size_of::<usize>()
+        );
+    }
+
+    #[test]
+    fn named_sources_share_owned_byte_storage_including_non_utf8() {
+        let bytes: Arc<[u8]> = b"source\xff.mk".as_slice().into();
+        let name = SourceName::from(bytes.clone());
+        let copied = name.clone();
+        assert!(Arc::ptr_eq(name.0.as_ref().unwrap(), &bytes));
+        assert!(Arc::ptr_eq(copied.0.as_ref().unwrap(), &bytes));
+        assert_eq!(copied.as_option(), Some(b"source\xff.mk".as_slice()));
     }
 }

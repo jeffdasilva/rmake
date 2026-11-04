@@ -222,14 +222,12 @@ fn secondary_automatic(
 }
 
 fn location_prefix(location: &Location) -> Vec<u8> {
-    let mut bytes = if location.file.is_empty() {
+    let mut bytes = if location.file.is_null() {
         return b"<builtin>: ".to_vec();
     } else {
         location.file.to_vec()
     };
-    if location.line != 0 {
-        bytes.extend_from_slice(format!(":{}", location.line).as_bytes());
-    }
+    bytes.extend_from_slice(format!(":{}", location.line).as_bytes());
     bytes.extend_from_slice(b": ");
     bytes
 }
@@ -424,15 +422,25 @@ fn runtime_context<'a>(
     output: &'a mut dyn OutputReceiver,
 ) -> ExpansionContext<'a> {
     ExpansionContext::with_receiver(location, output)
+        .with_native_runtime(crate::native::current())
         .with_evaluation_stack(rmake_linux::evaluation::adapter())
         .with_cancellation(rmake_linux::signals::cancellation())
 }
 
 fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
+    if matches!(output, Output::Info(_))
+        && controller.current().is_none()
+        && rmake_linux::native::stdout_closed()
+    {
+        return;
+    }
+    if crate::native::has_modules() && controller.current().is_none() {
+        let _ = rmake_linux::native::flush_stream(matches!(output, Output::Warning { .. }));
+    }
     match output {
         Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
         Output::Warning { location, message } => {
-            if let Some(location) = location.filter(|location| !location.file.is_empty()) {
+            if let Some(location) = location.filter(|location| !location.file.is_null()) {
                 controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
             } else {
                 controller.write_parts(true, &[program, b": ", message, b"\n"]);
@@ -740,7 +748,7 @@ impl StartupError {
         Self {
             location: error
                 .diagnostic_location(None)
-                .filter(|location| !location.file.is_empty())
+                .filter(|location| !location.file.is_null())
                 .cloned(),
             message: error.diagnostic(),
             version: false,
@@ -1223,6 +1231,106 @@ impl Engine {
         result
     }
 
+    fn native_module_operation(
+        &mut self,
+        name: &[u8],
+        location: Option<&Location>,
+        reload: bool,
+    ) -> Result<bool, ExpandError> {
+        let result = {
+            let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
+            let mut output = WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
+            let mut flags = self.flag_state.receiver();
+            let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+                self.filesystem.borrow_mut().execute(effect)
+            };
+            let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+                let result = crate::shell::run(
+                    request,
+                    &self.program,
+                    self.makelevel,
+                    &self.output,
+                    self.jobserver.as_ref(),
+                );
+                self.filesystem.borrow_mut().child_completed();
+                result
+            };
+            let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+            let mut context = runtime_context(location, &mut output)
+                .with_makeflags(&mut flags)
+                .with_filesystem(&mut filesystem)
+                .with_shell(&mut shell)
+                .with_includes(&mut include);
+            if reload {
+                self.database
+                    .load_native_with(
+                        name,
+                        false,
+                        location.expect("module load location"),
+                        &mut context,
+                    )
+                    .map(|_| true)
+            } else {
+                self.database.unload_native_with(name, &mut context)
+            }
+        };
+        if let Some(options) = self.flag_state.take() {
+            self.options = options;
+        }
+        result
+    }
+
+    pub fn prepare_native_exit(&mut self) {
+        // Keep semantic state alive for libc finalizers, while releasing the
+        // scheduler resources normally released when the engine is dropped.
+        self.wait_all_jobs();
+        self.parallel_jobs = ParallelJobs::default();
+        self.load_waiting.clear();
+        self.jobserver.take();
+    }
+
+    pub fn native_exit(&mut self, mut status: u8) -> u8 {
+        self.output.process_lifetime().finish();
+        loop {
+            let result = {
+                let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
+                let mut output = WarningOutput::new(&mut emit, &self.flag_state.warn_undefined);
+                let mut flags = self.flag_state.receiver();
+                let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+                    self.filesystem.borrow_mut().execute(effect)
+                };
+                let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+                    let result = crate::shell::run(
+                        request,
+                        &self.program,
+                        self.makelevel,
+                        &self.output,
+                        self.jobserver.as_ref(),
+                    );
+                    self.filesystem.borrow_mut().child_completed();
+                    result
+                };
+                let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+                let mut context = runtime_context(None, &mut output)
+                    .with_makeflags(&mut flags)
+                    .with_filesystem(&mut filesystem)
+                    .with_shell(&mut shell)
+                    .with_includes(&mut include);
+                self.database.terminate_native_with(status, &mut context)
+            };
+            match result {
+                Ok(()) => return status,
+                Err(error) => {
+                    self.expansion_error(None, &error);
+                    status = 2;
+                    if !crate::native::can_retry_exit() {
+                        return status;
+                    }
+                }
+            }
+        }
+    }
+
     fn show_makefile_error(&self) {
         if let Some((location, message)) = self.makefile_error.borrow_mut().take() {
             emit_output(
@@ -1256,7 +1364,7 @@ impl Engine {
         let mut shutdown = self.shutdown.get();
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
-        if let Some(location) = location.filter(|location| !location.file.is_empty()) {
+        if let Some(location) = location.filter(|location| !location.file.is_null()) {
             self.output.write_parts(
                 true,
                 &[&location_prefix(location), b"*** ", message, b".  Stop.\n"],
@@ -1420,7 +1528,7 @@ impl Engine {
         Ok(found)
     }
 
-    pub fn run(mut self) -> u8 {
+    pub fn run_retained(&mut self) -> u8 {
         let mut status = self.run_inner();
         if self.interrupt.is_none() && rmake_linux::signals::pending().is_some() {
             self.observe_interrupt();
@@ -1553,6 +1661,11 @@ impl Engine {
             if iterations > 0 {
                 let plan = self.initial_plan.take().expect("initial invocation");
                 let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
+                let inherited_jobserver = self
+                    .jobserver
+                    .as_ref()
+                    .filter(|server| server.owned_slots().is_none())
+                    .cloned();
                 self.jobserver.take();
                 self.output.select(None);
                 self.output.clear();
@@ -1579,6 +1692,20 @@ impl Engine {
                         }
                         return 2;
                     }
+                }
+                if crate::native::has_modules() {
+                    let error =
+                        plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
+                    self.fatal(
+                        None,
+                        [
+                            b"re-executing make: ".as_slice(),
+                            os_error(&error).as_bytes(),
+                        ]
+                        .concat()
+                        .as_slice(),
+                    );
+                    return 2;
                 }
                 let restart_program = plan.program.clone();
                 let restart_invocation = plan.invocation.clone();
@@ -2075,6 +2202,11 @@ impl Engine {
                 {
                     continue;
                 }
+                // Global symbol lookup can load a logical module name whose
+                // file is absent. Loader success does not make that file exist.
+                if self.database.loaded_modules.contains_key(&makefile.name) {
+                    makefile.missing = self.modified(&makefile.name).is_none();
+                }
                 let promoted_required =
                     makefile.optional && required_names.contains(&makefile.name);
                 if promoted_required {
@@ -2143,6 +2275,13 @@ impl Engine {
             if failed {
                 self.remove_intermediates();
                 return 2;
+            }
+            for module in crate::native::unloaded() {
+                let location = self.database.loaded_modules.get(&module).cloned();
+                if let Err(error) = self.native_module_operation(&module, location.as_ref(), true) {
+                    self.expansion_error(location.as_ref(), &error);
+                    return 2;
+                }
             }
             break;
         }
@@ -6167,6 +6306,7 @@ impl Engine {
                 bytes: script.bytes,
                 location: first.location.clone(),
                 prefix: first.prefix,
+                builtin: first.builtin,
             }];
             (combined.as_slice(), script.has_commands, script.recursive)
         } else {
@@ -6199,6 +6339,12 @@ impl Engine {
             } else {
                 Execution::success(false)
             };
+        }
+        if self.database.loaded_modules.contains_key(target)
+            && let Err(error) = self.native_module_operation(target, None, false)
+        {
+            self.expansion_error(recipes.first().map(|recipe| &recipe.location), &error);
+            return Execution::fatal(false);
         }
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
@@ -6756,6 +6902,9 @@ impl Engine {
                     if let Some(buffer) = &output {
                         buffer.configure_child(&mut command)?;
                     }
+                    if crate::native::has_modules() {
+                        rmake_linux::native::flush_standard_streams()?;
+                    }
                     rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
                 },
             );
@@ -7186,6 +7335,32 @@ pub(crate) fn launch_child<T>(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_source_prefixes_keep_null_empty_and_literal_builtin_distinct() {
+        use rmake_core::diagnostic::SourceName;
+        assert_eq!(
+            super::location_prefix(&Location {
+                file: SourceName::null(),
+                line: 0
+            }),
+            b"<builtin>: "
+        );
+        assert_eq!(
+            super::location_prefix(&Location {
+                file: b"".as_slice().into(),
+                line: 19
+            }),
+            b":19: "
+        );
+        assert_eq!(
+            super::location_prefix(&Location {
+                file: b"<builtin>".as_slice().into(),
+                line: 0
+            }),
+            b"<builtin>:0: "
+        );
+    }
+
     use super::*;
     use rmake_core::variables::Flavor;
 

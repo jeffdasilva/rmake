@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
+.PHONY: test-native-modules help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
 
 PYTHON ?= python3
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -24,6 +24,7 @@ GRAPH_SEED ?= 44109
 GRAPH_CASES ?= 100
 GRAPH_NODES ?= 8
 PROGRESS_REPEAT ?= 40
+NATIVE_CASE ?=
 SIGNAL_CASE ?=
 SIGNAL_REPEAT ?= 3
 SIGNAL_UNSTAGED ?=
@@ -90,6 +91,7 @@ help:
 		'  test-output-sync Compare grouping, mutexes and mixed recursive output' \
 		'  test-load       Compare controlled Linux runnable-load and fallback profiles' \
 		'  test-jobserver  Compare mixed GNU/rmake FIFO and pipe jobserver trees' \
+		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  m5-acceptance  Run combined development and optimized runtime gates' \
 		'  m4-acceptance  Run development and optimized rule-resolution gates' \
 		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
@@ -215,6 +217,7 @@ test-include-stat: build oracle-verify
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIAGNOSTIC_CASE=message-204-child-output-order test-diagnostics
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FILESYSTEM_CASE=close-eio-write test-filesystem
@@ -242,6 +245,7 @@ test-m5-release: test-m4-release
 
 test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/nested_short_proposal.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/nested-short-proposal/release.json
 	$(PYTHON) tools/shuffle_modes.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shuffle-modes/release.json
@@ -259,6 +263,9 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/archive_times.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	+$(MAKE) --no-print-directory "CANDIDATE=$(M4_RELEASE)" test-selfhost test-graph-progress
 
+
+test-native-modules: build oracle-verify
+	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native/development.json $(if $(NATIVE_CASE),--case "$(NATIVE_CASE)")
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -332,9 +339,9 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-native-modules test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-safety test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
 ci: check test-selfhost
 

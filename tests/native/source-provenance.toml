@@ -1,0 +1,896 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+# Independently authored source provenance models, qualified against two GNU runs.
+schema_version = 1
+
+[[models]]
+id = "native-source-floc-implicit-1"
+mode = "floc"
+kind = "implicit"
+line = 1
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a4e554c4c3a310a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "implicit"
+"PROV_LINE" = "1"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-empty-19"
+mode = "floc"
+kind = "empty"
+line = 19
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a454d5054593a31390a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-empty-0"
+mode = "floc"
+kind = "empty"
+line = 0
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a454d5054593a300a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-null-19"
+mode = "floc"
+kind = "null"
+line = 19
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a4e554c4c3a31390a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "null"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-null-0"
+mode = "floc"
+kind = "null"
+line = 0
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a4e554c4c3a300a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "null"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-named-19"
+mode = "floc"
+kind = "named"
+line = 19
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a6f726967696e2e6d6b3a31390a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "named"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-named-0"
+mode = "floc"
+kind = "named"
+line = 0
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a6f726967696e2e6d6b3a300a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "named"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-builtin-19"
+mode = "floc"
+kind = "builtin"
+line = 19
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a3c6275696c74696e3e3a31390a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-floc-builtin-0"
+mode = "floc"
+kind = "builtin"
+line = 0
+modules = ["provenance_driver.so", "prov_probe.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a44544f520a53455455503a3c6275696c74696e3e3a300a41465445520a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "floc"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-warning-null-0"
+mode = "warning"
+kind = "null"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "null"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6d616b653a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-null-19"
+mode = "warning"
+kind = "null"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "null"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6d616b653a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-empty-0"
+mode = "warning"
+kind = "empty"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "3a303a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-empty-19"
+mode = "warning"
+kind = "empty"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "3a31393a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-named-0"
+mode = "warning"
+kind = "named"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "named"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6f726967696e2e6d6b3a303a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-named-19"
+mode = "warning"
+kind = "named"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "named"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6f726967696e2e6d6b3a31393a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-builtin-0"
+mode = "warning"
+kind = "builtin"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "3c6275696c74696e3e3a303a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-warning-builtin-19"
+mode = "warning"
+kind = "builtin"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4556414c0a524541440a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "warning"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "3c6275696c74696e3e3a31393a206576616c2d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-null-0"
+mode = "recipe"
+kind = "null"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "null"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "6d616b653a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-null-19"
+mode = "recipe"
+kind = "null"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "null"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "6d616b653a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-empty-0"
+mode = "recipe"
+kind = "empty"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "3a303a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-empty-19"
+mode = "recipe"
+kind = "empty"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "3a31393a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-named-0"
+mode = "recipe"
+kind = "named"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "named"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "6f726967696e2e6d6b3a303a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-named-19"
+mode = "recipe"
+kind = "named"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "named"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "6f726967696e2e6d6b3a31393a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-builtin-0"
+mode = "recipe"
+kind = "builtin"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "3c6275696c74696e3e3a303a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-recipe-builtin-19"
+mode = "recipe"
+kind = "builtin"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a524541440a5245434950450a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e44454641554c545f474f414c203a3d206c6174650a2e50484f4e593a206c6174650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "recipe"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "52554e0a"
+"stderr_hex" = "3c6275696c74696e3e3a31393a207265636970652d7761726e0a"
+
+[[models]]
+id = "native-source-include-null-19"
+mode = "include"
+kind = "null"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4245464f52450a4348494c440a41465445520a524541440a"
+
+[models.files]
+"child.mk" = "242866696c65203e3e7365656e2c4348494c44290a24287761726e696e67206368696c642d7761726e290a"
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "include"
+"PROV_KIND" = "null"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6368696c642e6d6b3a323a206368696c642d7761726e0a6d616b653a20726573746f7265642d7761726e0a"
+
+[[models]]
+id = "native-source-include-empty-19"
+mode = "include"
+kind = "empty"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4245464f52450a4348494c440a41465445520a524541440a"
+
+[models.files]
+"child.mk" = "242866696c65203e3e7365656e2c4348494c44290a24287761726e696e67206368696c642d7761726e290a"
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "include"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6368696c642e6d6b3a323a206368696c642d7761726e0a3a31393a20726573746f7265642d7761726e0a"
+
+[[models]]
+id = "native-source-include-named-19"
+mode = "include"
+kind = "named"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4245464f52450a4348494c440a41465445520a524541440a"
+
+[models.files]
+"child.mk" = "242866696c65203e3e7365656e2c4348494c44290a24287761726e696e67206368696c642d7761726e290a"
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "include"
+"PROV_KIND" = "named"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6368696c642e6d6b3a323a206368696c642d7761726e0a6f726967696e2e6d6b3a31393a20726573746f7265642d7761726e0a"
+
+[[models]]
+id = "native-source-include-builtin-19"
+mode = "include"
+kind = "builtin"
+line = 19
+modules = ["provenance_driver.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a4245464f52450a4348494c440a41465445520a524541440a"
+
+[models.files]
+"child.mk" = "242866696c65203e3e7365656e2c4348494c44290a24287761726e696e67206368696c642d7761726e290a"
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "include"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = "6368696c642e6d6b3a323a206368696c642d7761726e0a3c6275696c74696e3e3a31393a20726573746f7265642d7761726e0a"
+
+[[models]]
+id = "native-source-reload-null-19"
+mode = "reload"
+kind = "null"
+line = 19
+modules = ["provenance_driver.so", "prov_reload.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a53455455503a4e554c4c3a31390a524541440a44524f500a4255494c440a53455455503a4e554c4c3a31390a44524f500a"
+
+[models.files]
+"Makefile" = "2e44454641554c545f474f414c203a3d20616c6c0a6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c20464f5243450a616c6c3a3b403a0a70726f765f72656c6f61642e736f3a20464f5243450a0940242866696c65203e3e7365656e2c4255494c44293a0a464f5243453a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "reload"
+"PROV_KIND" = "null"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-reload-empty-19"
+mode = "reload"
+kind = "empty"
+line = 19
+modules = ["provenance_driver.so", "prov_reload.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a53455455503a454d5054593a31390a524541440a44524f500a4255494c440a53455455503a454d5054593a31390a44524f500a"
+
+[models.files]
+"Makefile" = "2e44454641554c545f474f414c203a3d20616c6c0a6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c20464f5243450a616c6c3a3b403a0a70726f765f72656c6f61642e736f3a20464f5243450a0940242866696c65203e3e7365656e2c4255494c44293a0a464f5243453a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "reload"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-reload-named-19"
+mode = "reload"
+kind = "named"
+line = 19
+modules = ["provenance_driver.so", "prov_reload.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a53455455503a6f726967696e2e6d6b3a31390a524541440a44524f500a4255494c440a53455455503a6f726967696e2e6d6b3a31390a44524f500a"
+
+[models.files]
+"Makefile" = "2e44454641554c545f474f414c203a3d20616c6c0a6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c20464f5243450a616c6c3a3b403a0a70726f765f72656c6f61642e736f3a20464f5243450a0940242866696c65203e3e7365656e2c4255494c44293a0a464f5243453a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "reload"
+"PROV_KIND" = "named"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-reload-builtin-19"
+mode = "reload"
+kind = "builtin"
+line = 19
+modules = ["provenance_driver.so", "prov_reload.so"]
+args = ["-rR", "--no-print-directory"]
+expected_seen = "616e63686f720a53455455503a3c6275696c74696e3e3a31390a524541440a44524f500a4255494c440a53455455503a3c6275696c74696e3e3a31390a44524f500a"
+
+[models.files]
+"Makefile" = "2e44454641554c545f474f414c203a3d20616c6c0a6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c20464f5243450a616c6c3a3b403a0a70726f765f72656c6f61642e736f3a20464f5243450a0940242866696c65203e3e7365656e2c4255494c44293a0a464f5243453a0a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "reload"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "19"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = ""
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-suffix-null-0"
+mode = "suffix"
+kind = "null"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["--no-print-directory", ".c.o"]
+expected_seen = "616e63686f720a524541440a5355464649580a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d720a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "suffix"
+"PROV_KIND" = "null"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "5355464649580a"
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-suffix-empty-0"
+mode = "suffix"
+kind = "empty"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["--no-print-directory", ".c.o"]
+expected_seen = "616e63686f720a524541440a5355464649580a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d720a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "suffix"
+"PROV_KIND" = "empty"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "5355464649580a"
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-suffix-named-0"
+mode = "suffix"
+kind = "named"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["--no-print-directory", ".c.o"]
+expected_seen = "616e63686f720a524541440a5355464649580a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d720a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "suffix"
+"PROV_KIND" = "named"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "5355464649580a"
+"stderr_hex" = ""
+
+[[models]]
+id = "native-source-suffix-builtin-0"
+mode = "suffix"
+kind = "builtin"
+line = 0
+modules = ["provenance_driver.so"]
+args = ["--no-print-directory", ".c.o"]
+expected_seen = "616e63686f720a524541440a5355464649580a"
+
+[models.files]
+"Makefile" = "6c6f61642070726f76656e616e63655f6472697665722e736f0a242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d720a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"PROV_MODE" = "suffix"
+"PROV_KIND" = "builtin"
+"PROV_LINE" = "0"
+
+[models.expected]
+"exit_code" = 0
+"stdout_hex" = "5355464649580a"
+"stderr_hex" = ""

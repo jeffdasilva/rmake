@@ -13,11 +13,7 @@ glob results retain their existing behavior. Preparation of every filename
 finishes before the first module is examined. An empty explicit setup symbol
 is fatal even for `-load`, with the exact prepared filename bytes.
 
-This is the reader-side slice of native loading. A nonempty request that reaches
-shared-library loading still fails explicitly as unsupported. No module is
-opened or executed, no GNU runtime fallback is introduced, and no native ABI,
-function-registration, successful `.LOADED` update, remaking or unload/reload
-compatibility is claimed. Those remain in the [M3/M6 audit](m3-m6-audit.md).
+The initial reader-side change is now followed by the [Linux native runtime](native-modules.md), which loads modules and implements registration, expansion/eval, metadata and qualified lifecycle behavior. The evidence below records the earlier reader slice at its original point in time. Complete M3/M6 acceptance remains open.
 
 ## Original models and retained discoveries
 

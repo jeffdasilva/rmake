@@ -152,6 +152,14 @@ enum Kind<'a> {
     Substitution(Vec<u8>, Vec<u8>),
     Function(Vec<u8>, Vec<Source<'a>>),
     Args(Vec<u8>, Vec<Source<'a>>, usize, Vec<Vec<u8>>),
+    NativeArgs(
+        Rc<crate::native::NativeFunction>,
+        Vec<u8>,
+        Vec<Source<'a>>,
+        usize,
+        Vec<Vec<u8>>,
+        bool,
+    ),
     ArgValue(Vec<u8>, Vec<Source<'a>>, usize, Vec<Vec<u8>>),
     If(Vec<Source<'a>>),
     Boolean(bool, Vec<Source<'a>>, usize),
@@ -183,6 +191,9 @@ impl Kind<'_> {
             }
             Self::Substitution(a, b) => a.capacity() + b.capacity(),
             Self::Args(n, args, _, values) | Self::ArgValue(n, args, _, values) => {
+                n.capacity() + args.capacity() * std::mem::size_of::<Source<'_>>() + vecs(values)
+            }
+            Self::NativeArgs(_, n, args, _, values, _) => {
                 n.capacity() + args.capacity() * std::mem::size_of::<Source<'_>>() + vecs(values)
             }
             Self::Function(n, args) => {
@@ -367,7 +378,7 @@ impl Expansion<'_, '_> {
                         continue;
                     }
                     if matches!(bytes[cursor + 1], b'(' | b'{') {
-                        let (end, next, raw) = expansion_reference_span(bytes, cursor + 1)?;
+                        let (end, next, raw) = self.reference_span(bytes, cursor + 1)?;
                         let source = reader.source.slice(cursor + 2..end);
                         let delimiter = bytes[cursor + 1];
                         reader.cursor = next;
@@ -397,23 +408,39 @@ impl Expansion<'_, '_> {
                 m.job(Kind::Read(reader), depth, nearest)?;
             }
             Kind::Reference(source, delimiter) => {
-                if let Some(end) = source.bytes().iter().position(gnu_whitespace)
-                    && let Some((minimum, maximum)) = arity(&source.bytes()[..end])
-                {
-                    let name = source.bytes()[..end].to_vec();
-                    let start = end + source.bytes()[end..].len()
-                        - trim_function_start(&source.bytes()[end..]).len();
-                    let argument = source.slice(start..source.bytes().len());
-                    let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum)?;
-                    if ranges.len() < minimum && !matches!(name.as_slice(), b"word" | b"wordlist") {
-                        return Err(too_few_arguments(&name, ranges.len()));
+                if let Some(end) = source.bytes().iter().position(gnu_whitespace) {
+                    let name = &source.bytes()[..end];
+                    let builtin = arity(name);
+                    let function = if builtin.is_none() {
+                        self.native_function(name)
+                    } else {
+                        None
+                    };
+                    let shape = builtin
+                        .or_else(|| function.as_ref().map(|f| (0, f.maximum.map(usize::from))));
+                    if let Some((minimum, maximum)) = shape {
+                        let name = name.to_vec();
+                        let start = end + source.bytes()[end..].len()
+                            - trim_function_start(&source.bytes()[end..]).len();
+                        let argument = source.slice(start..source.bytes().len());
+                        let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum)?;
+                        if ranges.len() < minimum
+                            && !matches!(name.as_slice(), b"word" | b"wordlist")
+                        {
+                            return Err(too_few_arguments(&name, ranges.len()));
+                        }
+                        let args = ranges.into_iter().map(|r| argument.slice(r)).collect();
+                        let job = if let Some(function) = function {
+                            Kind::NativeArgs(function, name, args, 0, Vec::new(), false)
+                        } else {
+                            Kind::Function(name, args)
+                        };
+                        m.job(job, depth, nearest)?;
+                        return Ok(());
                     }
-                    let args = ranges.into_iter().map(|r| argument.slice(r)).collect();
-                    m.job(Kind::Function(name, args), depth, nearest)?;
-                } else {
-                    m.job(Kind::Resolve, depth, nearest.clone())?;
-                    m.read(source, depth + 1, nearest)?;
                 }
+                m.job(Kind::Resolve, depth, nearest.clone())?;
+                m.read(source, depth + 1, nearest)?;
             }
             Kind::Resolve => {
                 let name = m.value();
@@ -668,6 +695,54 @@ impl Expansion<'_, '_> {
                 }
                 _ => m.job(Kind::Args(name, args, 0, Vec::new()), depth, nearest)?,
             },
+            Kind::NativeArgs(function, name, args, mut index, mut values, pending) => {
+                if pending {
+                    values.push(m.value());
+                    index += 1;
+                }
+                let storage = name.capacity()
+                    + args.capacity() * std::mem::size_of::<Source<'_>>()
+                    + values.capacity() * std::mem::size_of::<Vec<u8>>()
+                    + values.iter().map(Vec::capacity).sum::<usize>();
+                let mut prepared = if depth >= MAX_DEPTH {
+                    Some(m.extra.reserve(storage)?)
+                } else {
+                    None
+                };
+                if !function.expand_arguments {
+                    for argument in &args {
+                        let value = argument.bytes().to_vec();
+                        if let Some(ticket) = &mut prepared {
+                            ticket.grow(value.capacity() + 2 * std::mem::size_of::<Vec<u8>>())?;
+                        }
+                        values.push(value);
+                    }
+                } else {
+                    while index < args.len() {
+                        if let Some(value) = self.pure_bytes(args[index].bytes()) {
+                            let value = value?;
+                            if let Some(ticket) = &mut prepared {
+                                ticket
+                                    .grow(value.capacity() + 2 * std::mem::size_of::<Vec<u8>>())?;
+                            }
+                            values.push(value);
+                            index += 1;
+                        } else {
+                            let argument = args[index].clone();
+                            drop(prepared);
+                            m.job(
+                                Kind::NativeArgs(function, name, args, index, values, true),
+                                depth,
+                                nearest.clone(),
+                            )?;
+                            m.read(argument, depth + 1, nearest)?;
+                            return Ok(());
+                        }
+                    }
+                }
+                m.values
+                    .push(self.invoke_native(&function, &name, &values)?);
+            }
             Kind::Args(name, args, mut index, mut values) => {
                 let storage = name.capacity()
                     + args.capacity() * std::mem::size_of::<Source<'_>>()
@@ -898,6 +973,13 @@ impl Expansion<'_, '_> {
             } else {
                 m.values.push(self.eager_function(name, &values)?);
             }
+            return Ok(());
+        }
+        if let Some(function) = self.native_function(name) {
+            // call supplies its complete already-expanded argument vector;
+            // the direct-reference comma limit does not apply to this entry.
+            m.values
+                .push(self.invoke_native(&function, name, &expanded[1..])?);
             return Ok(());
         }
         let Some(variable) = self.lookup(name).cloned() else {

@@ -5,8 +5,8 @@
 //! The embedded recipe/variable data was observed from the oracle's public
 //! database output. There is no reference executable at runtime.
 
-use crate::diagnostic::{ExpansionContext, Location, Output};
-use crate::parser::{Database, Dependency, ParseError, Recipe, Rule, assignment};
+use crate::diagnostic::{ExpansionContext, Location, Output, SourceName};
+use crate::parser::{Database, Dependency, ParseError, Rule, assignment};
 use crate::variables::{ExpandError, Origin, Pattern};
 
 const VARIABLES: &[u8] = include_bytes!("../data/default-variables.mk");
@@ -17,11 +17,12 @@ fn builtin_location(rule: &mut Rule) {
     rule.prerequisite_location = None;
     rule.recipe_location = None;
     if let Some(recipes) = &mut rule.recipes {
-        for Recipe { location, .. } in recipes {
-            *location = Location {
-                file: b"<builtin>".as_slice().into(),
+        for recipe in recipes {
+            recipe.location = Location {
+                file: SourceName::null(),
                 line: 0,
             };
+            recipe.builtin = true;
         }
     }
 }
@@ -84,10 +85,7 @@ impl Database {
                 continue;
             };
             let builtin = rule.recipes.as_ref().is_some_and(|recipes| {
-                !recipes.is_empty()
-                    && recipes.iter().all(|recipe| {
-                        recipe.location.line == 0 && recipe.location.file.as_ref() == b"<builtin>"
-                    })
+                !recipes.is_empty() && recipes.iter().all(|recipe| recipe.builtin)
             });
             if builtin {
                 rule.recipes = None;
@@ -260,6 +258,35 @@ mod record_order_tests {
         assert!(db.rules[b".c.o".as_slice()].recipes.is_some());
         assert!(db.rules[b".f.o".as_slice()].recipes.is_none());
         assert!(!db.rules.contains_key(b".p.o".as_slice()));
+    }
+
+    #[test]
+    fn builtin_recipe_origin_is_independent_of_nullable_or_builtin_named_sources() {
+        for file in [
+            SourceName::null(),
+            b"".as_slice().into(),
+            b"<builtin>".as_slice().into(),
+        ] {
+            let mut database = Database::default();
+            database.initialize_builtin_rules().unwrap();
+            assert!(database.rules[b".c.o".as_slice()].recipes.as_ref().unwrap()[0].builtin);
+            assert!(
+                database.rules[b".c.o".as_slice()].recipes.as_ref().unwrap()[0]
+                    .location
+                    .file
+                    .is_null()
+            );
+            let location = Location { file, line: 0 };
+            database
+                .read_evaluated(b".c.o:;@user\n", Some(&location), ExpansionContext::pure())
+                .unwrap();
+            database.remove_builtin_recipes();
+            let recipes = database.rules[b".c.o".as_slice()].recipes.as_ref().unwrap();
+            assert_eq!(recipes[0].bytes, b"@user");
+            assert_eq!(recipes[0].location, location);
+            assert!(!recipes[0].builtin);
+            assert!(!database.rules.contains_key(b".p.o".as_slice()));
+        }
     }
 
     #[test]

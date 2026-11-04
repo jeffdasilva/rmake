@@ -73,10 +73,47 @@ impl Plan {
         }
     }
 
+    /// Native module images must restart with a fresh dynamic-loader namespace.
+    /// Preserve argv and the invocation environment rather than replaying a
+    /// loaded library's constructors or keeping its old static state in process.
+    pub(super) fn exec_restart(
+        &self,
+        count: u32,
+        level: u32,
+        jobserver: Option<&Jobserver>,
+    ) -> io::Error {
+        let mut command = Command::new(&self.invocation);
+        command.arg0(&self.invocation).args(&self.args).env_clear();
+        for (name, value) in &self.environment {
+            if name != "MAKE_RESTARTS" && name != "MAKELEVEL" {
+                command.env(name, value);
+            }
+        }
+        let restart = if self
+            .output
+            .as_ref()
+            .is_some_and(|output| output.has_directory_trace())
+        {
+            format!("-{count}")
+        } else {
+            count.to_string()
+        };
+        command.env("MAKE_RESTARTS", restart);
+        command.env("MAKELEVEL", level.to_string());
+        if let Some(server) = jobserver {
+            server.configure_child(&mut command, true);
+        }
+        if let Err(error) = rmake_linux::native::flush_standard_streams() {
+            return error;
+        }
+        command.exec()
+    }
+
     pub(super) fn decode(
         self: Box<Self>,
         restart: Option<(u32, u32)>,
     ) -> Result<Invocation, InvocationError> {
+        crate::native::reset();
         let output = if let Some(output) = &self.output {
             output.set_mode(crate::output::Mode::None);
             output.set_program(&self.program);
