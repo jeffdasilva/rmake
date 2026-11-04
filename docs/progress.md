@@ -3074,8 +3074,8 @@ text, and implicit labels/rebuild reasons are constructed only when selected.
 Automatic GNU debug headers remain exact; only the explicitly requested version
 boundary has one strictly anchored branding slot.
 
-Both selected frozen builds pass all 54 original debug profiles; preceding main
-passes one and fails 53. The original forty-model history is unchanged. Fourteen
+At this earlier milestone, both then-selected builds passed all 54 debug
+profiles; its preceding main passed one and failed 53. The original forty-model history is unchanged. Fourteen
 independently qualified review boundaries close twelve v1 differences in eval
 header timing, BASIC BOM output, annotations and malformed debug suffixes. All
 raw observations and rejected earlier hypotheses remain retained. Native 215 and
@@ -3084,9 +3084,38 @@ tooling tests pass. The ordinary corpus remains 27,766 required / zero pending
 across 158 families, with the same 32 approved exceptions / 128 cells; the new
 separate profiles earn no additional ordinary or exception credit.
 
-Actual-child JOBS identities/lifetimes, asynchronously remade output, broader
+Actual-child JOBS identities/lifetimes, broader asynchronous traversal,
 implicit chains and default-reader discovery, database output, Guile/GC,
 locale/Linux/resource/native cross-products, integration and complete developer
 flows remain open. [Measurements](benchmarks/debug-output.md) retain their own
 limits and do not establish general speed parity. Persistent caching and complete
 M3/M6 remain open; full frozen local acceptance and exact-head CI remain gates.
+
+
+## M3/M6: controlled BASIC child lifecycle
+
+[Ten original BASIC-child profiles](debug-output.md) bring the debug gate to 64.
+Both C1 builds pass; preceding debug passes 62 and fails two. Queued parent
+revisits now retain the required repeated Missing observations, and serial
+stop-mode failure suppresses the Failed record GNU omits. Serial keep-going
+retains its legitimate Failed record; parallel child completions do not invent
+individual Success/Failed lines. These finite facts do not establish complete
+asynchronous or JOBS identity behavior.
+
+A bounded queued-worker protocol validates the live second child's PID/starttime
+and its eventual disappearance, removes its temporary identity file, and leaves
+exact static streams/effects/full filesystem observations. The original eight
+first/corrected models and two additional keep-going controls are retained
+separately. All earlier 54 data, native 215 and directory 40 models/history stay
+unchanged. New C1 native/directory acceptance awaits the full gate. Formatting,
+Clippy, 576 Rust and 634 tooling tests pass. Ordinary conformance remains 27,766
+required / zero pending across 158 families, with 32 separate approved safety
+exceptions / 128 cells unchanged. No new ordinary/exception credit is assigned.
+
+[Child timing/allocation evidence](benchmarks/debug-children.md) is separate from
+the earlier retained regressions and does not establish broad speedup or GNU
+parity. Actual-child JOBS relationships, broader asynchronous/implicit/default-
+discovery/database diagnostics, Guile/GC, locale/Linux/resource/native
+cross-products, cache correctness, integration and full developer/M3/M6
+acceptance remain open. Frozen full local acceptance and exact-head CI remain
+the merge gates.

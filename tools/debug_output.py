@@ -73,7 +73,7 @@ def _model_file(filename: str) -> list[Model]:
 
 
 def models() -> list[Model]:
-    result = _model_file('models.toml') + _model_file('extension.toml')
+    result = _model_file('models.toml') + _model_file('extension.toml') + _model_file('child.toml')
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
     return result
@@ -233,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
                                   Path(identities['candidate']['path']) if args.candidate is not None else None,
                                   Path(temporary).resolve())
         report['identities'] = identities
-        report['source_hashes'] = {'driver': h.sha256_file(Path(__file__)), 'models': h.sha256_file(SOURCES / 'models.toml'), 'extension': h.sha256_file(SOURCES / 'extension.toml'), 'conformance': h.sha256_file(ROOT / 'tools/conformance.py')}
+        report['source_hashes'] = {'driver': h.sha256_file(Path(__file__)), 'models': h.sha256_file(SOURCES / 'models.toml'), 'extension': h.sha256_file(SOURCES / 'extension.toml'), 'child': h.sha256_file(SOURCES / 'child.toml'), 'conformance': h.sha256_file(ROOT / 'tools/conformance.py')}
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
         report.update(error=str(error), passed=False)

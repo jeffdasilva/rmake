@@ -2,9 +2,11 @@
 
 The application now emits selected GNU-compatible BASIC, VERBOSE, IMPLICIT,
 MAKEFILE, PRINT and WHY output, including `-d`, `--debug` selection and `--trace`
-interactions. The 54 original deterministic profiles pass both frozen builds;
-the immutable preceding main passes one and fails 53. This is a bounded debug
-slice, and complete debug/database behavior and M3/M6 remain open.
+interactions. All 64 deterministic profiles pass both current frozen builds;
+the preceding debug build passes 62 and fails two child-lifecycle cases. The
+earlier 54-profile slice and its one-pass/53-fail directory-build control remain
+immutable historical evidence. This is a bounded debug slice, and complete
+debug/database behavior and M3/M6 remain open.
 
 The application keeps original debug requests in `debug::Requests` separately
 from the effective `debug::Mask`. Unique raw argument values retain byte spelling,
@@ -42,8 +44,9 @@ performance improvement.
 exact ID, including `debug-bare-basic` for the focused self-host flow. Paths come
 only from the predetermined reset workspace and executable alias. All stream
 bytes, status, ordered effects, independent complete filesystem state, GNU repeat
-agreement and process bounds are checked. Controlled graphs exclude dynamic job
-addresses/PIDs. No compiler or native module is needed by these debug fixtures.
+agreement and process bounds are checked. Observed streams and final files exclude
+dynamic job addresses/PIDs. No compiler or native module is needed by these
+debug fixtures.
 The gate is wired into development, optimized and focused self-host flows.
 
 Automatic debug-triggered version headers are exact GNU protocol, including the
@@ -56,9 +59,10 @@ Negative controls reject moved/extra blocks, changed paths, indentation, state,
 headers and boundaries. Ordinary debug headers have no branding exemption, and
 there is no broad stream or job-identity normalization.
 
-[Complete qualification](../tests/debug-output/qualification-v2.json) retains all
-seven final reports: both builds pass debug 54, native 215 and directory 40,
-while the preceding-main debug control passes one and fails 53. The original
+The earlier [54-profile qualification](../tests/debug-output/qualification-v2.json)
+retains seven historical reports: its selected builds passed debug 54, native
+215 and directory 40, while its preceding-main debug control passed one and
+failed 53. The original
 forty-profile [history](../tests/debug-output/history.json) and fourteen-case
 [review extension](../tests/debug-output/extension-history.json) remain separate
 and immutable. The latter closes twelve v1 differences in eval-header timing,
@@ -67,17 +71,44 @@ incorrect predictions, all observations and the original explicit-version raw
 GNU model are preserved. Original fixtures and adapters include no copied or
 translated GNU implementation, headers or tests.
 
+The current [BASIC-child qualification](../tests/debug-output/qualification-children.json)
+retains both C1 builds passing all 64 debug profiles and the preceding debug
+build passing 62 and failing two. Ten new original cases cover serial/parallel
+success, stop-mode and keep-going failures, ignored errors, up-to-date targets
+and a queued three-worker graph. The corrections restore the observed parent
+Missing revisits and omit the serial stop-mode Failed record after a fatal
+child. Serial keep-going retains its legitimate Failed record; parallel failures
+and queued completions do not invent individual Failed/Success records that GNU
+omits. The absence of queued-child Success lines is required behavior in these
+cases, not evidence of an unimplemented feature.
+
+The queued worker protocol forces START-first, START-second, END-first,
+START-third, END-second, END-third. Its third worker verifies the second worker's
+PID and Linux process starttime while that worker still blocks, then waits for
+its completion and disappearance or replacement of that exact identity. The
+sole temporary PID file is removed before final observation. All final output,
+ordered effects and filesystem bytes remain static; there is no job-identity
+normalizer or broader JOBS comparison. Workers and observation groups have
+explicit deadlines and reject leftovers. The eight original first/corrected
+models and two additive keep-going first predictions remain separately retained
+in [child-history.json](../tests/debug-output/child-history.json), including the
+incorrect first serial-failure expectation. All earlier 54 model fingerprints,
+model files and archives remain unchanged.
+
 Formatting, Clippy, 576 Rust tests and 634 tooling tests pass. The existing 215
-native and 40 directory profiles remain unchanged. The ordinary ledger remains
+native and 40 directory models/history remain unchanged; their earlier passing
+qualifications are historical references. This C1 archive qualifies debug only;
+new C1 native/directory acceptance awaits the full gate. The ordinary ledger remains
 27,766 required / zero pending across 158 families; the 32 documented safety
 exceptions / 128 separately gated cells are unchanged. These separate debug
 profiles add no ordinary-ledger or safety-exception credit. Full frozen local
 acceptance and exact-head CI remain merge gates. The separate
-[measurement note](benchmarks/debug-output.md) retains timing/allocation evidence
-and its limits; these compatibility results do not establish general GNU parity.
+[earlier measurement note](benchmarks/debug-output.md) preserves its regressions,
+and the [child-slice measurements](benchmarks/debug-children.md) retain the new
+controls and limits. These compatibility results establish no general GNU parity.
 
 Known open work includes JOBS records for actual children, their PID/address and
-lifetime relationships, and asynchronously completed remake output. The selected
+lifetime relationships, and broader asynchronous traversal diagnostics. The selected
 IMPLICIT and MAKEFILE cases do not establish full implicit-chain, built-in search
 or default-Makefile discovery diagnostics. Database output (`-p`) remains
 unimplemented. Broader recursion, native/debug interactions, stdout/descriptor,
