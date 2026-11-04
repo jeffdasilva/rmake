@@ -118,6 +118,13 @@ incomplete, because the complete compatibility contract extends beyond M4.
 
 ## Milestones and exit criteria
 
+[Pinned project integration](project-integration.md) introduces separately
+required xxHash and zlib profiles with exact GNU2/candidate observations through
+build, no-op, header rebuild and executable smoke. Top-level development,
+optimized and selected self-host flows include them. This initial serial
+project corpus leaves broader project/profile coverage and M3/M6 acceptance
+open; it provides no timing or persistent-cache acceptance.
+
 | Milestone | Deliverables | Exit gate |
 | --- | --- | --- |
 | M0: reference and test foundation | Verified 4.4.1 oracle/profile manifests; documentation/source provenance; isolated runner design; requirement ledger; initial original fixtures; benchmark inputs; pinned Rust/Cargo bootstrap; GPL package metadata; top-level developer commands | The runner compares the oracle against itself, detects injected mismatches, reproduces timestamp/parallel tests, rejects the host's 4.3 as an oracle, and records complete reproducers |

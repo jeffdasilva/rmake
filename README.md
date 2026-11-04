@@ -2,6 +2,11 @@
 
 A Rust implementation of GNU Make, under active development.
 
+[Pinned xxHash and zlib integration](docs/project-integration.md) compares
+complete builds, no-ops, header rebuilds and executable smoke checks in the
+development, optimized and selected self-host flows. Full M3/M6 acceptance
+remains open.
+
 Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
 [jeffdasilva/rmake](https://github.com/jeffdasilva/rmake).
 
