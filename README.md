@@ -103,9 +103,14 @@ performance parity remain open.
 
 [Linux native modules](docs/native-modules.md) now support GNU-compatible shared
 libraries, registered functions, expansion/eval callbacks, module metadata and
-qualified rebuild/finalizer behavior. 184 original compiled module models are
+qualified rebuild/finalizer behavior. 215 original compiled module models are
 checked against GNU through `make test-native-modules`. Full native/profile
 acceptance and complete M3/M6 remain open; no general performance parity is claimed.
+
+[Native startup exits](docs/native-startup-exits.md) retain the actual decoder,
+constructor or restart state for finalizers, preserve C-buffer/banner ordering,
+and restore the OS directory without rewriting `CURDIR`. 31 new original models
+close 27 preceding mismatches; full startup/profile acceptance remains open.
 
 [Native load reader preparation](docs/load-reader.md) supports empty `load` and
 `-load` requests, complete operand effects and byte-preserving empty setup-symbol

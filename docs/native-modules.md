@@ -45,7 +45,7 @@ flush a partial C stdout buffer.
 
 ## Acceptance and remaining work
 
-`make test-native-modules` checks 184 original models. It compiles original C modules into disposable inputs and
+`make test-native-modules` checks 215 original models. It compiles original C modules into disposable inputs and
 checks two GNU runs and the candidate against independently written byte streams,
 exit status, ordered file witnesses and full filesystem snapshots. It rejects
 leftover children, compiler failures and reached limits. `NATIVE_CASE` selects a
@@ -53,9 +53,10 @@ case. Development, optimized and focused self-host flows invoke this gate.
 Historical incorrect predictions and the first candidate's failures remain
 separate, checksum-protected research records under `tests/native`.
 
-This is a supported native runtime slice, not complete M3/M6 acceptance. Initial
-native effects followed by a constructor/CLI failure before an Engine exists
-still need retained finalizer context. Native use with stdin Makefile restarts, interruptions during foreign code that
+This is a supported native runtime slice, not complete M3/M6 acceptance.
+[Startup exit owners](native-startup-exits.md) now retain decoder, constructor
+and restart state for the selected 31 new profiles. Native use with stdin
+Makefile restarts, interruptions during foreign code that
 does not call back into the interpreter,
 complete restart/export/descriptor cross-products, broader callback recursion and
 resource, locale, architecture and unusual nonlocal-control-flow profiles
@@ -72,8 +73,10 @@ size. Eval borrows the existing location while each read frame retains its owned
 source. Builtin recipe ownership has its own marker, so an explicit user source
 named `<builtin>` cannot cause a user suffix recipe to be removed by late `-r`.
 37 original provenance models cover setup locations, immediate/deferred warnings,
-include restoration, unchanged module reloads and user suffix recipes. Both
-selected builds pass all 184 models; the preceding main build differs on all 184.
+include restoration, unchanged module reloads and user suffix recipes. The
+original native-runtime qualification passed all 184 models in both builds;
+its reader-only baseline differed on all 184. Startup-exit qualification later
+extends the current gate to 215 models.
 The initial NULL/empty discovery and incorrect line-number predictions remain
 unchanged historical evidence. The first full gate's two builtin diagnostic
 regressions are retained separately; the corrected builds pass both controls

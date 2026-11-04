@@ -112,8 +112,9 @@ class NativeModuleTests(unittest.TestCase):
 
     def test_original_inventory_covers_native_lifetime_and_fatal_boundaries(self):
         models = n.models()
-        self.assertEqual(len(models), 184)
-        self.assertEqual(len({m.id for m in models}), 184)
+        self.assertEqual(len(models), 215)
+        self.assertEqual(len({m.id for m in models}), 215)
+        self.assertEqual(sum(m.id.startswith('native-startup-') for m in models), 31)
         self.assertEqual(sum(m.id.startswith('native-stdio-') for m in models), 16)
         self.assertEqual(sum(m.id.startswith('native-registration-') for m in models), 41)
         self.assertEqual(sum(m.id.startswith('native-deep-') for m in models), 7)
@@ -128,6 +129,33 @@ class NativeModuleTests(unittest.TestCase):
             if model.id.startswith('native-fatal-worker-'):
                 self.assertEqual(model.seen, b'anchor\nbefore\nworker-start\ncallback-entered\nworker-done\n')
                 self.assertEqual(model.expected['exit_code'], 2)
+
+    def test_startup_exit_witnesses_reject_lost_stale_or_premature_state(self):
+        models = {model.id: model for model in n.startup_exit_models()}
+        checks = (
+            ('native-startup-gnumakeflags-help', lambda seen: seen.split(b'STATE ', 1)[0]),
+            ('native-startup-restart-help', lambda seen: seen.replace(b'PASS=[second]:file', b'PASS=[first]:file')),
+            ('native-startup-restart-bad-sync', lambda seen: seen.replace(b'RESTART=[1]:environment', b'RESTART=[]:undefined')),
+            ('native-startup-cli-version', lambda seen: seen.replace(b'CURDIR=[empty]:undefined', b'CURDIR=[matches]:file')),
+            ('native-startup-gnumakeflags-help-pending', lambda seen: seen.replace(b'PENDING=0', b'PENDING=14')),
+        )
+        for ident, corrupt in checks:
+            model = models[ident]
+            case = replace(self.case, id=ident, args=model.args, environment=model.environment,
+                           expected=model.expected)
+            good = h.Observation(bytes.fromhex(model.expected['stdout_hex']),
+                                 bytes.fromhex(model.expected['stderr_hex']),
+                                 model.expected['exit_code'], None,
+                                 {'work/seen': {'type': 'file', 'content': base64.b64encode(model.seen).decode()}})
+            self.assertTrue(n.assess(model, case, [good] * 3)['passed'], ident)
+            wrong_seen = corrupt(model.seen)
+            self.assertNotEqual(wrong_seen, model.seen, ident)
+            wrong = replace(good, filesystem={'work/seen': {'type': 'file', 'content': base64.b64encode(wrong_seen).decode()}})
+            result = n.assess(model, case, [wrong] * 3)
+            self.assertFalse(result['passed'], ident)
+            self.assertEqual(result['candidate_differences'], [], ident)
+            self.assertEqual(result['expected_errors'], [[], [], []], ident)
+            self.assertEqual(result['seen_matches'], [False, False, False], ident)
 
     def test_retained_initial_wrong_hypotheses_and_source_hashes(self):
         for stem in n.SOURCES.glob('*.json'):

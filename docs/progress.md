@@ -3017,3 +3017,25 @@ result. Shared source ownership saves 3,200/9,600 allocation requests in the
 reference traffic; the final nested controls are roughly 0.8%/2.0% faster than
 the pre-provenance build in this report. Other timings remain mixed, including a
 slower large no-op control. General GNU parity and complete M3/M6 remain open.
+
+
+## M3/M6: native startup exit ownership
+
+[Owned startup exits](native-startup-exits.md) preserve the database and effects
+from the actual decoder, constructor or restart pass, including help/version and
+errors. Finalizers receive that state without effect replay or later defaults.
+Shared banners flush native C output, and directory cleanup restores the original
+OS cwd while preserving database `CURDIR`. Scheduler/output resources finish once.
+
+31 original GNU-qualified profiles close 27 preceding mismatches. Both frozen
+builds pass all 215 native models; the preceding main build passes 188 and fails
+27. Complete wrong hypotheses and qualification reports remain immutable. Five
+new subprocess ownership tests bring Rust coverage to 565; tooling has 613 tests.
+Formatting and Clippy pass. The ordinary corpus stays 27,766 required / zero
+pending across 158 families; approved exceptions stay 32 inputs / 128 cells.
+
+Full frozen local acceptance and exact-head CI remain merge gates. All
+[performance measurements](benchmarks/native-startup-exits.md), including
+regressions and the runtime allocation increase, are retained. Broader startup,
+native/profile/resource/integration/cache acceptance, complete M3/M6 and general
+GNU performance parity remain open.

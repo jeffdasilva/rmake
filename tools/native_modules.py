@@ -141,6 +141,7 @@ def models() -> list[Model]:
     result.extend(final_boundary_models())
     result.extend(deep_models())
     result.extend(source_provenance_models())
+    result.extend(startup_exit_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -405,6 +406,18 @@ def source_provenance_models() -> list[Model]:
                   row['expected'], bytes.fromhex(row['expected_seen']),
                   tuple(modules[name] for name in row['modules']), args=tuple(row['args']),
                   environment=row['environment']) for row in data['models']]
+
+
+
+def startup_exit_models() -> list[Model]:
+    data = tomllib.loads((SOURCES / 'startup-exits.toml').read_text())
+    if data.get('schema_version') != 1:
+        raise h.HarnessError('unsupported startup exit model schema')
+    return [Model(row['id'], {name: bytes.fromhex(value) for name, value in row['files'].items()},
+                  row['expected'], bytes.fromhex(row['expected_seen']),
+                  tuple(Module('startup_probe.c', name) for name in row['modules']),
+                  args=tuple(row['args']), environment=row['environment'])
+            for row in data['models']]
 
 
 def seen_matches(model: Model, observation: h.Observation) -> bool:

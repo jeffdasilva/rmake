@@ -38,7 +38,7 @@ fn main() -> ExitCode {
         .filter(|value| std::os::unix::ffi::OsStrExt::as_bytes(value.as_os_str()).starts_with(b"-"))
         .map(|_| output::Controller::new(output::Mode::None, &program));
     let process_output = output.as_ref().map(output::Controller::process_lifetime);
-    let launch = match engine::Engine::invocation_with_output(
+    let (status, mut native_exit) = match engine::Engine::invocation_with_output(
         args,
         &program,
         &invocation,
@@ -46,17 +46,56 @@ fn main() -> ExitCode {
         std::env::var_os("GNUMAKEFLAGS"),
         output,
     ) {
-        Ok(launch) => launch,
-        Err(error) => {
+        Err(failure) => {
+            let (error, exit) = failure.into_parts();
             engine::emit_invocation_error(&program, error);
-            if let Some(process_output) = &process_output {
-                process_output.finish();
-            }
-            drop(signals);
-            return ExitCode::from(rmake_linux::signals::exit_status(2));
+            (2, exit)
         }
+        Ok(launch) if print_requested_exit(&launch.options) => {
+            (0, launch.into_native_exit(program.clone()))
+        }
+        Ok(launch) => match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
+            Ok(mut engine) => {
+                let status = engine.run_retained();
+                let exit = if crate::native::has_modules() {
+                    Some(Box::new(engine::NativeExit::Engine(Box::new(engine))))
+                } else {
+                    None
+                };
+                (status, exit)
+            }
+            Err(failure) => {
+                let (message, exit) = failure.into_parts();
+                if rmake_linux::signals::pending().is_none() {
+                    let mut stderr = io::stderr().lock();
+                    let _ = stderr.write_all(&message.prefix(&program));
+                    let _ = stderr.write_all(b"*** ");
+                    let _ = stderr.write_all(message.message.as_bytes());
+                    let _ = stderr.write_all(b".  Stop.\n");
+                }
+                (2, exit)
+            }
+        },
     };
-    let options = &launch.options;
+    if let Some(exit) = &mut native_exit {
+        exit.prepare();
+    }
+    if let Some(process_output) = &process_output {
+        process_output.finish();
+    }
+    drop(signals);
+    let status = rmake_linux::signals::exit_status(status);
+    ExitCode::from(
+        native_exit
+            .as_mut()
+            .map_or(status, |exit| exit.finish(status)),
+    )
+}
+
+pub(crate) fn print_requested_exit(options: &cli::Options) -> bool {
+    if (options.help || options.version) && crate::native::has_modules() {
+        let _ = rmake_linux::native::flush_stream(false);
+    }
     if options.help {
         if options.version {
             print_version();
@@ -84,48 +123,20 @@ fn main() -> ExitCode {
         println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
         println!("\nDevelopment build: GNU Make compatibility is incomplete.");
         println!("Complete runtime compatibility remains unfinished.");
-        return ExitCode::SUCCESS;
+        return true;
     }
     if options.version {
         print_version();
-        return ExitCode::SUCCESS;
+        return true;
     }
-    let mut retained_engine = None;
-    let status = match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
-        Ok(mut engine) => {
-            let status = engine.run_retained();
-            if crate::native::has_modules() {
-                engine.prepare_native_exit();
-                retained_engine = Some(engine);
-            }
-            status
-        }
-        Err(message) => {
-            if rmake_linux::signals::pending().is_none() {
-                let mut stderr = io::stderr().lock();
-                let _ = stderr.write_all(&message.prefix(&program));
-                let _ = stderr.write_all(b"*** ");
-                let _ = stderr.write_all(message.message.as_bytes());
-                let _ = stderr.write_all(b".  Stop.\n");
-            }
-            2
-        }
-    };
-    if let Some(process_output) = &process_output {
-        process_output.finish();
-    }
-    drop(signals);
-    let status = rmake_linux::signals::exit_status(status);
-    if crate::native::has_modules()
-        && let Some(engine) = &mut retained_engine
-    {
-        return ExitCode::from(engine.native_exit(status));
-    }
-    ExitCode::from(status)
+    false
 }
 
 /// Branding is deliberately distinct; exit-phase ordering is still semantic.
 pub(crate) fn print_version() {
+    if crate::native::has_modules() {
+        let _ = rmake_linux::native::flush_stream(false);
+    }
     println!("rmake {}", env!("CARGO_PKG_VERSION"));
     println!(
         "GNU Make {} compatibility target (implementation incomplete)",

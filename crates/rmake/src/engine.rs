@@ -8,6 +8,8 @@ mod assumptions;
 mod initial;
 mod runtime_options;
 mod startup;
+mod startup_exit;
+pub use startup_exit::{Failure, NativeExit};
 
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
@@ -649,6 +651,7 @@ pub struct Engine {
     options: Options,
     assumptions: Option<Box<assumptions::Files>>,
     initial_plan: Option<Box<initial::Plan>>,
+    native_exit_override: Option<Box<NativeExit>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
@@ -778,6 +781,28 @@ pub struct Invocation {
     pub options: Options,
     initial: Box<initial::Prepared>,
 }
+impl Invocation {
+    pub fn into_native_exit(self, program: Vec<u8>) -> Option<Box<NativeExit>> {
+        if !crate::native::has_modules() {
+            return None;
+        }
+        let prepared = *self.initial;
+        Some(Box::new(NativeExit::Startup(Box::new(
+            startup_exit::Host {
+                database: prepared.database,
+                filesystem: prepared.filesystem,
+                output: prepared.output,
+                reader_output: prepared.reader_output,
+                construction: Some(prepared.construction),
+                warnings: prepared.warnings,
+                program,
+                level: 0,
+                include_search: None,
+                restore_directory: None,
+            },
+        ))))
+    }
+}
 
 #[derive(Debug)]
 pub enum InvocationError {
@@ -793,7 +818,7 @@ impl Engine {
         invocation: &OsStr,
         makeflags: Option<OsString>,
         gnumakeflags: Option<OsString>,
-    ) -> Result<Invocation, InvocationError> {
+    ) -> Result<Invocation, Failure<InvocationError>> {
         Self::invocation_with_output(args, program, invocation, makeflags, gnumakeflags, None)
     }
     pub fn invocation_with_output(
@@ -803,7 +828,7 @@ impl Engine {
         makeflags: Option<OsString>,
         gnumakeflags: Option<OsString>,
         output: Option<crate::output::Controller>,
-    ) -> Result<Invocation, InvocationError> {
+    ) -> Result<Invocation, Failure<InvocationError>> {
         let args: Vec<_> = args.into_iter().collect();
         let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags, output);
         Box::new(plan).decode(None)
@@ -815,7 +840,7 @@ impl Engine {
         launch: Invocation,
         mut program: Vec<u8>,
         invocation: &OsStr,
-    ) -> Result<Self, StartupError> {
+    ) -> Result<Self, Failure<StartupError>> {
         let Invocation { options, initial } = launch;
         let initial::Prepared {
             mut database,
@@ -828,15 +853,49 @@ impl Engine {
             plan,
             initial_directory,
             shuffle,
+            warnings: startup_warnings,
         } = *initial;
-        let mode = options
-            .output_sync
-            .as_deref()
-            .map_or(Ok(crate::output::Mode::None), |raw| {
+        let mut exit_level = 0;
+        let mut exit_includes = None;
+        let mut exit_directory = None;
+        macro_rules! retain {
+            ($operation:expr) => {
+                match $operation {
+                    Ok(value) => value,
+                    Err(error) => {
+                        let error: StartupError = error.into();
+                        let exit = if crate::native::has_modules() {
+                            drop(construction);
+                            Some(Box::new(NativeExit::Startup(Box::new(
+                                startup_exit::Host {
+                                    database,
+                                    filesystem,
+                                    output,
+                                    reader_output,
+                                    construction: None,
+                                    warnings: startup_warnings,
+                                    program,
+                                    level: exit_level,
+                                    include_search: exit_includes,
+                                    restore_directory: exit_directory,
+                                },
+                            ))))
+                        } else {
+                            None
+                        };
+                        return Err(Failure { error, exit });
+                    }
+                }
+            };
+        }
+        let mode = retain!(options.output_sync.as_deref().map_or(
+            Ok(crate::output::Mode::None),
+            |raw| {
                 crate::output::Mode::parse(raw).ok_or_else(|| {
                     Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat())
                 })
-            })?;
+            }
+        ));
         // Explicit switches select the active context only after every CLI
         // effect and early exit. Closing an inherited spool still uses level 0.
         output.set_mode(mode);
@@ -856,6 +915,7 @@ impl Engine {
                 .get(b"MAKELEVEL")
                 .map_or(b"".as_slice(), |variable| variable.raw_value()),
         );
+        exit_level = makelevel;
         if makelevel != 0 {
             program.extend_from_slice(format!("[{makelevel}]").as_bytes());
         }
@@ -880,8 +940,11 @@ impl Engine {
                 .as_ref()
                 .map(|path| path.as_os_str().as_bytes()),
         );
+        if !options.directories.is_empty() {
+            exit_directory = startup_directory.clone();
+        }
         for directory in &options.directories {
-            std::env::set_current_dir(directory).map_err(|error| {
+            retain!(std::env::set_current_dir(directory).map_err(|error| {
                 StartupError::from(Diagnostic::from(
                     [
                         directory.as_os_str().as_bytes(),
@@ -891,18 +954,20 @@ impl Engine {
                     .concat(),
                 ))
                 .with_program(&program)
-            })?;
+            }));
         }
         // GNU retains its initial logical directory without -C, even if a CLI
         // child renamed it. A real -C list refreshes that value after chdir.
-        let cwd = if options.directories.is_empty() {
-            initial_directory.map_or_else(std::env::current_dir, Ok)
-        } else {
-            std::env::current_dir()
-        }
-        .map_err(|error| {
-            StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
-        })?;
+        let cwd = retain!(
+            if options.directories.is_empty() {
+                initial_directory.map_or_else(std::env::current_dir, Ok)
+            } else {
+                std::env::current_dir()
+            }
+            .map_err(|error| {
+                StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
+            })
+        );
         output.set_imported_directory(Some(cwd.as_os_str().as_bytes()));
         for goal in &options.goals {
             database.file_records.insert(goal);
@@ -910,10 +975,12 @@ impl Engine {
         database
             .variables
             .set_environment_override(options.environment_override);
-        database
-            .variables
-            .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
-            .map_err(|error| StartupError::expansion(error).with_program(&program))?;
+        retain!(
+            database
+                .variables
+                .define_literal(b"CURDIR", cwd.as_os_str().as_bytes(), Origin::File)
+                .map_err(|error| StartupError::expansion(error).with_program(&program))
+        );
         database
             .variables
             .set_working_directory(cwd.as_os_str().as_bytes());
@@ -924,15 +991,17 @@ impl Engine {
             if database.variables.get(name).is_none()
                 && let Some(value) = rmake_linux::output::terminal(descriptor)
             {
-                database
-                    .variables
-                    .define_literal(name, &value, Origin::Default)
-                    .map_err(StartupError::expansion)?;
+                retain!(
+                    database
+                        .variables
+                        .define_literal(name, &value, Origin::Default)
+                        .map_err(StartupError::expansion)
+                );
                 database.variables.set_export_policy(name, Some(true));
             }
         }
-        let startup_warnings = Cell::new(options.warn_undefined);
-        let include_search = startup::include_metadata(
+        startup_warnings.set(options.warn_undefined);
+        let include_search = retain!(startup::include_metadata(
             &mut database,
             &options,
             startup::Runtime {
@@ -942,33 +1011,43 @@ impl Engine {
                 filesystem: &filesystem,
                 warnings: &startup_warnings,
             },
-        )?;
-        database
-            .variables
-            .define_literal(b"MAKE_COMMAND", make_command.as_bytes(), Origin::Default)
-            .map_err(StartupError::expansion)?;
-        database
-            .variables
-            .define(
-                b"MAKE",
-                b"$(MAKE_COMMAND)",
-                Assignment::Recursive,
-                Origin::Default,
-            )
-            .map_err(StartupError::expansion)?;
-        let command_replay =
+            &mut exit_includes,
+        ));
+        retain!(
+            database
+                .variables
+                .define_literal(b"MAKE_COMMAND", make_command.as_bytes(), Origin::Default)
+                .map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .variables
+                .define(
+                    b"MAKE",
+                    b"$(MAKE_COMMAND)",
+                    Assignment::Recursive,
+                    Origin::Default,
+                )
+                .map_err(StartupError::expansion)
+        );
+        let command_replay = retain!(
             crate::command_variables::prepare(&mut database.variables, &seed.commands)
-                .map_err(StartupError::expansion)?;
-        database
-            .initialize_suffixes(!options.no_rules)
-            .map_err(StartupError::expansion)?;
+                .map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .initialize_suffixes(!options.no_rules)
+                .map_err(StartupError::expansion)
+        );
         database
             .variables
             .reserve_environment_layout(&[b"MFLAGS"], true);
         if !options.no_rules {
-            database
-                .initialize_builtin_rules()
-                .map_err(|error| error.message)?;
+            retain!(
+                database
+                    .initialize_builtin_rules()
+                    .map_err(|error| error.message)
+            );
         }
         database
             .variables
@@ -976,73 +1055,95 @@ impl Engine {
         database
             .variables
             .reserve_environment_layout(&[b"MFLAGS"], true);
-        database
-            .variables
-            .define_literal(
-                b"MAKELEVEL",
-                makelevel.to_string().as_bytes(),
-                if options.environment_override {
-                    Origin::EnvironmentOverride
-                } else {
-                    Origin::Environment
-                },
-            )
-            .map_err(StartupError::expansion)?;
-        database
-            .variables
-            .define_literal(b"MAKE_VERSION", b"4.4.1", Origin::Default)
-            .map_err(StartupError::expansion)?;
-        database
-            .variables
-            .define_literal(b"MAKE_HOST", b"x86_64-pc-linux-gnu", Origin::Default)
-            .map_err(StartupError::expansion)?;
-        database
-            .variables
-            .initialize_shell_default(b"/bin/sh")
-            .map_err(StartupError::expansion)?;
-        database
-            .variables
-            .define_literal(b"MAKEFILES", b"", Origin::Default)
-            .map_err(StartupError::expansion)?;
+        retain!(
+            database
+                .variables
+                .define_literal(
+                    b"MAKELEVEL",
+                    makelevel.to_string().as_bytes(),
+                    if options.environment_override {
+                        Origin::EnvironmentOverride
+                    } else {
+                        Origin::Environment
+                    },
+                )
+                .map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .variables
+                .define_literal(b"MAKE_VERSION", b"4.4.1", Origin::Default)
+                .map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .variables
+                .define_literal(b"MAKE_HOST", b"x86_64-pc-linux-gnu", Origin::Default)
+                .map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .variables
+                .initialize_shell_default(b"/bin/sh")
+                .map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .variables
+                .define_literal(b"MAKEFILES", b"", Origin::Default)
+                .map_err(StartupError::expansion)
+        );
         database.variables.set_export_if_set(b"MAKEFILES");
-        define_automatic_variants(&mut database.variables).map_err(StartupError::expansion)?;
-        database
-            .variables
-            .update_mflags(&options.recursive_flags(), options.environment_override)
-            .map_err(StartupError::expansion)?;
+        retain!(
+            define_automatic_variants(&mut database.variables).map_err(StartupError::expansion)
+        );
+        retain!(
+            database
+                .variables
+                .update_mflags(&options.recursive_flags(), options.environment_override)
+                .map_err(StartupError::expansion)
+        );
         inherited_exports.insert(b"MFLAGS".to_vec());
         let mut initial_flags = options.makeflags();
         if command_replay {
             initial_flags.extend_from_slice(b" -- $(MAKEOVERRIDES)");
         }
-        database
-            .variables
-            .define(
-                b"MAKEFLAGS",
-                &initial_flags,
-                Assignment::Recursive,
-                runtime_options::origin(options.environment_override),
-            )
-            .map_err(StartupError::expansion)?;
+        retain!(
+            database
+                .variables
+                .define(
+                    b"MAKEFLAGS",
+                    &initial_flags,
+                    Assignment::Recursive,
+                    runtime_options::origin(options.environment_override),
+                )
+                .map_err(StartupError::expansion)
+        );
         database
             .variables
             .set_export_policy(b"MAKEFLAGS", Some(true));
         if !options.no_variables {
-            database
-                .initialize_builtin_variables()
-                .map_err(StartupError::expansion)?;
-            database
-                .variables
-                .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
-                .map_err(StartupError::expansion)?;
+            retain!(
+                database
+                    .initialize_builtin_variables()
+                    .map_err(StartupError::expansion)
+            );
+            retain!(
+                database
+                    .variables
+                    .define(b"GNUMAKEFLAGS", b"", Assignment::Recursive, Origin::Default)
+                    .map_err(StartupError::expansion)
+            );
         }
         database.file_records.insert(b".DEFAULT");
-        database
-            .variables
-            .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
-            .map_err(StartupError::expansion)?;
+        retain!(
+            database
+                .variables
+                .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
+                .map_err(StartupError::expansion)
+        );
         if let Some(authentication) = &options.sync_mutex {
-            output.decode_mutex(authentication).map_err(|error| {
+            retain!(output.decode_mutex(authentication).map_err(|error| {
                 Diagnostic::from(
                     [
                         b"cannot open output sync mutex ".as_slice(),
@@ -1054,17 +1155,20 @@ impl Engine {
                     ]
                     .concat(),
                 )
-            })?;
+            }));
         }
-        let include_search = std::rc::Rc::new(RefCell::new(include_search));
         let flag_state =
             runtime_options::State::new(&options, output.clone(), include_search.clone());
         let flag_entry_jobs = options.jobs;
+        let assumptions = retain!(
+            assumptions::Files::from_options(&options)
+                .map_err(|message| StartupError::from(Diagnostic::from(message.to_vec())))
+        );
         let initial_plan = Some(plan);
         let mut engine = Self {
             initial_plan,
-            assumptions: assumptions::Files::from_options(&options)
-                .map_err(|message| StartupError::from(Diagnostic::from(message.to_vec())))?,
+            native_exit_override: None,
+            assumptions,
             startup_directory,
             output,
             reader_output,
@@ -1129,32 +1233,44 @@ impl Engine {
         };
         // Inherited pipe descriptors must become close-on-exec before reader
         // shell functions run. Creating a new owned pool waits until after read.
-        engine.setup_jobserver(false)?;
-        engine
-            .database
-            .variables
-            .update_mflags(
-                &engine.options.recursive_flags(),
-                engine.options.environment_override,
-            )
-            .map_err(|error| error.diagnostic())?;
-        engine.initial_flags = engine.options.makeflags();
-        if engine.command_replay {
+        let completed = (|| -> Result<(), StartupError> {
+            engine.setup_jobserver(false)?;
             engine
-                .initial_flags
-                .extend_from_slice(b" -- $(MAKEOVERRIDES)");
+                .database
+                .variables
+                .update_mflags(
+                    &engine.options.recursive_flags(),
+                    engine.options.environment_override,
+                )
+                .map_err(|error| error.diagnostic())?;
+            engine.initial_flags = engine.options.makeflags();
+            if engine.command_replay {
+                engine
+                    .initial_flags
+                    .extend_from_slice(b" -- $(MAKEOVERRIDES)");
+            }
+            engine
+                .database
+                .variables
+                .define(
+                    b"MAKEFLAGS",
+                    &engine.initial_flags,
+                    Assignment::Recursive,
+                    runtime_options::origin(engine.options.environment_override),
+                )
+                .map_err(|e| e.diagnostic())?;
+            engine.flag_state.refresh(&engine.options);
+            Ok(())
+        })();
+        if let Err(error) = completed {
+            let exit = if crate::native::has_modules() {
+                drop(construction);
+                Some(Box::new(NativeExit::Engine(Box::new(engine))))
+            } else {
+                None
+            };
+            return Err(Failure { error, exit });
         }
-        engine
-            .database
-            .variables
-            .define(
-                b"MAKEFLAGS",
-                &engine.initial_flags,
-                Assignment::Recursive,
-                runtime_options::origin(engine.options.environment_override),
-            )
-            .map_err(|e| e.diagnostic())?;
-        engine.flag_state.refresh(&engine.options);
         construction.disarm();
         Ok(engine)
     }
@@ -1290,7 +1406,15 @@ impl Engine {
     }
 
     pub fn native_exit(&mut self, mut status: u8) -> u8 {
+        if let Some(mut exit) = self.native_exit_override.take() {
+            return exit.finish(status);
+        }
         self.output.process_lifetime().finish();
+        if !self.options.directories.is_empty()
+            && let Some(directory) = &self.startup_directory
+        {
+            let _ = std::env::set_current_dir(directory);
+        }
         loop {
             let result = {
                 let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
@@ -1711,24 +1835,38 @@ impl Engine {
                 let restart_invocation = plan.invocation.clone();
                 let launch = match plan.decode(Some((restarts, self.makelevel))) {
                     Ok(launch) => launch,
-                    Err(error) => {
+                    Err(failure) => {
+                        let (error, exit) = failure.into_parts();
+                        self.native_exit_override = exit;
                         initial::emit_error(&restart_program, error);
                         return 2;
                     }
                 };
+                if crate::print_requested_exit(&launch.options) {
+                    self.native_exit_override = launch.into_native_exit(restart_program);
+                    return 0;
+                }
                 let mut next = match Self::from_invocation(
                     launch,
                     restart_program.clone(),
                     &restart_invocation,
                 ) {
                     Ok(next) => next,
-                    Err(error) => {
+                    Err(failure) => {
+                        let (error, exit) = failure.into_parts();
+                        self.native_exit_override = exit;
                         initial::emit_error(&restart_program, InvocationError::Expansion(error));
                         return 2;
                     }
                 };
                 next.database.activate_runtime_metadata();
                 if next.options.evals.is_empty() && next.initialize_makefile_list().is_err() {
+                    // A completed new constructor owns all current interpreter
+                    // state, including when its first reader boundary fails.
+                    if crate::native::has_modules() {
+                        self.native_exit_override =
+                            Some(Box::new(NativeExit::Engine(Box::new(next))));
+                    }
                     return 2;
                 }
                 *self = next;

@@ -13,7 +13,7 @@ resets each execution and rejects leftover children. The compiler also uses the
 bounded process-group capture. This is a trusted-fixture gate, not a filesystem
 or network security sandbox.
 
-The 184 independent models cover allocation/free, NULL and NUL results, byte
+The 215 independent models cover allocation/free, NULL and NUL results, byte
 arguments, eager/raw arguments, direct versus call arity, local/target/automatic
 scope, fresh registrations, name/arity/flag validation across reading/includes/recipes,
 expansion/eval effects, errors and source locations,
@@ -54,6 +54,9 @@ source/archive paths are evidence and are not executable default cases.
 
 | Archive manifest | Contents |
 | --- | --- |
+| [startup-exit-history.json](startup-exit-history.json) | Complete original first/relative/refined startup-finalizer discovery, 31 strict GNU2-qualified models, 27 preceding candidate differences and four matching controls. Includes independent full-filesystem verification and initial rejected hypotheses; candidate acceptance remains separate. |
+| [startup-exit-performance.json](startup-exit-performance.json) | All three startup-owner elapsed reports and 16 allocation reports/raw traces, helper bytes/hash and immutable final source reference. Every mixed timing result and allocation increase remains retained; CPU23 applies only to elapsed campaigns. |
+| [qualification-startup-215.json](qualification-startup-215.json) | Complete frozen startup-exit debug/release215-pass reports and preceding main188-pass/27-fail report, with coherent source/input/module hashes. Ordinary and full developer acceptance remain separate gates. |
 | [qualification-borrowed-184.json](qualification-borrowed-184.json) | Complete final borrowed-location debug/release184-pass and preceding main184-fail reports, with the coherent source/input/module hash snapshot. Full developer/ordinary acceptance remains separate. |
 | [qualification-184.json](qualification-184.json) | Complete corrected frozen debug/release184-pass and preceding main184-fail reports, with source/input/module hashes. Ordinary and full developer acceptance remain separate gates. |
 | [qualification-147.json](qualification-147.json) | Complete immutable debug/release147-pass and preceding147-fail reports, executable identities and packaging-time source hashes. This historical set establishes its recorded profile rather than a complete native inventory. |
@@ -86,3 +89,18 @@ acceptance at c9499: the oracle passed 27,766 cases, while the candidate passed
 log, status, binary/source identity text, fixture inputs, streams and reports.
 That failed head is not final acceptance evidence. The original 147-model native
 qualification and all benchmark archives remain unchanged.
+
+
+Thirty-one startup/finalizer profiles observe early modules loaded through
+GNUMAKEFLAGS, MAKEFLAGS, eager command-line assignments and HOME operands. They
+cover help/version exits, invalid synchronization, directory failures, successful
+`-C`, eval failures, partially published include metadata, restarted decoding and
+fatal finalizer suppression. The trusted original C fixture redirects stdout to
+`/dev/null`; stderr, status, ordered `seen` and the complete filesystem remain
+strict. Two additional observations within this set check pending C stdout at
+help/version exit. No banner or diagnostic normalizer is used. Distinct restart
+bindings and origins reject finalization through the preceding database, and
+missing/default metadata distinguish the actual early phase from a completed
+synthetic Engine. The historical 184-profile qualification remains unchanged;
+these 31 models first establish GNU-only qualification. Candidate acceptance
+remains separate, and compiled profiles receive no ordinary-ledger credit.

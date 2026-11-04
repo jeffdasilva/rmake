@@ -24,6 +24,7 @@ pub(super) struct Prepared {
     pub(super) plan: Box<Plan>,
     pub(super) initial_directory: Option<std::path::PathBuf>,
     pub(super) shuffle: crate::shuffle::Mode,
+    pub(super) warnings: Cell<bool>,
 }
 
 impl From<String> for InvocationError {
@@ -112,7 +113,7 @@ impl Plan {
     pub(super) fn decode(
         self: Box<Self>,
         restart: Option<(u32, u32)>,
-    ) -> Result<Invocation, InvocationError> {
+    ) -> Result<Invocation, Failure<InvocationError>> {
         crate::native::reset();
         let output = if let Some(output) = &self.output {
             output.set_mode(crate::output::Mode::None);
@@ -213,107 +214,149 @@ impl Plan {
             seen_includes: HashSet::new(),
             seen_directories: HashSet::new(),
         };
-        let mut prefix_count = 0;
-        let mut parsed_prefix = Options::default();
-        for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-            if name == b"GNUMAKEFLAGS" && state.database.variables.get(name).is_none() {
-                continue;
-            }
-            let expression = [b"$(".as_slice(), name, b")"].concat();
-            let value = state
-                .evaluate(&self.program, |database, context| {
-                    database.expand_with(&expression, context)
-                })
-                .map_err(StartupError::expansion)?;
-            let mut incoming = Vec::new();
-            Options::append_expanded_flags(&mut incoming, &value)?;
-            // Empty sources retain expansion effects without another parse.
-            if !incoming.is_empty() {
-                let count = incoming.len();
-                parsed_prefix = Options::parse_continued_with(
-                    incoming,
-                    parsed_prefix,
-                    prefix_count,
-                    &mut |options, argument| state.argument(&self.program, options, argument),
-                )?;
-                prefix_count += count;
-                state
-                    .database
-                    .variables
-                    .set_environment_override(parsed_prefix.environment_override);
-                state.warnings.set(parsed_prefix.warn_undefined);
-            }
-            if name == b"GNUMAKEFLAGS" {
-                state
-                    .database
-                    .variables
-                    .define_literal(
-                        name,
-                        b"",
-                        if parsed_prefix.environment_override {
-                            Origin::EnvironmentOverride
-                        } else {
-                            Origin::Environment
-                        },
-                    )
-                    .map_err(StartupError::expansion)?;
-            }
-        }
-        // Initial inherited expansion precedes synchronization; explicit CLI
-        // effects use the inherited mode until the whole explicit stream ends.
-        let inherited_mode = output_mode(parsed_prefix.output_sync.as_deref())?;
-        state.output.set_mode(inherited_mode);
-        let reader_output = inherited_mode
-            .root_buffered()
-            .then(|| state.output.make_buffer())
-            .flatten();
-        state.output.select(reader_output.as_ref());
-        let mut construction =
-            crate::output::Construction::new(state.output.clone(), reader_output.clone());
-        let decoded = Options::with_parsed_inherited_with(
-            self.args.clone(),
-            parsed_prefix,
-            prefix_count,
-            false,
-            &mut |options, argument| state.argument(&self.program, options, argument),
-        );
-        let mut options = match decoded {
-            Ok(options) => options,
-            Err(InvocationError::Expansion(mut error)) => {
-                if rmake_linux::signals::pending().is_none()
-                    && let Some(buffer) = &reader_output
-                {
-                    state.output.write_parts(
-                        true,
-                        &[
-                            &error.prefix(&self.program),
-                            b"*** ",
-                            error.message.as_bytes(),
-                            b".  Stop.\n",
-                        ],
-                    );
-                    error.buffered = Some(buffer.clone());
-                    construction.disarm();
+        let decoded = (|| -> Result<_, InvocationError> {
+            let mut prefix_count = 0;
+            let mut parsed_prefix = Options::default();
+            for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
+                if name == b"GNUMAKEFLAGS" && state.database.variables.get(name).is_none() {
+                    continue;
                 }
-                return Err(InvocationError::Expansion(error));
+                let expression = [b"$(".as_slice(), name, b")"].concat();
+                let value = state
+                    .evaluate(&self.program, |database, context| {
+                        database.expand_with(&expression, context)
+                    })
+                    .map_err(StartupError::expansion)?;
+                let mut incoming = Vec::new();
+                Options::append_expanded_flags(&mut incoming, &value)?;
+                // Empty sources retain expansion effects without another parse.
+                if !incoming.is_empty() {
+                    let count = incoming.len();
+                    let mut selected_policy = (false, false);
+                    let parsed = Options::parse_continued_with(
+                        incoming,
+                        parsed_prefix,
+                        prefix_count,
+                        &mut |options, argument| state.argument(&self.program, options, argument),
+                        &mut |options| {
+                            selected_policy = (options.warn_undefined, options.environment_override)
+                        },
+                    );
+                    state.warnings.set(selected_policy.0);
+                    state
+                        .database
+                        .variables
+                        .set_environment_override(selected_policy.1);
+                    parsed_prefix = parsed?;
+                    prefix_count += count;
+                    state
+                        .database
+                        .variables
+                        .set_environment_override(parsed_prefix.environment_override);
+                    state.warnings.set(parsed_prefix.warn_undefined);
+                }
+                if name == b"GNUMAKEFLAGS" {
+                    state
+                        .database
+                        .variables
+                        .define_literal(
+                            name,
+                            b"",
+                            if parsed_prefix.environment_override {
+                                Origin::EnvironmentOverride
+                            } else {
+                                Origin::Environment
+                            },
+                        )
+                        .map_err(StartupError::expansion)?;
+                }
             }
-            Err(error) => return Err(error),
+            // Initial inherited expansion precedes synchronization; explicit CLI
+            // effects use the inherited mode until the whole explicit stream ends.
+            let inherited_mode = output_mode(parsed_prefix.output_sync.as_deref())?;
+            state.output.set_mode(inherited_mode);
+            let reader_output = inherited_mode
+                .root_buffered()
+                .then(|| state.output.make_buffer())
+                .flatten();
+            state.output.select(reader_output.as_ref());
+            let mut construction =
+                crate::output::Construction::new(state.output.clone(), reader_output.clone());
+            let mut selected_policy = (false, false);
+            let decoded = Options::with_parsed_inherited_with(
+                self.args.clone(),
+                parsed_prefix,
+                prefix_count,
+                false,
+                &mut |options, argument| state.argument(&self.program, options, argument),
+                &mut |options| {
+                    selected_policy = (options.warn_undefined, options.environment_override)
+                },
+            );
+            state.warnings.set(selected_policy.0);
+            state
+                .database
+                .variables
+                .set_environment_override(selected_policy.1);
+            let mut options = match decoded {
+                Ok(options) => options,
+                Err(InvocationError::Expansion(mut error)) => {
+                    if rmake_linux::signals::pending().is_none()
+                        && let Some(buffer) = &reader_output
+                    {
+                        state.output.write_parts(
+                            true,
+                            &[
+                                &error.prefix(&self.program),
+                                b"*** ",
+                                error.message.as_bytes(),
+                                b".  Stop.\n",
+                            ],
+                        );
+                        error.buffered = Some(buffer.clone());
+                        construction.disarm();
+                    }
+                    return Err(InvocationError::Expansion(error));
+                }
+                Err(error) => return Err(error),
+            };
+            output_mode(options.output_sync.as_deref())?;
+            let shuffle = if options.help || options.version {
+                crate::shuffle::Mode::None
+            } else {
+                options
+                    .shuffle
+                    .as_deref()
+                    .map(crate::shuffle::Mode::parse)
+                    .transpose()
+                    .map_err(|message| StartupError::from(Diagnostic::from(message)))?
+                    .unwrap_or_default()
+            };
+            if !options.help && !options.version {
+                options.shuffle = shuffle.spelling();
+            }
+            Ok((options, reader_output, construction, shuffle))
+        })();
+        let (options, reader_output, construction, shuffle) = match decoded {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                let exit = crate::native::has_modules().then(|| {
+                    Box::new(NativeExit::Startup(Box::new(startup_exit::Host {
+                        database: state.database,
+                        filesystem: state.filesystem,
+                        output: state.output,
+                        warnings: state.warnings,
+                        program: self.program.clone(),
+                        level: 0,
+                        include_search: None,
+                        reader_output: None,
+                        construction: None,
+                        restore_directory: None,
+                    })))
+                });
+                return Err(Failure { error, exit });
+            }
         };
-        output_mode(options.output_sync.as_deref())?;
-        let shuffle = if options.help || options.version {
-            crate::shuffle::Mode::None
-        } else {
-            options
-                .shuffle
-                .as_deref()
-                .map(crate::shuffle::Mode::parse)
-                .transpose()
-                .map_err(|message| StartupError::from(Diagnostic::from(message)))?
-                .unwrap_or_default()
-        };
-        if !options.help && !options.version {
-            options.shuffle = shuffle.spelling();
-        }
         Ok(Invocation {
             options,
             initial: Box::new(Prepared {
@@ -327,6 +370,7 @@ impl Plan {
                 plan: self,
                 initial_directory,
                 shuffle,
+                warnings: state.warnings,
             }),
         })
     }
@@ -519,5 +563,258 @@ pub(super) fn emit_error(program: &[u8], error: InvocationError) {
     drop(stderr);
     if version {
         crate::print_version();
+    }
+}
+
+#[cfg(test)]
+mod exit_ownership_tests {
+    use super::*;
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    // Each native runtime owns one interpreter thread for the process. Unit
+    // subprocesses exercise the real loader without sharing that global gate.
+    fn isolated(action: impl FnOnce()) {
+        if std::env::var_os("RMAKE_STARTUP_OWNER_UNIT_CHILD").is_some() {
+            action();
+            return;
+        }
+        let thread = std::thread::current();
+        let name = thread.name().expect("named test worker");
+        let result = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--nocapture"])
+            .env("RMAKE_STARTUP_OWNER_UNIT_CHILD", "1")
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    struct Fixture(std::path::PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            let directory = std::env::temp_dir().join(format!(
+                "rmake-startup-owner-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed),
+            ));
+            fs::create_dir(&directory).unwrap();
+            let module = directory.join("startup_owner_unit.so");
+            let mut compiler = Command::new("cc")
+                .args(["-shared", "-fPIC", "-x", "c", "-o"])
+                .arg(module)
+                .arg("-")
+                .stdin(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            compiler
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(
+                    br#"
+/* Original setup-only module; no GNU headers or finalizers. */
+struct Place { const char *file; unsigned long line; };
+extern void gmk_eval(const char *, const struct Place *);
+int plugin_is_GPL_compatible = 1;
+int startup_owner_unit_gmk_setup(const struct Place *place) {
+    (void)place;
+    gmk_eval("NATIVE_SETUP_COUNT += once\nNATIVE_SETUP_VALUE := setup\n", 0);
+    return 1;
+}
+"#,
+                )
+                .unwrap();
+            let output = compiler.wait_with_output().unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            Self(directory)
+        }
+        fn plan(&self, args: &[&str]) -> Box<Plan> {
+            let mut plan = Plan::new(
+                args.iter().map(OsString::from).collect(),
+                b"rmake",
+                OsStr::new("rmake"),
+                None,
+                None,
+                None,
+            );
+            plan.environment = vec![(
+                "GNUMAKEFLAGS".into(),
+                format!(
+                    "$(eval load {})",
+                    self.0.join("startup_owner_unit.so").display()
+                )
+                .into(),
+            )];
+            Box::new(plan)
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    fn startup(exit: Option<Box<NativeExit>>) -> startup_exit::Host {
+        match *exit.expect("native phase must remain owned") {
+            NativeExit::Startup(host) => *host,
+            NativeExit::Engine(_) => panic!("constructor was not completed"),
+        }
+    }
+    fn value(database: &Database, name: &[u8]) -> Option<Vec<u8>> {
+        database
+            .variables
+            .get(name)
+            .map(|value| value.raw_value().to_vec())
+    }
+    fn check_setup(database: &Database) {
+        assert_eq!(
+            value(database, b"NATIVE_SETUP_COUNT"),
+            Some(b"once".to_vec())
+        );
+        assert_eq!(
+            value(database, b"NATIVE_SETUP_VALUE"),
+            Some(b"setup".to_vec())
+        );
+    }
+
+    #[test]
+    fn decoder_failure_retains_effects_and_last_policy_without_defaults_or_replay() {
+        isolated(|| {
+            let fixture = Fixture::new();
+            let failure = match fixture
+                .plan(&[
+                    "USER_VALUE=command",
+                    "--warn-undefined-variables",
+                    "-e",
+                    "--not-an-option",
+                ])
+                .decode(None)
+            {
+                Ok(_) => panic!("invalid option accepted"),
+                Err(error) => error,
+            };
+            assert!(matches!(failure.error, InvocationError::Options(_)));
+            let mut host = startup(failure.exit);
+            check_setup(&host.database);
+            assert_eq!(
+                value(&host.database, b"USER_VALUE"),
+                Some(b"command".to_vec())
+            );
+            assert!(host.warnings.get());
+            host.database
+                .variables
+                .define_literal(b"GNUMAKEFLAGS", b"changed", Origin::File)
+                .unwrap();
+            assert_eq!(
+                host.database
+                    .variables
+                    .get(b"GNUMAKEFLAGS")
+                    .unwrap()
+                    .origin(),
+                Origin::EnvironmentOverride
+            );
+            assert_eq!(value(&host.database, b"GNUMAKEFLAGS"), Some(Vec::new()));
+            assert!(host.database.variables.get(b"CURDIR").is_none());
+            assert!(host.database.variables.get(b".INCLUDE_DIRS").is_none());
+            assert!(host.include_search.is_none());
+        });
+    }
+
+    #[test]
+    fn prepared_help_pass_keeps_constructor_unstarted_and_actual_bindings() {
+        isolated(|| {
+            let fixture = Fixture::new();
+            let launch = fixture
+                .plan(&["USER_VALUE=command", "--help"])
+                .decode(None)
+                .unwrap();
+            assert!(launch.options.help);
+            let host = startup(launch.into_native_exit(b"rmake".to_vec()));
+            check_setup(&host.database);
+            assert!(host.construction.is_some());
+            assert!(host.database.variables.get(b"MAKE_COMMAND").is_none());
+            assert!(host.database.variables.get(b"CURDIR").is_none());
+            assert_eq!(
+                value(&host.database, b"USER_VALUE"),
+                Some(b"command".to_vec())
+            );
+        });
+    }
+
+    #[test]
+    fn failed_constructor_keeps_only_metadata_published_before_home_expansion() {
+        isolated(|| {
+            let fixture = Fixture::new();
+            let launch = fixture
+                .plan(&[
+                    "HOME=$(if $(CURDIR),$(error HOME-STOP))~",
+                    "-I~/inc",
+                    "USER_VALUE=command",
+                ])
+                .decode(None)
+                .unwrap();
+            let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
+                .err()
+                .expect("HOME must fail in constructor");
+            assert_eq!(failure.message.as_bytes(), b"HOME-STOP");
+            let host = startup(failure.exit);
+            check_setup(&host.database);
+            assert!(host.database.variables.get(b"CURDIR").is_some());
+            assert!(host.database.variables.get(b".INCLUDE_DIRS").is_none());
+            assert!(host.database.variables.get(b"MAKE_COMMAND").is_none());
+            assert!(host.include_search.is_none());
+            assert_eq!(
+                value(&host.database, b"USER_VALUE"),
+                Some(b"command".to_vec())
+            );
+        });
+    }
+
+    #[test]
+    fn failed_chdir_keeps_early_database_without_late_constructor_metadata() {
+        isolated(|| {
+            let fixture = Fixture::new();
+            let missing = fixture.0.join("missing");
+            let missing = missing.to_str().unwrap();
+            let launch = fixture.plan(&["-C", missing]).decode(None).unwrap();
+            let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
+                .err()
+                .expect("missing directory accepted");
+            let host = startup(failure.exit);
+            check_setup(&host.database);
+            assert!(host.database.variables.get(b"CURDIR").is_none());
+            assert!(host.database.variables.get(b"MAKE_COMMAND").is_none());
+            assert!(host.restore_directory.is_some());
+        });
+    }
+
+    #[test]
+    fn restarted_help_owns_fresh_decoder_bindings_and_restart_count() {
+        isolated(|| {
+            let fixture = Fixture::new();
+            let mut plan = fixture.plan(&[]);
+            plan.environment[0].1 = format!(
+                "$(if $(MAKE_RESTARTS),$(eval load {}) --help)",
+                fixture.0.join("startup_owner_unit.so").display()
+            )
+            .into();
+            let launch = plan.decode(Some((1, 3))).unwrap();
+            assert!(launch.options.help);
+            let host = startup(launch.into_native_exit(b"rmake".to_vec()));
+            check_setup(&host.database);
+            assert_eq!(value(&host.database, b"MAKE_RESTARTS"), Some(b"1".to_vec()));
+            assert!(host.database.variables.get(b"MAKE_COMMAND").is_none());
+            assert!(host.database.variables.get(b"CURDIR").is_none());
+        });
     }
 }
