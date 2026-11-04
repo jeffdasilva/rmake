@@ -403,3 +403,23 @@ retain allocation increases and a separate elapsed comparison; prior negative
 results remain preserved. M3/M6, JOBS identities, broader traversal/implicit/
 default-discovery/database/Guile/profile/resource/cache/integration and general
 GNU performance parity retain their existing gates.
+
+
+[Controlled actual-child JOBS](job-debug.md) adds nine strict original profiles
+for stable recipe identity across command PIDs, exact newest-first lifecycle
+events, selected FIFO/pipe authentication and externally witnessed token return.
+Both isolated builds pass JOBS 9, deterministic debug 64, native 215 and directory
+40. Formatting, Clippy, 578 Rust and 643 tooling checks pass; a separately passing
+archive-integrity unit raises the next full tooling gate to 644. Full frozen
+local acceptance and exact-head CI remain merge gates. The ordinary ledger and
+32 safety inputs / 128 cells are unchanged.
+
+The [measurement page](benchmarks/job-debug.md) and immutable
+[performance archive](../tests/job-debug/performance.json) retain three elapsed
+reports, sixteen allocation reports/traces and twelve exact inputs. Shared
+inherited CPU23 applies only to elapsed campaigns; mixed timing changes and
+requested-byte differences remain complete, without isolating descriptor or
+build/profiler-path effects. Complete JOBS transports/scopes/recursion/restarts/
+loaded/resource profiles, broader asynchronous/implicit/default-reader/database
+diagnostics, enabled Guile/GC, persistent caching, integration/developer flows,
+M3/M6 and general GNU performance parity keep their existing acceptance criteria.

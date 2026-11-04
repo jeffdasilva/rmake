@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable isolated JOBS checkpoint qualification: both frozen development/release profiles pass all9 strict JOBS identity/token cases,64 deterministic debug,215 native-module and40 directory-reporting profiles. Complete raw reports, identities, input/source hashes and logs retained. make build release check-core passed578 Rust and643 tooling tests. No broad JOBS/M3/M6 compatibility, performance parity, ordinary-ledger or safety-exception credit is asserted; full exact-head acceptance/CI remain separate merge gates.",
+  "sha256": "2f1441b14f81fd3097eb827e7cb44a5bdeed78c0fc9b9333ff0ec90f7ea94c74",
+  "raw_sha256": "6eb3d86fb35b729689f9d9c8b4d59b91a91587b3cc1690dd2000c1d0764ff928",
+  "raw_bytes": 47391134
+}
