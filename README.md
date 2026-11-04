@@ -112,6 +112,12 @@ constructor or restart state for finalizers, preserve C-buffer/banner ordering,
 and restore the OS directory without rewriting `CURDIR`. 31 new original models
 close 27 preceding mismatches; full startup/profile acceptance remains open.
 
+[Directory reporting](docs/directory-reporting.md) now supports ordered `-w` and
+negative selection, automatic `-C`/recursion policy, synchronized output groups,
+early output and restart/finalizer ownership. 40 original models close 36
+preceding mismatches through `make test-directory-reporting`. Broader profiles,
+complete M3/M6 and general performance parity remain open.
+
 [Native load reader preparation](docs/load-reader.md) supports empty `load` and
 `-load` requests, complete operand effects and byte-preserving empty setup-symbol
 errors. 324 original cases close 312 preceding mismatches, bringing the corpus

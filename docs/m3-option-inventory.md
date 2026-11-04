@@ -24,8 +24,8 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-j`/`--jobs`, `-l`/`--load-average`/`--max-load`, `-O`/`--output-sync` | Local scheduling/load/output gates implemented; all unrelated option interactions remain part of M3. |
 | `--jobserver-auth`, `--jobserver-fds`, `--jobserver-style`, `--sync-mutex` | Linux transport/authentication slices and gates exist; lifecycle must survive actual self-exec and native integrations. |
 | `--no-silent`, `--no-keep-going`, `--stop` | Negative spellings, origins and recursive propagation implemented; full startup inventory remains open. |
-| `--no-print-directory` | State/spelling retained; complete directory reporting is still open. |
-| `-w`/`--print-directory` | Entry-point support remains open: needs origin-aware policy, deferred entering/leaving and synchronized spool boundaries. [Imported restart-trace closure](imported-directory-trace.md) now covers its recorded final-message slice, including constructor errors and remakes. |
+| `--no-print-directory` | [Ordered directory selection](directory-reporting.md) preserves CLI priority and incoming flag order, including automatic silence and process closure. Broader profile and formatting interactions remain open. |
+| `-w`/`--print-directory` | [Directory reporting](directory-reporting.md) has 40 independently modeled profiles for lazy entry, quiet child launches, synchronized spool boundaries, early metadata and restart/native closure. [Imported restart traces](imported-directory-trace.md) retain their separate gate. Database/debug, broader path/stdio/resource and cross-family acceptance remain open. |
 | `-d`, `--debug[=...]` | Unsupported: must implement debug categories, ordering, restart/child identities and output. |
 | `-p`/`--print-data-base` | Unsupported: needs semantic database validator with narrow treatment of documented nondeterministic fields. |
 | `--trace` | [Trace output](trace.md) has 165 required cases for rebuild reasons, identity, echo, modes, synchronization and remake reactivation. Full debug-category, startup, option/profile and locale interactions remain open. |

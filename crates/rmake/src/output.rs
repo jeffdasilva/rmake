@@ -3,6 +3,7 @@
 
 //! Interpreter output focus and recipe-owned spools. Focus holds weak references;
 //! buffers keep the controller alive without creating a controller/buffer cycle.
+use crate::cli::DirectoryChoice;
 use rmake_linux::output::{Coordination, Spool};
 use std::cell::{Cell, RefCell};
 use std::io::{self, Write};
@@ -32,6 +33,14 @@ impl Mode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ProcessTrace {
+    #[default]
+    NotEntered,
+    Entered,
+    Closed,
+}
+
 struct State {
     mode: Cell<Mode>,
     current: RefCell<Option<Weak<Buffer>>>,
@@ -39,7 +48,11 @@ struct State {
     program: RefCell<Vec<u8>>,
     interrupted_owner: RefCell<Option<Owner>>,
     directory: RefCell<Option<Vec<u8>>>,
-    directory_traced: Cell<bool>,
+    directory_trace: Cell<ProcessTrace>,
+    directory_choice: Cell<DirectoryChoice>,
+    silent: Cell<bool>,
+    changed_directory: Cell<bool>,
+    recursive: Cell<bool>,
 }
 
 #[derive(Clone)]
@@ -54,45 +67,104 @@ impl Controller {
             program: RefCell::new(program.to_vec()),
             interrupted_owner: RefCell::new(None),
             directory: RefCell::new(None),
-            directory_traced: Cell::new(false),
+            directory_trace: Cell::new(ProcessTrace::NotEntered),
+            directory_choice: Cell::new(DirectoryChoice::Automatic),
+            silent: Cell::new(false),
+            changed_directory: Cell::new(false),
+            recursive: Cell::new(false),
         }))
     }
     pub fn process_lifetime(&self) -> ProcessOutput {
         ProcessOutput(self.clone())
     }
     pub fn set_imported_directory(&self, directory: Option<&[u8]>) {
-        // Ordinary invocations have no imported trace to close. Keep their
-        // constructor path free of directory-string copies.
-        if directory.is_none() || self.0.directory_traced.get() {
-            self.0.directory.replace(directory.map(<[u8]>::to_vec));
+        let mut stored = self.0.directory.borrow_mut();
+        match directory {
+            None => *stored = None,
+            Some(directory) => match stored.as_mut() {
+                Some(current) if current.as_slice() == directory => {}
+                Some(current) => {
+                    current.clear();
+                    current.extend_from_slice(directory);
+                }
+                None => *stored = Some(directory.to_vec()),
+            },
+        }
+    }
+    pub fn set_directory_policy(&self, choice: DirectoryChoice, silent: bool) {
+        self.0.directory_choice.set(choice);
+        self.0.silent.set(silent);
+    }
+    pub fn set_changed_directory(&self, changed: bool) {
+        self.0.changed_directory.set(changed);
+    }
+    pub fn set_recursive(&self, recursive: bool) {
+        self.0.recursive.set(recursive);
+    }
+    fn should_report_directory(&self) -> bool {
+        match self.0.directory_choice.get() {
+            DirectoryChoice::On => true,
+            DirectoryChoice::Off => false,
+            DirectoryChoice::Automatic => {
+                !self.0.silent.get() && (self.0.changed_directory.get() || self.0.recursive.get())
+            }
         }
     }
     pub fn has_directory_trace(&self) -> bool {
-        self.0.directory_traced.get()
+        self.0.directory_trace.get() == ProcessTrace::Entered
     }
     pub fn import_directory_trace(&self) {
-        self.0.directory_traced.set(true);
+        self.0.directory_trace.set(ProcessTrace::Entered);
+    }
+    /// GNU-managed output and actual child launches share this lazy boundary.
+    /// Line/target output brackets belong to each nonempty locked spool dump.
+    pub fn start(&self) {
+        if !self.mode().root_buffered()
+            && self.0.directory_trace.get() == ProcessTrace::NotEntered
+            && self.should_report_directory()
+        {
+            self.0.directory_trace.set(ProcessTrace::Entered);
+            self.print_directory(true);
+        }
+    }
+    fn print_directory(&self, entering: bool) {
+        if crate::native::has_modules() {
+            // Directory messages use stdout even when stderr triggered them.
+            let _ = rmake_linux::native::flush_stream(false);
+        }
+        let program = self.0.program.borrow();
+        let directory = self.0.directory.borrow();
+        let verb = if entering {
+            b": Entering".as_slice()
+        } else {
+            b": Leaving".as_slice()
+        };
+        if let Some(directory) = directory.as_deref() {
+            plain_parts(
+                false,
+                &[program.as_slice(), verb, b" directory '", directory, b"'\n"],
+            );
+        } else {
+            plain_parts(
+                false,
+                &[program.as_slice(), verb, b" an unknown directory\n"],
+            );
+        }
+    }
+    fn dump_frame(&self, entering: bool, active: &mut bool) {
+        if entering {
+            self.start();
+            *active = self.mode().root_buffered()
+                && self.0.directory_trace.get() != ProcessTrace::Closed
+                && self.should_report_directory();
+        }
+        if *active {
+            self.print_directory(entering);
+        }
     }
     fn finish_directory(&self) {
-        if self.0.directory_traced.replace(false) {
-            let program = self.0.program.borrow();
-            let directory = self.0.directory.borrow();
-            if let Some(directory) = directory.as_deref() {
-                plain_parts(
-                    false,
-                    &[
-                        program.as_slice(),
-                        b": Leaving directory '",
-                        directory,
-                        b"'\n",
-                    ],
-                );
-            } else {
-                plain_parts(
-                    false,
-                    &[program.as_slice(), b": Leaving an unknown directory\n"],
-                );
-            }
+        if self.0.directory_trace.replace(ProcessTrace::Closed) == ProcessTrace::Entered {
+            self.print_directory(false);
         }
         self.clear();
     }
@@ -148,6 +220,9 @@ impl Controller {
             .filter(|buf| buf.enabled.get())
     }
     pub fn write_parts(&self, error: bool, parts: &[&[u8]]) {
+        if parts.iter().any(|part| !part.is_empty()) {
+            self.start();
+        }
         if let Some(buffer) = self.current() {
             for bytes in parts {
                 buffer.write(error, bytes);
@@ -201,6 +276,7 @@ impl Controller {
         self.0.coordination.borrow_mut().take();
     }
     pub fn warning(&self, bytes: &[u8]) {
+        self.start();
         plain(
             true,
             &[self.0.program.borrow().as_slice(), b": ", bytes, b"\n"].concat(),
@@ -214,7 +290,7 @@ impl Controller {
 
 /// The process owns final output across constructor errors and logical rereads.
 /// Recipe spools and successive interpreters may share the controller, but only
-/// this outer owner closes an imported directory trace.
+/// this outer owner closes the process directory trace.
 pub struct ProcessOutput(Controller);
 impl ProcessOutput {
     pub fn finish(&self) {
@@ -321,13 +397,19 @@ impl Buffer {
             let spool = self.spool.borrow();
             let provider = self.controller.0.coordination.borrow();
             spool.as_ref().and_then(|spool| {
+                let mut frame = false;
                 spool
-                    .dump(provider.as_ref(), &mut |operation, error| {
-                        plain(
-                            true,
-                            format!("{operation}: {}\n", crate::engine::os_error(error)).as_bytes(),
-                        );
-                    })
+                    .dump(
+                        provider.as_ref(),
+                        &mut |entering| self.controller.dump_frame(entering, &mut frame),
+                        &mut |operation, error| {
+                            plain(
+                                true,
+                                format!("{operation}: {}\n", crate::engine::os_error(error))
+                                    .as_bytes(),
+                            );
+                        },
+                    )
                     .err()
             })
         };
@@ -355,12 +437,17 @@ impl Buffer {
             }
             self.controller.clear();
             if let Some(spool) = self.spool.borrow().as_ref() {
-                let _ = spool.dump(None, &mut |operation, error| {
-                    plain(
-                        true,
-                        format!("{operation}: {}\n", crate::engine::os_error(error)).as_bytes(),
-                    );
-                });
+                let mut frame = false;
+                let _ = spool.dump(
+                    None,
+                    &mut |entering| self.controller.dump_frame(entering, &mut frame),
+                    &mut |operation, error| {
+                        plain(
+                            true,
+                            format!("{operation}: {}\n", crate::engine::os_error(error)).as_bytes(),
+                        );
+                    },
+                );
             }
         }
     }
@@ -412,5 +499,62 @@ impl Drop for Construction {
                 buffer.dump();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod directory_tests {
+    use super::*;
+
+    #[test]
+    fn automatic_policy_uses_published_startup_context_and_live_silence() {
+        let output = Controller::new(Mode::None, b"make");
+        assert!(!output.should_report_directory());
+        output.set_changed_directory(true);
+        assert!(output.should_report_directory());
+        output.set_directory_policy(DirectoryChoice::Automatic, true);
+        assert!(!output.should_report_directory());
+        output.set_directory_policy(DirectoryChoice::On, true);
+        assert!(output.should_report_directory());
+        output.set_changed_directory(false);
+        output.set_recursive(true);
+        output.set_directory_policy(DirectoryChoice::Automatic, false);
+        assert!(output.should_report_directory());
+        output.set_directory_policy(DirectoryChoice::Off, false);
+        assert!(!output.should_report_directory());
+    }
+
+    #[test]
+    fn directory_close_is_idempotent_and_finalizer_output_cannot_reopen_it() {
+        let output = Controller::new(Mode::None, b"make");
+        output.set_directory_policy(DirectoryChoice::On, false);
+        output.start();
+        assert_eq!(output.0.directory_trace.get(), ProcessTrace::Entered);
+        // Leave is owed even when later policy suppresses new entries.
+        output.set_directory_policy(DirectoryChoice::Off, false);
+        output.process_lifetime().finish();
+        assert_eq!(output.0.directory_trace.get(), ProcessTrace::Closed);
+        output.set_directory_policy(DirectoryChoice::On, false);
+        output.start();
+        output.process_lifetime().finish();
+        assert_eq!(output.0.directory_trace.get(), ProcessTrace::Closed);
+    }
+
+    #[test]
+    fn synchronized_frames_do_not_open_a_process_trace() {
+        let output = Controller::new(Mode::Target, b"make");
+        output.set_directory_policy(DirectoryChoice::On, false);
+        output.start();
+        assert_eq!(output.0.directory_trace.get(), ProcessTrace::NotEntered);
+        let mut framed = false;
+        output.dump_frame(true, &mut framed);
+        assert!(framed);
+        output.set_directory_policy(DirectoryChoice::Off, false);
+        output.dump_frame(false, &mut framed);
+        assert_eq!(output.0.directory_trace.get(), ProcessTrace::NotEntered);
+        output.process_lifetime().finish();
+        output.set_directory_policy(DirectoryChoice::On, false);
+        output.dump_frame(true, &mut framed);
+        assert!(!framed);
     }
 }

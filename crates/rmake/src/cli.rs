@@ -91,6 +91,16 @@ pub(crate) enum Argument {
     Warning(usize),
 }
 
+/// Explicit selectors retain their source; automatic reporting is evaluated
+/// against the current silent policy and the invocation's startup context.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DirectoryChoice {
+    #[default]
+    Automatic,
+    On,
+    Off,
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
@@ -132,7 +142,8 @@ pub struct Options {
     pub trace: bool,
     pub warn_undefined: bool,
     pub startup_missing_makeflags_warning: bool,
-    pub no_print_directory: bool,
+    pub directory_choice: DirectoryChoice,
+    pub directory_origin: Option<Origin>,
     pub help: bool,
     pub version: bool,
 }
@@ -155,6 +166,7 @@ struct IncomingSwitches {
     silent: Option<bool>,
     keep_going: Option<bool>,
     jobs: Option<usize>,
+    directory: Option<DirectoryChoice>,
 }
 
 pub(crate) struct DecodedArgument {
@@ -267,7 +279,6 @@ impl Decoder {
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
                     b"--no-builtin-variables" => Some(&mut result.no_variables),
-                    b"--no-print-directory" => Some(&mut result.no_print_directory),
                     _ => None,
                 };
                 if let Some(flag) = flag {
@@ -297,6 +308,24 @@ impl Decoder {
                     }
                 } else {
                     match name {
+                        b"--print-directory" | b"--no-print-directory" => {
+                            if value.is_some() {
+                                if !STARTUP {
+                                    i += 1;
+                                    continue;
+                                }
+                                return Err(format!(
+                                    "option '{}' doesn't allow an argument",
+                                    String::from_utf8_lossy(name)
+                                ));
+                            }
+                            result.directory_choice = if name == b"--print-directory" {
+                                DirectoryChoice::On
+                            } else {
+                                DirectoryChoice::Off
+                            };
+                            result.directory_origin = Some(Origin::CommandLine);
+                        }
                         b"--no-silent" | b"--no-keep-going" | b"--stop" => {
                             if value.is_some() {
                                 if !STARTUP {
@@ -502,6 +531,10 @@ impl Decoder {
                         b'L' => result.check_symlink_times = true,
                         b'q' => result.question = true,
                         b't' => result.touch = true,
+                        b'w' => {
+                            result.directory_choice = DirectoryChoice::On;
+                            result.directory_origin = Some(Origin::CommandLine);
+                        }
                         b'e' => result.environment_override = true,
                         b'r' => result.no_rules = true,
                         b'R' => {
@@ -601,7 +634,7 @@ impl Decoder {
                             break;
                         }
                         option => {
-                            if STARTUP || matches!(option, b'd' | b'p' | b'w') {
+                            if STARTUP || matches!(option, b'd' | b'p') {
                                 return Err(format!("unsupported option '-{}'", option as char));
                             }
                         }
@@ -701,6 +734,9 @@ impl Options {
             inherited_options.silent_origin.map(|_| Origin::Environment);
         inherited_options.keep_going_origin = inherited_options
             .keep_going_origin
+            .map(|_| Origin::Environment);
+        inherited_options.directory_origin = inherited_options
+            .directory_origin
             .map(|_| Origin::Environment);
         inherited_options.command_jobs = None;
         let (mut result, _) = Self::parse_with_inspection::<true, false, E>(
@@ -878,6 +914,8 @@ impl Options {
         seeded.evals = self.evals.clone();
         seeded.silent_origin = self.silent_origin;
         seeded.keep_going_origin = self.keep_going_origin;
+        seeded.directory_choice = self.directory_choice;
+        seeded.directory_origin = self.directory_origin;
         seeded.command_jobs = self.command_jobs;
         seeded.reset_jobserver = self.reset_jobserver;
         Ok(Some(Decoder::new(incoming, seeded, 1, false)))
@@ -990,6 +1028,16 @@ impl Options {
             parsed.keep_going_origin = self.keep_going_origin;
             parsed.keep_going = self.keep_going;
         }
+        if let Some(choice) = incoming_options.directory
+            && (origin == Origin::CommandLine
+                || self.directory_origin.is_none_or(|old| origin >= old))
+        {
+            parsed.directory_choice = choice;
+            parsed.directory_origin = Some(origin);
+        } else {
+            parsed.directory_choice = self.directory_choice;
+            parsed.directory_origin = self.directory_origin;
+        }
         parsed.command_jobs = self.command_jobs;
         if restore_cli_jobs && let Some(jobs) = self.command_jobs {
             parsed.jobs = Some(jobs);
@@ -1081,9 +1129,10 @@ impl Options {
                         decoder.options.silent_origin.take(),
                         decoder.options.keep_going_origin.take(),
                         decoder.options.jobs.take(),
+                        decoder.options.directory_origin.take(),
                     )
                 } else {
-                    (None, None, None)
+                    (None, None, None, None)
                 };
                 let step = decoder.advance::<STARTUP>().map_err(E::from)?;
                 if INSPECT {
@@ -1101,6 +1150,9 @@ impl Options {
                         if let Some(jobs) = options.jobs {
                             incoming.jobs = Some(jobs);
                         }
+                        if options.directory_origin.is_some() {
+                            incoming.directory = Some(options.directory_choice);
+                        }
                     }
                     if options.silent_origin.is_none() {
                         options.silent_origin = previous.0;
@@ -1110,6 +1162,9 @@ impl Options {
                     }
                     if options.jobs.is_none() {
                         options.jobs = previous.2;
+                    }
+                    if options.directory_origin.is_none() {
+                        options.directory_origin = previous.3;
                     }
                 }
                 let Some(step) = step else {
@@ -1190,6 +1245,7 @@ impl Options {
             (self.silent, b's'),
             (!self.keep_going && self.keep_going_origin.is_some(), b'S'),
             (self.touch, b't'),
+            (self.directory_choice == DirectoryChoice::On, b'w'),
         ] {
             if set {
                 flags.push(flag);
@@ -1241,7 +1297,7 @@ impl Options {
         if self.trace {
             flags.extend_from_slice(b" --trace");
         }
-        if self.no_print_directory {
+        if self.directory_choice == DirectoryChoice::Off {
             flags.extend_from_slice(b" --no-print-directory");
         }
         if self.warn_undefined {
@@ -1526,7 +1582,7 @@ mod tests {
             assert!(parse(&[value]).is_err());
             assert!(Options::with_environment([], Some(value.into()), None).is_err());
         }
-        for value in ["--debug=basic", "--deb=basic", "-d", "-p", "-w"] {
+        for value in ["--debug=basic", "--deb=basic", "-d", "-p"] {
             assert!(
                 Options::default()
                     .assigned_flags(&[value.as_bytes().to_vec()], Origin::File)
@@ -1670,6 +1726,75 @@ mod tests {
     }
 
     #[test]
+    fn directory_selectors_are_ordered_and_automatic_has_no_exported_switch() {
+        for (arguments, choice, flags) in [
+            (
+                vec!["-w", "--no-print-directory"],
+                DirectoryChoice::Off,
+                b" --no-print-directory".as_slice(),
+            ),
+            (
+                vec!["--no-print-directory", "--print-directory"],
+                DirectoryChoice::On,
+                b"w".as_slice(),
+            ),
+            (vec!["-sw"], DirectoryChoice::On, b"sw".as_slice()),
+            (
+                vec!["-C", "sub"],
+                DirectoryChoice::Automatic,
+                b"".as_slice(),
+            ),
+        ] {
+            let options = parse(&arguments).unwrap();
+            assert_eq!(options.directory_choice, choice);
+            assert_eq!(options.flags(), flags);
+        }
+        assert!(parse(&["--print-directory=yes"]).is_err());
+        let automatic = parse(&[])
+            .unwrap()
+            .assigned_flags(&[b"-s".to_vec()], Origin::File)
+            .unwrap()
+            .0;
+        assert_eq!(automatic.directory_choice, DirectoryChoice::Automatic);
+        assert_eq!(automatic.flags(), b"s");
+    }
+
+    #[test]
+    fn directory_selection_preserves_origin_across_flag_reconstruction() {
+        let explicit = parse(&["-w"]).unwrap();
+        let unchanged = explicit
+            .assigned_flags(&[b"--no-print-directory".to_vec()], Origin::File)
+            .unwrap()
+            .0;
+        assert_eq!(unchanged.directory_choice, DirectoryChoice::On);
+        assert_eq!(unchanged.directory_origin, Some(Origin::CommandLine));
+        let inherited = Options::with_environment([], Some("w".into()), None).unwrap();
+        assert_eq!(inherited.directory_origin, Some(Origin::Environment));
+        let selected = inherited
+            .assigned_flags(&[b"--no-print-directory".to_vec()], Origin::File)
+            .unwrap()
+            .0;
+        assert_eq!(selected.directory_choice, DirectoryChoice::Off);
+        assert_eq!(selected.directory_origin, Some(Origin::File));
+        let same = selected
+            .assigned_flags(&[b"w".to_vec()], Origin::File)
+            .unwrap()
+            .0;
+        assert_eq!(same.directory_choice, DirectoryChoice::On);
+        let lower = selected
+            .assigned_flags(&[b"w".to_vec()], Origin::Environment)
+            .unwrap()
+            .0;
+        assert_eq!(lower.directory_choice, DirectoryChoice::Off);
+        let absent = selected
+            .assigned_flags(&[b"-r".to_vec()], Origin::Override)
+            .unwrap()
+            .0;
+        assert_eq!(absent.directory_choice, DirectoryChoice::Off);
+        assert_eq!(absent.directory_origin, Some(Origin::File));
+    }
+
+    #[test]
     fn no_print_directory_survives_makeflags_with_gnu_spacing() {
         let options = parse(&["--no-print-directory", "--no-print-directory"]).unwrap();
         assert_eq!(options.flags(), b" --no-print-directory");
@@ -1679,7 +1804,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(inherited.no_print_directory);
+        assert_eq!(inherited.directory_choice, DirectoryChoice::Off);
         assert_eq!(inherited.flags(), b"rR --no-print-directory");
     }
 
