@@ -261,6 +261,7 @@ pub struct ExpansionContext<'a> {
     shell: Option<&'a mut ShellReceiver<'a>>,
     makeflags: Option<&'a mut dyn MakeflagsReceiver>,
     pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
+    native_runtime: Option<std::rc::Rc<dyn crate::native::NativeRuntime>>,
     makeflags_depth: usize,
     makeflags_terminal: usize,
     makeflags_next_is_definition: bool,
@@ -285,6 +286,7 @@ impl<'a> ExpansionContext<'a> {
             shell: None,
             makeflags: None,
             evaluation_stack: None,
+            native_runtime: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
             makeflags_next_is_definition: false,
@@ -303,6 +305,7 @@ impl<'a> ExpansionContext<'a> {
             shell: None,
             makeflags: None,
             evaluation_stack: None,
+            native_runtime: None,
             makeflags_depth: 0,
             makeflags_terminal: 0,
             makeflags_next_is_definition: false,
@@ -313,6 +316,26 @@ impl<'a> ExpansionContext<'a> {
     pub fn with_evaluation_stack(mut self, stack: Option<&'a dyn EvaluationStack>) -> Self {
         self.evaluation_stack = stack;
         self
+    }
+
+    pub fn with_native_runtime(
+        mut self,
+        runtime: std::rc::Rc<dyn crate::native::NativeRuntime>,
+    ) -> Self {
+        self.native_runtime = Some(runtime);
+        self
+    }
+
+    pub fn native_runtime(&self) -> Option<std::rc::Rc<dyn crate::native::NativeRuntime>> {
+        self.native_runtime.clone()
+    }
+
+    /// Classification returns an owned registration without cloning its runtime.
+    pub fn lookup_native_function(
+        &self,
+        name: &[u8],
+    ) -> Option<std::rc::Rc<crate::native::NativeFunction>> {
+        self.native_runtime.as_ref()?.lookup(name)
     }
 
     pub fn with_makeflags(mut self, receiver: &'a mut dyn MakeflagsReceiver) -> Self {
@@ -842,6 +865,7 @@ impl<'a> ExpansionContext<'a> {
                 None => None,
             },
             evaluation_stack: self.evaluation_stack,
+            native_runtime: self.native_runtime.clone(),
             makeflags_depth: self.makeflags_depth,
             makeflags_terminal: self.makeflags_terminal,
             makeflags_next_is_definition: self.makeflags_next_is_definition,

@@ -14,6 +14,7 @@ mod file_aliases;
 mod intermediates;
 mod load;
 mod makefiles;
+mod native;
 mod oneshell;
 mod output;
 mod process;
@@ -89,8 +90,16 @@ fn main() -> ExitCode {
         print_version();
         return ExitCode::SUCCESS;
     }
+    let mut retained_engine = None;
     let status = match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
-        Ok(engine) => engine.run(),
+        Ok(mut engine) => {
+            let status = engine.run_retained();
+            if crate::native::has_modules() {
+                engine.prepare_native_exit();
+                retained_engine = Some(engine);
+            }
+            status
+        }
         Err(message) => {
             if rmake_linux::signals::pending().is_none() {
                 let mut stderr = io::stderr().lock();
@@ -106,7 +115,13 @@ fn main() -> ExitCode {
         process_output.finish();
     }
     drop(signals);
-    ExitCode::from(rmake_linux::signals::exit_status(status))
+    let status = rmake_linux::signals::exit_status(status);
+    if crate::native::has_modules()
+        && let Some(engine) = &mut retained_engine
+    {
+        return ExitCode::from(engine.native_exit(status));
+    }
+    ExitCode::from(status)
 }
 
 /// Branding is deliberately distinct; exit-phase ordering is still semantic.

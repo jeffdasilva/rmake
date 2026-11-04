@@ -2777,11 +2777,19 @@ impl Expansion<'_, '_> {
 
     fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
         let location = self.context.location.cloned();
+        self.evaluate_buffer_at(first, location.as_ref())
+    }
+
+    fn evaluate_buffer_at(
+        &mut self,
+        first: &[u8],
+        location: Option<&Location>,
+    ) -> Result<Vec<u8>, ExpandError> {
         let active = self.snapshot_active();
         let result = match &mut self.store {
             StoreAccess::Database(db) => db.evaluate_in(
                 first,
-                location.as_ref(),
+                location,
                 None,
                 self.bindings.clone(),
                 active,
@@ -2793,7 +2801,7 @@ impl Expansion<'_, '_> {
             } => {
                 let result = database.evaluate_in(
                     first,
-                    location.as_ref(),
+                    location,
                     Some(*variables),
                     self.bindings.clone(),
                     active,
@@ -2804,21 +2812,73 @@ impl Expansion<'_, '_> {
             }
             _ => return Err(ExpandError::Unsupported(b"eval".to_vec())),
         };
-        result.map_err(|error| {
-            if error.message.is_unlocated() {
-                ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
-            } else if error.unlocated {
-                // Without a caller, an eval syntax/phase error still
-                // inherits its enclosing binding's validation locus.
-                ExpandError::FileError(error.message.as_bytes().to_vec())
-            } else {
-                ExpandError::Located {
-                    location: Arc::new(error.location),
-                    error: Box::new(ExpandError::FileError(error.message.as_bytes().to_vec())),
-                }
-            }
-        })?;
+        result.map_err(evaluation_error)?;
         Ok(Vec::new())
+    }
+
+    fn expand_native(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        let Some(stack) = self.context.evaluation_stack else {
+            return self.expand(input);
+        };
+        let mut result = None;
+        let ran = stack.run(&mut || {
+            // The adapter bounds/reserves this original Rust host stack before
+            // reentry. Keep logical depth, scopes and active keys intact.
+            let physical_depth = std::mem::replace(&mut self.depth, 0);
+            result = Some(self.expand(input));
+            self.depth = physical_depth;
+            Ok(())
+        });
+        match ran {
+            Some(Ok(())) => result.unwrap_or_else(|| {
+                Err(ExpandError::FileError(
+                    b"rmake: native expansion stack storage limit exceeded".to_vec(),
+                ))
+            }),
+            Some(Err(error)) => Err(evaluation_error(error)),
+            None => Err(ExpandError::FileError(
+                b"rmake: native expansion stack storage limit exceeded".to_vec(),
+            )),
+        }
+    }
+
+    fn native_function(&self, name: &[u8]) -> Option<std::rc::Rc<crate::native::NativeFunction>> {
+        self.context.lookup_native_function(name)
+    }
+
+    fn reference_span(
+        &self,
+        input: &[u8],
+        opening: usize,
+    ) -> Result<(usize, usize, bool), ExpandError> {
+        expansion_reference_span_with(input, opening, |name| {
+            arity(name).is_some() || self.native_function(name).is_some()
+        })
+    }
+
+    fn invoke_native(
+        &mut self,
+        function: &crate::native::NativeFunction,
+        name: &[u8],
+        args: &[Vec<u8>],
+    ) -> Result<Vec<u8>, ExpandError> {
+        if self.context.is_cancelled() {
+            return Err(ExpandError::Cancelled);
+        }
+        if args.len() < usize::from(function.minimum) {
+            return Err(ExpandError::InsufficientArguments {
+                function: name.to_vec(),
+                count: args.len(),
+            });
+        }
+        let mut value = function.callback.invoke(name, args, self)?;
+        if let Some(end) = value.iter().position(|&byte| byte == 0) {
+            value.truncate(end);
+        }
+        if value.len() > MAX_OUTPUT {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        Ok(value)
     }
 
     fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
@@ -3168,6 +3228,35 @@ fn local(value: Vec<u8>) -> Variable {
     }
 }
 
+impl crate::native::NativeHost for Expansion<'_, '_> {
+    fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.expand_native(input)
+    }
+
+    fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError> {
+        let location = location.cloned().or_else(|| self.context.location.cloned());
+        self.evaluate_buffer_at(input, location.as_ref())
+            .map(|_| ())
+    }
+
+    fn emit(&mut self, event: Output<'_>) -> bool {
+        self.context.emit(event)
+    }
+}
+
+pub(crate) fn evaluation_error(error: crate::parser::ParseError) -> ExpandError {
+    if error.message.is_unlocated() {
+        ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
+    } else if error.unlocated {
+        ExpandError::FileError(error.message.as_bytes().to_vec())
+    } else {
+        ExpandError::Located {
+            location: Arc::new(error.location),
+            error: Box::new(ExpandError::FileError(error.message.as_bytes().to_vec())),
+        }
+    }
+}
+
 fn invalid(function: &[u8], message: &'static str) -> ExpandError {
     ExpandError::InvalidArguments {
         function: function.to_vec(),
@@ -3334,12 +3423,20 @@ pub(crate) fn expansion_reference_span(
     input: &[u8],
     opening: usize,
 ) -> Result<(usize, usize, bool), ExpandError> {
+    expansion_reference_span_with(input, opening, |name| arity(name).is_some())
+}
+
+fn expansion_reference_span_with(
+    input: &[u8],
+    opening: usize,
+    mut is_function: impl FnMut(&[u8]) -> bool,
+) -> Result<(usize, usize, bool), ExpandError> {
     let body = &input[opening + 1..];
     let close = if input[opening] == b'(' { b')' } else { b'}' };
     let first = body.iter().position(|byte| *byte == close);
     let prefix = &body[..first.unwrap_or(body.len())];
     if let Some(end) = prefix.iter().position(gnu_whitespace)
-        && arity(&prefix[..end]).is_some()
+        && is_function(&prefix[..end])
     {
         let end = reference_end(input, opening).map_err(|_| ExpandError::UnterminatedFunction {
             function: prefix[..end].to_vec(),
@@ -3378,7 +3475,7 @@ pub(crate) fn reference_end(input: &[u8], opening: usize) -> Result<usize, Expan
     Err(ExpandError::UnterminatedReference)
 }
 
-fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
+pub(crate) fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
     match name {
         b"subst" | b"patsubst" | b"wordlist" | b"foreach" | b"let" => Some((3, Some(3))),
         b"findstring" | b"filter" | b"filter-out" | b"word" | b"addprefix" | b"addsuffix"

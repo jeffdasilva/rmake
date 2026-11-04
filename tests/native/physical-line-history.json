@@ -1,0 +1,5 @@
+{
+  "sha256": "339fae37591b4c788f577a3a47344220126d80a4883847037e256ddfc2d34744",
+  "raw_sha256": "64e8001e0dcf857821828ec7d78bf440befde3548b14df20b79bf43c02516523",
+  "classification": "Original physical-name/default-symbol and explicit line-location discovery. Original alias-symbol persistence hypothesis is wrong; line0 candidate mismatch is discovery only because its binary hash was not captured. Zero additional conformance or exception credit."
+}

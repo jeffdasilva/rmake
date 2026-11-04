@@ -96,6 +96,28 @@ impl<'a> ReadFrame<'a> {
     }
 }
 
+struct LoadHost<'a, 'b> {
+    database: &'a mut Database,
+    context: ExpansionContext<'b>,
+}
+
+impl crate::native::NativeHost for LoadHost<'_, '_> {
+    fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.database.expand_with(input, self.context.reborrow())
+    }
+
+    fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError> {
+        let location = location.cloned().or_else(|| self.context.location.cloned());
+        self.database
+            .read_evaluated(input, location.as_ref(), self.context.reborrow())
+            .map_err(crate::variables::evaluation_error)
+    }
+
+    fn emit(&mut self, event: Output<'_>) -> bool {
+        self.context.emit(event)
+    }
+}
+
 /// The initial suffix order of the pinned GNU Make 4.4.1 Linux profile.
 /// This metadata does not install implicit rules or suffix-rule conversions.
 pub const DEFAULT_SUFFIXES: &[u8] = b".out .a .ln .o .c .cc .C .cpp .p .f .F .m .r .y .l .ym .yl .s .S .mod .sym .def .h .info .dvi .tex .texinfo .texi .txinfo .w .ch .web .sh .elc .el";
@@ -384,6 +406,8 @@ pub struct Database {
     pub posix: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
+    /// Module identities remain distinct while sharing makefile remake traversal.
+    pub loaded_modules: HashMap<Vec<u8>, Location>,
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
     vpaths: Vec<Vpath>,
     include_depth: usize,
@@ -2698,6 +2722,94 @@ impl Database {
         self.rules_frozen = true;
     }
 
+    /// Load one prepared module, retaining raw metadata and its first source.
+    /// Filename expansion/list preparation belongs to the directive reader.
+    pub fn load_native_with(
+        &mut self,
+        name: &[u8],
+        optional: bool,
+        location: &Location,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<crate::native::LoadOutcome, ExpandError> {
+        use crate::native::NativeLoadStatus;
+        let runtime = context.native_runtime().ok_or_else(|| {
+            ExpandError::FileError(
+                [
+                    b"rmake: unsupported directive '".as_slice(),
+                    if optional { b"-load" } else { b"load" },
+                    b"'",
+                ]
+                .concat(),
+            )
+        })?;
+        let loaded = runtime.load(
+            name,
+            optional,
+            location,
+            &mut LoadHost {
+                database: self,
+                context: context.at(Some(location)),
+            },
+        )?;
+        if loaded.status == NativeLoadStatus::Failed && !optional {
+            return Err(ExpandError::FileError([name, b": failed to load"].concat()));
+        }
+        self.loaded_modules
+            .entry(loaded.name.clone())
+            .or_insert_with(|| location.clone());
+        if loaded.status == NativeLoadStatus::Loaded {
+            self.variables
+                .append_literal_at(b".LOADED", &loaded.name, Origin::File, location)?;
+        }
+        if loaded.status != NativeLoadStatus::Skipped {
+            self.file_records.insert(&loaded.name);
+            self.makefiles.push(Makefile {
+                name: loaded.name.clone(),
+                optional: false,
+                missing: loaded.status == NativeLoadStatus::Failed,
+                read_error: None,
+            });
+        }
+        Ok(loaded)
+    }
+
+    /// Keep interpreter state available while native process finalizers run.
+    pub fn terminate_native_with(
+        &mut self,
+        status: u8,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        let runtime = context
+            .native_runtime()
+            .ok_or_else(|| ExpandError::Unsupported(b"native process termination".to_vec()))?;
+        runtime.terminate(
+            status,
+            &mut LoadHost {
+                database: self,
+                context: context.reborrow(),
+            },
+        )
+    }
+
+    /// Unload a module before rebuilding its file. Destructor effects use the
+    /// same scoped interpreter host as loading and ordinary callbacks.
+    pub fn unload_native_with(
+        &mut self,
+        name: &[u8],
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<bool, ExpandError> {
+        let Some(runtime) = context.native_runtime() else {
+            return Ok(false);
+        };
+        runtime.unload(
+            name,
+            &mut LoadHost {
+                database: self,
+                context: context.reborrow(),
+            },
+        )
+    }
+
     pub fn expand_with(
         &mut self,
         bytes: &[u8],
@@ -2822,14 +2934,14 @@ impl Database {
         location: Option<&Location>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let (file, offset) = location.map_or((b"".as_slice(), 0), |location| {
-            (location.file.as_ref(), location.line.saturating_sub(1))
+        let (file, first_line) = location.map_or((b"".as_slice(), 1), |location| {
+            (location.file.as_ref(), location.line)
         });
         if context.evaluation_stack.is_none() && self.evaluation_depth >= 128 {
             return Err(ParseError {
                 location: Location {
                     file: file.into(),
-                    line: offset + 1,
+                    line: first_line,
                 },
                 unlocated: location.is_none(),
                 message: "rmake: evaluation nesting limit exceeded".into(),
@@ -2847,7 +2959,7 @@ impl Database {
                         .unwrap_or(bytes.len())],
                 ),
                 file,
-                Some(offset + 1),
+                Some(first_line),
                 context,
             )
             .map_err(|mut error| {
@@ -3461,29 +3573,29 @@ impl Database {
                     })?;
                 // Prepare every operand before attempting the first module.
                 // Even an optional load rejects an explicitly empty setup name.
-                let Some(name) = paths.into_iter().next() else {
-                    continue;
-                };
-                if let Some(open) = name.iter().position(|&byte| byte == b'(')
-                    && name.get(open + 1..) == Some(b")")
-                {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: [b"Empty symbol name for load: ".as_slice(), &name]
-                            .concat()
-                            .into(),
-                    });
+                for name in paths {
+                    if let Some(open) = name.iter().position(|&byte| byte == b'(')
+                        && name.get(open + 1..) == Some(b")")
+                    {
+                        return Err(ParseError {
+                            unlocated: false,
+                            location,
+                            message: [b"Empty symbol name for load: ".as_slice(), &name]
+                                .concat()
+                                .into(),
+                        });
+                    }
+                    self.load_native_with(&name, keyword == b"-load", &location, context)
+                        .map_err(|error| ParseError {
+                            unlocated: error.is_unlocated(),
+                            location: error
+                                .diagnostic_location(Some(&location))
+                                .unwrap_or(&location)
+                                .clone(),
+                            message: error.diagnostic(),
+                        })?;
                 }
-                return Err(ParseError {
-                    unlocated: false,
-                    location,
-                    message: format!(
-                        "rmake: unsupported directive '{}'",
-                        String::from_utf8_lossy(keyword)
-                    )
-                    .into(),
-                });
+                continue;
             }
             self.finish_declaration(declaration, &location, context)?;
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {

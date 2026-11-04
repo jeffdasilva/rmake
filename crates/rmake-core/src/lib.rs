@@ -13,6 +13,7 @@ pub mod diagnostic;
 pub mod file_records;
 pub mod filenames;
 pub mod implicit;
+pub mod native;
 pub mod parser;
 pub mod reader;
 pub mod safety;

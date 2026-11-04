@@ -2983,3 +2983,30 @@ plus the unchanged 32 approved exceptions / 128 separately gated cells.
 Full frozen rmake-driven local acceptance and exact-head development/optimized
 CI remain merge gates. No speedup or general GNU parity is claimed. Complete
 M3/M6, native/profile/integration and persistent cache acceptance remain open.
+
+
+## M3/M6: Linux native module runtime
+
+[The native runtime](native-modules.md) loads original GNU-compatible modules and
+implements registered functions, allocation/free, expansion/eval re-entry, scopes,
+raw metadata and qualified module/restart/finalizer behavior. C fibres yield
+requests to the ordinary Rust interpreter stack, so fatal callbacks stop before
+later effects while normal runtime cleanup returns tokens and drains children.
+C buffering/output-sync and process-exit ordering have explicit original models.
+No GNU implementation, header or tests were copied or translated.
+
+All 147 original compiled C models pass both selected frozen builds against two
+GNU executions. The preceding main build differs on all 147 models.
+The complete observations, including ordered effects and filesystem snapshots,
+are retained under `tests/native`. Formatting, Clippy, 555 Rust tests and 612
+tooling tests pass. Compiled C integration profiles run through top-level development,
+optimized and focused self-host targets, separately from ordinary fixture credit.
+The ordinary corpus remains 27,766 required / zero pending across 158 families;
+the 32 approved exceptions / 128 cells remain unchanged. Quarantined new native
+GNU crashes have no ordinary or approved-exception credit. Full frozen local
+acceptance and exact-head PR CI remain merge gates. Native initialization errors,
+stdin restarts and broader callback/resource profiles remain open. Finite native
+expansion through depth 1,024 now retains lexical context and single evaluation.
+[Paired timings](benchmarks/native-runtime.md) retain every mixed and negative
+result; small runtime improvements do not establish GNU parity. Complete M3/M6
+remains open.

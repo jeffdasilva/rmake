@@ -57,6 +57,9 @@ pub fn run(
             if let Some(buffer) = &buffer {
                 buffer.configure_stderr(&mut command)?;
             }
+            if crate::native::has_modules() {
+                rmake_linux::native::flush_standard_streams()?;
+            }
             rmake_linux::child::Child::spawn_capture_ordered(
                 &mut command,
                 image,
