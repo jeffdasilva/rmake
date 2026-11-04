@@ -21,6 +21,7 @@ unsafe extern "C" {
     fn signal(number: c_int, handler: usize) -> usize;
     fn siginterrupt(number: c_int, interrupt: c_int) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
+    fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn read(descriptor: c_int, bytes: *mut c_void, length: usize) -> isize;
     fn write(descriptor: c_int, bytes: *const c_void, length: usize) -> isize;
     fn __errno_location() -> *mut c_int;
@@ -60,6 +61,19 @@ extern "C" fn caught(number: c_int) {
     unsafe { *__errno_location() = saved };
 }
 
+// Reserve the conventional first protocol pair before handlers or user code
+// can retain a wake descriptor. A live wake pipe is never relocated.
+fn private_wake_end(file: File) -> io::Result<File> {
+    if file.as_raw_fd() >= 5 {
+        return Ok(file);
+    }
+    let descriptor = unsafe { fcntl(file.as_raw_fd(), 1030, 5) };
+    if descriptor < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(unsafe { File::from_raw_fd(descriptor) })
+}
+
 pub struct Guard {
     saved: Vec<(c_int, usize)>,
     _reader: File,
@@ -76,8 +90,8 @@ impl Guard {
         }
         let reader = unsafe { File::from_raw_fd(descriptors[0]) };
         let writer = unsafe { File::from_raw_fd(descriptors[1]) };
-        let reader = crate::process::private_descriptor(reader)?;
-        let writer = crate::process::private_descriptor(writer)?;
+        let reader = private_wake_end(reader)?;
+        let writer = private_wake_end(writer)?;
         let mut guard = Self {
             saved: Vec::new(),
             _reader: reader,

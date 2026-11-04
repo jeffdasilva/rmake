@@ -308,3 +308,182 @@ mod tests {
         assert_eq!(requests.decode(false).unwrap(), Mask::BASIC);
     }
 }
+
+/// A recipe owns one stable record while its individual commands acquire PIDs.
+/// Raw addresses are identities only; no foreign pointer is dereferenced.
+pub struct Job {
+    target: Vec<u8>,
+    pid: std::cell::Cell<u32>,
+    linked: std::cell::Cell<bool>,
+}
+pub type JobHandle = std::rc::Rc<Job>;
+
+#[derive(Default)]
+pub struct Jobs {
+    /// Explicit chain order survives HashMap movement and command continuations.
+    chain: Vec<JobHandle>,
+    drained: bool,
+}
+impl Jobs {
+    pub fn record(target: &[u8], mask: Mask) -> Option<JobHandle> {
+        mask.has(Mask::JOBS).then(|| {
+            std::rc::Rc::new(Job {
+                target: target.to_vec(),
+                pid: std::cell::Cell::new(0),
+                linked: std::cell::Cell::new(false),
+            })
+        })
+    }
+    fn identity(job: &JobHandle) -> String {
+        format!("{:p}", std::rc::Rc::as_ptr(job))
+    }
+    pub fn controller(mask: Mask, authentication: &[u8]) {
+        if mask.has(Mask::JOBS) {
+            raw(&[b"Using jobserver controller ", authentication, b"\n"]);
+        }
+    }
+    pub fn need(&self, mask: Mask) {
+        if mask.has(Mask::JOBS) {
+            raw(&[if self.chain.is_empty() {
+                b"Need a job token; we don't have children\n"
+            } else {
+                b"Need a job token; we have children\n"
+            }]);
+        }
+    }
+    pub fn obtained(mask: Mask, job: Option<&JobHandle>) {
+        if mask.has(Mask::JOBS)
+            && let Some(job) = job
+        {
+            raw(&[
+                b"Obtained token for child ",
+                Self::identity(job).as_bytes(),
+                b" (",
+                &job.target,
+                b").\n",
+            ]);
+        }
+    }
+    pub fn launched(&mut self, mask: Mask, job: &JobHandle, pid: u32) {
+        job.pid.set(pid);
+        if !job.linked.replace(true) {
+            self.chain.insert(0, job.clone());
+            if mask.has(Mask::JOBS) {
+                raw(&[
+                    b"Putting child ",
+                    Self::identity(job).as_bytes(),
+                    b" (",
+                    &job.target,
+                    b") PID ",
+                    pid.to_string().as_bytes(),
+                    b" on the chain.\n",
+                ]);
+            }
+        }
+    }
+    pub fn live(&self, mask: Mask) {
+        if !mask.has(Mask::JOBS) {
+            return;
+        }
+        for job in &self.chain {
+            raw(&[
+                b"Live child ",
+                Self::identity(job).as_bytes(),
+                b" (",
+                &job.target,
+                b") PID ",
+                job.pid.get().to_string().as_bytes(),
+                b" \n",
+            ]);
+        }
+    }
+    pub fn reaped(mask: Mask, job: Option<&JobHandle>, success: bool) {
+        if mask.has(Mask::JOBS)
+            && let Some(job) = job
+        {
+            raw(&[
+                if success {
+                    b"Reaping winning child "
+                } else {
+                    b"Reaping losing child "
+                },
+                Self::identity(job).as_bytes(),
+                b" PID ",
+                job.pid.get().to_string().as_bytes(),
+                b" \n",
+            ]);
+        }
+    }
+    pub fn removed(&mut self, mask: Mask, job: &JobHandle, pooled: bool) {
+        if !job.linked.replace(false) {
+            return;
+        }
+        if mask.has(Mask::JOBS) {
+            raw(&[
+                b"Removing child ",
+                Self::identity(job).as_bytes(),
+                b" PID ",
+                job.pid.get().to_string().as_bytes(),
+                b" from chain.\n",
+            ]);
+        }
+        self.chain.retain(|entry| !std::rc::Rc::ptr_eq(entry, job));
+        // This describes the logical slot made available by completion, not
+        // the particular recipe which happened to own an explicit permit.
+        if pooled && !self.chain.is_empty() && mask.has(Mask::JOBS) {
+            raw(&[
+                b"Released token for child ",
+                Self::identity(job).as_bytes(),
+                b" (",
+                &job.target,
+                b").\n",
+            ]);
+        }
+    }
+    pub fn drain(&mut self, mask: Mask, slots: Option<usize>) {
+        if self.drained {
+            return;
+        }
+        self.drained = true;
+        if mask.has(Mask::JOBS)
+            && let Some(slots) = slots
+        {
+            raw(&[
+                b"Acquired all ",
+                slots.saturating_sub(1).to_string().as_bytes(),
+                b" jobserver tokens.\n",
+            ]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod job_record_tests {
+    use super::*;
+    #[test]
+    fn recipe_record_identity_survives_command_pids_and_chain_reordering() {
+        assert!(Jobs::record(b"quiet", Mask::NONE).is_none());
+        let first = Jobs::record(b"first", Mask::JOBS).unwrap();
+        let first_pointer = std::rc::Rc::as_ptr(&first);
+        let weak = std::rc::Rc::downgrade(&first);
+        let mut jobs = Jobs::default();
+        jobs.launched(Mask::NONE, &first, 11);
+        let continuation = first.clone();
+        jobs.launched(Mask::NONE, &continuation, 12);
+        assert_eq!(jobs.chain.len(), 1);
+        assert_eq!(std::rc::Rc::as_ptr(&continuation), first_pointer);
+        assert_eq!(jobs.chain[0].pid.get(), 12);
+        let second = Jobs::record(b"second", Mask::JOBS).unwrap();
+        jobs.launched(Mask::NONE, &second, 13);
+        assert!(std::rc::Rc::ptr_eq(&jobs.chain[0], &second));
+        assert!(std::rc::Rc::ptr_eq(&jobs.chain[1], &first));
+        jobs.removed(Mask::NONE, &first, true);
+        assert_eq!(jobs.chain.len(), 1);
+        assert!(std::rc::Rc::ptr_eq(&jobs.chain[0], &second));
+        drop(first);
+        drop(continuation);
+        assert!(weak.upgrade().is_none());
+        jobs.removed(Mask::NONE, &second, false);
+        assert!(jobs.chain.is_empty());
+    }
+}

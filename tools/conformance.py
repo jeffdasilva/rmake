@@ -29,7 +29,7 @@ import sys
 import tempfile
 import time
 import tomllib
-from typing import Any
+from typing import Any, Callable
 
 import oracle as reference_oracle
 
@@ -335,7 +335,8 @@ def child_limits(timeout: float) -> None:
 
 
 def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout: float,
-            merged: bool = False) -> tuple[bytes, bytes, int, str | None, bool]:
+            merged: bool = False, *, observe: Callable[[int, bytes], None] | None = None
+            ) -> tuple[bytes, bytes, int, str | None, bool]:
     """Bound output and execution; kill the entire inherited group on every exit."""
     process = subprocess.Popen(command, cwd=cwd, env=environment, stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE,
@@ -355,6 +356,8 @@ def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout:
     kill_deadline: float | None = None
     try:
         while selector.get_map() or process.poll() is None:
+            if observe is not None:
+                observe(process.pid, bytes(buffers['stdout']))
             now = time.monotonic()
             if limit is None and now >= deadline:
                 limit = "timeout"

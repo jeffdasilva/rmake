@@ -329,6 +329,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn transferring_a_paid_lease_to_the_implicit_slot_returns_exactly_one_original_byte() {
+        for pipe in [false, true] {
+            let server = Jobserver::create(2, pipe).unwrap();
+            let mut slot = server.try_acquire().unwrap().unwrap();
+            let original = slot.byte;
+            assert!(server.try_acquire().unwrap().is_none());
+            let paid = std::mem::replace(&mut slot, Permit::implicit());
+            drop(paid);
+            let borrowed = server.try_acquire().unwrap().unwrap();
+            assert_eq!(borrowed.byte, original);
+            drop(slot);
+            assert!(server.try_acquire().unwrap().is_none());
+            drop(borrowed);
+            let returned = server.try_acquire().unwrap().unwrap();
+            assert_eq!(returned.byte, original);
+            assert!(server.try_acquire().unwrap().is_none());
+        }
+    }
+
+    #[test]
     fn joining_a_pool_does_not_acquire_creator_metadata_or_consume_tokens() {
         for pipe in [false, true] {
             let owner = Jobserver::create(3, pipe).unwrap();

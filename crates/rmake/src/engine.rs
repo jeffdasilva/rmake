@@ -573,6 +573,7 @@ struct RecipeState {
     one_shell: bool,
     environment: Option<RecipeEnvironment>,
     permit: Option<Permit>,
+    debug_job: Option<crate::debug::JobHandle>,
 }
 
 struct RecipeEnvironment {
@@ -706,6 +707,7 @@ pub struct Engine {
     impossible_generation: u64,
     would_build: bool,
     parallel_jobs: ParallelJobs,
+    job_debug: crate::debug::Jobs,
     load_waiting: Vec<(Vec<u8>, u64)>,
     load: crate::load::Monitor,
     next_job: u64,
@@ -1233,6 +1235,7 @@ impl Engine {
             impossible_generation: 0,
             would_build: false,
             parallel_jobs: ParallelJobs::default(),
+            job_debug: crate::debug::Jobs::default(),
             load_waiting: Vec::new(),
             load: crate::load::Monitor::default(),
             next_job: 0,
@@ -1746,6 +1749,10 @@ impl Engine {
             }
         }
         self.output.select(None);
+        self.job_debug.drain(
+            self.output.debug_mask(),
+            self.jobserver.as_ref().and_then(Jobserver::owned_slots),
+        );
         status
     }
 
@@ -3163,10 +3170,15 @@ impl Engine {
         }
     }
 
-    fn reserve_job(&mut self) -> io::Result<Option<Permit>> {
+    fn reserve_job(
+        &mut self,
+        debug_job: Option<&crate::debug::JobHandle>,
+    ) -> io::Result<Option<Permit>> {
         let Some(server) = self.jobserver.clone() else {
             return Ok(None);
         };
+        self.job_debug.need(self.output.debug_mask());
+        self.job_debug.live(self.output.debug_mask());
         loop {
             self.start_load_waiting();
             if !self.parallel_jobs.values().any(|job| {
@@ -3178,6 +3190,7 @@ impl Engine {
                 return Ok(Some(Permit::implicit()));
             }
             if let Some(permit) = server.try_acquire()? {
+                crate::debug::Jobs::obtained(self.output.debug_mask(), debug_job);
                 return Ok(Some(permit));
             }
             // Wait for this pool's reader, owned child exits, or a fatal signal.
@@ -3268,12 +3281,20 @@ impl Engine {
         if children.is_empty() && additional.is_none() {
             return Ok(false);
         }
+        if block {
+            self.job_debug.live(self.output.debug_mask());
+        }
         // GNU retries load-delayed recipes after a one-second jobserver wait.
         // Ordinary child waits remain event-driven; token readiness still wakes
         // immediately instead of paying this retry interval.
         let load_retry = (additional.is_some() && !self.load_waiting.is_empty())
             .then_some(Duration::from_secs(1));
         let ready = rmake_linux::child::wait(&children, block, true, additional, load_retry)?;
+        // Idle nonblocking polls are an internal graph refresh, rather than a
+        // visible reaping pass. A ready completion still reports its live scan.
+        if !block && !ready.is_empty() {
+            self.job_debug.live(self.output.debug_mask());
+        }
         self.observe_interrupt();
         for identity in ready {
             let (target, job) = self
@@ -3340,7 +3361,9 @@ impl Engine {
         target: &[u8],
         before: Option<SystemTime>,
         phony: bool,
+        debug_job: Option<&crate::debug::JobHandle>,
     ) -> io::Result<(std::process::ExitStatus, bool)> {
+        self.job_debug.live(self.output.debug_mask());
         let mut observed = None;
         let mut cleaned = false;
         loop {
@@ -3362,6 +3385,7 @@ impl Engine {
                 }
             }
             if let Some(status) = child.try_wait()? {
+                crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
                 return Ok((status, cleaned));
             }
             rmake_linux::child::wait(&[(0, child)], true, true, None, None)?;
@@ -3432,6 +3456,36 @@ impl Engine {
         }
     }
 
+    /// The inherited slot belongs to the live pool, not permanently to its
+    /// first recipe. Move an outstanding paid lease into the newly freed slot
+    /// and return that lease's original byte to other jobserver participants.
+    fn reuse_implicit_job_slot(&mut self) {
+        if self.jobserver.is_none()
+            || self.parallel_jobs.values().any(|job| {
+                job.continuation
+                    .permit
+                    .as_ref()
+                    .is_some_and(Permit::is_implicit)
+            })
+        {
+            return;
+        }
+        if let Some((_, job)) = self
+            .parallel_jobs
+            .entries_mut()
+            .filter(|(_, job)| {
+                job.continuation
+                    .permit
+                    .as_ref()
+                    .is_some_and(|permit| !permit.is_implicit())
+            })
+            .min_by_key(|(_, job)| job.identity)
+        {
+            let paid = job.continuation.permit.replace(Permit::implicit());
+            drop(paid);
+        }
+    }
+
     fn complete_job(&mut self, (target, identity, result): JobResult) {
         self.graph_epoch = self.graph_epoch.wrapping_add(1);
         let mut job = self
@@ -3439,6 +3493,14 @@ impl Engine {
             .remove(&target, identity)
             .expect("reserved parallel target");
         let output = job.continuation.output.clone();
+        let debug_job = job.continuation.debug_job.clone();
+        if let Some(result) = &result {
+            crate::debug::Jobs::reaped(
+                self.output.debug_mask(),
+                debug_job.as_ref(),
+                result.as_ref().is_ok_and(|status| status.success()),
+            );
+        }
         if result.as_ref().is_some_and(|status| status.is_ok())
             && let Some(buffer) = &output
         {
@@ -3588,6 +3650,9 @@ impl Engine {
         if !self.parallel_jobs.contains_key(&target) {
             self.finish_group(&target, outcome);
         }
+        self.finish_debug_job(debug_job.as_ref());
+        self.reuse_implicit_job_slot();
+        self.job_debug.live(self.output.debug_mask());
     }
 
     fn gpath_match(&self, original: &[u8], resolved: &[u8]) -> bool {
@@ -6759,8 +6824,12 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
+        let debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
+        // A new recipe's dispatch scans the existing live chain before asking
+        // for its slot. Continuations retain their existing chain position.
+        self.job_debug.live(self.output.debug_mask());
         let permit = if parallel {
-            match self.reserve_job() {
+            match self.reserve_job(debug_job.as_ref()) {
                 Ok(permit) => permit,
                 Err(error) => {
                     self.fatal(None, format!("jobserver: {}", os_error(&error)).as_bytes());
@@ -6838,6 +6907,7 @@ impl Engine {
             one_shell,
             environment: None,
             permit,
+            debug_job,
         };
         if parallel && self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high()
         {
@@ -6866,6 +6936,21 @@ impl Engine {
         self.continue_recipe(target, state, phony, before, parallel)
     }
 
+    fn finish_debug_job(&mut self, record: Option<&crate::debug::JobHandle>) {
+        if let Some(record) = record {
+            let pending = self.parallel_jobs.values().any(|job| {
+                job.continuation
+                    .debug_job
+                    .as_ref()
+                    .is_some_and(|other| std::rc::Rc::ptr_eq(other, record))
+            });
+            if !pending {
+                self.job_debug
+                    .removed(self.output.debug_mask(), record, self.jobserver.is_some());
+            }
+        }
+    }
+
     fn continue_recipe(
         &mut self,
         target: &[u8],
@@ -6873,6 +6958,23 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
         parallel: bool,
+    ) -> Execution {
+        let mut state = state;
+        let mut debug_job = state.debug_job.take();
+        let execution =
+            self.continue_recipe_inner(target, state, phony, before, parallel, &mut debug_job);
+        self.finish_debug_job(debug_job.as_ref());
+        execution
+    }
+
+    fn continue_recipe_inner(
+        &mut self,
+        target: &[u8],
+        state: RecipeState,
+        phony: bool,
+        before: Option<SystemTime>,
+        parallel: bool,
+        debug_job: &mut Option<crate::debug::JobHandle>,
     ) -> Execution {
         let RecipeState {
             output,
@@ -6883,6 +6985,7 @@ impl Engine {
             one_shell,
             mut environment,
             permit,
+            debug_job: _,
         } = state;
         let variables = &mut variables;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
@@ -7270,6 +7373,15 @@ impl Engine {
                 },
             );
             self.output.select(None);
+            if let Ok(child) = &process {
+                if debug_job.is_none() {
+                    *debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
+                }
+                if let Some(record) = debug_job.as_ref() {
+                    self.job_debug
+                        .launched(self.output.debug_mask(), record, child.id());
+                }
+            }
             if process.is_ok() && self.options.load_limit.is_some_and(|v| v >= 0.0) {
                 self.load.started();
             }
@@ -7301,6 +7413,7 @@ impl Engine {
                                     one_shell,
                                     environment,
                                     permit,
+                                    debug_job: debug_job.clone(),
                                 },
                             },
                         );
@@ -7312,7 +7425,7 @@ impl Engine {
             } else {
                 match process {
                     Ok(mut child) => self
-                        .wait_serial_child(&mut child, target, before, phony)
+                        .wait_serial_child(&mut child, target, before, phony, debug_job.as_ref())
                         .map(|(status, cleaned)| {
                             signal_cleaned = cleaned;
                             status

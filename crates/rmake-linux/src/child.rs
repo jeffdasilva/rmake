@@ -79,6 +79,10 @@ impl Child {
         Ok((child, stdout))
     }
 
+    pub fn id(&self) -> u32 {
+        self.child.id()
+    }
+
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         self.child.try_wait()
     }

@@ -602,6 +602,7 @@ impl Engine {
         };
         if let Some(server) = &self.jobserver {
             self.options.jobserver_auth = Some(server.auth().to_vec());
+            crate::debug::Jobs::controller(self.output.debug_mask(), server.auth());
         }
         self.options.inherited_jobs = false;
         self.options.reset_jobserver = false;
