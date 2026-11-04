@@ -1,0 +1,1012 @@
+{
+  "schema_version": 1,
+  "classification": "Final pre-gate pinned serial real-project qualification; full GNU2/candidate bytes, independent smoke/freshness; no performance or full M3/M6 claim",
+  "cases": [
+    "xxhash-0.8.3",
+    "zlib-1.3.2"
+  ],
+  "profiles": [
+    "serial-j1"
+  ],
+  "records": [
+    {
+      "path": "development-part-0.json.gz",
+      "sha256": "2dfa7bd50aa355c6b93c676dff070644d48870203250f0d381e2c99e966286ad",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "dbe69a19a38b3b3d2850d8d9439fb563cb915e7185c0c4e258e8fcf91f3b3209",
+      "stored_bytes": 29665,
+      "raw_sha256": "397093b2477e05aceb532500ff6dda76fb8619ffb079b4ac4f22fabf89dbefb8",
+      "raw_bytes": 7271265,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-input.json.gz",
+        "sha256": "2dfa7bd50aa355c6b93c676dff070644d48870203250f0d381e2c99e966286ad",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "dbe69a19a38b3b3d2850d8d9439fb563cb915e7185c0c4e258e8fcf91f3b3209",
+        "stored_bytes": 29665,
+        "raw_sha256": "397093b2477e05aceb532500ff6dda76fb8619ffb079b4ac4f22fabf89dbefb8",
+        "raw_bytes": 7271265
+      }
+    },
+    {
+      "path": "development-part-1.json.gz",
+      "sha256": "d1dccfab791db1f266fa9d944edc6d98837d1abc1b5454faf3ce47e28c693f58",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "cbccb2576a9f6ee3d022cede481496bab07cd139d0c3e7ae86d348156296ce7f",
+      "stored_bytes": 88282,
+      "raw_sha256": "fce92a1ac5c78d344d3afd63a7a1a544da183272504973191f7f7d2536e16b1c",
+      "raw_bytes": 4850771,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-input.json.gz",
+        "sha256": "d1dccfab791db1f266fa9d944edc6d98837d1abc1b5454faf3ce47e28c693f58",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "cbccb2576a9f6ee3d022cede481496bab07cd139d0c3e7ae86d348156296ce7f",
+        "stored_bytes": 88282,
+        "raw_sha256": "fce92a1ac5c78d344d3afd63a7a1a544da183272504973191f7f7d2536e16b1c",
+        "raw_bytes": 4850771
+      }
+    },
+    {
+      "path": "development-part-2.json.gz",
+      "sha256": "95b641a60a9e74a00d818c0faa0741ea30ddd517eb8fb6be55f69834b8b2de90",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+      "stored_bytes": 1083,
+      "raw_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+      "raw_bytes": 1083,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-prepare.json.gz",
+        "sha256": "95b641a60a9e74a00d818c0faa0741ea30ddd517eb8fb6be55f69834b8b2de90",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+        "stored_bytes": 1083,
+        "raw_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+        "raw_bytes": 1083
+      }
+    },
+    {
+      "path": "development-part-3.json.gz",
+      "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+      "stored_bytes": 36596,
+      "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+      "raw_bytes": 7627643,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-0-fresh.json.gz",
+        "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+        "stored_bytes": 36596,
+        "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+        "raw_bytes": 7627643
+      }
+    },
+    {
+      "path": "development-part-4.json.gz",
+      "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+      "stored_bytes": 34936,
+      "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+      "raw_bytes": 7625983,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-0-noop.json.gz",
+        "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+        "stored_bytes": 34936,
+        "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+        "raw_bytes": 7625983
+      }
+    },
+    {
+      "path": "development-part-5.json.gz",
+      "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+      "stored_bytes": 35588,
+      "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+      "raw_bytes": 7626707,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-0-rebuild.json.gz",
+        "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+        "stored_bytes": 35588,
+        "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+        "raw_bytes": 7626707
+      }
+    },
+    {
+      "path": "development-part-6.json.gz",
+      "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+      "stored_bytes": 34920,
+      "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+      "raw_bytes": 7626039,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-0-smoke.json.gz",
+        "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+        "stored_bytes": 34920,
+        "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+        "raw_bytes": 7626039
+      }
+    },
+    {
+      "path": "development-part-7.json.gz",
+      "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+      "stored_bytes": 36596,
+      "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+      "raw_bytes": 7627643,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-1-fresh.json.gz",
+        "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+        "stored_bytes": 36596,
+        "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+        "raw_bytes": 7627643
+      }
+    },
+    {
+      "path": "development-part-8.json.gz",
+      "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+      "stored_bytes": 34936,
+      "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+      "raw_bytes": 7625983,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-1-noop.json.gz",
+        "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+        "stored_bytes": 34936,
+        "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+        "raw_bytes": 7625983
+      }
+    },
+    {
+      "path": "development-part-9.json.gz",
+      "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+      "stored_bytes": 35588,
+      "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+      "raw_bytes": 7626707,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-1-rebuild.json.gz",
+        "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+        "stored_bytes": 35588,
+        "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+        "raw_bytes": 7626707
+      }
+    },
+    {
+      "path": "development-part-10.json.gz",
+      "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+      "stored_bytes": 34920,
+      "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+      "raw_bytes": 7626039,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-1-smoke.json.gz",
+        "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+        "stored_bytes": 34920,
+        "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+        "raw_bytes": 7626039
+      }
+    },
+    {
+      "path": "development-part-11.json.gz",
+      "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+      "stored_bytes": 36596,
+      "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+      "raw_bytes": 7627643,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-2-fresh.json.gz",
+        "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+        "stored_bytes": 36596,
+        "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+        "raw_bytes": 7627643
+      }
+    },
+    {
+      "path": "development-part-12.json.gz",
+      "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+      "stored_bytes": 34936,
+      "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+      "raw_bytes": 7625983,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-2-noop.json.gz",
+        "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+        "stored_bytes": 34936,
+        "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+        "raw_bytes": 7625983
+      }
+    },
+    {
+      "path": "development-part-13.json.gz",
+      "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+      "stored_bytes": 35588,
+      "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+      "raw_bytes": 7626707,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-2-rebuild.json.gz",
+        "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+        "stored_bytes": 35588,
+        "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+        "raw_bytes": 7626707
+      }
+    },
+    {
+      "path": "development-part-14.json.gz",
+      "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+      "stored_bytes": 34920,
+      "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+      "raw_bytes": 7626039,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/xxhash-0.8.3-2-smoke.json.gz",
+        "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+        "stored_bytes": 34920,
+        "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+        "raw_bytes": 7626039
+      }
+    },
+    {
+      "path": "development-part-15.json.gz",
+      "sha256": "7de24ed19f32216914588dbd10fb9159f7c0b59e7196b4ec77ad80609904c7c5",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "a14f78d7b82ebc83a842279309a654aa4a29b4a9f738bb1e34c3c298cd0c749b",
+      "stored_bytes": 102932,
+      "raw_sha256": "ac630608d512df5dd162261fe3c500883d77e38bdab189085f0815b688585605",
+      "raw_bytes": 5499971,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-0-fresh.json.gz",
+        "sha256": "7de24ed19f32216914588dbd10fb9159f7c0b59e7196b4ec77ad80609904c7c5",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "a14f78d7b82ebc83a842279309a654aa4a29b4a9f738bb1e34c3c298cd0c749b",
+        "stored_bytes": 102932,
+        "raw_sha256": "ac630608d512df5dd162261fe3c500883d77e38bdab189085f0815b688585605",
+        "raw_bytes": 5499971
+      }
+    },
+    {
+      "path": "development-part-16.json.gz",
+      "sha256": "b9b3f3e96152e45f6276c3d1912dc30eafceba12bafab2f1a136918de90a5280",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "168636288fdde1e2c2dfec6353152d5915ae054176f3a6dfb6d17a538bc2b903",
+      "stored_bytes": 100794,
+      "raw_sha256": "64228f7d09ec4f1f1936d92d278eebf7a6d7f142b6b5c9e87aabfe4f68df72cb",
+      "raw_bytes": 5497833,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-0-noop.json.gz",
+        "sha256": "b9b3f3e96152e45f6276c3d1912dc30eafceba12bafab2f1a136918de90a5280",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "168636288fdde1e2c2dfec6353152d5915ae054176f3a6dfb6d17a538bc2b903",
+        "stored_bytes": 100794,
+        "raw_sha256": "64228f7d09ec4f1f1936d92d278eebf7a6d7f142b6b5c9e87aabfe4f68df72cb",
+        "raw_bytes": 5497833
+      }
+    },
+    {
+      "path": "development-part-17.json.gz",
+      "sha256": "bef8dc8f832be6e94e247f899b559b9e749e9a3ad856b89c933f8a3b9f6e2a5a",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "e8baf02d28d1f37bedc48c4a05c91ff5779b10144435af47ade26f480ecab14a",
+      "stored_bytes": 102932,
+      "raw_sha256": "a1427e76dee062b44155cfdf754b98bce7abfd7eee9bdcd5710623d04f54d58b",
+      "raw_bytes": 5500047,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-0-rebuild.json.gz",
+        "sha256": "bef8dc8f832be6e94e247f899b559b9e749e9a3ad856b89c933f8a3b9f6e2a5a",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "e8baf02d28d1f37bedc48c4a05c91ff5779b10144435af47ade26f480ecab14a",
+        "stored_bytes": 102932,
+        "raw_sha256": "a1427e76dee062b44155cfdf754b98bce7abfd7eee9bdcd5710623d04f54d58b",
+        "raw_bytes": 5500047
+      }
+    },
+    {
+      "path": "development-part-18.json.gz",
+      "sha256": "5ad5f71c58ef1c297e1d4e45a9ba4dcbb85f57469850b6747025aa829714114c",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "a6581e68773b9853043683ebed570c63b54138c5ccbc513f1c8f0b3fed5ec36a",
+      "stored_bytes": 100744,
+      "raw_sha256": "7f5b77407b59671d6cc5d439ecb7b8e6340d1bd8811b80e47057758934ac22c8",
+      "raw_bytes": 5497859,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-0-smoke.json.gz",
+        "sha256": "5ad5f71c58ef1c297e1d4e45a9ba4dcbb85f57469850b6747025aa829714114c",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "a6581e68773b9853043683ebed570c63b54138c5ccbc513f1c8f0b3fed5ec36a",
+        "stored_bytes": 100744,
+        "raw_sha256": "7f5b77407b59671d6cc5d439ecb7b8e6340d1bd8811b80e47057758934ac22c8",
+        "raw_bytes": 5497859
+      }
+    },
+    {
+      "path": "development-part-19.json.gz",
+      "sha256": "7de24ed19f32216914588dbd10fb9159f7c0b59e7196b4ec77ad80609904c7c5",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "a14f78d7b82ebc83a842279309a654aa4a29b4a9f738bb1e34c3c298cd0c749b",
+      "stored_bytes": 102932,
+      "raw_sha256": "ac630608d512df5dd162261fe3c500883d77e38bdab189085f0815b688585605",
+      "raw_bytes": 5499971,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-1-fresh.json.gz",
+        "sha256": "7de24ed19f32216914588dbd10fb9159f7c0b59e7196b4ec77ad80609904c7c5",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "a14f78d7b82ebc83a842279309a654aa4a29b4a9f738bb1e34c3c298cd0c749b",
+        "stored_bytes": 102932,
+        "raw_sha256": "ac630608d512df5dd162261fe3c500883d77e38bdab189085f0815b688585605",
+        "raw_bytes": 5499971
+      }
+    },
+    {
+      "path": "development-part-20.json.gz",
+      "sha256": "b9b3f3e96152e45f6276c3d1912dc30eafceba12bafab2f1a136918de90a5280",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "168636288fdde1e2c2dfec6353152d5915ae054176f3a6dfb6d17a538bc2b903",
+      "stored_bytes": 100794,
+      "raw_sha256": "64228f7d09ec4f1f1936d92d278eebf7a6d7f142b6b5c9e87aabfe4f68df72cb",
+      "raw_bytes": 5497833,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-1-noop.json.gz",
+        "sha256": "b9b3f3e96152e45f6276c3d1912dc30eafceba12bafab2f1a136918de90a5280",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "168636288fdde1e2c2dfec6353152d5915ae054176f3a6dfb6d17a538bc2b903",
+        "stored_bytes": 100794,
+        "raw_sha256": "64228f7d09ec4f1f1936d92d278eebf7a6d7f142b6b5c9e87aabfe4f68df72cb",
+        "raw_bytes": 5497833
+      }
+    },
+    {
+      "path": "development-part-21.json.gz",
+      "sha256": "bef8dc8f832be6e94e247f899b559b9e749e9a3ad856b89c933f8a3b9f6e2a5a",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "e8baf02d28d1f37bedc48c4a05c91ff5779b10144435af47ade26f480ecab14a",
+      "stored_bytes": 102932,
+      "raw_sha256": "a1427e76dee062b44155cfdf754b98bce7abfd7eee9bdcd5710623d04f54d58b",
+      "raw_bytes": 5500047,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-1-rebuild.json.gz",
+        "sha256": "bef8dc8f832be6e94e247f899b559b9e749e9a3ad856b89c933f8a3b9f6e2a5a",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "e8baf02d28d1f37bedc48c4a05c91ff5779b10144435af47ade26f480ecab14a",
+        "stored_bytes": 102932,
+        "raw_sha256": "a1427e76dee062b44155cfdf754b98bce7abfd7eee9bdcd5710623d04f54d58b",
+        "raw_bytes": 5500047
+      }
+    },
+    {
+      "path": "development-part-22.json.gz",
+      "sha256": "5ad5f71c58ef1c297e1d4e45a9ba4dcbb85f57469850b6747025aa829714114c",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "a6581e68773b9853043683ebed570c63b54138c5ccbc513f1c8f0b3fed5ec36a",
+      "stored_bytes": 100744,
+      "raw_sha256": "7f5b77407b59671d6cc5d439ecb7b8e6340d1bd8811b80e47057758934ac22c8",
+      "raw_bytes": 5497859,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-1-smoke.json.gz",
+        "sha256": "5ad5f71c58ef1c297e1d4e45a9ba4dcbb85f57469850b6747025aa829714114c",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "a6581e68773b9853043683ebed570c63b54138c5ccbc513f1c8f0b3fed5ec36a",
+        "stored_bytes": 100744,
+        "raw_sha256": "7f5b77407b59671d6cc5d439ecb7b8e6340d1bd8811b80e47057758934ac22c8",
+        "raw_bytes": 5497859
+      }
+    },
+    {
+      "path": "development-part-23.json.gz",
+      "sha256": "7de24ed19f32216914588dbd10fb9159f7c0b59e7196b4ec77ad80609904c7c5",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "a14f78d7b82ebc83a842279309a654aa4a29b4a9f738bb1e34c3c298cd0c749b",
+      "stored_bytes": 102932,
+      "raw_sha256": "ac630608d512df5dd162261fe3c500883d77e38bdab189085f0815b688585605",
+      "raw_bytes": 5499971,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-2-fresh.json.gz",
+        "sha256": "7de24ed19f32216914588dbd10fb9159f7c0b59e7196b4ec77ad80609904c7c5",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "a14f78d7b82ebc83a842279309a654aa4a29b4a9f738bb1e34c3c298cd0c749b",
+        "stored_bytes": 102932,
+        "raw_sha256": "ac630608d512df5dd162261fe3c500883d77e38bdab189085f0815b688585605",
+        "raw_bytes": 5499971
+      }
+    },
+    {
+      "path": "development-part-24.json.gz",
+      "sha256": "b9b3f3e96152e45f6276c3d1912dc30eafceba12bafab2f1a136918de90a5280",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "168636288fdde1e2c2dfec6353152d5915ae054176f3a6dfb6d17a538bc2b903",
+      "stored_bytes": 100794,
+      "raw_sha256": "64228f7d09ec4f1f1936d92d278eebf7a6d7f142b6b5c9e87aabfe4f68df72cb",
+      "raw_bytes": 5497833,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-2-noop.json.gz",
+        "sha256": "b9b3f3e96152e45f6276c3d1912dc30eafceba12bafab2f1a136918de90a5280",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "168636288fdde1e2c2dfec6353152d5915ae054176f3a6dfb6d17a538bc2b903",
+        "stored_bytes": 100794,
+        "raw_sha256": "64228f7d09ec4f1f1936d92d278eebf7a6d7f142b6b5c9e87aabfe4f68df72cb",
+        "raw_bytes": 5497833
+      }
+    },
+    {
+      "path": "development-part-25.json.gz",
+      "sha256": "bef8dc8f832be6e94e247f899b559b9e749e9a3ad856b89c933f8a3b9f6e2a5a",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "e8baf02d28d1f37bedc48c4a05c91ff5779b10144435af47ade26f480ecab14a",
+      "stored_bytes": 102932,
+      "raw_sha256": "a1427e76dee062b44155cfdf754b98bce7abfd7eee9bdcd5710623d04f54d58b",
+      "raw_bytes": 5500047,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-2-rebuild.json.gz",
+        "sha256": "bef8dc8f832be6e94e247f899b559b9e749e9a3ad856b89c933f8a3b9f6e2a5a",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "e8baf02d28d1f37bedc48c4a05c91ff5779b10144435af47ade26f480ecab14a",
+        "stored_bytes": 102932,
+        "raw_sha256": "a1427e76dee062b44155cfdf754b98bce7abfd7eee9bdcd5710623d04f54d58b",
+        "raw_bytes": 5500047
+      }
+    },
+    {
+      "path": "development-part-26.json.gz",
+      "sha256": "5ad5f71c58ef1c297e1d4e45a9ba4dcbb85f57469850b6747025aa829714114c",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "a6581e68773b9853043683ebed570c63b54138c5ccbc513f1c8f0b3fed5ec36a",
+      "stored_bytes": 100744,
+      "raw_sha256": "7f5b77407b59671d6cc5d439ecb7b8e6340d1bd8811b80e47057758934ac22c8",
+      "raw_bytes": 5497859,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/development-raw-ou5xjcqf/zlib-1.3.2-2-smoke.json.gz",
+        "sha256": "5ad5f71c58ef1c297e1d4e45a9ba4dcbb85f57469850b6747025aa829714114c",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "a6581e68773b9853043683ebed570c63b54138c5ccbc513f1c8f0b3fed5ec36a",
+        "stored_bytes": 100744,
+        "raw_sha256": "7f5b77407b59671d6cc5d439ecb7b8e6340d1bd8811b80e47057758934ac22c8",
+        "raw_bytes": 5497859
+      }
+    },
+    {
+      "path": "development-report.json.gz",
+      "sha256": "eb61d639144b7d01467e42e6ad9d5d2be16b2836e03d2aac8a5046c5f4a473cd",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "782b0bd898fbb79b8df837e8884367e9cc85cd49f21950f061dcc1b30316675f",
+      "stored_bytes": 32333,
+      "raw_sha256": "782b0bd898fbb79b8df837e8884367e9cc85cd49f21950f061dcc1b30316675f",
+      "raw_bytes": 32333
+    },
+    {
+      "path": "optimized-part-0.json.gz",
+      "sha256": "2dfa7bd50aa355c6b93c676dff070644d48870203250f0d381e2c99e966286ad",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "dbe69a19a38b3b3d2850d8d9439fb563cb915e7185c0c4e258e8fcf91f3b3209",
+      "stored_bytes": 29665,
+      "raw_sha256": "397093b2477e05aceb532500ff6dda76fb8619ffb079b4ac4f22fabf89dbefb8",
+      "raw_bytes": 7271265,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-input.json.gz",
+        "sha256": "2dfa7bd50aa355c6b93c676dff070644d48870203250f0d381e2c99e966286ad",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "dbe69a19a38b3b3d2850d8d9439fb563cb915e7185c0c4e258e8fcf91f3b3209",
+        "stored_bytes": 29665,
+        "raw_sha256": "397093b2477e05aceb532500ff6dda76fb8619ffb079b4ac4f22fabf89dbefb8",
+        "raw_bytes": 7271265
+      }
+    },
+    {
+      "path": "optimized-part-1.json.gz",
+      "sha256": "a57426c82a9902784f65dcf6c865a976dd832fa91232eaac5d1c084dc9ce87c3",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "2ab5bf88b40e2699a95b6b41da1708a46280ef3be9803ee97c134160bc65efb8",
+      "stored_bytes": 88282,
+      "raw_sha256": "44a1cf563869ee7821eed9f7f7d3a698cdf335b113266d6ba0e0dac458cb9284",
+      "raw_bytes": 4850771,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-input.json.gz",
+        "sha256": "a57426c82a9902784f65dcf6c865a976dd832fa91232eaac5d1c084dc9ce87c3",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "2ab5bf88b40e2699a95b6b41da1708a46280ef3be9803ee97c134160bc65efb8",
+        "stored_bytes": 88282,
+        "raw_sha256": "44a1cf563869ee7821eed9f7f7d3a698cdf335b113266d6ba0e0dac458cb9284",
+        "raw_bytes": 4850771
+      }
+    },
+    {
+      "path": "optimized-part-2.json.gz",
+      "sha256": "95b641a60a9e74a00d818c0faa0741ea30ddd517eb8fb6be55f69834b8b2de90",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+      "stored_bytes": 1083,
+      "raw_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+      "raw_bytes": 1083,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-prepare.json.gz",
+        "sha256": "95b641a60a9e74a00d818c0faa0741ea30ddd517eb8fb6be55f69834b8b2de90",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+        "stored_bytes": 1083,
+        "raw_sha256": "aea2e04777d3062e8d2ab83f2242fb7f32084ea0aae0ca698e7cd436f75fd7bb",
+        "raw_bytes": 1083
+      }
+    },
+    {
+      "path": "optimized-part-3.json.gz",
+      "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+      "stored_bytes": 36596,
+      "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+      "raw_bytes": 7627643,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-0-fresh.json.gz",
+        "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+        "stored_bytes": 36596,
+        "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+        "raw_bytes": 7627643
+      }
+    },
+    {
+      "path": "optimized-part-4.json.gz",
+      "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+      "stored_bytes": 34936,
+      "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+      "raw_bytes": 7625983,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-0-noop.json.gz",
+        "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+        "stored_bytes": 34936,
+        "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+        "raw_bytes": 7625983
+      }
+    },
+    {
+      "path": "optimized-part-5.json.gz",
+      "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+      "stored_bytes": 35588,
+      "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+      "raw_bytes": 7626707,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-0-rebuild.json.gz",
+        "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+        "stored_bytes": 35588,
+        "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+        "raw_bytes": 7626707
+      }
+    },
+    {
+      "path": "optimized-part-6.json.gz",
+      "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+      "stored_bytes": 34920,
+      "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+      "raw_bytes": 7626039,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-0-smoke.json.gz",
+        "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+        "stored_bytes": 34920,
+        "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+        "raw_bytes": 7626039
+      }
+    },
+    {
+      "path": "optimized-part-7.json.gz",
+      "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+      "stored_bytes": 36596,
+      "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+      "raw_bytes": 7627643,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-1-fresh.json.gz",
+        "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+        "stored_bytes": 36596,
+        "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+        "raw_bytes": 7627643
+      }
+    },
+    {
+      "path": "optimized-part-8.json.gz",
+      "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+      "stored_bytes": 34936,
+      "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+      "raw_bytes": 7625983,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-1-noop.json.gz",
+        "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+        "stored_bytes": 34936,
+        "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+        "raw_bytes": 7625983
+      }
+    },
+    {
+      "path": "optimized-part-9.json.gz",
+      "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+      "stored_bytes": 35588,
+      "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+      "raw_bytes": 7626707,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-1-rebuild.json.gz",
+        "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+        "stored_bytes": 35588,
+        "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+        "raw_bytes": 7626707
+      }
+    },
+    {
+      "path": "optimized-part-10.json.gz",
+      "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+      "stored_bytes": 34920,
+      "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+      "raw_bytes": 7626039,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-1-smoke.json.gz",
+        "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+        "stored_bytes": 34920,
+        "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+        "raw_bytes": 7626039
+      }
+    },
+    {
+      "path": "optimized-part-11.json.gz",
+      "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+      "stored_bytes": 36596,
+      "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+      "raw_bytes": 7627643,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-2-fresh.json.gz",
+        "sha256": "073f0901a181f3d76229d600b8d6d98357542dc470e7eac26dc65c7f397c4472",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "5bd64f576f000df29c6de27fd1826e07fdb28e2d6f6705fd275cab40568b876a",
+        "stored_bytes": 36596,
+        "raw_sha256": "b8ba6ecb5762650145bb082b44987837f85c68a234ed25d7b3f4351950a796c6",
+        "raw_bytes": 7627643
+      }
+    },
+    {
+      "path": "optimized-part-12.json.gz",
+      "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+      "stored_bytes": 34936,
+      "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+      "raw_bytes": 7625983,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-2-noop.json.gz",
+        "sha256": "8673a8e895ee0eb95c9c14a97cb127e04d89b8a82ed03b19f190a46369fa4ab4",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "933b1525a6df5882e1cf030d72a43e85162d5adfdb9d0624b7d8ae6c35d8d1a0",
+        "stored_bytes": 34936,
+        "raw_sha256": "513f2e3e03aa7c48587346bdf6d36c7699cc0b5f7fcd87845b00af4aaeb7d83c",
+        "raw_bytes": 7625983
+      }
+    },
+    {
+      "path": "optimized-part-13.json.gz",
+      "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+      "stored_bytes": 35588,
+      "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+      "raw_bytes": 7626707,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-2-rebuild.json.gz",
+        "sha256": "5fc222d4fe3e76bb0f2901581b8b013497a3f9b15d7a4273c47280c0eaa0b0f9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "848298db7c76e931feb8f605fcb235f24741e2600202ebb746b62f4a196b22ef",
+        "stored_bytes": 35588,
+        "raw_sha256": "4255e53c62c588f53cbfb7b37b6d9cf54af80efa30b21495716d9b5f9156492e",
+        "raw_bytes": 7626707
+      }
+    },
+    {
+      "path": "optimized-part-14.json.gz",
+      "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+      "stored_bytes": 34920,
+      "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+      "raw_bytes": 7626039,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/xxhash-0.8.3-2-smoke.json.gz",
+        "sha256": "83291c95ae4ebd51b3040fad5c1c93549643158298bd6fa2bfcf83cd9b80a6cb",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "827de3c82acbd658e7801c47d045fba7b2741605e88bffafd2a7747a9f857640",
+        "stored_bytes": 34920,
+        "raw_sha256": "42fce6a6f3e264ae31c5aa1f0d71832b37c9092e7206bb3498ab182e1de9a007",
+        "raw_bytes": 7626039
+      }
+    },
+    {
+      "path": "optimized-part-15.json.gz",
+      "sha256": "a3c36a5f7d9f7750d89d6a507a7abda4dadfee64c25e59d30fedaa7998f136b9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "2fc19768ae59db996a1c53e051130d7638384f401f9b08ece9e1c63339428451",
+      "stored_bytes": 102932,
+      "raw_sha256": "203b6b847ab57450fae0676b6266b1bf94588d4ec14c69906a0550de25dedcf3",
+      "raw_bytes": 5499971,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-0-fresh.json.gz",
+        "sha256": "a3c36a5f7d9f7750d89d6a507a7abda4dadfee64c25e59d30fedaa7998f136b9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "2fc19768ae59db996a1c53e051130d7638384f401f9b08ece9e1c63339428451",
+        "stored_bytes": 102932,
+        "raw_sha256": "203b6b847ab57450fae0676b6266b1bf94588d4ec14c69906a0550de25dedcf3",
+        "raw_bytes": 5499971
+      }
+    },
+    {
+      "path": "optimized-part-16.json.gz",
+      "sha256": "38baa93efe84526cd40a09c5e97c775cdff550c2000af2b4be92ca7f656a18ba",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "b602756a08369046cee41c14b88390f77f3c31f930ad0333d7662653cabe86c3",
+      "stored_bytes": 100794,
+      "raw_sha256": "326a7d37d28aaa71ef48a43c33ac2662c5e3e0628738babf54acdeea776372b9",
+      "raw_bytes": 5497833,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-0-noop.json.gz",
+        "sha256": "38baa93efe84526cd40a09c5e97c775cdff550c2000af2b4be92ca7f656a18ba",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "b602756a08369046cee41c14b88390f77f3c31f930ad0333d7662653cabe86c3",
+        "stored_bytes": 100794,
+        "raw_sha256": "326a7d37d28aaa71ef48a43c33ac2662c5e3e0628738babf54acdeea776372b9",
+        "raw_bytes": 5497833
+      }
+    },
+    {
+      "path": "optimized-part-17.json.gz",
+      "sha256": "64c596462dfc27e92cc2d9e145857bafee1c17df414006cb1304ad13c0144109",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "9b04149977a9c3ee26e9f2a6b4f64553a1942c86a621bd77218fe3d2333a331f",
+      "stored_bytes": 102932,
+      "raw_sha256": "a497926618ae7f98b2abdaad3ea439103c58b8c558ca08b8aff48a0d9c0232df",
+      "raw_bytes": 5500047,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-0-rebuild.json.gz",
+        "sha256": "64c596462dfc27e92cc2d9e145857bafee1c17df414006cb1304ad13c0144109",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "9b04149977a9c3ee26e9f2a6b4f64553a1942c86a621bd77218fe3d2333a331f",
+        "stored_bytes": 102932,
+        "raw_sha256": "a497926618ae7f98b2abdaad3ea439103c58b8c558ca08b8aff48a0d9c0232df",
+        "raw_bytes": 5500047
+      }
+    },
+    {
+      "path": "optimized-part-18.json.gz",
+      "sha256": "5e21f88047774027ff80e98f2759d17ab54f8fa407c8bd5fd57112781f3f22dc",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "12e8ad37c6e35236e147a088f8e4d8872bda19b7f3efeaac9a4adb00e4cc7103",
+      "stored_bytes": 100744,
+      "raw_sha256": "be5a94aa3a0eda1893da7fcf7e23fa4f23012dd7581d0393316edc400e729695",
+      "raw_bytes": 5497859,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-0-smoke.json.gz",
+        "sha256": "5e21f88047774027ff80e98f2759d17ab54f8fa407c8bd5fd57112781f3f22dc",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "12e8ad37c6e35236e147a088f8e4d8872bda19b7f3efeaac9a4adb00e4cc7103",
+        "stored_bytes": 100744,
+        "raw_sha256": "be5a94aa3a0eda1893da7fcf7e23fa4f23012dd7581d0393316edc400e729695",
+        "raw_bytes": 5497859
+      }
+    },
+    {
+      "path": "optimized-part-19.json.gz",
+      "sha256": "a3c36a5f7d9f7750d89d6a507a7abda4dadfee64c25e59d30fedaa7998f136b9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "2fc19768ae59db996a1c53e051130d7638384f401f9b08ece9e1c63339428451",
+      "stored_bytes": 102932,
+      "raw_sha256": "203b6b847ab57450fae0676b6266b1bf94588d4ec14c69906a0550de25dedcf3",
+      "raw_bytes": 5499971,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-1-fresh.json.gz",
+        "sha256": "a3c36a5f7d9f7750d89d6a507a7abda4dadfee64c25e59d30fedaa7998f136b9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "2fc19768ae59db996a1c53e051130d7638384f401f9b08ece9e1c63339428451",
+        "stored_bytes": 102932,
+        "raw_sha256": "203b6b847ab57450fae0676b6266b1bf94588d4ec14c69906a0550de25dedcf3",
+        "raw_bytes": 5499971
+      }
+    },
+    {
+      "path": "optimized-part-20.json.gz",
+      "sha256": "38baa93efe84526cd40a09c5e97c775cdff550c2000af2b4be92ca7f656a18ba",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "b602756a08369046cee41c14b88390f77f3c31f930ad0333d7662653cabe86c3",
+      "stored_bytes": 100794,
+      "raw_sha256": "326a7d37d28aaa71ef48a43c33ac2662c5e3e0628738babf54acdeea776372b9",
+      "raw_bytes": 5497833,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-1-noop.json.gz",
+        "sha256": "38baa93efe84526cd40a09c5e97c775cdff550c2000af2b4be92ca7f656a18ba",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "b602756a08369046cee41c14b88390f77f3c31f930ad0333d7662653cabe86c3",
+        "stored_bytes": 100794,
+        "raw_sha256": "326a7d37d28aaa71ef48a43c33ac2662c5e3e0628738babf54acdeea776372b9",
+        "raw_bytes": 5497833
+      }
+    },
+    {
+      "path": "optimized-part-21.json.gz",
+      "sha256": "64c596462dfc27e92cc2d9e145857bafee1c17df414006cb1304ad13c0144109",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "9b04149977a9c3ee26e9f2a6b4f64553a1942c86a621bd77218fe3d2333a331f",
+      "stored_bytes": 102932,
+      "raw_sha256": "a497926618ae7f98b2abdaad3ea439103c58b8c558ca08b8aff48a0d9c0232df",
+      "raw_bytes": 5500047,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-1-rebuild.json.gz",
+        "sha256": "64c596462dfc27e92cc2d9e145857bafee1c17df414006cb1304ad13c0144109",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "9b04149977a9c3ee26e9f2a6b4f64553a1942c86a621bd77218fe3d2333a331f",
+        "stored_bytes": 102932,
+        "raw_sha256": "a497926618ae7f98b2abdaad3ea439103c58b8c558ca08b8aff48a0d9c0232df",
+        "raw_bytes": 5500047
+      }
+    },
+    {
+      "path": "optimized-part-22.json.gz",
+      "sha256": "5e21f88047774027ff80e98f2759d17ab54f8fa407c8bd5fd57112781f3f22dc",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "12e8ad37c6e35236e147a088f8e4d8872bda19b7f3efeaac9a4adb00e4cc7103",
+      "stored_bytes": 100744,
+      "raw_sha256": "be5a94aa3a0eda1893da7fcf7e23fa4f23012dd7581d0393316edc400e729695",
+      "raw_bytes": 5497859,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-1-smoke.json.gz",
+        "sha256": "5e21f88047774027ff80e98f2759d17ab54f8fa407c8bd5fd57112781f3f22dc",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "12e8ad37c6e35236e147a088f8e4d8872bda19b7f3efeaac9a4adb00e4cc7103",
+        "stored_bytes": 100744,
+        "raw_sha256": "be5a94aa3a0eda1893da7fcf7e23fa4f23012dd7581d0393316edc400e729695",
+        "raw_bytes": 5497859
+      }
+    },
+    {
+      "path": "optimized-part-23.json.gz",
+      "sha256": "a3c36a5f7d9f7750d89d6a507a7abda4dadfee64c25e59d30fedaa7998f136b9",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "2fc19768ae59db996a1c53e051130d7638384f401f9b08ece9e1c63339428451",
+      "stored_bytes": 102932,
+      "raw_sha256": "203b6b847ab57450fae0676b6266b1bf94588d4ec14c69906a0550de25dedcf3",
+      "raw_bytes": 5499971,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-2-fresh.json.gz",
+        "sha256": "a3c36a5f7d9f7750d89d6a507a7abda4dadfee64c25e59d30fedaa7998f136b9",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "2fc19768ae59db996a1c53e051130d7638384f401f9b08ece9e1c63339428451",
+        "stored_bytes": 102932,
+        "raw_sha256": "203b6b847ab57450fae0676b6266b1bf94588d4ec14c69906a0550de25dedcf3",
+        "raw_bytes": 5499971
+      }
+    },
+    {
+      "path": "optimized-part-24.json.gz",
+      "sha256": "38baa93efe84526cd40a09c5e97c775cdff550c2000af2b4be92ca7f656a18ba",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "b602756a08369046cee41c14b88390f77f3c31f930ad0333d7662653cabe86c3",
+      "stored_bytes": 100794,
+      "raw_sha256": "326a7d37d28aaa71ef48a43c33ac2662c5e3e0628738babf54acdeea776372b9",
+      "raw_bytes": 5497833,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-2-noop.json.gz",
+        "sha256": "38baa93efe84526cd40a09c5e97c775cdff550c2000af2b4be92ca7f656a18ba",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "b602756a08369046cee41c14b88390f77f3c31f930ad0333d7662653cabe86c3",
+        "stored_bytes": 100794,
+        "raw_sha256": "326a7d37d28aaa71ef48a43c33ac2662c5e3e0628738babf54acdeea776372b9",
+        "raw_bytes": 5497833
+      }
+    },
+    {
+      "path": "optimized-part-25.json.gz",
+      "sha256": "64c596462dfc27e92cc2d9e145857bafee1c17df414006cb1304ad13c0144109",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "9b04149977a9c3ee26e9f2a6b4f64553a1942c86a621bd77218fe3d2333a331f",
+      "stored_bytes": 102932,
+      "raw_sha256": "a497926618ae7f98b2abdaad3ea439103c58b8c558ca08b8aff48a0d9c0232df",
+      "raw_bytes": 5500047,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-2-rebuild.json.gz",
+        "sha256": "64c596462dfc27e92cc2d9e145857bafee1c17df414006cb1304ad13c0144109",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "9b04149977a9c3ee26e9f2a6b4f64553a1942c86a621bd77218fe3d2333a331f",
+        "stored_bytes": 102932,
+        "raw_sha256": "a497926618ae7f98b2abdaad3ea439103c58b8c558ca08b8aff48a0d9c0232df",
+        "raw_bytes": 5500047
+      }
+    },
+    {
+      "path": "optimized-part-26.json.gz",
+      "sha256": "5e21f88047774027ff80e98f2759d17ab54f8fa407c8bd5fd57112781f3f22dc",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "12e8ad37c6e35236e147a088f8e4d8872bda19b7f3efeaac9a4adb00e4cc7103",
+      "stored_bytes": 100744,
+      "raw_sha256": "be5a94aa3a0eda1893da7fcf7e23fa4f23012dd7581d0393316edc400e729695",
+      "raw_bytes": 5497859,
+      "original_storage": {
+        "path": "/tmp/rmake-project-integration/artifacts/integration/optimized-v3-raw-84ol208x/zlib-1.3.2-2-smoke.json.gz",
+        "sha256": "5e21f88047774027ff80e98f2759d17ab54f8fa407c8bd5fd57112781f3f22dc",
+        "encoding": "integration-base64-cas-v1",
+        "stored_sha256": "12e8ad37c6e35236e147a088f8e4d8872bda19b7f3efeaac9a4adb00e4cc7103",
+        "stored_bytes": 100744,
+        "raw_sha256": "be5a94aa3a0eda1893da7fcf7e23fa4f23012dd7581d0393316edc400e729695",
+        "raw_bytes": 5497859
+      }
+    },
+    {
+      "path": "optimized-report.json.gz",
+      "sha256": "eb05b9abd52912a3c87f52b947f5460a380092de7aa24ae11578d313aefc4e99",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "ede8bfb2cbd3ee0f1c8f9f921199f213a7cfbd36e3386df0eb5a4ce1c6425134",
+      "stored_bytes": 32312,
+      "raw_sha256": "ede8bfb2cbd3ee0f1c8f9f921199f213a7cfbd36e3386df0eb5a4ce1c6425134",
+      "raw_bytes": 32312
+    },
+    {
+      "path": "source-and-logs.json.gz",
+      "sha256": "521f8c454d2a9b45cd92a142a56a631655e8e675c38b131120c9dbfec3c2e1b4",
+      "encoding": "integration-base64-cas-v1",
+      "stored_sha256": "acfbe5b1207bbb714118b7e22435d5c8ad86f5ee16818ad7219de4bd519d4910",
+      "stored_bytes": 116228,
+      "raw_sha256": "acfbe5b1207bbb714118b7e22435d5c8ad86f5ee16818ad7219de4bd519d4910",
+      "raw_bytes": 116228
+    }
+  ]
+}
