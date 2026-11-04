@@ -2,6 +2,10 @@
 
 A Rust implementation of GNU Make, under active development.
 
+An [optional Guile architecture component](docs/guile-component.md) has a
+separate verified toolchain and required safety CI. It does not yet expose a
+Guile make function or close the Guile compatibility profile.
+
 [Pinned xxHash and zlib integration](docs/project-integration.md) compares
 complete builds, no-ops, header rebuilds and executable smoke checks in the
 development, optimized and selected self-host flows. Full M3/M6 acceptance

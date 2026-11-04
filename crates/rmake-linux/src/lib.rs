@@ -45,3 +45,8 @@ pub mod environment;
 // Native C ABI and Linux ucontext ownership stay behind this adapter.
 #[allow(unsafe_code)]
 pub mod native;
+
+// Explicit component only: no function registration or public profile claim.
+#[cfg(feature = "guile")]
+#[allow(unsafe_code)]
+pub mod guile;
