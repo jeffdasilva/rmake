@@ -22,7 +22,8 @@ pub(super) fn include_metadata(
     database: &mut Database,
     options: &Options,
     runtime: Runtime<'_>,
-) -> Result<IncludeSearch, StartupError> {
+    published: &mut Option<std::rc::Rc<RefCell<IncludeSearch>>>,
+) -> Result<std::rc::Rc<RefCell<IncludeSearch>>, StartupError> {
     let search = if options
         .include_directories
         .iter()
@@ -61,11 +62,13 @@ pub(super) fn include_metadata(
     if rmake_linux::signals::pending().is_some() {
         return Err(StartupError::expansion(ExpandError::Cancelled));
     }
+    let search = std::rc::Rc::new(RefCell::new(search));
+    *published = Some(search.clone());
     database
         .variables
         .define_literal(b".INCLUDE_DIRS", b"", Origin::Default)
         .map_err(StartupError::expansion)?;
-    for directory in search.directories() {
+    for directory in search.borrow().directories() {
         evaluate(database, &runtime, |database, context| {
             database.define_variable_with(
                 rmake_core::parser::AssignmentSpec {

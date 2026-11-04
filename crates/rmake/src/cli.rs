@@ -682,6 +682,7 @@ impl Options {
             prefix_count,
             missing_makeflags,
             &mut |_, _| Ok(()),
+            &mut |_| {},
         )
     }
 
@@ -691,6 +692,7 @@ impl Options {
         prefix_count: usize,
         missing_makeflags: bool,
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+        completed: &mut impl FnMut(&Self),
     ) -> Result<Self, E> {
         let inherited = inherited_options.jobs;
         let inherited_warning = inherited_options.warn_undefined;
@@ -701,8 +703,15 @@ impl Options {
             .keep_going_origin
             .map(|_| Origin::Environment);
         inherited_options.command_jobs = None;
-        let mut result =
-            Self::parse_with::<true, E>(args, inherited_options, prefix_count, true, receiver)?;
+        let (mut result, _) = Self::parse_with_inspection::<true, false, E>(
+            args,
+            inherited_options,
+            prefix_count,
+            true,
+            0,
+            receiver,
+            completed,
+        )?;
         let explicit = result.command_jobs;
         result.startup_missing_makeflags_warning = missing_makeflags && inherited_warning;
         result.inherited_output_sync = inherited_output_sync;
@@ -715,8 +724,12 @@ impl Options {
         initial: Self,
         offset: usize,
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+        completed: &mut impl FnMut(&Self),
     ) -> Result<Self, E> {
-        Self::parse_with::<true, E>(args, initial, offset, false, receiver)
+        Self::parse_with_inspection::<true, false, E>(
+            args, initial, offset, false, 0, receiver, completed,
+        )
+        .map(|(options, _)| options)
     }
 
     fn with_command_jobs(mut self, jobs: Option<usize>) -> Self {
@@ -932,6 +945,7 @@ impl Options {
                 }
                 Ok(())
             },
+            &mut |_| {},
         )
         .map_err(|error| Self::incoming_error(flags, error))?;
         for (position, _) in &mut parsed.assignment_context {
@@ -1034,7 +1048,13 @@ impl Options {
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
     ) -> Result<Self, E> {
         Self::parse_with_inspection::<STARTUP, false, E>(
-            args, result, offset, track_jobs, 0, receiver,
+            args,
+            result,
+            offset,
+            track_jobs,
+            0,
+            receiver,
+            &mut |_| {},
         )
         .map(|(options, _)| options)
     }
@@ -1050,53 +1070,59 @@ impl Options {
         track_jobs: bool,
         incoming_start: usize,
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+        completed: &mut impl FnMut(&Self),
     ) -> Result<(Self, IncomingSwitches), E> {
         let mut decoder = Decoder::new(args, result, offset, track_jobs);
         let mut incoming = IncomingSwitches::default();
-        loop {
-            let previous = if INSPECT {
-                (
-                    decoder.options.silent_origin.take(),
-                    decoder.options.keep_going_origin.take(),
-                    decoder.options.jobs.take(),
-                )
-            } else {
-                (None, None, None)
-            };
-            let step = decoder.advance::<STARTUP>().map_err(E::from)?;
-            if INSPECT {
-                let options = &mut decoder.options;
-                if step
-                    .as_ref()
-                    .is_some_and(|step| step.position >= incoming_start)
-                {
-                    if options.silent_origin.is_some() {
-                        incoming.silent = Some(options.silent);
+        let result = (|| -> Result<(), E> {
+            loop {
+                let previous = if INSPECT {
+                    (
+                        decoder.options.silent_origin.take(),
+                        decoder.options.keep_going_origin.take(),
+                        decoder.options.jobs.take(),
+                    )
+                } else {
+                    (None, None, None)
+                };
+                let step = decoder.advance::<STARTUP>().map_err(E::from)?;
+                if INSPECT {
+                    let options = &mut decoder.options;
+                    if step
+                        .as_ref()
+                        .is_some_and(|step| step.position >= incoming_start)
+                    {
+                        if options.silent_origin.is_some() {
+                            incoming.silent = Some(options.silent);
+                        }
+                        if options.keep_going_origin.is_some() {
+                            incoming.keep_going = Some(options.keep_going);
+                        }
+                        if let Some(jobs) = options.jobs {
+                            incoming.jobs = Some(jobs);
+                        }
                     }
-                    if options.keep_going_origin.is_some() {
-                        incoming.keep_going = Some(options.keep_going);
+                    if options.silent_origin.is_none() {
+                        options.silent_origin = previous.0;
                     }
-                    if let Some(jobs) = options.jobs {
-                        incoming.jobs = Some(jobs);
+                    if options.keep_going_origin.is_none() {
+                        options.keep_going_origin = previous.1;
+                    }
+                    if options.jobs.is_none() {
+                        options.jobs = previous.2;
                     }
                 }
-                if options.silent_origin.is_none() {
-                    options.silent_origin = previous.0;
-                }
-                if options.keep_going_origin.is_none() {
-                    options.keep_going_origin = previous.1;
-                }
-                if options.jobs.is_none() {
-                    options.jobs = previous.2;
+                let Some(step) = step else {
+                    break;
+                };
+                if let Some(argument) = step.argument {
+                    receiver(&mut decoder.options, argument)?;
                 }
             }
-            let Some(step) = step else {
-                break;
-            };
-            if let Some(argument) = step.argument {
-                receiver(&mut decoder.options, argument)?;
-            }
-        }
+            Ok(())
+        })();
+        completed(&decoder.options);
+        result?;
         Ok((decoder.options, incoming))
     }
 

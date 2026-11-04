@@ -357,3 +357,12 @@ the parser retains an owned source, avoiding redundant source reference traffic.
 The ordinary corpus remains 27,766 required / zero pending; compiled native
 profiles are counted separately. Full native/resource/profile acceptance, Guile,
 remaining CLI/presentation/integration surfaces and M3/M6 remain open.
+
+[Native startup exit ownership](native-startup-exits.md) retains the actual
+decoder/constructor/restart phase and preserves banner buffering, warning/include
+publication and directory cleanup. 31 original models close 27 preceding
+mismatches, bringing the separately required native gate to 215. Both frozen
+profiles, 565 Rust tests and 613 tooling tests pass; full local acceptance and
+exact-head CI remain merge gates. The ordinary ledger and approved exceptions
+are unchanged. Broader startup/native/Linux/Guile/resource acceptance, complete
+M3/M6 and general performance parity remain open.

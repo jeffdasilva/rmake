@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable performance discovery for frozen startup-exit owner release da2952f9a1a2 against preceding borrowed-location release bb18d1f7f410. All three timing reports and sixteen allocation reports with their raw traces are retained, including regressions and requested-byte increases. No general GNU parity or acceptance claim.",
+  "sha256": "02c6e148c7602432540bb5d61b2fb4a135bf0a6b12146a926ba4d1f27172bb83",
+  "raw_sha256": "1b14b432dffbb1b8119a8a7921251e65014ff5054ec218430ad6f785f645c1d0",
+  "raw_bytes": 3955864
+}

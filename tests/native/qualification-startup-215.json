@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable startup-exit phase ownership 215-model native qualification: both frozen debug/release builds pass215; preceding main passes188 and fails27. Complete raw reports and source/input/module hashes; no additional ordinary-ledger or safety-exception credit. Full developer/ordinary acceptance remain separate gates.",
+  "sha256": "5b225ee2f42ae350c0f4e073bb1f3a1c52466efb620b118feaba4d32bc71ed95",
+  "raw_sha256": "ba26aaefe5693dd0d031fd9e7939910d7964cff226bdc46f45d2a7debd8ad14b",
+  "raw_bytes": 138648183
+}
