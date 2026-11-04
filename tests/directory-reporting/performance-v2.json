@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable historical directory-reporting v2 performance for frozen release 9058499815b5 against preceding startup-owner release da2952f9a1a2. All mixed and slower timings, extra calls/frees and requested-byte deltas are retained. All three timing reports and sixteen allocation reports with their raw traces are retained, including regressions and requested-byte increases. No general GNU parity or acceptance claim.",
+  "sha256": "3ef0964b87a91c481eea4d8a5e5b086b44ecd6343a1d69476e5b516d89bbc40e",
+  "raw_sha256": "8bdbcd0c0c4a7519e1abd478c371734b8492f6a8b03d21468bcc266222317c29",
+  "raw_bytes": 3954906
+}

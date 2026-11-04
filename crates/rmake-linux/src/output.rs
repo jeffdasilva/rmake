@@ -258,6 +258,7 @@ impl Spool {
     pub fn dump(
         &self,
         coordination: Option<&Coordination>,
+        frame: &mut dyn FnMut(bool),
         report: &mut dyn FnMut(&str, &io::Error),
     ) -> io::Result<()> {
         let nonempty = [&self.out, &self.err]
@@ -270,6 +271,7 @@ impl Spool {
         if let Some(lock) = coordination {
             lock.lock(true)?;
         }
+        frame(true);
         for (error, temp) in [(false, &self.out), (true, &self.err)] {
             let Some(temp) = temp else {
                 continue;
@@ -310,6 +312,7 @@ impl Spool {
                 .is_err_and(|error| error.kind() == io::ErrorKind::Interrupted)
             {}
         }
+        frame(false);
         if let Some(lock) = coordination
             && let Err(error) = lock.lock(false)
         {
@@ -345,5 +348,56 @@ pub fn initialize() {
         if flags >= 0 {
             unsafe { fcntl(descriptor, 4, flags | 0x400) };
         }
+    }
+}
+
+#[cfg(test)]
+mod frame_tests {
+    use super::*;
+
+    fn locked_elsewhere(authentication: &[u8]) -> bool {
+        let path = authentication.strip_prefix(b"fnm:").unwrap();
+        let status = Command::new("python3")
+            .arg("-c")
+            .arg("import fcntl,sys\nf=open(sys.argv[1],'rb+')\ntry: fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB,1)\nexcept BlockingIOError: sys.exit(0)\nsys.exit(1)")
+            .arg(std::ffi::OsStr::from_bytes(path))
+            .status().unwrap();
+        status.success()
+    }
+
+    #[test]
+    fn nonempty_spool_frames_share_the_payload_lock_and_empty_dumps_stay_silent() {
+        let coordination = Coordination::create().unwrap();
+        let spool = Spool::new().unwrap();
+        let mut frames = Vec::new();
+        spool
+            .dump(
+                Some(&coordination),
+                &mut |entering| frames.push(entering),
+                &mut |op, error| panic!("{op}: {error}"),
+            )
+            .unwrap();
+        assert!(frames.is_empty());
+        spool.write(false, b"spool frame unit\n").unwrap();
+        spool
+            .dump(
+                Some(&coordination),
+                &mut |entering| {
+                    assert!(locked_elsewhere(coordination.authentication()));
+                    frames.push(entering);
+                },
+                &mut |op, error| panic!("{op}: {error}"),
+            )
+            .unwrap();
+        assert_eq!(frames, [true, false]);
+        assert!(!locked_elsewhere(coordination.authentication()));
+        spool
+            .dump(
+                Some(&coordination),
+                &mut |entering| frames.push(entering),
+                &mut |op, error| panic!("{op}: {error}"),
+            )
+            .unwrap();
+        assert_eq!(frames, [true, false]);
     }
 }

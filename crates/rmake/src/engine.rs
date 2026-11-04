@@ -773,8 +773,12 @@ impl StartupError {
     }
 }
 
-pub fn emit_invocation_error(program: &[u8], error: InvocationError) {
-    initial::emit_error(program, error);
+pub fn emit_invocation_error(
+    output: &crate::output::Controller,
+    program: &[u8],
+    error: InvocationError,
+) {
+    initial::emit_error(output, program, error);
 }
 
 pub struct Invocation {
@@ -916,6 +920,7 @@ impl Engine {
                 .map_or(b"".as_slice(), |variable| variable.raw_value()),
         );
         exit_level = makelevel;
+        output.set_recursive(makelevel != 0);
         if makelevel != 0 {
             program.extend_from_slice(format!("[{makelevel}]").as_bytes());
         }
@@ -1838,7 +1843,7 @@ impl Engine {
                     Err(failure) => {
                         let (error, exit) = failure.into_parts();
                         self.native_exit_override = exit;
-                        initial::emit_error(&restart_program, error);
+                        initial::emit_error(&self.output, &restart_program, error);
                         return 2;
                     }
                 };
@@ -1855,7 +1860,11 @@ impl Engine {
                     Err(failure) => {
                         let (error, exit) = failure.into_parts();
                         self.native_exit_override = exit;
-                        initial::emit_error(&restart_program, InvocationError::Expansion(error));
+                        initial::emit_error(
+                            &self.output,
+                            &restart_program,
+                            InvocationError::Expansion(error),
+                        );
                         return 2;
                     }
                 };
@@ -2117,11 +2126,11 @@ impl Engine {
                 return 2;
             }
             if self.options.jobs.unwrap_or(1) == 1 && self.output.mode().root_buffered() {
-                self.output.set_mode(crate::output::Mode::None);
                 self.output.select(None);
                 if let Some(buffer) = self.reader_output.take() {
                     buffer.dump();
                 }
+                self.output.set_mode(crate::output::Mode::None);
             } else {
                 match self.output.setup(self.options.sync_mutex.as_deref()) {
                     Ok(authentication) => self.options.sync_mutex = authentication,
@@ -7025,6 +7034,7 @@ impl Engine {
             if let Some(buffer) = &output {
                 buffer.child_reaped(false);
             }
+            self.output.start();
             let process = launch_child(
                 &program,
                 &child,

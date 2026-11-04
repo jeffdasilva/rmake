@@ -111,7 +111,7 @@ impl Plan {
     }
 
     pub(super) fn decode(
-        self: Box<Self>,
+        mut self: Box<Self>,
         restart: Option<(u32, u32)>,
     ) -> Result<Invocation, Failure<InvocationError>> {
         crate::native::reset();
@@ -123,6 +123,10 @@ impl Plan {
         } else {
             crate::output::Controller::new(crate::output::Mode::None, &self.program)
         };
+        output.set_directory_policy(crate::cli::DirectoryChoice::Automatic, false);
+        output.set_changed_directory(false);
+        output.set_recursive(false);
+        self.output = Some(output.clone());
         let mut database = Database::default();
         database.variables.reserve_environment_layout(
             &[
@@ -214,6 +218,7 @@ impl Plan {
             seen_includes: HashSet::new(),
             seen_directories: HashSet::new(),
         };
+        let policy_output = state.output.clone();
         let decoded = (|| -> Result<_, InvocationError> {
             let mut prefix_count = 0;
             let mut parsed_prefix = Options::default();
@@ -239,7 +244,11 @@ impl Plan {
                         prefix_count,
                         &mut |options, argument| state.argument(&self.program, options, argument),
                         &mut |options| {
-                            selected_policy = (options.warn_undefined, options.environment_override)
+                            selected_policy =
+                                (options.warn_undefined, options.environment_override);
+                            policy_output
+                                .set_directory_policy(options.directory_choice, options.silent);
+                            policy_output.set_changed_directory(!options.directories.is_empty());
                         },
                     );
                     state.warnings.set(selected_policy.0);
@@ -290,7 +299,9 @@ impl Plan {
                 false,
                 &mut |options, argument| state.argument(&self.program, options, argument),
                 &mut |options| {
-                    selected_policy = (options.warn_undefined, options.environment_override)
+                    selected_policy = (options.warn_undefined, options.environment_override);
+                    policy_output.set_directory_policy(options.directory_choice, options.silent);
+                    policy_output.set_changed_directory(!options.directories.is_empty());
                 },
             );
             state.warnings.set(selected_policy.0);
@@ -441,6 +452,10 @@ impl State {
         argument: crate::cli::Argument,
     ) -> Result<(), InvocationError> {
         self.warnings.set(options.warn_undefined);
+        self.output
+            .set_directory_policy(options.directory_choice, options.silent);
+        self.output
+            .set_changed_directory(!options.directories.is_empty());
         self.database
             .variables
             .set_environment_override(options.environment_override);
@@ -530,7 +545,11 @@ impl State {
     }
 }
 
-pub(super) fn emit_error(program: &[u8], error: InvocationError) {
+pub(super) fn emit_error(
+    output: &crate::output::Controller,
+    program: &[u8],
+    error: InvocationError,
+) {
     if rmake_linux::signals::pending().is_some() {
         return;
     }
@@ -544,23 +563,20 @@ pub(super) fn emit_error(program: &[u8], error: InvocationError) {
         return;
     }
     let version = matches!(&error, InvocationError::Expansion(error) if error.version);
-    let mut stderr = io::stderr().lock();
     match error {
         InvocationError::Options(message) => {
-            let _ = stderr.write_all(program);
-            let _ = stderr.write_all(b": ");
-            let _ = stderr.write_all(message.as_bytes());
-            let _ = stderr.write_all(b"\n");
+            output.write_parts(true, &[program, b": ", message.as_bytes(), b"\n"])
         }
-        InvocationError::Expansion(error) => {
-            let _ = stderr.write_all(&error.prefix(program));
-            let _ = stderr.write_all(b"*** ");
-            let _ = stderr.write_all(error.message.as_bytes());
-            let _ = stderr.write_all(b".  Stop.\n");
-        }
+        InvocationError::Expansion(error) => output.write_parts(
+            true,
+            &[
+                &error.prefix(program),
+                b"*** ",
+                error.message.as_bytes(),
+                b".  Stop.\n",
+            ],
+        ),
     }
-    let _ = stderr.flush();
-    drop(stderr);
     if version {
         crate::print_version();
     }

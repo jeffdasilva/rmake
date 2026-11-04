@@ -35,6 +35,9 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         let options = self.0.options.borrow();
         self.0.warn_undefined.set(options.warn_undefined);
         self.0.trace_enabled.set(options.trace);
+        self.0
+            .output
+            .set_directory_policy(options.directory_choice, options.silent);
         self.0.dirty.set(true);
     }
 
@@ -64,6 +67,8 @@ impl State {
         }
     }
     pub(super) fn refresh(&self, options: &Options) {
+        self.output
+            .set_directory_policy(options.directory_choice, options.silent);
         self.trace_enabled.set(options.trace);
         self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
@@ -195,6 +200,8 @@ impl State {
         drop(current);
         self.trace_enabled.set(updated.trace);
         self.warn_undefined.set(updated.warn_undefined);
+        self.output
+            .set_directory_policy(updated.directory_choice, updated.silent);
         // These invocation inputs survive a live reset unchanged. Move them
         // only after fallible decoding and search preparation have succeeded.
         // No evaluator callback runs while this exclusive borrow is held.
@@ -345,6 +352,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         let silent = (options.silent, options.silent_origin.take());
         let keep = (options.keep_going, options.keep_going_origin.take());
         let jobs = options.jobs.take();
+        let directory = (options.directory_choice, options.directory_origin.take());
         self.decoder.cursor = cursor.saturating_sub(1);
         let next = self
             .decoder
@@ -366,6 +374,15 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         } else {
             options.keep_going = keep.0;
             options.keep_going_origin = keep.1;
+        }
+        if options.directory_origin.is_some()
+            && (self.origin == Origin::CommandLine
+                || directory.1.is_none_or(|old| self.origin >= old))
+        {
+            options.directory_origin = Some(self.origin);
+        } else {
+            options.directory_choice = directory.0;
+            options.directory_origin = directory.1;
         }
         if options.jobs.is_some() {
             self.file_jobs = options.jobs;

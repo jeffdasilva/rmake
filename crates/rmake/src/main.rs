@@ -4,7 +4,6 @@
 #[cfg(not(target_os = "linux"))]
 compile_error!("rmake currently supports Linux only");
 
-use std::io::{self, Write};
 use std::process::ExitCode;
 
 mod cli;
@@ -34,21 +33,19 @@ fn main() -> ExitCode {
     let mut args = std::env::args_os();
     let invocation = args.next().unwrap_or_else(|| "rmake".into());
     let program = cli::invocation_name(&invocation);
-    let output = std::env::var_os("MAKE_RESTARTS")
-        .filter(|value| std::os::unix::ffi::OsStrExt::as_bytes(value.as_os_str()).starts_with(b"-"))
-        .map(|_| output::Controller::new(output::Mode::None, &program));
-    let process_output = output.as_ref().map(output::Controller::process_lifetime);
+    let output = output::Controller::new(output::Mode::None, &program);
+    let process_output = output.process_lifetime();
     let (status, mut native_exit) = match engine::Engine::invocation_with_output(
         args,
         &program,
         &invocation,
         std::env::var_os("MAKEFLAGS"),
         std::env::var_os("GNUMAKEFLAGS"),
-        output,
+        Some(output.clone()),
     ) {
         Err(failure) => {
             let (error, exit) = failure.into_parts();
-            engine::emit_invocation_error(&program, error);
+            engine::emit_invocation_error(&output, &program, error);
             (2, exit)
         }
         Ok(launch) if print_requested_exit(&launch.options) => {
@@ -67,11 +64,15 @@ fn main() -> ExitCode {
             Err(failure) => {
                 let (message, exit) = failure.into_parts();
                 if rmake_linux::signals::pending().is_none() {
-                    let mut stderr = io::stderr().lock();
-                    let _ = stderr.write_all(&message.prefix(&program));
-                    let _ = stderr.write_all(b"*** ");
-                    let _ = stderr.write_all(message.message.as_bytes());
-                    let _ = stderr.write_all(b".  Stop.\n");
+                    output.write_parts(
+                        true,
+                        &[
+                            &message.prefix(&program),
+                            b"*** ",
+                            message.message.as_bytes(),
+                            b".  Stop.\n",
+                        ],
+                    );
                 }
                 (2, exit)
             }
@@ -80,9 +81,7 @@ fn main() -> ExitCode {
     if let Some(exit) = &mut native_exit {
         exit.prepare();
     }
-    if let Some(process_output) = &process_output {
-        process_output.finish();
-    }
+    process_output.finish();
     drop(signals);
     let status = rmake_linux::signals::exit_status(status);
     ExitCode::from(
@@ -109,6 +108,7 @@ pub(crate) fn print_requested_exit(options: &cli::Options) -> bool {
         println!("  --trace    Print rebuild reasons and recipe commands");
         println!("  --warn-undefined-variables  Diagnose missing variable references");
         println!("  -C DIR     Change directory before reading Makefiles");
+        println!("  -w / --no-print-directory  Enable / suppress directory reports");
         println!("  -I DIR     Search for included Makefiles; -I- resets the search path");
         println!("  -L         Include symlink timestamps (--check-symlink-times)");
         println!("  -o FILE    Ignore this file and its rules (--old-file)");

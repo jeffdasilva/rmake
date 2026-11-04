@@ -48,6 +48,7 @@ pub fn run(
         crate::process::disable_pipe_jobserver(&mut command);
     }
     let buffer = output.current();
+    output.start();
     let (child, stdout) = match crate::engine::launch_child(
         &program,
         &command,

@@ -366,3 +366,12 @@ profiles, 565 Rust tests and 613 tooling tests pass; full local acceptance and
 exact-head CI remain merge gates. The ordinary ledger and approved exceptions
 are unchanged. Broader startup/native/Linux/Guile/resource acceptance, complete
 M3/M6 and general performance parity remain open.
+
+[Directory reporting](directory-reporting.md) adds ordered/origin-aware policy,
+early directory/level publication, lazy process entry, locked nonempty spool
+groups and restart/native terminal ownership. Both builds pass 40 original
+models, closing 36 preceding mismatches, while all 215 native models remain
+unchanged. 571 Rust and 623 tooling tests, formatting and Clippy pass. Ordinary
+and approved-exception counts remain unchanged. Full local acceptance and
+exact-head CI remain merge gates; broader profiles, complete M3/M6, integration,
+persistent caching and general performance parity remain open.

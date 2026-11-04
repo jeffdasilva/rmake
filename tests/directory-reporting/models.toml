@@ -1,0 +1,862 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+# Original static byte models, independently qualified against two GNU runs.
+schema_version = 1
+
+[[models]]
+id = "directory-root-default"
+args = ["-rR"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-explicit-w"
+args = ["-rR", "-w"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-automatic-C"
+args = ["-rR", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b402f737562270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-automatic-level"
+args = ["-rR"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"MAKELEVEL" = "2"
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b655b325d3a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b655b325d3a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-C-silent"
+args = ["-rR", "-C", "sub", "-s"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-level-silent"
+args = ["-rR", "-s"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"MAKELEVEL" = "2"
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-explicit-w-silent"
+args = ["-rR", "-w", "-s"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-silent-explicit-w"
+args = ["-rR", "-s", "-w"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-w-then-no"
+args = ["-rR", "-w", "--no-print-directory"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-no-then-w"
+args = ["-rR", "--no-print-directory", "-w"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-inherited-w-cli-no"
+args = ["-rR", "--no-print-directory"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"MAKEFLAGS" = "w"
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-cli-w-file-no"
+args = ["-rR", "-w"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d2d6e6f2d7072696e742d6469726563746f72790a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-cli-no-file-w"
+args = ["-rR", "--no-print-directory"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d770a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-file-only-w"
+args = ["-rR"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a4d414b45464c414753202b3d202d770a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-silent-truly-empty"
+args = ["-rR", "-w", "-s"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a3b0a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = ""
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-silent-quiet-child"
+args = ["-rR", "-w", "-s"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e29747275650a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-read-info"
+args = ["-rR", "-w"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2428696e666f20494e464f290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a494e464f0a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-read-warning"
+args = ["-rR", "-w"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a24287761726e696e67205741524e290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4d616b6566696c653a323a205741524e0a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-first-C-failure"
+args = ["-rR", "-C", "missing-dir"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 2
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a6d616b653a202a2a2a206d697373696e672d6469723a204e6f20737563682066696c65206f72206469726563746f72792e202053746f702e0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-second-C-failure"
+args = ["-rR", "-C", "sub", "-C", "missing-dir"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/.keep" = ""
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 2
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a6d616b653a202a2a2a206d697373696e672d6469723a204e6f20737563682066696c65206f72206469726563746f72792e202053746f702e0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-sync-line-two"
+args = ["-rR", "-w", "-j2", "-Oline"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a4f4e450a54574f0a"
+modules = []
+
+[models.files]
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c4f4e45297072696e746620224f4e455c6e220a0940242866696c65203e3e7365656e2c54574f297072696e7466202254574f5c6e220a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4f4e450a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a54574f0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-sync-target-two"
+args = ["-rR", "-w", "-j2", "-Otarget"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a4f4e450a54574f0a"
+modules = []
+
+[models.files]
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c4f4e45297072696e746620224f4e455c6e220a0940242866696c65203e3e7365656e2c54574f297072696e7466202254574f5c6e220a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4f4e450a54574f0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-sync-recurse-two"
+args = ["-rR", "-w", "-j2", "-Orecurse"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a4f4e450a54574f0a"
+modules = []
+
+[models.files]
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c4f4e45297072696e746620224f4e455c6e220a0940242866696c65203e3e7365656e2c54574f297072696e7466202254574f5c6e220a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4f4e450a54574f0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-sync-line-empty-child"
+args = ["-rR", "-w", "-j2", "-Oline"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e29747275650a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = ""
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-sync-target-stderr-only"
+args = ["-rR", "-w", "-j2", "-Otarget"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620224552525c6e22203e26320a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4552520a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-sync-target-read-recipe"
+args = ["-rR", "-w", "-Otarget"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a24287761726e696e67205741524e290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+"seen" = "616e63686f720a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4d616b6566696c653a323a205741524e0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-restart-entered"
+args = ["-rR", "-w"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541442d0a524541442d310a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "696e636c7564652067656e6572617465642e6d6b0a242866696c65203e3e7365656e2c524541442d24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a67656e6572617465642e6d6b3a0a09407072696e746620225245414459203a3d207965735c6e22203e24400a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+"generated.mk" = "5245414459203a3d207965730a"
+
+[[models]]
+id = "directory-silent-optimized-colon"
+args = ["-rR", "-w", "-s"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e293a0a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = ""
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-restart-C-decode-failure"
+args = ["-rR", "-C", "sub"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a524541442d0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "696e636c7564652067656e6572617465642e6d6b0a242866696c65203e3e2e2e2f7365656e2c524541442d24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a67656e6572617465642e6d6b3a0a09407072696e746620225245414459203a3d207965735c6e22203e24400a"
+
+[models.environment]
+"GNUMAKEFLAGS" = "$(if $(MAKE_RESTARTS),$(error SECOND-STOP))"
+
+[models.expected]
+"exit_code" = 2
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b402f737562270a6d616b653a202a2a2a205345434f4e442d53544f502e202053746f702e0a6d616b653a204c656176696e6720616e20756e6b6e6f776e206469726563746f72790a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+"sub/generated.mk" = "5245414459203a3d207965730a"
+
+[[models]]
+id = "directory-restart-C-version"
+args = ["-rR", "-C", "sub"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a524541442d0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "696e636c7564652067656e6572617465642e6d6b0a242866696c65203e3e2e2e2f7365656e2c524541442d24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a67656e6572617465642e6d6b3a0a09407072696e746620225245414459203a3d207965735c6e22203e24400a"
+
+[models.environment]
+"GNUMAKEFLAGS" = "$(if $(MAKE_RESTARTS),--version)"
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b402f737562270a4056455253494f4e406d616b653a204c656176696e6720616e20756e6b6e6f776e206469726563746f72790a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+"sub/generated.mk" = "5245414459203a3d207965730a"
+
+[[models]]
+id = "directory-native-final-warning"
+args = ["-rR", "-w"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a53455455500a524541440a52554e0a46494e414c0a41465445520a"
+
+[[models.modules]]
+"source" = "directory_probe.c"
+"filename" = "directory_probe.so"
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "6c6f6164206469726563746f72795f70726f62652e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6e61746976652d7061727469616c6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4d616b6566696c653a313a2053455455502d5741524e0a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a6d616b653a2046494e414c2d5741524e0a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-native-final-include-error"
+args = ["-rR", "-w"]
+output = "merged"
+expected_seen_template_hex = "616e63686f720a53455455500a524541440a52554e0a46494e414c0a46494e414c2d494e434c5544450a"
+
+[[models.modules]]
+"source" = "directory_probe.c"
+"filename" = "directory_probe.so"
+
+[models.files]
+"seen" = "616e63686f720a"
+"Makefile" = "6c6f6164206469726563746f72795f70726f62652e736f0a242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+"final.mk" = "242866696c65203e3e7365656e2c46494e414c2d494e434c554445290a24287761726e696e6720494e434c5544452d5741524e290a24286572726f722046494e414c2d53544f50290a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"FINAL_INCLUDE" = "1"
+
+[models.expected]
+"exit_code" = 2
+"stdout_template_hex" = "6e61746976652d7061727469616c6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a4d616b6566696c653a313a2053455455502d5741524e0a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a66696e616c2e6d6b3a323a20494e434c5544452d5741524e0a66696e616c2e6d6b3a333a202a2a2a2046494e414c2d53544f502e202053746f702e0a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-early-info-after-C"
+args = ["-rR", "-C", "sub", "EAGER:=$(info EARLY)"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e6720616e20756e6b6e6f776e206469726563746f72790a4541524c590a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-early-info-before-C"
+args = ["-rR", "EAGER:=$(info EARLY)", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "4541524c590a6d616b653a20456e746572696e67206469726563746f7279202740574f524b402f737562270a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-early-w-info-before-C"
+args = ["-rR", "-w", "EAGER:=$(info EARLY)", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e6720616e20756e6b6e6f776e206469726563746f72790a4541524c590a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-early-HOME-after-C"
+args = ["-rR", "-C", "sub", "-I~/inc"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+"homepath/inc/.keep" = ""
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"HOME" = "$(info HOME)@WORK@/homepath"
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e6720616e20756e6b6e6f776e206469726563746f72790a484f4d450a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-early-level-before-publication"
+args = ["-rR", "-w", "EAGER:=$(info EARLY)", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+"MAKELEVEL" = "7"
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e6720616e20756e6b6e6f776e206469726563746f72790a4541524c590a5041594c4f41440a6d616b655b375d3a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-automatic-flags-omit-w"
+args = ["-rR", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2428696e666f20573d5b242866696e64737472696e6720772c24284d414b45464c41475329295d290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b402f737562270a573d5b5d0a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-automatic-late-s-before-output"
+args = ["-rR", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a4d414b45464c414753202b3d202d730a2428696e666f204146544552290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "41465445520a5041594c4f41440a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]
+
+[[models]]
+id = "directory-automatic-late-s-after-enter"
+args = ["-rR", "-C", "sub"]
+output = "separate"
+expected_seen_template_hex = "616e63686f720a524541440a52554e0a"
+modules = []
+
+[models.files]
+"seen" = "616e63686f720a"
+"sub/Makefile" = "242866696c65203e3e2e2e2f7365656e2c52454144290a2428696e666f204245464f5245290a4d414b45464c414753202b3d202d730a2428696e666f204146544552290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e2e2e2f7365656e2c52554e297072696e746620225041594c4f41445c6e220a"
+
+[models.environment]
+"GNUMAKEFLAGS" = ""
+
+[models.expected]
+"exit_code" = 0
+"stdout_template_hex" = "6d616b653a20456e746572696e67206469726563746f7279202740574f524b402f737562270a4245464f52450a41465445520a5041594c4f41440a6d616b653a204c656176696e67206469726563746f7279202740574f524b402f737562270a"
+"stderr_template_hex" = ""
+
+[models.expected_file_updates]

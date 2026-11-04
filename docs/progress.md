@@ -3039,3 +3039,26 @@ Full frozen local acceptance and exact-head CI remain merge gates. All
 regressions and the runtime allocation increase, are retained. Broader startup,
 native/profile/resource/integration/cache acceptance, complete M3/M6 and general
 GNU performance parity remain open.
+
+
+## M3/M6: directory reporting and output ownership
+
+[Directory reporting](directory-reporting.md) now honors ordered positive and
+negative selection with CLI priority, dynamic automatic policy and actual
+startup publication. One output owner spans early output, synchronized groups,
+restarts and native exits. Spool headers/payload/footers share their lock, quiet
+child launches trigger entry, and closed process traces cannot reopen.
+
+Both frozen profiles pass 40 independently modeled directory cases; preceding
+main differs on 36. All 215 native models and their evidence remain unchanged.
+482 imported-trace profiles, 128 startup-exit profiles and all approved safety
+cells pass. Rust has 571 tests and tooling 623; formatting and Clippy pass.
+The ordinary ledger remains 27,766 required / zero pending across 158 families,
+with 32 approved exceptions / 128 separately gated cells. All wrong predictions
+and complete qualification observations remain immutable.
+
+[Timing and allocation evidence](benchmarks/directory-reporting.md) retains
+both versions, regressions and the remaining extra allocation pair. Snapshot
+reuse removes one pair without changing publication. Full frozen local
+acceptance and exact-head CI remain merge gates. Complete M3/M6, broader profiles,
+Guile/GC, integration, persistent caches and general GNU parity remain open.
