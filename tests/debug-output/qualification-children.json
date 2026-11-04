@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable C1 BASIC-child debug qualification: both frozen development/release builds pass all 64 profiles; preceding debug v2 passes 62 and fails two. All three complete reports and coherent code/input hashes are retained. Earlier native/directory archives are historical references, not new C1 qualification; full acceptance remains separate. Zero additional ordinary-ledger or safety-exception credit.",
+  "sha256": "b5c9dd7a569e4c7fefcadd80fcd3c110e1ee5e44e708162067d7cff6b2bd51f6",
+  "raw_sha256": "286307e3daea5dd7025afc7dd43224f8daaff2de749dfcca848d6864e384c6c6",
+  "raw_bytes": 4277428
+}

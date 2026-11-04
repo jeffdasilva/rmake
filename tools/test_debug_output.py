@@ -135,7 +135,8 @@ class DebugOutputTests(unittest.TestCase):
                 with self.assertRaisesRegex(h.HarnessError,'one declared boundary'):d.models()
 
     def test_static_inventory_and_retained_history_hashes(self):
-        models=d.models();self.assertEqual(len(models),54);self.assertEqual(len({model.id for model in models}),54)
+        models=d.models();self.assertEqual(len(models),64);self.assertEqual(len({model.id for model in models}),64)
+        self.assertEqual(sum(model.id.startswith('debug-child-') for model in models),10)
         self.assertEqual(sum(model.id.startswith('debug-boundary-') for model in models),14)
         explicit=[model for model in models if model.explicit_version_reference is not None]
         self.assertEqual([model.id for model in explicit],['debug-invalid-before-version'])

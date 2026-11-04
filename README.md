@@ -120,12 +120,20 @@ complete M3/M6 and general performance parity remain open.
 
 [Structured debug output](docs/debug-output.md) now separates original debug
 requests from effective selection and emits borrowed reader/traversal events.
-Both frozen builds pass 54 deterministic profiles; preceding main passes one
-and differs on 53. Rust has 576 passing tests and tooling 634. Native 215 and
-directory 40 profiles, the 27,766-case ordinary ledger and all approved safety
-exceptions are unchanged. Actual-child JOBS/async completion, broader implicit
-and default-reader diagnostics, database/profile/integration/cache acceptance
-and full M3/M6 remain open; no general GNU performance parity is claimed.
+Both frozen builds pass 64 deterministic profiles; the preceding debug build
+passes 62 and differs on two child-lifecycle cases. Rust has 576 passing tests
+and tooling 634. Native 215 and directory 40 models, the 27,766-case ordinary
+ledger and all approved safety exceptions are unchanged. Actual-child JOBS,
+broader asynchronous diagnostics, implicit and default-reader diagnostics,
+database/profile/integration/cache acceptance and full M3/M6 remain open;
+no general GNU performance parity is claimed.
+
+The [ten BASIC-child cases](docs/debug-output.md) add controlled serial/parallel
+failure, keep-going, ignored-error, up-to-date and queued-worker evidence. Only
+two preceding debug outcomes differed; GNU's deliberate omission of queued-child
+Success lines is preserved. Native/directory models and historical evidence are
+unchanged; new C1 acceptance for those profiles awaits the full gate. The earlier
+54-profile qualification and its negative timing results remain historical.
 
 [Native load reader preparation](docs/load-reader.md) supports empty `load` and
 `-load` requests, complete operand effects and byte-preserving empty setup-symbol

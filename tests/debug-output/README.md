@@ -56,6 +56,8 @@ as such. Fixed-candidate and full developer acceptance remain separate gates.
 | Evidence manifest | Contents |
 | --- | --- |
 | [performance-v2.json](performance-v2.json) | Complete three elapsed reports, 16 allocation reports/raw traces, helper/tool sources and exact workload input manifest. Links the immutable v2 source snapshot; retains every negative result and separates elapsed CPU23 affinity from allocation limits. |
+| [performance-children.json](performance-children.json) | Complete C1 elapsed/allocation reports and traces, exact input/helper manifests and qualification-children reference. Preserves requested-byte increases and links unchanged earlier v2 regressions; CPU23 applies only to elapsed campaigns. |
+| [qualification-children.json](qualification-children.json) | Complete C1 development/release 64-pass and preceding debug-v2 62-pass/2-fail reports, with coherent code/input hashes. Earlier native/directory qualifications remain historical references; new C1/full acceptance is separate. |
 | [qualification-v2.json](qualification-v2.json) | Complete final development/release reports passing debug 54, native 215 and directory 40, plus preceding-main debug 1-pass/53-fail control. Includes coherent source/input/module hashes; ordinary and full developer acceptance remain separate. |
 | [history.json](history.json) | Original forty-profile raw/refined discovery and retained incorrect hypotheses, unchanged. |
 | [extension-history.json](extension-history.json) | Fourteen independently qualified review boundaries, exact first/final predictions, immutable v1 negative controls and original-model/report fingerprints. |

@@ -379,12 +379,27 @@ persistent caching and general performance parity remain open.
 
 [Structured debug output](debug-output.md) separates original request history
 from effective categories and uses borrowed reader/traversal events with guarded
-formatting. Both frozen builds pass 54 selected debug profiles; preceding main
-passes one and fails 53. Native 215/directory 40 gates remain unchanged, and
+formatting. At the earlier 54-profile milestone, both then-selected builds passed
+that slice; its preceding main passed one and failed 53. Native 215/directory 40
+models/history remained unchanged, and
 formatting, Clippy, 576 Rust and 634 tooling tests pass. The ordinary ledger is
 still 27,766 required / zero pending across 158 families, with the same 32
-separate approved exceptions / 128 cells. Actual-child JOBS, asynchronous remake
-output, full implicit chains/default discovery, database/Guile/profile/resource
+separate approved exceptions / 128 cells. Actual-child JOBS and broader asynchronous traversal, full implicit chains/default discovery, database/Guile/profile/resource
 and integration coverage remain open. Persistent cache correctness, general GNU
 performance parity and complete M3/M6 retain their existing exit criteria; full
 frozen local acceptance and exact-head CI remain merge gates.
+
+
+The current [BASIC-child debug follow-up](debug-output.md) adds ten original
+controlled lifecycle cases, bringing the selected gate to 64. Both C1 builds
+pass; preceding debug passes 62 and differs on two. The changes restore queued
+parent Missing revisits and GNU's stop/keep-going failure distinctions without
+inventing individual queued-child Success lines. All prior 54 data and historical
+native 215/directory 40 evidence remains unchanged; C1 cross-profile acceptance
+awaits the full gate. Formatting, Clippy, 576 Rust and 634 tooling tests pass.
+Ordinary 27,766 required / zero pending / 158 families and 32 separate approved
+exceptions / 128 cells are unchanged. [Child measurements](benchmarks/debug-children.md)
+retain allocation increases and a separate elapsed comparison; prior negative
+results remain preserved. M3/M6, JOBS identities, broader traversal/implicit/
+default-discovery/database/Guile/profile/resource/cache/integration and general
+GNU performance parity retain their existing gates.

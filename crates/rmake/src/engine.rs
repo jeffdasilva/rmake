@@ -5815,6 +5815,14 @@ impl Engine {
             .pending_rules
             .remove(target)
             .expect("pending rule frame");
+        // A new update pass revisits the parent's cached missing-file state.
+        // Resume its owned dependency frame without repeating observations.
+        if state.last_epoch.is_some() && state.before.is_none() {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Missing(target, state.depth + usize::from(self.remaking) + 1),
+            );
+        }
         state.last_epoch = Some(self.graph_epoch);
         self.apply_graph_abort(&mut state.outcome);
         state.stopped |= self.graph_abort.is_some();
@@ -6462,7 +6470,10 @@ impl Engine {
                 before
             };
         }
-        if !self.parallel_jobs.contains_key(target) {
+        // A stopping synchronous child failure exits before GNU's ordinary
+        // update-return diagnostic. Keep-going updates retain that diagnostic.
+        let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
+        if !self.parallel_jobs.contains_key(target) && !stopping_failure {
             crate::debug::emit(
                 &self.output,
                 if debug_remake {

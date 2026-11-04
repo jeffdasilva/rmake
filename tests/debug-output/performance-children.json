@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable BASIC-child C1 performance: all three complete elapsed reports, 16 allocation reports and 16 raw traces, including requested-byte increases. Small improvements on these selected controls do not establish general speedup or GNU parity; earlier v2 regressions remain unchanged historical evidence.",
+  "sha256": "23b95c58c6c031834ca676329643567b83c989b37c220adcbe1e114a4193ad7a",
+  "raw_sha256": "40e1da6b540216b80ec4333dcbd6a4117bcfd9854b274845f781e1f91ee3df7c",
+  "raw_bytes": 5112687
+}
