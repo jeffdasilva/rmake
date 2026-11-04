@@ -3119,3 +3119,43 @@ discovery/database diagnostics, Guile/GC, locale/Linux/resource/native
 cross-products, cache correctness, integration and full developer/M3/M6
 acceptance remain open. Frozen full local acceptance and exact-head CI remain
 the merge gates.
+
+
+## M3/M6: controlled actual-child JOBS protocol
+
+[Nine original JOBS profiles](job-debug.md) now pass both frozen isolated builds.
+Stable recipe records retain their identity across command PIDs, an explicit
+newest-first chain controls live ordering, and raw events preserve the exact
+protocol. The host independently verifies actual child PID/PPID/starttime and
+command line before releasing workers; no broad job-output normalization or
+extra/missing Live events are accepted.
+
+Two additional FIFO/pipe witnesses exposed a functional token-availability gap.
+Both failed before the ownership fix and now borrow/return the exact shared byte
+while another recipe remains alive. One outstanding paid lease moves into the
+freed implicit slot; its original byte returns once, with no permit cloning.
+Signal wake descriptors are reserved before handler publication to retain the
+selected owned-pipe protocol pair without a live-handler relocation race. That
+initial descriptor reservation adds real work; the
+[separate measurements](benchmarks/job-debug.md) retain complete mixed results
+without isolating the operation or attributing all build/profiler-path differences
+to the feature. The [performance archive](../tests/job-debug/performance.json)
+contains all three elapsed reports, sixteen allocation reports/traces and twelve
+exact inputs. Paired changes range from -1.20% to +0.80%; allocation calls/frees
+are unchanged, with requested-byte deltas of -117 on tiny/large/startup and +4 on
+runtime controls. Shared CPU23 affinity applies only to elapsed measurements;
+no confidence intervals, exclusive CPU or general parity is claimed.
+
+The complete discovery, observer-root-directory and worker-ESRCH failures,
+30 GNU2 repeat controls and all candidate/negative reports remain in
+[history](../tests/job-debug/history.json). Initial fixture failures receive zero
+acceptance credit. The [qualification archive](../tests/job-debug/qualification.json)
+retains both builds passing JOBS 9, debug 64, native 215 and directory 40, plus
+coherent code/input/binary hashes and core-check logs. Formatting, Clippy,
+578 Rust tests and 643 tooling tests pass; one separately passing archive-
+integrity unit brings the next complete tooling gate to 644. The ordinary ledger and 32 safety
+inputs / 128 cells remain unchanged; no additional ledger/exception credit is
+assigned. Larger JOBS transports/scopes/recursion/restarts/loaded and resource
+profiles, Guile/GC, broader diagnostics, caches, integration, full developer
+flows and M3/M6 remain open. Frozen exact-head local acceptance and CI remain
+merge gates; no general speed parity is claimed.

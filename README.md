@@ -123,7 +123,7 @@ requests from effective selection and emits borrowed reader/traversal events.
 Both frozen builds pass 64 deterministic profiles; the preceding debug build
 passes 62 and differs on two child-lifecycle cases. Rust has 576 passing tests
 and tooling 634. Native 215 and directory 40 models, the 27,766-case ordinary
-ledger and all approved safety exceptions are unchanged. Actual-child JOBS,
+ledger and all approved safety exceptions are unchanged. Broader JOBS,
 broader asynchronous diagnostics, implicit and default-reader diagnostics,
 database/profile/integration/cache acceptance and full M3/M6 remain open;
 no general GNU performance parity is claimed.
@@ -132,8 +132,18 @@ The [ten BASIC-child cases](docs/debug-output.md) add controlled serial/parallel
 failure, keep-going, ignored-error, up-to-date and queued-worker evidence. Only
 two preceding debug outcomes differed; GNU's deliberate omission of queued-child
 Success lines is preserved. Native/directory models and historical evidence are
-unchanged; new C1 acceptance for those profiles awaits the full gate. The earlier
+unchanged. That C1 checkpoint completed its full local and CI gates; the earlier
 54-profile qualification and its negative timing results remain historical.
+
+[Controlled actual-child JOBS output](docs/job-debug.md) adds nine independent
+profiles for exact lifecycle events, stable recipe identities across command
+PIDs, FIFO/pipe authentication and externally witnessed token return. Both frozen
+builds pass JOBS 9, debug 64, native 215 and directory 40. Formatting, Clippy,
+578 Rust tests and 643 tooling tests pass, plus a separate archive-integrity unit.
+[Retained measurements](docs/benchmarks/job-debug.md) show mixed elapsed changes
+and unchanged allocation calls/frees on selected disabled-debug controls. Broader
+JOBS transports/scopes/recursion/restarts/resources, database/Guile acceptance,
+cache correctness, full M3/M6 and general performance parity remain open.
 
 [Native load reader preparation](docs/load-reader.md) supports empty `load` and
 `-load` requests, complete operand effects and byte-preserving empty setup-symbol

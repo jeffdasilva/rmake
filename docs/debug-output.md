@@ -107,8 +107,8 @@ acceptance and exact-head CI remain merge gates. The separate
 and the [child-slice measurements](benchmarks/debug-children.md) retain the new
 controls and limits. These compatibility results establish no general GNU parity.
 
-Known open work includes JOBS records for actual children, their PID/address and
-lifetime relationships, and broader asynchronous traversal diagnostics. The selected
+Beyond the separately qualified JOBS profiles below, broader PID/address and
+lifetime relationships and asynchronous traversal diagnostics remain open. The selected
 IMPLICIT and MAKEFILE cases do not establish full implicit-chain, built-in search
 or default-Makefile discovery diagnostics. Database output (`-p`) remains
 unimplemented. Broader recursion, native/debug interactions, stdout/descriptor,
@@ -116,3 +116,12 @@ non-C locale, architecture, Linux/libc, interruption and resource profiles need
 separate acceptance. Enabled Guile/GC integration, persistent cache correctness,
 external-project integration and complete developer-flow coverage also remain
 open. No selected-profile result waives those M3/M6 requirements.
+
+A later bounded [actual-child JOBS slice](job-debug.md) qualifies nine strict
+identity/token profiles on both selected builds. Its complete raw histories,
+rejected observations and independent live-process/token witnesses are separate
+from this deterministic 64-profile evidence. Broader JOBS combinations and
+complete debug/M3/M6 acceptance remain open. Its [measurement page](benchmarks/job-debug.md)
+and [performance archive](../tests/job-debug/performance.json) retain mixed elapsed
+results, unchanged allocation calls/frees and all exact inputs; they establish no
+general performance parity.
