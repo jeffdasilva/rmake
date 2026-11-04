@@ -1,0 +1,14 @@
+{
+  "classification": "Original glibc C/C.UTF8 startup research and qualification; zero ordinary/safety credit, no NLS/fullM3/M6/performance acceptance",
+  "qualified_profiles": 183,
+  "binaries": {
+    "/tmp/rmake-jobs-qualified-release": "46448db1f1a00ba24dd53f63fb3178d1c9c044fe5dbaeb7af34690b7b7865363",
+    "/tmp/rmake-locale-first-debug": "953363ffb816c8260d9026df7e4ca1a98ec0046f2b4bc1a302b6bab0dc303a65",
+    "/tmp/rmake-locale-first-release": "aef90bcd2a27f920578b0ce8301e9362b6df1ddf6cda084c9a063a5804cd0234"
+  },
+  "implementation_parent": "ace327376aa81f0dda3c08b56996aa593118bc5e",
+  "sha256": "0008ec68543efc293c7c4495f28dfc4b7dfcd47fc7e2a381a55855559f2098c5",
+  "raw_sha256": "df012d079c932c5b7d1b4417238447153364977740c81c8dc43fffca78b9ec28",
+  "raw_bytes": 16524268,
+  "gzip_bytes": 650323
+}
