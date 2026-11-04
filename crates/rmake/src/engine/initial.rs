@@ -74,6 +74,17 @@ impl Plan {
         }
     }
 
+    pub(super) fn debug_restart(&self, count: u32) {
+        let mut line = format!("Re-executing[{count}]: ").into_bytes();
+        line.extend_from_slice(self.invocation.as_bytes());
+        for argument in &self.args {
+            line.push(b' ');
+            line.extend_from_slice(argument.as_bytes());
+        }
+        line.push(b'\n');
+        crate::debug::raw(&[&line]);
+    }
+
     /// Native module images must restart with a fresh dynamic-loader namespace.
     /// Preserve argv and the invocation environment rather than replaying a
     /// loaded library's constructors or keeping its old static state in process.
@@ -123,6 +134,7 @@ impl Plan {
         } else {
             crate::output::Controller::new(crate::output::Mode::None, &self.program)
         };
+        output.set_debug_mask(crate::debug::Mask::NONE);
         output.set_directory_policy(crate::cli::DirectoryChoice::Automatic, false);
         output.set_changed_directory(false);
         output.set_recursive(false);
@@ -257,6 +269,9 @@ impl Plan {
                         .variables
                         .set_environment_override(selected_policy.1);
                     parsed_prefix = parsed?;
+                    parsed_prefix
+                        .decode_debug()
+                        .map_err(|error| StartupError::from(Diagnostic::from(error)))?;
                     prefix_count += count;
                     state
                         .database
@@ -331,6 +346,11 @@ impl Plan {
                 }
                 Err(error) => return Err(error),
             };
+            options.decode_debug().map_err(|error| {
+                let mut error = StartupError::from(Diagnostic::from(error));
+                error.version = options.version;
+                error
+            })?;
             output_mode(options.output_sync.as_deref())?;
             let shuffle = if options.help || options.version {
                 crate::shuffle::Mode::None
@@ -414,8 +434,7 @@ impl State {
         program: &[u8],
         action: impl FnOnce(&mut Database, ExpansionContext<'_>) -> Result<T, ExpandError>,
     ) -> Result<T, ExpandError> {
-        let mut emit = |event: Output<'_>| emit_output(&self.output, program, event);
-        let mut receiver = WarningOutput::new(&mut emit, &self.warnings);
+        let mut receiver = RuntimeOutput::new(&self.output, program, &self.warnings);
         let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
             self.filesystem.borrow_mut().execute(effect)
         };

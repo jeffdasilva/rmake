@@ -118,11 +118,20 @@ early output and restart/finalizer ownership. 40 original models close 36
 preceding mismatches through `make test-directory-reporting`. Broader profiles,
 complete M3/M6 and general performance parity remain open.
 
+[Structured debug output](docs/debug-output.md) now separates original debug
+requests from effective selection and emits borrowed reader/traversal events.
+Both frozen builds pass 54 deterministic profiles; preceding main passes one
+and differs on 53. Rust has 576 passing tests and tooling 634. Native 215 and
+directory 40 profiles, the 27,766-case ordinary ledger and all approved safety
+exceptions are unchanged. Actual-child JOBS/async completion, broader implicit
+and default-reader diagnostics, database/profile/integration/cache acceptance
+and full M3/M6 remain open; no general GNU performance parity is claimed.
+
 [Native load reader preparation](docs/load-reader.md) supports empty `load` and
 `-load` requests, complete operand effects and byte-preserving empty setup-symbol
 errors. 324 original cases close 312 preceding mismatches, bringing the corpus
-to 27,766 required cases. Actual shared-library loading and its native ABI remain
-open, along with complete M3/M6 and general GNU performance parity.
+to 27,766 required cases. Broader shared-library/native ABI profiles remain open, along with complete
+M3/M6 and general GNU performance parity.
 
 [Startup include search](docs/startup-include-search.md) now performs the second
 HOME lookup before Makefiles are read, preserving stored operands and delayed

@@ -82,8 +82,7 @@ impl Host {
         &mut self,
         action: impl FnOnce(&mut Database, ExpansionContext<'_>) -> Result<T, ExpandError>,
     ) -> Result<T, ExpandError> {
-        let mut emit = |event: Output<'_>| emit_output(&self.output, &self.program, event);
-        let mut output = WarningOutput::new(&mut emit, &self.warnings);
+        let mut output = RuntimeOutput::new(&self.output, &self.program, &self.warnings);
         let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
             self.filesystem.borrow_mut().execute(effect)
         };

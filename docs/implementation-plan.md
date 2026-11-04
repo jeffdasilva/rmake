@@ -375,3 +375,16 @@ unchanged. 571 Rust and 623 tooling tests, formatting and Clippy pass. Ordinary
 and approved-exception counts remain unchanged. Full local acceptance and
 exact-head CI remain merge gates; broader profiles, complete M3/M6, integration,
 persistent caching and general performance parity remain open.
+
+
+[Structured debug output](debug-output.md) separates original request history
+from effective categories and uses borrowed reader/traversal events with guarded
+formatting. Both frozen builds pass 54 selected debug profiles; preceding main
+passes one and fails 53. Native 215/directory 40 gates remain unchanged, and
+formatting, Clippy, 576 Rust and 634 tooling tests pass. The ordinary ledger is
+still 27,766 required / zero pending across 158 families, with the same 32
+separate approved exceptions / 128 cells. Actual-child JOBS, asynchronous remake
+output, full implicit chains/default discovery, database/Guile/profile/resource
+and integration coverage remain open. Persistent cache correctness, general GNU
+performance parity and complete M3/M6 retain their existing exit criteria; full
+frozen local acceptance and exact-head CI remain merge gates.

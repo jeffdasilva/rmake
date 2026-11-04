@@ -8,6 +8,7 @@ use std::process::ExitCode;
 
 mod cli;
 mod command_variables;
+mod debug;
 mod engine;
 mod file_aliases;
 mod intermediates;

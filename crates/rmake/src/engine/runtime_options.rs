@@ -9,7 +9,6 @@ pub(super) struct State {
     options: std::rc::Rc<RefCell<Options>>,
     dirty: Cell<bool>,
     pub(super) warn_undefined: Cell<bool>,
-    pub(super) trace_enabled: Cell<bool>,
     output: crate::output::Controller,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
 }
@@ -34,7 +33,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
     fn sync_decoded_flags(&mut self) {
         let options = self.0.options.borrow();
         self.0.warn_undefined.set(options.warn_undefined);
-        self.0.trace_enabled.set(options.trace);
+        self.0.output.set_debug_mask(options.debug_mask);
         self.0
             .output
             .set_directory_policy(options.directory_choice, options.silent);
@@ -61,7 +60,6 @@ impl State {
             options: std::rc::Rc::new(RefCell::new(options.clone())),
             dirty: Cell::new(false),
             warn_undefined: Cell::new(options.warn_undefined),
-            trace_enabled: Cell::new(options.trace),
             output,
             includes,
         }
@@ -69,7 +67,7 @@ impl State {
     pub(super) fn refresh(&self, options: &Options) {
         self.output
             .set_directory_policy(options.directory_choice, options.silent);
-        self.trace_enabled.set(options.trace);
+        self.output.set_debug_mask(options.debug_mask);
         self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
         self.dirty.set(false);
@@ -198,7 +196,7 @@ impl State {
             next_argument: updated.flag_word_count,
         };
         drop(current);
-        self.trace_enabled.set(updated.trace);
+        self.output.set_debug_mask(updated.debug_mask);
         self.warn_undefined.set(updated.warn_undefined);
         self.output
             .set_directory_policy(updated.directory_choice, updated.silent);
@@ -453,6 +451,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         if passive && let Some(jobs) = current.command_jobs {
             current.jobs = Some(jobs);
         }
+        current.decode_debug().map_err(String::into_bytes)?;
         let mode = current
             .output_sync
             .as_deref()
@@ -765,8 +764,9 @@ impl Engine {
             if let Some(decoder) = decoder {
                 let driven = runtime_context(
                     None,
-                    &mut WarningOutput::new(
-                        &mut |event| emit_output(&self.output, &self.program, event),
+                    &mut RuntimeOutput::new(
+                        &self.output,
+                        &self.program,
                         &self.flag_state.warn_undefined,
                     ),
                 )
@@ -842,8 +842,9 @@ impl Engine {
                 .collect::<Vec<_>>();
             let names = runtime_context(
                 None,
-                &mut WarningOutput::new(
-                    &mut |event| emit_output(&self.output, &self.program, event),
+                &mut RuntimeOutput::new(
+                    &self.output,
+                    &self.program,
                     &self.flag_state.warn_undefined,
                 ),
             )
