@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable frozen borrowed-location performance evidence: four complete timing reports plus four allocation reports and four raw traces. Comparisons against both the lookup and provenance builds retain every mixed/slower observation. No general GNU parity, cumulative improvement or acceptance claim.",
+  "sha256": "9d4445cddc2f85f5f3c266326c880d703acf71c24dda29a1c2d6157a93d728c7",
+  "raw_sha256": "4a00c33fe890bba3b9c60f366dbd210674ce25f0cff226e5ca1392f408a6bbe0",
+  "raw_bytes": 2020406
+}

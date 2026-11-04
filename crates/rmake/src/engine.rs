@@ -222,7 +222,7 @@ fn secondary_automatic(
 }
 
 fn location_prefix(location: &Location) -> Vec<u8> {
-    let mut bytes = if location.file.is_empty() {
+    let mut bytes = if location.file.is_null() {
         return b"<builtin>: ".to_vec();
     } else {
         location.file.to_vec()
@@ -440,7 +440,7 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
     match output {
         Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
         Output::Warning { location, message } => {
-            if let Some(location) = location.filter(|location| !location.file.is_empty()) {
+            if let Some(location) = location.filter(|location| !location.file.is_null()) {
                 controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
             } else {
                 controller.write_parts(true, &[program, b": ", message, b"\n"]);
@@ -748,7 +748,7 @@ impl StartupError {
         Self {
             location: error
                 .diagnostic_location(None)
-                .filter(|location| !location.file.is_empty())
+                .filter(|location| !location.file.is_null())
                 .cloned(),
             message: error.diagnostic(),
             version: false,
@@ -1364,7 +1364,7 @@ impl Engine {
         let mut shutdown = self.shutdown.get();
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
-        if let Some(location) = location.filter(|location| !location.file.is_empty()) {
+        if let Some(location) = location.filter(|location| !location.file.is_null()) {
             self.output.write_parts(
                 true,
                 &[&location_prefix(location), b"*** ", message, b".  Stop.\n"],
@@ -6306,6 +6306,7 @@ impl Engine {
                 bytes: script.bytes,
                 location: first.location.clone(),
                 prefix: first.prefix,
+                builtin: first.builtin,
             }];
             (combined.as_slice(), script.has_commands, script.recursive)
         } else {
@@ -7334,6 +7335,32 @@ pub(crate) fn launch_child<T>(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_source_prefixes_keep_null_empty_and_literal_builtin_distinct() {
+        use rmake_core::diagnostic::SourceName;
+        assert_eq!(
+            super::location_prefix(&Location {
+                file: SourceName::null(),
+                line: 0
+            }),
+            b"<builtin>: "
+        );
+        assert_eq!(
+            super::location_prefix(&Location {
+                file: b"".as_slice().into(),
+                line: 19
+            }),
+            b":19: "
+        );
+        assert_eq!(
+            super::location_prefix(&Location {
+                file: b"<builtin>".as_slice().into(),
+                line: 0
+            }),
+            b"<builtin>:0: "
+        );
+    }
+
     use super::*;
     use rmake_core::variables::Flavor;
 

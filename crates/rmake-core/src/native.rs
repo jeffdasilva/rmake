@@ -582,6 +582,51 @@ mod tests {
     }
 
     #[test]
+    fn nullable_eval_sources_survive_definitions_recipes_and_module_origins() {
+        use crate::diagnostic::SourceName;
+        for file in [
+            SourceName::null(),
+            b"".as_slice().into(),
+            b"<builtin>".as_slice().into(),
+        ] {
+            let runtime = Runtime::new();
+            let mut database = Database::default();
+            let location = Location {
+                file: file.clone(),
+                line: 0,
+            };
+            database
+                .read_evaluated(
+                    b"VALUE := retained\nuser:;@:\nload module\n",
+                    Some(&location),
+                    ExpansionContext::pure().with_native_runtime(runtime),
+                )
+                .unwrap();
+            assert_eq!(
+                database.variables.get(b"VALUE").unwrap().definition(),
+                Some(&location)
+            );
+            let recipe = &database.rules[b"user".as_slice()].recipes.as_ref().unwrap()[0];
+            assert_eq!(recipe.location, location);
+            assert!(!recipe.builtin);
+            assert_eq!(database.loaded_modules[b"module".as_slice()], location);
+        }
+        let mut database = Database::default();
+        database
+            .read_evaluated(
+                b"load anonymous\n",
+                None,
+                ExpansionContext::pure().with_native_runtime(Runtime::new()),
+            )
+            .unwrap();
+        assert!(
+            database.loaded_modules[b"anonymous".as_slice()]
+                .file
+                .is_null()
+        );
+    }
+
+    #[test]
     fn explicit_eval_source_lines_preserve_zero_and_unsigned_boundaries() {
         for line in [0, 1, 23, 42, u32::MAX as usize, usize::MAX] {
             let mut database = Database::default();

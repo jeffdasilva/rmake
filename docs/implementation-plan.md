@@ -351,6 +351,9 @@ parity remain open. Frozen local acceptance and exact-head CI remain merge gates
 function registration, allocation/expansion/eval callbacks, `.LOADED`, rebuilding
 and qualified finalization through an explicit interpreter effect. Original C
 integration gates are required in development, optimized and self-host flows.
+The 184-model native gate includes nullable source names across eval and reloads,
+with explicit builtin recipe ownership. Eval borrows its existing location while
+the parser retains an owned source, avoiding redundant source reference traffic.
 The ordinary corpus remains 27,766 required / zero pending; compiled native
 profiles are counted separately. Full native/resource/profile acceptance, Guile,
 remaining CLI/presentation/integration surfaces and M3/M6 remain open.

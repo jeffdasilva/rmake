@@ -13,7 +13,7 @@ resets each execution and rejects leftover children. The compiler also uses the
 bounded process-group capture. This is a trusted-fixture gate, not a filesystem
 or network security sandbox.
 
-The 147 independent models cover allocation/free, NULL and NUL results, byte
+The 184 independent models cover allocation/free, NULL and NUL results, byte
 arguments, eager/raw arguments, direct versus call arity, local/target/automatic
 scope, fresh registrations, name/arity/flag validation across reading/includes/recipes,
 expansion/eval effects, errors and source locations,
@@ -54,13 +54,35 @@ source/archive paths are evidence and are not executable default cases.
 
 | Archive manifest | Contents |
 | --- | --- |
+| [qualification-borrowed-184.json](qualification-borrowed-184.json) | Complete final borrowed-location debug/release184-pass and preceding main184-fail reports, with the coherent source/input/module hash snapshot. Full developer/ordinary acceptance remains separate. |
+| [qualification-184.json](qualification-184.json) | Complete corrected frozen debug/release184-pass and preceding main184-fail reports, with source/input/module hashes. Ordinary and full developer acceptance remain separate gates. |
 | [qualification-147.json](qualification-147.json) | Complete immutable debug/release147-pass and preceding147-fail reports, executable identities and packaging-time source hashes. This historical set establishes its recorded profile rather than a complete native inventory. |
+| [borrowed-performance.json](borrowed-performance.json) | All four final timing reports, both historical-baseline comparisons, four allocation reports/raw traces, helper source/hash and immutable final source reference. Mixed/slower results remain included; CPU23 applies only to timing. |
+| [provenance-performance.json](provenance-performance.json) | All three source-provenance timing reports and 16 allocation reports/raw traces, frozen executable/source references, helper bytes/hash, mixed timing results and requested-byte increases. CPU23 applies only to the timing campaigns. |
 | [benchmark-evidence.json](benchmark-evidence.json) | All nine original benchmark/control metadata reports, including negative and mixed results, with CPU23 affinity metadata for lookup and CPU follow-ups. |
-| [null-floc-history.json](null-floc-history.json) | Original C sources, observer and complete five-model NULL-versus-empty setup filename discovery. Three current normal-input mismatches remain open; two explicit-empty controls match. This discovery adds no runnable default case, gate credit or approved exception. |
+| [null-floc-history.json](null-floc-history.json) | Original C sources, observer and complete five-model NULL-versus-empty setup filename discovery. Records three preceding normal-input mismatches and two matching explicit-empty controls. The later 37-model source-name suite checks the fix; this historical discovery adds no extra gate or exception credit. |
 
 Each manifest checks both its compressed bytes and uncompressed JSON. Complete
 original reports are retained inside the archives, with their own byte hashes.
 The [measurement note](../../docs/benchmarks/native-runtime.md) explains the
 comparisons and limitations. No general speedup or GNU performance parity is
-established. NULL filename provenance, enabled Guile/GC interaction and broader
-native/resource/profile compatibility remain open in M3/M6.
+established. The 184-model gate accepts the selected nullable filename profiles;
+enabled Guile/GC interaction and broader native/resource/profile compatibility
+remain open in M3/M6.
+
+
+The source-name suite adds 37 independently authored profiles for nullable,
+explicitly empty, named and literal `<builtin>` filenames. It observes setup
+location pointers, immediate and deferred warnings, nested include restoration,
+module reloads, and late builtin removal. The first 15 incorrect fixed-line
+predictions and complete observations are preserved in
+[source-provenance-history.json](source-provenance-history.json). The existing
+`builtin-builtin-failure` and `trace-builtin` controls retain their original
+ordinary-fixture credit and are not counted again among these profiles.
+
+[full-gate-first.json](full-gate-first.json) preserves the failed full frozen
+acceptance at c9499: the oracle passed 27,766 cases, while the candidate passed
+27,764 and failed those two ordinary built-in diagnostics. It includes the exact
+log, status, binary/source identity text, fixture inputs, streams and reports.
+That failed head is not final acceptance evidence. The original 147-model native
+qualification and all benchmark archives remain unchanged.

@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
+import tomllib
 from typing import Any
 
 import conformance as h
@@ -139,6 +140,7 @@ def models() -> list[Model]:
     result.extend(registration_models())
     result.extend(final_boundary_models())
     result.extend(deep_models())
+    result.extend(source_provenance_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -387,6 +389,22 @@ def deep_models() -> list[Model]:
                             {'exit_code': status, 'stdout_hex': stdout.hex(), 'stderr_hex': stderr.hex()},
                             b'anchor\nleaf\n', (Module('probe_deep.c', 'probe_deep.so'),)))
     return result
+
+
+
+def source_provenance_models() -> list[Model]:
+    data = tomllib.loads((SOURCES / 'source-provenance.toml').read_text())
+    if data.get('schema_version') != 1:
+        raise h.HarnessError('unsupported source provenance model schema')
+    modules = {
+        'provenance_driver.so': Module('provenance_driver.c', 'provenance_driver.so'),
+        'prov_probe.so': Module('provenance_probe.c', 'prov_probe.so'),
+        'prov_reload.so': Module('provenance_probe.c', 'prov_reload.so', ('PROV_RELOAD',)),
+    }
+    return [Model(row['id'], {name: bytes.fromhex(value) for name, value in row['files'].items()},
+                  row['expected'], bytes.fromhex(row['expected_seen']),
+                  tuple(modules[name] for name in row['modules']), args=tuple(row['args']),
+                  environment=row['environment']) for row in data['models']]
 
 
 def seen_matches(model: Model, observation: h.Observation) -> bool:

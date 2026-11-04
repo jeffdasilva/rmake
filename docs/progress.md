@@ -2995,11 +2995,15 @@ later effects while normal runtime cleanup returns tokens and drains children.
 C buffering/output-sync and process-exit ordering have explicit original models.
 No GNU implementation, header or tests were copied or translated.
 
-All 147 original compiled C models pass both selected frozen builds against two
-GNU executions. The preceding main build differs on all 147 models.
+All 184 original compiled C models pass both selected frozen builds against two
+GNU executions. The preceding main build differs on all 184 models.
 The complete observations, including ordered effects and filesystem snapshots,
-are retained under `tests/native`. Formatting, Clippy, 555 Rust tests and 612
-tooling tests pass. Compiled C integration profiles run through top-level development,
+are retained under `tests/native`. Formatting, Clippy, 560 Rust tests and 612
+tooling tests pass. Nullable source names persist through eval and reloads without
+increasing location size; explicit builtin recipe ownership preserves user suffix
+recipes with NULL, empty or literal `<builtin>` source labels. The first full
+gate's two diagnostic regressions remain recorded, and both controls now pass
+three repeats in each corrected build. Compiled C profiles run through development,
 optimized and focused self-host targets, separately from ordinary fixture credit.
 The ordinary corpus remains 27,766 required / zero pending across 158 families;
 the 32 approved exceptions / 128 cells remain unchanged. Quarantined new native
@@ -3008,5 +3012,8 @@ acceptance and exact-head PR CI remain merge gates. Native initialization errors
 stdin restarts and broader callback/resource profiles remain open. Finite native
 expansion through depth 1,024 now retains lexical context and single evaluation.
 [Paired timings](benchmarks/native-runtime.md) retain every mixed and negative
-result; small runtime improvements do not establish GNU parity. Complete M3/M6
-remains open.
+result. Shared source ownership saves 3,200/9,600 allocation requests in the
+32/96-level eval controls. Borrowing existing eval locations also avoids redundant
+reference traffic; the final nested controls are roughly 0.8%/2.0% faster than
+the pre-provenance build in this report. Other timings remain mixed, including a
+slower large no-op control. General GNU parity and complete M3/M6 remain open.

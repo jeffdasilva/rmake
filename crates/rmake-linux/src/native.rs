@@ -249,7 +249,7 @@ impl Runtime {
             })
             .transpose()?;
         let name = name.map(cstring);
-        let file = location.map(|l| cstring(&l.file));
+        let file = location.and_then(|l| l.file.as_option()).map(cstring);
         let args: Vec<_> = args.iter().map(|a| cstring(a)).collect();
         let pointers: Vec<_> = args.iter().map(|a| a.as_ptr()).collect();
         // C owns copies of all arguments before makecontext can enter a module.
@@ -315,7 +315,11 @@ impl Runtime {
                     } else {
                         let l = unsafe { &*request.location };
                         Some(Location {
-                            file: bytes(l.file).into(),
+                            file: if l.file.is_null() {
+                                rmake_core::diagnostic::SourceName::null()
+                            } else {
+                                bytes(l.file).into()
+                            },
                             line: l.line as usize,
                         })
                     };

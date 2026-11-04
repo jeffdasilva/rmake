@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable failed frozen full local gate at head c9499: oracle27766pass; candidate27764pass/two ordinary failures from erroneous builtin :0 provenance. Exit status2. This head must not merge and this evidence gives no final-head acceptance credit.",
+  "sha256": "492e8b4540062fc20e3ffe21902041118a393806db143c30c26de6ed18f0f49a",
+  "raw_sha256": "304ced88e39199f4e39a5f78a3f8c436f85406a58b85e1d45f07b6e0f82b693a",
+  "raw_bytes": 5943766
+}

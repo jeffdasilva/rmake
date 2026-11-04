@@ -1,0 +1,6 @@
+{
+  "classification": "Immutable performance discovery for frozen source-provenance release 60c52926ffd2 against historical lookup release 4866fc922134. All three timing reports and sixteen allocation reports with their raw traces are retained, including regressions and requested-byte increases. No general GNU parity or acceptance claim.",
+  "sha256": "20821a3ec82ab0756f850504f16fc49602ef1d661af7fead4df6e6e9bc089660",
+  "raw_sha256": "a5a1da9163ed6ecf0dc3e07fd85ee11cb930d18f80d52380035301623c993d7d",
+  "raw_bytes": 3407849
+}

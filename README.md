@@ -103,7 +103,7 @@ performance parity remain open.
 
 [Linux native modules](docs/native-modules.md) now support GNU-compatible shared
 libraries, registered functions, expansion/eval callbacks, module metadata and
-qualified rebuild/finalizer behavior. 147 original compiled module models are
+qualified rebuild/finalizer behavior. 184 original compiled module models are
 checked against GNU through `make test-native-modules`. Full native/profile
 acceptance and complete M3/M6 remain open; no general performance parity is claimed.
 

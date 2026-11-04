@@ -7,6 +7,7 @@
 //! until the executor selects a target. Unsupported rule families fail explicitly.
 
 pub use crate::diagnostic::Location;
+use crate::diagnostic::SourceName;
 use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Output};
 use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
@@ -17,13 +18,15 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 fn source_read_error(file: &[u8], message: Vec<u8>) -> ParseError {
+    source_read_error_at(file.into(), message)
+}
+
+fn source_read_error_at(file: SourceName, message: Vec<u8>) -> ParseError {
+    let diagnostic = Diagnostic::Unlocated([file.as_ref(), b": ", &message].concat());
     ParseError {
-        location: Location {
-            file: file.into(),
-            line: 1,
-        },
+        location: Location { file, line: 1 },
         unlocated: true,
-        message: Diagnostic::Unlocated([file, b": ", &message].concat()),
+        message: diagnostic,
     }
 }
 
@@ -35,7 +38,7 @@ struct IncludeWork {
 }
 struct ReadFrame<'a> {
     reader: ParserReader<'a>,
-    source_name: std::sync::Arc<[u8]>,
+    source_name: SourceName,
     evaluated_at: Option<usize>,
     declaration: RuleDeclaration,
     conditions: Vec<Conditional>,
@@ -47,13 +50,13 @@ struct ReadFrame<'a> {
 impl<'a> ReadFrame<'a> {
     fn new(
         reader: ParserReader<'a>,
-        file: &[u8],
+        file: SourceName,
         evaluated_at: Option<usize>,
         extra: bool,
     ) -> Self {
         Self {
             reader,
-            source_name: file.into(),
+            source_name: file,
             evaluated_at,
             declaration: RuleDeclaration::default(),
             conditions: Vec::new(),
@@ -107,9 +110,9 @@ impl crate::native::NativeHost for LoadHost<'_, '_> {
     }
 
     fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError> {
-        let location = location.cloned().or_else(|| self.context.location.cloned());
+        let location = location.or(self.context.location);
         self.database
-            .read_evaluated(input, location.as_ref(), self.context.reborrow())
+            .read_evaluated(input, location, self.context.reborrow())
             .map_err(crate::variables::evaluation_error)
     }
 
@@ -129,6 +132,8 @@ pub struct Recipe {
     /// Remember the prefix used to read this recipe; .ONESHELL needs it after
     /// expansion even if a later assignment changes .RECIPEPREFIX.
     pub prefix: u8,
+    /// Installed declarative defaults, independent of source-name spelling.
+    pub builtin: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -2917,7 +2922,7 @@ impl Database {
                 .unwrap_or_else(|| {
                     Err(ParseError {
                         location: location.cloned().unwrap_or(Location {
-                            file: b"".as_slice().into(),
+                            file: SourceName::null(),
                             line: 1,
                         }),
                         unlocated: location.is_none(),
@@ -2934,13 +2939,14 @@ impl Database {
         location: Option<&Location>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
-        let (file, first_line) = location.map_or((b"".as_slice(), 1), |location| {
-            (location.file.as_ref(), location.line)
-        });
+        let (file, first_line) = location.map_or_else(
+            || (SourceName::null(), 1),
+            |location| (location.file.clone(), location.line),
+        );
         if context.evaluation_stack.is_none() && self.evaluation_depth >= 128 {
             return Err(ParseError {
                 location: Location {
-                    file: file.into(),
+                    file: file.clone(),
                     line: first_line,
                 },
                 unlocated: location.is_none(),
@@ -2951,7 +2957,7 @@ impl Database {
         // GNU eval buffers select defaults even inside a MAKEFILES preload.
         let suppress_default = std::mem::replace(&mut self.suppress_default_goal, false);
         let result = self
-            .read_at(
+            .read_at_source(
                 ParserReader::memory(
                     &bytes[..bytes
                         .iter()
@@ -2963,7 +2969,7 @@ impl Database {
                 context,
             )
             .map_err(|mut error| {
-                if location.is_none() && error.location.file.is_empty() {
+                if location.is_none() && error.location.file.is_null() {
                     error.unlocated = true;
                 }
                 error
@@ -2978,6 +2984,16 @@ impl Database {
         reader: ParserReader<'_>,
         file: &[u8],
         evaluated_at: Option<usize>,
+        context: ExpansionContext<'_>,
+    ) -> Result<(), ParseError> {
+        self.read_at_source(reader, file.into(), evaluated_at, context)
+    }
+
+    fn read_at_source(
+        &mut self,
+        reader: ParserReader<'_>,
+        file: SourceName,
+        evaluated_at: Option<usize>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let entry_depth = self.include_depth;
@@ -2989,7 +3005,7 @@ impl Database {
     fn read_frames(
         &mut self,
         reader: ParserReader<'_>,
-        file: &[u8],
+        file: SourceName,
         evaluated_at: Option<usize>,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
@@ -3046,7 +3062,7 @@ impl Database {
                             self.include_depth += 1;
                             frames.push(ReadFrame::new(
                                 ParserReader::owned(included.input),
-                                &path,
+                                path.as_slice().into(),
                                 None,
                                 self.include_depth >= 128,
                             ));
@@ -3088,7 +3104,7 @@ impl Database {
             }
             let Some(mut line) = reader
                 .next_line(prefix, !declaration.targets.is_empty())
-                .map_err(|message| source_read_error(source_name, message))?
+                .map_err(|message| source_read_error_at(source_name.clone(), message))?
             else {
                 if !conditions.is_empty() {
                     return Err(ParseError {
@@ -3153,6 +3169,7 @@ impl Database {
                             bytes: line.bytes[1..].to_vec(),
                             location,
                             prefix,
+                            builtin: false,
                         },
                     );
                 }
@@ -3314,7 +3331,7 @@ impl Database {
                     }
                     let Some(part) = reader
                         .next_line(prefix, false)
-                        .map_err(|message| source_read_error(source_name, message))?
+                        .map_err(|message| source_read_error_at(source_name.clone(), message))?
                     else {
                         if !active {
                             // Ignored definitions are skipped by the outer
@@ -3804,6 +3821,7 @@ impl Database {
                         bytes,
                         location,
                         prefix,
+                        builtin: false,
                     },
                 );
             }

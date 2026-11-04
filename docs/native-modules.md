@@ -45,7 +45,7 @@ flush a partial C stdout buffer.
 
 ## Acceptance and remaining work
 
-`make test-native-modules` checks 147 original models. It compiles original C modules into disposable inputs and
+`make test-native-modules` checks 184 original models. It compiles original C modules into disposable inputs and
 checks two GNU runs and the candidate against independently written byte streams,
 exit status, ordered file witnesses and full filesystem snapshots. It rejects
 leftover children, compiler failures and reached limits. `NATIVE_CASE` selects a
@@ -65,12 +65,19 @@ credit. The current registered-function validation and lifecycle evidence covers
 the pinned C-locale x86-64 Linux/glibc profile; expanded native cases retain their
 own explicit acceptance work.
 
-Five additional original setup-location models distinguish a NULL filename from
-an explicitly empty filename. Two GNU runs agree on all five; the selected
-candidate differs on three NULL cases and matches both explicit-empty controls.
-These observations remain separate research with zero conformance credit.
-Preserving nullable source provenance through eval and later module reloads is
-required before this ABI edge can be accepted.
+Nullable source names now distinguish a NULL filename from an explicitly empty
+filename through eval frames, definitions, deferred recipes and module reloads.
+The representation shares immutable source bytes without increasing `Location`
+size. Eval borrows the existing location while each read frame retains its owned
+source. Builtin recipe ownership has its own marker, so an explicit user source
+named `<builtin>` cannot cause a user suffix recipe to be removed by late `-r`.
+37 original provenance models cover setup locations, immediate/deferred warnings,
+include restoration, unchanged module reloads and user suffix recipes. Both
+selected builds pass all 184 models; the preceding main build differs on all 184.
+The initial NULL/empty discovery and incorrect line-number predictions remain
+unchanged historical evidence. The first full gate's two builtin diagnostic
+regressions are retained separately; the corrected builds pass both controls
+three times each. Full frozen acceptance and exact-head CI are required before merging.
 
 The GNU C ABI runs on the process interpreter thread. Foreign stacks are not
 automatically roots for conservative garbage collectors; enabled Guile and

@@ -2776,8 +2776,8 @@ impl Expansion<'_, '_> {
     }
 
     fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        let location = self.context.location.cloned();
-        self.evaluate_buffer_at(first, location.as_ref())
+        let location = self.context.location;
+        self.evaluate_buffer_at(first, location)
     }
 
     fn evaluate_buffer_at(
@@ -3234,9 +3234,8 @@ impl crate::native::NativeHost for Expansion<'_, '_> {
     }
 
     fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError> {
-        let location = location.cloned().or_else(|| self.context.location.cloned());
-        self.evaluate_buffer_at(input, location.as_ref())
-            .map(|_| ())
+        let location = location.or(self.context.location);
+        self.evaluate_buffer_at(input, location).map(|_| ())
     }
 
     fn emit(&mut self, event: Output<'_>) -> bool {
