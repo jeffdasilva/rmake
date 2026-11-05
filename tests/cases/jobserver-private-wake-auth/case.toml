@@ -1,0 +1,15 @@
+id = "jobserver-private-wake-auth"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Closed inherited authentication slots fall back to the implicit serial slot."
+provenance = "Original rmake fixture with one recipe and no inherited descriptors beyond stdio."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 4
+
+[environment]
+MAKEFLAGS = "-j2 --jobserver-auth=5,6"
+
+[expected]
+exit_code = 0
+stdout = "auth=[]\n"
+stderr = "make: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n"

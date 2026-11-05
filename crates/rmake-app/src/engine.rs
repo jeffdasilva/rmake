@@ -556,6 +556,10 @@ impl<'a> RuntimeOutput<'a> {
     }
 }
 impl OutputReceiver for RuntimeOutput<'_> {
+    fn guile_callback(&mut self, callback: rmake_core::native::GuileCallback<'_>) {
+        crate::debug::guile_callback(self.controller, callback);
+    }
+
     fn format_system_message(
         &mut self,
         message: rmake_core::messages::MessageRef<'_>,
@@ -1072,9 +1076,8 @@ impl Engine {
         let mode = retain!(options.output_sync.as_deref().map_or(
             Ok(crate::output::Mode::None),
             |raw| {
-                crate::output::Mode::parse(raw).ok_or_else(|| {
-                    Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat())
-                })
+                crate::output::Mode::parse(raw)
+                    .ok_or_else(|| Diagnostic::from(crate::usage::output_sync_mode(raw)))
             }
         ));
         if options.debug_mask.has(crate::debug::Mask::BASIC) {
@@ -1355,17 +1358,7 @@ impl Engine {
         );
         if let Some(authentication) = &options.sync_mutex {
             retain!(output.decode_mutex(authentication).map_err(|error| {
-                Diagnostic::from(
-                    [
-                        b"cannot open output sync mutex ".as_slice(),
-                        authentication
-                            .strip_prefix(b"fnm:")
-                            .unwrap_or(authentication),
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                )
+                Diagnostic::from(crate::usage::sync_mutex_open(authentication, &error))
             }));
         }
         let flag_state =
@@ -2459,23 +2452,6 @@ impl Engine {
             if self.options.no_variables && !entry_no_variables {
                 self.database.disable_builtin_variables();
             }
-            if let Some(authentication) = &self.options.sync_mutex
-                && let Err(error) = self.output.decode_mutex(authentication)
-            {
-                self.fatal(
-                    None,
-                    &[
-                        b"cannot open output sync mutex ".as_slice(),
-                        authentication
-                            .strip_prefix(b"fnm:")
-                            .unwrap_or(authentication),
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                );
-                return 2;
-            }
             match crate::command_variables::replay(
                 &mut self.database.variables,
                 self.command_replay,
@@ -2526,11 +2502,12 @@ impl Engine {
                 match self.output.setup(self.options.sync_mutex.as_deref()) {
                     Ok(authentication) => self.options.sync_mutex = authentication,
                     Err(error) => {
-                        self.fatal(
-                            None,
-                            format!("cannot open output sync mutex: {}", os_error(&error))
-                                .as_bytes(),
-                        );
+                        let message = match self.options.sync_mutex.as_deref() {
+                            Some(auth) => crate::usage::sync_mutex_open(auth, &error),
+                            None => format!("cannot open output sync mutex: {}", os_error(&error))
+                                .into_bytes(),
+                        };
+                        self.fatal(None, &message);
                         return 2;
                     }
                 }
@@ -4544,13 +4521,7 @@ impl Engine {
                 self.database.rules.insert(to.to_vec(), source);
             }
         }
-        if let Some(scope) = self.database.target_scopes.remove(from) {
-            self.database
-                .target_scopes
-                .entry(to.to_vec())
-                .or_default()
-                .merge_missing(&scope);
-        }
+        self.database.merge_target_scope(from, to);
         if let Some(parent) = self.scope_parents.remove(from) {
             self.scope_parents.entry(to.to_vec()).or_insert(parent);
         }
@@ -8005,7 +7976,7 @@ impl Engine {
         let target = alias.as_deref().unwrap_or(target);
         if let Some(variables) = self.target_contexts.get(target) {
             let mut variables = variables.clone();
-            variables.refresh_globals(&self.database.variables);
+            self.database.refresh_scoped_variables(&mut variables);
             return Ok(variables);
         }
         let parent = self.scope_parents.get(target).cloned().flatten();
@@ -8204,7 +8175,7 @@ impl Engine {
                 return Execution::fatal(false);
             }
         };
-        variables.refresh_globals(&self.database.variables);
+        self.database.refresh_scoped_variables(&mut variables);
         if !implicit_group {
             if let Some(history) = self.database.database_history() {
                 history.intern(b".SUFFIXES");
@@ -8711,7 +8682,7 @@ impl Engine {
                     environment_variables.environment_order(|name, _| eligible.contains(name));
                 let mut emitted_order = Vec::new();
                 for name in &exports {
-                    variables.refresh_globals(&self.database.variables);
+                    self.database.refresh_scoped_variables(variables);
                     let environment_variables = variables.for_environment();
                     if !export_selected(
                         &environment_variables,

@@ -14,8 +14,8 @@ import oracle
 ROOT = Path(__file__).resolve().parents[1]
 MODES = ('none', 'line', 'target', 'recurse')
 PROTECTED = b'Original protected output mutex.\n'
-# Helpers force A1 < B1 < B2 < A2 by observing owned helper exit, not elapsed
-# sleep ordering. Polls are bounded; make must reap A1 before B1 can finish.
+# Helpers force A1 < B1 < B2 < A2 by observing owned helper exit. Small
+# recursive buffered cases also wait for the runner to read B's actual output.
 HELPER = b'''import os
 from pathlib import Path
 import sys,time
@@ -45,6 +45,8 @@ else:
     pid=int(Path('b.pid').read_text())
     wait(lambda:not Path('/proc',str(pid)).exists())
     Path('b.pid').unlink()
+    if os.environ.get('OUTPUT_WAIT_PUBLICATION') == '1':
+        wait(lambda:Path('b.published').is_file())
 suffix = ':' + 'x' * 32768 if os.environ.get('OUTPUT_LARGE') == '1' else ''
 os.write(1,(name+'-out'+suffix+'\\n').encode())
 os.write(2,(name+'-err'+suffix+'\\n').encode())
@@ -64,6 +66,10 @@ class Cell:
         return '-'.join((self.mode, 'merged' if self.merged else 'separate',
                          'recursive-' + self.child if self.child else 'config' if self.warnings else 'phase',
                          ('owned' if self.owned else 'borrowed') + ('-large' if self.stress else '')))
+
+    @property
+    def waits_for_publication(self):
+        return bool(self.child) and self.mode != 'none' and not self.stress
 
     @property
     def source(self):
@@ -143,6 +149,8 @@ def anchors(cell, observed):
         if (observed.stdout, observed.stderr) not in (valid, (out[half:] + out[:half], err)):
             errors.append('complete target group atomicity')
     elif (observed.stdout, observed.stderr) != valid: errors.append('independent output/phase anchor')
+    if cell.waits_for_publication and 'work/b.published' not in observed.filesystem:
+        errors.append('missing recursive output publication witness')
     if observed.returncode != 0: errors.append('exit status')
     if observed.limit or observed.leftover_processes: errors.append('process containment')
     return errors
@@ -154,8 +162,24 @@ def execute(cell, root, fixture, binary, reference, candidate):
     child = root / 'bin/make' if cell.child == 'same' else reference if cell.child == 'gnu' else candidate
     args = ['-rR', '--no-print-directory', '-j2', '--jobserver-style=pipe', '-O' + cell.mode]
     if not cell.owned: args.append('--sync-mutex=fnm:mutex')
+    environment = {'OUTPUT_CHILD': str(child), 'OUTPUT_LARGE': '1' if cell.stress else '0'}
+    observe = None
+    if cell.waits_for_publication:
+        environment['OUTPUT_WAIT_PUBLICATION'] = '1'
+        published = root / 'work/b.published'
+        if cell.merged:
+            b_stdout = b'b1-out\nb1-err\nb2-out\nb2-err\n'
+            b_stderr = b''
+        else:
+            b_stdout = b'b1-out\nb2-out\n'
+            b_stderr = b'b1-err\nb2-err\n'
+
+        def observe(stdout, stderr):
+            if b_stdout in stdout and b_stderr in stderr and not published.exists():
+                published.touch()
+
     out, err, status, limit, leftovers = harness.capture([str(root / 'bin/make'), *args], root / 'work',
-        harness.clean_environment(root, {'OUTPUT_CHILD': str(child), 'OUTPUT_LARGE': '1' if cell.stress else '0'}), 8, cell.merged)
+        harness.clean_environment(root, environment), 8, cell.merged, observe_streams=observe)
     return harness.Observation(out, err, status, limit, harness.snapshot({n: root/n for n in ('work','home','tmp')}), leftovers)
 
 

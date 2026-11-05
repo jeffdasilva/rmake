@@ -41,6 +41,16 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0.dirty.set(true);
     }
 
+    fn complete_live_flags(&mut self) -> Result<(), Vec<u8>> {
+        let Some(authentication) = self.0.options.borrow().sync_mutex.clone() else {
+            return Ok(());
+        };
+        self.0
+            .output
+            .decode_mutex(&authentication)
+            .map_err(|error| crate::usage::sync_mutex_open(&authentication, &error))
+    }
+
     fn report_flag_notice(&mut self, notice: rmake_core::diagnostic::FlagNotice) {
         use rmake_core::diagnostic::FlagNotice;
         let message = match notice {
@@ -161,12 +171,9 @@ impl State {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
         if mode.is_none() && assignments.is_empty() && notices.is_empty() {
-            return Err([
-                b"unknown output-sync type '".as_slice(),
+            return Err(crate::usage::output_sync_mode(
                 updated.output_sync.as_deref().unwrap_or_default(),
-                b"'",
-            ]
-            .concat());
+            ));
         }
         // GNU validates output synchronization after payload definitions. The
         // core refreshes this receiver when they finish, so an invalid pending
@@ -496,12 +503,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse)
             .ok_or_else(|| {
-                [
-                    b"unknown output-sync type '".as_slice(),
-                    current.output_sync.as_deref().unwrap_or_default(),
-                    b"'",
-                ]
-                .concat()
+                crate::usage::output_sync_mode(current.output_sync.as_deref().unwrap_or_default())
             })?;
         let mut result = rmake_core::diagnostic::MakeflagsResult {
             eval_reference: !current.evals.is_empty(),
@@ -557,6 +559,12 @@ impl Drop for IncludeDecoder {
             invocation.restore(&mut self.options.borrow_mut());
         }
     }
+}
+
+fn nonempty_flag_source(value: &[u8]) -> bool {
+    value
+        .iter()
+        .any(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
 }
 
 pub(super) fn origin(environment_override: bool) -> Origin {
@@ -730,15 +738,15 @@ impl Engine {
             // Selecting the unchanged-value shortcut is an implementation
             // probe. The selected shortcut or real expansion below owns the
             // one semantic reference, never both.
-            let unchanged = self
-                .database
-                .variables
-                .get(name)
-                .is_none_or(|value| value.raw_value() == *initial);
+            let binding = self.database.variables.get(name);
+            let unchanged = binding.is_none_or(|value| value.raw_value() == *initial);
+            let reopen_unchanged = unchanged
+                && self.options.sync_mutex.is_some()
+                && binding.is_some_and(|value| nonempty_flag_source(value.raw_value()));
             if unchanged {
                 self.database.variables.database_lookup(name);
             }
-            let value = if unchanged && name == b"MAKEFLAGS" && changed {
+            let value = if unchanged && name == b"MAKEFLAGS" && changed && binding.is_some() {
                 let prefix = self
                     .initial_flags
                     .strip_suffix(b" -- $(MAKEOVERRIDES)")
@@ -779,6 +787,10 @@ impl Engine {
                 if let Some(jobs) = self.apply_runtime_flag_source(value)? {
                     file_jobs = Some(jobs);
                 }
+            } else if reopen_unchanged {
+                // The serialized source needs no switch replay, but its
+                // output lock is still reopened by a nonempty decode.
+                self.complete_passive_mutex()?;
             }
             if name == b"GNUMAKEFLAGS"
                 && let Err(error) =
@@ -814,12 +826,9 @@ impl Engine {
         let Some(mode) = mode else {
             self.fatal(
                 None,
-                &[
-                    b"unknown output-sync type '".as_slice(),
+                &crate::usage::output_sync_mode(
                     self.options.output_sync.as_deref().unwrap_or_default(),
-                    b"'",
-                ]
-                .concat(),
+                ),
             );
             return Err(());
         };
@@ -843,7 +852,17 @@ impl Engine {
         Ok(())
     }
 
+    fn complete_passive_mutex(&self) -> Result<(), ()> {
+        if let Some(authentication) = &self.options.sync_mutex {
+            self.output.decode_mutex(authentication).map_err(|error| {
+                self.fatal(None, &crate::usage::sync_mutex_open(authentication, &error));
+            })?;
+        }
+        Ok(())
+    }
+
     fn apply_runtime_flag_source(&mut self, value: Vec<u8>) -> Result<Option<usize>, ()> {
+        let has_input = nonempty_flag_source(&value);
         // Source expansion can itself change policy; capture its completed state.
         self.options.debug_mask = self.output.debug_mask();
         let warning_entry = self.flag_state.warn_undefined.get();
@@ -917,6 +936,9 @@ impl Engine {
                 self.database
                     .variables
                     .set_environment_override(self.options.environment_override);
+                if has_input {
+                    self.complete_passive_mutex()?;
+                }
                 return Ok(jobs);
             }
         }
@@ -1013,10 +1035,7 @@ impl Engine {
         if let Some(value) = updated.output_sync.as_deref()
             && crate::output::Mode::parse(value).is_none()
         {
-            self.fatal(
-                None,
-                &[b"unknown output-sync type '".as_slice(), value, b"'"].concat(),
-            );
+            self.fatal(None, &crate::usage::output_sync_mode(value));
             return Err(());
         }
         updated.files = std::mem::take(&mut self.options.files);
@@ -1037,6 +1056,9 @@ impl Engine {
         self.output.set_debug_mask(self.options.debug_mask);
         // The following source may re-enter the live receiver or take its state.
         self.flag_state.refresh(&self.options);
+        if has_input {
+            self.complete_passive_mutex()?;
+        }
         Ok(file_jobs)
     }
 }

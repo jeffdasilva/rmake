@@ -1,0 +1,13 @@
+id = "passive-mutex-startup-cleared-empty-skips"
+requirement = "options.passive-output-mutex"
+candidate = "required"
+description = "passive mutex startup cleared empty skips"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "-Onone", "--sync-mutex=fnm:lock"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "recipe\n"
+stderr = ""

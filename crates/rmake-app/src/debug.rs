@@ -358,6 +358,22 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     }
 }
 
+pub fn guile_callback(
+    output: &crate::output::Controller,
+    event: rmake_core::native::GuileCallback<'_>,
+) {
+    if !output.debug_mask().has(Mask::BASIC) || rmake_linux::native::stdout_closed() {
+        return;
+    }
+    use rmake_core::native::GuileCallback;
+    let (key, input) = match event {
+        GuileCallback::Expand(input) => (msg::GUILE_EXPANDING, input),
+        GuileCallback::Evaluate(input) => (msg::GUILE_EVALUATING, input),
+    };
+    // BASIC diagnostics go straight to stdout, before any buffered callback effects.
+    raw(&[&localized(key, &[bytes(input)])]);
+}
+
 pub fn reader(output: &crate::output::Controller, event: rmake_core::diagnostic::ReaderEvent<'_>) {
     let category = match event {
         rmake_core::diagnostic::ReaderEvent::Bom(_) => Mask::BASIC,

@@ -89,3 +89,14 @@ expansion is considered for the current target only if it follows the
 active position in specificity and declaration order. Earlier registrations
 remain available for later targets. Twelve required cases cover these rules,
 local shell status, computed names, and implicit secondary expansion.
+
+Immediate-recursive `:::=` and simple `+=` also expand at pattern activation.
+They use the active evaluator for nested declarations and includes. A
+recursive append still stores its unexpanded RHS, and `:::=` retains its
+escaped raw dollars. Six required cases check the distinction.
+
+Inherited append expansion keeps the already expanded outer value. If an
+`eval` in that value replaces the active target binding, the inner expansion
+uses the replacement immediately without re-running the outer effects. The
+required target and pattern scope fixtures cover the replacement, recursive
+and simple suffixes, inheritance, losing origins, and subsequent reads.

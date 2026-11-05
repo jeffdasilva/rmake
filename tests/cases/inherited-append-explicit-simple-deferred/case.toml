@@ -1,0 +1,12 @@
+id = "inherited-append-explicit-simple-deferred"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "inherited append explicit simple deferred"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "reading=[/global]\ntarget=[global tail-target/target/recursive]\n"
+stderr = ""

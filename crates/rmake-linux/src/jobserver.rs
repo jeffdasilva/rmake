@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 
 const NONBLOCK: c_int = 0x800;
 const CLOEXEC: c_int = 0x80000;
+const DUPFD_CLOEXEC: c_int = 1030;
 const NOFOLLOW: c_int = 0x20000;
 const EBADF: c_int = 9;
 const EMFILE: c_int = 24;
@@ -47,11 +48,12 @@ fn descriptor_control(fd: c_int, operation: c_int, flags: c_int) -> io::Result<c
     }
 }
 
-fn pipe_identity(fd: c_int, reader: bool) -> io::Result<[u64; 2]> {
+fn pipe_identity(fd: c_int, reader: Option<bool>) -> io::Result<[u64; 2]> {
     let mut identity = [0; 2];
     // SAFETY: the Linux helper initializes both words on success. Passing
     // a numeric descriptor does not assert Rust ownership of that slot.
-    match unsafe { rmake_pipe_identity(fd, reader.into(), identity.as_mut_ptr()) } {
+    let direction = reader.map_or(-1, c_int::from);
+    match unsafe { rmake_pipe_identity(fd, direction, identity.as_mut_ptr()) } {
         0 => Ok(identity),
         error => Err(io::Error::from_raw_os_error(error)),
     }
@@ -79,7 +81,7 @@ impl Endpoint {
                 // Validate the retained object and direction before operating.
                 // Concurrent native descriptor rebinding is outside the same
                 // process-owner contract as ordinary native descriptor access.
-                if pipe_identity(*descriptor, *reader)? == *identity {
+                if pipe_identity(*descriptor, Some(*reader))? == *identity {
                     Ok(*descriptor)
                 } else {
                     Err(io::Error::from_raw_os_error(9))
@@ -353,6 +355,13 @@ impl Jobserver {
             // the unpublished FIFO without spending a third descriptor.
             (&server.0.writer).write_all(&tokens)?;
         }
+        // Publish the seeded pipe with a nonblocking protocol reader. The
+        // compact pipe already shares its nonblocking scheduler reader.
+        if let Some(reader) = &server.0.protocol_reader {
+            let descriptor = reader.as_raw_fd();
+            let flags = descriptor_control(descriptor, 3, 0)?;
+            descriptor_control(descriptor, 4, flags | NONBLOCK)?;
+        }
         Arc::get_mut(&mut server.0)
             .expect("unshared new jobserver")
             .owned_slots = Some(jobs);
@@ -523,10 +532,27 @@ impl Jobserver {
         if read < 3 || write < 3 || read == write {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
+        // Startup can occupy previously closed slots advertised by stale
+        // authentication. Compare pipe identities before reopening either end.
+        let wake = crate::signals::wake_descriptor();
+        if wake >= 0
+            && let Ok(identity) = pipe_identity(wake, None)
+            && [read, write]
+                .into_iter()
+                .any(|fd| pipe_identity(fd, None).is_ok_and(|pipe| pipe == identity))
+        {
+            return Err(io::Error::from_raw_os_error(9));
+        }
         if crate::signals::compact_pipe_budget() {
             return Self::join_compact(read, write).map(|server| server.with_diagnostic_auth(auth));
         }
-        let reader = reopen(read, true, false)?;
+        let protocol_read = descriptor_control(read, DUPFD_CLOEXEC, 0)?;
+        // SAFETY: F_DUPFD_CLOEXEC returned a new, uniquely owned descriptor
+        // for the advertised read description. Keep it pinned through setup.
+        let reader = unsafe { File::from_raw_fd(protocol_read) };
+        if pipe_identity(protocol_read, Some(true))? != pipe_identity(write, Some(false))? {
+            return Err(io::Error::from_raw_os_error(EBADF));
+        }
         let writer = reopen(write, false, false)?;
         let mut server = Self::from_pipe(reader, writer)?;
         // FD flags belong to this process's descriptors, not the parent's open
@@ -535,6 +561,13 @@ impl Jobserver {
             if unsafe { fcntl(descriptor, 2, 1) } < 0 {
                 return Err(io::Error::last_os_error());
             }
+        }
+        // The recursive protocol reader and the incoming read aliases share
+        // this description. Keep the writer and the scheduler's own reader
+        // on their existing separate descriptions.
+        let flags = descriptor_control(protocol_read, 3, 0)?;
+        if flags & NONBLOCK == 0 {
+            descriptor_control(protocol_read, 4, flags | NONBLOCK)?;
         }
         Arc::get_mut(&mut server.0)
             .expect("unshared joined jobserver")
@@ -552,8 +585,8 @@ impl Jobserver {
     }
 
     fn join_compact(read: c_int, write: c_int) -> io::Result<Self> {
-        let identity = pipe_identity(read, true)?;
-        if pipe_identity(write, false)? != identity {
+        let identity = pipe_identity(read, Some(true))?;
+        if pipe_identity(write, Some(false))? != identity {
             return Err(io::Error::from_raw_os_error(9));
         }
         for descriptor in [read, write] {
@@ -734,7 +767,7 @@ mod tests {
 
         let foreign = Jobserver::create(2, true).unwrap();
         let foreign_read = foreign.0.protocol_reader.as_ref().unwrap().as_raw_fd();
-        let identity = pipe_identity(read, true).unwrap();
+        let identity = pipe_identity(read, Some(true)).unwrap();
         let replacement = Endpoint::Inherited {
             descriptor: foreign_read,
             reader: true,

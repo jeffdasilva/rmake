@@ -1,0 +1,12 @@
+id = "inherited-append-target-base-replaces-suffix"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "inherited append target base replaces suffix"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first=[outer changed] second=[changed] raw=[changed]\n"
+stderr = ""

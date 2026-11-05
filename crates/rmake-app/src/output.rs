@@ -288,20 +288,30 @@ impl Controller {
         );
     }
 
+    fn join_mutex(&self, authentication: &[u8]) -> io::Result<Option<Coordination>> {
+        // A failed open retires the previous lock before fatal output is
+        // drained. A bad authentication prefix is only a notice.
+        Coordination::join(authentication).inspect_err(|_| self.clear())
+    }
+
+    fn select_mutex(&self, mut provider: Coordination) {
+        let mut selected = self.0.coordination.borrow_mut();
+        if let Some(previous) = selected.as_mut() {
+            provider.preserve_named_path_from(previous);
+        }
+        *selected = Some(provider);
+    }
+
     pub fn decode_mutex(&self, authentication: &[u8]) -> io::Result<()> {
-        match Coordination::join(authentication)? {
-            Some(provider) => {
-                self.0.coordination.replace(Some(provider));
+        match self.join_mutex(authentication)? {
+            Some(provider) => self.select_mutex(provider),
+            None => {
+                let message = crate::usage::invalid_sync_mutex(authentication);
+                self.write_parts(
+                    true,
+                    &[self.0.program.borrow().as_slice(), b": ", &message, b"\n"],
+                );
             }
-            None => self.write_parts(
-                true,
-                &[
-                    self.0.program.borrow().as_slice(),
-                    b": invalid --sync-mutex string '",
-                    authentication,
-                    b"'\n",
-                ],
-            ),
         }
         Ok(())
     }
@@ -309,16 +319,14 @@ impl Controller {
         if !self.mode().root_buffered() {
             return Ok(authentication.map(<[u8]>::to_vec));
         }
-        if let Some(provider) = self.0.coordination.borrow().as_ref()
-            && authentication == Some(provider.authentication())
-        {
-            return Ok(authentication.map(<[u8]>::to_vec));
-        }
+        // Active setup opens the pathname again, even if a completed
+        // source already selected the same authentication.
         let provider = if let Some(auth) = authentication {
-            match Coordination::join(auth)? {
+            match self.join_mutex(auth)? {
                 Some(provider) => provider,
                 None => {
                     self.decode_mutex(auth)?;
+                    self.clear();
                     return Ok(None);
                 }
             }
@@ -326,7 +334,7 @@ impl Controller {
             Coordination::create()?
         };
         let auth = provider.authentication().to_vec();
-        self.0.coordination.replace(Some(provider));
+        self.select_mutex(provider);
         Ok(Some(auth))
     }
     pub fn clear(&self) {

@@ -1,0 +1,12 @@
+id = "inherited-append-explicit-recursive-effects"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "inherited append explicit recursive effects"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "value=[global tail] after=[first]\n"
+stderr = ""

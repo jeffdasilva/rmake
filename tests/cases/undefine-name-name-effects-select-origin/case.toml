@@ -1,0 +1,12 @@
+id = "undefine-name-name-effects-select-origin"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+description = "undefine name name effects select origin"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "kept=[retained/override]\nremoved=[undefined]\n"
+stderr = ""

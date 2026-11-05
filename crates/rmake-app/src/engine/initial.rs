@@ -500,9 +500,8 @@ impl Plan {
 
 fn output_mode(raw: Option<&[u8]>) -> Result<crate::output::Mode, StartupError> {
     raw.map_or(Ok(crate::output::Mode::None), |raw| {
-        crate::output::Mode::parse(raw).ok_or_else(|| {
-            Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat()).into()
-        })
+        crate::output::Mode::parse(raw)
+            .ok_or_else(|| Diagnostic::from(crate::usage::output_sync_mode(raw)).into())
     })
 }
 

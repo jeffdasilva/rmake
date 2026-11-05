@@ -1,0 +1,12 @@
+id = "undefine-name-interior-spaces"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+description = "undefine name interior spaces"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "after=[undefined/separate]\n"
+stderr = ""

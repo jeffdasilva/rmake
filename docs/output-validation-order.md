@@ -60,3 +60,33 @@ archive identified in `oracle/manifest.json`. Source inspection establishes the
 boundary to test; it does not substitute for raw differential observations.
 No GNU implementation code or test cases were copied or translated. GNU remains
 an external test oracle, never a runtime fallback.
+
+A live `MAKEFLAGS` assignment now also completes the selected output lock
+before Makefile evaluation continues. Earlier payload definitions keep their
+side effects; a failed lock open stops subsequent file reads and recipes.
+When both the mode and lock are invalid, mode validation takes precedence.
+
+`make test-output-lock-completion` and `make test-output-lock-completion-release`
+exercise 20 original models in C, French, German, Japanese, and Brazilian
+Portuguese. They compare two pinned GNU runs
+and rmake against independently specified status, byte streams, and complete
+filesystem effects, including repeated options, an included reader, raw path
+bytes, and reopening a lock removed between live assignments.
+
+Each nonempty post-read flag source completes the selected mutex before the
+next source can expand. Empty sources and an absent `MAKEFLAGS` binding do
+not create a lock-open attempt. When output buffering is activated, setup
+reopens the selected path independently. Nineteen required cases cover
+fatal and warning order, retained authentication, pathname removal, and
+suspended include option decoding.
+
+After a replacement mutex fails to open, buffered fatal output no longer
+waits for the previous lock. The gate holds that previous lock during live,
+post-read, and active setup failures and checks the complete output, status,
+and filesystem against GNU without releasing it early.
+
+A successful reopen of the root's own mutex keeps its original pathname
+lease while closing the replaced descriptor. The reopened file must match
+the original regular inode; an external replacement never becomes owned.
+Nested live flag and include tests use that same pathname through successive
+reopens and confirm cleanup after the process exits.

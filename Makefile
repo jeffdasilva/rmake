@@ -8,6 +8,8 @@ FLAG_TERMINATOR_CASE ?=
 STARTUP_USAGE_CASE ?=
 RUNTIME_OPTION_VALUE_CASE ?=
 DEVELOPER_FLOW_CASE ?=
+DEVELOPER_FLOW_REPORT ?= artifacts/developer-flows/development.json
+OUTPUT_LOCK_REPORT ?= artifacts/output-lock-completion/development.json
 
 .PHONY: bootstrap-integration test-integration
 .PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time test-database-branch-metadata test-database-double-dry-run test-database-grouped test-database-implicit-grouped test-database-grouped-double
@@ -15,12 +17,15 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv test-resource-nproc test-resource-nproc-release test-resource-nproc-selfhost
+.PHONY: test-jobserver-read-flags test-jobserver-read-flags-release
 .PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release test-catalog-coverage
 .PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 .PHONY: test-resource-fd-parallel
 
 .PHONY: test-resource-fd-fifo-failure test-resource-fd-fifo-failure-release
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
+.PHONY: test-roomy-wake-slots test-roomy-wake-slots-release
+.PHONY: test-output-lock-completion test-output-lock-completion-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
@@ -260,7 +265,7 @@ test-guile-components: bootstrap-rust bootstrap-guile
 
 test-guile-frontend: bootstrap-rust bootstrap-guile
 	+$(MAKE) --no-print-directory build release
-	$(PYTHON) tools/guile_frontend_gate.py --profile "$(GUILE_TOOLCHAIN_ROOT)/reference-profile.json" --default-debug "$(CANDIDATE)" --default-release "$(M4_RELEASE)" --output "$(GUILE_FRONTEND_OUTPUT)"
+	$(PYTHON) tools/guile_frontend_gate.py --profile "$(GUILE_TOOLCHAIN_ROOT)/reference-profile.json" --default-debug "$(CANDIDATE)" --default-release "$(M4_RELEASE)" --output "$(GUILE_FRONTEND_OUTPUT)" --locale-root "$(LOCALE_DATA_ROOT)"
 
 bootstrap-rust:
 	$(PYTHON) tools/rust.py bootstrap
@@ -333,6 +338,14 @@ test-shell-capture-lifetime-release: release oracle-verify
 	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/low-slots-optimized.json
 	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/cached-spool-optimized.json
 
+test-roomy-wake-slots: build oracle-verify
+	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/capture-development.json
+	$(PYTHON) tools/jobserver_wake_slots.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/auth-development.json
+
+test-roomy-wake-slots-release: release oracle-verify
+	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/roomy-wake-slots/capture-optimized.json
+	$(PYTHON) tools/jobserver_wake_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/roomy-wake-slots/auth-optimized.json
+
 test-runtime-effects: build oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
@@ -387,14 +400,14 @@ test-flag-terminator: build oracle-verify
 	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/flag-terminator/development.json $(if $(FLAG_TERMINATOR_CASE),--case "$(FLAG_TERMINATOR_CASE)")
 
 test-developer-flows: build oracle-verify
-	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/developer-flows/development.json $(if $(DEVELOPER_FLOW_CASE),--case "$(DEVELOPER_FLOW_CASE)")
+	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(DEVELOPER_FLOW_REPORT)" $(if $(DEVELOPER_FLOW_CASE),--case "$(DEVELOPER_FLOW_CASE)")
 
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" CATALOG_COVERAGE_CASE=partial-language-fallback test-catalog-coverage
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RUNTIME_OPTION_VALUE_CASE=ordered-immediate test-runtime-option-values
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" STARTUP_USAGE_CASE=empty-directory-then-assignment test-startup-usage
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FLAG_TERMINATOR_CASE=inherited-short-goal test-flag-terminator
-	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe test-developer-flows
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe DEVELOPER_FLOW_REPORT=artifacts/developer-flows/selfhost.json test-developer-flows
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_CASE=nls-private-messages-warning test-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_DIRECTORY_CASE=nls-directory-fr-inherited-depth test-nls-directory
@@ -417,6 +430,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESTART_ENVIRONMENT_CASE=raw-ordered-vector test-restart-environment
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-roomy-wake-slots
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_CASE=low6-term-live-recipe test-resource-fd
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_RECIPE_CASE=recipe-fdlimit-4 test-resource-fd-recipes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SIGNAL_MASK_CASE=eager-to-read-signal-mask test-signal-mask
@@ -425,6 +439,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_FIFO_CASE=owned-fifo-inherited-user-descriptor-7 test-resource-fd-fifo
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_PARALLEL_CASE=pipe-8-workers-10 RESOURCE_FD_PARALLEL_REPORT=artifacts/resource-fd-parallel/selfhost.json test-resource-fd-parallel
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOBSERVER_RELEASE_CASE=implicit-child-finishes-first test-jobserver-release
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-jobserver-read-flags
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -432,6 +447,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_CASE=debug-child-queued-parallel test-debug-output
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_TRAVERSAL_CASE=chain-secondary test-debug-traversal
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_TRAVERSAL_CASE=generated-include test-debug-traversal-nls
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" OUTPUT_LOCK_REPORT=artifacts/output-lock-completion/selfhost.json test-output-lock-completion
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_VERBOSE_CASE=vpath-no-update test-debug-verbose
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOB_DEBUG_CASE=jobs-serial-multiline test-job-debug
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
@@ -608,6 +624,15 @@ test-resource-fd: build oracle-verify
 test-jobserver-release: build oracle-verify
 	$(PYTHON) tools/jobserver_release.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report-dir artifacts/jobserver-release/development $(if $(JOBSERVER_RELEASE_CASE),--case "$(JOBSERVER_RELEASE_CASE)")
 
+test-jobserver-read-flags: build oracle-verify
+	$(PYTHON) tools/jobserver_read_flags.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/jobserver-read-flags/development.json
+
+test-jobserver-read-flags-release: release oracle-verify
+	$(PYTHON) tools/jobserver_read_flags.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/jobserver-read-flags/optimized.json
+
+test check: test-jobserver-read-flags
+test-m4-release: test-jobserver-read-flags-release
+
 test-resource-fd-pipe: build oracle-verify
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")
 
@@ -664,6 +689,12 @@ test-debug-traversal-nls: build oracle-verify
 
 test-debug-verbose: build oracle-verify
 	$(PYTHON) tools/debug_verbose.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report-dir artifacts/debug-verbose/development $(if $(DEBUG_VERBOSE_CASE),--case "$(DEBUG_VERBOSE_CASE)")
+
+test-output-lock-completion: build oracle-verify catalog-check
+	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report "$(OUTPUT_LOCK_REPORT)"
+
+test-output-lock-completion-release: release oracle-verify catalog-check
+	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/optimized.json
 
 test-trace-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-development.json
@@ -772,6 +803,9 @@ test: test-integration test-database-output test-database-lifecycle test-databas
 
 check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory test-database-nls
 
+test check: test-output-lock-completion
+test-m4-release: test-output-lock-completion-release
+
 test: test-trace-nls
 check: test-trace-nls
 test-m4-release: test-trace-nls-release
@@ -782,6 +816,9 @@ test-m4-release: test-trace-job-languages-release
 test: test-shell-capture-lifetime
 check: test-shell-capture-lifetime
 test-m4-release: test-shell-capture-lifetime-release
+
+test check: test-roomy-wake-slots
+test-m4-release: test-roomy-wake-slots-release
 
 test check: test-resource-fd-fifo-failure
 test-m4-release: test-resource-fd-fifo-failure-release

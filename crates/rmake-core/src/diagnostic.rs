@@ -101,6 +101,7 @@ pub enum ReaderEvent<'a> {
 pub trait OutputReceiver {
     fn emit(&mut self, event: Output<'_>);
     fn reader_event(&mut self, _event: ReaderEvent<'_>) {}
+    fn guile_callback(&mut self, _callback: crate::native::GuileCallback<'_>) {}
     /// An application may freeze a system message under the active locale/domain.
     /// None keeps the pure core's English identity behavior.
     fn format_system_message(
@@ -357,6 +358,11 @@ pub trait MakeflagsReceiver {
         Ok(None)
     }
     fn sync_decoded_flags(&mut self) {}
+    /// Validate effects selected by the completed live source, after its
+    /// definitions and before publishing metadata or expanding include paths.
+    fn complete_live_flags(&mut self) -> Result<(), Vec<u8>> {
+        Ok(())
+    }
     fn decode(&mut self, request: MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>>;
     /// Apply an ordered policy step without decoding or repeating I/O. Quiet
     /// frontends can retain the default; warning-aware hosts share their cell.
@@ -580,6 +586,13 @@ impl<'a> ExpansionContext<'a> {
             }
             result
         };
+        if has_input {
+            self.makeflags
+                .as_mut()
+                .expect("configured receiver")
+                .complete_live_flags()
+                .map_err(ExpandError::UnlocatedError)?;
+        }
         if let Some(mut preparation) = result.prepare_includes.take() {
             // Argument-driving depth, terminal and following-definition state
             // have been restored. Search effects retain any enclosing frame,
@@ -971,6 +984,14 @@ impl<'a> ExpansionContext<'a> {
     pub fn reader_event(&mut self, event: ReaderEvent<'_>) {
         if let Some(output) = self.output.as_mut() {
             output.reader_event(event);
+        }
+    }
+
+    pub(crate) fn guile_callback(&mut self, callback: crate::native::GuileCallback<'_>) {
+        if !self.is_cancelled()
+            && let Some(output) = self.output.as_mut()
+        {
+            output.guile_callback(callback);
         }
     }
 

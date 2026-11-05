@@ -200,6 +200,27 @@ impl Coordination {
         }))
     }
 
+    /// Keep responsibility for the original pathname when a valid decode
+    /// reopens that same authentication. The replaced file is closed now;
+    /// cleanup still checks the original pathname identity before unlinking.
+    pub fn preserve_named_path_from(&mut self, previous: &mut Self) {
+        if self.authentication == previous.authentication
+            && let Some(owner) = previous.owner.as_mut()
+            && let Some((_, device, inode)) = &owner.named
+            && self
+                .file
+                .as_ref()
+                .and_then(|file| file.metadata().ok())
+                .is_some_and(|metadata| {
+                    metadata.is_file() && metadata.dev() == *device && metadata.ino() == *inode
+                })
+            && let Some(file) = self.file.take()
+        {
+            owner.file = file;
+            self.owner = previous.owner.take();
+        }
+    }
+
     pub fn authentication(&self) -> &[u8] {
         &self.authentication
     }
@@ -430,6 +451,43 @@ mod frame_tests {
             .arg(std::ffi::OsStr::from_bytes(path))
             .status().unwrap();
         status.success()
+    }
+
+    #[test]
+    fn reopened_named_lock_is_available_to_peers_until_owner_exit() {
+        let mut owner = Coordination::create().unwrap();
+        let auth = owner.authentication().to_vec();
+        let path = PathBuf::from(std::ffi::OsStr::from_bytes(
+            auth.strip_prefix(b"fnm:").unwrap(),
+        ));
+        let mut reopened = Coordination::join(&auth).unwrap().unwrap();
+        reopened.preserve_named_path_from(&mut owner);
+        drop(owner);
+        assert!(path.is_file());
+        reopened.lock(true).unwrap();
+        assert!(locked_elsewhere(&auth));
+        reopened.lock(false).unwrap();
+        drop(reopened);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn reopening_an_externally_replaced_lock_does_not_claim_the_new_inode() {
+        let mut owner = Coordination::create().unwrap();
+        let auth = owner.authentication().to_vec();
+        let path = PathBuf::from(std::ffi::OsStr::from_bytes(
+            auth.strip_prefix(b"fnm:").unwrap(),
+        ));
+        let displaced = path.with_extension("prior");
+        fs::rename(&path, &displaced).unwrap();
+        fs::write(&path, b"replacement").unwrap();
+        let mut reopened = Coordination::join(&auth).unwrap().unwrap();
+        reopened.preserve_named_path_from(&mut owner);
+        drop(owner);
+        drop(reopened);
+        assert_eq!(fs::read(&path).unwrap(), b"replacement");
+        fs::remove_file(path).unwrap();
+        fs::remove_file(displaced).unwrap();
     }
 
     #[test]

@@ -167,9 +167,10 @@ class GuileToolchainTests(unittest.TestCase):
                 enabled = output / 'cargo-target' / label / 'rmake'
                 enabled.parent.mkdir(parents=True)
                 enabled.touch()
+            locale_root = root / 'separate-locale-cache'
             arguments = ['guile_frontend_gate.py', '--profile', str(root / 'reference-profile.json'),
                          '--default-debug', str(defaults[0]), '--default-release', str(defaults[1]),
-                         '--output', str(output)]
+                         '--output', str(output), '--locale-root', str(locale_root)]
             profile = {'environment': g.environment(root / 'sdk')}
             with (patch.object(sys, 'argv', arguments), patch.dict(os.environ, selectors),
                   patch.object(frontend, 'read_profile', return_value=profile),
@@ -193,6 +194,11 @@ class GuileToolchainTests(unittest.TestCase):
                         self.assertEqual([
                             Path(argv[argv.index('--candidate') + 1]).name for argv in selected
                         ], ['enabled-debug', 'enabled-release'])
+                comparisons = [call.args[0] for call in commands
+                               if call.args[0][1:2] == ['tools/guile_frontend.py']]
+                self.assertEqual(len(comparisons), 4)
+                for argv in comparisons:
+                    self.assertEqual(argv[argv.index('--locale-root') + 1], str(locale_root))
                 for command in commands:
                     self.assertTrue(selectors.keys().isdisjoint(command.kwargs['env']), command.args)
                 self.assertEqual({key: os.environ[key] for key in selectors}, selectors)
