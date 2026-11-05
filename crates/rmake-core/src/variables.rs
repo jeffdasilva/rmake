@@ -2371,11 +2371,7 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
     let inherited_active = db.evaluation_active.clone();
-    let bindings = if db.evaluation_bindings.is_empty() {
-        Vec::new()
-    } else {
-        db.evaluation_bindings.clone()
-    };
+    let bindings = std::mem::take(&mut db.evaluation_bindings);
     let mut expansion = Expansion {
         store: StoreAccess::Scoped {
             database: db,
@@ -2390,11 +2386,12 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
         context,
         binding_context: None,
     };
-    if NAMED {
+    let result = if NAMED {
         expansion.variable(input)
     } else {
         expansion.expand(input)
-    }
+    };
+    expansion.finish_database_expansion(result)
 }
 
 pub(crate) fn expand_environment_database(
@@ -2408,11 +2405,7 @@ pub(crate) fn expand_environment_database(
         return Ok(Vec::new());
     };
     let inherited_active = db.evaluation_active.clone();
-    let bindings = if db.evaluation_bindings.is_empty() {
-        Vec::new()
-    } else {
-        db.evaluation_bindings.clone()
-    };
+    let bindings = std::mem::take(&mut db.evaluation_bindings);
     let tracked = environment.global_layer(layer)
         && variable.flavor == Flavor::Recursive
         && variable.value.contains(&b'$');
@@ -2434,23 +2427,21 @@ pub(crate) fn expand_environment_database(
         binding_context: None,
     };
     let result = if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
-        let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) else {
-            if tracked {
-                expansion.store.database_mut().unwrap().exporting.pop();
-            }
-            return Ok(Vec::new());
-        };
-        let first = first.clone();
-        expansion.active.push((name.to_vec(), Some(layer)));
-        expansion.binding_context = Some(variable.definition.clone());
-        expansion.expand_layer(name, &first, Some(first_layer))
+        if let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) {
+            let first = first.clone();
+            expansion.active.push((name.to_vec(), Some(layer)));
+            expansion.binding_context = Some(variable.definition.clone());
+            expansion.expand_layer(name, &first, Some(first_layer))
+        } else {
+            Ok(Vec::new())
+        }
     } else {
         expansion.selected_variable(name, variable, Some(layer))
     };
     if tracked {
         expansion.store.database_mut().unwrap().exporting.pop();
     }
-    result
+    expansion.finish_database_expansion(result)
 }
 
 pub(crate) fn expand_database<const NAMED: bool>(
@@ -2459,11 +2450,7 @@ pub(crate) fn expand_database<const NAMED: bool>(
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
     let inherited_active = db.evaluation_active.clone();
-    let bindings = if db.evaluation_bindings.is_empty() {
-        Vec::new()
-    } else {
-        db.evaluation_bindings.clone()
-    };
+    let bindings = std::mem::take(&mut db.evaluation_bindings);
     let mut expansion = Expansion {
         store: StoreAccess::Database(db),
         bindings,
@@ -2475,11 +2462,12 @@ pub(crate) fn expand_database<const NAMED: bool>(
         context,
         binding_context: None,
     };
-    if NAMED {
+    let result = if NAMED {
         expansion.variable(input)
     } else {
         expansion.expand(input)
-    }
+    };
+    expansion.finish_database_expansion(result)
 }
 
 pub(crate) fn shell_database(
@@ -2488,11 +2476,7 @@ pub(crate) fn shell_database(
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
     let inherited_active = db.evaluation_active.clone();
-    let bindings = if db.evaluation_bindings.is_empty() {
-        Vec::new()
-    } else {
-        db.evaluation_bindings.clone()
-    };
+    let bindings = std::mem::take(&mut db.evaluation_bindings);
     let mut scope = db.evaluation_scope.take();
     if let Some(scope) = &mut scope {
         scope.refresh_globals(&db.variables);
@@ -2517,13 +2501,14 @@ pub(crate) fn shell_database(
             context,
             binding_context: None,
         };
-        if !expansion.context.has_shell() {
+        let result = if !expansion.context.has_shell() {
             Err(ExpandError::Unsupported(b"!=".to_vec()))
         } else {
             expansion
                 .expand(input)
                 .and_then(|command| expansion.shell(&command))
-        }
+        };
+        expansion.finish_database_expansion(result)
     };
     db.evaluation_scope = scope;
     result
@@ -3131,10 +3116,25 @@ impl Expansion<'_, '_> {
             .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
             .map_err(ExpandError::UnlocatedError)?;
         let status = result.status.to_string();
-        self.store
-            .writable()
-            .expect("mutable shell host")
-            .define_literal(b".SHELLSTATUS", status.as_bytes(), Origin::Override)?;
+        if let Some(frame) = self.bindings.last_mut() {
+            // A completion writes only to the active scope. Its automatic
+            // bindings retain precedence over the override origin.
+            let name = b".SHELLSTATUS".as_slice();
+            if let Some(previous) = frame.values.get_mut(name) {
+                if previous.origin <= Origin::Override {
+                    previous.value = status.into_bytes();
+                }
+            } else {
+                let mut variable = local(status.into_bytes());
+                variable.origin = Origin::Override;
+                frame.values.insert(name.to_vec(), variable);
+            }
+        } else {
+            self.store
+                .writable()
+                .expect("mutable shell host")
+                .define_literal(b".SHELLSTATUS", status.as_bytes(), Origin::Override)?;
+        }
         if result.stdout.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
@@ -3173,6 +3173,17 @@ impl Expansion<'_, '_> {
         Ok(output)
     }
 
+    fn finish_database_expansion(
+        mut self,
+        result: Result<Vec<u8>, ExpandError>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.store
+            .database_mut()
+            .expect("database expansion")
+            .evaluation_bindings = self.bindings;
+        result
+    }
+
     fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
         let location = self.context.location;
         self.evaluate_buffer_at(first, location)
@@ -3189,7 +3200,7 @@ impl Expansion<'_, '_> {
                 first,
                 location,
                 None,
-                self.bindings.clone(),
+                &mut self.bindings,
                 active,
                 self.context.reborrow(),
             ),
@@ -3201,7 +3212,7 @@ impl Expansion<'_, '_> {
                     first,
                     location,
                     Some(*variables),
-                    self.bindings.clone(),
+                    &mut self.bindings,
                     active,
                     self.context.reborrow(),
                 );

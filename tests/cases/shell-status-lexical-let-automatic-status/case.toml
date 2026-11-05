@@ -1,0 +1,12 @@
+id = "shell-status-lexical-let-automatic-status"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: let automatic status"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "word:automatic\nouter=[7] override simple\n"
+stderr = ""

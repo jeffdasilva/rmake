@@ -1,0 +1,12 @@
+id = "shell-status-lexical-call-argument-in-caller"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: call argument in caller"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=0; value=text; after=3\nouter=[0] override simple\n"
+stderr = ""

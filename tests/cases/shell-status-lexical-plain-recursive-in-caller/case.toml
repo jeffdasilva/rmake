@@ -1,0 +1,12 @@
+id = "shell-status-lexical-plain-recursive-in-caller"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: plain recursive in caller"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=7; value=text; after=3\nouter=[3] override simple\n"
+stderr = ""

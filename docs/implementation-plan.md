@@ -462,3 +462,9 @@ mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
 verified boundary, and pass an empty mask to command children without mutating
 the parent's live mask around spawn. Ten original GNU2 comparisons cover
 native callbacks, actual self-exec, early exits and low descriptor limits.
+
+Lexical shell status now follows the active foreach, let, or call frame,
+including shell assignments evaluated by a nested eval. Sixteen original
+ordinary controls close eleven previous mismatches and extend the ordinary
+required corpus to 27,782 cases. The separate process-limit descriptor
+leak observed in GNU remains open.
