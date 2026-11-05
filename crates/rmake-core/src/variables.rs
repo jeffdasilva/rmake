@@ -3311,10 +3311,12 @@ impl Expansion<'_, '_> {
                 environment.push((name, crate::diagnostic::EnvironmentValue::Original));
                 continue;
             }
-            let value = if matches!(
-                variable.origin,
-                Origin::Environment | Origin::EnvironmentOverride
-            ) {
+            // MAKEFLAGS keeps its expansion semantics when inherited.
+            let value = if name != b"MAKEFLAGS"
+                && matches!(
+                    variable.origin,
+                    Origin::Environment | Origin::EnvironmentOverride
+                ) {
                 variable.value
             } else {
                 self.environment_variable(&name)?

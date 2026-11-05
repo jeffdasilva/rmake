@@ -1,0 +1,15 @@
+id = "shell-initial-env-command-line-makeflags-before-argv-shell"
+requirement = "shell.initial-environment"
+candidate = "required"
+description = "Command line makeflags before argv shell."
+provenance = "Original rmake fixture with a literal shell execution and child environment journal."
+args = ["-rR", "--no-print-directory", "MAKEFLAGS=$(shell /usr/bin/python3 -B witness.py cli)-s", "EAGER:=$(shell /usr/bin/python3 -B witness.py argv)"]
+timeout_seconds = 4
+
+[environment]
+SHELL = "/bin/sh"
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** reader stop.  Stop.\n"
