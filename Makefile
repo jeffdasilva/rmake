@@ -272,6 +272,7 @@ test-include-stat: build oracle-verify
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=lua-5.4.9 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_CASE=database-minimal test-database-output
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_LIFECYCLE_CASE=database-native-restart-environment-vector-order test-database-lifecycle
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_SEARCH_CASE=database-search-repeated-aliased test-database-search
