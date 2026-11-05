@@ -77,3 +77,19 @@ Reference study: the verified GNU Make 4.4.1 archive, SHA-256
 interfaces. The state model, Rust implementation, helpers and fixtures were
 independently authored. No GNU implementation or upstream test code was copied
 or translated.
+
+## Shell capture EOF and reaping
+
+`make test-shell-capture-lifetime` and
+`make test-shell-capture-lifetime-release` check the descriptor boundary
+for `$(shell ...)` and `!=`. The direct child identifies the parent read
+descriptor by its pipe identity and access mode. It closes its writer and
+observes the reader disappear before it exits. A reverse-order control
+writes from a descendant after the original child exits. The comparison
+checks the folded bytes, original shell status and complete file effects.
+
+The Linux capture reactor releases the reader at EOF and retains the
+owned child until status is collected. If status arrives first, the
+reader remains available until the last writer closes. The signal checks
+still run throughout both waits. GNU Make 4.4.1's `func_shell_base` in
+`src/function.c` provides the close-before-wait reference.

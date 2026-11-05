@@ -343,22 +343,24 @@ pub fn wait(
 /// error kills and reaps it; a recycled PID can never be signalled here.
 pub fn capture(
     mut child: Child,
-    mut stdout: File,
+    stdout: File,
     maximum: usize,
 ) -> io::Result<(Vec<u8>, ExitStatus)> {
     let mut bytes = Vec::new();
-    let mut eof = false;
+    let mut stdout = Some(stdout);
     let mut status = None;
     loop {
         if crate::signals::pending().is_some() {
             return Err(io::ErrorKind::Interrupted.into());
         }
-        if !eof {
+        if let Some(reader) = &mut stdout {
             let mut block = [0; 8192];
             loop {
-                match stdout.read(&mut block) {
+                match reader.read(&mut block) {
                     Ok(0) => {
-                        eof = true;
+                        // The writer can still be running after EOF.
+                        // Release only the pipe before waiting for its status.
+                        stdout = None;
                         break;
                     }
                     Ok(count) => {
@@ -383,7 +385,9 @@ pub fn capture(
         if status.is_none() {
             status = child.try_wait()?;
         }
-        if eof && let Some(status) = status {
+        if stdout.is_none()
+            && let Some(status) = status
+        {
             return Ok((bytes, status));
         }
         let children = [(0, &child)];
@@ -391,7 +395,7 @@ pub fn capture(
             if status.is_none() { &children } else { &[] },
             true,
             true,
-            (!eof).then(|| stdout.as_raw_fd()),
+            stdout.as_ref().map(AsRawFd::as_raw_fd),
             None,
         )?;
     }
