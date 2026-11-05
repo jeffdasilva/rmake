@@ -294,11 +294,17 @@ impl Controller {
         Coordination::join(authentication).inspect_err(|_| self.clear())
     }
 
+    fn select_mutex(&self, mut provider: Coordination) {
+        let mut selected = self.0.coordination.borrow_mut();
+        if let Some(previous) = selected.as_mut() {
+            provider.preserve_named_path_from(previous);
+        }
+        *selected = Some(provider);
+    }
+
     pub fn decode_mutex(&self, authentication: &[u8]) -> io::Result<()> {
         match self.join_mutex(authentication)? {
-            Some(provider) => {
-                self.0.coordination.replace(Some(provider));
-            }
+            Some(provider) => self.select_mutex(provider),
             None => {
                 let message = crate::usage::invalid_sync_mutex(authentication);
                 self.write_parts(
@@ -328,7 +334,7 @@ impl Controller {
             Coordination::create()?
         };
         let auth = provider.authentication().to_vec();
-        self.0.coordination.replace(Some(provider));
+        self.select_mutex(provider);
         Ok(Some(auth))
     }
     pub fn clear(&self) {

@@ -84,3 +84,9 @@ After a replacement mutex fails to open, buffered fatal output no longer
 waits for the previous lock. The gate holds that previous lock during live,
 post-read, and active setup failures and checks the complete output, status,
 and filesystem against GNU without releasing it early.
+
+A successful reopen of the root's own mutex keeps its original pathname
+lease while closing the replaced descriptor. The reopened file must match
+the original regular inode; an external replacement never becomes owned.
+Nested live flag and include tests use that same pathname through successive
+reopens and confirm cleanup after the process exits.
