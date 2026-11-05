@@ -175,3 +175,20 @@ assert the original and final timestamps, ordered read and recipe markers,
 the output of the next process and its exit status. Controls cover a file
 whose contents change with the same timestamp, an optional makefile, and
 stop mode without `-k`.
+
+An optional include can reach a failed update before a later required
+include of the same file. The required read publishes the cached failure.
+A blocked remake keeps the selected prerequisite and its immediate parent
+from the completed graph. The replay uses that reason without expanding
+prerequisites or executing recipes again. The first open error retains its
+original location and raw errno. Required read sites still get their
+separate summaries, and a failed recipe that changed the file can trigger
+a restart under `-k`.
+
+Eighteen cases for this path bring the diagnostic gate to 144. They cover
+direct and transitive failures, repeated sites, stop mode, secondary
+expansion, and real restarts after changing or creating the file. A missing
+intermediate can report a prerequisite error during inspection. In
+keep-going mode the later required read can report the cached failure too.
+The ordered cases distinguish those publications and confirm the early
+exit when keep-going mode is disabled.

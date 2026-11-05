@@ -88,8 +88,9 @@ def cases(selection):
     include = json.loads((DATA / "include.json").read_bytes())
     remake = json.loads((DATA / "remake.json").read_bytes())
     repeat = json.loads((DATA / "repeat.json").read_bytes())
-    suites = (data, structure, producers, loader, include, remake, repeat)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20, 14, 13):
+    replay = json.loads((DATA / "optional-replay.json").read_bytes())
+    suites = (data, structure, producers, loader, include, remake, repeat, replay)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20, 14, 13, 18):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -117,8 +118,8 @@ def cases(selection):
     fixtures["include_errno.c"] = include_fixtures["include_errno.c"]
     if remake["fixture_sha256"] != {"nls_control.c": fixtures["nls_control.c"]}:
         raise h.HarnessError("remake fixture inventory or shared source identity differs")
-    if repeat["fixture_sha256"]:
-        raise h.HarnessError("repeat cases should not compile any additional fixtures")
+    if repeat["fixture_sha256"] or replay["fixture_sha256"]:
+        raise h.HarnessError("repeat and replay cases should not compile any additional fixtures")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -193,6 +194,7 @@ def main(argv=None):
               "include_sha256": h.sha256_file(DATA / "include.json"),
               "remake_sha256": h.sha256_file(DATA / "remake.json"),
               "repeat_sha256": h.sha256_file(DATA / "repeat.json"),
+              "optional_replay_sha256": h.sha256_file(DATA / "optional-replay.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
