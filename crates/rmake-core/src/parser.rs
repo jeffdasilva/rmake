@@ -3186,7 +3186,10 @@ impl Database {
         self.loaded_modules
             .entry(loaded.name.clone())
             .or_insert_with(|| location.clone());
-        if loaded.status == NativeLoadStatus::Loaded {
+        if matches!(
+            loaded.status,
+            NativeLoadStatus::Loaded | NativeLoadStatus::LoadedWithoutRemake
+        ) {
             self.variables
                 .append_literal_at(b".LOADED", &loaded.name, Origin::File, location)?;
         }
@@ -3194,7 +3197,10 @@ impl Database {
         // when the runtime has already loaded the module. Only a genuinely
         // absent record performs a logical enter.
         self.file_records.enter_prerequisite(&loaded.name);
-        if loaded.status != NativeLoadStatus::Skipped {
+        if matches!(
+            loaded.status,
+            NativeLoadStatus::Loaded | NativeLoadStatus::Failed
+        ) {
             self.makefiles.push(Makefile {
                 name: loaded.name.clone(),
                 optional: false,
@@ -3975,8 +3981,8 @@ impl Database {
                 let mut paths = Vec::new();
                 // Filename interpretation completes before the first child is
                 // read. Child effects cannot alter this prepared path list.
-                for mut name in crate::filenames::sequence(&expanded) {
-                    name = crate::filenames::without_dot_prefix(&name).to_vec();
+                for name in crate::filenames::words(&expanded) {
+                    let mut name = crate::filenames::without_dot_prefix(&name).to_vec();
                     if self.filename_scratch.is_some() {
                         self.write_filename(&name, 0);
                     }
@@ -3995,7 +4001,7 @@ impl Database {
                     }
                     let matches = if name.iter().any(|b| matches!(b, b'*' | b'?' | b'[')) {
                         context
-                            .perform_filesystem(FilesystemEffect::Wildcard(&name))
+                            .perform_filesystem(FilesystemEffect::IncludeGlob(&name))
                             .and_then(Result::ok)
                             .unwrap_or_default()
                     } else {
@@ -4004,7 +4010,12 @@ impl Database {
                     if matches.is_empty() {
                         paths.push(name);
                     } else {
-                        paths.extend(words(&matches).map(Vec::from));
+                        paths.extend(
+                            matches
+                                .split(|&byte| byte == 0)
+                                .filter(|name| !name.is_empty())
+                                .map(Vec::from),
+                        );
                     }
                 }
                 if let Some(history) = &self.database_history {

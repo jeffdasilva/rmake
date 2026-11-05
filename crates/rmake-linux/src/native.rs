@@ -881,10 +881,10 @@ impl NativeRuntime for Runtime {
         }
         Ok(LoadOutcome {
             name,
-            status: if result.number != 0 {
-                NativeLoadStatus::Loaded
-            } else {
-                NativeLoadStatus::Failed
+            status: match result.number {
+                0 => NativeLoadStatus::Failed,
+                -1 => NativeLoadStatus::LoadedWithoutRemake,
+                _ => NativeLoadStatus::Loaded,
             },
         })
     }

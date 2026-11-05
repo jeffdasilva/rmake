@@ -47,6 +47,8 @@ pub struct NativeFunction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeLoadStatus {
     Loaded,
+    /// Setup returned -1, so the load does not schedule a makefile remake.
+    LoadedWithoutRemake,
     Skipped,
     Failed,
 }
@@ -482,6 +484,7 @@ mod tests {
         }
         for (status, optional, existing, expected_reads) in [
             (NativeLoadStatus::Loaded, false, false, 3),
+            (NativeLoadStatus::LoadedWithoutRemake, false, false, 3),
             (NativeLoadStatus::Failed, true, false, 3),
             (NativeLoadStatus::Failed, false, false, 1),
             (NativeLoadStatus::Skipped, false, true, 2),

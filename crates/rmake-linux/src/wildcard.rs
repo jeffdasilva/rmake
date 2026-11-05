@@ -202,6 +202,10 @@ impl Wildcard {
         if rmake_core::filenames::archive_parts(pattern).is_some() {
             return self.archive_rule(pattern);
         }
+        self.filename_glob(pattern)
+    }
+
+    pub(crate) fn filename_glob(&mut self, pattern: &[u8]) -> Result<Vec<u8>, FilesystemError> {
         let mut names = self.query(pattern, false, false, 0)?;
         if names.is_empty() {
             names.push(pattern.to_vec());

@@ -1,0 +1,12 @@
+id = "include-complete-name-glob-parentheses"
+requirement = "includes.literal-glob"
+candidate = "required"
+description = "Retain complete ordinary filename identities during include expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "result=[ordinary]\n"
+stderr = ""

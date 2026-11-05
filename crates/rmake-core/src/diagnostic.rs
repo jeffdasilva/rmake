@@ -152,6 +152,9 @@ pub enum FilesystemEffect<'a> {
     ArchiveGlob(&'a [u8]),
     /// Rule search keeps unmatched patterns and transports names with NULs.
     RuleGlob(&'a [u8]),
+    /// Include search keeps unmatched patterns and complete names, with no
+    /// archive-member interpretation.
+    IncludeGlob(&'a [u8]),
     /// Account/environment fallback; make's nonempty HOME is expanded in core.
     Tilde(&'a [u8]),
     /// Register a directory's cached identity/open state without enumerating

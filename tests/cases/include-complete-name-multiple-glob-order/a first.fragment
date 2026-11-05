@@ -1,0 +1,2 @@
+OUT += first
+MARK := $(file >>seen,first)

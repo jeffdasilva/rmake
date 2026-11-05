@@ -713,7 +713,11 @@ impl Engine {
         Ok(())
     }
 
-    pub(super) fn read_runtime_flags(&mut self, restarts: u32) -> Result<(), ()> {
+    pub(super) fn read_runtime_flags(
+        &mut self,
+        restarts: u32,
+        published_load_limit: bool,
+    ) -> Result<(), ()> {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
@@ -739,6 +743,7 @@ impl Engine {
             // probe. The selected shortcut or real expansion below owns the
             // one semantic reference, never both.
             let binding = self.database.variables.get(name);
+            let has_binding = binding.is_some();
             let unchanged = binding.is_none_or(|value| value.raw_value() == *initial);
             let reopen_unchanged = unchanged
                 && self.options.sync_mutex.is_some()
@@ -746,7 +751,7 @@ impl Engine {
             if unchanged {
                 self.database.variables.database_lookup(name);
             }
-            let value = if unchanged && name == b"MAKEFLAGS" && changed && binding.is_some() {
+            let value = if unchanged && name == b"MAKEFLAGS" && changed && has_binding {
                 let prefix = self
                     .initial_flags
                     .strip_suffix(b" -- $(MAKEOVERRIDES)")
@@ -787,10 +792,17 @@ impl Engine {
                 if let Some(jobs) = self.apply_runtime_flag_source(value)? {
                     file_jobs = Some(jobs);
                 }
-            } else if reopen_unchanged {
-                // The serialized source needs no switch replay, but its
-                // output lock is still reopened by a nonempty decode.
-                self.complete_passive_mutex()?;
+            } else {
+                // GNU rereads the actual published load spelling after reading.
+                // Its rounded representation can differ from the live value.
+                if name == b"MAKEFLAGS" && published_load_limit && has_binding {
+                    self.options
+                        .replay_published_load_limit(&self.initial_flags);
+                }
+                if reopen_unchanged {
+                    // A nonempty unchanged source still reopens its output lock.
+                    self.complete_passive_mutex()?;
+                }
             }
             if name == b"GNUMAKEFLAGS"
                 && let Err(error) =

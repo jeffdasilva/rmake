@@ -1,0 +1,12 @@
+id = "load-option-option-after-goal"
+requirement = "runtime.load-option-metadata"
+candidate = "required"
+description = "Original serial load-option metadata control."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "goal", "--loa", ".625tail"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read: flags=[rRs -l0.625] mflags=[-rRs -l0.625] origins=file/environment goals=[goal]\nfinal: flags=[rRs -l0.625] mflags=[-rRs -l0.625] origins=file/environment goals=[goal]\n"
+stderr = ""

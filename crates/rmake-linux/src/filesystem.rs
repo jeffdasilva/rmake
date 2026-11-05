@@ -70,6 +70,7 @@ fn execute_with(
         FilesystemEffect::Wildcard(pattern) => wildcard.expand(pattern),
         FilesystemEffect::ArchiveGlob(pattern) => wildcard.archive_rule(pattern),
         FilesystemEffect::RuleGlob(pattern) => wildcard.rule(pattern),
+        FilesystemEffect::IncludeGlob(pattern) => wildcard.filename_glob(pattern),
         FilesystemEffect::Tilde(name) => {
             let slash = name.iter().position(|&b| b == b'/').unwrap_or(name.len());
             let home = if slash == 1 {

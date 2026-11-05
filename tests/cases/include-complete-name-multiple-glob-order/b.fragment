@@ -1,0 +1,2 @@
+OUT += middle
+MARK := $(file >>seen,middle)

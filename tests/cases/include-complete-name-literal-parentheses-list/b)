@@ -1,0 +1,2 @@
+OUT += closer
+MARK := $(file >>seen,closer)

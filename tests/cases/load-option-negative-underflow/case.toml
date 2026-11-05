@@ -1,0 +1,12 @@
+id = "load-option-negative-underflow"
+requirement = "runtime.load-option-metadata"
+candidate = "required"
+description = "Original serial load-option metadata control."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "--load-average=-1e-999"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read: flags=[rRs -l-0] mflags=[-rRs -l-0] origins=file/environment goals=[]\nfinal: flags=[rRs -l-0] mflags=[-rRs -l-0] origins=file/environment goals=[]\n"
+stderr = ""

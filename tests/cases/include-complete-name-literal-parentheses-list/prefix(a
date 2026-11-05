@@ -1,0 +1,2 @@
+OUT += opener
+MARK := $(file >>seen,opener)

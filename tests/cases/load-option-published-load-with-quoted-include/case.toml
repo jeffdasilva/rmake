@@ -1,0 +1,12 @@
+id = "load-option-published-load-with-quoted-include"
+requirement = "runtime.load-option-metadata"
+candidate = "required"
+description = "Original serial load-option metadata control."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "-I", "search$dir", "-l-1.0000001"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read: flags=[rRs -Isearch$dir -l-1] mflags=[-rRs -Isearch$dir -l-1] origins=file/environment goals=[]\nfinal: flags=[rRs -Isearch$dir] mflags=[-rRs -Isearch$dir] origins=file/environment goals=[]\n"
+stderr = ""
