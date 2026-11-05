@@ -32,7 +32,8 @@ CLEAN_CASES = {
 }
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
 CATALOG_CASES = ('catalog-check', 'catalog-install-staged')
-CASE_IDS = ('warm-bootstrap-oracle', *CATALOG_CASES, *CLEAN_CASES,
+READ_ONLY_CASES = ('help', 'doctor')
+CASE_IDS = ('warm-bootstrap-oracle', *READ_ONLY_CASES, *CATALOG_CASES, *CLEAN_CASES,
             'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
             *VALIDATION_CASES)
 
@@ -194,6 +195,28 @@ class Subject:
                 f'benchmark validation stderr: {err!r}')
         return out, release_stderr(err) if compare else err, status, limit, children
 
+    def observe_read_only(self, case, binary):
+        original = digest_tree(self.work)
+        result = self.run(binary, case)
+        out, err, status, limit, children = result
+        require((err, status, limit, children) == (b'', 0, None, False),
+                f'{case} model: {result!r}')
+        if case == 'help':
+            header = b'rmake - GNU Make compatibility development\n\nAvailable targets:\n'
+            require(out.startswith(header) and b'\n  doctor ' in out
+                    and b'\n  check / ci ' in out, f'help entry points: {out!r}')
+        else:
+            cargo_command = b'python3 tools/rust.py cargo --version\n'
+            oracle_command = b'python3 tools/oracle.py verify --binary "' + os.fsencode(self.profile / 'bin/make') + b'"\n'
+            prefix, suffix = cargo_command, oracle_command + self.verified
+            require(out.startswith(prefix) and out.endswith(suffix), f'doctor commands: {out!r}')
+            cargo = out[len(prefix):-len(suffix)]
+            version = re.escape(rust.TOOLCHAIN.encode())
+            require(re.fullmatch(rb'cargo ' + version + rb' \([0-9a-f]+ [0-9-]+\)\n', cargo),
+                    f'doctor pinned Cargo version: {cargo!r}')
+        require(digest_tree(self.work) == original, f'{case} changed its worktree')
+        return result
+
     def observe_catalogs(self, case, binary):
         sources = self.work / 'catalogs'
         original = digest_tree(sources)
@@ -237,6 +260,8 @@ class Subject:
             require(result == (want, b'', 0, None, False), f'warm bootstrap model: {result!r}')
             require((self.work / '.tools/oracle.lock').is_file(), 'oracle did not take its lock')
             require(not (self.work / '.tools/downloads').exists(), 'warm oracle attempted a download')
+        elif case in READ_ONLY_CASES:
+            result = self.observe_read_only(case, binary)
         elif case in CATALOG_CASES:
             result = self.observe_catalogs(case, binary)
         elif case in CLEAN_CASES:
