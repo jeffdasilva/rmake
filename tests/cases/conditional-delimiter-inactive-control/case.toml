@@ -1,0 +1,12 @@
+id = "conditional-delimiter-inactive-control"
+requirement = "syntax.conditional-delimiter"
+candidate = "required"
+description = "Conditional operand delimiter balancing and evaluation."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "result=[outer]\n"
+stderr = ""

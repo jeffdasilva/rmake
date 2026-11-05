@@ -34,3 +34,9 @@ operand trimming and expansion order) was consulted. The Rust implementation
 and fixtures are independently authored; no upstream source text or tests were
 copied. Broader definition, directive and generated-input grammar remain separate
 compatibility work.
+
+The raw operand scanner accepts a literal unmatched closing parenthesis in a
+left comma-delimited operand, starts delimiter balance afresh on the right,
+and accepts GNU's mixed quoted and bare delimiter forms. Eleven separate
+required cases cover the branch decision, an included `else ifneq`, and
+left-to-right expansion effects without changing the historical inventory.
