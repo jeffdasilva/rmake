@@ -462,3 +462,8 @@ mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
 verified boundary, and pass an empty mask to command children without mutating
 the parent's live mask around spawn. Ten original GNU2 comparisons cover
 native callbacks, actual self-exec, early exits and low descriptor limits.
+
+[File-size limits during stdin capture](../tests/resource-file-size/README.md)
+preserve GNU's write and close boundaries before publishing a named makefile.
+Fifteen original GNU2 comparisons cover explicit write failure, buffered close
+truncation, early SIGXFSZ and ordinary file-function controls.
