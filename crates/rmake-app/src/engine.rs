@@ -9341,8 +9341,8 @@ pub(crate) fn launch_child<T>(
         rmake_linux::environment::Image::from_command(template, order, original_shell)?;
     let mut denied = None;
     let mut missing = io::Error::from_raw_os_error(2);
-    for path in paths {
-        let mut command = Command::new(&path);
+    for path in &paths {
+        let mut command = Command::new(path);
         command.arg0(os(program)).args(template.get_args());
         rmake_linux::signals::configure_child(&mut command);
         match run(command, &environment, program) {
@@ -9350,9 +9350,22 @@ pub(crate) fn launch_child<T>(
             // preserving args/environment but not the recipe's -e/-c flags.
             Err(error) if error.raw_os_error() == Some(8) => {
                 let mut shell = Command::new("/bin/sh");
-                shell.arg(&path).args(template.get_args());
+                shell.arg(path).args(template.get_args());
                 rmake_linux::signals::configure_child(&mut shell);
                 return run(shell, &environment, b"/bin/sh");
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                // A failed fork has not checked the executable yet. Recover
+                // the lookup diagnostic without retrying the child launch.
+                let mut lookup = io::Error::from_raw_os_error(2);
+                for candidate in &paths {
+                    match rmake_linux::process::executable(candidate) {
+                        Ok(()) => return Err(error),
+                        Err(error) if error.raw_os_error() != Some(2) => lookup = error,
+                        Err(_) => {}
+                    }
+                }
+                return Err(lookup);
             }
             Err(error)
                 if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>
@@ -9405,6 +9418,19 @@ mod tests {
 
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn process_pressure_lookup_does_not_retry_the_launch() {
+        let mut command = Command::new("unavailable");
+        command.env("PATH", "/dev/null:/dev/null");
+        let mut attempts = 0;
+        let result = launch_child(b"unavailable", &command, &[], None, |_, _, _| {
+            attempts += 1;
+            Err::<(), _>(io::Error::from_raw_os_error(11))
+        });
+        assert_eq!(attempts, 1);
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(20));
+    }
 
     #[test]
     fn child_signal_diagnostics_keep_libc_names_and_core_dump_status() {
