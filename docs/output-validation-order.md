@@ -68,7 +68,9 @@ When both the mode and lock are invalid, mode validation takes precedence.
 
 `make test-output-lock-completion` and `make test-output-lock-completion-release`
 exercise 20 original models in C, French, German, Japanese, and Brazilian
-Portuguese. They compare two pinned GNU runs
+Portuguese. Three diagnostic controls also run in each of the other 26
+release catalog languages, for 178 comparisons per build. The gates compare
+two pinned GNU runs
 and rmake against independently specified status, byte streams, and complete
 filesystem effects, including repeated options, an included reader, raw path
 bytes, and reopening a lock removed between live assignments.
