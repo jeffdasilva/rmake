@@ -14,7 +14,7 @@ use crate::diagnostic::{
 use crate::messages::Message;
 use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
-    Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
+    Assignment, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
     VariableStore, reference_end,
 };
 use std::borrow::Cow;
@@ -445,6 +445,7 @@ pub struct Database {
     next_group_id: usize,
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
+    target_read: Option<TargetRead>,
     rules_frozen: bool,
     suppress_default_goal: bool,
     second_expansion: bool,
@@ -460,6 +461,12 @@ pub struct Database {
     /// Global bindings being expanded for an environment vector. Target-local
     /// bindings do not refer to the global object removed by undefine.
     pub(crate) exporting: Vec<Vec<u8>>,
+}
+
+#[derive(Clone)]
+struct TargetRead {
+    target: Vec<u8>,
+    global_lexical: Vec<crate::variables::LocalFrame>,
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -2546,28 +2553,97 @@ impl Database {
                     context,
                 ));
             }
-            scope
-                .define_with(
+            let rhs = assignment.spec.value;
+            let kind = assignment.spec.kind;
+            let immediate = matches!(kind, Assignment::Simple | Assignment::ImmediateRecursive)
+                || (kind == Assignment::Append
+                    && scope
+                        .get(&name)
+                        .is_some_and(|binding| binding.flavor() == Flavor::Simple));
+            let result = if immediate && rhs.contains(&b'$') {
+                let mut updated = scope.clone();
+                let mut globals = std::mem::take(&mut self.variables);
+                let result = updated.define_with_using(
+                    &mut globals,
+                    &name,
+                    rhs,
+                    kind,
+                    assignment.origin,
+                    assignment.private,
+                    assignment.export,
+                    Some(location),
+                    context.at(Some(location)),
+                    |globals, scope, bytes, _, context| {
+                        std::mem::swap(globals, &mut self.variables);
+                        let result = self.expand_target_rhs(target, scope, bytes, context);
+                        std::mem::swap(globals, &mut self.variables);
+                        result
+                    },
+                );
+                self.variables = globals;
+                if result.is_ok() {
+                    self.target_scopes.insert(target.to_vec(), updated);
+                }
+                result
+            } else {
+                scope.define_with(
                     &mut self.variables,
                     &name,
-                    assignment.spec.value,
-                    assignment.spec.kind,
+                    rhs,
+                    kind,
                     assignment.origin,
                     assignment.private,
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
                 )
-                .map_err(|error| ParseError {
-                    unlocated: error.is_unlocated(),
-                    location: error
-                        .diagnostic_location(Some(location))
-                        .unwrap_or(location)
-                        .clone(),
-                    message: error.diagnostic(),
-                })?;
+            };
+            result.map_err(|error| ParseError {
+                unlocated: error.is_unlocated(),
+                location: error
+                    .diagnostic_location(Some(location))
+                    .unwrap_or(location)
+                    .clone(),
+                message: error.diagnostic(),
+            })?;
+            if self
+                .target_read
+                .as_ref()
+                .is_some_and(|read| read.target == target)
+                && let Some(active) = self.evaluation_scope.as_mut()
+            {
+                self.target_scopes[target].refresh_read_bindings(active);
+            }
         }
         Ok(())
+    }
+
+    fn expand_target_rhs(
+        &mut self,
+        target: &[u8],
+        scope: &mut VariableStore,
+        bytes: &[u8],
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        let global_lexical = if let Some(read) = &self.target_read {
+            read.global_lexical.clone()
+        } else if self.evaluation_scope.is_none() {
+            self.evaluation_bindings.clone()
+        } else {
+            Vec::new()
+        };
+        scope.add_declaration_lexical(&global_lexical);
+        let parent = self.target_read.replace(TargetRead {
+            target: target.to_vec(),
+            global_lexical,
+        });
+        let previous_scope = self.evaluation_scope.take();
+        let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
+        let result = crate::variables::expand_scoped_database::<false>(self, scope, bytes, context);
+        self.evaluation_bindings = previous_bindings;
+        self.evaluation_scope = previous_scope;
+        self.target_read = parent;
+        result
     }
 
     fn condition(
@@ -3147,6 +3223,15 @@ impl Database {
         active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
+        // Nested declarations share the active target's table. Publish any
+        // preceding changes before re-entering the reader; it refreshes the
+        // saved scope when another declaration commits to the same owner.
+        if let (Some(read), Some(scope)) = (&self.target_read, scope.as_deref()) {
+            self.target_scopes
+                .get_mut(&read.target)
+                .expect("active target declaration")
+                .retain_read_bindings(scope);
+        }
         let previous_scope =
             std::mem::replace(&mut self.evaluation_scope, scope.as_deref().cloned());
         std::mem::swap(&mut self.evaluation_bindings, bindings);

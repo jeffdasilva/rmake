@@ -1289,6 +1289,29 @@ impl VariableStore {
         }
     }
 
+    /// A target declared inside a global call or loop sees those lexical
+    /// bindings behind its own table, before the permanent global table.
+    pub(crate) fn add_declaration_lexical(&mut self, frames: &[LocalFrame]) {
+        let layers = frames
+            .iter()
+            .rev()
+            .filter(|frame| !frame.is_empty())
+            .map(|frame| {
+                let mut bindings = Bindings::new(16);
+                for (name, variable) in frame.iter() {
+                    bindings.insert(name, variable.clone());
+                }
+                VariableLayer {
+                    file_locals: false,
+                    variables: Arc::new(bindings),
+                    inherited: true,
+                    global: false,
+                    pattern: false,
+                }
+            });
+        self.layers.splice(0..0, layers);
+    }
+
     /// Rebase a saved traversal context after an activation changed global
     /// metadata. Explicit scope snapshots remain independent of global changes.
     pub fn refresh_globals(&mut self, globals: &VariableStore) {
@@ -2234,6 +2257,46 @@ impl TargetScope {
         definition: Option<&Location>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
+        self.define_with_using(
+            globals,
+            name,
+            value,
+            assignment,
+            origin,
+            private,
+            export,
+            definition,
+            context,
+            |_, store, bytes, shell, context| {
+                if shell {
+                    store.shell_with(bytes, context)
+                } else {
+                    store.expand_mut_with(bytes, context)
+                }
+            },
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn define_with_using(
+        &mut self,
+        globals: &mut VariableStore,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+        origin: Origin,
+        private: bool,
+        export: Option<bool>,
+        definition: Option<&Location>,
+        context: ExpansionContext<'_>,
+        mut expand: impl FnMut(
+            &mut VariableStore,
+            &mut VariableStore,
+            &[u8],
+            bool,
+            ExpansionContext<'_>,
+        ) -> Result<Vec<u8>, ExpandError>,
+    ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
@@ -2262,7 +2325,17 @@ impl TargetScope {
             return Ok(());
         }
         let append_outer = assignment == Assignment::Append && !self.variables.contains_key(name);
-        scope.define_with(name, value, assignment, origin, definition, context)?;
+        scope.define_with_using(
+            name,
+            value,
+            assignment,
+            origin,
+            definition,
+            context,
+            None,
+            None,
+            |store, bytes, shell, context| expand(globals, store, bytes, shell, context),
+        )?;
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
@@ -2296,6 +2369,14 @@ impl TargetScope {
         }
         self.variables = scope.variables;
         Ok(())
+    }
+
+    pub(crate) fn retain_read_bindings(&mut self, scope: &VariableStore) {
+        self.variables = Arc::clone(&scope.variables);
+    }
+
+    pub(crate) fn refresh_read_bindings(&self, scope: &mut VariableStore) {
+        scope.variables = Arc::clone(&self.variables);
     }
 }
 
