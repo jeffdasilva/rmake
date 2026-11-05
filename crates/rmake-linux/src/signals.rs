@@ -161,7 +161,7 @@ impl Drop for Guard {
 /// async-signal-safe disposition operation runs between fork and exec.
 pub fn configure_child(command: &mut std::process::Command) {
     use std::os::unix::process::CommandExt;
-    if INITIAL_PIPE.load(Ordering::Relaxed) == 0 {
+    if !preserve_child_pipe_ignore() {
         return;
     }
     unsafe {
@@ -173,6 +173,10 @@ pub fn configure_child(command: &mut std::process::Command) {
             }
         });
     }
+}
+
+pub(crate) fn preserve_child_pipe_ignore() -> bool {
+    INITIAL_PIPE.load(Ordering::Relaxed) != 0
 }
 
 pub fn pending() -> Option<i32> {

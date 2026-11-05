@@ -7704,6 +7704,18 @@ impl Engine {
                     if crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
                     }
+                    if stdin_owner
+                        && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                        && self.jobserver.is_none()
+                        && let Some(process) =
+                            rmake_linux::child::Child::try_spawn_inherited_ordered(
+                                &command,
+                                image,
+                                os(arg0),
+                            )
+                    {
+                        return process;
+                    }
                     rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
                 },
             );

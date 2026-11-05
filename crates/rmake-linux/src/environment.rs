@@ -25,6 +25,13 @@ unsafe extern "C" {
         traced: c_int,
         pipe: *const c_int,
     ) -> c_int;
+    fn rmake_spawn_inherited(
+        program: *const c_char,
+        argv: *const *const c_char,
+        envp: *const *mut c_char,
+        preserve_pipe_ignore: c_int,
+        pid: *mut c_int,
+    ) -> c_int;
 }
 
 /// Replace the interpreter using the raw live process environment. A real
@@ -158,6 +165,14 @@ impl Image {
     /// strings/pointers are prepared in the parent. A successful exec replaces
     /// the child; a failed exec returns errno through std's owned error pipe.
     pub fn configure_exec(&self, command: &mut Command, arg0: &OsStr) -> io::Result<()> {
+        let frame = self.exec_frame(command, arg0)?;
+        unsafe {
+            command.pre_exec(move || Err(frame.execute()));
+        }
+        Ok(())
+    }
+
+    fn exec_frame(&self, command: &Command, arg0: &OsStr) -> io::Result<ExecFrame> {
         let program = CString::new(command.get_program().as_bytes())
             .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
         let mut arguments = Vec::new();
@@ -173,16 +188,40 @@ impl Image {
         }
         let mut pointers: Vec<_> = arguments.iter().map(|argument| argument.as_ptr()).collect();
         pointers.push(std::ptr::null());
-        let frame = ExecFrame {
+        Ok(ExecFrame {
             program,
             _arguments: arguments,
             pointers,
             environment: self.clone(),
+        })
+    }
+
+    pub(crate) fn spawn_inherited(
+        &self,
+        command: &Command,
+        arg0: &OsStr,
+    ) -> Option<io::Result<c_int>> {
+        let frame = match self.exec_frame(command, arg0) {
+            Ok(frame) => frame,
+            Err(error) => return Some(Err(error)),
         };
-        unsafe {
-            command.pre_exec(move || Err(frame.execute()));
+        let mut pid = 0;
+        // SAFETY: the frame keeps both terminated vectors and their CStrings
+        // live for the full synchronous libc call; pid is a writable scalar.
+        let error = unsafe {
+            rmake_spawn_inherited(
+                frame.program.as_ptr(),
+                frame.pointers.as_ptr(),
+                frame.environment.0.pointers.as_ptr(),
+                crate::signals::preserve_child_pipe_ignore().into(),
+                &mut pid,
+            )
+        };
+        match error {
+            -1 => None,
+            0 => Some(Ok(pid)),
+            error => Some(Err(io::Error::from_raw_os_error(error))),
         }
-        Ok(())
     }
 }
 
