@@ -637,7 +637,32 @@ impl Engine {
             }
             Some(
                 Jobserver::create(jobs, self.options.jobserver_pipe).map_err(|error| {
-                    Diagnostic::from(format!("{}: {}", error.operation, os_error(&error.error)))
+                    use rmake_core::messages::Argument;
+                    use rmake_linux::{filesystem, messages};
+                    let key = match error.operation {
+                        "creating jobs pipe" => c"creating jobs pipe",
+                        "init jobserver pipe" => c"init jobserver pipe",
+                        _ => {
+                            return Diagnostic::from(format!(
+                                "{}: {}",
+                                error.operation,
+                                os_error(&error.error)
+                            ));
+                        }
+                    };
+                    let label =
+                        messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
+                    let detail = filesystem::source_error_detail(&error.error);
+                    let body = messages::render_format(
+                        c"%s%s: %s",
+                        &[
+                            Argument::Bytes(&label),
+                            Argument::Bytes(b""),
+                            Argument::Bytes(&detail),
+                        ],
+                    )
+                    .unwrap_or_else(|_| [&label, b": ".as_slice(), &detail].concat());
+                    Diagnostic::frozen(body, crate::messages::stop(), false)
                 })?,
             )
         } else {

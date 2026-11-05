@@ -25,8 +25,11 @@ physical identity, confirms the child was reaped, and probes for surviving
 endpoints without blocking.
 
 `make test-resource-fd-fifo-failure` and
-`make test-resource-fd-fifo-failure-release` run this separate exact case.
-The retention branch requires a freshly created canonical name, process
-descriptor exhaustion at writer acquisition, matching FIFO metadata,
-and a directory protected against unrelated replacement. The reader
-closes before the error returns. No authentication or token was published.
+`make test-resource-fd-fifo-failure-release` run this separate exact case
+in C and in the verified French locale. The retention branch requires a
+freshly created canonical name, process descriptor exhaustion at writer
+acquisition, matching FIFO metadata, and a directory protected against
+unrelated replacement. The reader stays owned through error formatting.
+At that point no descriptor is available to open a cold catalog, so both
+engines emit the English fallback. The reader closes before reporting
+completes. No authentication or token was published.

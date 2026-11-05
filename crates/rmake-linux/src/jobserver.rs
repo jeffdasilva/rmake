@@ -163,6 +163,7 @@ pub struct Jobserver(Arc<Inner>);
 pub struct CreationError {
     pub operation: &'static str,
     pub error: io::Error,
+    _unpublished_reader: Option<File>,
 }
 
 impl From<io::Error> for CreationError {
@@ -170,6 +171,7 @@ impl From<io::Error> for CreationError {
         Self {
             operation: "jobserver",
             error,
+            _unpublished_reader: None,
         }
     }
 }
@@ -306,6 +308,7 @@ impl Jobserver {
                 return Err(CreationError {
                     operation: "creating jobs pipe",
                     error: io::Error::last_os_error(),
+                    _unpublished_reader: None,
                 });
             }
             let reader = unsafe { File::from_raw_fd(descriptors[0]) };
@@ -405,12 +408,13 @@ impl Jobserver {
                     && error.raw_os_error() == Some(EMFILE)
                     && unpublished_fifo_is_owned(&directory, &path, &identity, opened) =>
                 {
-                    // Keep the inode pinned through validation. Closing this
-                    // reader leaves no endpoint of the unpublished pool.
-                    drop(reader);
+                    // The initializer reports the failure while its last
+                    // descriptor is still occupied. Transfer that owned reader
+                    // so the caller observes the same catalog availability.
                     return Err(CreationError {
                         operation: "init jobserver pipe",
                         error: io::Error::from_raw_os_error(EBADF),
+                        _unpublished_reader: Some(reader),
                     });
                 }
                 Err(error) => {
