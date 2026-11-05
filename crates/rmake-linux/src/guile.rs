@@ -9,6 +9,7 @@ use rmake_core::variables::ExpandError;
 use std::ffi::{c_int, c_void};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::rc::Rc;
+use std::time::Duration;
 
 unsafe extern "C" {
     fn rg_dispatch_run(entry: unsafe extern "C" fn(*mut c_void), data: *mut c_void) -> c_int;
@@ -23,43 +24,73 @@ unsafe extern "C" {
     fn rg_workers_end_wait(descriptor: c_int, idle_only: c_int) -> c_int;
 }
 
+const POLLING_WAIT: c_int = -3;
+
+enum WorkerWake {
+    Event(OwnedFd),
+    Poll,
+}
+
+impl WorkerWake {
+    fn registration(&self) -> c_int {
+        match self {
+            Self::Event(descriptor) => descriptor.as_raw_fd(),
+            Self::Poll => POLLING_WAIT,
+        }
+    }
+}
+
 /// Admission and wake ownership for one blocking scheduler wait.
 pub struct WorkerWait {
-    descriptor: Option<OwnedFd>,
+    wake: Option<WorkerWake>,
     _leading_thread: std::marker::PhantomData<Rc<()>>,
 }
 
 impl WorkerWait {
     pub fn begin() -> std::io::Result<Self> {
-        let descriptor = if initialized() {
+        let wake = if initialized() {
             if !host_active() {
                 return Err(std::io::ErrorKind::Unsupported.into());
             }
             // SAFETY: the leading dispatcher owns admission. C transfers a
             // fresh descriptor and borrows it until this guard detaches it.
             match unsafe { rg_workers_begin_wait() } {
+                POLLING_WAIT => Some(WorkerWake::Poll),
                 -2 => None,
                 -1 => return Err(std::io::Error::last_os_error()),
-                descriptor => Some(unsafe { OwnedFd::from_raw_fd(descriptor) }),
+                descriptor => Some(WorkerWake::Event(unsafe {
+                    OwnedFd::from_raw_fd(descriptor)
+                })),
             }
         } else {
             None
         };
         Ok(Self {
-            descriptor,
+            wake,
             _leading_thread: std::marker::PhantomData,
         })
     }
 
+    pub fn is_active(&self) -> bool {
+        self.wake.is_some()
+    }
+
     pub fn descriptor(&self) -> Option<BorrowedFd<'_>> {
-        self.descriptor.as_ref().map(AsFd::as_fd)
+        match self.wake.as_ref()? {
+            WorkerWake::Event(descriptor) => Some(descriptor.as_fd()),
+            WorkerWake::Poll => None,
+        }
+    }
+
+    pub fn poll_interval(&self) -> Option<Duration> {
+        matches!(self.wake, Some(WorkerWake::Poll)).then_some(Duration::from_millis(5))
     }
 
     pub fn pending(&self) -> bool {
-        // The descriptor stays owned and registered during this call.
-        self.descriptor.as_ref().is_some_and(|descriptor| unsafe {
-            rg_workers_wait_notification(descriptor.as_raw_fd()) != 0
-        })
+        // The wait stays registered during this call.
+        self.wake
+            .as_ref()
+            .is_some_and(|wake| unsafe { rg_workers_wait_notification(wake.registration()) != 0 })
     }
 
     pub fn finish_if_idle(&mut self) -> bool {
@@ -71,13 +102,13 @@ impl WorkerWait {
     }
 
     fn finish(&mut self, idle_only: bool) -> bool {
-        // Clear the C borrow under its queue lock before dropping the fd.
-        if let Some(descriptor) = &self.descriptor
-            && unsafe { rg_workers_end_wait(descriptor.as_raw_fd(), c_int::from(idle_only)) } == 0
+        // Clear admission under the queue lock before dropping any fd.
+        if let Some(wake) = &self.wake
+            && unsafe { rg_workers_end_wait(wake.registration(), c_int::from(idle_only)) } == 0
         {
             return false;
         }
-        self.descriptor.take();
+        self.wake.take();
         true
     }
 }

@@ -1,0 +1,202 @@
+{
+  "models": [
+    {
+      "id": "pipe-drain-normal",
+      "style": "pipe",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let ready () (unless (file-exists? \"callback.release\") (usleep 2000) (ready))) (gmk-eval \"VALUE := changed\") (call-with-output-file \"step.tmp\" (lambda (p) (display \"eval returned\\n\" p))) (rename-file \"step.tmp\" \"callback.step\") (let ready () (unless (file-exists? \"callback.resume\") (usleep 2000) (ready))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"result.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"result.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t$(info VALUE=$(VALUE))@:\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(fdpressure 64,normal)@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "seen": "anchor\n"
+      },
+      "created": {
+        "pressure": "limit=64\n",
+        "alpha.ready": "alpha\n",
+        "beta.ready": "beta\n",
+        "callback.release": "go\n",
+        "callback.step": "eval returned\n",
+        "callback.resume": "go\n",
+        "callback.done": "changed\n",
+        "alpha.result": "changed\n",
+        "beta.result": "changed\n"
+      },
+      "seen": "anchor\nread-before\nread-after\nrecipe-init\n",
+      "stdout": "VALUE=changed\n",
+      "stderr": "",
+      "status": 0,
+      "candidate_trace": "both-executed eventfd=opened\n"
+    },
+    {
+      "id": "pipe-drain-exhaust",
+      "style": "pipe",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let ready () (unless (file-exists? \"callback.release\") (usleep 2000) (ready))) (gmk-eval \"VALUE := changed\") (call-with-output-file \"step.tmp\" (lambda (p) (display \"eval returned\\n\" p))) (rename-file \"step.tmp\" \"callback.step\") (let ready () (unless (file-exists? \"callback.resume\") (usleep 2000) (ready))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"result.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"result.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t$(info VALUE=$(VALUE))@:\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(fdpressure 64,exhaust)@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "seen": "anchor\n"
+      },
+      "created": {
+        "pressure": "limit=64\n",
+        "alpha.ready": "alpha\n",
+        "beta.ready": "beta\n",
+        "callback.release": "go\n",
+        "callback.step": "eval returned\n",
+        "callback.resume": "go\n",
+        "callback.done": "changed\n",
+        "alpha.result": "changed\n",
+        "beta.result": "changed\n"
+      },
+      "seen": "anchor\nread-before\nread-after\nrecipe-init\n",
+      "stdout": "VALUE=changed\n",
+      "stderr": "",
+      "status": 0,
+      "candidate_trace": "both-executed eventfd=EMFILE\n"
+    },
+    {
+      "id": "pipe-reserve-exhaust",
+      "style": "pipe",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let ready () (unless (file-exists? \"callback.release\") (usleep 2000) (ready))) (gmk-eval \"VALUE := changed\") (call-with-output-file \"step.tmp\" (lambda (p) (display \"eval returned\\n\" p))) (rename-file \"step.tmp\" \"callback.step\") (let ready () (unless (file-exists? \"callback.resume\") (usleep 2000) (ready))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"result.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"result.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t$(info VALUE=$(VALUE))@:\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(fdpressure 64,exhaust)@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf \"gamma\\n\" > gamma.result\n",
+        "seen": "anchor\n"
+      },
+      "created": {
+        "pressure": "limit=64\n",
+        "alpha.ready": "alpha\n",
+        "beta.ready": "beta\n",
+        "callback.release": "go\n",
+        "callback.step": "eval returned\n",
+        "callback.resume": "go\n",
+        "callback.done": "changed\n",
+        "alpha.result": "changed\n",
+        "beta.result": "changed\n",
+        "gamma.queued": "queued\n",
+        "gamma.result": "gamma\n"
+      },
+      "seen": "anchor\nread-before\nread-after\nrecipe-init\n",
+      "stdout": "VALUE=changed\n",
+      "stderr": "",
+      "status": 0,
+      "candidate_trace": "both-executed eventfd=EMFILE\n"
+    },
+    {
+      "id": "fifo-drain-exhaust",
+      "style": "fifo",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let ready () (unless (file-exists? \"callback.release\") (usleep 2000) (ready))) (gmk-eval \"VALUE := changed\") (call-with-output-file \"step.tmp\" (lambda (p) (display \"eval returned\\n\" p))) (rename-file \"step.tmp\" \"callback.step\") (let ready () (unless (file-exists? \"callback.resume\") (usleep 2000) (ready))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"result.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"result.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t$(info VALUE=$(VALUE))@:\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(fdpressure 64,exhaust)@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "seen": "anchor\n"
+      },
+      "created": {
+        "pressure": "limit=64\n",
+        "alpha.ready": "alpha\n",
+        "beta.ready": "beta\n",
+        "callback.release": "go\n",
+        "callback.step": "eval returned\n",
+        "callback.resume": "go\n",
+        "callback.done": "changed\n",
+        "alpha.result": "changed\n",
+        "beta.result": "changed\n"
+      },
+      "seen": "anchor\nread-before\nread-after\nrecipe-init\n",
+      "stdout": "VALUE=changed\n",
+      "stderr": "",
+      "status": 0,
+      "candidate_trace": "both-executed eventfd=EMFILE\n"
+    },
+    {
+      "id": "fifo-reserve-exhaust",
+      "style": "fifo",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let ready () (unless (file-exists? \"callback.release\") (usleep 2000) (ready))) (gmk-eval \"VALUE := changed\") (call-with-output-file \"step.tmp\" (lambda (p) (display \"eval returned\\n\" p))) (rename-file \"step.tmp\" \"callback.step\") (let ready () (unless (file-exists? \"callback.resume\") (usleep 2000) (ready))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"result.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"result.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t$(info VALUE=$(VALUE))@:\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(fdpressure 64,exhaust)@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf \"gamma\\n\" > gamma.result\n",
+        "seen": "anchor\n"
+      },
+      "created": {
+        "pressure": "limit=64\n",
+        "alpha.ready": "alpha\n",
+        "beta.ready": "beta\n",
+        "callback.release": "go\n",
+        "callback.step": "eval returned\n",
+        "callback.resume": "go\n",
+        "callback.done": "changed\n",
+        "alpha.result": "changed\n",
+        "beta.result": "changed\n",
+        "gamma.queued": "queued\n",
+        "gamma.result": "gamma\n"
+      },
+      "seen": "anchor\nread-before\nread-after\nrecipe-init\n",
+      "stdout": "VALUE=changed\n",
+      "stderr": "",
+      "status": 0,
+      "candidate_trace": "both-executed eventfd=EMFILE\n"
+    },
+    {
+      "id": "fifo-reserve-exhaust-pidless",
+      "style": "fifo",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let ready () (unless (file-exists? \"callback.release\") (usleep 2000) (ready))) (gmk-eval \"VALUE := changed\") (call-with-output-file \"step.tmp\" (lambda (p) (display \"eval returned\\n\" p))) (rename-file \"step.tmp\" \"callback.step\") (let ready () (unless (file-exists? \"callback.resume\") (usleep 2000) (ready))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"result.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"result.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t$(info VALUE=$(VALUE))@:\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(fdpressure 64,exhaust-pidless)@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf \"gamma\\n\" > gamma.result\n",
+        "seen": "anchor\n"
+      },
+      "created": {
+        "pressure": "limit=64 pidfd=ENOSYS\n",
+        "alpha.ready": "alpha\n",
+        "beta.ready": "beta\n",
+        "callback.release": "go\n",
+        "callback.step": "eval returned\n",
+        "callback.resume": "go\n",
+        "callback.done": "changed\n",
+        "alpha.result": "changed\n",
+        "beta.result": "changed\n",
+        "gamma.queued": "queued\n",
+        "gamma.result": "gamma\n"
+      },
+      "seen": "anchor\nread-before\nread-after\nrecipe-init\n",
+      "stdout": "VALUE=changed\n",
+      "stderr": "",
+      "status": 0,
+      "candidate_trace": "both-executed eventfd=EMFILE\n"
+    }
+  ]
+}

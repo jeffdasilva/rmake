@@ -3733,16 +3733,19 @@ impl Engine {
         let load_retry = (additional.is_some() && !self.load_waiting.is_empty())
             .then_some(Duration::from_secs(1));
         #[cfg(feature = "guile")]
-        let ready = {
+        let (ready, observed_completion) = {
             let mut workers =
                 if block && !children.is_empty() && self.shutdown.get() == Shutdown::Running {
                     // Optional readiness must not prevent reaping owned children.
                     rmake_linux::guile::WorkerWait::begin()
                         .ok()
-                        .filter(|wait| wait.descriptor().is_some())
+                        .filter(rmake_linux::guile::WorkerWait::is_active)
                 } else {
                     None
                 };
+            let poll_interval = workers
+                .as_ref()
+                .and_then(rmake_linux::guile::WorkerWait::poll_interval);
             let retry_deadline = workers
                 .as_ref()
                 .and(load_retry)
@@ -3756,17 +3759,25 @@ impl Engine {
                     true,
                     additional,
                     workers.as_ref().and_then(|wait| wait.descriptor()),
-                    maximum_wait,
+                    maximum_wait.into_iter().chain(poll_interval).min(),
                 )?;
                 let Some(wait) = &mut workers else {
-                    break events.children;
+                    break (events.children, None);
                 };
                 drop(children);
                 self.observe_interrupt();
                 if self.interrupt.is_some() {
-                    break events.children;
+                    break (events.children, None);
                 }
-                if events.notification_only {
+                let worker_tick = poll_interval.is_some()
+                    && events.timed_out
+                    && retry_deadline.is_none_or(|deadline| std::time::Instant::now() < deadline);
+                // PID-only children are candidates for reaping on every poll.
+                // Keep admission through a timer tick when none has exited.
+                let completion = worker_tick
+                    .then(|| self.ready_parallel_job(&events.children))
+                    .flatten();
+                if events.notification_only || (worker_tick && completion.is_none()) {
                     // A callback did not finish the scheduler wait. Retain
                     // admission across a worker's next synchronous request.
                     if !wait.pending() || self.service_parallel_workers() {
@@ -3781,34 +3792,42 @@ impl Engine {
                     // worker. Service accepted requests before closing it.
                     while !wait.finish_if_idle() && self.service_parallel_workers() {}
                 }
-                break events.children;
+                break (events.children, completion);
             }
         };
         #[cfg(not(feature = "guile"))]
-        let ready = rmake_linux::child::wait(&children, block, true, additional, load_retry)?;
+        let (ready, observed_completion) = (
+            rmake_linux::child::wait(&children, block, true, additional, load_retry)?,
+            None,
+        );
         // Idle nonblocking polls are an internal graph refresh, rather than a
         // visible reaping pass. A ready completion still reports its live scan.
         if !block && !ready.is_empty() {
             self.job_debug.live(self.output.debug_mask());
         }
         self.observe_interrupt();
-        for identity in ready {
+        if let Some(completion) = observed_completion.or_else(|| self.ready_parallel_job(&ready)) {
+            self.complete_job(completion);
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn ready_parallel_job(&mut self, ready: &[u64]) -> Option<JobResult> {
+        for &identity in ready {
             let (target, job) = self
                 .parallel_jobs
                 .entries_mut()
                 .find(|(_, job)| job.identity == identity)
                 .expect("live child identity");
-            let result = job.child.as_mut().expect("live child").try_wait();
-            let result = match result {
-                Ok(Some(status)) => Some(Ok(status)),
+            let result = match job.child.as_mut().expect("live child").try_wait() {
+                Ok(Some(status)) => Ok(status),
                 Ok(None) => continue,
-                Err(error) => Some(Err(error)),
+                Err(error) => Err(error),
             };
-            let target = target.to_vec();
-            self.complete_job((target, identity, result));
-            return Ok(true);
+            return Some((target.to_vec(), identity, Some(result)));
         }
-        Ok(false)
+        None
     }
 
     fn observe_interrupt(&mut self) {
@@ -3918,15 +3937,15 @@ impl Engine {
                 });
             }
             #[cfg(feature = "guile")]
-            let worker_wake = workers.descriptor();
+            let (worker_wake, retry) = (workers.descriptor(), workers.poll_interval());
             #[cfg(not(feature = "guile"))]
-            let worker_wake = None::<std::os::fd::BorrowedFd<'_>>;
+            let (worker_wake, retry) = (None::<std::os::fd::BorrowedFd<'_>>, None);
             rmake_linux::child::wait(
                 &[(0, child)],
                 true,
                 true,
                 worker_wake.map(|fd| std::os::fd::AsRawFd::as_raw_fd(&fd)),
-                None,
+                retry,
             )?;
         }
     }

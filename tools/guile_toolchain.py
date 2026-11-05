@@ -295,6 +295,15 @@ def provision(destination):
         return provision_locked(destination)
 
 
+def publish_reference_profile(destination, record):
+    # The frontend consumes this stable path. Replace it atomically so a reader
+    # always sees one complete verified record.
+    with tempfile.TemporaryDirectory(prefix='.reference-profile-', dir=destination) as tmp:
+        profile = Path(tmp) / 'profile.json'
+        profile.write_bytes(record)
+        profile.replace(destination / 'reference-profile.json')
+
+
 def build_reference(destination):
     """Build the fixed GNU source solely as a separate comparison executable."""
     configuration = json.loads((ROOT / 'oracle/manifest.json').read_text())
@@ -310,13 +319,15 @@ def build_reference(destination):
     prefix = parent / identity
     profile_path = parent / (identity + '.json')
     if profile_path.exists():
-        profile = json.loads(profile_path.read_text())
+        record = profile_path.read_bytes()
+        profile = json.loads(record)
         if profile['inputs'] != inputs:
             raise ProfileError('cached enabled-reference inputs differ')
         for item in [profile['binary'], *profile['runtime_dependencies']]:
             path = Path(item['path'])
             if not path.is_file() or digest(path.read_bytes()) != item['sha256']:
                 raise ProfileError('cached enabled-reference runtime differs')
+        publish_reference_profile(destination, record)
         return profile
     if prefix.exists():
         # Preserve an earlier incomplete install rather than accepting it.
@@ -364,8 +375,9 @@ def build_reference(destination):
                'runtime_dependencies': runtime, 'smoke_input_hex': body.hex(),
                'smoke_stdout_hex': result.stdout.hex(), 'smoke_stderr_hex': result.stderr.hex(),
                'build_log_sha256': digest(log_path.read_bytes())}
-    profile_path.write_text(json.dumps(profile, indent=2) + '\n')
-    (destination / 'reference-profile.json').write_bytes(profile_path.read_bytes())
+    record = (json.dumps(profile, indent=2) + '\n').encode()
+    profile_path.write_bytes(record)
+    publish_reference_profile(destination, record)
     print('Verified separate Guile-enabled GNU4.4.1 reference:', binary)
     return profile
 

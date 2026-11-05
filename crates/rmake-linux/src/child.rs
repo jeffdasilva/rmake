@@ -283,6 +283,7 @@ pub fn wait(
 pub struct WaitEvents {
     pub children: Vec<u64>,
     pub notification_only: bool,
+    pub timed_out: bool,
 }
 
 /// Preserve the distinction between a private notification and any child,
@@ -371,6 +372,7 @@ pub fn wait_with_notification(
     Ok(WaitEvents {
         children: ready,
         notification_only,
+        timed_out: result == 0,
     })
 }
 

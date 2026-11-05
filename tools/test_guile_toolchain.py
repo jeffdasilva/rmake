@@ -4,10 +4,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
+import guile_frontend_gate as frontend
 import guile_toolchain as g
 
 
@@ -98,6 +100,102 @@ class GuileToolchainTests(unittest.TestCase):
             self.assertEqual(arguments['env']['CARGO_TARGET_DIR'], str(g.ROOT / 'target/guile-component'))
             self.assertEqual(arguments['env']['GUILE_AUTO_COMPILE'], '0')
             self.assertIn('guile_dispatcher', execute.call_args.args[0])
+
+    def test_verified_warm_reference_republishes_the_profile_consumed_by_the_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            destination = root / 'sdk'
+            references = destination / 'references'
+            references.mkdir(parents=True)
+            archive = root / '.tools/downloads/make-4.4.1.tar.gz'
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b'locked GNU input')
+            lock = root / 'oracle/guile/toolchain.json'
+            lock.parent.mkdir(parents=True)
+            lock.write_bytes(b'locked SDK input')
+            source_identity = g.digest(archive.read_bytes())
+            (root / 'oracle/manifest.json').write_text(json.dumps({'archive': {'sha256': source_identity}}))
+            inputs = {
+                'source_sha256': source_identity,
+                'tool_lock_sha256': g.digest(lock.read_bytes()),
+                'compiler_sha256': g.digest(Path('/usr/bin/cc').read_bytes()),
+                'destination': str(destination),
+            }
+            binary = root / 'reference-make'
+            binary.write_bytes(b'verified build')
+            library = root / 'libguile.so'
+            library.write_bytes(b'verified runtime')
+            profile = {
+                'inputs': inputs,
+                'binary': {'path': str(binary), 'sha256': g.digest(binary.read_bytes())},
+                'runtime_dependencies': [{'path': str(library), 'sha256': g.digest(library.read_bytes())}],
+            }
+            key = g.digest(json.dumps(inputs, sort_keys=True).encode())
+            record = json.dumps(profile, indent=2).encode() + b'\n'
+            (references / (key + '.json')).write_bytes(record)
+            alias = destination / 'reference-profile.json'
+            with patch.object(g, 'ROOT', root), patch.object(g, 'LOCK', lock), patch.object(g.subprocess, 'run') as execute:
+                for old in (None, b'{"stale":true}\n'):
+                    with self.subTest(previous=old):
+                        alias.unlink(missing_ok=True)
+                        if old is not None:
+                            alias.write_bytes(old)
+                        self.assertEqual(g.build_reference(destination), profile)
+                        self.assertTrue(alias.is_file())
+                        self.assertEqual(alias.read_bytes(), record)
+                library.write_bytes(b'changed runtime')
+                alias.write_bytes(b'must not republish')
+                with self.assertRaisesRegex(g.ProfileError, 'cached enabled-reference runtime differs'):
+                    g.build_reference(destination)
+                self.assertEqual(alias.read_bytes(), b'must not republish')
+                execute.assert_not_called()
+
+    def test_frontend_gate_cannot_inherit_single_child_selectors(self):
+        selectors = {
+            'RMAKE_GUILE_COMPONENT_CASE': 'outside',
+            'RMAKE_NATIVE_ENTRY_CASE': 'one-case',
+            'RMAKE_STARTUP_OWNER_UNIT_CHILD': '1',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'reports'
+            defaults = []
+            for label in ('debug', 'release'):
+                default = root / f'default-{label}'
+                default.touch()
+                defaults.append(default)
+                enabled = output / 'cargo-target' / label / 'rmake'
+                enabled.parent.mkdir(parents=True)
+                enabled.touch()
+            arguments = ['guile_frontend_gate.py', '--profile', str(root / 'reference-profile.json'),
+                         '--default-debug', str(defaults[0]), '--default-release', str(defaults[1]),
+                         '--output', str(output)]
+            profile = {'environment': g.environment(root / 'sdk')}
+            with (patch.object(sys, 'argv', arguments), patch.dict(os.environ, selectors),
+                  patch.object(frontend, 'read_profile', return_value=profile),
+                  patch.object(frontend.subprocess, 'run') as execute):
+                self.assertEqual(frontend.main(), 0)
+                commands = execute.call_args_list
+                workspace_tests = [command.args[0] for command in commands
+                                   if command.args[0][1:4] == ['tools/rust.py', 'cargo', 'test']]
+                self.assertEqual(len(workspace_tests), 1)
+                command, = workspace_tests
+                self.assertIn('--all-targets', command)
+                self.assertIn('--workspace', command)
+                self.assertIn('--locked', command)
+                feature = command.index('--features')
+                self.assertEqual(command[feature + 1], 'guile')
+                for script in ('guile_detached.py', 'guile_eventfd_pressure.py',
+                               'guile_detached_parallel.py', 'guile_parallel_pressure.py'):
+                    selected = [call.args[0] for call in commands
+                                if call.args[0][1:2] == ['tools/' + script]]
+                    with self.subTest(script=script):
+                        self.assertEqual([
+                            Path(argv[argv.index('--candidate') + 1]).name for argv in selected
+                        ], ['enabled-debug', 'enabled-release'])
+                for command in commands:
+                    self.assertTrue(selectors.keys().isdisjoint(command.kwargs['env']), command.args)
+                self.assertEqual({key: os.environ[key] for key in selectors}, selectors)
 
 
 if __name__ == '__main__': unittest.main()
