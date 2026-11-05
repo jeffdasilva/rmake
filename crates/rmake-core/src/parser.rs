@@ -113,6 +113,10 @@ struct LoadHost<'a, 'b> {
 }
 
 impl crate::native::NativeHost for LoadHost<'_, '_> {
+    fn guile_callback(&mut self, callback: crate::native::GuileCallback<'_>) {
+        self.context.guile_callback(callback);
+    }
+
     fn registered_function_name(&mut self, name: &[u8]) {
         if let Some(history) = self.database.database_history() {
             history.intern(name);

@@ -101,6 +101,7 @@ pub enum ReaderEvent<'a> {
 pub trait OutputReceiver {
     fn emit(&mut self, event: Output<'_>);
     fn reader_event(&mut self, _event: ReaderEvent<'_>) {}
+    fn guile_callback(&mut self, _callback: crate::native::GuileCallback<'_>) {}
     /// An application may freeze a system message under the active locale/domain.
     /// None keeps the pure core's English identity behavior.
     fn format_system_message(
@@ -971,6 +972,14 @@ impl<'a> ExpansionContext<'a> {
     pub fn reader_event(&mut self, event: ReaderEvent<'_>) {
         if let Some(output) = self.output.as_mut() {
             output.reader_event(event);
+        }
+    }
+
+    pub(crate) fn guile_callback(&mut self, callback: crate::native::GuileCallback<'_>) {
+        if !self.is_cancelled()
+            && let Some(output) = self.output.as_mut()
+        {
+            output.guile_callback(callback);
         }
     }
 

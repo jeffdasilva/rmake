@@ -9,7 +9,15 @@ use std::rc::Rc;
 use crate::diagnostic::{Location, Output};
 use crate::variables::ExpandError;
 
+/// The converted bytes of a Scheme callback, before the interpreter acts.
+#[derive(Clone, Copy, Debug)]
+pub enum GuileCallback<'a> {
+    Expand(&'a [u8]),
+    Evaluate(&'a [u8]),
+}
+
 pub trait NativeHost {
+    fn guile_callback(&mut self, _callback: GuileCallback<'_>) {}
     /// Observe one validated public registration before registry insertion.
     /// Interpreter hosts retain its string-cache event without expansion or I/O.
     fn registered_function_name(&mut self, _name: &[u8]) {}

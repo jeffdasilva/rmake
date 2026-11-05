@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import tempfile
 
 import conformance as h
+import locale_data
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "tests/guile-frontend"
@@ -48,9 +49,9 @@ def prepare(specification, row, directory):
         flags = ["-pthread", *(["-DPHASE_REDIRECT=1"] if row["redirect"] else [])]
         output = "phase_redirect.so" if row["redirect"] else "phase_probe.so"
         compile_spec.append(("phase.c", output, flags, ["-ldl"]))
-    if schema == "signal":
-        if files["signal.c"] != source.read_bytes().hex():
-            raise h.HarnessError("signal source differs from its pinned plan")
+    if schema == "signal" or "compile_shared" in row:
+        if source is None or files.get(source.name) != source.read_bytes().hex():
+            raise h.HarnessError("shared fixture source differs from its pinned plan")
         compile_spec.extend((name, target, [], []) for name, target in row["compile_shared"])
     records = []
     for name, target, flags, libraries in compile_spec:
@@ -74,9 +75,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, required=True)
     parser.add_argument("--candidate", type=Path)
-    parser.add_argument("--suite", action="append", choices=("language", "phase", "home", "signal", "stdin", "valid-text"), default=[])
+    parser.add_argument("--suite", action="append", choices=("language", "phase", "home", "signal", "stdin", "valid-text", "callback-debug", "module", "module-callback"), default=[])
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--locale-root", type=Path, default=ROOT / ".tools/locale-data")
     args = parser.parse_args()
     if args.report.exists():
         raise h.HarnessError("refusing to replace existing evidence")
@@ -109,6 +111,15 @@ def main():
               "profile_sha256": h.sha256_file(args.profile), "model_inventory_sha256": h.sha256_file(DATA / "suites.json"),
               "oracle": h.executable_identity(oracle, oracle=True), "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "functional_cpu_affinity": sorted(os.sched_getaffinity(0)), "records": [], "passed": False}
+    locales = {row["locale"] for _, row in selected if "locale" in row}
+    locale_profile = None
+    if locales:
+        if locales != {"fr_FR.UTF-8"}:
+            raise h.HarnessError("unexpected Guile fixture locale")
+        locale_profile = locale_data.provision(args.locale_root.resolve())
+        if locale_profile["locale"] not in locales:
+            raise h.HarnessError("locale profile differs from the fixture")
+        report["locale_profile"] = locale_profile
     def publish():
         args.report.write_text(json.dumps(report, indent=2) + "\n")
     with tempfile.TemporaryDirectory(prefix="rmake-guile-frontend-") as temporary:
@@ -128,6 +139,9 @@ def main():
             case_environment = dict(environment)
             case_environment["GNUMAKEFLAGS"] = row.get("gnumakeflags", "")
             case_environment.update(row.get("environment", {}))
+            if "locale" in row:
+                case_environment.update(locale_profile["environment"])
+                case_environment.update({"LC_ALL": row["locale"], "LANG": row["locale"]})
             case = h.Case(directory, row["id"], "guile.frontend", "required", tuple(row["args"]), 5, case_environment,
                           {"exit_code": expected["status"], "stdout_hex": expected["stdout"].encode().hex(),
                            "stderr_hex": expected["stderr"].encode().hex()}, "separate")
@@ -171,5 +185,5 @@ def main():
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except h.HarnessError as error:
+    except (h.HarnessError, locale_data.ProfileError) as error:
         raise SystemExit(str(error)) from error

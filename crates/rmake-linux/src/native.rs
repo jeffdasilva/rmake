@@ -19,6 +19,15 @@ use rmake_core::native::{
 };
 use rmake_core::variables::{ExpandError, MAX_OUTPUT};
 
+#[cfg(feature = "guile")]
+use rmake_core::native::GuileCallback;
+
+// Private request kinds shared with guile_worker_packet.h.
+#[cfg(feature = "guile")]
+const GUILE_EXPAND: c_int = 7;
+#[cfg(feature = "guile")]
+const GUILE_EVALUATE: c_int = 8;
+
 #[repr(C)]
 struct ForeignLocation {
     file: *const c_char,
@@ -375,7 +384,14 @@ impl Runtime {
             if !self.0.exiting.get() && crate::guile::pending_signal().is_some() {
                 return Err(ExpandError::Cancelled);
             }
-            match request.kind {
+            let kind = request.kind;
+            #[cfg(feature = "guile")]
+            let kind = match kind {
+                GUILE_EXPAND => 1,
+                GUILE_EVALUATE => 2,
+                _ => kind,
+            };
+            match kind {
                 0 => {
                     session.completed = true;
                     return Ok(ResultValue {
@@ -386,6 +402,10 @@ impl Runtime {
                 }
                 1 => {
                     let input = bytes(request.text);
+                    #[cfg(feature = "guile")]
+                    if request.kind == GUILE_EXPAND {
+                        host.guile_callback(GuileCallback::Expand(&input));
+                    }
                     reply = allocated(&host.expand(&input)?)?;
                 }
                 2 => {
@@ -403,6 +423,10 @@ impl Runtime {
                             line: l.line as usize,
                         })
                     };
+                    #[cfg(feature = "guile")]
+                    if request.kind == GUILE_EVALUATE {
+                        host.guile_callback(GuileCallback::Evaluate(&input));
+                    }
                     host.evaluate(&input, location.as_ref())?;
                 }
                 3 => self.register(request, owner.clone(), host)?,

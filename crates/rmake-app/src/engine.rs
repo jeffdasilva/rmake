@@ -556,6 +556,10 @@ impl<'a> RuntimeOutput<'a> {
     }
 }
 impl OutputReceiver for RuntimeOutput<'_> {
+    fn guile_callback(&mut self, callback: rmake_core::native::GuileCallback<'_>) {
+        crate::debug::guile_callback(self.controller, callback);
+    }
+
     fn format_system_message(
         &mut self,
         message: rmake_core::messages::MessageRef<'_>,

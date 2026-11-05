@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument('--default-debug', type=Path, required=True)
     parser.add_argument('--default-release', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--locale-root', type=Path, default=ROOT / '.tools/locale-data')
     args = parser.parse_args()
     profile = read_profile(args.profile)
     # This ordinary Make recipe starts isolated campaigns, not recursive jobs.
@@ -51,7 +52,8 @@ def main() -> int:
     run([*cargo, 'clippy', '--all-targets', *common, '--', '-D', 'warnings'], build_env)
     run([*cargo, 'build', *common], build_env)
     run([*cargo, 'build', '--release', *common], build_env)
-    compare = [python, 'tools/guile_frontend.py', '--profile', str(args.profile.resolve())]
+    compare = [python, 'tools/guile_frontend.py', '--profile', str(args.profile.resolve()),
+               '--locale-root', str(args.locale_root.resolve())]
     detached = [python, 'tools/guile_detached.py', '--profile', str(args.profile.resolve())]
     pressure = [python, 'tools/guile_eventfd_pressure.py', '--profile', str(args.profile.resolve())]
     parallel = [python, 'tools/guile_detached_parallel.py', '--profile', str(args.profile.resolve())]

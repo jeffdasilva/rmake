@@ -110,30 +110,34 @@ char *gmk_alloc(unsigned int length) {
     return value;
 }
 void gmk_free(char *value) { free(value); }
-char *gmk_expand(const char *text) {
+static void *text_request(int kind, const char *text,
+                          const struct rm_location *location) {
 #ifdef RMAKE_GUILE_DISPATCH
     if(!active&&rg_workers_can_submit()) {
-        struct rm_request request={.kind=1,.text=text};
+        struct rm_request request={.kind=kind,.text=text,.location=location};
         return rg_workers_submit(&request);
     }
 #endif
     struct rm_session *s = current();
     s->request.text = text;
-    yield_request(s, 1);
+    s->request.location = location;
+    yield_request(s, kind);
     return s->reply;
 }
+char *gmk_expand(const char *text) { return text_request(1, text, NULL); }
 void gmk_eval(const char *text, const struct rm_location *location) {
-#ifdef RMAKE_GUILE_DISPATCH
-    if(!active&&rg_workers_can_submit()) {
-        struct rm_request request={.kind=2,.text=text,.location=location};
-        (void)rg_workers_submit(&request);return;
-    }
-#endif
-    struct rm_session *s = current();
-    s->request.text = text;
-    s->request.location = location;
-    yield_request(s, 2);
+    (void)text_request(2, text, location);
 }
+#ifdef RMAKE_GUILE_DISPATCH
+__attribute__((visibility("hidden")))
+char *rm_guile_expand(const char *text) {
+    return text_request(RG_GUILE_EXPAND, text, NULL);
+}
+__attribute__((visibility("hidden")))
+void rm_guile_evaluate(const char *text) {
+    (void)text_request(RG_GUILE_EVALUATE, text, NULL);
+}
+#endif
 void gmk_add_function(const char *name, rm_callback function,
                       unsigned int minimum, unsigned int maximum,
                       unsigned int flags) {

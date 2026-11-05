@@ -5,6 +5,12 @@
 #include <stdint.h>
 #include "guile_environment.h"
 
+/* These kinds are mirrored by the Rust native request dispatcher. */
+enum rg_guile_request_kind {
+    RG_GUILE_EXPAND = 7,
+    RG_GUILE_EVALUATE = 8,
+};
+
 struct rg_worker_location {const char *file;unsigned long line;};
 struct rg_worker_request {
     int kind;

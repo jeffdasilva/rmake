@@ -3792,6 +3792,10 @@ fn local(value: Vec<u8>) -> Variable {
 }
 
 impl crate::native::NativeHost for Expansion<'_, '_> {
+    fn guile_callback(&mut self, callback: crate::native::GuileCallback<'_>) {
+        self.context.guile_callback(callback);
+    }
+
     fn registered_function_name(&mut self, name: &[u8]) {
         self.store.registered_function_name(name);
     }

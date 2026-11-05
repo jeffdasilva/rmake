@@ -24,7 +24,8 @@ struct rg_worker_packet *rg_worker_packet_copy(const void *request) {
     const char *text=NULL;
     const struct rg_worker_location *location=NULL;
     if(packet->request.kind==1||packet->request.kind==2
-       ||packet->request.kind==3||packet->request.kind==5)
+       ||packet->request.kind==3||packet->request.kind==5
+       ||packet->request.kind==RG_GUILE_EXPAND||packet->request.kind==RG_GUILE_EVALUATE)
         text=packet->request.text;
     if(packet->request.kind==2)location=packet->request.location;
     /* Completion/interrupt records may retain irrelevant pointers to an older
