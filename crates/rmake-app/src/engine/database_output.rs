@@ -52,8 +52,11 @@ impl Engine {
         if crate::native::has_modules() {
             let _ = rmake_linux::native::flush_stream(false);
         }
-        let result = self.write_database(&mut io::stdout().lock());
-        if let Err(error) = result {
+        let mut output = rmake_linux::output::Stdout::default();
+        let result = self.write_database(&mut output);
+        if let Err(error) = result
+            && !output.failed()
+        {
             self.stderr(&[b"write error: ".as_slice(), os_error(&error).as_bytes()].concat());
         }
     }
@@ -306,8 +309,8 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
     let Some(history) = host.database.database_history() else {
         return;
     };
+    let mut output = rmake_linux::output::Stdout::default();
     let result = (|| {
-        let mut output = io::stdout().lock();
         database::write_database_open(&mut output, &rmake_linux::clock::current_ctime()?)?;
         let files: Vec<_> = host
             .database
@@ -333,7 +336,9 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
         database::write_database_close(&mut output, &rmake_linux::clock::current_ctime()?)?;
         output.flush()
     })();
-    if let Err(error) = result {
+    if let Err(error) = result
+        && !output.failed()
+    {
         host.output.write_parts(
             true,
             &[

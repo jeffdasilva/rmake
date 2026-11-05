@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "parent-info-stdout",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "$(info ABCDEFGH)\nall:; @/usr/bin/touch done\n"
+      },
+      "created": {
+        "capture": "ABCDE",
+        "done": ""
+      },
+      "stdout": "",
+      "stderr": "make: write error: stdout\n",
+      "status": 1
+    },
+    {
+      "id": "parent-recipe-echo-stdout",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-n"
+      ],
+      "files": {
+        "Makefile": "all:; /usr/bin/touch done\n"
+      },
+      "created": {
+        "capture": "/usr/"
+      },
+      "stdout": "",
+      "stderr": "make: write error: stdout\n",
+      "status": 1
+    },
+    {
+      "id": "child-only-stdout",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "all:; @./emit\n"
+      },
+      "created": {
+        "capture": "ABCDE"
+      },
+      "emit": true,
+      "stdout": "",
+      "stderr": "",
+      "status": 0
+    },
+    {
+      "id": "synchronized-replay-stdout",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "all:; @./emit\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB"
+      },
+      "emit": true,
+      "stdout": "",
+      "stderr": "make: write error: stdout\n",
+      "status": 1
+    },
+    {
+      "id": "parent-warning-stderr",
+      "mode": "stderr",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "$(warning ABCDEFGH)\nall:; @/usr/bin/touch done\n"
+      },
+      "created": {
+        "capture": "Makef",
+        "done": ""
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0
+    },
+    {
+      "id": "synchronized-newline-write-stdout",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "all:; @./emit newline\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB"
+      },
+      "emit": true,
+      "stdout": "",
+      "stderr": "fwrite(): File too large\nmake: write error: stdout\n",
+      "status": 1
+    },
+    {
+      "id": "synchronized-stderr-write",
+      "mode": "stderr-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "all:; @./emit stderr\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB"
+      },
+      "emit": true,
+      "stdout": "",
+      "stderr": "",
+      "status": 0
+    },
+    {
+      "id": "stdout-failure-overrides-fatal",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "$(info ABCDEFGH)\nall:; @$(error build-error)\n"
+      },
+      "created": {
+        "capture": "ABCDE"
+      },
+      "stdout": "",
+      "status": 1,
+      "stderr": "Makefile:2: *** build-error.  Stop.\nmake: write error: stdout\n"
+    },
+    {
+      "id": "recursive-stdout-failure-prefix",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "env": {
+        "MAKELEVEL": "3"
+      },
+      "files": {
+        "Makefile": "$(info ABCDEFGH)\nall:; @:\n"
+      },
+      "created": {
+        "capture": "ABCDE"
+      },
+      "stdout": "",
+      "status": 1,
+      "stderr": "make[3]: write error: stdout\n"
+    },
+    {
+      "id": "database-stdout-failure",
+      "mode": "stdout",
+      "limit": 0,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-p"
+      ],
+      "files": {
+        "Makefile": "all:; @:\n"
+      },
+      "created": {
+        "capture": ""
+      },
+      "stdout": "",
+      "stderr": "make: write error: stdout\n",
+      "status": 1
+    },
+    {
+      "id": "help-stdout-close-failure",
+      "mode": "stdout",
+      "limit": 0,
+      "args": [
+        "--help"
+      ],
+      "files": {},
+      "created": {
+        "capture": ""
+      },
+      "stdout": "",
+      "status": 1,
+      "stderr": "make: write error: stdout: File too large\n"
+    },
+    {
+      "id": "version-stdout-close-failure",
+      "mode": "stdout",
+      "limit": 0,
+      "args": [
+        "--version"
+      ],
+      "files": {},
+      "created": {
+        "capture": ""
+      },
+      "stdout": "",
+      "status": 1,
+      "stderr": "make: write error: stdout: File too large\n"
+    },
+    {
+      "id": "native-libc-stdout-ferror",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "native": true,
+      "env": {
+        "NATIVE_WRITE": "1"
+      },
+      "files": {
+        "Makefile": "load ./native_probe.so\nall:; @/usr/bin/touch done\n"
+      },
+      "created": {
+        "capture": "ABCDE",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n",
+        "done": ""
+      },
+      "stdout": "",
+      "stderr": "make: write error: stdout\n",
+      "status": 1
+    },
+    {
+      "id": "native-host-stdout-ferror",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "native": true,
+      "env": {},
+      "files": {
+        "Makefile": "load ./native_probe.so\n$(info ABCDEFGH)\nall:; @/usr/bin/touch done\n"
+      },
+      "created": {
+        "capture": "ABCDE",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n",
+        "done": ""
+      },
+      "stdout": "",
+      "stderr": "make: write error: stdout\n",
+      "status": 1
+    }
+  ]
+}

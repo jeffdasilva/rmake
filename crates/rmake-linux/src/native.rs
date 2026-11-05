@@ -891,8 +891,7 @@ pub fn flush_standard_streams() -> std::io::Result<()> {
     }
 }
 
-/// GNU's native-visible stdout is line buffered independently of Rust output.
-/// Sessions initialize this lazily before the first object constructor executes.
+/// Initialize the native-visible line-buffered stdout stream once.
 pub fn initialize_stdio() {
     unsafe { rm_native_stdio_initialize() };
 }

@@ -3,8 +3,6 @@
 
 //! Debug requests preserve input history; events describe interpreter decisions.
 //! Rendering never evaluates make expressions or performs filesystem searches.
-use std::io::{self, Write};
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Mask(u8);
 impl Mask {
@@ -113,9 +111,7 @@ pub fn raw(parts: &[&[u8]]) {
     if crate::native::has_modules() {
         let _ = rmake_linux::native::flush_stream(false);
     }
-    let mut stdout = io::stdout().lock();
-    let _ = parts.iter().try_for_each(|part| stdout.write_all(part));
-    let _ = stdout.flush();
+    crate::output::stdout_parts(parts);
 }
 
 #[derive(Clone, Copy)]

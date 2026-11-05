@@ -1019,6 +1019,7 @@ impl Engine {
                 .map_or(b"".as_slice(), |variable| variable.raw_value()),
         );
         exit_level = makelevel;
+        rmake_linux::output::set_stdout_level(makelevel);
         output.set_recursive(makelevel != 0);
         let program_base_length = program.len();
         if makelevel != 0 {
@@ -3095,10 +3096,7 @@ impl Engine {
             if let Err(error) = result {
                 // GNU flushes the partial command before the unlink diagnostic
                 // and begins a new command for any later removable record.
-                let mut out = io::stdout().lock();
-                let _ = out.write_all(&line);
-                let _ = out.flush();
-                drop(out);
+                crate::output::stdout_parts(&[&line]);
                 line.clear();
                 self.stderr(
                     &[
@@ -7800,7 +7798,7 @@ impl Engine {
                     order: emitted_order,
                 });
             }
-            let _ = io::stdout().flush();
+            let _ = rmake_linux::native::flush_stream(false);
             let stdin_owner = !parallel || !self.parallel_jobs.values().any(|job| job.stdin_owner);
             if let Some(buffer) = &output {
                 buffer.child_reaped(false);
