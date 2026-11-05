@@ -12,6 +12,7 @@ import tempfile
 
 import conformance as h
 import oracle
+import nls_diagnostics
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / 'tests/stdout-file-size'
@@ -24,7 +25,7 @@ def file_record(value, mode=0o644):
             'sha256': hashlib.sha256(raw).hexdigest(), 'content': base64.b64encode(raw).decode()}
 
 
-def execute(model, inputs, runtime, binaries, emit, native):
+def execute(model, inputs, runtime, binaries, emit, native, locale):
     fixture = inputs / model['id']
     fixture.mkdir()
     for name, contents in model['files'].items():
@@ -44,8 +45,10 @@ def execute(model, inputs, runtime, binaries, emit, native):
         expected = h.snapshot(roots)
         command = ['/usr/bin/python3', 'launch.py', model['mode'], str(model['limit']),
                    str(roots['bin'] / 'make'), *case.args]
-        out, err, status, bound, left = h.capture(command, roots['work'],
-                                                 h.clean_environment(runtime, case.environment), case.timeout)
+        environment = h.clean_environment(runtime, case.environment)
+        if model.get('locale') == 'fr':
+            environment.update(locale['environment'], LC_ALL=locale['locale'])
+        out, err, status, bound, left = h.capture(command, roots['work'], environment, case.timeout)
         filesystem = h.snapshot(roots)
         for name, contents in model['created'].items():
             expected['work/' + name] = file_record(contents)
@@ -70,6 +73,7 @@ def main():
     parser.add_argument('--oracle-only', action='store_true')
     parser.add_argument('--case', action='append', default=[])
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--locale-root', type=Path, default=ROOT / '.tools/locale-data')
     args = parser.parse_args()
     if args.oracle_only == (args.candidate is not None):
         parser.error('supply either --candidate or --oracle-only')
@@ -84,6 +88,10 @@ def main():
         if unknown := set(args.case) - {row['id'] for row in models}:
             parser.error(f'unknown case: {", ".join(sorted(unknown))}')
         models = [row for row in models if row['id'] in args.case]
+    locale = None
+    if any(row.get('locale') == 'fr' for row in models):
+        key = json.loads((nls_diagnostics.DATA / 'models.json').read_bytes())['reference_catalog_sha256']
+        _, _, _, locale = nls_diagnostics.prepare_reference(reference, key, args.locale_root)
     previous = os.umask(0o022)
     try:
         with tempfile.TemporaryDirectory(prefix='rmake-file-size-') as temp:
@@ -103,7 +111,7 @@ def main():
                     raise h.HarnessError(f'output witness compilation failed: {status}, {err!r}')
                 build.append({'command': cc, 'stdout_hex': out.hex(), 'stderr_hex': err.hex(),
                               'sha256': h.sha256_file(output)})
-            rows = [execute(row, inputs, runtime, binaries, emit, native)
+            rows = [execute(row, inputs, runtime, binaries, emit, native, locale)
                     for row in models]
     finally:
         os.umask(previous)
@@ -113,7 +121,7 @@ def main():
               'source_hashes': {str(path.relative_to(ROOT)): h.sha256_file(path) for path in
                                 (Path(__file__).resolve(), MODELS, FIXTURES / 'launch.py',
                                  FIXTURES / 'emit.c', FIXTURES / 'native.c')},
-              'results': rows}
+              'locale_profile': locale, 'results': rows}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     with args.report.open('w') as stream:
         json.dump(report, stream, indent=2)

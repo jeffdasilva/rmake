@@ -56,3 +56,19 @@ pub fn render_ref(message: MessageRef<'_>) -> Result<Vec<u8>, FormatError> {
 pub fn render_format(key: &'static CStr, args: &[Argument<'_>]) -> Result<Vec<u8>, FormatError> {
     checked_format(&lookup_static(key)?, args)
 }
+
+/// Preserve the live catalog and perror formatting for the C stdout owner.
+pub(crate) fn render_stdout_error(detail: Option<&[u8]>) -> Vec<u8> {
+    let key = c"write error: stdout";
+    let label = lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
+    let Some(detail) = detail else { return label };
+    let key = c"%s%s: %s";
+    let args = [
+        Argument::Bytes(&label),
+        Argument::Bytes(b""),
+        Argument::Bytes(detail),
+    ];
+    lookup_static(key)
+        .and_then(|template| checked_format(&template, &args))
+        .unwrap_or_else(|_| [&label, b": ".as_slice(), detail].concat())
+}

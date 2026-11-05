@@ -3,7 +3,7 @@
 
 //! Owned output spools and GNU-compatible POSIX byte-range coordination.
 //! Only this adapter deals with temporary descriptors and fcntl lock records.
-use std::ffi::{CString, c_char, c_int, c_short};
+use std::ffi::{CStr, CString, c_char, c_int, c_short};
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
@@ -20,6 +20,29 @@ unsafe extern "C" {
     fn rm_register_stdout_close();
     fn rm_set_stdout_level(level: u32);
     fn rm_write_standard(error: c_int, bytes: *const u8, length: usize) -> usize;
+}
+
+/// Render into the C finalizer's existing stack buffer. The callback neither
+/// accesses an application host nor retains a pointer from the closing stream.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn rm_format_stdout_error(
+    detail: *const c_char,
+    buffer: *mut c_char,
+    capacity: usize,
+) {
+    if capacity == 0 {
+        return;
+    }
+    // SAFETY: the C caller supplies either NULL or a live strerror string and
+    // a writable stack buffer of the given size. Copy the strerror text before
+    // calling gettext, which also uses the current libc locale.
+    let detail = (!detail.is_null()).then(|| unsafe { CStr::from_ptr(detail) }.to_bytes().to_vec());
+    let message = crate::messages::render_stdout_error(detail.as_deref());
+    let length = message.len().min(capacity - 1);
+    unsafe {
+        std::ptr::copy_nonoverlapping(message.as_ptr(), buffer.cast(), length);
+        *buffer.add(length) = 0;
+    }
 }
 
 fn write_standard_count(error: bool, bytes: &[u8]) -> usize {

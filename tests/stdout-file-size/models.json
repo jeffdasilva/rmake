@@ -278,6 +278,42 @@
       "stdout": "",
       "stderr": "make: write error: stdout\n",
       "status": 1
+    },
+    {
+      "id": "fr-close",
+      "mode": "stdout",
+      "limit": 0,
+      "args": [
+        "--version"
+      ],
+      "files": {},
+      "created": {
+        "capture": ""
+      },
+      "stdout": "",
+      "status": 1,
+      "stderr": "make: erreur d'écriture : stdout : File too large\n",
+      "locale": "fr"
+    },
+    {
+      "id": "fr-previous-write",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "$(info ABCDEFGH)\nall:; @/usr/bin/touch done\n"
+      },
+      "created": {
+        "capture": "ABCDE",
+        "done": ""
+      },
+      "stdout": "",
+      "stderr": "make: erreur d'écriture : stdout\n",
+      "status": 1,
+      "locale": "fr"
     }
   ]
 }

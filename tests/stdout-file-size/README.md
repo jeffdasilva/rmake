@@ -14,3 +14,8 @@ The original C extension checks that both its own write and a Makefile
 info message set the shared stdout error indicator. Its exit callback
 sees the live stream before close, and its ELF destructor sees the
 descriptor closed. Separate stderr cases preserve normal exit status.
+
+Two comparisons also use the verified French locale. They check both the
+previous-write error label and the localized perror separator when the
+actual close fails. The existing checked byte formatter handles the catalog
+template without passing it to C varargs.
