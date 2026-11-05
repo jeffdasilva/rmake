@@ -19,6 +19,7 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 .PHONY: test-resource-fd-parallel
 
+.PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
 .PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose
@@ -315,6 +316,12 @@ test-runtime-signals: build oracle-verify
 test-startup-exits: build oracle-verify
 	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
+
+test-shell-capture-lifetime: build oracle-verify
+	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/development.json
+
+test-shell-capture-lifetime-release: release oracle-verify
+	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/optimized.json
 
 test-runtime-effects: build oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --self-test
@@ -746,6 +753,10 @@ check: test-integration test-database-output test-database-lifecycle test-databa
 test: test-trace-nls
 check: test-trace-nls
 test-m4-release: test-trace-nls-release
+
+test: test-shell-capture-lifetime
+check: test-shell-capture-lifetime
+test-m4-release: test-shell-capture-lifetime-release
 
 ci: check test-selfhost
 
