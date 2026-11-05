@@ -453,6 +453,10 @@ comparisons for translated scheduler, parser and built-in `file` diagnostics.
 Only the owned syntax diagnostics are translated; message text from users and
 native extensions still passes through unchanged.
 
+The [native loader localization tranche](nls-diagnostics.md) adds 15 original
+GNU2 cases. The loader carries typed system wrappers to the correct diagnostic
+boundary while preserving the raw `dlerror` argument and foreign/user messages.
+
 The [catalog coverage gate](../tests/catalog-coverage/README.md) checks all 30
 attributed GNU release languages plus three fallback/C controls in both build
 profiles. The complete catalog data are installed with their original source

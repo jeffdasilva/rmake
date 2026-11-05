@@ -7,7 +7,9 @@ import base64
 import hashlib
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
+import sys
 import tempfile
 
 import catalogs
@@ -18,19 +20,47 @@ import oracle as reference
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "tests/nls"
+LOADER_WITNESS = """
+import ctypes
+import locale
+import os
+import sys
+locale.setlocale(locale.LC_ALL, "")
+library = ctypes.CDLL(None)
+library.dlopen.argtypes = [ctypes.c_char_p, ctypes.c_int]
+library.dlopen.restype = ctypes.c_void_p
+library.dlsym.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+library.dlsym.restype = ctypes.c_void_p
+library.dlerror.argtypes = []
+library.dlerror.restype = ctypes.c_char_p
+flags = os.RTLD_LAZY | os.RTLD_GLOBAL
+kind = sys.argv[1]
+if kind == "open":
+    assert not library.dlopen(b"absent_nls.so", flags)
+else:
+    assert kind == "symbol"
+    handle = library.dlopen(b"./loader_probe.so", flags)
+    assert handle
+    assert not library.dlsym(handle, b"nls_missing_setup")
+message = library.dlerror()
+assert message
+os.write(1, message)
+"""
 
 
 def cases(selection):
     data = json.loads((DATA / "models.json").read_bytes())
     structure = json.loads((DATA / "structure.json").read_bytes())
     producers = json.loads((DATA / "producers.json").read_bytes())
-    if (len(data["rows"]), len(structure["rows"]), len(producers["rows"])) != (30, 16, 18):
+    loader = json.loads((DATA / "loader.json").read_bytes())
+    suites = (data, structure, producers, loader)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15):
         raise h.HarnessError("unexpected NLS model inventory")
-    rows = data["rows"] + structure["rows"] + producers["rows"]
+    rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
         raise h.HarnessError("duplicate NLS model ID")
     if any(suite["reference_catalog_sha256"] != data["reference_catalog_sha256"]
-           for suite in (structure, producers)):
+           for suite in suites[1:]):
         raise h.HarnessError("NLS catalog identity differs across suites")
     unknown = set(selection) - {row["id"] for row in rows}
     if unknown:
@@ -42,6 +72,10 @@ def cases(selection):
     if new_fixtures["nls_control.c"] != fixtures["nls_control.c"]:
         raise h.HarnessError("shared NLS fixture identity differs")
     fixtures["producer_native.c"] = new_fixtures["producer_native.c"]
+    loader_fixtures = loader["fixture_sha256"]
+    if set(loader_fixtures) != {"nls_control.c", "loader_probe.c"} or loader_fixtures["nls_control.c"] != fixtures["nls_control.c"]:
+        raise h.HarnessError("loader fixture inventory or shared source identity differs")
+    fixtures["loader_probe.c"] = loader_fixtures["loader_probe.c"]
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -62,6 +96,23 @@ def prepare(row, environment):
                         {"exit_code": expected["exit_code"], "stdout_hex": expected_bytes("stdout").hex(),
                          "stderr_hex": expected_bytes("stderr").hex()}, expected_bytes("seen"), modules,
                         tuple(row["args"]), {**row["environment"], **environment})
+
+
+def loader_witness(case, runtime, kind):
+    if kind not in ("open", "symbol"):
+        raise h.HarnessError("unknown raw loader witness")
+    out, err, status, limit, leftovers = h.capture(
+        [sys.executable, "-c", LOADER_WITNESS, kind], runtime / "work",
+        h.clean_environment(runtime, case.environment), 5,
+    )
+    if status or err or limit or leftovers or not out or b"\n" in out:
+        raise h.HarnessError("could not witness the raw loader error")
+    expected = dict(case.expected)
+    text = bytes.fromhex(expected["stderr_hex"])
+    if text.count(b"@LOADER_DETAIL@") != 1:
+        raise h.HarnessError("loader model must declare exactly one detail argument")
+    expected["stderr_hex"] = text.replace(b"@LOADER_DETAIL@", out).hex()
+    return replace(case, expected=expected), out
 
 
 def prepare_reference(oracle, catalog_sha256, locale_root):
@@ -94,6 +145,7 @@ def main(argv=None):
     report = {"classification": data["classification"], "models_sha256": h.sha256_file(DATA / "models.json"),
               "structure_sha256": h.sha256_file(DATA / "structure.json"),
               "producer_sha256": h.sha256_file(DATA / "producers.json"),
+              "loader_sha256": h.sha256_file(DATA / "loader.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
@@ -117,6 +169,9 @@ def main(argv=None):
                 publish()
                 raise
             h.reset_workspace(case, reset, oracle)
+            if (kind := row.get("loader_fact")) is not None:
+                case, detail = loader_witness(case, reset, kind)
+                record["raw_loader_detail_hex"] = detail.hex()
             expected_files = h.snapshot({name: reset / name for name in ("work", "home", "tmp")})
             expected_files["work/seen"].update(content=base64.b64encode(model.seen).decode(), size=len(model.seen),
                                                sha256=hashlib.sha256(model.seen).hexdigest())

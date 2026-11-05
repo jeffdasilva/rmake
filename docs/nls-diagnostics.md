@@ -113,3 +113,19 @@ These 18 cases extend `test-nls` and `test-nls-release` to 64 diagnostic
 profiles. Their literal expectations use translations from the pinned
 compiled catalog. The 17 directory profiles run through the separate
 directory gate.
+
+## Native loader diagnostics
+
+The loader and registration checks in this gate use checked system templates.
+A missing object still emits the raw loader error before the localized
+failure, and a missing setup symbol passes the raw loader error as one
+template argument. Function names and numeric argument limits retain
+their original values. Private message locales remain active for failures
+reported through an included makefile.
+
+The 15 loader cases bring the diagnostic gate to 79 cases. They include
+optional module handling and custom templates that reorder loader
+arguments. For the raw loader argument, the gate queries the same public
+`dlopen` and `dlsym` interfaces in a separate process before running either
+engine. The remaining diagnostic bytes, exit statuses, and file effects
+come from the literal expectations.
