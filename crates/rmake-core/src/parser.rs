@@ -2492,16 +2492,20 @@ impl Database {
             let pattern = Pattern::new(target);
             if pattern.has_wildcard() {
                 let name = self.expand(assignment.spec.name, location, context)?;
-                let variable = PatternVariable::prepare_with(
+                let value = if assignment.spec.kind == Assignment::Simple && !name.is_empty() {
+                    self.expand(assignment.spec.value, location, context)?
+                } else {
+                    assignment.spec.value.to_vec()
+                };
+                let variable = PatternVariable::prepare_read_value(
                     &self.variables,
                     &name,
-                    assignment.spec.value,
+                    value,
                     assignment.spec.kind,
                     assignment.origin,
                     assignment.private,
                     assignment.export,
                     Some(location),
-                    context.at(Some(location)),
                 )
                 .map_err(|error| ParseError {
                     unlocated: error.is_unlocated(),

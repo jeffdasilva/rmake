@@ -1999,7 +1999,7 @@ impl PatternVariable {
         name: &[u8],
         value: &[u8],
         assignment: Assignment,
-        mut origin: Origin,
+        origin: Origin,
         private: bool,
         export: Option<bool>,
         definition: Option<&Location>,
@@ -2008,11 +2008,32 @@ impl PatternVariable {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        let mut value = if assignment == Assignment::Simple {
+        let value = if assignment == Assignment::Simple {
             globals.expand_with(value, context)?
         } else {
             value.to_vec()
         };
+        Self::prepare_read_value(
+            globals, name, value, assignment, origin, private, export, definition,
+        )
+    }
+
+    /// Retain the RHS prepared by the active reader and then apply the
+    /// existing origin and metadata rules without expanding it again.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn prepare_read_value(
+        globals: &VariableStore,
+        name: &[u8],
+        mut value: Vec<u8>,
+        assignment: Assignment,
+        mut origin: Origin,
+        private: bool,
+        export: Option<bool>,
+        definition: Option<&Location>,
+    ) -> Result<Self, ExpandError> {
+        if name.is_empty() {
+            return Err(ExpandError::EmptyVariableName);
+        }
         if origin != Origin::Override {
             globals.record_database_lookup(name);
         }

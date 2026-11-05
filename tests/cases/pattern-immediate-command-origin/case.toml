@@ -1,0 +1,12 @@
+id = "pattern-immediate-command-origin"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "pattern immediate command origin"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory", "VALUE=command"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "reader=[effect]\nvalue=[command] origin=command line\n"
+stderr = ""
