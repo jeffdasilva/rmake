@@ -339,6 +339,7 @@ pub enum Argument<'a> {
     Unsigned(u64),
     Character(u8),
     FixedDecimal { bytes: &'a [u8], digits: u8 },
+    Pointer(usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -348,6 +349,7 @@ pub enum OwnedArgument {
     Unsigned(u64),
     Character(u8),
     FixedDecimal { bytes: Vec<u8>, digits: u8 },
+    Pointer(usize),
 }
 impl OwnedArgument {
     fn borrowed(&self) -> Argument<'_> {
@@ -360,6 +362,7 @@ impl OwnedArgument {
                 bytes,
                 digits: *digits,
             },
+            Self::Pointer(value) => Argument::Pointer(*value),
         }
     }
 }
@@ -374,6 +377,7 @@ impl From<Argument<'_>> for OwnedArgument {
                 bytes: bytes.to_vec(),
                 digits,
             },
+            Argument::Pointer(value) => Self::Pointer(value),
         }
     }
 }
@@ -870,7 +874,14 @@ pub fn checked_format(template: &[u8], arguments: &[Argument<'_>]) -> Result<Vec
                     digits: actual,
                 },
             ) if precision.is_none() && digits == Some(actual) => output.extend_from_slice(bytes),
-            (b's' | b'd' | b'u' | b'c' | b'f', _) => return Err(FormatError::ArgumentType),
+            (b'p', Argument::Pointer(address)) if precision.is_none() && digits.is_none() => {
+                if address == 0 {
+                    output.extend_from_slice(b"(nil)");
+                } else {
+                    output.extend_from_slice(format!("{address:#x}").as_bytes());
+                }
+            }
+            (b's' | b'd' | b'u' | b'c' | b'f' | b'p', _) => return Err(FormatError::ArgumentType),
             _ => return Err(FormatError::InvalidSpecifier),
         }
     }
@@ -936,6 +947,26 @@ mod tests {
         );
         assert_eq!(
             checked_format(b"%3$s", &args),
+            Err(FormatError::ArgumentType)
+        );
+    }
+    #[test]
+    fn job_identity_addresses_use_checked_glibc_pointer_text() {
+        let address = Argument::Pointer(0x10ab);
+        assert_eq!(
+            checked_format(b"%2$s: %1$p", &[address, Argument::Bytes(b"job\xff")]).unwrap(),
+            b"job\xff: 0x10ab"
+        );
+        assert_eq!(
+            checked_format(b"%p", &[Argument::Pointer(0)]).unwrap(),
+            b"(nil)"
+        );
+        assert_eq!(
+            checked_format(b"%p", &[Argument::Unsigned(1)]),
+            Err(FormatError::ArgumentType)
+        );
+        assert_eq!(
+            checked_format(b"%s", &[address]),
             Err(FormatError::ArgumentType)
         );
     }

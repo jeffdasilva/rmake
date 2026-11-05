@@ -85,3 +85,23 @@ Broader asynchronous/implicit/default-reader/database diagnostics, enabled
 Guile/GC integration and complete developer-flow acceptance also remain open.
 The qualified queued BASIC behavior is unchanged: GNU omits individual
 asynchronous Success records in those profiles, so none were invented here.
+
+## Localized JOBS profiles
+
+`make test-job-debug-nls` and `make test-job-debug-nls-release` run the same nine
+cases in C and verified French. Each locale has literal expected event text.
+The existing live process, FIFO path, job address and token checks apply in
+both locales. The French gate also checks the localized ignored-error suffix.
+
+The checked formatter treats job addresses as opaque numbers. It formats
+`%p` with the glibc Linux spelling and passes the target, PID text and
+jobserver authentication bytes as separate arguments. The renderer looks up
+the active catalog at each translated event. The token request and final
+drain messages are English literals in GNU Make 4.4.1.
+
+The message keys come from GNU Make 4.4.1's JOBS producers in
+`src/{job,main,posixos}.c`. The French expectations come from the pinned
+compiled French catalog. See the translator and license records in
+[catalogs/provenance.json](../catalogs/provenance.json) and
+[catalogs/COPYING](../catalogs/COPYING). The existing workers and observers
+supply the independently verified identities and effects.
