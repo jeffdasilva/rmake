@@ -49,3 +49,8 @@ child-wait observation to separate an idle worker from a callback made
 during the serial recipe wait. The waiting thread handles accepted callbacks
 before closing its admission window. A reference-variable fatal wait error
 and broader asynchronous/parallel lifecycle acceptance remain open.
+
+The enabled gate also runs three [late descriptor pressure cases](../tests/guile-eventfd-pressure/README.md)
+in each build. When the recipe has already started and no private wake descriptor
+fits, the main thread keeps accepting Scheme callbacks and checks the queue at
+bounded intervals. The regular descriptor wake path is unchanged.

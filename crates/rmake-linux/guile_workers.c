@@ -42,9 +42,11 @@ static _Thread_local struct worker *on_worker,*origin;
 static struct worker *terminal_origin;
 static SCM leading_thread,notification;
 static atomic_int ready;
-/* The Rust serial wait owns this descriptor. Queue admission, notification,
- * and detachment share the same mutex so no worker can write a reused fd. */
-static atomic_int wait_descriptor=-1;
+/* The Rust serial wait owns any descriptor. Queue admission can also
+ * remain open with bounded polling when no private wake descriptor fits.
+ * Publication, notification, and detachment share the same mutex. */
+enum { wait_inactive=-1, wait_polling=-3 };
+static atomic_int wait_descriptor=wait_inactive;
 static SCM service(void);
 extern void *rg_dispatch_worker_host_yield(const void *request);
 extern int rg_guile_leading_evaluator_active(void);
@@ -126,7 +128,7 @@ static void *submit_inside(void *data) {
     lock();
     int evaluator=rg_guile_leading_evaluator_active();
     int descriptor=atomic_load_explicit(&wait_descriptor,memory_order_relaxed);
-    if(!evaluator&&descriptor<0) {
+    if(!evaluator&&descriptor==wait_inactive) {
         unlock();
         static const char message[]="rmake: native API used outside an active invocation\n";
         ssize_t written=write(STDERR_FILENO,message,sizeof message-1);
@@ -235,25 +237,28 @@ int rg_workers_can_submit(void) {
     return !on_worker&&syscall(SYS_gettid)!=getpid()
         &&atomic_load_explicit(&ready,memory_order_acquire)
         &&(rg_guile_leading_evaluator_active()
-           ||atomic_load_explicit(&wait_descriptor,memory_order_relaxed)>=0)
+           ||atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=wait_inactive)
         &&GC_thread_is_registered();
 }
 int rg_workers_begin_wait(void) {
     if(!atomic_load_explicit(&ready,memory_order_acquire))return -2;
     int ambient=errno;
     lock();
-    if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)>=0) {
+    if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=wait_inactive) {
         unlock();errno=EBUSY;return -1;
     }
     int descriptor=eventfd(0,EFD_NONBLOCK|EFD_CLOEXEC);
-    if(descriptor>=0&&descriptor<5) {
+    int relocating=descriptor>=0&&descriptor<5;
+    if(relocating) {
         int replacement=fcntl(descriptor,F_DUPFD_CLOEXEC,5);
         int saved=errno;
         close(descriptor);descriptor=replacement;errno=saved;
     }
-    if(descriptor>=0)
+    if(descriptor<0&&(errno==EMFILE||errno==ENFILE||(relocating&&errno==EINVAL)))
+        descriptor=wait_polling;
+    if(descriptor!=wait_inactive)
         atomic_store_explicit(&wait_descriptor,descriptor,memory_order_relaxed);
-    int saved=descriptor>=0?ambient:errno;
+    int saved=descriptor==wait_inactive?errno:ambient;
     unlock();errno=saved;
     return descriptor;
 }
@@ -261,10 +266,12 @@ int rg_workers_wait_notification(int descriptor) {
     int saved=errno;
     lock();
     if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=descriptor)_Exit(2);
-    uint64_t value;
-    ssize_t count;
-    do count=read(descriptor,&value,sizeof value);while(count<0&&errno==EINTR);
-    if(count!=(ssize_t)sizeof value&&(count>=0||errno!=EAGAIN))_Exit(2);
+    if(descriptor>=0) {
+        uint64_t value;
+        ssize_t count;
+        do count=read(descriptor,&value,sizeof value);while(count<0&&errno==EINTR);
+        if(count!=(ssize_t)sizeof value&&(count>=0||errno!=EAGAIN))_Exit(2);
+    }
     int pending=head!=NULL;
     unlock();errno=saved;return pending;
 }
@@ -272,7 +279,7 @@ int rg_workers_end_wait(int descriptor,int idle_only) {
     lock();
     if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=descriptor)_Exit(2);
     if(idle_only&&head) {unlock();return 0;}
-    atomic_store_explicit(&wait_descriptor,-1,memory_order_relaxed);
+    atomic_store_explicit(&wait_descriptor,wait_inactive,memory_order_relaxed);
     unlock();return 1;
 }
 static void *service_wait(void *unused) {

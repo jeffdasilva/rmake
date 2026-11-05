@@ -3838,15 +3838,15 @@ impl Engine {
                 });
             }
             #[cfg(feature = "guile")]
-            let worker_wake = workers.descriptor();
+            let (worker_wake, retry) = (workers.descriptor(), workers.poll_interval());
             #[cfg(not(feature = "guile"))]
-            let worker_wake = None::<std::os::fd::BorrowedFd<'_>>;
+            let (worker_wake, retry) = (None::<std::os::fd::BorrowedFd<'_>>, None);
             rmake_linux::child::wait(
                 &[(0, child)],
                 true,
                 true,
                 worker_wake.map(|fd| std::os::fd::AsRawFd::as_raw_fd(&fd)),
-                None,
+                retry,
             )?;
         }
     }

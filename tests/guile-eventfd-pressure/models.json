@@ -1,0 +1,71 @@
+{
+  "models": [
+    {
+      "id": "normal-detached",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := initial\nSTART := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let await () (unless (file-exists? \"release\") (usleep 2000) (await))) (gmk-eval \"VALUE := worker\") (let ((value (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"done.tmp\" (lambda (port) (display value port) (newline port))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n\n.PHONY: all gate\nall: gate\n\t$(info final=$(VALUE))@:\ngate:\n\t@$(fdpressure 64,reserve)./recipe 64 worker\n"
+      },
+      "created": {
+        "pressure": "limit=64 private-slot=available\n",
+        "ready": "recipe-executed\n",
+        "release": "go\n",
+        "done": "worker\n"
+      },
+      "worker": true,
+      "stdout": "recipe saw worker\nfinal=worker\n",
+      "stderr": "",
+      "status": 0,
+      "oracle_trace": "",
+      "candidate_trace": "recipe-ready eventfd=opened\n"
+    },
+    {
+      "id": "allocation-plain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := initial\nSTART := $(guile \"initialized\")\n\n.PHONY: all gate\nall: gate\n\t$(info final=$(VALUE))@:\ngate:\n\t@$(fdpressure 64,exhaust)./recipe 64 plain\n"
+      },
+      "created": {
+        "pressure": "limit=64 private-slot=available\n",
+        "ready": "recipe-executed\n"
+      },
+      "worker": false,
+      "stdout": "recipe completed\nfinal=initial\n",
+      "stderr": "",
+      "status": 0,
+      "oracle_trace": "",
+      "candidate_trace": "recipe-ready eventfd=EMFILE\n"
+    },
+    {
+      "id": "allocation-detached",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "load ./pressure.so\nVALUE := initial\nSTART := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let await () (unless (file-exists? \"release\") (usleep 2000) (await))) (gmk-eval \"VALUE := worker\") (let ((value (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"done.tmp\" (lambda (port) (display value port) (newline port))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n\n.PHONY: all gate\nall: gate\n\t$(info final=$(VALUE))@:\ngate:\n\t@$(fdpressure 64,exhaust)./recipe 64 worker\n"
+      },
+      "created": {
+        "pressure": "limit=64 private-slot=available\n",
+        "ready": "recipe-executed\n",
+        "release": "go\n",
+        "done": "worker\n"
+      },
+      "worker": true,
+      "stdout": "recipe saw worker\nfinal=worker\n",
+      "stderr": "",
+      "status": 0,
+      "oracle_trace": "",
+      "candidate_trace": "recipe-ready eventfd=EMFILE\n"
+    }
+  ]
+}
