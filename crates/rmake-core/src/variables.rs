@@ -2615,6 +2615,14 @@ impl LocalFrame {
         self.values.get(name).map(|binding| &binding.variable)
     }
 
+    pub(crate) fn set_export_policy(&self, name: &[u8], export: bool) -> bool {
+        let Some(variable) = self.get(name) else {
+            return false;
+        };
+        variable.scope.export.set(Some(export));
+        true
+    }
+
     fn get_mut(&mut self, name: &[u8]) -> Option<&mut Variable> {
         self.values
             .get_mut(name)

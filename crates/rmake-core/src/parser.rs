@@ -4001,9 +4001,17 @@ impl Database {
                     self.export_all = export;
                 }
                 for name in names.split(is_list_space).filter(|name| !name.is_empty()) {
-                    // A name-list declaration creates missing empty simple
-                    // bindings. Existing bindings retain all their metadata.
-                    // These names were already expanded with the whole list.
+                    // A standalone directive updates the selected binding.
+                    // Only a name absent from every scope creates a global.
+                    if self
+                        .evaluation_bindings
+                        .iter()
+                        .rev()
+                        .any(|frame| frame.set_export_policy(name, export))
+                        || self.set_scoped_export(name, export)
+                    {
+                        continue;
+                    }
                     if self.variables.get(name).is_none() {
                         self.variables
                             .define_at(name, b"", Assignment::Simple, Origin::File, &location)
@@ -4013,7 +4021,7 @@ impl Database {
                                 message: error.diagnostic(),
                             })?;
                     }
-                    self.set_export(name.to_vec(), export);
+                    self.set_global_export(name.to_vec(), export);
                 }
                 continue;
             }
@@ -4735,14 +4743,19 @@ impl Database {
         Ok(())
     }
 
-    fn set_export(&mut self, name: Vec<u8>, export: bool) {
-        if self
-            .evaluation_scope
+    fn set_scoped_export(&self, name: &[u8], export: bool) -> bool {
+        self.evaluation_scope
             .as_ref()
-            .is_some_and(|scope| scope.set_scoped_export_policy(&name, export))
-        {
-            return;
+            .is_some_and(|scope| scope.set_scoped_export_policy(name, export))
+    }
+
+    fn set_export(&mut self, name: Vec<u8>, export: bool) {
+        if !self.set_scoped_export(&name, export) {
+            self.set_global_export(name, export);
         }
+    }
+
+    fn set_global_export(&mut self, name: Vec<u8>, export: bool) {
         self.variables.set_export_policy(&name, Some(export));
         if export {
             self.unexports.remove(&name);

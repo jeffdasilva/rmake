@@ -1,0 +1,12 @@
+id = "shell-lexical-directive-call-unexport-inner-mask"
+requirement = "variables.export-bindings"
+candidate = "required"
+description = "Check standalone export policy mutation and scope restoration in nested eval."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "outer=[two] status=0\ninner=[] status=1\nrestored=[two] status=0\nafter=[global] status=0\n"
+stderr = ""
