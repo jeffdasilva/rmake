@@ -38,7 +38,7 @@ class DatabaseLifecycleTests(unittest.TestCase):
         self.assertTrue(all('--temp-stdin=owned.mk' in model.args for model in stdin))
         self.assertEqual(sum(bool(model.compile_shared) for model in generic), 5)
         self.assertEqual(sum(bool(model.compile_shared) for model in stdin), 4)
-        self.assertEqual(len(database.models('all')), 41)
+        self.assertEqual(len(database.models('all')), 44)
 
     def test_matching_wrong_source_flags_and_cache_counters_cannot_pass(self):
         model = next(model for model in lifecycle.models('stdin') if model.id.endswith('-normal'))

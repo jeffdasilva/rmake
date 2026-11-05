@@ -58,7 +58,7 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertEqual(len(d.models()), 14)
         phases = d.models('phases')
         self.assertEqual(len(phases), 19)
-        self.assertEqual(len(d.models('all')), 41)
+        self.assertEqual(len(d.models('all')), 44)
         self.assertEqual({m.dump_count for m in phases}, {1, 2})
         self.assertEqual(sum(bool(m.compile_shared) for m in phases), 2)
         self.assertTrue(all(source in model.files for model in phases for source, _ in model.compile_shared))
@@ -66,7 +66,7 @@ class DatabaseOutputTests(unittest.TestCase):
     def test_search_models_pin_full_names_cache_storage_and_goal_flags(self):
         search = d.models('search')
         self.assertEqual(len(search), 8)
-        self.assertEqual(len({model.id for model in d.models('all')}), 41)
+        self.assertEqual(len({model.id for model in d.models('all')}), 44)
         self.assertTrue(all(not model.compile_shared for model in search))
         model = next(model for model in search if model.id == 'database-search-repeated-aliased')
         metadata = {name: {'device': 42, 'inode': 99 + index, 'mode': stat.S_IFDIR | 0o755}
@@ -90,6 +90,26 @@ class DatabaseOutputTests(unittest.TestCase):
             self.assertNotEqual(stdout, wrong)
             execution = replace(good, observation=replace(good.observation, stdout=wrong))
             self.assertTrue(d.stream_errors(model, self.runtime, execution))
+
+    def test_library_models_require_fixed_input_mtimes_without_a_seen_fixture(self):
+        models = d.models('library')
+        self.assertEqual({model.id for model in models}, {
+            'library-vpath-shelf', 'library-vpath-alternate-pattern', 'library-current-directory-control',
+        })
+        for model in models:
+            self.assertTrue(model.fixed_input_mtimes)
+            with tempfile.TemporaryDirectory() as tmp:
+                case, filesystem = d.prepare(model, Path(tmp) / 'inputs', self.runtime)
+                self.assertNotIn('work/seen', filesystem)
+                self.assertEqual({name: (case.path / name).stat().st_mtime_ns for name in model.files},
+                                 dict.fromkeys(model.files, model.fixed_mtime_ns))
+        model = replace(self.model, fixed_input_mtimes=True)
+        exact = dict.fromkeys(model.files, model.fixed_mtime_ns)
+        good = replace(self.good, input_mtimes=(exact, exact))
+        self.assertFalse(d.stream_errors(model, self.runtime, good))
+        changed = {**exact, 'Makefile': model.fixed_mtime_ns + 1}
+        self.assertIn('fixed input file mtimes', d.stream_errors(
+            model, self.runtime, replace(good, input_mtimes=(exact, changed))))
 
     def test_native_fixture_compiles_once_before_engine_runs_and_full_snapshot_contains_it(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -245,7 +265,7 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertTrue(all(model.stdout.count(b'@CTIME_OPEN@') == 1 and model.stdout.count(b'@CTIME_CLOSE@') == 1 for model in models))
         self.assertEqual(next(model for model in models if model.id == 'database-read-fatal').stderr, b'Makefile:4: *** DB_STOP.  Stop.\n')
         for path in d.SOURCES.glob('*.json'):
-            if path.name in ('phases.json', 'numeric.json', 'search-spelling.json', 'expected-inputs.json'):
+            if path.name in (*d.JSON_SUITES.values(), 'numeric.json', 'expected-inputs.json'):
                 continue
             manifest = json.loads(path.read_bytes()); packed = path.with_suffix('.json.gz').read_bytes()
             raw = gzip.decompress(packed)

@@ -126,10 +126,17 @@ the host.
 
 Eight additive [search-spelling profiles](SEARCH.md) qualify the complete
 VPATH/vpath/GPATH renamed-file protocol, repeated original/aliased goals and
-actual logical removal/cache events. The core 14 and phases 19 files stay unchanged;
-`--suite all` now selects 41. Separate history and final qualification archives
+actual logical removal/cache events. The core 14 and phases 19 files stay unchanged.
+Separate history and final qualification archives
 preserve earlier failures and exact source/binary identities. This does not close
 the broader database surface or M3/M6.
+
+Three [library search profiles](library-search.json) add a fixed-mtime archive
+found through VPATH, an alternate pattern tried before that hit, and a local
+archive hit. The full transcript checks file lookups and string-cache records
+while `$<` checks the selected spelling. The filesystem comparison also verifies
+each input's nanosecond mtime. Run these cases with `--suite library`. The
+existing `--suite all` gate now selects 44 profiles.
 
 The original template bytes remain sealed. `expected-inputs.json` and the
 [independent portable input replay](../../docs/database-portability.md) compute
