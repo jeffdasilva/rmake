@@ -42,7 +42,7 @@ static _Thread_local struct worker *on_worker,*origin;
 static struct worker *terminal_origin;
 static SCM leading_thread,notification;
 static atomic_int ready;
-/* The Rust serial wait owns this descriptor. Queue admission, notification,
+/* The Rust scheduler wait owns this descriptor. Queue admission, notification,
  * and detachment share the same mutex so no worker can write a reused fd. */
 static atomic_int wait_descriptor=-1;
 static SCM service(void);

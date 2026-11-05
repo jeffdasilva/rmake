@@ -1708,13 +1708,37 @@ impl Engine {
     }
 
     #[cfg(feature = "guile")]
-    fn service_serial_workers(&mut self) -> Result<(), ExpandError> {
+    fn service_waiting_workers(&mut self) -> Result<(), ExpandError> {
         let result =
             self.with_retained_native_context(Database::service_waiting_native_workers_with);
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
         result
+    }
+
+    #[cfg(feature = "guile")]
+    fn service_parallel_workers(&mut self) -> bool {
+        match self.service_waiting_workers() {
+            Ok(()) => {
+                self.observe_interrupt();
+                self.interrupt.is_none()
+            }
+            Err(ExpandError::Cancelled) => {
+                self.observe_interrupt();
+                false
+            }
+            Err(error) => {
+                self.expansion_error(None, &error);
+                self.parallel_failed = true;
+                self.record_graph_failure(Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..Outcome::default()
+                });
+                false
+            }
+        }
     }
 
     #[cfg(feature = "guile")]
@@ -3684,16 +3708,19 @@ impl Engine {
         }
     }
 
+    fn parallel_child_handles(&self) -> Vec<(u64, &rmake_linux::child::Child)> {
+        self.parallel_jobs
+            .values()
+            .filter_map(|job| job.child.as_ref().map(|child| (job.identity, child)))
+            .collect()
+    }
+
     fn child_events(
         &mut self,
         block: bool,
         additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
-        let children: Vec<_> = self
-            .parallel_jobs
-            .values()
-            .filter_map(|job| job.child.as_ref().map(|child| (job.identity, child)))
-            .collect();
+        let children = self.parallel_child_handles();
         if children.is_empty() && additional.is_none() {
             return Ok(false);
         }
@@ -3705,6 +3732,59 @@ impl Engine {
         // immediately instead of paying this retry interval.
         let load_retry = (additional.is_some() && !self.load_waiting.is_empty())
             .then_some(Duration::from_secs(1));
+        #[cfg(feature = "guile")]
+        let ready = {
+            let mut workers =
+                if block && !children.is_empty() && self.shutdown.get() == Shutdown::Running {
+                    // Optional readiness must not prevent reaping owned children.
+                    rmake_linux::guile::WorkerWait::begin()
+                        .ok()
+                        .filter(|wait| wait.descriptor().is_some())
+                } else {
+                    None
+                };
+            let retry_deadline = workers
+                .as_ref()
+                .and(load_retry)
+                .map(|retry| std::time::Instant::now() + retry);
+            let mut maximum_wait = load_retry;
+            let mut children = children;
+            loop {
+                let events = rmake_linux::child::wait_with_notification(
+                    &children,
+                    block,
+                    true,
+                    additional,
+                    workers.as_ref().and_then(|wait| wait.descriptor()),
+                    maximum_wait,
+                )?;
+                let Some(wait) = &mut workers else {
+                    break events.children;
+                };
+                drop(children);
+                self.observe_interrupt();
+                if self.interrupt.is_some() {
+                    break events.children;
+                }
+                if events.notification_only {
+                    // A callback did not finish the scheduler wait. Retain
+                    // admission across a worker's next synchronous request.
+                    if !wait.pending() || self.service_parallel_workers() {
+                        maximum_wait = retry_deadline.map(|deadline| {
+                            deadline.saturating_duration_since(std::time::Instant::now())
+                        });
+                        children = self.parallel_child_handles();
+                        continue;
+                    }
+                } else {
+                    // A child or token can wake the poll together with a
+                    // worker. Service accepted requests before closing it.
+                    while !wait.finish_if_idle() && self.service_parallel_workers() {}
+                }
+                break events.children;
+            }
+        };
+        #[cfg(not(feature = "guile"))]
         let ready = rmake_linux::child::wait(&children, block, true, additional, load_retry)?;
         // Idle nonblocking polls are an internal graph refresh, rather than a
         // visible reaping pass. A ready completion still reports its live scan.
@@ -3816,7 +3896,7 @@ impl Engine {
             };
             #[cfg(feature = "guile")]
             if worker_pending {
-                if let Err(error) = self.service_serial_workers() {
+                if let Err(error) = self.service_waiting_workers() {
                     workers.cancel();
                     if !matches!(error, ExpandError::Cancelled) {
                         self.expansion_error(None, &error);

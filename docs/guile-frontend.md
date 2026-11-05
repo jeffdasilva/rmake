@@ -49,3 +49,8 @@ child-wait observation to separate an idle worker from a callback made
 during the serial recipe wait. The waiting thread handles accepted callbacks
 before closing its admission window. A reference-variable fatal wait error
 and broader asynchronous/parallel lifecycle acceptance remain open.
+
+Ten original [detached parallel cases](../tests/guile-parallel-detached/README.md)
+cover pipe and FIFO jobservers, draining child jobs, waiting for a token,
+and consecutive worker requests. Both enabled profiles require them.
+Broader asynchronous entry points and the fatal reference race remain open.
