@@ -2,8 +2,9 @@
 
 The separate integration gate builds [xxHash v0.8.3](https://github.com/Cyan4973/xxHash/releases/tag/v0.8.3)
 at its full commit identity, [zlib 1.3.2](https://zlib.net/),
-[Lua 5.4.9](https://www.lua.org/ftp/) and
-[GNU gzip 1.14](https://lists.gnu.org/archive/html/info-gnu/2025-04/msg00007.html). The
+[Lua 5.4.9](https://www.lua.org/ftp/),
+[GNU gzip 1.14](https://lists.gnu.org/archive/html/info-gnu/2025-04/msg00007.html) and
+[GNU Patch 2.8](https://lists.gnu.org/archive/html/info-gnu/2025-03/msg00014.html). The
 [manifest](../tests/integration/projects.json) pins the archive URL, SHA256,
 top-level path, license digest, build target, header dependency, watched outputs
 and independently expected executable output. Only verified source archives are
@@ -20,7 +21,7 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes all four projects; `INTEGRATION_CASE` selects an exact manifest ID.
+executes all five projects. `INTEGRATION_CASE` selects an exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
 retain its complete artifacts. No additional workflow with weaker criteria is
@@ -54,7 +55,20 @@ value `3` to `255`. Both independently expected byte values are checked along
 with a nonempty compression and decompression round trip. The upstream archive
 and GPLv3 license file are pinned by digest.
 
-These four Linux/GCC profiles are counted separately from ordinary curated
+The GNU Patch profile freezes one common `configure` preparation and runs the
+original serial `all` target through `lib`, `src`, and `tests`. It watches
+`src/version.o` and `src/patch`. The scratch `config.h` change must replace one
+version definition, and the fresh and rebuilt binaries must report their
+respective versions and apply a unified diff with the expected result.
+
+The official archive SHA-256 is
+`308a4983ff324521b9b21310bfc2398ca861798f02307c79eb99bb0e0d2bf980`.
+The detached signature was verified against release signer fingerprint
+`259B3792B3D6D319212CC4DCD5BF9FEB0313653A` using the GNU release keyring. The
+manifest pins the archive and its `COPYING` file. [Release announcement and signer](https://lists.gnu.org/archive/html/info-gnu/2025-03/msg00014.html)
+· [Official archive and signature](https://ftp.gnu.org/gnu/patch/) · [GNU release keyring](https://ftp.gnu.org/gnu/gnu-keyring.gpg)
+
+These five Linux/GCC profiles are counted separately from ordinary curated
 Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its
