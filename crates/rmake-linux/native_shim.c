@@ -5,6 +5,7 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
+#include <locale.h>
 #include <signal.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -235,3 +236,40 @@ int rm_native_stdout_closed(void) {
 
 /* Remains valid during libc finalization, after Rust's TLS destructors. */
 uintptr_t rm_native_thread_id(void) { return (uintptr_t)pthread_self(); }
+
+/* Diagnostic conversion reads the current pthread locale and rounding mode.
+ * Integer operands avoid an earlier Rust conversion changing zero's sign under
+ * FE_DOWNWARD. One snprintf call formats each value; the usual path uses the
+ * caller's stack buffer. No interpreter/descriptor/filesystem action occurs. */
+int rm_database_percent(char *scratch, size_t scratch_capacity, char **owned,
+                        uint64_t numerator, uint64_t denominator,
+                        unsigned int fractional_digits) {
+    int saved = errno;
+    *owned = NULL;
+    if (fractional_digits > 1) { errno = EINVAL; return -1; }
+    const struct lconv *numeric = localeconv();
+    size_t decimal = strlen(numeric->decimal_point);
+    if (decimal > SIZE_MAX - 64) { errno = ENOMEM; return -1; }
+    size_t capacity = decimal + 64;
+    char *buffer = scratch;
+    if (capacity > scratch_capacity) {
+        buffer = malloc(capacity);
+        if (!buffer) return -1;
+        *owned = buffer;
+    } else {
+        capacity = scratch_capacity;
+    }
+    double value = numerator && denominator
+        ? (100.0 * (double)numerator) / (double)denominator : 0.0;
+    int length = snprintf(buffer, capacity,
+                          fractional_digits ? "%.1f" : "%.0f", value);
+    if (length < 0 || (size_t)length >= capacity) {
+        int failure = length < 0 ? errno : EOVERFLOW;
+        free(*owned); *owned = NULL;
+        errno = failure;
+        return -1;
+    }
+    errno = saved;
+    return length;
+}
+void rm_database_percent_free(char *owned) { free(owned); }

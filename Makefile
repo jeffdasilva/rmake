@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: bootstrap-integration test-integration
-.PHONY: test-database-output
+.PHONY: test-database-output test-database-numeric
 .PHONY: test-locales
 
 .PHONY: test-job-debug
@@ -13,6 +13,7 @@
 
 PYTHON ?= python3
 INTEGRATION_CASE ?=
+DATABASE_NUMERIC_CASE ?=
 DATABASE_CASE ?=
 LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -107,6 +108,7 @@ help:
 		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
 		'  test-database-output Compare complete databases, histories and phase effects' \
+		'  test-database-numeric Compare native rounding and registration history' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
@@ -246,6 +248,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_CASE=database-minimal test-database-output
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_NUMERIC_CASE=database-native-numeric-minimal-upward test-database-numeric
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
@@ -282,6 +285,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/optimized.json
+	$(PYTHON) tools/database_numeric.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/numeric-optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
 	$(PYTHON) tools/directory_reporting.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/directory-reporting/optimized.json
@@ -307,6 +311,9 @@ test-m4-release: release oracle-verify
 
 test-integration: build oracle-verify
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/integration/development.json $(if $(INTEGRATION_CASE),--case "$(INTEGRATION_CASE)")
+
+test-database-numeric: build oracle-verify
+	$(PYTHON) tools/database_numeric.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/numeric-development.json $(if $(DATABASE_NUMERIC_CASE),--case "$(DATABASE_NUMERIC_CASE)")
 
 test-database-output: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/development.json $(if $(DATABASE_CASE),--case "$(DATABASE_CASE)")
@@ -402,9 +409,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-locales
+test: test-integration test-database-output test-database-numeric test-locales
 
-check: test-integration test-database-output test-locales
+check: test-integration test-database-output test-database-numeric test-locales
 
 ci: check test-selfhost
 

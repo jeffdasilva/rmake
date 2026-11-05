@@ -52,3 +52,7 @@ pub mod native;
 // The application supplies cached file times and owns emission-point clocks.
 #[allow(unsafe_code)]
 pub mod clock;
+
+// Percentage diagnostics use the live libc locale/fenv on the same OS thread.
+#[allow(unsafe_code)]
+pub mod database_numeric;

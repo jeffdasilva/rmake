@@ -217,7 +217,7 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertTrue(all(model.stdout.count(b'@CTIME_OPEN@') == 1 and model.stdout.count(b'@CTIME_CLOSE@') == 1 for model in models))
         self.assertEqual(next(model for model in models if model.id == 'database-read-fatal').stderr, b'Makefile:4: *** DB_STOP.  Stop.\n')
         for path in d.SOURCES.glob('*.json'):
-            if path.name == 'phases.json':
+            if path.name in ('phases.json', 'numeric.json'):
                 continue
             manifest = json.loads(path.read_bytes()); packed = path.with_suffix('.json.gz').read_bytes()
             raw = gzip.decompress(packed)

@@ -105,6 +105,11 @@ struct LoadHost<'a, 'b> {
 }
 
 impl crate::native::NativeHost for LoadHost<'_, '_> {
+    fn registered_function_name(&mut self, name: &[u8]) {
+        if let Some(history) = self.database.database_history() {
+            history.intern(name);
+        }
+    }
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
         self.database.expand_with(input, self.context.reborrow())
     }
@@ -3777,6 +3782,7 @@ impl Database {
                             .flat_map(|name| name.split(|byte| *byte == b':'))
                             .filter(|path| !path.is_empty())
                         {
+                            let original_directory = directory;
                             let directory = if directory.len() > 1 && directory.ends_with(b"/") {
                                 &directory[..directory.len() - 1]
                             } else {
@@ -3797,7 +3803,7 @@ impl Database {
                                     message: error.into_message().into(),
                                 })?;
                             }
-                            directories.push(directory.to_vec());
+                            directories.push(original_directory.to_vec());
                         }
                         if !directories.is_empty() {
                             if let Some(history) = &self.database_history {

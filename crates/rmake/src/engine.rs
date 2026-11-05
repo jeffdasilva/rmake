@@ -2375,7 +2375,7 @@ impl Engine {
                     return 2;
                 }
             };
-            self.vpath_dirs = match self.general_search_directories(&vpath) {
+            self.vpath_dirs = match self.general_search_directories(&vpath, true) {
                 Ok(directories) => directories,
                 Err(error) => {
                     self.expansion_error(None, &error);
@@ -2394,7 +2394,7 @@ impl Engine {
                 self.database.variables.database_lookup(b"GPATH");
                 Vec::new()
             };
-            self.gpath_dirs = match self.general_search_directories(&gpath) {
+            self.gpath_dirs = match self.general_search_directories(&gpath, false) {
                 Ok(directories) => directories.into_iter().collect(),
                 Err(error) => {
                     self.expansion_error(None, &error);
@@ -4175,12 +4175,17 @@ impl Engine {
         }
     }
 
-    fn general_search_directories(&self, value: &[u8]) -> Result<Vec<Vec<u8>>, ExpandError> {
+    fn general_search_directories(
+        &self,
+        value: &[u8],
+        retain_search_spelling: bool,
+    ) -> Result<Vec<Vec<u8>>, ExpandError> {
         let mut directories = Vec::new();
         for path in value
             .split(|byte| *byte == b':' || byte.is_ascii_whitespace() || *byte == 0x0b)
             .filter(|path| !path.is_empty())
         {
+            let original = path;
             let path = if path.len() > 1 {
                 path.strip_suffix(b"/").unwrap_or(path)
             } else {
@@ -4192,7 +4197,7 @@ impl Engine {
             if let Some(history) = self.database.database_history() {
                 history.intern(path);
             }
-            let name = self
+            let mut name = self
                 .filesystem
                 .borrow_mut()
                 .execute(rmake_core::diagnostic::FilesystemEffect::DirectoryName(
@@ -4206,6 +4211,11 @@ impl Engine {
                         ExpandError::UnlocatedError(message)
                     }
                 })?;
+            // Search retains the original byte length/spelling. The directory
+            // cache and database presentation use the once-trimmed name.
+            if retain_search_spelling && original.len() != path.len() {
+                name.push(b'/');
+            }
             directories.push(name);
         }
         if !directories.is_empty()
@@ -4563,6 +4573,13 @@ impl Engine {
     }
 
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
+        // A completed GPATH rename has already selected the actual file.
+        // Consume its timestamp without merging the original goal again.
+        let alias = self
+            .aliases
+            .contains(target)
+            .then(|| self.aliases.resolve(target).to_vec());
+        let target = alias.as_deref().unwrap_or(target);
         if outcome.failed {
             return outcome;
         }

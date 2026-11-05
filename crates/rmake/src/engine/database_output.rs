@@ -134,7 +134,7 @@ impl Engine {
         let general_vpath: Vec<_> = self.vpath_dirs.iter().map(Vec::as_slice).collect();
         database::write_database_open(output, &rmake_linux::clock::current_ctime()?)?;
         history.with_string_cache(|string_cache| {
-            database::write_database_contents(
+            database::write_database_contents_with_numeric(
                 output,
                 DatabaseView {
                     database: &self.database,
@@ -145,6 +145,7 @@ impl Engine {
                     general_vpath: &general_vpath,
                     string_cache,
                 },
+                &rmake_linux::database_numeric::Formatting,
             )
         })?;
         database::write_database_close(output, &rmake_linux::clock::current_ctime()?)?;
@@ -304,7 +305,7 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
             .map(|name| FileView::unchecked(name, host.database.rules.get(name)))
             .collect();
         history.with_string_cache(|string_cache| {
-            database::write_database_contents(
+            database::write_database_contents_with_numeric(
                 &mut output,
                 DatabaseView {
                     database: &host.database,
@@ -315,6 +316,7 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
                     general_vpath: &[],
                     string_cache,
                 },
+                &rmake_linux::database_numeric::Formatting,
             )
         })?;
         database::write_database_close(&mut output, &rmake_linux::clock::current_ctime()?)?;

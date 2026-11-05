@@ -739,6 +739,20 @@ impl VariableStore {
         None
     }
 
+    fn registered_function_name(&self, name: &[u8]) {
+        let globals = if self.scoped {
+            self.layers
+                .iter()
+                .find(|layer| layer.global)
+                .map(|layer| &layer.variables)
+        } else {
+            Some(&self.variables)
+        };
+        if let Some(history) = globals.and_then(|globals| globals.database_history.as_ref()) {
+            history.registered_function_name(name);
+        }
+    }
+
     /// Invocation data, independent of the visible SHELL binding and eval.
     pub fn set_original_shell(&mut self, value: &[u8]) {
         self.original_shell = Some(value.into());
@@ -3534,6 +3548,9 @@ fn local(value: Vec<u8>) -> Variable {
 }
 
 impl crate::native::NativeHost for Expansion<'_, '_> {
+    fn registered_function_name(&mut self, name: &[u8]) {
+        self.store.registered_function_name(name);
+    }
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
         self.expand_native(input)
     }

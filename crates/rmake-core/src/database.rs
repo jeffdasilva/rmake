@@ -37,22 +37,63 @@ pub struct HashStats {
     pub collisions: u64,
 }
 
+/// Integer percentage operands let the host preserve its numeric locale and
+/// floating environment. Formatting performs no interpreter or filesystem work.
+pub trait NumericFormatting {
+    fn write_percent(
+        &self,
+        output: &mut dyn Write,
+        numerator: u64,
+        denominator: u64,
+        fractional_digits: u8,
+    ) -> io::Result<()>;
+}
+
+/// Convenience profile for standalone pure components: C locale and default
+/// rounding. The Linux application supplies its live C numeric implementation.
+pub struct RustNumericFormatting;
+impl NumericFormatting for RustNumericFormatting {
+    fn write_percent(
+        &self,
+        output: &mut dyn Write,
+        numerator: u64,
+        denominator: u64,
+        fractional_digits: u8,
+    ) -> io::Result<()> {
+        let value = if numerator == 0 || denominator == 0 {
+            0.0
+        } else {
+            100.0 * numerator as f64 / denominator as f64
+        };
+        match fractional_digits {
+            0 => write!(output, "{value:.0}"),
+            1 => write!(output, "{value:.1}"),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "unsupported percentage precision",
+            )),
+        }
+    }
+}
+
 pub fn write_hash_stats(output: &mut impl Write, stats: HashStats) -> io::Result<()> {
-    let load = if stats.buckets == 0 {
-        0.0
-    } else {
-        100.0 * stats.filled as f64 / stats.buckets as f64
-    };
-    let collisions = if stats.lookups == 0 {
-        0.0
-    } else {
-        100.0 * stats.collisions as f64 / stats.lookups as f64
-    };
+    write_hash_stats_with_numeric(output, stats, &RustNumericFormatting)
+}
+
+pub fn write_hash_stats_with_numeric(
+    output: &mut impl Write,
+    stats: HashStats,
+    numeric: &dyn NumericFormatting,
+) -> io::Result<()> {
+    write!(output, "Load={}/{}=", stats.filled, stats.buckets)?;
+    numeric.write_percent(output, stats.filled as u64, stats.buckets as u64, 0)?;
     write!(
         output,
-        "Load={}/{}={load:.0}%, Rehash={}, Collisions={}/{}={collisions:.0}%",
-        stats.filled, stats.buckets, stats.rehashes, stats.collisions, stats.lookups
-    )
+        "%, Rehash={}, Collisions={}/{}=",
+        stats.rehashes, stats.collisions, stats.lookups
+    )?;
+    numeric.write_percent(output, stats.collisions, stats.lookups, 0)?;
+    output.write_all(b"%")
 }
 
 fn c_bytes(value: &[u8]) -> &[u8] {
@@ -176,6 +217,15 @@ pub fn write_variables(
     store: &VariableStore,
     stats: HashStats,
 ) -> io::Result<()> {
+    write_variables_with_numeric(output, store, stats, &RustNumericFormatting)
+}
+
+fn write_variables_with_numeric(
+    output: &mut impl Write,
+    store: &VariableStore,
+    stats: HashStats,
+    numeric: &dyn NumericFormatting,
+) -> io::Result<()> {
     output.write_all(b"\n# Variables\n\n")?;
     for (name, variable) in store.database_definitions() {
         let cached = store.database_cached_value(variable);
@@ -188,7 +238,7 @@ pub fn write_variables(
         )?;
     }
     output.write_all(b"# variable set hash-table stats:\n# ")?;
-    write_hash_stats(output, stats)?;
+    write_hash_stats_with_numeric(output, stats, numeric)?;
     output.write_all(b"\n")
 }
 
@@ -284,6 +334,14 @@ pub fn write_implicit_rule(output: &mut impl Write, pattern: &[u8], rule: &Rule)
 }
 
 pub fn write_implicit_rules(output: &mut impl Write, database: &Database) -> io::Result<()> {
+    write_implicit_rules_with_numeric(output, database, &RustNumericFormatting)
+}
+
+fn write_implicit_rules_with_numeric(
+    output: &mut impl Write,
+    database: &Database,
+    numeric: &dyn NumericFormatting,
+) -> io::Result<()> {
     output.write_all(b"\n# Implicit Rules\n")?;
     let rules = database.database_implicit_rules();
     for (pattern, rule) in rules {
@@ -294,12 +352,9 @@ pub fn write_implicit_rules(output: &mut impl Write, database: &Database) -> io:
         return output.write_all(b"\n# No implicit rules.\n");
     }
     let terminal = rules.iter().filter(|(_, rule)| rule.terminal).count();
-    write!(
-        output,
-        "\n# {} implicit rules, {terminal} ({:.1}%) terminal.",
-        rules.len(),
-        100.0 * terminal as f64 / rules.len() as f64
-    )
+    write!(output, "\n# {} implicit rules, {terminal} (", rules.len())?;
+    numeric.write_percent(output, terminal as u64, rules.len() as u64, 1)?;
+    output.write_all(b"%) terminal.")
 }
 
 pub fn write_vpaths(
@@ -318,7 +373,12 @@ pub fn write_vpaths(
             if index != 0 {
                 output.write_all(b":")?;
             }
-            output.write_all(c_bytes(directory))?;
+            let printed = if directory.len() > 1 {
+                directory.strip_suffix(b"/").unwrap_or(directory)
+            } else {
+                directory
+            };
+            output.write_all(c_bytes(printed))?;
         }
         output.write_all(b"\n")?;
     }
@@ -335,7 +395,12 @@ pub fn write_vpaths(
         if index != 0 {
             output.write_all(b":")?;
         }
-        output.write_all(c_bytes(directory))?;
+        let printed = if directory.len() > 1 {
+            directory.strip_suffix(b"/").unwrap_or(directory)
+        } else {
+            directory
+        };
+        output.write_all(c_bytes(printed))?;
     }
     output.write_all(b"\n")
 }
@@ -537,16 +602,45 @@ impl TableTelemetry {
 /// views of the same scope keep a common history; newly created scopes get a
 /// separate table. Nothing consults the Rust map's implementation statistics.
 #[derive(Clone, Debug)]
-pub struct TableHistory(std::sync::Arc<std::sync::Mutex<TableTelemetry>>);
+pub struct TableHistory(std::sync::Arc<TableHistoryState>);
+#[derive(Debug)]
+struct TableHistoryState {
+    table: std::sync::Mutex<TableTelemetry>,
+    strings: Option<std::sync::Arc<std::sync::Mutex<StringCacheTelemetry>>>,
+}
 
 impl TableHistory {
     pub fn new(kind: HashKind, buckets: usize) -> Self {
-        Self(std::sync::Arc::new(std::sync::Mutex::new(
-            TableTelemetry::new(kind, buckets).expect("fixed compatible table capacity"),
-        )))
+        Self::with_strings(kind, buckets, None)
+    }
+    fn with_strings(
+        kind: HashKind,
+        buckets: usize,
+        strings: Option<std::sync::Arc<std::sync::Mutex<StringCacheTelemetry>>>,
+    ) -> Self {
+        Self(std::sync::Arc::new(TableHistoryState {
+            table: std::sync::Mutex::new(
+                TableTelemetry::new(kind, buckets).expect("fixed compatible table capacity"),
+            ),
+            strings,
+        }))
     }
     fn with<R>(&self, visit: impl FnOnce(&mut TableTelemetry) -> R) -> R {
-        visit(&mut self.0.lock().unwrap_or_else(|error| error.into_inner()))
+        visit(
+            &mut self
+                .0
+                .table
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()),
+        )
+    }
+    pub(crate) fn registered_function_name(&self, name: &[u8]) {
+        if let Some(strings) = &self.0.strings {
+            strings
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .intern(name);
+        }
     }
     pub fn stats(&self) -> HashStats {
         self.with(|table| table.stats())
@@ -686,12 +780,13 @@ pub struct History {
 }
 impl Default for History {
     fn default() -> Self {
+        let strings = std::sync::Arc::new(std::sync::Mutex::new(StringCacheTelemetry::default()));
         Self {
-            variables: TableHistory::new(HashKind::Variable, 1024),
+            variables: TableHistory::with_strings(HashKind::Variable, 1024, Some(strings.clone())),
             files: TableHistory::new(HashKind::Filename, 1024),
             directories: TableHistory::new(HashKind::Filename, 256),
             builtin_files: std::sync::Arc::default(),
-            strings: std::sync::Arc::new(std::sync::Mutex::new(StringCacheTelemetry::default())),
+            strings,
         }
     }
 }
@@ -925,13 +1020,18 @@ impl<'a> FileView<'a> {
 pub struct FilePrinter<'a, W> {
     output: &'a mut W,
     recipe_prefix: u8,
+    numeric: &'a dyn NumericFormatting,
 }
 
 impl<'a, W: Write> FilePrinter<'a, W> {
     pub fn new(output: &'a mut W) -> Self {
+        Self::with_numeric(output, &RustNumericFormatting)
+    }
+    pub fn with_numeric(output: &'a mut W, numeric: &'a dyn NumericFormatting) -> Self {
         Self {
             output,
             recipe_prefix: b'\t',
+            numeric,
         }
     }
     pub fn write(&mut self, file: FileView<'_>) -> io::Result<()> {
@@ -1064,7 +1164,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
                 }
             }
             output.write_all(b"# variable set hash-table stats:\n# ")?;
-            write_hash_stats(output, variables.stats)?;
+            write_hash_stats_with_numeric(output, variables.stats, self.numeric)?;
             output.write_all(b"\n")?;
         }
         if let Some(rule) = file.rule
@@ -1083,14 +1183,23 @@ pub fn write_files(
     files: &[FileView<'_>],
     stats: HashStats,
 ) -> io::Result<()> {
+    write_files_with_numeric(output, files, stats, &RustNumericFormatting)
+}
+
+fn write_files_with_numeric(
+    output: &mut impl Write,
+    files: &[FileView<'_>],
+    stats: HashStats,
+    numeric: &dyn NumericFormatting,
+) -> io::Result<()> {
     output.write_all(b"\n# Files\n")?;
-    let mut printer = FilePrinter::new(output);
+    let mut printer = FilePrinter::with_numeric(output, numeric);
     for file in files {
         printer.write(*file)?;
     }
     output.write_all(b"\n# files hash-table stats:\n# ")?;
     // The following VPATH heading starts with its one protocol newline.
-    write_hash_stats(output, stats)
+    write_hash_stats_with_numeric(output, stats, numeric)
 }
 
 /// Immutable diagnostic inputs. The runtime owns observations and logical
@@ -1106,13 +1215,26 @@ pub struct DatabaseView<'a> {
 }
 
 pub fn write_database_contents(output: &mut impl Write, view: DatabaseView<'_>) -> io::Result<()> {
-    write_variables(output, &view.database.variables, view.variable_stats)?;
+    write_database_contents_with_numeric(output, view, &RustNumericFormatting)
+}
+
+pub fn write_database_contents_with_numeric(
+    output: &mut impl Write,
+    view: DatabaseView<'_>,
+    numeric: &dyn NumericFormatting,
+) -> io::Result<()> {
+    write_variables_with_numeric(
+        output,
+        &view.database.variables,
+        view.variable_stats,
+        numeric,
+    )?;
     write_pattern_variables(output, view.database)?;
     write_directories(output, view.directories)?;
-    write_implicit_rules(output, view.database)?;
-    write_files(output, view.files, view.file_stats)?;
+    write_implicit_rules_with_numeric(output, view.database, numeric)?;
+    write_files_with_numeric(output, view.files, view.file_stats, numeric)?;
     write_vpaths(output, view.database, view.general_vpath)?;
-    view.string_cache.write(output)
+    view.string_cache.write_with_numeric(output, numeric)
 }
 
 /// The host supplies the actual C-locale clock separately at each emission
@@ -1220,6 +1342,13 @@ impl StringCacheTelemetry {
         self.names.stats()
     }
     pub fn write(&self, output: &mut impl Write) -> io::Result<()> {
+        self.write_with_numeric(output, &RustNumericFormatting)
+    }
+    pub fn write_with_numeric(
+        &self,
+        output: &mut impl Write,
+        numeric: &dyn NumericFormatting,
+    ) -> io::Result<()> {
         let Some(current) = self.available.first() else {
             return output.write_all(b"\n# No strcache buffers\n\n");
         };
@@ -1281,7 +1410,7 @@ impl StringCacheTelemetry {
             (100.0 * (self.adds - self.strings) as f64 / self.adds as f64) as u64
         )?;
         output.write_all(b"# hash-table stats:\n# ")?;
-        write_hash_stats(output, self.names.stats())?;
+        write_hash_stats_with_numeric(output, self.names.stats(), numeric)?;
         output.write_all(b"\n")
     }
 }
@@ -1756,7 +1885,11 @@ mod tests {
             ]
         );
         let paths = database.database_vpaths().collect::<Vec<_>>();
-        assert_eq!(paths[0].directories, [b"left".to_vec(), b"right".to_vec()]);
+        // The view borrows original search spelling; only emission trims it.
+        assert_eq!(
+            paths[0].directories,
+            [b"left/".to_vec(), b"right/".to_vec()]
+        );
     }
 
     #[test]
@@ -1914,5 +2047,158 @@ mod tests {
         drop(current);
         assert_eq!(table.stats(), before_discard);
         assert!(table.lookup(b"file0"));
+    }
+    #[test]
+    fn vpath_display_borrows_trimmed_names_without_changing_search_spelling() {
+        let mut database = Database::default();
+        database.read(b"vpath %.c d//\n", b"Makefile").unwrap();
+        assert_eq!(
+            database.vpath_directories(b"file.c").collect::<Vec<_>>(),
+            [b"d//"]
+        );
+        let mut output = Vec::new();
+        write_vpaths(&mut output, &database, &[b"general//".as_slice()]).unwrap();
+        assert!(
+            output
+                .windows(b"vpath %.c d/\n".len())
+                .any(|s| s == b"vpath %.c d/\n")
+        );
+        assert!(output.ends_with(b"# general/\n"));
+        assert_eq!(
+            database.vpath_directories(b"file.c").collect::<Vec<_>>(),
+            [b"d//"]
+        );
+    }
+
+    #[test]
+    fn numeric_boundary_receives_integer_operands_for_every_percentage() {
+        struct Numeric(std::cell::RefCell<Vec<(u64, u64, u8)>>);
+        impl NumericFormatting for Numeric {
+            fn write_percent(
+                &self,
+                output: &mut dyn Write,
+                n: u64,
+                d: u64,
+                digits: u8,
+            ) -> io::Result<()> {
+                self.0.borrow_mut().push((n, d, digits));
+                output.write_all(b"<numeric>")
+            }
+        }
+        let numeric = Numeric(std::cell::RefCell::new(Vec::new()));
+        let mut output = Vec::new();
+        write_hash_stats_with_numeric(
+            &mut output,
+            HashStats {
+                filled: 1,
+                buckets: 16,
+                lookups: 3,
+                collisions: 2,
+                ..HashStats::default()
+            },
+            &numeric,
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            b"Load=1/16=<numeric>%, Rehash=0, Collisions=2/3=<numeric>%"
+        );
+        assert_eq!(*numeric.0.borrow(), [(1, 16, 0), (2, 3, 0)]);
+        numeric.0.borrow_mut().clear();
+        let mut database = Database::default();
+        database
+            .read(b"%.a: %.b\n%.x:: %.y\n", b"rules.mk")
+            .unwrap();
+        output.clear();
+        write_implicit_rules_with_numeric(&mut output, &database, &numeric).unwrap();
+        assert_eq!(*numeric.0.borrow(), [(1, 2, 1)]);
+        assert!(output.ends_with(b"# 2 implicit rules, 1 (<numeric>%) terminal."));
+    }
+
+    #[test]
+    fn actual_registration_names_share_global_cache_across_setup_and_local_expansion() {
+        use crate::diagnostic::ExpansionContext;
+        use crate::native::{
+            LoadOutcome, NativeCallback, NativeFunction, NativeHost, NativeLoadStatus,
+            NativeRuntime,
+        };
+        use crate::variables::ExpandError;
+        use std::rc::Rc;
+        struct Callback;
+        impl NativeCallback for Callback {
+            fn invoke(
+                &self,
+                _: &[u8],
+                _: &[Vec<u8>],
+                host: &mut dyn NativeHost,
+            ) -> Result<Vec<u8>, ExpandError> {
+                host.registered_function_name(b"installed_later");
+                Ok(Vec::new())
+            }
+        }
+        struct Runtime;
+        impl NativeRuntime for Runtime {
+            fn lookup(&self, name: &[u8]) -> Option<Rc<NativeFunction>> {
+                (name == b"install").then(|| {
+                    Rc::new(NativeFunction {
+                        minimum: 0,
+                        maximum: None,
+                        expand_arguments: true,
+                        callback: Rc::new(Callback),
+                    })
+                })
+            }
+            fn load(
+                &self,
+                _: &[u8],
+                _: bool,
+                _: &Location,
+                host: &mut dyn NativeHost,
+            ) -> Result<LoadOutcome, ExpandError> {
+                host.registered_function_name(b"installed_setup");
+                host.registered_function_name(b"installed_setup");
+                Ok(LoadOutcome {
+                    name: b"module.so".to_vec(),
+                    status: NativeLoadStatus::Loaded,
+                })
+            }
+        }
+        let mut database = Database::default();
+        database.enable_database_history().unwrap();
+        let runtime = Rc::new(Runtime);
+        database
+            .load_native_with(
+                b"module.so",
+                false,
+                &Location {
+                    file: b"Makefile".as_slice().into(),
+                    line: 1,
+                },
+                &mut ExpansionContext::pure().with_native_runtime(runtime.clone()),
+            )
+            .unwrap();
+        let history = database.database_history().unwrap().clone();
+        history.with_string_cache(|cache| {
+            assert_eq!(cache.hash_stats().lookups, 3); // module plus both actual registrations
+            assert_eq!(cache.hash_stats().filled, 2);
+        });
+        database.read(b"all: LOCAL = local\n", b"Makefile").unwrap();
+        let before = history.with_string_cache(|cache| cache.hash_stats());
+        let context = database
+            .variables
+            .with_target_scopes(&[&database.target_scopes[b"all".as_slice()]]);
+        assert_eq!(
+            context
+                .expand_with(
+                    b"$(install )$(install )",
+                    ExpansionContext::pure().with_native_runtime(runtime)
+                )
+                .unwrap(),
+            b""
+        );
+        history.with_string_cache(|cache| {
+            assert_eq!(cache.hash_stats().lookups, before.lookups + 2);
+            assert_eq!(cache.hash_stats().filled, before.filled + 1);
+        });
     }
 }

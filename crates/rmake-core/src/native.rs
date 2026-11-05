@@ -10,6 +10,9 @@ use crate::diagnostic::{Location, Output};
 use crate::variables::ExpandError;
 
 pub trait NativeHost {
+    /// Observe one validated public registration before registry insertion.
+    /// Interpreter hosts retain its string-cache event without expansion or I/O.
+    fn registered_function_name(&mut self, _name: &[u8]) {}
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError>;
     fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError>;
     fn emit(&mut self, event: Output<'_>) -> bool;
