@@ -9,6 +9,7 @@ STARTUP_USAGE_CASE ?=
 RUNTIME_OPTION_VALUE_CASE ?=
 DEVELOPER_FLOW_CASE ?=
 DEVELOPER_FLOW_REPORT ?= artifacts/developer-flows/development.json
+OUTPUT_LOCK_REPORT ?= artifacts/output-lock-completion/development.json
 
 .PHONY: bootstrap-integration test-integration
 .PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time test-database-branch-metadata test-database-double-dry-run test-database-grouped test-database-implicit-grouped test-database-grouped-double
@@ -458,7 +459,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_CASE=debug-child-queued-parallel test-debug-output
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_TRAVERSAL_CASE=chain-secondary test-debug-traversal
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_TRAVERSAL_CASE=generated-include test-debug-traversal-nls
-	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" test-output-lock-completion
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" OUTPUT_LOCK_REPORT=artifacts/output-lock-completion/selfhost.json test-output-lock-completion
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-startup-output-mutex
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_VERBOSE_CASE=vpath-no-update test-debug-verbose
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOB_DEBUG_CASE=jobs-serial-multiline test-job-debug
@@ -714,7 +715,7 @@ test-debug-verbose: build oracle-verify
 	$(PYTHON) tools/debug_verbose.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report-dir artifacts/debug-verbose/development $(if $(DEBUG_VERBOSE_CASE),--case "$(DEBUG_VERBOSE_CASE)")
 
 test-output-lock-completion: build oracle-verify catalog-check
-	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/development.json
+	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report "$(OUTPUT_LOCK_REPORT)"
 
 test-output-lock-completion-release: release oracle-verify catalog-check
 	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/optimized.json

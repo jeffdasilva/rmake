@@ -288,8 +288,14 @@ impl Controller {
         );
     }
 
+    fn join_mutex(&self, authentication: &[u8]) -> io::Result<Option<Coordination>> {
+        // A failed open retires the previous lock before fatal output is
+        // drained. A bad authentication prefix is only a notice.
+        Coordination::join(authentication).inspect_err(|_| self.clear())
+    }
+
     pub fn decode_mutex(&self, authentication: &[u8]) -> io::Result<()> {
-        match Coordination::join(authentication)? {
+        match self.join_mutex(authentication)? {
             Some(provider) => {
                 self.0.coordination.replace(Some(provider));
             }
@@ -310,7 +316,7 @@ impl Controller {
         // Active setup opens the pathname again, even if a completed
         // source already selected the same authentication.
         let provider = if let Some(auth) = authentication {
-            match Coordination::join(auth)? {
+            match self.join_mutex(auth)? {
                 Some(provider) => provider,
                 None => {
                     self.decode_mutex(auth)?;

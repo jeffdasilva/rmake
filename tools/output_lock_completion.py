@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Check live output-mutex completion in five catalog profiles against two GNU runs."""
+"""Check output-mutex completion in five catalog profiles against two GNU runs."""
 
 import argparse
 from dataclasses import dataclass, field
+import fcntl
 import gettext
 import json
 import os
@@ -40,6 +41,8 @@ class Model:
     stdout: bytes = b''
     invalid_warnings: int = 0
     error: tuple[str, tuple[bytes, ...]] | None = None
+    environment: dict[str, str] = field(default_factory=dict)
+    held: str | None = None
 
 
 def missing(path):
@@ -53,6 +56,8 @@ def live(flags):
 def models():
     empty = b'all:;@:\n'
     good = {'lock': b''}
+    synchronized = {'MAKEFLAGS': '-j2 -Otarget --sync-mutex=fnm:lock'}
+    active_setup = (ROOT / 'tests/cases/passive-mutex-active-setup-reopens/Makefile').read_bytes()
     return (
         Model('cli-missing', empty, (b'-Otarget', MISSING), error=missing(b'absent')),
         Model('cli-inactive', empty, (b'-Onone', MISSING), error=missing(b'absent')),
@@ -85,7 +90,34 @@ def models():
         Model('live-reopen', START + b'MAKEFLAGS += ' + VALID
               + b'\n$(shell rm lock)\nMAKEFLAGS += --silent\n' + FINISH,
               inputs=good, seen=b'anchor\n', remove=('lock',), error=missing(b'lock')),
+        Model('held-live-failed-replacement', b'$(info before)\nMAKEFLAGS += ' + MISSING
+              + b'\n$(info after)\n' + empty, args=(), inputs=good,
+              stdout=b'before\n', error=missing(b'absent'), environment=synchronized, held='lock'),
+        Model('held-passive-failed-replacement', b'$(info before)\noverride GNUMAKEFLAGS = '
+              + MISSING + b'\n$(info after)\n' + empty, args=(), inputs=good,
+              stdout=b'before\nafter\n', error=missing(b'absent'), environment=synchronized,
+              held='lock'),
+        Model('held-active-setup-failed-replacement', active_setup, args=(b'-j2',), inputs=good,
+              seen=b'reader\nreader-end\ngnu-source\ngnu-payload\nmake-source\n',
+              remove=('lock',), stdout=b'gnu-source\nmake-source\n', error=missing(b'lock'),
+              environment={'MAKEFLAGS': '-Otarget'}, held='lock'),
     )
+
+
+def run(case, runtime, executable, held):
+    if held is None:
+        return h.execute(case, runtime, executable)
+    h.reset_workspace(case, runtime, executable)
+    # This process holds exactly the fixture lock for the bounded invocation.
+    # If the child waits for a retired provider, the harness kills its group.
+    with (runtime / 'work' / held).open('r+b') as lock:
+        fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB, 1)
+        out, err, status, limit, leftovers = h.capture(
+            [str(runtime / 'bin/make'), *case.args], runtime / 'work',
+            h.clean_environment(runtime, case.environment), case.timeout,
+        )
+    filesystem = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
+    return h.Observation(out, err, status, limit, filesystem, leftovers)
 
 
 def main():
@@ -133,7 +165,7 @@ def main():
                 expected = {'exit_code': 2 if model.error else 0,
                             'stdout_hex': model.stdout.hex(), 'stderr_hex': stderr.hex()}
                 case = h.Case(fixture, model.name + '-' + language, 'output.lock-completion',
-                              'required', argv, 5, environment, expected)
+                              'required', argv, 5, {**environment, **model.environment}, expected)
                 h.reset_workspace(case, runtime, oracle)
                 fs = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
                 for name in model.remove:
@@ -141,10 +173,10 @@ def main():
                 if model.seen is not None:
                     fs['work/seen'] = file_entry(model.seen)
                 row = {'id': case.id, 'args_hex': [os.fsencode(arg).hex() for arg in argv],
-                       'expected': expected, 'expected_filesystem': fs, 'runs': []}
+                       'expected': expected, 'expected_filesystem': fs, 'held_lock': model.held, 'runs': []}
                 report['cases'].append(row)
                 for engine in engines:
-                    observed = h.execute(case, runtime, engine)
+                    observed = run(case, runtime, engine, model.held)
                     errors = h.expectation_errors(case, observed)
                     if observed.filesystem != fs:
                         errors.append('complete filesystem')
