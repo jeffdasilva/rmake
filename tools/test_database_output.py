@@ -220,7 +220,7 @@ class DatabaseOutputTests(unittest.TestCase):
     def test_campaign_executes_gnu_twice_and_candidate_at_the_same_declared_paths(self):
         for candidate, expected in ((Path('/candidate'), ['/oracle', '/oracle', '/candidate']), (None, ['/oracle', '/oracle'])):
             order = []
-            def execute(model, case, runtime, binary):
+            def execute(model, case, runtime, binary, *, expected=None):
                 self.assertIs(model, self.model); self.assertEqual(runtime.name, 'runtime')
                 order.append(str(binary)); return self.good
             with tempfile.TemporaryDirectory() as tmp, patch.object(d, 'prepare', return_value=(h.Case(Path('/unused'), self.model.id, 'database.output', 'required', self.model.args, 8, self.model.environment, {}), self.filesystem)), patch.object(d, 'execute', side_effect=execute), patch.object(d, 'assess', return_value={'passed': True}):
@@ -232,7 +232,7 @@ class DatabaseOutputTests(unittest.TestCase):
             report = Path(tmp) / 'report.json'
             for oracle_only in (True, False):
                 args = ['--oracle', '/oracle', '--report', str(report), '--case', self.model.id] + (['--oracle-only'] if oracle_only else ['--candidate', '/candidate'])
-                with patch.object(d, 'models', return_value=[self.model]), patch.object(d.reference_oracle, 'verify'), patch.object(d.h, 'sha256_file', return_value='hash'), patch.object(d.h, 'executable_identity', side_effect=lambda path, **kwargs: {'path': str(path)}), patch.object(d, 'run_campaign', return_value={'passed': False, 'totals': {'cases': 1, 'pass': 0, 'fail': 1}}):
+                with patch.object(d, 'models', return_value=[self.model]), patch.object(d.reference_oracle, 'verify'), patch.object(d, 'expected_preparation'), patch.object(d.h, 'sha256_file', return_value='hash'), patch.object(d.h, 'executable_identity', side_effect=lambda path, **kwargs: {'path': str(path)}), patch.object(d, 'run_campaign', return_value={'passed': False, 'totals': {'cases': 1, 'pass': 0, 'fail': 1}}):
                     self.assertEqual(d.main(args), 1)
                 self.assertFalse(json.loads(report.read_text())['passed'])
             with patch.object(d, 'models', return_value=[self.model]):
@@ -245,7 +245,7 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertTrue(all(model.stdout.count(b'@CTIME_OPEN@') == 1 and model.stdout.count(b'@CTIME_CLOSE@') == 1 for model in models))
         self.assertEqual(next(model for model in models if model.id == 'database-read-fatal').stderr, b'Makefile:4: *** DB_STOP.  Stop.\n')
         for path in d.SOURCES.glob('*.json'):
-            if path.name in ('phases.json', 'numeric.json', 'search-spelling.json'):
+            if path.name in ('phases.json', 'numeric.json', 'search-spelling.json', 'expected-inputs.json'):
                 continue
             manifest = json.loads(path.read_bytes()); packed = path.with_suffix('.json.gz').read_bytes()
             raw = gzip.decompress(packed)

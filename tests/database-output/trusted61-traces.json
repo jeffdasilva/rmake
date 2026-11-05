@@ -1,0 +1,6 @@
+{
+  "classification": "Original external reference observation only: complete trusted61 (DB41/lifecycle14/numeric6) raw/parsed GNU traces, independent public readdir inputs before/after each execution, full GNU2/instrumented normal-observable trust proof, original source/helper/injection metadata and first failed shebang argv0 observation. No GNU implementation/header/test/generated source bytes or executable images are archived; private build logs represented by hashes only. No candidate/ordinary-ledger/new exception/performance credit; portability replay remains separate.",
+  "sha256": "0ce52caadceee4ca83a87cf4510b7ddd11492a8e1868ea5abd8069ce9b93f734",
+  "raw_sha256": "0da3fe6b15567cbc77fd813301284c2b065cbb5ea7f8c291def60a041c572331",
+  "raw_bytes": 34634142
+}

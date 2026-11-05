@@ -3,10 +3,11 @@
 # Copyright 2026 Jeff DaSilva
 """Strict original GNU database-output profiles; -p remains an open feature.
 
-The full reference transcript is literal, including all logical hash/cache
-statistics. Only declared wall-clock fields and independently captured physical
-identities vary. No paths, counters, versions, ordering, or fixed mtimes are
-inferred from the engine's output or discarded during comparison.
+The full reference transcript is checked, including logical hash/cache
+statistics. A separate, sealed input plan prepares configured paths and cache
+fields from independently captured host inputs. Only declared wall-clock and
+physical identity fields use relational checks. No case output supplies inputs
+to its own expectation.
 """
 from __future__ import annotations
 
@@ -28,10 +29,12 @@ import tomllib
 from typing import Any
 
 import conformance as h
+import database_expected as portable
 import oracle as reference_oracle
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / 'tests/database-output'
+EXPECTED_INPUTS = SOURCES / 'expected-inputs.json'
 TOKEN = re.compile(rb'@[A-Z_0-9]+@')
 # GNU uses libc time(NULL), whose Linux vdso/coarse domain can lag the
 # high-resolution realtime clock across a second boundary. Sample that exact
@@ -74,6 +77,25 @@ class Execution:
     directories_before: dict[str, dict[str, int]]
     directories_after: dict[str, dict[str, int]]
     libc_time_interval: tuple[int, int] | None = None
+    expected_inputs: portable.PublicInputs | None = None
+
+
+def expected_preparation(profile: dict[str, Any], root: Path) -> portable.Preparation:
+    return portable.Preparation.load(profile, EXPECTED_INPUTS, root / 'database-input-witness')
+
+
+def expected_source_hashes() -> dict[str, str]:
+    return {name: h.sha256_file(path) for name, path in {
+        'expected_input_plans': EXPECTED_INPUTS, 'expected_input_replay': Path(portable.__file__),
+        'public_input_witness': ROOT / 'tools/fixtures/database_inputs.c'}.items()}
+
+
+def prepare_expected_model(model: Model, execution: Execution) -> Model:
+    if execution.expected_inputs is None:
+        # Literal-only mode is retained for archived observer controls and unit
+        # tests. All three current executable drivers provide preparation.
+        return model
+    return replace(model, stdout=portable.render_model(model.stdout, model.dump_count, execution.expected_inputs))
 
 
 def libc_time() -> int:
@@ -195,11 +217,15 @@ def parse_clock(value: bytes) -> float:
 
 
 def stream_errors(model: Model, runtime: Path, execution: Execution) -> list[str]:
+    return prepared_stream_errors(prepare_expected_model(model, execution), runtime, execution)
+
+
+def prepared_stream_errors(model: Model, runtime: Path, execution: Execution) -> list[str]:
     observation = execution.observation
     match = compile_template(model, runtime).fullmatch(observation.stdout)
     errors = []
     if match is None:
-        errors.append('full stdout protocol (only anchored ctime/directory identity slots may vary)')
+        errors.append('full stdout protocol (including exact independently prepared configuration/cache fields)')
     else:
         clocks = []
         for field in clock_fields(model):
@@ -309,9 +335,12 @@ def directory_metadata(model: Model, runtime: Path) -> dict[str, dict[str, int]]
     return result
 
 
-def execute(model: Model, case: h.Case, runtime: Path, executable: Path) -> Execution:
+def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
+            expected: portable.Preparation | None = None) -> Execution:
     h.reset_workspace(case, runtime, executable)
     before = directory_metadata(model, runtime)
+    plan = expected.plan(model.id, model.stdout, model.dump_count) if expected is not None else None
+    public_before = expected.capture(runtime / "work", plan) if expected is not None and plan is not None else {}
     started = time.time()
     libc_started = libc_time()
     stdout, stderr, status, limit, leftovers = h.capture(
@@ -319,8 +348,11 @@ def execute(model: Model, case: h.Case, runtime: Path, executable: Path) -> Exec
     libc_ended = libc_time()
     ended = time.time()
     after = directory_metadata(model, runtime)
+    public_after = expected.capture(runtime / "work", plan) if expected is not None and plan is not None else {}
+    public = (portable.PublicInputs(expected.config, public_before, public_after, expected.witness, plan)
+              if expected is not None and plan is not None else None)
     filesystem = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
-    return Execution(h.Observation(stdout, stderr, status, limit, filesystem, leftovers), (started, ended), before, after, (libc_started, libc_ended))
+    return Execution(h.Observation(stdout, stderr, status, limit, filesystem, leftovers), (started, ended), before, after, (libc_started, libc_ended), public)
 
 
 def evidence(execution: Execution) -> dict[str, Any]:
@@ -333,7 +365,21 @@ def evidence(execution: Execution) -> dict[str, Any]:
 def assess(model: Model, runtime: Path, filesystem: dict[str, Any], executions: list[Execution]) -> dict[str, Any]:
     if len(executions) not in (2, 3):
         raise h.HarnessError('database assessment requires GNU2 and optional candidate')
-    expected_errors = [stream_errors(model, runtime, execution) for execution in executions]
+    expected_errors = []
+    observations = []
+    for execution in executions:
+        record = evidence(execution)
+        if execution.expected_inputs is not None:
+            record['independent_expected_inputs'] = execution.expected_inputs.evidence()
+        observations.append(record)
+        try:
+            prepared = prepare_expected_model(model, execution)
+            if execution.expected_inputs is not None:
+                record['prepared_stdout_template_hex'] = prepared.stdout.hex()
+            errors = prepared_stream_errors(prepared, runtime, execution)
+        except (h.HarnessError, ValueError, KeyError) as error:
+            errors = ['independent expected input preparation: ' + str(error)]
+        expected_errors.append(errors)
     filesystem_errors = [execution.observation.filesystem != filesystem for execution in executions]
     # Every engine must first match the whole anchored protocol and independent
     # physical/time relations. The remaining fields compare without exemptions.
@@ -347,10 +393,11 @@ def assess(model: Model, runtime: Path, filesystem: dict[str, Any], executions: 
     return {'passed': not any(expected_errors) and not any(filesystem_errors) and not repeat and not candidate,
             'expected_errors': expected_errors, 'filesystem_errors': filesystem_errors,
             'oracle_repeat_differences': repeat, 'candidate_differences': candidate,
-            'observations': [evidence(execution) for execution in executions]}
+            'observations': observations}
 
 
-def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, root: Path) -> dict[str, Any]:
+def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, root: Path, *,
+                 expected: portable.Preparation | None = None) -> dict[str, Any]:
     inputs = root / 'inputs'
     inputs.mkdir()
     runtime = root / 'runtime'
@@ -360,7 +407,7 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
         compilations: list[dict[str, Any]] = []
         case, filesystem = (prepare(model, inputs / safe_relative(model.id), runtime, compilations)
                             if model.compile_shared else prepare(model, inputs / safe_relative(model.id), runtime))
-        executions = [execute(model, case, runtime, binary) for binary in ([oracle, oracle] if candidate is None else [oracle, oracle, candidate])]
+        executions = [execute(model, case, runtime, binary, expected=expected) for binary in ([oracle, oracle] if candidate is None else [oracle, oracle, candidate])]
         judgment = assess(model, runtime, filesystem, executions)
         records.append({'id': model.id, 'args': list(case.args), 'environment': case.environment,
                         'expected_status': model.expected_status, 'stdout_template_hex': model.stdout.hex(),
@@ -397,17 +444,20 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             raise h.HarnessError('unknown database cases: ' + ', '.join(sorted(unknown)))
         selected = [model for model in available if not args.case or model.id in args.case]
-        reference_oracle.verify(args.oracle)
+        profile = reference_oracle.verify(args.oracle)
         identities = {'oracle': h.executable_identity(args.oracle, oracle=True)}
         if args.candidate is not None:
             identities['candidate'] = h.executable_identity(args.candidate)
         with tempfile.TemporaryDirectory(prefix='rmake-database-output-') as temporary:
+            root = Path(temporary).resolve()
             report = run_campaign(selected, Path(identities['oracle']['path']),
-                                  Path(identities['candidate']['path']) if args.candidate is not None else None, Path(temporary).resolve())
+                                  Path(identities['candidate']['path']) if args.candidate is not None else None, root,
+                                  expected=expected_preparation(profile, root))
         report['identities'] = identities
         report['source_hashes'] = {name: h.sha256_file(path) for name, path in {
             'driver': Path(__file__), 'models': SOURCES / 'models.toml', 'phases': SOURCES / 'phases.json',
             'search': SOURCES / 'search-spelling.json', 'conformance': ROOT / 'tools/conformance.py'}.items()}
+        report['source_hashes'].update(expected_source_hashes())
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
         report.update(error=str(error), passed=False)

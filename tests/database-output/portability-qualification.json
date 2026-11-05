@@ -1,0 +1,24 @@
+{
+  "classification": "Lossless original and alternate GNU2/rmake test-model portability evidence. Includes live real filesystem order controls, exact prepared bytes, unaltered CI0429 model failures, and the initial local relative launcher failure. No runtime source, executables, GNU implementation, header, or test bytes.",
+  "sha256": "eb8422207a836a7dee9b32821986b300c86a8b623f94e5fa36cc0a1c9d4139b9",
+  "raw_sha256": "beb64e8aba01989a4f9b931fe2143dda8666fecc30e8d7427b3d61681c12ab86",
+  "raw_bytes": 32681275,
+  "files": 97,
+  "qualification": {
+    "original_prefix": {
+      "GNU2_and_candidate": 61
+    },
+    "original_prefix_actual_tmpfs_search": {
+      "GNU2_and_candidate": 8,
+      "changed_independent_orders": 8,
+      "changed_exact_templates": 8
+    },
+    "alternate_verified_prefix": {
+      "GNU2_and_candidate": 53,
+      "GNU2_only_stdin": 8,
+      "additional_tmpfs_GNU2_and_candidate": 8
+    },
+    "tooling": 38,
+    "independent_trace_trust": 61
+  }
+}

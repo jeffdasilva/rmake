@@ -118,7 +118,7 @@ class DatabaseNumericTests(unittest.TestCase):
             events = []
             def prepare(*_args):
                 events.append('compile'); return self.case, {'once': True}, self.filesystem
-            def execute(*args):
+            def execute(*args, **kwargs):
                 events.append(str(args[-1]))
                 return replace(self.good, observation=replace(self.good.observation,
                     stdout=self.good.observation.stdout.replace(bytes(self.runtime), bytes(args[2]))))
@@ -136,6 +136,7 @@ class DatabaseNumericTests(unittest.TestCase):
             args = ['--oracle', '/oracle', '--candidate', '/candidate', '--report', str(report)]
             with patch.object(numeric.shutil, 'which', return_value='/compiler'), \
                  patch.object(numeric.reference_oracle, 'verify'), \
+                 patch.object(numeric.database, 'expected_preparation'), \
                  patch.object(numeric.h, 'executable_identity', side_effect=lambda path, **_: {'path': str(path)}), \
                  patch.object(numeric, 'run_campaign', return_value={'passed': False, 'totals': {'fail': 1}}):
                 self.assertEqual(numeric.main(args), 1)
