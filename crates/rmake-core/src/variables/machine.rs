@@ -888,20 +888,17 @@ impl Expansion<'_, '_> {
                     if names.len() > 1 && word_spans(&value).next().is_none() {
                         return Err(ExpandError::Safety(crate::safety::SafetyError::EmptyLet));
                     }
-                    let mut bindings = BTreeMap::new();
+                    let mut frame = LocalFrame::new(None);
                     for (index, name) in names.iter().enumerate() {
                         let v = match spans.next() {
                             Some((start, _)) if index + 1 == names.len() => value[start..].to_vec(),
                             Some((start, end)) => value[start..end].to_vec(),
                             None => Vec::new(),
                         };
-                        bindings.insert(name.to_vec(), local(v));
+                        frame.insert(name.to_vec(), local(v));
                     }
                     let start = self.bindings.len();
-                    self.bindings.push(LocalFrame {
-                        values: bindings,
-                        call: false,
-                    });
+                    self.bindings.push(frame);
                     m.job(
                         Kind::ScopeEnd(start, scope_storage(&self.bindings[start..])),
                         depth,
@@ -921,16 +918,14 @@ impl Expansion<'_, '_> {
                     state.cursor += b;
                     let scope = if state.index == 0 {
                         let start = self.bindings.len();
-                        self.bindings.push(LocalFrame {
-                            values: BTreeMap::from([(state.name.clone(), local(value.to_vec()))]),
-                            call: false,
-                        });
+                        let mut frame = LocalFrame::new(None);
+                        frame.insert(state.name.clone(), local(value.to_vec()));
+                        self.bindings.push(frame);
                         m.job(Kind::ScopeEnd(start, 0), depth, nearest.clone())?;
                         start
                     } else {
                         let index = self.bindings.len() - 1;
                         let binding = self.bindings[index]
-                            .values
                             .get_mut(&state.name)
                             .expect("foreach binding");
                         binding.value.clear();
@@ -1016,27 +1011,25 @@ impl Expansion<'_, '_> {
         } else {
             self.store.lookup_from(name, 0).map(|(layer, _)| layer)
         };
-        let mut bindings = BTreeMap::new();
-        // Each call frame already contains placeholders for all older call
-        // parameters. The latest one is the complete mask; lexical scopes are
-        // deliberately excluded.
-        if let Some(scope) = self.bindings.iter().rev().find(|scope| scope.call) {
-            for key in scope.keys() {
-                if !key.is_empty() && key.iter().all(u8::is_ascii_digit) {
-                    bindings.insert(key.clone(), local(Vec::new()));
-                }
-            }
-        }
+        // The nearest call frame already masks every older parameter. Insert
+        // explicit arguments first, followed by any missing inherited slots.
+        let slots = self
+            .bindings
+            .iter()
+            .rev()
+            .find_map(|frame| frame.call_arguments)
+            .map_or(expanded.len(), |older| older.max(expanded.len()));
+        let mut frame = LocalFrame::new(Some(slots));
         let end = expanded[0].len() - name_text.len() + name.len();
         for (index, value) in expanded.iter().enumerate() {
             let value = if index == 0 { &value[..end] } else { value };
-            bindings.insert(index.to_string().into_bytes(), local(value.to_vec()));
+            frame.insert(index.to_string().into_bytes(), local(value.to_vec()));
+        }
+        for index in expanded.len()..slots {
+            frame.insert(index.to_string().into_bytes(), local(Vec::new()));
         }
         let start = self.bindings.len();
-        self.bindings.push(LocalFrame {
-            values: bindings,
-            call: true,
-        });
+        self.bindings.push(frame);
         let location = variable.definition.clone().or(nearest);
         m.job(
             Kind::ScopeEnd(start, scope_storage(&self.bindings[start..])),

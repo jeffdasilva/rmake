@@ -1,0 +1,12 @@
+id = "shell-lexical-export-foreach-explicit"
+requirement = "functions.shell"
+candidate = "required"
+description = "Check lexical binding selection and policy for shell exports."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "local=one child=[one]\nlocal=two child=[two]\nafter=[global]\n"
+stderr = ""

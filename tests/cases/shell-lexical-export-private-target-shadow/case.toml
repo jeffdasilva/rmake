@@ -1,0 +1,12 @@
+id = "shell-lexical-export-private-target-shadow"
+requirement = "functions.shell"
+candidate = "required"
+description = "Check lexical binding selection and policy for shell exports."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=[target]\nlexical=local inside=[]\nafter=[target]\n"
+stderr = ""
