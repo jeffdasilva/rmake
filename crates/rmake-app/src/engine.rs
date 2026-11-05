@@ -3653,14 +3653,9 @@ impl Engine {
 
     /// A user error during command configuration leaves the already reserved
     /// logical slot outstanding while the real children drain.
-    fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, mut error: &ExpandError) {
-        while let ExpandError::Located { error: inner, .. } = error {
-            error = inner;
-        }
-        if matches!(
-            error,
-            ExpandError::UserError(_) | ExpandError::ContextualUserError { .. }
-        ) && self.aborted_recipe_permit.is_none()
+    fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, error: &ExpandError) {
+        if error.is_user_error()
+            && self.aborted_recipe_permit.is_none()
             && self.interrupt.is_none()
             && rmake_linux::signals::pending().is_none()
         {
