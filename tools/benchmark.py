@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import statistics
 import subprocess
 import sys
@@ -812,6 +813,50 @@ def qualify_locale(environment):
     return result.stdout.decode().strip()
 
 
+def validate_workload(root, name, source, arguments, environment, executables):
+    """Replay fresh inputs under one invocation path without collecting timings."""
+    work = root / "work"
+    scratch = root / "tmp"
+    alias = root / "make"
+    expected = None
+    original_inputs = None
+    labels = ["oracle", *executables]
+    for label in labels:
+        for directory in (work, scratch):
+            if directory.exists():
+                shutil.rmtree(directory)
+            directory.mkdir()
+        fixture = prepare_files(work, name)
+        (work / "Makefile").write_bytes(source)
+        roots = {"work": work, "tmp": scratch}
+        inputs = conformance.snapshot(roots)
+        if original_inputs is None:
+            original_inputs = inputs
+        elif inputs != original_inputs:
+            raise RuntimeError(f"benchmark input disagreement: {name} ({label})")
+        alias.unlink(missing_ok=True)
+        alias.symlink_to(executables[label])
+        out, err, status, limit, leftovers = conformance.capture(
+            [str(alias), *arguments], work,
+            {"HOME": str(work), "TMPDIR": str(scratch), **environment}, 30,
+        )
+        if status or limit or leftovers:
+            raise RuntimeError(f"benchmark validation failed: {name} ({label}), "
+                               f"status={status}, limit={limit}, leftover processes={leftovers}")
+        observation = conformance.Observation(out, err, status, limit, conformance.snapshot(roots), leftovers)
+        if expected is not None:
+            differences = conformance.differences(expected, observation)
+            if differences:
+                raise RuntimeError(f"benchmark validation disagreement: {name} ({label}): "
+                                   + ", ".join(differences))
+        else:
+            expected = observation
+    return {"input_fixture": fixture, "engine_order": labels, "status": expected.returncode,
+            "stdout_sha256": hashlib.sha256(expected.stdout).hexdigest(),
+            "stderr_sha256": hashlib.sha256(expected.stderr).hexdigest(),
+            "filesystem_sha256": reference_oracle.json_digest(expected.filesystem)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
@@ -820,6 +865,7 @@ def main():
     parser.add_argument("--repeat", type=int, default=15)
     parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "runtime-arguments", "builtin-transitions", "word-spans", "wildcard", "wildcard-locale", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--validate-only", action="store_true", help="check fresh workload runs without timing")
     parser.add_argument("--locale", default="C", help="libc locale for every measured engine")
     parser.add_argument("--locale-path", type=Path, help="private LOCPATH, verified before timing")
     parser.add_argument("--silent", action="store_true", help="suppress goal summaries on every engine")
@@ -851,6 +897,10 @@ def main():
                         "selected early workloads, not a representative full-compatibility benchmark"],
         "workloads": [],
     }
+    if args.validate_only:
+        report.update(schema=1, mode="validation", tool="untimed benchmark validation",
+                      method="fresh inputs; two GNU runs; exact streams, status and file effects",
+                      limitations=["no elapsed-time measurements", "file timestamps are not compared"])
     with tempfile.TemporaryDirectory(prefix="rmake-bench-") as directory:
         path = Path(directory)
         env = {"PATH": "/usr/bin:/bin", "LC_ALL": args.locale, "TZ": "UTC", "HOME": directory}
@@ -860,13 +910,23 @@ def main():
                             "locpath": env.get("LOCPATH"), "silent": args.silent}
         alias = path / "make"
         for name, source in selected_workloads(args.suite):
-            fixture = prepare_files(path, name)
-            (path / "Makefile").write_bytes(source)
             arguments = workload_arguments(name)
             if args.silent:
                 arguments = ["-s", *arguments]
             overrides = workload_environment(name)
             run_environment = env | overrides
+            if args.validate_only:
+                validation_environment = {key: value for key, value in env.items() if key != "HOME"}
+                record = validate_workload(path, name, source, arguments,
+                                           validation_environment | overrides, executables)
+                record.update(name=name, source_sha256=hashlib.sha256(source).hexdigest(), arguments=arguments)
+                if overrides:
+                    record["environment"] = overrides
+                report["workloads"].append(record)
+                print(f"{name}: validated")
+                continue
+            fixture = prepare_files(path, name)
+            (path / "Makefile").write_bytes(source)
             samples = {label: [] for label in executables}
             expected = None
             for iteration in range(args.repeat + 2):
@@ -905,7 +965,9 @@ def main():
             display = ", ".join(f"{label} median {values['median_ns'] / 1_000_000:.3f} ms"
                                 for label, values in record["measurements"].items())
             print(f"{name}: {display}")
-    output_path = args.output or ROOT / f"artifacts/bench/{'comparison' if args.candidate else 'oracle'}.json"
+    kind = "comparison" if args.candidate else "oracle"
+    filename = f"validation-{kind}.json" if args.validate_only else f"{kind}.json"
+    output_path = args.output or ROOT / "artifacts" / "bench" / filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2) + "\n")
     print(f"Report: {output_path}")

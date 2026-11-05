@@ -22,7 +22,7 @@ class IntegrationTests(unittest.TestCase):
         data = json.loads(i.MANIFEST.read_text())
         self.assertEqual(data['schema_version'], 1)
         self.assertEqual({p['id'] for p in data['projects']},
-                         {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14'})
+                         {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14', 'patch-2.8'})
         for project in data['projects']:
             self.assertRegex(project['archive_sha256'], r'^[0-9a-f]{64}$')
             self.assertRegex(project['license_sha256'], r'^[0-9a-f]{64}$')
@@ -103,7 +103,7 @@ class IntegrationTests(unittest.TestCase):
 
     def test_semantic_rebuild_requires_the_one_original_source_fragment(self):
         projects = {p['id']: p for p in json.loads(i.MANIFEST.read_text())['projects']}
-        for name in ('lua-5.4.9', 'gzip-1.14'):
+        for name in ('lua-5.4.9', 'gzip-1.14', 'patch-2.8'):
             with self.subTest(project=name):
                 project = projects[name]
                 change = project['header_rebuild']

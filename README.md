@@ -284,7 +284,11 @@ Their reports and failure reproductions are written under `artifacts/`.
 `make bench-compare` builds release rmake and records alternating paired timings
 against the verified oracle, checking exact output before reporting times. These
 early workloads are measurement tools, not evidence of complete compatibility or
-a general speed advantage.
+a general speed advantage. Set `BENCH_VALIDATE=1` with either `make bench` or
+`make bench-compare` to run the workloads without collecting timings. Validation
+starts each execution with fresh inputs and checks output, status, and file
+effects against two runs of the verified GNU executable. It writes separate
+reports under `artifacts/bench`.
 Use `BENCH_SUITE=word-spans` for six large-list workloads covering selected ranges,
 full scans, `let` remainders and literal `patsubst`. The default `core` suite
 retains the original three workloads; `BENCH_SUITE=all` includes every suite.

@@ -14,10 +14,11 @@ use crate::diagnostic::{
 use crate::messages::Message;
 use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
-    Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
+    Assignment, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
     VariableStore, reference_end,
 };
 use std::borrow::Cow;
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
 fn source_read_error_at(
@@ -445,6 +446,7 @@ pub struct Database {
     next_group_id: usize,
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
+    target_read: Option<TargetRead>,
     rules_frozen: bool,
     suppress_default_goal: bool,
     second_expansion: bool,
@@ -460,6 +462,12 @@ pub struct Database {
     /// Global bindings being expanded for an environment vector. Target-local
     /// bindings do not refer to the global object removed by undefine.
     pub(crate) exporting: Vec<Vec<u8>>,
+}
+
+#[derive(Clone)]
+struct TargetRead {
+    target: Vec<u8>,
+    global_lexical: Vec<crate::variables::LocalFrame>,
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -519,34 +527,71 @@ impl Database {
         target: &[u8],
         mut context: ExpansionContext<'_>,
     ) -> Result<Option<TargetScope>, ExpandError> {
+        let matches_target = |assignment: &PatternAssignment| {
+            assignment
+                .pattern
+                .matches(target)
+                .is_some_and(|stem| !stem.is_empty())
+        };
         let mut matching = self
             .pattern_assignments
             .iter()
-            .filter(|assignment| {
-                assignment
-                    .pattern
-                    .matches(target)
-                    .is_some_and(|stem| !stem.is_empty())
-            })
+            .enumerate()
+            .filter_map(|(index, assignment)| matches_target(assignment).then_some(index))
             .collect::<Vec<_>>();
         // More fixed bytes mean a shorter stem, hence higher precedence.
-        // Stable sorting preserves declaration order when stem lengths tie.
-        matching.sort_by_key(|assignment| assignment.pattern.fixed_len());
+        // Pop in increasing specificity, with declaration order at each rank.
+        let order = |assignments: &[PatternAssignment], index: usize| {
+            (assignments[index].pattern.fixed_len(), index)
+        };
+        matching.sort_unstable_by_key(|&index| Reverse(order(&self.pattern_assignments, index)));
         // Most targets have no matching pattern bindings. Do not allocate an
         // empty scope for them; matching declarations still run in full order.
         let mut pattern_scope = None;
-        for assignment in matching {
-            if pattern_scope
-                .get_or_insert_with(TargetScope::default)
-                .apply_pattern_with(
-                    &mut self.variables,
-                    &assignment.variable,
+        while let Some(index) = matching.pop() {
+            let scope = pattern_scope.get_or_insert_with(TargetScope::default);
+            let prepared = &self.pattern_assignments[index].variable;
+            let aliases_global = if prepared.uses_shell() {
+                // A deferred shell expression may reenter the reader and add
+                // pattern declarations. Keep the current binding independent
+                // of storage that can grow during that expansion.
+                let prepared = prepared.clone();
+                let before = self.pattern_assignments.len();
+                let mut globals = std::mem::take(&mut self.variables);
+                let result = scope.apply_pattern_with_using(
+                    &mut globals,
+                    &prepared,
                     context.reborrow(),
-                )?
-            {
+                    |globals, scope, bytes, _, context| {
+                        std::mem::swap(globals, &mut self.variables);
+                        let result =
+                            crate::variables::shell_scoped_database(self, scope, bytes, context);
+                        std::mem::swap(globals, &mut self.variables);
+                        result
+                    },
+                );
+                self.variables = globals;
+                let aliases_global = result?;
+                if before != self.pattern_assignments.len() {
+                    // Declarations inserted before the active binding can
+                    // only affect later file activations.
+                    let current = order(&self.pattern_assignments, index);
+                    matching.extend((before..self.pattern_assignments.len()).filter(|&added| {
+                        matches_target(&self.pattern_assignments[added])
+                            && order(&self.pattern_assignments, added) > current
+                    }));
+                    matching.sort_unstable_by_key(|&index| {
+                        Reverse(order(&self.pattern_assignments, index))
+                    });
+                }
+                aliases_global
+            } else {
+                scope.apply_pattern_with(&mut self.variables, prepared, context.reborrow())?
+            };
+            if aliases_global {
                 // A suppressed conditional can return the global binding. Its
                 // modifiers then replace global export policy too.
-                let name = assignment.variable.name();
+                let name = self.pattern_assignments[index].variable.name();
                 match self
                     .variables
                     .get(name)
@@ -2492,16 +2537,20 @@ impl Database {
             let pattern = Pattern::new(target);
             if pattern.has_wildcard() {
                 let name = self.expand(assignment.spec.name, location, context)?;
-                let variable = PatternVariable::prepare_with(
+                let value = if assignment.spec.kind == Assignment::Simple && !name.is_empty() {
+                    self.expand(assignment.spec.value, location, context)?
+                } else {
+                    assignment.spec.value.to_vec()
+                };
+                let variable = PatternVariable::prepare_read_value(
                     &self.variables,
                     &name,
-                    assignment.spec.value,
+                    value,
                     assignment.spec.kind,
                     assignment.origin,
                     assignment.private,
                     assignment.export,
                     Some(location),
-                    context.at(Some(location)),
                 )
                 .map_err(|error| ParseError {
                     unlocated: error.is_unlocated(),
@@ -2523,18 +2572,43 @@ impl Database {
                 history.intern(target);
             }
             self.file_records.enter_prerequisite(target);
-            let scope = self.target_scopes.entry(target.to_vec()).or_default();
-            let parse_variables = scope.context(&self.variables);
-            let name = parse_variables
-                .expand_with(assignment.spec.name, context.at(Some(location)))
-                .map_err(|error| ParseError {
-                    unlocated: error.is_unlocated(),
-                    location: error
-                        .diagnostic_location(Some(location))
-                        .unwrap_or(location)
-                        .clone(),
-                    message: error.diagnostic(),
-                })?;
+            let raw_name = assignment.spec.name;
+            let (scope, name) = if raw_name.contains(&b'$') {
+                let mut parse_variables = self
+                    .target_scopes
+                    .entry(target.to_vec())
+                    .or_default()
+                    .context(&self.variables);
+                let name = self.expand_target_read(
+                    target,
+                    &mut parse_variables,
+                    raw_name,
+                    false,
+                    context.at(Some(location)),
+                );
+                // The name may have changed this target's own table. Finish
+                // those effects before selecting the RHS definition owner.
+                let scope = self
+                    .target_scopes
+                    .get_mut(target)
+                    .expect("target declaration");
+                scope.retain_read_bindings(&parse_variables);
+                (scope, name)
+            } else {
+                let scope = self.target_scopes.entry(target.to_vec()).or_default();
+                let name = scope
+                    .context(&self.variables)
+                    .expand_with(raw_name, context.at(Some(location)));
+                (scope, name)
+            };
+            let name = name.map_err(|error| ParseError {
+                unlocated: error.is_unlocated(),
+                location: error
+                    .diagnostic_location(Some(location))
+                    .unwrap_or(location)
+                    .clone(),
+                message: error.diagnostic(),
+            })?;
             if name.is_empty() {
                 return Err(ParseError::system(
                     location.clone(),
@@ -2542,28 +2616,102 @@ impl Database {
                     context,
                 ));
             }
-            scope
-                .define_with(
+            let rhs = assignment.spec.value;
+            let kind = assignment.spec.kind;
+            let immediate = matches!(kind, Assignment::Simple | Assignment::ImmediateRecursive)
+                || (kind == Assignment::Append
+                    && scope
+                        .get(&name)
+                        .is_some_and(|binding| binding.flavor() == Flavor::Simple));
+            let result = if kind == Assignment::Shell || (immediate && rhs.contains(&b'$')) {
+                let mut updated = scope.clone();
+                let mut globals = std::mem::take(&mut self.variables);
+                let result = updated.define_with_using(
+                    &mut globals,
+                    &name,
+                    rhs,
+                    kind,
+                    assignment.origin,
+                    assignment.private,
+                    assignment.export,
+                    Some(location),
+                    context.at(Some(location)),
+                    |globals, scope, bytes, shell, context| {
+                        std::mem::swap(globals, &mut self.variables);
+                        let result = self.expand_target_read(target, scope, bytes, shell, context);
+                        std::mem::swap(globals, &mut self.variables);
+                        result
+                    },
+                );
+                self.variables = globals;
+                if result.is_ok() {
+                    self.target_scopes.insert(target.to_vec(), updated);
+                }
+                result
+            } else {
+                scope.define_with(
                     &mut self.variables,
                     &name,
-                    assignment.spec.value,
-                    assignment.spec.kind,
+                    rhs,
+                    kind,
                     assignment.origin,
                     assignment.private,
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
                 )
-                .map_err(|error| ParseError {
-                    unlocated: error.is_unlocated(),
-                    location: error
-                        .diagnostic_location(Some(location))
-                        .unwrap_or(location)
-                        .clone(),
-                    message: error.diagnostic(),
-                })?;
+            };
+            result.map_err(|error| ParseError {
+                unlocated: error.is_unlocated(),
+                location: error
+                    .diagnostic_location(Some(location))
+                    .unwrap_or(location)
+                    .clone(),
+                message: error.diagnostic(),
+            })?;
+            if self
+                .target_read
+                .as_ref()
+                .is_some_and(|read| read.target == target)
+                && let Some(active) = self.evaluation_scope.as_mut()
+            {
+                self.target_scopes[target].refresh_read_bindings(active);
+            }
         }
         Ok(())
+    }
+
+    fn expand_target_read(
+        &mut self,
+        target: &[u8],
+        scope: &mut VariableStore,
+        bytes: &[u8],
+        shell: bool,
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        let global_lexical = if let Some(read) = &self.target_read {
+            read.global_lexical.clone()
+        } else if self.evaluation_scope.is_none() {
+            self.evaluation_bindings.clone()
+        } else {
+            Vec::new()
+        };
+        scope.add_declaration_lexical(&global_lexical);
+        let parent = self.target_read.replace(TargetRead {
+            target: target.to_vec(),
+            global_lexical,
+        });
+        let previous_scope = self.evaluation_scope.take();
+        let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
+        let result = if shell {
+            crate::variables::shell_scoped_database(self, scope, bytes, context)
+        } else {
+            crate::variables::expand_scoped_database::<false>(self, scope, bytes, context)
+        };
+        self.evaluation_bindings = previous_bindings;
+        self.evaluation_scope = previous_scope;
+        self.target_read = parent;
+        result
     }
 
     fn condition(
@@ -3143,6 +3291,15 @@ impl Database {
         active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
+        // Nested declarations share the active target's table. Publish any
+        // preceding changes before re-entering the reader; it refreshes the
+        // saved scope when another declaration commits to the same owner.
+        if let (Some(read), Some(scope)) = (&self.target_read, scope.as_deref()) {
+            self.target_scopes
+                .get_mut(&read.target)
+                .expect("active target declaration")
+                .retain_read_bindings(scope);
+        }
         let previous_scope =
             std::mem::replace(&mut self.evaluation_scope, scope.as_deref().cloned());
         std::mem::swap(&mut self.evaluation_bindings, bindings);

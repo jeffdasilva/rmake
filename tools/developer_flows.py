@@ -30,8 +30,10 @@ CLEAN_CASES = {
     'clean-touch': (('-t',), True, False),
     'clean-default-directory': ((), False, True),
 }
+VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
 CASE_IDS = ('warm-bootstrap-oracle', *CLEAN_CASES,
-            'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable')
+            'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
+            *VALIDATION_CASES)
 
 
 def require(value, description):
@@ -57,8 +59,10 @@ def digest_tree(root):
 
 
 class Subject:
-    def __init__(self, root, binary, profile):
+    def __init__(self, root, binary, profile, candidate):
         self.root = root
+        self.candidate = candidate
+        self.benchmark_reports = {}
         self.work = root / 'work'
         self.home = root / 'home'
         self.tmp = root / 'tmp'
@@ -138,12 +142,53 @@ class Subject:
             require(b'cargo build --workspace --locked' in out, 'Cargo build prerequisite did not run')
             require((self.seed / 'debug/rmake').read_bytes()[:4] == b'\x7fELF',
                     'Cargo did not build a real executable')
-        if 'bench-compare-missing-executable' in selected:
+        if set(selected) & {'bench-compare-missing-executable', 'bench-compare-validation'}:
             out, err, status, limit, children = self.run(oracle_binary, 'release', target=self.release)
             require((status, limit, children) == (0, None, False), f'Cargo benchmark seed: {err!r}')
             require(BUILD_LINE in out, 'Cargo release prerequisite did not run')
             require((self.release / 'release/rmake').read_bytes()[:4] == b'\x7fELF',
                     'Cargo did not build a real release executable')
+
+    def validate_benchmark(self, case, binary):
+        kind = VALIDATION_CASES[case]
+        compare = kind == 'comparison'
+        target = 'bench-compare' if compare else 'bench'
+        report = self.work / 'artifacts' / 'bench' / f'validation-{kind}.json'
+        require(not report.parent.exists(), 'benchmark must start without a report')
+        result = self.run(binary, 'BENCH_VALIDATE=1', f'BENCH_CANDIDATE={self.candidate}',
+                          target, target=self.release)
+        out, err, status, limit, children = result
+        require((status, limit, children) == (0, None, False),
+                f'benchmark validation exit: {out!r} {err!r}')
+        require(b'python3 tools/oracle.py verify ' in out and self.verified in out
+                and b'python3 tools/benchmark.py ' in out and b'--validate-only\n' in out
+                and (BUILD_LINE in out) == compare, 'benchmark validation prerequisites differ')
+        require(report.is_file() and list(report.parent.iterdir()) == [report],
+                'benchmark validation did not produce exactly one separate report')
+        data = report.read_bytes()
+        decoded = json.loads(data)
+        names = ('tiny-noop', 'large-noop', 'expansion')
+        engines = ['oracle', 'oracle'] + (['candidate'] if compare else [])
+        require(decoded['mode'] == 'validation' and decoded['suite'] == 'core'
+                and [entry['name'] for entry in decoded['workloads']] == list(names),
+                'benchmark report lacks the untimed core workload inventory')
+        for entry in decoded['workloads']:
+            require(entry['engine_order'] == engines and entry['status'] == 0
+                    and 'measurements' not in entry, 'benchmark workload was timed or not qualified')
+            require(all(re.fullmatch(r'[0-9a-f]{64}', entry[f'{field}_sha256'])
+                        for field in ('source', 'stdout', 'stderr', 'filesystem')),
+                    'benchmark workload report omitted a checked result')
+        for name in names:
+            require(f'{name}: validated\n'.encode() in out, 'benchmark case did not run')
+        current = h.sha256_file(report)
+        prior = self.benchmark_reports.setdefault(case, current)
+        require(current == prior, 'benchmark report differs across Make drivers')
+        report.unlink()
+        report.parent.rmdir()
+        report.parent.parent.rmdir()
+        require(FINISHED.fullmatch(err) if compare else not err,
+                f'benchmark validation stderr: {err!r}')
+        return out, release_stderr(err) if compare else err, status, limit, children
 
     def observe(self, case, binary):
         before = self.protected()
@@ -177,6 +222,8 @@ class Subject:
                     shutil.rmtree(other)
                 if target.exists():
                     shutil.rmtree(target)
+        elif case in VALIDATION_CASES:
+            result = self.validate_benchmark(case, binary)
         else:
             missing = self.root / 'absent-candidate'
             compare = case == 'bench-compare-missing-executable'
@@ -223,7 +270,7 @@ def main():
     previous_umask = os.umask(0o022)
     try:
         with tempfile.TemporaryDirectory(prefix='rmake-developer-flows-') as directory:
-            subject = Subject(Path(directory), binary, profile)
+            subject = Subject(Path(directory), binary, profile, candidate)
             subject.build_inputs(binary, selected)
             for case in selected:
                 runs, errors = [], []
@@ -234,7 +281,9 @@ def main():
                     except h.HarnessError as error:
                         errors.append(f'{name}: {error}')
                 qualified = len(runs) == 3 and all(output == runs[0][1] for _, output in runs)
-                results.append({'id': case, 'pass': qualified, 'errors': errors, 'runs': [
+                results.append({'id': case, 'pass': qualified, 'errors': errors,
+                                **({'benchmark_report_sha256': subject.benchmark_reports[case]}
+                                   if case in subject.benchmark_reports else {}), 'runs': [
                     {'engine': name, 'stdout_hex': out.hex(), 'stderr_hex': err.hex(),
                      'status': status, 'limit': limit, 'leftover_processes': children}
                     for name, (out, err, status, limit, children) in runs]})

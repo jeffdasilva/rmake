@@ -19,8 +19,10 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 .PHONY: test-resource-fd-parallel
 
+.PHONY: test-resource-fd-fifo-failure test-resource-fd-fifo-failure-release
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-trace-nls test-trace-nls-release
+.PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
 .PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose
 
@@ -79,6 +81,7 @@ PROFILE_CANDIDATE ?= $(CURDIR)/artifacts/profile/target/release/rmake
 PROFILE_OUTPUT ?= $(CURDIR)/artifacts/profile/allocations
 BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
+BENCH_VALIDATE ?= 0
 BENCH_BASELINE ?=
 SEED ?= 44101
 GENERATED_CASES ?= 200
@@ -205,6 +208,7 @@ help:
 		'  test-debug-verbose Compare timestamp and remake decisions in C and French' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
 		'  test-job-debug-nls Compare C and French JOBS events' \
+		'  test-trace-job-languages Compare German, Japanese and Brazilian Portuguese trace and JOBS events' \
 		'  test-job-debug-load Compare controller phase and controlled load events' \
 		'  m5-acceptance  Run combined development and optimized runtime gates' \
 		'  m4-acceptance  Run development and optimized rule-resolution gates' \
@@ -231,7 +235,7 @@ help:
 		'Directory reporting replay: DIRECTORY_REPORT_CASE=<case ID>.' \
 		'Debug replay: DEBUG_CASE=<case ID>.' \
 		'Implicit search replay: DEBUG_TRAVERSAL_CASE=<case ID>.' \
-		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14.' \
+		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14|patch-2.8.' \
 		'Database replay: DATABASE_CASE=<case ID>; DATABASE_SEARCH_CASE=<search case ID>.' \
 		'Locale replay: LOCALE_CASE=<case ID>.' \
 		'JOBS replay: JOB_DEBUG_CASE=<case ID>.' \
@@ -319,9 +323,15 @@ test-startup-exits: build oracle-verify
 
 test-shell-capture-lifetime: build oracle-verify
 	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/development.json
+	$(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/failure-development.json
+	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/low-slots-development.json
+	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/cached-spool-development.json
 
 test-shell-capture-lifetime-release: release oracle-verify
 	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/optimized.json
+	$(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/failure-optimized.json
+	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/low-slots-optimized.json
+	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/cached-spool-optimized.json
 
 test-runtime-effects: build oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --self-test
@@ -601,6 +611,12 @@ test-jobserver-release: build oracle-verify
 test-resource-fd-pipe: build oracle-verify
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")
 
+test-resource-fd-fifo-failure: build oracle-verify
+	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-fd-fifo/failure-development.json
+
+test-resource-fd-fifo-failure-release: release oracle-verify
+	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-fd-fifo/failure-optimized.json
+
 test-resource-fd-fifo: build oracle-verify
 	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")
 
@@ -654,6 +670,12 @@ test-trace-nls: build oracle-verify catalog-check
 
 test-trace-nls-release: release oracle-verify catalog-check
 	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-optimized.json
+
+test-trace-job-languages: build oracle-verify catalog-check
+	$(PYTHON) tools/trace_job_languages.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace-job-languages/development.json
+
+test-trace-job-languages-release: release oracle-verify catalog-check
+	$(PYTHON) tools/trace_job_languages.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace-job-languages/optimized.json
 
 test-job-debug: build oracle-verify
 	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/job-debug/development.json $(if $(JOB_DEBUG_CASE),--case "$(JOB_DEBUG_CASE)")
@@ -754,14 +776,20 @@ test: test-trace-nls
 check: test-trace-nls
 test-m4-release: test-trace-nls-release
 
+test check: test-trace-job-languages
+test-m4-release: test-trace-job-languages-release
+
 test: test-shell-capture-lifetime
 check: test-shell-capture-lifetime
 test-m4-release: test-shell-capture-lifetime-release
 
+test check: test-resource-fd-fifo-failure
+test-m4-release: test-resource-fd-fifo-failure-release
+
 ci: check test-selfhost
 
 bench: oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)
 
 profile-allocations:
 	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
@@ -772,7 +800,7 @@ profile-allocations-frozen:
 
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)
 
 clean:
 	+$(CARGO) clean

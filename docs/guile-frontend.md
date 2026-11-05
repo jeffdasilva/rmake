@@ -16,7 +16,7 @@ that handles ordinary Makefiles. It keeps early decoder, reader, signal,
 standard-stream and native-finalizer lifetimes explicit. Output and process
 ownership stay live through native shutdown. The gate covers 57 language and
 native integration cases, nine startup phase cases, three HOME cases and 14
-signal cases in the enabled profile, plus one named stdin restart. The signal cases also run against the
+signal cases in the enabled profile, plus one named stdin restart and three valid Scheme text cases. The signal cases also run against the
 default binary. Two GNU runs and each rmake build must independently match
 literal streams, status, ordered effects, complete filesystems and bounds.
 
@@ -65,3 +65,8 @@ check pipe and FIFO drain and token waits. Bounded polling keeps the same worker
 admission active across callback requests. Actual child and token readiness
 still advances the scheduler, including the control where pidfds are unavailable.
 Both enabled builds run these cases.
+
+Public Scheme source is read as UTF-8 under both the C and C.UTF-8 locales.
+`gmk-eval` returns Scheme false after publishing its make effect. The three
+valid-source comparisons distinguish source decoding from result conversion
+and verify the resulting variable and file effects.

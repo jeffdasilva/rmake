@@ -1,0 +1,12 @@
+id = "target-shell-recipe-caller"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "target shell recipe caller"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "caller=[caller-own/]\nchosen=[global/global/0]\n"
+stderr = ""

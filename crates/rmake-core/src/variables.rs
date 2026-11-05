@@ -1289,6 +1289,29 @@ impl VariableStore {
         }
     }
 
+    /// A target declared inside a global call or loop sees those lexical
+    /// bindings behind its own table, before the permanent global table.
+    pub(crate) fn add_declaration_lexical(&mut self, frames: &[LocalFrame]) {
+        let layers = frames
+            .iter()
+            .rev()
+            .filter(|frame| !frame.is_empty())
+            .map(|frame| {
+                let mut bindings = Bindings::new(16);
+                for (name, variable) in frame.iter() {
+                    bindings.insert(name, variable.clone());
+                }
+                VariableLayer {
+                    file_locals: false,
+                    variables: Arc::new(bindings),
+                    inherited: true,
+                    global: false,
+                    pattern: false,
+                }
+            });
+        self.layers.splice(0..0, layers);
+    }
+
     /// Rebase a saved traversal context after an activation changed global
     /// metadata. Explicit scope snapshots remain independent of global changes.
     pub fn refresh_globals(&mut self, globals: &VariableStore) {
@@ -1871,11 +1894,7 @@ impl VariableStore {
             context,
             binding_context: None,
         };
-        if !expansion.context.has_shell() {
-            return Err(ExpandError::Unsupported(b"!=".to_vec()));
-        }
-        let command = expansion.expand(input)?;
-        expansion.shell(&command)
+        expansion.shell_assignment(input)
     }
 
     /// Invocation phases have an unlocated outer expansion, as when GNU
@@ -1999,7 +2018,7 @@ impl PatternVariable {
         name: &[u8],
         value: &[u8],
         assignment: Assignment,
-        mut origin: Origin,
+        origin: Origin,
         private: bool,
         export: Option<bool>,
         definition: Option<&Location>,
@@ -2008,11 +2027,32 @@ impl PatternVariable {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        let mut value = if assignment == Assignment::Simple {
+        let value = if assignment == Assignment::Simple {
             globals.expand_with(value, context)?
         } else {
             value.to_vec()
         };
+        Self::prepare_read_value(
+            globals, name, value, assignment, origin, private, export, definition,
+        )
+    }
+
+    /// Retain the RHS prepared by the active reader and then apply the
+    /// existing origin and metadata rules without expanding it again.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn prepare_read_value(
+        globals: &VariableStore,
+        name: &[u8],
+        mut value: Vec<u8>,
+        assignment: Assignment,
+        mut origin: Origin,
+        private: bool,
+        export: Option<bool>,
+        definition: Option<&Location>,
+    ) -> Result<Self, ExpandError> {
+        if name.is_empty() {
+            return Err(ExpandError::EmptyVariableName);
+        }
         if origin != Origin::Override {
             globals.record_database_lookup(name);
         }
@@ -2041,6 +2081,10 @@ impl PatternVariable {
             export,
             definition: definition.cloned().map(Arc::new),
         })
+    }
+
+    pub(crate) fn uses_shell(&self) -> bool {
+        self.assignment == Assignment::Shell
     }
 
     pub fn name(&self) -> &[u8] {
@@ -2124,6 +2168,33 @@ impl TargetScope {
         prepared: &PatternVariable,
         context: ExpansionContext<'_>,
     ) -> Result<bool, ExpandError> {
+        self.apply_pattern_with_using(
+            globals,
+            prepared,
+            context,
+            |_, scope, bytes, shell, context| {
+                if shell {
+                    scope.shell_with(bytes, context)
+                } else {
+                    scope.expand_mut_with(bytes, context)
+                }
+            },
+        )
+    }
+
+    pub(crate) fn apply_pattern_with_using(
+        &mut self,
+        globals: &mut VariableStore,
+        prepared: &PatternVariable,
+        context: ExpansionContext<'_>,
+        mut expand: impl FnMut(
+            &mut VariableStore,
+            &mut VariableStore,
+            &[u8],
+            bool,
+            ExpansionContext<'_>,
+        ) -> Result<Vec<u8>, ExpandError>,
+    ) -> Result<bool, ExpandError> {
         if !self.pattern && self.variables.is_empty() {
             self.variables = empty_bindings(16);
         }
@@ -2169,13 +2240,16 @@ impl TargetScope {
                 prepared.assignment == Assignment::Conditional && scope.get(name).is_some();
             let append_outer =
                 prepared.assignment == Assignment::Append && !self.variables.contains_key(name);
-            scope.define_with(
+            scope.define_with_using(
                 name,
                 &prepared.value,
                 prepared.assignment,
                 prepared.origin,
                 prepared.definition.as_deref(),
                 context,
+                None,
+                None,
+                |scope, bytes, shell, context| expand(globals, scope, bytes, shell, context),
             )?;
             if !conditional_exists
                 && let Some(variable) = Arc::make_mut(&mut scope.variables).get_mut(name)
@@ -2213,6 +2287,46 @@ impl TargetScope {
         definition: Option<&Location>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
+        self.define_with_using(
+            globals,
+            name,
+            value,
+            assignment,
+            origin,
+            private,
+            export,
+            definition,
+            context,
+            |_, store, bytes, shell, context| {
+                if shell {
+                    store.shell_with(bytes, context)
+                } else {
+                    store.expand_mut_with(bytes, context)
+                }
+            },
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn define_with_using(
+        &mut self,
+        globals: &mut VariableStore,
+        name: &[u8],
+        value: &[u8],
+        assignment: Assignment,
+        origin: Origin,
+        private: bool,
+        export: Option<bool>,
+        definition: Option<&Location>,
+        context: ExpansionContext<'_>,
+        mut expand: impl FnMut(
+            &mut VariableStore,
+            &mut VariableStore,
+            &[u8],
+            bool,
+            ExpansionContext<'_>,
+        ) -> Result<Vec<u8>, ExpandError>,
+    ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
@@ -2241,7 +2355,17 @@ impl TargetScope {
             return Ok(());
         }
         let append_outer = assignment == Assignment::Append && !self.variables.contains_key(name);
-        scope.define_with(name, value, assignment, origin, definition, context)?;
+        scope.define_with_using(
+            name,
+            value,
+            assignment,
+            origin,
+            definition,
+            context,
+            None,
+            None,
+            |store, bytes, shell, context| expand(globals, store, bytes, shell, context),
+        )?;
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
@@ -2275,6 +2399,14 @@ impl TargetScope {
         }
         self.variables = scope.variables;
         Ok(())
+    }
+
+    pub(crate) fn retain_read_bindings(&mut self, scope: &VariableStore) {
+        self.variables = Arc::clone(&scope.variables);
+    }
+
+    pub(crate) fn refresh_read_bindings(&self, scope: &mut VariableStore) {
+        scope.variables = Arc::clone(&self.variables);
     }
 }
 
@@ -2371,9 +2503,34 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
+    let mut expansion = scoped_database_expansion(db, variables, context);
+    let result = if NAMED {
+        expansion.variable(input)
+    } else {
+        expansion.expand(input)
+    };
+    expansion.finish_database_expansion(result)
+}
+
+pub(crate) fn shell_scoped_database(
+    db: &mut crate::parser::Database,
+    variables: &mut VariableStore,
+    input: &[u8],
+    context: ExpansionContext<'_>,
+) -> Result<Vec<u8>, ExpandError> {
+    let mut expansion = scoped_database_expansion(db, variables, context);
+    let result = expansion.shell_assignment(input);
+    expansion.finish_database_expansion(result)
+}
+
+fn scoped_database_expansion<'a, 'b>(
+    db: &'a mut crate::parser::Database,
+    variables: &'a mut VariableStore,
+    context: ExpansionContext<'b>,
+) -> Expansion<'a, 'b> {
     let inherited_active = db.evaluation_active.clone();
     let bindings = std::mem::take(&mut db.evaluation_bindings);
-    let mut expansion = Expansion {
+    Expansion {
         store: StoreAccess::Scoped {
             database: db,
             variables,
@@ -2386,13 +2543,7 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
         machine_nesting: 0,
         context,
         binding_context: None,
-    };
-    let result = if NAMED {
-        expansion.variable(input)
-    } else {
-        expansion.expand(input)
-    };
-    expansion.finish_database_expansion(result)
+    }
 }
 
 pub(crate) fn expand_environment_database(
@@ -2502,13 +2653,7 @@ pub(crate) fn shell_database(
             context,
             binding_context: None,
         };
-        let result = if !expansion.context.has_shell() {
-            Err(ExpandError::Unsupported(b"!=".to_vec()))
-        } else {
-            expansion
-                .expand(input)
-                .and_then(|command| expansion.shell(&command))
-        };
+        let result = expansion.shell_assignment(input);
         expansion.finish_database_expansion(result)
     };
     db.evaluation_scope = scope;
@@ -3007,6 +3152,14 @@ impl Expansion<'_, '_> {
             self.store.database_mut().unwrap().exporting.pop();
         }
         result
+    }
+
+    fn shell_assignment(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        if !self.context.has_shell() {
+            return Err(ExpandError::Unsupported(b"!=".to_vec()));
+        }
+        let command = self.expand(input)?;
+        self.shell(&command)
     }
 
     fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {

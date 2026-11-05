@@ -96,3 +96,22 @@ Patterns with shorter stems are more specific; equal-specificity definitions
 retain declaration order. A deferred append to a simple pattern binding expands
 its suffix in the target activation context while retaining simple flavor.
 This behavior is implemented separately from the explicit target scope API.
+
+An immediate target-specific assignment expands against the target's own
+bindings and the reader's applicable lexical context. A nested `eval` or
+`include` can change those bindings, and later references in the same right
+hand side observe the new values. Recipe variables belonging to a different
+target stay isolated. Eleven required cases cover these boundaries, including
+simple append, immediate recursive escaping, and command-line precedence.
+
+Computed target variable names expand in the same reader context before
+conditional selection or right hand side expansion. Name effects happen once
+for each target, and survive an empty-name error without evaluating the RHS.
+Ten further required fixtures cover these boundaries and the unchanged
+literal-name rules.
+
+Target-specific `!=` assignments expand the shell command in the same
+reader context. Nested `eval` and `include` effects complete before launch,
+and an empty command leaves an existing target-local `.SHELLSTATUS` alone.
+Nine required cases check effects, status ownership, lexical scope, and
+the recursive result. The ordinary lexical shell status cases remain gated.

@@ -6,6 +6,7 @@
 
 use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
+use rmake_linux::child::{CaptureSpawnError, Child};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
@@ -49,27 +50,44 @@ pub fn run(
     }
     let buffer = output.current();
     output.start();
+    let mut pipe = None;
+    let mut retain_failed_pipe = false;
     let (child, stdout) = match crate::engine::launch_child(
         &program,
         &command,
         &order,
         request.original_shell,
-        |mut command, image, arg0| {
-            if let Some(buffer) = &buffer {
-                buffer.configure_stderr(&mut command)?;
-            }
+        |command, image, arg0| {
+            retain_failed_pipe = false;
             if crate::native::has_modules() {
                 rmake_linux::native::flush_standard_streams()?;
             }
-            rmake_linux::child::Child::spawn_capture_ordered(
-                &mut command,
+            let spool = buffer.as_ref().and_then(|buffer| buffer.child_spool());
+            let stderr = spool
+                .as_deref()
+                .and_then(rmake_linux::output::Spool::child_stderr);
+            match Child::spawn_capture_ordered(
+                command,
                 image,
                 OsStr::from_bytes(arg0),
-            )
+                &mut pipe,
+                stderr,
+            ) {
+                Ok(capture) => Ok(capture),
+                Err(CaptureSpawnError::Prepare(error)) => Err(error),
+                Err(CaptureSpawnError::Launch(error)) => {
+                    retain_failed_pipe = true;
+                    Err(error)
+                }
+            }
         },
     ) {
         Ok(child) => child,
         Err(error) => {
+            if retain_failed_pipe {
+                pipe.expect("failed launch owns a capture pipe")
+                    .retain_failed();
+            }
             output.write_parts(
                 true,
                 &[

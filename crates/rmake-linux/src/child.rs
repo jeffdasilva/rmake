@@ -8,12 +8,14 @@ use std::ffi::{c_int, c_long};
 use std::fs::File;
 use std::io;
 use std::io::Read;
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
-use std::os::unix::process::ExitStatusExt;
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd};
+use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::process::{Command, ExitStatus};
+use std::sync::Mutex;
 
 unsafe extern "C" {
     fn syscall(number: c_long, ...) -> c_long;
+    fn dup2(source: c_int, destination: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn read(descriptor: c_int, bytes: *mut std::ffi::c_void, size: usize) -> isize;
     fn kill(pid: c_int, signal: c_int) -> c_int;
@@ -39,6 +41,73 @@ enum Process {
         pid: c_int,
         status: Option<ExitStatus>,
     },
+}
+
+/// One logical shell capture owns the same pair across executable attempts.
+pub struct CapturePipe {
+    reader: File,
+    writer: File,
+}
+
+pub enum CaptureSpawnError {
+    Prepare(io::Error),
+    Launch(io::Error),
+}
+
+impl CapturePipe {
+    fn new() -> io::Result<Self> {
+        let (reader, writer) = io::pipe()?;
+        Ok(Self {
+            // Keep any occupied standard slots until the spawn attempt has
+            // finished. The child's fork-status socket must stay independent.
+            reader: File::from(OwnedFd::from(reader)),
+            writer: File::from(OwnedFd::from(writer)),
+        })
+    }
+
+    pub fn retain_failed(self) {
+        static PRIVATE_ENDS: Mutex<Vec<File>> = Mutex::new(Vec::new());
+        PRIVATE_ENDS
+            .lock()
+            .expect("failed capture ownership")
+            .extend([self.reader, self.writer].into_iter().filter_map(|end| {
+                if end.as_raw_fd() > 2 {
+                    return Some(end);
+                }
+                // The public standard slot stays occupied until it is restored
+                // by native code, or closed by exec/exit. Do not keep a Rust
+                // owner that could outlive a native replacement of that slot.
+                let _ = end.into_raw_fd();
+                None
+            }));
+    }
+}
+
+fn set_capture_stream(source: c_int, target: c_int) -> io::Result<()> {
+    if source == target {
+        // An identity action leaves the original close-on-exec flag intact.
+        return Ok(());
+    }
+    loop {
+        // SAFETY: the ordered spawn retains the source through fork. The child
+        // changes only its own standard descriptor table here.
+        if unsafe { dup2(source, target) } >= 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+}
+
+fn prepare_capture_reader(stdout: File) -> io::Result<File> {
+    let stdout = crate::process::private_descriptor(stdout)?;
+    let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
+    if flags < 0 || unsafe { fcntl(stdout.as_raw_fd(), 4, flags | 0x800) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(stdout)
 }
 
 impl Child {
@@ -137,12 +206,41 @@ impl Child {
     }
 
     pub fn spawn_capture_ordered(
-        command: &mut Command,
+        mut command: Command,
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
-    ) -> io::Result<(Self, File)> {
-        image.configure_exec(command, arg0)?;
-        Self::spawn_capture(command)
+        capture: &mut Option<CapturePipe>,
+        stderr: Option<BorrowedFd<'_>>,
+    ) -> Result<(Self, File), CaptureSpawnError> {
+        let pipe = match capture.as_ref() {
+            Some(pipe) => pipe,
+            None => capture.insert(CapturePipe::new().map_err(CaptureSpawnError::Prepare)?),
+        };
+        let writer = pipe.writer.as_raw_fd();
+        let stderr = stderr.map(|file| file.as_raw_fd());
+        if writer != 1 || stderr.is_some() {
+            // SAFETY: capture and the borrowed spool own both sources while
+            // this command spawns synchronously. Copy stdout first: when the
+            // capture writer occupies fd 2, installing stderr would replace it.
+            unsafe {
+                command.pre_exec(move || {
+                    set_capture_stream(writer, 1)?;
+                    if let Some(file) = stderr {
+                        set_capture_stream(file, 2)?;
+                    }
+                    Ok(())
+                });
+            }
+        }
+        image
+            .configure_exec(&mut command, arg0)
+            .map_err(CaptureSpawnError::Prepare)?;
+        let child = command.spawn().map_err(CaptureSpawnError::Launch)?;
+        let CapturePipe { reader, writer } = capture.take().expect("capture pipe exists");
+        drop(writer);
+        let child = Self::from_std(child);
+        let stdout = prepare_capture_reader(reader).map_err(CaptureSpawnError::Prepare)?;
+        Ok((child, stdout))
     }
 
     fn from_std(child: std::process::Child) -> Self {
@@ -172,12 +270,7 @@ impl Child {
         let mut child = command.spawn()?;
         let descriptor: OwnedFd = child.stdout.take().expect("piped stdout").into();
         let child = Self::from_std(child);
-        let stdout = crate::process::private_descriptor(File::from(descriptor))?;
-        let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
-        if flags < 0 || unsafe { fcntl(stdout.as_raw_fd(), 4, flags | 0x800) } < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        Ok((child, stdout))
+        Ok((child, prepare_capture_reader(File::from(descriptor))?))
     }
 
     pub fn id(&self) -> u32 {

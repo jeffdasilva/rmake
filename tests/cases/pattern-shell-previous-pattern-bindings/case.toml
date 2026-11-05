@@ -1,0 +1,12 @@
+id = "pattern-shell-previous-pattern-bindings"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "pattern shell previous pattern bindings"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "file=[pattern/first/4/explicit/0]\n"
+stderr = ""

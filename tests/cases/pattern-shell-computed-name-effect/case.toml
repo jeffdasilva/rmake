@@ -1,0 +1,12 @@
+id = "pattern-shell-computed-name-effect"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "pattern shell computed name effect"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "reader=[NEW]\nfile=[result/]\n"
+stderr = ""
