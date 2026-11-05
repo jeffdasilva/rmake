@@ -522,3 +522,8 @@ borrowed endpoint's identity and let an owned pool launch eligible recipes
 without carrying unnecessary descriptors across exec. Twelve original GNU2
 cases cover owned and borrowed pools, startup failures, recursion, and
 returned capacity. The GNU FD4 error and leftover FIFO remain open.
+
+[File-size limits during stdin capture](../tests/resource-file-size/README.md)
+preserve GNU's write and close boundaries before publishing a named makefile.
+Fifteen original GNU2 comparisons cover explicit write failure, buffered close
+truncation, early SIGXFSZ and ordinary file-function controls.

@@ -49,6 +49,18 @@ pub struct Source {
     path: PathBuf,
     published: Cell<bool>,
 }
+
+pub enum CopyError {
+    Storage,
+    Write { path: PathBuf, error: io::Error },
+}
+
+impl From<io::Error> for CopyError {
+    fn from(_: io::Error) -> Self {
+        Self::Storage
+    }
+}
+
 impl Source {
     pub fn adopt(path: PathBuf) -> Self {
         Self {
@@ -57,7 +69,7 @@ impl Source {
         }
     }
 
-    pub fn copy_stdin() -> io::Result<Self> {
+    pub fn copy_stdin() -> Result<Self, CopyError> {
         let mut name = CString::new(
             crate::temporary::initialize()
                 .directory()
@@ -69,7 +81,7 @@ impl Source {
         .into_bytes_with_nul();
         let descriptor = unsafe { rm_stdin_create(name.as_mut_ptr().cast()) };
         if descriptor < 0 {
-            return Err(io::Error::last_os_error());
+            return Err(CopyError::Storage);
         }
         name.pop();
         let source = Self {
@@ -78,23 +90,34 @@ impl Source {
         };
         let file = crate::process::private_descriptor(unsafe { File::from_raw_fd(descriptor) })?;
         let buffer = Buffered::new(file)?;
-        let mut bytes = [0_u8; 4096];
+        // Write granularity determines which failures surface in fwrite and
+        // which are delayed until the deliberately unchecked fclose.
+        let mut bytes = [0_u8; 2048];
         loop {
             if crate::signals::pending().is_some() {
                 buffer.abandon();
-                return Err(io::ErrorKind::Interrupted.into());
+                return Err(CopyError::Storage);
             }
             let mut finished = 0;
             let length = unsafe { rm_stdin_read(bytes.as_mut_ptr(), bytes.len(), &mut finished) };
             if crate::signals::pending().is_some() {
                 buffer.abandon();
-                return Err(io::ErrorKind::Interrupted.into());
+                return Err(CopyError::Storage);
             }
             if length > 0 && unsafe { rm_stdin_write(buffer.0, bytes.as_ptr(), length) } < 0 {
-                return Err(io::Error::last_os_error());
+                let error = io::Error::last_os_error();
+                return Err(CopyError::Write {
+                    path: source.path.clone(),
+                    error,
+                });
             }
             if finished != 0 {
                 drop(buffer);
+                // Closing can deliver a resource signal while the source is
+                // still unpublished. Leave that interrupted file in place.
+                if crate::signals::pending().is_some() {
+                    return Err(CopyError::Storage);
+                }
                 source.published.set(true);
                 return Ok(source);
             }

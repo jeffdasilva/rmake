@@ -2087,7 +2087,20 @@ impl Engine {
             let source = match rmake_linux::stdin_source::Source::copy_stdin() {
                 Ok(source) => source,
                 Err(_) if rmake_linux::signals::pending().is_some() => return Err(()),
-                Err(_) => {
+                Err(rmake_linux::stdin_source::CopyError::Write { path, error }) => {
+                    self.fatal(
+                        None,
+                        &[
+                            b"fwrite: temporary file ".as_slice(),
+                            path.as_os_str().as_bytes(),
+                            b": ",
+                            os_error(&error).as_bytes(),
+                        ]
+                        .concat(),
+                    );
+                    return Err(());
+                }
+                Err(rmake_linux::stdin_source::CopyError::Storage) => {
                     self.fatal(
                         None,
                         b"cannot store makefile from stdin to a temporary file",

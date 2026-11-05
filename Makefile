@@ -16,7 +16,7 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv
 .PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release test-catalog-coverage
-.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
+.PHONY: test-stdin-sources test-resource-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 
 .PHONY: test-job-debug
 .PHONY: test-debug-traversal test-debug-traversal-nls
@@ -29,6 +29,7 @@ DESTDIR ?=
 CATALOG_INSTALL_DIR ?= $(PREFIX)/share/rmake/locale
 INTEGRATION_CASE ?=
 STDIN_CASE ?=
+RESOURCE_FILE_SIZE_CASE ?=
 PROCESS_RESTART_CASE ?=
 RESTART_ENVIRONMENT_CASE ?=
 RESOURCE_FD_CASE ?=
@@ -170,6 +171,7 @@ help:
 		'  test-guile-frontend Compare the enabled application with the verified Guile reference' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-stdin-sources Compare named stdin lifetime, restarts and cleanup' \
+		'  test-resource-file-size Compare stdin copy and signals under a file-size limit' \
 		'  test-process-restarts Compare new process entry and executable replacement' \
 		'  test-restart-environment Compare the complete live process environment vector' \
 		'  test-restart-pipe Check original inherited jobserver descriptors across exec' \
@@ -375,6 +377,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" STDIN_CASE=stdin-owned-goal-unlinked test-stdin-sources
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FILE_SIZE_CASE=stdin-4096-limit-128 test-resource-file-size
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESTART_ENVIRONMENT_CASE=raw-ordered-vector test-restart-environment
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
@@ -426,6 +429,7 @@ test-m4-release: release oracle-verify test-nls-release test-nls-directory-relea
 	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/developer-flows/optimized.json
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/stdin-sources/optimized.json
+	$(PYTHON) tools/resource_file_size.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-file-size/optimized.json
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
 	$(PYTHON) tools/restart_environment.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-environment/optimized.json
 	$(PYTHON) tools/restart_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-pipe/optimized.json
@@ -534,6 +538,9 @@ test-locale-collation: build oracle-verify
 
 test-stdin-sources: build oracle-verify
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/stdin-sources/development.json $(if $(STDIN_CASE),--case "$(STDIN_CASE)")
+
+test-resource-file-size: build oracle-verify
+	$(PYTHON) tools/resource_file_size.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-file-size/development.json $(if $(RESOURCE_FILE_SIZE_CASE),--case "$(RESOURCE_FILE_SIZE_CASE)")
 
 test-process-restarts: build oracle-verify
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/process-restarts/development.json $(if $(PROCESS_RESTART_CASE),--case "$(PROCESS_RESTART_CASE)")
@@ -665,9 +672,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-jobserver-release test-nls test-nls-directory
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-jobserver-release test-nls test-nls-directory
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-jobserver-release test-nls test-nls-directory
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-jobserver-release test-nls test-nls-directory
 
 ci: check test-selfhost
 
