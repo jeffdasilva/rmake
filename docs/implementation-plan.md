@@ -493,3 +493,9 @@ self-host recipe. [Localized debug events](../tests/debug-traversal/README.md)
 extend this gate to 40 original cases in both C and verified French,
 including prerequisite freshness and the real restart transcript. Broader
 dynamic debug output and locale coverage remain open.
+
+The [developer entry point gate](../tests/developer-flows/README.md) runs the
+real Makefile and scripts in an owned offline Cargo workspace. It covers warm
+oracle bootstrap, six cleanup modes and three benchmark preconditions in both
+build profiles. Cold provisioning and positive timing runs remain separate
+campaigns.

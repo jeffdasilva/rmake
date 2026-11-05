@@ -26,6 +26,7 @@ mod recipe_flow;
 mod shell;
 mod shuffle;
 mod stdin_source;
+mod usage;
 
 /// Concrete semantic entry used by the reviewed process bootstrap.
 pub fn run() -> ExitCode {

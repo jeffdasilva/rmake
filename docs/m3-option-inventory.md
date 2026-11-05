@@ -75,3 +75,13 @@ speedup or GNU parity follows from these selected controls.
 
 
 [Wildcard locale collation](locale-collation.md) adds 74 separately required models for selected C/CUTF8/French and live native choices, with private pinned data generation. It does not close localized diagnostics, the remaining CLI inventory, broader locale/resource profiles or M3/M6.
+
+The [inherited option terminator gate](../tests/flag-terminator/README.md) checks
+literal dash-prefixed goals and definitions, required option operands, distinct
+source boundaries, live and passive flags, raw bytes, recursion and actual
+process restart. The owned decoder retains `--` until it can tell whether an
+option consumes it or whether it terminates that source.
+
+[Startup syntax errors](startup-usage.md) now preserve selected getopt
+continuations, immediate command effects, exact usage, and empty path/job
+operands. Both C and French Make-message controls are separately tested.

@@ -964,6 +964,7 @@ impl Invocation {
 #[derive(Debug)]
 pub enum InvocationError {
     Options(String),
+    Usage { version: bool },
     Expansion(StartupError),
 }
 

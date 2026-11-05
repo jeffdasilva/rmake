@@ -152,7 +152,27 @@ impl Plan {
         state: &mut State,
         options: &mut Options,
         argument: crate::cli::Argument,
+        explicit: bool,
     ) -> Result<(), InvocationError> {
+        if let crate::cli::Argument::Usage(_, issue) = argument {
+            let (getopt, message) = issue.message();
+            if getopt {
+                let name = if explicit {
+                    self.invocation.as_bytes()
+                } else {
+                    b""
+                };
+                let mut stderr = std::io::stderr().lock();
+                for part in [name, b": ", &message, b"\n"] {
+                    let _ = std::io::Write::write_all(&mut stderr, part);
+                }
+            } else {
+                state
+                    .output
+                    .write_parts(true, &[&self.program, b": ", &message, b"\n"]);
+            }
+            return Ok(());
+        }
         if let crate::cli::Argument::File(index) = argument
             && options.temp_stdin_file == Some(index)
         {
@@ -296,7 +316,7 @@ impl Plan {
                     })
                     .map_err(StartupError::expansion)?;
                 let mut incoming = Vec::new();
-                Options::append_expanded_flags(&mut incoming, &value)?;
+                Options::append_expanded_flags(&mut incoming, &value);
                 // Empty sources retain expansion effects without another parse.
                 if !incoming.is_empty() {
                     let count = incoming.len();
@@ -305,7 +325,9 @@ impl Plan {
                         incoming,
                         parsed_prefix,
                         prefix_count,
-                        &mut |options, argument| self.argument(&mut state, options, argument),
+                        &mut |options, argument| {
+                            self.argument(&mut state, options, argument, false)
+                        },
                         &mut |options| {
                             selected_policy =
                                 (options.warn_undefined, options.environment_override);
@@ -321,6 +343,11 @@ impl Plan {
                         .variables
                         .set_environment_override(selected_policy.1);
                     parsed_prefix = parsed?;
+                    if parsed_prefix.invalid_usage {
+                        return Err(InvocationError::Usage {
+                            version: parsed_prefix.version,
+                        });
+                    }
                     parsed_prefix
                         .decode_debug()
                         .map_err(|error| StartupError::from(Diagnostic::from(error)))?;
@@ -364,7 +391,7 @@ impl Plan {
                 parsed_prefix,
                 prefix_count,
                 false,
-                &mut |options, argument| self.argument(&mut state, options, argument),
+                &mut |options, argument| self.argument(&mut state, options, argument, true),
                 &mut |options| {
                     selected_policy = (options.warn_undefined, options.environment_override);
                     policy_output.set_directory_policy(options.directory_choice, options.silent);
@@ -399,6 +426,11 @@ impl Plan {
                 }
                 Err(error) => return Err(error),
             };
+            if options.invalid_usage {
+                return Err(InvocationError::Usage {
+                    version: options.version,
+                });
+            }
             options.decode_debug().map_err(|error| {
                 let mut error = StartupError::from(Diagnostic::from(error));
                 error.version = options.version;
@@ -545,7 +577,7 @@ impl State {
         let result: Result<(), ExpandError> = (|| {
             match argument {
                 // The startup decoder does not emit live policy events.
-                crate::cli::Argument::Warning(_) => {}
+                crate::cli::Argument::Warning(_) | crate::cli::Argument::Usage(..) => {}
                 crate::cli::Argument::Definition(index) => {
                     let name = self
                         .evaluate(program, |database, context| {
@@ -668,6 +700,13 @@ pub(super) fn emit_error(
     match error {
         InvocationError::Options(message) => {
             output.write_parts(true, &[program, b": ", message.as_bytes(), b"\n"])
+        }
+        InvocationError::Usage { version } => {
+            if version {
+                crate::print_version();
+                println!();
+            }
+            output.write_parts(true, &[&crate::usage::text(program)]);
         }
         InvocationError::Expansion(error) => output.write_parts(
             true,
@@ -854,7 +893,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                 Ok(_) => panic!("invalid option accepted"),
                 Err(error) => error,
             };
-            assert!(matches!(failure.error, InvocationError::Options(_)));
+            assert!(matches!(failure.error, InvocationError::Usage { .. }));
             let mut host = startup(failure.exit);
             check_setup(&host.database);
             assert_eq!(

@@ -23,7 +23,7 @@ pub fn initialize(directory: &Path) -> Result<(), &'static str> {
     }
     Ok(())
 }
-fn template(key: &CStr) -> Result<Vec<u8>, FormatError> {
+pub fn lookup_static(key: &'static CStr) -> Result<Vec<u8>, FormatError> {
     // SAFETY: the msgid is a static C string and gettext returns immutable
     // library-owned text. Copy immediately; no pointer enters core or survives
     // later domain/locale operations. gettext leaves errno unchanged.
@@ -35,10 +35,10 @@ fn template(key: &CStr) -> Result<Vec<u8>, FormatError> {
 }
 
 pub fn render_ref(message: MessageRef<'_>) -> Result<Vec<u8>, FormatError> {
-    message.render(&template(message.id().msgid())?)
+    message.render(&lookup_static(message.id().msgid())?)
 }
 
 /// Render a static protocol key with checked byte and numeric arguments.
-pub fn render_format(key: &CStr, args: &[Argument<'_>]) -> Result<Vec<u8>, FormatError> {
-    checked_format(&template(key)?, args)
+pub fn render_format(key: &'static CStr, args: &[Argument<'_>]) -> Result<Vec<u8>, FormatError> {
+    checked_format(&lookup_static(key)?, args)
 }

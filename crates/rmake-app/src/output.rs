@@ -278,6 +278,16 @@ impl Controller {
             plain_parts(error, parts);
         }
     }
+    pub(crate) fn write_option_notice(&self, message: &[u8]) {
+        if crate::native::has_modules() && self.current().is_none() {
+            let _ = rmake_linux::native::flush_stream(true);
+        }
+        self.write_parts(
+            true,
+            &[self.0.program.borrow().as_slice(), b": ", message, b"\n"],
+        );
+    }
+
     pub fn decode_mutex(&self, authentication: &[u8]) -> io::Result<()> {
         match Coordination::join(authentication)? {
             Some(provider) => {
