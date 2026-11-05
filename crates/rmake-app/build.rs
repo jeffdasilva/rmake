@@ -11,12 +11,32 @@ fn main() {
         std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory"),
     )
     .join("../../catalogs");
-    let catalog = source.join("fr/LC_MESSAGES/make.mo");
-    println!("cargo:rerun-if-changed={}", catalog.display());
+    let inventory = source.join("languages.txt");
+    println!("cargo:rerun-if-changed={}", inventory.display());
     println!("cargo:rerun-if-changed=../rmake-core/src/messages.rs");
     println!("cargo:rerun-if-env-changed=RMAKE_LOCALEDIR");
-    catalog_validation::validate(&catalog)
-        .unwrap_or_else(|error| panic!("owned catalog {}: {error}", catalog.display()));
+    let languages = std::fs::read_to_string(&inventory).expect("read owned catalog inventory");
+    let mut previous = None;
+    let mut count = 0;
+    for language in languages.lines() {
+        let bytes = language.as_bytes();
+        let valid = matches!(bytes, [b'a'..=b'z', b'a'..=b'z'])
+            || matches!(
+                bytes,
+                [b'a'..=b'z', b'a'..=b'z', b'_', b'A'..=b'Z', b'A'..=b'Z']
+            );
+        assert!(
+            valid && previous.is_none_or(|last| last < language),
+            "invalid catalog inventory"
+        );
+        previous = Some(language);
+        count += 1;
+        let catalog = source.join(language).join("LC_MESSAGES/make.mo");
+        println!("cargo:rerun-if-changed={}", catalog.display());
+        catalog_validation::validate(&catalog)
+            .unwrap_or_else(|error| panic!("owned catalog {}: {error}", catalog.display()));
+    }
+    assert_eq!(count, 30, "incomplete GNU Make 4.4.1 catalog inventory");
     let installed = std::env::var_os("RMAKE_LOCALEDIR")
         .map(std::path::PathBuf::from)
         .unwrap_or(source);

@@ -1,7 +1,21 @@
-These are attributed compatibility message data from the pinned GNU Make4.4.1 release, retained under the package-license notice and complete COPYING text. The French source header contains the original translator and copyright attribution. provenance.json records every imported hash; the original fr.po and compiled message data are unchanged. No GNU implementation, header, or test code is included here.
+These are all 30 attributed declarative message catalogs distributed with
+GNU Make 4.4.1. The original PO source, compiled MO bytes, and per-file
+copyright and translator notices are unchanged. `provenance.json` identifies
+each pair and its source in the pinned release archive. The package license is
+in `COPYING`. These assets contain no GNU implementation, headers or tests.
 
-The initial compatibility domain is make, bound explicitly to this project-owned catalog directory. It never falls back to an oracle or system Make catalog. Native callers retain the public gettext ability to choose another domain and bind another directory, including libc’s documented behavior for an explicitly selected unbound custom domain.
+The initial compatibility domain is `make`, bound to this project-owned
+catalog directory. Native modules retain public gettext domain and directory
+selection. The default never reads the GNU oracle's installed catalogs.
+The catalog data can translate the system messages rmake already emits
+through typed message IDs; individual diagnostic producers have separate
+compatibility tests.
 
-Development builds default RMAKE_LOCALEDIR to this source directory. Installed builds must set RMAKE_LOCALEDIR to their logical installed directory and install the LC_MESSAGES tree there (with DESTDIR applied only when copying). Moving a binary alone does not move its catalog assets. Cargo validates the owned templates before building; all runtime formatting is checked Rust byte formatting, with no translated C varargs.
+Use `make catalog-check` to verify data and notice identities. Cargo checks
+all 30 compiled tables and every supported translated argument schema before
+compiling the application. Formatting remains checked Rust byte formatting.
 
-Use `make catalog-check` to verify the pinned data/notice identities. A staged install uses `make catalog-install PREFIX=/usr/local DESTDIR=/path/to/stage`; build the executable with `RMAKE_LOCALEDIR=/usr/local/share/rmake/locale make build` for that logical installation. The destination root is never compiled into the binary. A normal development build uses the checked-out catalog directory.
+A staged installation uses `make catalog-install PREFIX=/usr/local
+DESTDIR=/path/to/stage`. Compile the executable with
+`RMAKE_LOCALEDIR=/usr/local/share/rmake/locale make build` for that logical
+installation. A normal development build uses the checked-out catalog path.

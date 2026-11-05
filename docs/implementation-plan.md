@@ -452,3 +452,8 @@ The next [localization tranche](nls-diagnostics.md) adds 18 original model-bound
 comparisons for translated scheduler, parser and built-in `file` diagnostics.
 Only the owned syntax diagnostics are translated; message text from users and
 native extensions still passes through unchanged.
+
+The [catalog coverage gate](../tests/catalog-coverage/README.md) checks all 30
+attributed GNU release languages plus three fallback/C controls in both build
+profiles. The complete catalog data are installed with their original source
+notices. This does not claim that every diagnostic producer is covered.
