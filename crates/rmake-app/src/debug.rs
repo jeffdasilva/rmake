@@ -206,6 +206,7 @@ pub enum Event<'a> {
     UpdatingGoals,
     Considering(&'a [u8], usize),
     Missing(&'a [u8], usize),
+    GroupedPeerMissing(&'a [u8], &'a [u8], usize),
     PrerequisitesRunning(&'a [u8], usize),
     Finished(&'a [u8], usize),
     Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
@@ -290,6 +291,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::UsingDefaultRecipe(_, depth)
         | Event::UsingDefaultCommands(_, depth) => (Mask::IMPLICIT, depth),
         Event::Missing(_, depth)
+        | Event::GroupedPeerMissing(_, _, depth)
         | Event::MustRemake(_, depth)
         | Event::Remade(_, depth)
         | Event::Failed(_, depth)
@@ -310,6 +312,9 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
         Event::Considering(name, _) => print(msg::CONSIDERING, &[bytes(name)]),
         Event::Missing(name, _) => print(msg::MISSING, &[bytes(name)]),
+        Event::GroupedPeerMissing(peer, target, _) => {
+            print(msg::GROUPED_PEER_MISSING, &[bytes(peer), bytes(target)])
+        }
         Event::PrerequisitesRunning(name, _) => print(msg::PREREQUISITES_RUNNING, &[bytes(name)]),
         Event::Finished(name, _) => print(msg::FINISHED, &[bytes(name)]),
         Event::Prerequisite(state, dependency, target, _) => print(

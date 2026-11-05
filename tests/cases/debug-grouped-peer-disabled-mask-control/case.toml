@@ -1,0 +1,12 @@
+id = "debug-grouped-peer-disabled-mask-control"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Check the first missing grouped peer observation and the corresponding recipe effects."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "--debug=n", "a"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "built:a\n"
+stderr = ""

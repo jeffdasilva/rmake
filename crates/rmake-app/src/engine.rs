@@ -7070,6 +7070,16 @@ impl Engine {
                 *observed = true;
                 comparison = comparison.min(*time);
                 compare_peers = time.is_some();
+                if !compare_peers {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::GroupedPeerMissing(
+                            peer,
+                            target,
+                            depth + usize::from(self.remaking) + 1,
+                        ),
+                    );
+                }
             }
             // Resolve scheduler peer identities without rewriting declaration
             // names, which the database exposes even after a GPATH rename.
