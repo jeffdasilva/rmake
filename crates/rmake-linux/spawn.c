@@ -58,16 +58,21 @@ int rmake_pipe_identity(int fd, int reader, uint64_t identity[2])
     } while (result < 0 && errno == EINTR);
     if (result < 0)
         return errno;
-    int mode;
-    do {
-        mode = fcntl(fd, F_GETFL);
-    } while (mode < 0 && errno == EINTR);
-    if (mode < 0)
-        return errno;
-    int access = mode & O_ACCMODE;
-    if (!S_ISFIFO(metadata.st_mode) || (mode & O_PATH)
-        || (access != O_RDWR && access != (reader ? O_RDONLY : O_WRONLY)))
+    if (!S_ISFIFO(metadata.st_mode))
         return EBADF;
+    /* A negative direction asks only for the underlying pipe identity. */
+    if (reader >= 0) {
+        int mode;
+        do {
+            mode = fcntl(fd, F_GETFL);
+        } while (mode < 0 && errno == EINTR);
+        if (mode < 0)
+            return errno;
+        int access = mode & O_ACCMODE;
+        if ((mode & O_PATH)
+            || (access != O_RDWR && access != (reader ? O_RDONLY : O_WRONLY)))
+            return EBADF;
+    }
     identity[0] = (uint64_t)metadata.st_dev;
     identity[1] = (uint64_t)metadata.st_ino;
     return 0;
