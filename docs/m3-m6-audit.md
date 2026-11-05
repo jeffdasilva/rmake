@@ -62,3 +62,6 @@ and presentation behavior, native extension/profile adapters, then the expanded
 integration/profile audit. Continue adding cross-family cases rather than
 limiting acceptance to named reproductions. Persistent caching and new rmake
 plugin APIs retain their separate correctness and compatibility gates.
+
+
+The [locale collation slice](locale-collation.md) closes 33 observed preceding mismatches in 74 original full-stream/full-filesystem models, including malformed-byte ties, table growth and live native locale selection. Both profiles retain all 183 earlier C/CUTF8 controls. Wider locale/cache histories, localized diagnostics, resource profiles and general performance remain separate M3/M6 requirements.
