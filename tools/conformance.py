@@ -335,9 +335,10 @@ def child_limits(timeout: float) -> None:
 
 
 def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout: float,
-            merged: bool = False, *, observe: Callable[[int, bytes], None] | None = None
+            merged: bool = False, *, observe: Callable[[int, bytes], None] | None = None,
+            observe_streams: Callable[[bytes, bytes], None] | None = None,
             ) -> tuple[bytes, bytes, int, str | None, bool]:
-    """Bound output and execution; kill the entire inherited group on every exit."""
+    """Bound the process group; stream observers receive cumulative captured bytes."""
     process = subprocess.Popen(command, cwd=cwd, env=environment, stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT if merged else subprocess.PIPE,
@@ -358,6 +359,8 @@ def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout:
         while selector.get_map() or process.poll() is None:
             if observe is not None:
                 observe(process.pid, bytes(buffers['stdout']))
+            if observe_streams is not None:
+                observe_streams(bytes(buffers["stdout"]), bytes(buffers["stderr"]))
             now = time.monotonic()
             if limit is None and now >= deadline:
                 limit = "timeout"
