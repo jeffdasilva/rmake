@@ -21,6 +21,7 @@ DEVELOPER_FLOW_CASE ?=
 
 .PHONY: test-resource-fd-fifo-failure test-resource-fd-fifo-failure-release
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
+.PHONY: test-roomy-wake-slots test-roomy-wake-slots-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
@@ -329,6 +330,14 @@ test-shell-capture-lifetime-release: release oracle-verify
 	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/optimized.json
 	$(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/failure-optimized.json
 
+test-roomy-wake-slots: build oracle-verify
+	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/capture-development.json
+	$(PYTHON) tools/jobserver_wake_slots.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/auth-development.json
+
+test-roomy-wake-slots-release: release oracle-verify
+	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/roomy-wake-slots/capture-optimized.json
+	$(PYTHON) tools/jobserver_wake_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/roomy-wake-slots/auth-optimized.json
+
 test-runtime-effects: build oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
@@ -413,6 +422,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESTART_ENVIRONMENT_CASE=raw-ordered-vector test-restart-environment
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-roomy-wake-slots
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_CASE=low6-term-live-recipe test-resource-fd
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_RECIPE_CASE=recipe-fdlimit-4 test-resource-fd-recipes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SIGNAL_MASK_CASE=eager-to-read-signal-mask test-signal-mask
@@ -778,6 +788,9 @@ test-m4-release: test-trace-job-languages-release
 test: test-shell-capture-lifetime
 check: test-shell-capture-lifetime
 test-m4-release: test-shell-capture-lifetime-release
+
+test check: test-roomy-wake-slots
+test-m4-release: test-roomy-wake-slots-release
 
 test check: test-resource-fd-fifo-failure
 test-m4-release: test-resource-fd-fifo-failure-release

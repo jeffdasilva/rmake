@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
 import shutil
 import subprocess
 import tempfile
@@ -20,6 +21,8 @@ ROOT = Path(h.__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/shell-capture-launch-failure"
 ENTRY_SOURCE = ROOT / "tests/process-restarts/entry.c"
 PHASES = ("before", "after-one", "after-two", "restarted")
+ROOMY_CAPTURE_READERS = dict(zip(PHASES, (4, 6, 8, 4)))
+ROOMY_FAILED_PAIRS = {"after-one": [[4, 5]], "after-two": [[4, 5], [6, 7]]}
 EXPECTED = {
     "stdout": "restart=1\n",
     "stderr": "make: ./absent: No such file or directory\nmake: ./denied: Permission denied\n",
@@ -77,7 +80,14 @@ def expected_filesystem(runtime):
     return roots, snapshot
 
 
-def observe_run(case, runtime, image, is_oracle):
+def require_roomy_descriptor_limit():
+    # conformance.capture uses the inherited hard limit to cap its child limit.
+    _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if hard != resource.RLIM_INFINITY and hard < 64:
+        raise h.HarnessError("the roomy wake-slot profile requires a hard descriptor limit of at least 64")
+
+
+def observe_run(case, runtime, image, is_oracle, roomy_slots):
     h.reset_workspace(case, runtime, image)
     work = runtime / "work"
     roots, expected_files = expected_filesystem(runtime)
@@ -131,13 +141,13 @@ def observe_run(case, runtime, image, is_oracle):
     if tuple(phases) != PHASES:
         errors.append("four ordered live witnesses")
     else:
-        errors.extend(check_phases(phases, owner, image, is_oracle))
+        errors.extend(check_phases(phases, owner, image, is_oracle, roomy_slots))
     return {"image": str(image), "sha256": h.sha256_file(image),
             "expected_filesystem": expected_files, "observed": h.observation_json(observed),
             "owner": owner, "phases": phases, "errors": errors}
 
 
-def check_phases(phases, owner, image, is_oracle):
+def check_phases(phases, owner, image, is_oracle, roomy_slots):
     errors = []
     first = phases["before"]["parent"]
     seen_captures = set()
@@ -172,6 +182,8 @@ def check_phases(phases, owner, image, is_oracle):
         if (len(live) != 1 or flags(live[0]) & os.O_ACCMODE != os.O_RDONLY
                 or not flags(live[0]) & os.O_CLOEXEC or int(live[0]["info"]["ino"]) != current):
             errors.append(f"{name}: live parent capture reader")
+        if roomy_slots and [entry["fd"] for entry in live] != [ROOMY_CAPTURE_READERS[name]]:
+            errors.append(f"{name}: exact roomy capture reader descriptor")
         if seen_captures.intersection(pipes):
             errors.append(f"{name}: earlier successful capture is still held")
 
@@ -196,6 +208,10 @@ def check_phases(phases, owner, image, is_oracle):
                 for inode, ends in failed.items()
             ):
                 errors.append(f"{name}: exactly {expected} complete CLOEXEC failed-capture pairs")
+            if roomy_slots:
+                slots = sorted([entry["fd"] for entry in ends] for ends in failed.values())
+                if slots != ROOMY_FAILED_PAIRS[name]:
+                    errors.append(f"{name}: exact roomy failed-capture descriptors")
             if any(pipes.get(inode) != ends for inode, ends in prior_pipes.items()):
                 errors.append(f"{name}: unchanged ownership of earlier pipes")
         prior_pipes = pipes
@@ -208,7 +224,11 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--cc", default="cc")
+    parser.add_argument("--roomy-slots", action="store_true",
+                        help="require the qualified glibc roomy capture descriptor numbers")
     args = parser.parse_args()
+    if args.roomy_slots:
+        require_roomy_descriptor_limit()
     reference = args.oracle.resolve(strict=True)
     profile = oracle.verify(reference)
     paths = [(reference, True), (reference, True)]
@@ -232,10 +252,12 @@ def main():
                       ("-rR",), 5.0, {}, EXPECTED)
         runtime = root / "runtime"
         runtime.mkdir()
-        observations = [observe_run(case, runtime, image, is_oracle) for image, is_oracle in paths]
+        observations = [observe_run(case, runtime, image, is_oracle, args.roomy_slots)
+                        for image, is_oracle in paths]
         errors = [row["errors"] for row in observations]
         report = {"case": case.id, "oracle_profile": profile["profile_id"], "args": case.args,
-                  "expected": EXPECTED, "source_sha256": h.sha256_file(Path(__file__)),
+                  "expected": EXPECTED, "roomy_slots": args.roomy_slots,
+                  "source_sha256": h.sha256_file(Path(__file__)),
                   "entry_source_sha256": h.sha256_file(ENTRY_SOURCE),
                   "fixture_sha256": {name.name: h.sha256_file(name) for name in sorted(fixture.iterdir())},
                   "observations": observations, "passed": not any(errors)}

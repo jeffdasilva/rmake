@@ -180,10 +180,10 @@ id = "parallel.jobserver"
 title = "Recursive local jobserver operation"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 16
+candidate_required = 17
 reference = "https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html"
-fixture_count = 16
-cases = ["parallel-recursive-jobserver", "jobserver-fifo-client", "jobserver-fifo-recursion", "jobserver-pipe-client", "jobserver-pipe-recursion", "jobserver-pipe-ordinary-fds-closed", "jobserver-fifo-ordinary-access", "jobserver-pipe-unmarked-submake", "jobserver-reset-1", "jobserver-reset-2", "jobserver-reset-unlimited", "jobserver-invalid-pipe-auth", "jobserver-missing-fifo", "jobserver-inherited-missing-fifo", "jobserver-inherited-invalid-pipe", "jobserver-inherited-disabled-pipe"]
+fixture_count = 17
+cases = ["jobserver-fifo-client", "jobserver-fifo-ordinary-access", "jobserver-fifo-recursion", "jobserver-inherited-disabled-pipe", "jobserver-inherited-invalid-pipe", "jobserver-inherited-missing-fifo", "jobserver-invalid-pipe-auth", "jobserver-missing-fifo", "jobserver-pipe-client", "jobserver-pipe-ordinary-fds-closed", "jobserver-pipe-recursion", "jobserver-pipe-unmarked-submake", "jobserver-private-wake-auth", "jobserver-reset-1", "jobserver-reset-2", "jobserver-reset-unlimited", "parallel-recursive-jobserver"]
 
 [[requirements]]
 id = "recipes.errors"

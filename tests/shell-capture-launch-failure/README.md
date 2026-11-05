@@ -13,25 +13,14 @@ captures, and neither observer children nor the replacement process inherit
 them. The gate permits the candidate's independently observed private
 nonblocking wake pipe and checks that its ownership stays stable before exec.
 
-In the initial bounded observations, GNU used reader descriptors 4, 6, 8 and 4
-across the four phases. The fixed candidate used 4, 8, 10 and 4 because its wake
-pipe occupies descriptors 5 and 6. The gate retains actual descriptor numbers in
-generated reports and asserts ownership relations within each process. It does
-not compare absolute descriptor numbers across engines.
+The relation-only gate records actual descriptor numbers without comparing
+their absolute values. In the initial bounded observations, GNU used readers
+4, 6, 8 and 4, while rmake with the older wake pipe at 5 and 6 used 4, 8, 10 and
+4. The explicit roomy glibc profile checks readers 4, 6, 8 and 4 and retained
+pairs 4/5 and 6/7 on both engines. This profile requires a hard descriptor limit
+of at least 64 and runs through `make test-roomy-wake-slots`. The checks cover
+these capture slots and preserve raw reports of private descriptors.
 
-Wire the runner into the existing top-level capture targets. Keep the existing
-EOF runner in both targets.
-
-- Add the following to `test-shell-capture-lifetime`.
-
-  ```make
-  $(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/launch-failure-development.json
-  ```
-
-- Add the following to `test-shell-capture-lifetime-release`.
-
-  ```make
-  $(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/launch-failure-optimized.json
-  ```
-
-The existing targets already feed `test`, `check`, and `test-m4-release`.
+The relation-only runner and the EOF controls run together in
+`test-shell-capture-lifetime` and `test-shell-capture-lifetime-release`.
+The roomy gate has separate development and optimized targets.
