@@ -24,6 +24,7 @@ use rmake_core::variables::{
 };
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -147,6 +148,29 @@ fn target_variable_names(name: &[u8]) -> (&[u8], &[u8]) {
     rmake_core::filenames::archive_parts(name).unwrap_or((name, b""))
 }
 
+/// A normal occurrence upgrades the first occurrence and later order-only
+/// duplicates. Order-only duplicates already passed before the first normal
+/// occurrence retain their roles in the recorded chain.
+fn promote_order_only_duplicates(dependencies: &mut [Dependency], ready: impl Fn(usize) -> bool) {
+    let mut first = HashMap::new();
+    let mut promotions = Vec::new();
+    for (index, dependency) in dependencies.iter().enumerate() {
+        if !ready(index) || dependency.hidden || dependency.name == b".WAIT" {
+            continue;
+        }
+        let (first_index, order_only) = first
+            .entry(dependency.name.as_slice())
+            .or_insert((index, dependency.order_only));
+        if *order_only != dependency.order_only {
+            promotions.extend([*first_index, index]);
+            *order_only = false;
+        }
+    }
+    for index in promotions {
+        dependencies[index].order_only = false;
+    }
+}
+
 fn secondary_automatic(
     target: &[u8],
     dependencies: &mut [Dependency],
@@ -163,23 +187,9 @@ fn secondary_automatic(
     let plus = joined(normal.map(prerequisite_variable_name));
     // GNU computes < and + before promoting duplicate order-only
     // occurrences. Promotion survives into later clause expansions.
-    let mut first = HashMap::new();
-    let mut promotions = Vec::new();
-    for (index, (dependency, ready)) in dependencies.iter().zip(ready).enumerate() {
-        if !ready || dependency.hidden || dependency.name == b".WAIT" {
-            continue;
-        }
-        let (first_index, order_only) = first
-            .entry(dependency.name.as_slice())
-            .or_insert((index, dependency.order_only));
-        if *order_only != dependency.order_only {
-            promotions.extend([*first_index, index]);
-            *order_only = false;
-        }
-    }
-    for index in promotions {
-        dependencies[index].order_only = false;
-    }
+    promote_order_only_duplicates(dependencies, |index| {
+        ready.get(index).copied().unwrap_or(false)
+    });
     let mut seen = HashSet::new();
     let canonical: Vec<_> = dependencies
         .iter()
@@ -288,6 +298,16 @@ impl CompletionTime {
     }
 }
 
+/// Diagnostic result provenance is separate from the graph's completion policy.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum DatabaseResult {
+    #[default]
+    Outcome,
+    Simulated,
+    ObservedGroup,
+    RecipeUnstarted,
+}
+
 #[derive(Clone, Copy, Default)]
 struct Outcome {
     time: Option<SystemTime>,
@@ -299,6 +319,7 @@ struct Outcome {
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
+    database_result: DatabaseResult,
 }
 
 struct OptionalMakefileFailure {
@@ -627,9 +648,11 @@ impl ParallelJobs {
 /// nothing and does not add state to suspended continuations.
 struct TraceInputs<'a> {
     branch: Option<usize>,
+    implicit_group: bool,
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
+    normal_names: &'a HashSet<&'a [u8]>,
 }
 
 /// Interpreter-owned continuation. Workers receive only one prepared Command;
@@ -776,6 +799,7 @@ pub struct Engine {
     database_contexts: HashMap<Vec<u8>, VariableStore>,
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
+    database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
@@ -1350,6 +1374,7 @@ impl Engine {
             database_contexts: HashMap::new(),
             database_branch_contexts: HashMap::new(),
             database_branch_outcomes: HashMap::new(),
+            database_branch_secondary: BTreeSet::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
@@ -1948,7 +1973,9 @@ impl Engine {
             self.output.debug_mask(),
             self.jobserver.as_ref().and_then(Jobserver::owned_slots),
         );
-        self.print_database();
+        if self.interrupt.is_none() || self.shutdown.get() == Shutdown::Reentered {
+            self.print_database();
+        }
         status
     }
 
@@ -4309,6 +4336,16 @@ impl Engine {
                     .or_insert(outcome);
             }
         }
+        let secondary_keys: Vec<_> = self
+            .database_branch_secondary
+            .iter()
+            .filter(|(name, _)| name.as_slice() == from)
+            .cloned()
+            .collect();
+        for key in secondary_keys {
+            self.database_branch_secondary.remove(&key);
+            self.database_branch_secondary.insert((to.to_vec(), key.1));
+        }
         let mut unchecked_times = self.database_unchecked_times.borrow_mut();
         if unchecked_times.remove(from) {
             unchecked_times.insert(to.to_vec());
@@ -5005,6 +5042,7 @@ impl Engine {
                 .map(|selection| (selection.name.as_slice(), &selection.rule))
                 .collect();
             for selection in &plan {
+                let group = selection.rule.group.as_ref();
                 for dependency in selection.rule.dependencies.iter().rev() {
                     if let Some(child) = inferred.get(dependency.name.as_slice()) {
                         self.database.file_records.insert(&dependency.name);
@@ -5012,13 +5050,36 @@ impl Engine {
                             self.database.file_records.insert(&input.name);
                         }
                     } else if selection.name == target && dependency.name != b".WAIT" {
-                        self.database.file_records.insert(&dependency.name);
+                        if group.is_some() {
+                            if let Some(history) = self.database.database_history() {
+                                history.intern(&dependency.name);
+                            }
+                            self.database
+                                .file_records
+                                .enter_prerequisite(&dependency.name);
+                        } else {
+                            self.database.file_records.insert(&dependency.name);
+                        }
                     }
                 }
-                if let Some(group) = &selection.rule.group {
-                    for peer in &group.targets {
+                if let Some(group) = group {
+                    if let Some(history) = self.database.database_history() {
+                        if let Some(stem) = &selection.rule.stem {
+                            history.intern(stem);
+                        }
+                        if let Some(pattern) = &selection.rule.implicit_pattern {
+                            history.record_file_lookup(pattern);
+                        }
+                    }
+                    for (peer, pattern) in &group.implicit_peer_patterns {
                         if peer != &selection.name {
+                            if let Some(history) = self.database.database_history() {
+                                history.intern(peer);
+                            }
                             self.database.file_records.insert(peer);
+                            if let Some(history) = self.database.database_history() {
+                                history.record_file_lookup(pattern);
+                            }
                         }
                     }
                 }
@@ -5308,6 +5369,30 @@ impl Engine {
                                     .implicit_rule_source(candidate.identity)
                                     .and_then(|(_, source)| source.dependencies.get(index))
                                     .is_some_and(|declared| declared.name.as_slice() == name);
+                            if candidate.rule.group.is_some() && name != b".WAIT" {
+                                let directory = match name.iter().rposition(|&byte| byte == b'/') {
+                                    None => b".".as_slice(),
+                                    Some(0) => b"/",
+                                    Some(index) => &name[..index],
+                                };
+                                // Checking the impossible-name cache first
+                                // registers the directory without reading it.
+                                self.filesystem
+                                    .borrow_mut()
+                                    .execute(
+                                        rmake_core::diagnostic::FilesystemEffect::DirectoryName(
+                                            directory,
+                                        ),
+                                    )
+                                    .map_err(|error| match error {
+                                        rmake_core::diagnostic::FilesystemError::Caller(
+                                            message,
+                                        ) => ExpandError::FileError(message),
+                                        rmake_core::diagnostic::FilesystemError::Unlocated(
+                                            message,
+                                        ) => ExpandError::UnlocatedError(message),
+                                    })?;
+                            }
                             self.refresh_impossible_prerequisites();
                             if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
                                 if let Some(label) = &debug_label {
@@ -6276,8 +6361,13 @@ impl Engine {
                     .done
                     .remove(target)
                     .expect("finished double-colon branch");
-                self.database_branch_outcomes
-                    .insert((target.to_vec(), ordinal), result);
+                if result.database_result != DatabaseResult::RecipeUnstarted {
+                    // Group completion can already have observed the owner's
+                    // timestamp after a failed child was reaped.
+                    self.database_branch_outcomes
+                        .entry((target.to_vec(), ordinal))
+                        .or_insert(result);
+                }
                 state.combined.time = result.time;
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
@@ -6286,6 +6376,9 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
+                if result.database_result == DatabaseResult::Simulated {
+                    state.combined.database_result = DatabaseResult::Simulated;
+                }
                 self.record_graph_failure(result);
                 state.active = None;
                 if result.fatal
@@ -6299,6 +6392,11 @@ impl Engine {
                 state.branches.clear();
             }
             let Some((ordinal, entry)) = state.branches.pop_front() else {
+                // A real recipe refreshes the shared time even if another
+                // branch simulated its recipe during the same update.
+                if state.combined.completion != CompletionTime::AssumeNew {
+                    state.combined.database_result = DatabaseResult::Outcome;
+                }
                 state.combined.time = if state.phony {
                     None
                 } else if state.combined.completion.preserves() || state.combined.failed {
@@ -6467,32 +6565,35 @@ impl Engine {
     ) -> Outcome {
         let double_colon = branch.is_some();
         let mut members = Vec::new();
+        let mut peer_targets = std::collections::VecDeque::new();
         let grouped = rule.grouped_targets().is_some();
-        if grouped {
+        if let Some(group) = &rule.group {
             let implicit = rule.implicit_pattern.is_some();
             if !implicit {
                 comparison = comparison.min(before);
             }
             let double = rule.grouped_double_id().is_some();
-            let group = rule.group.as_mut().expect("grouped targets have metadata");
-            let mut times = vec![None; group.targets.len()];
-            let mut observed = vec![false; group.targets.len()];
+            let mut peers: Vec<_> = group
+                .targets
+                .iter()
+                .map(|name| (Cow::Borrowed(name.as_slice()), None, false))
+                .collect();
             let mut compare_peers = before.is_some() && !implicit;
-            for (index, peer) in group.targets.iter_mut().enumerate().rev() {
+            for (peer, time, observed) in peers.iter_mut().rev() {
                 let name = self.aliases.resolve(peer);
-                if name != peer {
-                    *peer = name.to_vec();
+                if name != peer.as_ref() {
+                    *peer = Cow::Owned(name.to_vec());
                 }
-                if peer.as_slice() == target {
-                    times[index] = before;
-                    observed[index] = true;
+                if peer.as_ref() == target {
+                    *time = before;
+                    *observed = true;
                     continue;
                 }
                 if !compare_peers {
                     continue;
                 }
                 match self.prepare_search_name(peer) {
-                    Ok(Some(name)) => *peer = name,
+                    Ok(Some(name)) => *peer = Cow::Owned(name),
                     Ok(None) => {}
                     Err(()) => {
                         return Outcome {
@@ -6502,12 +6603,12 @@ impl Engine {
                         };
                     }
                 }
-                let time = if self.special(b".PHONY", peer, false) {
+                *time = if self.special(b".PHONY", peer, false) {
                     None
                 } else {
                     match self
                         .path_observations
-                        .get(peer)
+                        .get(peer.as_ref())
                         .cloned()
                         .map(Ok)
                         .unwrap_or_else(|| self.find_vpath(peer))
@@ -6523,21 +6624,30 @@ impl Engine {
                         }
                     }
                 };
-                times[index] = time;
-                observed[index] = true;
-                comparison = comparison.min(time);
+                *observed = true;
+                comparison = comparison.min(*time);
                 compare_peers = time.is_some();
             }
-            let mut seen = HashSet::new();
-            for (index, peer) in group.targets.iter().enumerate() {
-                if !seen.insert(peer.clone()) {
-                    continue;
+            // Resolve scheduler peer identities without rewriting declaration
+            // names, which the database exposes even after a GPATH rename.
+            let mut seen = HashMap::<&[u8], usize>::new();
+            for (peer, time, observed) in &peers {
+                let peer = peer.as_ref();
+                let ordinal = seen.entry(peer).or_default();
+                if *ordinal == 0 {
+                    let mut before = *time;
+                    if double && *observed {
+                        before = *self
+                            .double_colon_before
+                            .entry(peer.to_vec())
+                            .or_insert(before);
+                    }
+                    members.push((peer.to_vec(), before, self.special(b".PHONY", peer, false)));
                 }
-                let mut time = times[index];
-                if double && observed[index] {
-                    time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
+                if !implicit || peer != target {
+                    peer_targets.push_front((peer.to_vec(), if double { *ordinal } else { 0 }));
                 }
-                members.push((peer.clone(), time, self.special(b".PHONY", peer, false)));
+                *ordinal += 1;
             }
         }
         let had_secondary = rule.secondary.is_some();
@@ -6551,27 +6661,6 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        let peer_targets =
-            rule.grouped_targets()
-                .map_or_else(std::collections::VecDeque::new, |targets| {
-                    let mut seen = HashMap::<&[u8], usize>::new();
-                    let mut peers = Vec::new();
-                    for peer in targets {
-                        let ordinal = seen.entry(peer).or_default();
-                        if rule.implicit_pattern.is_none() || peer.as_slice() != target {
-                            peers.push((
-                                peer.clone(),
-                                if rule.grouped_double_id().is_some() {
-                                    *ordinal
-                                } else {
-                                    0
-                                },
-                            ));
-                        }
-                        *ordinal += 1;
-                    }
-                    peers.into_iter().rev().collect()
-                });
         if grouped {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
@@ -7277,6 +7366,8 @@ impl Engine {
                     self.running_groups.insert(target.to_vec(), group);
                 }
                 self.archive_completion_times.remove(target);
+                let implicit_group =
+                    rule.grouped_targets().is_some() && rule.implicit_pattern.is_some();
                 let execution = self.execute(
                     target,
                     recipes,
@@ -7288,9 +7379,11 @@ impl Engine {
                     before,
                     TraceInputs {
                         branch,
+                        implicit_group,
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
+                        normal_names: &normal_names,
                     },
                 );
                 outcome.ran |= execution.ran;
@@ -7310,6 +7403,24 @@ impl Engine {
                     } else {
                         CompletionTime::Refresh
                     };
+                if self.options.dry_run
+                    && !self.options.question
+                    && !self.options.touch
+                    && (rule.grouped_targets().is_none() || implicit_group)
+                    && (outcome.completion == CompletionTime::AssumeNew
+                        || (implicit_group
+                            && !phony
+                            && outcome.completion == CompletionTime::Preserve))
+                    && execution.status == Status::Success
+                {
+                    outcome.database_result = DatabaseResult::Simulated;
+                }
+                if rule.grouped_double_id().is_some()
+                    && execution.status == Status::Fatal
+                    && !execution.ran
+                {
+                    outcome.database_result = DatabaseResult::RecipeUnstarted;
+                }
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
@@ -7366,7 +7477,12 @@ impl Engine {
             };
         }
         if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
-            self.database_secondary.insert(target.to_vec());
+            if let Some(ordinal) = branch {
+                self.database_branch_secondary
+                    .insert((target.to_vec(), ordinal));
+            } else {
+                self.database_secondary.insert(target.to_vec());
+            }
         }
         // A stopping synchronous child failure exits before GNU's ordinary
         // update-return diagnostic. Keep-going updates retain that diagnostic.
@@ -7400,6 +7516,36 @@ impl Engine {
         if let Some(id) = group.branch {
             self.active_group_branches.remove(&id);
             self.completed_group_branches.insert(id, outcome);
+            if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
+                for (peer, _, phony) in group.members {
+                    if peer == target && !outcome.failed {
+                        continue;
+                    }
+                    let Some(branches) = self
+                        .database
+                        .rules
+                        .get(&peer)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                    else {
+                        continue;
+                    };
+                    // A recipe completes these declared peer branches even
+                    // if the graph never visits the peer as its own goal.
+                    let mut completed = outcome;
+                    completed.database_result = DatabaseResult::ObservedGroup;
+                    completed.time = if phony {
+                        None
+                    } else {
+                        self.observed_modified(&peer)
+                    };
+                    for (ordinal, branch) in branches.iter().enumerate() {
+                        if branch.grouped_double_id() == Some(id) {
+                            self.database_branch_outcomes
+                                .insert((peer.clone(), ordinal), completed);
+                        }
+                    }
+                }
+            }
             return;
         }
         let warn_missing = group.implicit
@@ -7407,13 +7553,34 @@ impl Engine {
             && self
                 .modified(target)
                 .is_some_and(|time| Some(time) > group.before);
+        let observe_dry_group = self.options.dry_run
+            && !self.options.question
+            && !self.options.touch
+            && !outcome.failed
+            && outcome.completion.preserves();
         for (peer, before, phony) in group.members.into_iter().rev() {
+            let database_result =
+                if observe_dry_group && !phony && (!group.implicit || peer != target) {
+                    // Only explicit groups include the owner in the physical
+                    // refresh. Implicit owners keep their simulated timestamp.
+                    self.modified(&peer);
+                    self.database_unchecked_times.borrow_mut().remove(&peer);
+                    DatabaseResult::ObservedGroup
+                } else {
+                    DatabaseResult::Outcome
+                };
             if peer == target {
+                if database_result == DatabaseResult::ObservedGroup
+                    && let Some(owner) = self.done.get_mut(target)
+                {
+                    owner.database_result = database_result;
+                }
                 continue;
             }
             self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
+            completed.database_result = database_result;
             completed.search_after_update = false;
             completed.time = if phony {
                 None
@@ -7613,15 +7780,23 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let branch_variables = trace.branch.filter(|ordinal| *ordinal > 0).and_then(|_| {
-            self.database_branch_contexts
-                .get(&(target.to_vec(), 0))
-                .map(VariableStore::fresh_double_colon_scope)
-        });
-        let mut variables = match branch_variables
-            .map(Ok)
-            .unwrap_or_else(|| self.target_variables(target))
-        {
+        let variables = if trace.branch.is_some_and(|ordinal| ordinal > 0) {
+            let head_key = (target.to_vec(), 0);
+            if let Some(head) = self.database_branch_contexts.get(&head_key) {
+                Ok(head.fresh_double_colon_scope())
+            } else {
+                // A later branch initializes its own table even if the head
+                // never expanded a recipe. Its lookups can visit the head.
+                self.target_variables(target).map(|head| {
+                    let variables = head.fresh_double_colon_scope();
+                    self.database_branch_contexts.insert(head_key, head);
+                    variables
+                })
+            }
+        } else {
+            self.target_variables(target)
+        };
+        let mut variables = match variables {
             Ok(variables) => variables,
             Err(error) => {
                 self.expansion_error(None, &error);
@@ -7629,16 +7804,19 @@ impl Engine {
             }
         };
         variables.refresh_globals(&self.database.variables);
-        if let Some(history) = self.database.database_history() {
-            history.intern(b".SUFFIXES");
+        if !trace.implicit_group {
+            if let Some(history) = self.database.database_history() {
+                history.intern(b".SUFFIXES");
+            }
+            self.database.file_records.insert(b".SUFFIXES");
         }
-        self.database.file_records.insert(b".SUFFIXES");
         for (name, value) in automatic {
             if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
                 self.expansion_error(None, &error);
                 return Execution::fatal(false);
             }
         }
+        self.remember_prepared_prerequisite_roles(target, &trace);
         self.retain_database_context(target, trace.branch, &variables);
         let output = Some(self.output.recipe_buffer());
         if let Some(buffer) = &output
@@ -7783,6 +7961,40 @@ impl Engine {
             return Execution::success(true);
         }
         self.continue_recipe(target, state, phony, before, parallel)
+    }
+
+    fn remember_prepared_prerequisite_roles(&mut self, target: &[u8], trace: &TraceInputs<'_>) {
+        if !trace.dropped.is_empty()
+            || !trace.dependencies.iter().any(|dependency| {
+                dependency.order_only
+                    && !dependency.hidden
+                    && trace.normal_names.contains(dependency.name.as_slice())
+            })
+        {
+            return;
+        }
+        let Some(head) = self.database.rules.get_mut(target) else {
+            return;
+        };
+        let rule = match trace.branch {
+            Some(ordinal) => head
+                .double_colon
+                .as_mut()
+                .and_then(|branches| branches.get_mut(ordinal)),
+            None => Some(head),
+        };
+        // Only a direct retained rule with the same occurrence chain can
+        // receive the promotions. A prepared group or transformed chain
+        // has a different owner or occurrence mapping.
+        if let Some(rule) = rule
+            && rule.group.is_none()
+            && rule.secondary.is_none()
+            && rule.dependencies.as_slice() == trace.dependencies
+        {
+            // $< and $+ have already captured the original normal
+            // occurrences. The role changes survive for the database dump.
+            promote_order_only_duplicates(&mut rule.dependencies, |_| true);
+        }
     }
 
     fn retain_database_context(

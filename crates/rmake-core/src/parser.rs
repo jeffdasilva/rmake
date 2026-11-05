@@ -2509,7 +2509,10 @@ impl Database {
                 continue;
             }
             let target = pattern.literal_bytes();
-            if let Some(history) = &self.database_history {
+            if let Some(history) = &self.database_history
+                && !self.file_records.contains(target)
+            {
+                // A target-specific assignment reuses an existing file's name.
                 history.intern(target);
             }
             self.file_records.enter_prerequisite(target);
@@ -4184,6 +4187,9 @@ impl Database {
         }
         let mut recipe_targets = HashSet::new();
         for (ordinal, target) in declaration.targets.iter().enumerate() {
+            // The targets share prerequisite spellings. Static patterns
+            // derive separate names for each target.
+            let bind_prerequisites = ordinal == 0 || static_pattern.is_some();
             if ordinal != 0 && !implicit && declaration.target_patterns[ordinal] {
                 record_warning(
                     &mut self.warnings,
@@ -4365,7 +4371,10 @@ impl Database {
                         if !declaration.patterns.contains_key(target) && stem.is_none() {
                             self.explicit_names.insert(name.clone());
                         }
-                        if !observed_prereqs && let Some(history) = &self.database_history {
+                        if bind_prerequisites
+                            && !observed_prereqs
+                            && let Some(history) = &self.database_history
+                        {
                             history.intern(&name);
                         }
                         rule.dependencies.push(Dependency {
@@ -4377,7 +4386,7 @@ impl Database {
                 }
             }
             if !implicit {
-                if !secondary && !unmatched {
+                if bind_prerequisites && !secondary && !unmatched {
                     // Clearing .SUFFIXES can shorten the rule below its old length.
                     let start = record_start.min(rule.dependencies.len());
                     for dependency in rule.dependencies[start..]

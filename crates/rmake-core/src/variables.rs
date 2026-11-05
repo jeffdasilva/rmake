@@ -3036,7 +3036,7 @@ impl Expansion<'_, '_> {
         let shell = self.variable(b"SHELL")?;
         let flags_raw = self
             .store
-            .get(b".SHELLFLAGS")
+            .database_lookup(b".SHELLFLAGS")
             .map_or_else(Vec::new, |v| v.value.clone());
         let flags = self.expand(&flags_raw)?;
         let ifs = if self.lookup(b"IFS").is_some() {

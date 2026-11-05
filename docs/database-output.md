@@ -98,3 +98,39 @@ restart environment witnesses, and one failed-exec lifecycle. It checks that
 regular stderr, exit 127 and finalizer absence agree with the reference. Owned
 stdin and the advertised private descriptor observer have separate profiles
 when the stdin runtime is enabled.
+
+[Prerequisite role observations](../tests/database-order-roles/README.md)
+require the active recipe to record GNU’s ordered duplicate-role promotion
+after `$<` and `$+` are prepared. Untouched rules keep their original roles.
+
+`make test-database-dry-run-time` checks the synthetic GNU timestamp for a
+successful direct, nonphony recipe simulated by pure `-n`, including an explicit
+empty recipe and flags enabled at two later phases. The renderer uses this
+logical timestamp without changing dependency freshness or physical file times.
+The ten cases also check physical timestamps, outputs, and preserved controls.
+Grouped, double-colon and mixed execution-mode timestamps remain separate.
+
+Double-colon records retain their own update-time flags and target-variable
+views. The first branch owns command-line target identity and explicit
+assignments; a later recipe can inherit values through a separate local table
+while the first recipe remains inactive. Nine original full-transcript cases
+cover attribution, inactive branches, and original physical file effects.
+
+Pure dry-run simulation also retains branch-local synthetic times, while
+mixed forced and simulated executions can publish their observed physical
+time. Six further original GNU2 comparisons cover this distinction. Explicit
+and implicit grouped rule records have separate remaining requirements.
+
+Grouped database cases separate the owner, peer records and the one logical
+rule declaration. Explicit groups retain each peer's observed filesystem
+mtime and GNU's reported peer order. Implicit multi-output rules also retain
+owner simulation timestamps and the peer's independently observed directory
+identity. The fixtures compare full output and separately check physical
+filesystem times and effects. Explicit grouped double-colon is tracked
+separately.
+
+Explicit grouped double-colon records also track peer completion independently
+of the rule owner. The selected failure and cancellation models cover recipe
+exit, actual signal, `.DELETE_ON_ERROR`, and aliases. The database keeps the
+declared peer spelling and reports its observed physical timestamp after
+cleanup; an interrupted ordinary run does not publish a misleading dump.

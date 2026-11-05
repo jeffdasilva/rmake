@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+schema_version = 1
+
+[[case]]
+id = "active-and-unused"
+makefile = '''
+all: n z n | n gate n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+unused: n | n
+MAKEFLAGS += -p
+'''
+records = ["unused: n | n", "all: n z n n n | gate gate"]
+seen_hex = "76616c7565735b6e5d5b6e207a206e5d5b6e207a5d5b6e207a5d5b676174655d0a"
+
+[[case]]
+id = "up-to-date"
+makefile = '''
+all: n z n | n gate n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+MAKEFLAGS += -p
+'''
+records = ["all: n z n | n gate n gate"]
+existing = true
+
+[[case]]
+id = "order-first"
+makefile = '''
+all: | n gate n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+all: z n
+MAKEFLAGS += -p
+'''
+records = ["all: n z n | gate n gate"]
+seen_hex = "76616c7565735b7a5d5b7a206e5d5b6e207a5d5b6e207a5d5b676174655d0a"
+
+[[case]]
+id = "late-recipe-eval"
+makefile = '''
+all: n | n gate ; @$(eval MAKEFLAGS += -p)printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: n n | gate"]
+seen_hex = "76616c7565735b6e5d5b6e5d5b6e5d5b6e5d5b676174655d0a"
+
+[[case]]
+id = "double-colon-branch-local"
+makefile = '''
+all:: n | n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+all:: old | n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' >> seen
+MAKEFLAGS += -p
+'''
+records = ["all:: n n | gate", "all:: old | n gate"]
+seen_hex = "76616c7565735b6e5d5b6e5d5b6e5d5b6e5d5b676174655d0a76616c7565735b6f6c645d5b6f6c645d5b6f6c645d5b6f6c645d5b6e20676174655d0a"
+explicit_goal = false
+
+[[case]]
+id = "empty-recipe"
+makefile = '''
+all: n | n gate ;
+MAKEFLAGS += -p
+'''
+records = ["all: n | n gate"]
+
+[[case]]
+id = "question-prepares"
+makefile = '''
+all: n z n | n gate n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+MAKEFLAGS += -p
+'''
+records = ["all: n z n n n | gate gate"]
+flags = ["-q"]
+status = 1
+
+[[case]]
+id = "dry-run-phony-prepares"
+makefile = '''
+.PHONY: all
+all: n z n | n gate n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+MAKEFLAGS += -p
+'''
+records = ["all: n z n n n | gate gate"]
+flags = ["-n"]
+
+[[case]]
+id = "touch-bypasses-preparation"
+makefile = '''
+.PHONY: all
+all: n z n | n gate n gate ; @printf '%s\n' 'values[$<][$+][$^][$?][$|]' > seen
+MAKEFLAGS += -p
+'''
+records = ["all: n z n | n gate n gate"]
+flags = ["-t"]
