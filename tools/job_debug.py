@@ -99,7 +99,39 @@ def witness(raw, name, make_pid):
     return {'pid': pid, 'parent': parent, 'start': start}
 
 
-def execute(model, case, runtime, binary):
+@dataclass(frozen=True)
+class Protocol:
+    prefixes: dict[str, bytes]
+    put_suffix: bytes
+    remove_suffix: bytes
+    ignored_suffix: bytes
+
+    def live_worker_pattern(self, target, pid):
+        return (rb'(?m)^' + re.escape(self.prefixes['live']) + rb'0x[0-9a-f]+'
+                + re.escape(b' (' + target + b') PID ' + str(pid).encode() + b' \n'))
+
+
+ENGLISH = Protocol(
+    {'put': b'Putting child ', 'live': b'Live child ', 'win': b'Reaping winning child ',
+     'lose': b'Reaping losing child ', 'remove': b'Removing child ',
+     'obtained': b'Obtained token for child ', 'released': b'Released token for child '},
+    b' on the chain.\n', b' from chain.\n', b' (ignored)\n',
+)
+# Literal declarations from the pinned GNU Make 4.4.1 compiled French catalog.
+# Controller and error templates absent from that catalog fall back to English.
+FRENCH = Protocol(
+    {'put': b'Ajout du processus fils ', 'live': b'Processus fils actif ',
+     'win': b'R\xc3\xa9colte du processus fils gagnant ',
+     'lose': b'R\xc3\xa9colte du processus fils perdant ',
+     'remove': b'Retrait du processus fils ',
+     'obtained': b'Jeton obtenu pour le processus fils ',
+     'released': b'Jeton rel\xc3\xa2ch\xc3\xa9 pour le processus fils '},
+    ' à la chaîne.\n'.encode(), ' de la chaîne.\n'.encode(), ' (ignorée)\n'.encode(),
+)
+REFERENCE_FRENCH_CATALOG = 'dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4'
+
+
+def execute(model, case, runtime, binary, protocol=ENGLISH):
     h.reset_workspace(case, runtime, binary)
     host = {'make_pid': None, 'workers': {}}
     def observe(make_pid, stdout):
@@ -114,8 +146,8 @@ def execute(model, case, runtime, binary):
                 acknowledgment.write_bytes(b'yes\n')
                 acknowledgment.chmod(0o644)
         if model.style and 'second' in host['workers']:
-            pid = str(host['workers']['second']['pid']).encode()
-            pattern = rb'(?m)^Live child 0x[0-9a-f]+ \(second\) PID ' + pid + rb' \n'
+            pid = host['workers']['second']['pid']
+            pattern = protocol.live_worker_pattern(b'second', pid)
             if len(re.findall(pattern, stdout)) >= 2:
                 finish = runtime / 'work/finish-second'
                 if not finish.exists():
@@ -128,12 +160,7 @@ def execute(model, case, runtime, binary):
     return h.Observation(out, err, status, limit, files, leftovers), host
 
 
-PREFIX = {'put': b'Putting child ', 'live': b'Live child ', 'win': b'Reaping winning child ',
-          'lose': b'Reaping losing child ', 'remove': b'Removing child ',
-          'obtained': b'Obtained token for child ', 'released': b'Released token for child '}
-
-
-def protocol_errors(model, stdout, host, runtime):
+def protocol_errors(model, stdout, host, runtime, protocol=ENGLISH):
     lines = stdout.splitlines(keepends=True)
     if len(lines) != len(model.events):
         return ['job event count']
@@ -141,8 +168,8 @@ def protocol_errors(model, stdout, host, runtime):
     errors = []
     for index, (line, (op, job, worker)) in enumerate(zip(lines, model.events)):
         pointer = None
-        if op in PREFIX:
-            match = re.match(re.escape(PREFIX[op]) + rb'(0x[0-9a-f]+)', line)
+        if op in protocol.prefixes:
+            match = re.match(re.escape(protocol.prefixes[op]) + rb'(0x[0-9a-f]+)', line)
             if match is None:
                 errors.append(f'event {index}: syntax'); continue
             pointer = match[1]
@@ -164,16 +191,16 @@ def protocol_errors(model, stdout, host, runtime):
         pid = str(data.get('pid', -1)).encode()
         target = job.encode()
         if op == 'put':
-            expected = PREFIX[op] + pointer + b' (' + target + b') PID ' + pid + b' on the chain.\n'
+            expected = protocol.prefixes[op] + pointer + b' (' + target + b') PID ' + pid + protocol.put_suffix
         elif op == 'live':
-            expected = PREFIX[op] + pointer + b' (' + target + b') PID ' + pid + b' \n'
+            expected = protocol.prefixes[op] + pointer + b' (' + target + b') PID ' + pid + b' \n'
         elif op in ('win', 'lose'):
-            expected = PREFIX[op] + pointer + b' PID ' + pid + b' \n'
+            expected = protocol.prefixes[op] + pointer + b' PID ' + pid + b' \n'
         elif op == 'remove':
-            expected = PREFIX[op] + pointer + b' PID ' + pid + b' from chain.\n'
+            expected = protocol.prefixes[op] + pointer + b' PID ' + pid + protocol.remove_suffix
             active.pop(pointer, None)
         elif op in ('obtained', 'released'):
-            expected = PREFIX[op] + pointer + b' (' + target + b').\n'
+            expected = protocol.prefixes[op] + pointer + b' (' + target + b').\n'
         elif op == 'controller':
             value = (b'fifo:' + os.fsencode(runtime / 'tmp') + b'/GMfifo' + str(host['make_pid']).encode()
                      if model.style == 'fifo' else b'3,4')
@@ -189,9 +216,12 @@ def protocol_errors(model, stdout, host, runtime):
     return errors
 
 
-def assess(model, observation, host, runtime, initial):
+def assess(model, observation, host, runtime, initial, protocol=ENGLISH):
     errors = []
-    if (observation.returncode != model.status or observation.stderr != model.stderr
+    stderr = model.stderr
+    if stderr.endswith(ENGLISH.ignored_suffix):
+        stderr = stderr[:-len(ENGLISH.ignored_suffix)] + protocol.ignored_suffix
+    if (observation.returncode != model.status or observation.stderr != stderr
             or observation.limit or observation.leftover_processes):
         errors.append('status/stderr/process bounds')
     if set(host['workers']) != set(model.workers) or not host['make_pid']:
@@ -219,7 +249,7 @@ def assess(model, observation, host, runtime, initial):
         expected['work/borrowed-token'] = file_entry(b'borrowed=+ returned=+\n')
     if observation.filesystem != expected:
         errors.append('independent complete filesystem')
-    errors.extend(protocol_errors(model, observation.stdout, host, runtime))
+    errors.extend(protocol_errors(model, observation.stdout, host, runtime, protocol))
     return errors
 
 
@@ -228,27 +258,46 @@ def main(argv=None):
     parser.add_argument('--oracle', type=Path, default=ROOT / '.tools/oracle/bin/make')
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--locale-root', type=Path, help='run the existing C and verified French cases')
     parser.add_argument('--case', action='append')
     args = parser.parse_args(argv)
     selected = models()
     if args.case:
         if set(args.case) - {m.id for m in selected}: parser.error('unknown exact case')
         selected = [m for m in selected if m.id in args.case]
-    oracle.verify(args.oracle.resolve())
+    profile = None
+    if args.locale_root:
+        import nls_diagnostics
+        _, _, _, profile = nls_diagnostics.prepare_reference(
+            args.oracle, REFERENCE_FRENCH_CATALOG, args.locale_root)
+    else:
+        oracle.verify(args.oracle.resolve())
     binaries = [args.oracle.resolve(), args.oracle.resolve()]
     if args.candidate: binaries.append(args.candidate.resolve())
     report = {'classification': 'Original JOBS qualification; zero ordinary/safety credit',
               'tool_sha256': h.sha256_file(Path(__file__)), 'worker_sha256': h.sha256_file(WORKER),
               'observer_sha256': h.sha256_file(Path(h.__file__)),
-              'identities': [h.executable_identity(b) for b in binaries], 'cases': []}
+              'identities': [h.executable_identity(b) for b in binaries],
+              'functional_cpu_affinity': sorted(os.sched_getaffinity(0)), 'cases': []}
+    languages = [(None, ENGLISH, {})]
+    if profile is not None:
+        report['locale_profile'] = profile
+        report['reference_catalog_sha256'] = REFERENCE_FRENCH_CATALOG
+        french = profile['locale']
+        languages = [('C', ENGLISH, {}), ('fr', FRENCH, {
+            **profile['environment'], 'LANG': french, 'LC_ALL': french,
+        })]
     with tempfile.TemporaryDirectory(prefix='rmake-job-debug-') as temporary:
         root = Path(temporary)
         runtime = root / 'runtime'
         runtime.mkdir(mode=0o755)
         # This path is chosen before execution, never extracted from output.
         report['runtime_root'] = str(runtime)
-        for model in selected:
-            fixture = root / model.id
+        for model, (language, protocol, environment) in (
+            (model, entry) for model in selected for entry in languages
+        ):
+            identifier = model.id if language is None else f'{model.id}-{language}'
+            fixture = root / identifier
             fixture.mkdir(mode=0o755)
             for name, content in {'Makefile': model.source, 'worker.py': WORKER.read_bytes(), 'seen': b'anchor\n'}.items():
                 (fixture / name).write_bytes(content)
@@ -256,19 +305,28 @@ def main(argv=None):
             initial.update({name: {'type': 'directory', 'mode': 0o755} for name in ('home', 'tmp')})
             arguments = ('-rR', '--no-print-directory', '--debug=j')
             if model.style: arguments += ('-j2', '--jobserver-style=' + model.style)
-            case = h.Case(fixture, model.id, 'debug.jobs', 'required', arguments, 6, {'GNUMAKEFLAGS': ''}, {})
-            row = {'id': model.id, 'arguments': arguments, 'expected_events': model.events,
+            case = h.Case(fixture, identifier, 'debug.jobs', 'required', arguments, 6,
+                          {'GNUMAKEFLAGS': '', **environment}, {})
+            row = {'id': identifier, 'arguments': arguments, 'expected_events': model.events,
                    'makefile_hex': model.source.hex(), 'expected_seen_hex': model.seen.hex(),
                    'initial_filesystem': initial, 'observations': [], 'errors': []}
+            if language is not None:
+                row['language'] = language
+                row['environment'] = case.environment
             for binary in binaries:
-                observation, host = execute(model, case, runtime, binary)
-                errors = assess(model, observation, host, runtime, initial)
+                observation, host = execute(model, case, runtime, binary, protocol)
+                errors = assess(model, observation, host, runtime, initial, protocol)
                 row['errors'].append(errors)
                 row['observations'].append({**h.observation_json(observation), 'stdout_hex': observation.stdout.hex(),
                                             'stderr_hex': observation.stderr.hex(), 'host': host})
+                if language is not None and (observation.limit or observation.leftover_processes or observation.returncode < 0):
+                    row['zero_credit'] = True
+                    break
             row['passed'] = not any(row['errors'])
             report['cases'].append(row)
-            print(('PASS ' if row['passed'] else 'FAIL ') + model.id, row['errors'], flush=True)
+            print(('PASS ' if row['passed'] else 'FAIL ') + identifier, row['errors'], flush=True)
+            if row.get('zero_credit'):
+                break
     report['passed'] = all(row['passed'] for row in report['cases'])
     report['totals'] = {'cases': len(report['cases']),
                         'pass': sum(row['passed'] for row in report['cases']),

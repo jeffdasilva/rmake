@@ -480,12 +480,15 @@ impl Jobs {
             })
         })
     }
-    fn identity(job: &JobHandle) -> String {
-        format!("{:p}", std::rc::Rc::as_ptr(job))
+    fn identity(job: &JobHandle) -> Argument<'static> {
+        Argument::Pointer(std::rc::Rc::as_ptr(job).addr())
+    }
+    fn emit(key: msg::Key, arguments: &[Argument<'_>]) {
+        raw(&[&localized(key, arguments)]);
     }
     pub fn controller(mask: Mask, authentication: &[u8]) {
         if mask.has(Mask::JOBS) {
-            raw(&[b"Using jobserver controller ", authentication, b"\n"]);
+            Self::emit(msg::JOB_CONTROLLER, &[bytes(authentication)]);
         }
     }
     pub fn need(&self, mask: Mask) {
@@ -501,13 +504,10 @@ impl Jobs {
         if mask.has(Mask::JOBS)
             && let Some(job) = job
         {
-            raw(&[
-                b"Obtained token for child ",
-                Self::identity(job).as_bytes(),
-                b" (",
-                &job.target,
-                b").\n",
-            ]);
+            Self::emit(
+                msg::JOB_OBTAINED,
+                &[Self::identity(job), bytes(&job.target)],
+            );
         }
     }
     pub fn launched(&mut self, mask: Mask, job: &JobHandle, pid: u32) {
@@ -515,15 +515,15 @@ impl Jobs {
         if !job.linked.replace(true) {
             self.chain.insert(0, job.clone());
             if mask.has(Mask::JOBS) {
-                raw(&[
-                    b"Putting child ",
-                    Self::identity(job).as_bytes(),
-                    b" (",
-                    &job.target,
-                    b") PID ",
-                    pid.to_string().as_bytes(),
-                    b" on the chain.\n",
-                ]);
+                Self::emit(
+                    msg::JOB_PUT,
+                    &[
+                        Self::identity(job),
+                        bytes(&job.target),
+                        bytes(pid.to_string().as_bytes()),
+                        bytes(b""),
+                    ],
+                );
             }
         }
     }
@@ -532,32 +532,29 @@ impl Jobs {
             return;
         }
         for job in &self.chain {
-            raw(&[
-                b"Live child ",
-                Self::identity(job).as_bytes(),
-                b" (",
-                &job.target,
-                b") PID ",
-                job.pid.get().to_string().as_bytes(),
-                b" \n",
-            ]);
+            Self::emit(
+                msg::JOB_LIVE,
+                &[
+                    Self::identity(job),
+                    bytes(&job.target),
+                    bytes(job.pid.get().to_string().as_bytes()),
+                    bytes(b""),
+                ],
+            );
         }
     }
     pub fn reaped(mask: Mask, job: Option<&JobHandle>, success: bool) {
         if mask.has(Mask::JOBS)
             && let Some(job) = job
         {
-            raw(&[
-                if success {
-                    b"Reaping winning child "
-                } else {
-                    b"Reaping losing child "
-                },
-                Self::identity(job).as_bytes(),
-                b" PID ",
-                job.pid.get().to_string().as_bytes(),
-                b" \n",
-            ]);
+            Self::emit(
+                if success { msg::JOB_WIN } else { msg::JOB_LOSE },
+                &[
+                    Self::identity(job),
+                    bytes(job.pid.get().to_string().as_bytes()),
+                    bytes(b""),
+                ],
+            );
         }
     }
     pub fn removed(&mut self, mask: Mask, job: &JobHandle, pooled: bool) {
@@ -565,25 +562,23 @@ impl Jobs {
             return;
         }
         if mask.has(Mask::JOBS) {
-            raw(&[
-                b"Removing child ",
-                Self::identity(job).as_bytes(),
-                b" PID ",
-                job.pid.get().to_string().as_bytes(),
-                b" from chain.\n",
-            ]);
+            Self::emit(
+                msg::JOB_REMOVE,
+                &[
+                    Self::identity(job),
+                    bytes(job.pid.get().to_string().as_bytes()),
+                    bytes(b""),
+                ],
+            );
         }
         self.chain.retain(|entry| !std::rc::Rc::ptr_eq(entry, job));
         // This describes the logical slot made available by completion, not
         // the particular recipe which happened to own an explicit permit.
         if pooled && !self.chain.is_empty() && mask.has(Mask::JOBS) {
-            raw(&[
-                b"Released token for child ",
-                Self::identity(job).as_bytes(),
-                b" (",
-                &job.target,
-                b").\n",
-            ]);
+            Self::emit(
+                msg::JOB_RELEASED,
+                &[Self::identity(job), bytes(&job.target)],
+            );
         }
     }
     pub fn drain(&mut self, mask: Mask, slots: Option<usize>) {

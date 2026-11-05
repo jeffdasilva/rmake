@@ -14,6 +14,7 @@ pub(crate) struct Key {
 
 const B: Argument<'static> = Argument::Bytes(b"bytes");
 const P: Argument<'static> = Argument::Unsigned(3);
+const A: Argument<'static> = Argument::Pointer(0x1000);
 
 macro_rules! keys {
     ($($name:ident: $msgid:expr, [$($sample:expr),*];)+) => {
@@ -74,6 +75,14 @@ keys! {
     PREREQ_MISSING: c"Prerequisite '%s' of target '%s' does not exist.\n", [B, B];
     PREREQ_ORDER_ONLY: c"Prerequisite '%s' is order-only for target '%s'.\n", [B, B];
     SKIPPING_BOM: c"Skipping UTF-8 BOM in makefile '%s'\n", [B];
+    JOB_CONTROLLER: c"Using jobserver controller %s\n", [B];
+    JOB_OBTAINED: c"Obtained token for child %p (%s).\n", [A, B];
+    JOB_PUT: c"Putting child %p (%s) PID %s%s on the chain.\n", [A, B, B, B];
+    JOB_LIVE: c"Live child %p (%s) PID %s %s\n", [A, B, B, B];
+    JOB_WIN: c"Reaping winning child %p PID %s %s\n", [A, B, B];
+    JOB_LOSE: c"Reaping losing child %p PID %s %s\n", [A, B, B];
+    JOB_REMOVE: c"Removing child %p PID %s%s from chain.\n", [A, B, B];
+    JOB_RELEASED: c"Released token for child %p (%s).\n", [A, B];
     BUILT_FOR: c"%sBuilt for %s\n", [B, B];
     LICENSE: c"%sLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n%sThis is free software: you are free to change and redistribute it.\n%sThere is NO WARRANTY, to the extent permitted by law.\n", [B, B, B];
 }

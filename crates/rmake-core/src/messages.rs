@@ -338,6 +338,7 @@ pub enum Argument<'a> {
     Signed(i64),
     Unsigned(u64),
     Character(u8),
+    Pointer(usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -346,6 +347,7 @@ pub enum OwnedArgument {
     Signed(i64),
     Unsigned(u64),
     Character(u8),
+    Pointer(usize),
 }
 impl OwnedArgument {
     fn borrowed(&self) -> Argument<'_> {
@@ -354,6 +356,7 @@ impl OwnedArgument {
             Self::Signed(value) => Argument::Signed(*value),
             Self::Unsigned(value) => Argument::Unsigned(*value),
             Self::Character(value) => Argument::Character(*value),
+            Self::Pointer(value) => Argument::Pointer(*value),
         }
     }
 }
@@ -364,6 +367,7 @@ impl From<Argument<'_>> for OwnedArgument {
             Argument::Signed(value) => Self::Signed(value),
             Argument::Unsigned(value) => Self::Unsigned(value),
             Argument::Character(value) => Self::Character(value),
+            Argument::Pointer(value) => Self::Pointer(value),
         }
     }
 }
@@ -836,7 +840,14 @@ pub fn checked_format(template: &[u8], arguments: &[Argument<'_>]) -> Result<Vec
                 output.extend_from_slice(value.to_string().as_bytes())
             }
             (b'c', Argument::Character(value)) if precision.is_none() => output.push(value),
-            (b's' | b'd' | b'u' | b'c', _) => return Err(FormatError::ArgumentType),
+            (b'p', Argument::Pointer(address)) if precision.is_none() => {
+                if address == 0 {
+                    output.extend_from_slice(b"(nil)");
+                } else {
+                    output.extend_from_slice(format!("{address:#x}").as_bytes());
+                }
+            }
+            (b's' | b'd' | b'u' | b'c' | b'p', _) => return Err(FormatError::ArgumentType),
             _ => return Err(FormatError::InvalidSpecifier),
         }
     }
@@ -881,6 +892,27 @@ mod tests {
             b"fixed"
         );
     }
+    #[test]
+    fn job_identity_addresses_use_checked_glibc_pointer_text() {
+        let address = Argument::Pointer(0x10ab);
+        assert_eq!(
+            checked_format(b"%2$s: %1$p", &[address, Argument::Bytes(b"job\xff")]).unwrap(),
+            b"job\xff: 0x10ab"
+        );
+        assert_eq!(
+            checked_format(b"%p", &[Argument::Pointer(0)]).unwrap(),
+            b"(nil)"
+        );
+        assert_eq!(
+            checked_format(b"%p", &[Argument::Unsigned(1)]),
+            Err(FormatError::ArgumentType)
+        );
+        assert_eq!(
+            checked_format(b"%s", &[address]),
+            Err(FormatError::ArgumentType)
+        );
+    }
+
     #[test]
     fn malformed_catalog_schemas_never_reach_varargs() {
         for (template, args, error) in [
