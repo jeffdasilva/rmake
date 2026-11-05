@@ -910,7 +910,7 @@ fn setup_name(input: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ExpandError> {
     Ok((input.to_vec(), [&base[..end], b"_gmk_setup"].concat()))
 }
 
-/// Flush C stdio before an exec, which does not run libc's exit handlers.
+/// Flush all C stdio, including streams opened by native modules.
 pub fn flush_standard_streams() -> std::io::Result<()> {
     if unsafe { rm_native_flush() } == 0 {
         Ok(())

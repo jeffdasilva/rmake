@@ -338,6 +338,16 @@ test-shell-capture-lifetime-release: release oracle-verify
 	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/low-slots-optimized.json
 	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/cached-spool-optimized.json
 
+.PHONY: test-native-spawn-stdio test-native-spawn-stdio-release
+test-native-spawn-stdio: build oracle-verify
+	$(PYTHON) tools/native_spawn_stdio.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native/spawn-stdio-development.json
+
+test-native-spawn-stdio-release: release oracle-verify
+	$(PYTHON) tools/native_spawn_stdio.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/spawn-stdio-optimized.json
+
+test check: test-native-spawn-stdio
+test-m4-release: test-native-spawn-stdio-release
+
 test-roomy-wake-slots: build oracle-verify
 	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/capture-development.json
 	$(PYTHON) tools/jobserver_wake_slots.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/auth-development.json

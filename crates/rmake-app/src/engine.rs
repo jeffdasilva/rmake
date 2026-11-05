@@ -8621,6 +8621,11 @@ impl Engine {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
             };
+            self.output.start();
+            // A recipe flushes the public streams before building its child
+            // environment. A write failure does not decide the launch result.
+            let _ = rmake_linux::native::flush_stream(false);
+            let _ = rmake_linux::native::flush_stream(true);
             let mut child = Command::new(os(&program));
             child.args(arguments.iter().map(|arg| os(arg)));
             if let Some(values) = &environment {
@@ -8787,12 +8792,10 @@ impl Engine {
                     order: emitted_order,
                 });
             }
-            let _ = rmake_linux::native::flush_stream(false);
             let stdin_owner = !parallel || !self.parallel_jobs.values().any(|job| job.stdin_owner);
             if let Some(buffer) = &output {
                 buffer.child_reaped(false);
             }
-            self.output.start();
             let process = launch_child(
                 &program,
                 &child,
@@ -8817,9 +8820,6 @@ impl Engine {
                                 Err(error) => return Err(error),
                             }
                         };
-                        if crate::native::has_modules() {
-                            rmake_linux::native::flush_standard_streams()?;
-                        }
                         if let Some(process) = rmake_linux::child::Child::try_spawn_ordered_pool(
                             &command,
                             image,
@@ -8860,9 +8860,6 @@ impl Engine {
                             return process;
                         }
                         buffer.configure_child(&mut command)?;
-                    }
-                    if descriptor_limited_pool.is_none() && crate::native::has_modules() {
-                        rmake_linux::native::flush_standard_streams()?;
                     }
                     if stdin_owner
                         && output.as_ref().is_none_or(|buffer| !buffer.enabled())

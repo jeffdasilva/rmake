@@ -59,9 +59,6 @@ pub fn run(
         request.original_shell,
         |command, image, arg0| {
             retain_failed_pipe = false;
-            if crate::native::has_modules() {
-                rmake_linux::native::flush_standard_streams()?;
-            }
             let spool = buffer.as_ref().and_then(|buffer| buffer.child_spool());
             let stderr = spool
                 .as_deref()
