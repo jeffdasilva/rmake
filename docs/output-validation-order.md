@@ -60,3 +60,14 @@ archive identified in `oracle/manifest.json`. Source inspection establishes the
 boundary to test; it does not substitute for raw differential observations.
 No GNU implementation code or test cases were copied or translated. GNU remains
 an external test oracle, never a runtime fallback.
+
+A live `MAKEFLAGS` assignment now also completes the selected output lock
+before Makefile evaluation continues. Earlier payload definitions keep their
+side effects; a failed lock open stops subsequent file reads and recipes.
+When both the mode and lock are invalid, mode validation takes precedence.
+
+`make test-output-lock-completion` and `make test-output-lock-completion-release`
+exercise 16 original models in C and French. They compare two pinned GNU runs
+and rmake against independently specified status, byte streams, and complete
+filesystem effects, including repeated options, an included reader, raw path
+bytes, and reopening a lock removed between live assignments.

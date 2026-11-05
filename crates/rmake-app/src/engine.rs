@@ -1072,9 +1072,8 @@ impl Engine {
         let mode = retain!(options.output_sync.as_deref().map_or(
             Ok(crate::output::Mode::None),
             |raw| {
-                crate::output::Mode::parse(raw).ok_or_else(|| {
-                    Diagnostic::from([b"unknown output-sync type '".as_slice(), raw, b"'"].concat())
-                })
+                crate::output::Mode::parse(raw)
+                    .ok_or_else(|| Diagnostic::from(crate::usage::output_sync_mode(raw)))
             }
         ));
         if options.debug_mask.has(crate::debug::Mask::BASIC) {
