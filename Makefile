@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: bootstrap-integration test-integration
-.PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles
+.PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time
 .PHONY: test-database-lifecycle
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
@@ -18,6 +18,7 @@ PYTHON ?= python3
 INTEGRATION_CASE ?=
 DATABASE_NUMERIC_CASE ?=
 DATABASE_ORDER_ROLE_CASE ?=
+DATABASE_DRY_RUN_CASE ?=
 DATABASE_SEARCH_CASE ?=
 DATABASE_CASE ?=
 DATABASE_LIFECYCLE_GROUP ?= generic
@@ -126,6 +127,7 @@ help:
 		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
 		'  test-database-numeric Compare native rounding and registration history' \
 		'  test-database-order-roles Compare prepared normal and order-only duplicates' \
+		'  test-database-dry-run-time Compare synthetic and physical timestamps' \
 		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
@@ -280,6 +282,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_SEARCH_CASE=database-search-repeated-aliased test-database-search
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_NUMERIC_CASE=database-native-numeric-minimal-upward test-database-numeric
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_ORDER_ROLE_CASE=late-recipe-eval test-database-order-roles
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_DRY_RUN_CASE=missing-dry-run test-database-dry-run-time
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_FENV_CASE=native-fenv-successive-upward test-native-fenv
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
@@ -321,6 +324,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-lifecycle/optimized.json
 	$(PYTHON) tools/database_numeric.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/numeric-optimized.json
 	$(PYTHON) tools/database_order_roles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-order-roles/optimized.json
+	$(PYTHON) tools/database_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-dry-run/optimized.json
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native-fenv/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
 	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/optimized.json
@@ -354,6 +358,9 @@ test-database-numeric: build oracle-verify
 
 test-database-search: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite search --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/search-development.json $(if $(DATABASE_SEARCH_CASE),--case "$(DATABASE_SEARCH_CASE)")
+
+test-database-dry-run-time: build oracle-verify
+	$(PYTHON) tools/database_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-dry-run/development.json $(if $(DATABASE_DRY_RUN_CASE),--case "$(DATABASE_DRY_RUN_CASE)")
 
 test-database-order-roles: build oracle-verify
 	$(PYTHON) tools/database_order_roles.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-order-roles/development.json $(if $(DATABASE_ORDER_ROLE_CASE),--case "$(DATABASE_ORDER_ROLE_CASE)")
@@ -463,9 +470,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-native-fenv test-locales test-locale-collation
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-native-fenv test-locales test-locale-collation
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation
 
 ci: check test-selfhost
 

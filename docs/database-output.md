@@ -102,3 +102,10 @@ when the stdin runtime is enabled.
 [Prerequisite role observations](../tests/database-order-roles/README.md)
 require the active recipe to record GNU’s ordered duplicate-role promotion
 after `$<` and `$+` are prepared. Untouched rules keep their original roles.
+
+`make test-database-dry-run-time` checks the synthetic GNU timestamp for a
+successful direct, nonphony recipe simulated by pure `-n`, including an explicit
+empty recipe and flags enabled at two later phases. The renderer uses this
+logical timestamp without changing dependency freshness or physical file times.
+The ten cases also check physical timestamps, outputs, and preserved controls.
+Grouped, double-colon and mixed execution-mode timestamps remain separate.

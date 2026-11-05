@@ -303,6 +303,9 @@ struct Outcome {
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
+    // A successful simulated recipe has a diagnostic mtime distinct from its
+    // physical observation. The scheduler continues to use `completion`.
+    database_dry_run_mtime: bool,
 }
 
 /// Freshness is a per-parent decision, independent of the intermediate's final
@@ -6775,6 +6778,13 @@ impl Engine {
                     } else {
                         CompletionTime::Refresh
                     };
+                outcome.database_dry_run_mtime = self.options.dry_run
+                    && !self.options.question
+                    && !self.options.touch
+                    && branch.is_none()
+                    && rule.grouped_targets().is_none()
+                    && outcome.completion == CompletionTime::AssumeNew
+                    && execution.status == Status::Success;
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);

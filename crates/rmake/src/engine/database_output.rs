@@ -246,10 +246,11 @@ impl Engine {
         {
             view.time = FileTime::Old;
             None
-        } else if self
-            .assumptions
-            .as_ref()
-            .is_some_and(|files| files.is_new_time(cached))
+        } else if outcome.is_some_and(|outcome| outcome.database_dry_run_mtime)
+            || self
+                .assumptions
+                .as_ref()
+                .is_some_and(|files| files.is_new_time(cached))
         {
             Some(rmake_linux::clock::file_time(
                 SystemTime::UNIX_EPOCH + Duration::new((1u64 << 34) - 1, 107_374_182),
