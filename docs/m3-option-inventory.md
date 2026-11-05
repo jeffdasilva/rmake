@@ -72,3 +72,6 @@ does not itself qualify JOBS PID/address output; the separate nine-case
 [JOBS gate](job-debug.md) checks strict identity relationships. The [child measurements](benchmarks/debug-children.md)
 are a separate comparison; earlier regressions remain retained and no general
 speedup or GNU parity follows from these selected controls.
+
+
+[Wildcard locale collation](locale-collation.md) adds 74 separately required models for selected C/CUTF8/French and live native choices, with private pinned data generation. It does not close localized diagnostics, the remaining CLI inventory, broader locale/resource profiles or M3/M6.

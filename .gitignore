@@ -3,7 +3,7 @@
 
 # Rust build output. Keep Cargo.lock tracked when the application is initialized.
 /target/
-/.tools/
+/.tools
 /artifacts/
 __pycache__/
 *.pyc

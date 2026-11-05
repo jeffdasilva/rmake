@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: bootstrap-integration test-integration
-.PHONY: test-locales
+.PHONY: test-locales bootstrap-locale-data test-locale-collation
 
 .PHONY: test-job-debug
 
@@ -12,6 +12,8 @@
 
 PYTHON ?= python3
 INTEGRATION_CASE ?=
+COLLATION_CASE ?=
+LOCALE_DATA_ROOT ?= $(CURDIR)/.tools/locale-data
 LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
@@ -105,6 +107,8 @@ help:
 		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
+		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
+		'  test-locale-collation Compare exact locale and live native glob ordering' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
@@ -242,6 +246,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -277,6 +282,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
+	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/optimized.json
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
 	$(PYTHON) tools/directory_reporting.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/directory-reporting/optimized.json
 	$(PYTHON) tools/debug_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/debug-output/optimized.json
@@ -301,6 +307,12 @@ test-m4-release: release oracle-verify
 
 test-integration: build oracle-verify
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/integration/development.json $(if $(INTEGRATION_CASE),--case "$(INTEGRATION_CASE)")
+
+bootstrap-locale-data:
+	$(PYTHON) tools/locale_data.py --root "$(LOCALE_DATA_ROOT)"
+
+test-locale-collation: build oracle-verify
+	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/development.json $(if $(COLLATION_CASE),--case "$(COLLATION_CASE)")
 
 test-locales: build oracle-verify
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/locales/development.json $(if $(LOCALE_CASE),--case "$(LOCALE_CASE)")
@@ -393,9 +405,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-locales
+test: test-integration test-locales test-locale-collation
 
-check: test-integration test-locales
+check: test-integration test-locales test-locale-collation
 
 ci: check test-selfhost
 

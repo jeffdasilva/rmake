@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "classification": "Pinned private French locale data for Linux/x86-64 glibc2.39 GNU4.4.1 differential profiles; no system install, feature or performance credit",
+  "locale": "fr_FR.UTF-8",
+  "release_url": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+  "release_sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+  "signing_fingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+  "keyring": "/usr/share/keyrings/ubuntu-archive-keyring.gpg",
+  "signed_index": {
+    "path": "main/binary-amd64/Packages",
+    "sha256": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+    "size": 7165069
+  },
+  "packages": [
+    {
+      "name": "locales",
+      "version": "2.39-0ubuntu8",
+      "architecture": "all",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/locales_2.39-0ubuntu8_all.deb",
+      "sha256": "de586cb30e40abfe653d5e5b8031deba6d88ea9caff8e2ad75f3ff3e0e416c5b",
+      "size": 4233588
+    },
+    {
+      "name": "libc-bin",
+      "version": "2.39-0ubuntu8",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/libc-bin_2.39-0ubuntu8_amd64.deb",
+      "sha256": "4ff873a8ae9622f0bc4e4be8cb1e5b3e94ff53a93a18af10e54f6e55cd7f92d0",
+      "size": 681940
+    }
+  ],
+  "input_files": {
+    "usr/bin/localedef": "e3cca6ea66cc3569ebdc8465619be0fcb32c74346ffbf14f9fff7f68b7f103e3",
+    "usr/share/i18n/locales/fr_FR": "e6c8c3f75fc440f611fedf3a9c76662dcdb585663e0e3a71c1f0718a33fead5d",
+    "usr/share/i18n/charmaps/UTF-8.gz": "1104351c3f552b2b29327fcef4517b1d17334486e83c0c7903cfed924b44e89d",
+    "usr/share/doc/locales/copyright": "d3c95b56fa33e28b57860580f0baf4e4f4de2a268a2b80f1d031a5191bade265",
+    "usr/share/doc/libc-bin/copyright": "d3c95b56fa33e28b57860580f0baf4e4f4de2a268a2b80f1d031a5191bade265"
+  },
+  "charmap_uncompressed_sha256": "80ca20f5ba81376a4d30c719fc5f56717bc4d613a3442b15ecbfc527a0cdde0b",
+  "installed_tree_sha256": "c15000f210edd127b4debc2bbc41055cff8930db60a697fd2908a6a339871b76",
+  "generated_tree_sha256": "6bbef6b878271d58f9e4451f9cfb89d22358f006eb829ef2721e83c8f07a68c5"
+}
