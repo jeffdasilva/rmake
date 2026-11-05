@@ -439,3 +439,5 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 
 
 [Wildcard locale collation](locale-collation.md) adds 74 required original models, with both profiles matching GNU2 across live global/thread-local choices, raw-byte equal keys and directory-table growth. The private French locale is generated from authenticated pinned packages. The earlier 183 C/CUTF8 controls remain required. Wider locale/cache-history acceptance and complete M3/M6 criteria are unchanged.
+
+[Database history and retained search names](database-output.md) now have 41 exact profiles plus six native numeric/registration controls. Formatting borrows recorded state without replaying effects; logical GNU statistics and order remain separate from physical Rust storage. The selected combined build passes its finite development/optimized gates, with full selected-head acceptance and final cost qualification required before merge. Broader lifecycle, Guile/NLS/profile/resource interactions and complete M3/M6 remain open.

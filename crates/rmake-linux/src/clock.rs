@@ -98,8 +98,10 @@ pub fn file_time(time: SystemTime) -> io::Result<Vec<u8>> {
         return Err(io::Error::other("unable to format cached timestamp"));
     }
     let mut output = buffer[..written].to_vec();
-    use std::io::Write;
-    write!(output, ".{nanos:09}")?;
+    if nanos != 0 {
+        use std::io::Write;
+        write!(output, ".{nanos:09}")?;
+    }
     Ok(output)
 }
 
@@ -107,6 +109,18 @@ pub fn file_time(time: SystemTime) -> io::Result<Vec<u8>> {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn cached_file_times_omit_only_an_empty_fraction() {
+        let whole = UNIX_EPOCH + Duration::from_secs(1_600_000_002);
+        let seconds = file_time(whole).unwrap();
+        assert_eq!(seconds.len(), 19);
+        assert!(!seconds.contains(&b'.'));
+        assert_eq!(
+            file_time(whole + Duration::from_nanos(1)).unwrap(),
+            [seconds.as_slice(), b".000000001"].concat()
+        );
+    }
 
     #[test]
     fn negative_fractional_times_use_floor_seconds_and_positive_nanoseconds() {

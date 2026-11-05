@@ -1942,16 +1942,18 @@ impl Engine {
                 if crate::native::has_modules() {
                     let error =
                         plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
-                    self.fatal(
-                        None,
-                        [
-                            b"re-executing make: ".as_slice(),
+                    self.stderr(
+                        &[
+                            plan.restart_program().as_bytes(),
+                            b": ",
                             os_error(&error).as_bytes(),
                         ]
-                        .concat()
-                        .as_slice(),
+                        .concat(),
                     );
-                    return 2;
+                    if let Some(server) = &inherited_jobserver {
+                        server.finish_recursive_exec();
+                    }
+                    rmake_linux::process::exit_immediately(127);
                 }
                 let restart_program = plan.program.clone();
                 let restart_invocation = plan.invocation.clone();

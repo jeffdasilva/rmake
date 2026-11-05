@@ -10,6 +10,7 @@ pub(super) struct Plan {
     environment: Vec<(OsString, OsString)>,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
+    restart_invocation: Option<OsString>,
     output: Option<crate::output::Controller>,
 }
 
@@ -65,18 +66,35 @@ impl Plan {
                 environment.push((name.into(), value));
             }
         }
+        let restart_invocation =
+            if !invocation.as_bytes().starts_with(b"/") && invocation.as_bytes().contains(&b'/') {
+                std::env::current_dir()
+                    .ok()
+                    .map(|directory| directory.join(invocation).into_os_string())
+            } else {
+                None
+            };
         Self {
             args,
             environment,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
+            restart_invocation,
             output,
         }
     }
 
+    /// Retain the process-entry path before any -C changes. Bare names keep
+    /// their PATH search; relative paths containing '/' keep their spelling.
+    pub(super) fn restart_program(&self) -> &OsStr {
+        self.restart_invocation
+            .as_deref()
+            .unwrap_or(&self.invocation)
+    }
+
     pub(super) fn debug_restart(&self, count: u32) {
         let mut line = format!("Re-executing[{count}]: ").into_bytes();
-        line.extend_from_slice(self.invocation.as_bytes());
+        line.extend_from_slice(self.restart_program().as_bytes());
         for argument in &self.args {
             line.push(b' ');
             line.extend_from_slice(argument.as_bytes());
@@ -94,13 +112,11 @@ impl Plan {
         level: u32,
         jobserver: Option<&Jobserver>,
     ) -> io::Error {
-        let mut command = Command::new(&self.invocation);
-        command.arg0(&self.invocation).args(&self.args).env_clear();
-        for (name, value) in &self.environment {
-            if name != "MAKE_RESTARTS" && name != "MAKELEVEL" {
-                command.env(name, value);
-            }
-        }
+        let mut command = Command::new(self.restart_program());
+        // Native setup can deliberately update the process environment. A
+        // real exec inherits that live state, with only the restart counters
+        // overridden below; the startup snapshot is for in-process decoding.
+        command.arg0(self.restart_program()).args(&self.args);
         let restart = if self
             .output
             .as_ref()
@@ -110,15 +126,46 @@ impl Plan {
         } else {
             count.to_string()
         };
-        command.env("MAKE_RESTARTS", restart);
-        command.env("MAKELEVEL", level.to_string());
-        if let Some(server) = jobserver {
-            server.configure_child(&mut command, true);
+        let mut environment: Vec<_> = std::env::vars_os().collect();
+        let mut has_restart = false;
+        for (name, value) in &mut environment {
+            if name == "MAKELEVEL" {
+                *value = level.to_string().into();
+            } else if name == "MAKE_RESTARTS" {
+                *value = restart.clone().into();
+                has_restart = true;
+            }
         }
+        if !has_restart {
+            environment.push(("MAKE_RESTARTS".into(), restart.into()));
+        }
+        let order: Vec<_> = environment
+            .iter()
+            .map(|(name, _)| name.as_os_str().as_bytes().to_vec())
+            .collect();
+        command.env_clear().envs(environment);
         if let Err(error) = rmake_linux::native::flush_standard_streams() {
             return error;
         }
-        command.exec()
+        // The owned image preserves the live vector through exec; Command's
+        // ordinary environment rebuild would alphabetize its entries. Reuse
+        // the existing PATH search and ENOEXEC handling for a bare argv[0].
+        match launch_child::<()>(
+            self.restart_program().as_bytes(),
+            &command,
+            &order,
+            None,
+            |mut command, environment, arg0| {
+                if let Some(server) = jobserver {
+                    server.configure_child(&mut command, true);
+                }
+                environment.configure_exec(&mut command, os(arg0))?;
+                Err(command.exec())
+            },
+        ) {
+            Err(error) => error,
+            Ok(()) => unreachable!("a successful restart replaces this process"),
+        }
     }
 
     pub(super) fn decode(
