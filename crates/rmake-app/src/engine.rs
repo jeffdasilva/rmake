@@ -3494,7 +3494,7 @@ impl Engine {
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
-        if !self.resolve_implicit(target) {
+        if !self.resolve_implicit_for_intermediate(target) {
             return Inspection {
                 outcome: Outcome {
                     failed: true,
@@ -5305,10 +5305,15 @@ impl Engine {
     }
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
-    fn resolve_implicit(&mut self, target: &[u8]) -> bool {
-        self.resolve_implicit_at(target, usize::from(self.remaking))
+    fn resolve_implicit_for_intermediate(&mut self, target: &[u8]) -> bool {
+        self.resolve_implicit_at(target, usize::from(self.remaking), false)
     }
-    fn resolve_implicit_at(&mut self, target: &[u8], debug_depth: usize) -> bool {
+    fn resolve_implicit_at(
+        &mut self,
+        target: &[u8],
+        debug_depth: usize,
+        graph_visit: bool,
+    ) -> bool {
         let existing = match self.database.rules.get(target) {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
             rule => rule.cloned(),
@@ -5441,6 +5446,13 @@ impl Engine {
             && let Some(default) = self.database.rules.get(b".DEFAULT".as_slice())
             && default.recipes.is_some()
         {
+            // Intermediate inspection has its own fallback diagnostic.
+            if graph_visit {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::UsingDefaultRecipe(target, debug_depth + 1),
+                );
+            }
             self.database.rules.insert(
                 target.to_vec(),
                 Rule {
@@ -6635,7 +6647,7 @@ impl Engine {
         } else {
             self.comparison_time(target, before)
         };
-        if !phony && !self.resolve_implicit_at(target, debug_depth) {
+        if !phony && !self.resolve_implicit_at(target, debug_depth, true) {
             return Outcome {
                 failed: true,
                 fatal: true,
