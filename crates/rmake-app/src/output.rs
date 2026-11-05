@@ -438,16 +438,6 @@ impl Buffer {
         }
         Ok(())
     }
-    pub fn configure_stderr(&self, child: &mut std::process::Command) -> io::Result<()> {
-        if !self.enabled() {
-            return Ok(());
-        }
-        self.prepare();
-        if let Some(spool) = self.spool.borrow().as_ref() {
-            spool.configure_stderr(child)?;
-        }
-        Ok(())
-    }
     pub fn dump(&self) {
         let error = {
             let spool = self.spool.borrow();

@@ -328,10 +328,14 @@ test-startup-exits: build oracle-verify
 test-shell-capture-lifetime: build oracle-verify
 	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/development.json
 	$(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/failure-development.json
+	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/low-slots-development.json
+	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/cached-spool-development.json
 
 test-shell-capture-lifetime-release: release oracle-verify
 	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/optimized.json
 	$(PYTHON) tools/shell_capture_launch_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/failure-optimized.json
+	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/low-slots-optimized.json
+	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/cached-spool-optimized.json
 
 test-roomy-wake-slots: build oracle-verify
 	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/capture-development.json

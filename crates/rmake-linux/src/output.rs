@@ -321,11 +321,8 @@ impl Spool {
         ]
     }
 
-    pub fn configure_stderr(&self, child: &mut Command) -> io::Result<()> {
-        if let Some(file) = self.stream(true) {
-            child.stderr(Stdio::from(file.try_clone()?));
-        }
-        Ok(())
+    pub fn child_stderr(&self) -> Option<BorrowedFd<'_>> {
+        self.stream(true).map(AsFd::as_fd)
     }
 
     pub fn dump(

@@ -8,9 +8,10 @@ use std::ffi::{c_int, c_long};
 use std::fs::File;
 use std::io;
 use std::io::Read;
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::process::{Command, ExitStatus};
+use std::sync::Mutex;
 
 unsafe extern "C" {
     fn syscall(number: c_long, ...) -> c_long;
@@ -57,9 +58,46 @@ impl CapturePipe {
     fn new() -> io::Result<Self> {
         let (reader, writer) = io::pipe()?;
         Ok(Self {
-            reader: crate::process::private_descriptor(File::from(OwnedFd::from(reader)))?,
-            writer: crate::process::private_descriptor(File::from(OwnedFd::from(writer)))?,
+            // Keep any occupied standard slots until the spawn attempt has
+            // finished. The child's fork-status socket must stay independent.
+            reader: File::from(OwnedFd::from(reader)),
+            writer: File::from(OwnedFd::from(writer)),
         })
+    }
+
+    pub fn retain_failed(self) {
+        static PRIVATE_ENDS: Mutex<Vec<File>> = Mutex::new(Vec::new());
+        PRIVATE_ENDS
+            .lock()
+            .expect("failed capture ownership")
+            .extend([self.reader, self.writer].into_iter().filter_map(|end| {
+                if end.as_raw_fd() > 2 {
+                    return Some(end);
+                }
+                // The public standard slot stays occupied until it is restored
+                // by native code, or closed by exec/exit. Do not keep a Rust
+                // owner that could outlive a native replacement of that slot.
+                let _ = end.into_raw_fd();
+                None
+            }));
+    }
+}
+
+fn set_capture_stream(source: c_int, target: c_int) -> io::Result<()> {
+    if source == target {
+        // An identity action leaves the original close-on-exec flag intact.
+        return Ok(());
+    }
+    loop {
+        // SAFETY: the ordered spawn retains the source through fork. The child
+        // changes only its own standard descriptor table here.
+        if unsafe { dup2(source, target) } >= 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
     }
 }
 
@@ -172,27 +210,27 @@ impl Child {
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
         capture: &mut Option<CapturePipe>,
+        stderr: Option<BorrowedFd<'_>>,
     ) -> Result<(Self, File), CaptureSpawnError> {
         let pipe = match capture.as_ref() {
             Some(pipe) => pipe,
             None => capture.insert(CapturePipe::new().map_err(CaptureSpawnError::Prepare)?),
         };
         let writer = pipe.writer.as_raw_fd();
-        // SAFETY: the command is local to this call and spawns synchronously
-        // while the writer is owned by capture. In the forked child, dup2
-        // establishes stdout without moving either parent descriptor.
-        unsafe {
-            command.pre_exec(move || {
-                loop {
-                    if dup2(writer, 1) >= 0 {
-                        return Ok(());
+        let stderr = stderr.map(|file| file.as_raw_fd());
+        if writer != 1 || stderr.is_some() {
+            // SAFETY: capture and the borrowed spool own both sources while
+            // this command spawns synchronously. Copy stdout first: when the
+            // capture writer occupies fd 2, installing stderr would replace it.
+            unsafe {
+                command.pre_exec(move || {
+                    set_capture_stream(writer, 1)?;
+                    if let Some(file) = stderr {
+                        set_capture_stream(file, 2)?;
                     }
-                    let error = io::Error::last_os_error();
-                    if error.kind() != io::ErrorKind::Interrupted {
-                        return Err(error);
-                    }
-                }
-            });
+                    Ok(())
+                });
+            }
         }
         image
             .configure_exec(&mut command, arg0)

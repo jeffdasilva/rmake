@@ -6,16 +6,11 @@
 
 use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
-use rmake_linux::child::{CapturePipe, CaptureSpawnError, Child};
+use rmake_linux::child::{CaptureSpawnError, Child};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
-use std::sync::Mutex;
-
-// Failed captures remain owned through C finalization. Both ends are CLOEXEC,
-// so a real restart or process exit releases them without a Rust drop hook.
-static FAILED_CAPTURES: Mutex<Vec<CapturePipe>> = Mutex::new(Vec::new());
 
 pub fn run(
     request: ShellRequest<'_>,
@@ -62,15 +57,22 @@ pub fn run(
         &command,
         &order,
         request.original_shell,
-        |mut command, image, arg0| {
+        |command, image, arg0| {
             retain_failed_pipe = false;
-            if let Some(buffer) = &buffer {
-                buffer.configure_stderr(&mut command)?;
-            }
             if crate::native::has_modules() {
                 rmake_linux::native::flush_standard_streams()?;
             }
-            match Child::spawn_capture_ordered(command, image, OsStr::from_bytes(arg0), &mut pipe) {
+            let spool = buffer.as_ref().and_then(|buffer| buffer.child_spool());
+            let stderr = spool
+                .as_deref()
+                .and_then(rmake_linux::output::Spool::child_stderr);
+            match Child::spawn_capture_ordered(
+                command,
+                image,
+                OsStr::from_bytes(arg0),
+                &mut pipe,
+                stderr,
+            ) {
                 Ok(capture) => Ok(capture),
                 Err(CaptureSpawnError::Prepare(error)) => Err(error),
                 Err(CaptureSpawnError::Launch(error)) => {
@@ -83,10 +85,8 @@ pub fn run(
         Ok(child) => child,
         Err(error) => {
             if retain_failed_pipe {
-                FAILED_CAPTURES
-                    .lock()
-                    .expect("failed capture ownership")
-                    .push(pipe.expect("failed launch owns a capture pipe"));
+                pipe.expect("failed launch owns a capture pipe")
+                    .retain_failed();
             }
             output.write_parts(
                 true,
