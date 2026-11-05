@@ -2876,7 +2876,14 @@ impl Engine {
                     self.database_unchecked_times
                         .borrow_mut()
                         .remove(&makefile.name);
-                    changed |= self.modified(&makefile.name) != before;
+                    // A completed recipe can invalidate the makefile's time.
+                    // Expansion effects alone leave its cached observation intact.
+                    if matches!(
+                        result.completion,
+                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+                    ) {
+                        changed |= self.modified(&makefile.name) != before;
+                    }
                 }
                 if result.fatal {
                     failed = true;
