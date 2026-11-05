@@ -519,6 +519,13 @@ impl OutputReceiver for RuntimeOutput<'_> {
     }
 }
 
+struct SerialWait {
+    status: std::process::ExitStatus,
+    cleaned: bool,
+    #[cfg(feature = "guile")]
+    interpreter_failed: bool,
+}
+
 struct ParallelJob {
     identity: u64,
     program: Vec<u8>,
@@ -1574,10 +1581,10 @@ impl Engine {
         }
     }
 
-    fn terminate_native(
+    fn with_retained_native_context<T>(
         &mut self,
-        action: rmake_linux::signals::ExitAction,
-    ) -> Result<(), ExpandError> {
+        operation: impl FnOnce(&mut Database, &mut ExpansionContext<'_>) -> Result<T, ExpandError>,
+    ) -> Result<T, ExpandError> {
         let mut output =
             RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
         let mut flags = self.flag_state.receiver();
@@ -1601,14 +1608,31 @@ impl Engine {
             .with_filesystem(&mut filesystem)
             .with_shell(&mut shell)
             .with_includes(&mut include);
-        match action {
+        operation(&mut self.database, &mut context)
+    }
+
+    fn terminate_native(
+        &mut self,
+        action: rmake_linux::signals::ExitAction,
+    ) -> Result<(), ExpandError> {
+        self.with_retained_native_context(|database, context| match action {
             rmake_linux::signals::ExitAction::Code(status) => {
-                self.database.terminate_native_with(status, &mut context)
+                database.terminate_native_with(status, context)
             }
-            rmake_linux::signals::ExitAction::Signal(number) => self
-                .database
-                .terminate_native_signal_with(number, &mut context),
+            rmake_linux::signals::ExitAction::Signal(number) => {
+                database.terminate_native_signal_with(number, context)
+            }
+        })
+    }
+
+    #[cfg(feature = "guile")]
+    fn service_serial_workers(&mut self) -> Result<(), ExpandError> {
+        let result =
+            self.with_retained_native_context(Database::service_waiting_native_workers_with);
+        if let Some(options) = self.flag_state.take() {
+            self.options = options;
         }
+        result
     }
 
     #[cfg(feature = "guile")]
@@ -3537,16 +3561,22 @@ impl Engine {
         before: Option<SystemTime>,
         phony: bool,
         debug_job: Option<&crate::debug::JobHandle>,
-    ) -> io::Result<(std::process::ExitStatus, bool)> {
+    ) -> io::Result<SerialWait> {
         self.job_debug.live(self.output.debug_mask());
         let mut observed = None;
         let mut cleaned = false;
+        #[cfg(feature = "guile")]
+        let mut workers = rmake_linux::guile::WorkerWait::begin()?;
+        #[cfg(feature = "guile")]
+        let mut interpreter_failed = false;
         loop {
             self.observe_interrupt();
             if let Some(number) = self.interrupt
                 && observed != Some(number)
             {
                 observed = Some(number);
+                #[cfg(feature = "guile")]
+                workers.cancel();
                 if number == 15 {
                     child.send_signal(number)?;
                 }
@@ -3559,11 +3589,41 @@ impl Engine {
                     self.notice_waiting_for_jobs();
                 }
             }
-            if let Some(status) = child.try_wait()? {
-                crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
-                return Ok((status, cleaned));
+            let status = child.try_wait()?;
+            #[cfg(feature = "guile")]
+            let worker_pending = if status.is_some() {
+                !workers.finish_if_idle()
+            } else {
+                workers.pending()
+            };
+            #[cfg(feature = "guile")]
+            if worker_pending {
+                if let Err(error) = self.service_serial_workers() {
+                    workers.cancel();
+                    if !matches!(error, ExpandError::Cancelled) {
+                        self.expansion_error(None, &error);
+                        if status.is_none() {
+                            self.notice_waiting_for_jobs();
+                        }
+                        interpreter_failed = true;
+                    }
+                }
+                continue;
             }
-            rmake_linux::child::wait(&[(0, child)], true, true, None, None)?;
+            if let Some(status) = status {
+                crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
+                return Ok(SerialWait {
+                    status,
+                    cleaned,
+                    #[cfg(feature = "guile")]
+                    interpreter_failed,
+                });
+            }
+            #[cfg(feature = "guile")]
+            let worker_wake = workers.descriptor();
+            #[cfg(not(feature = "guile"))]
+            let worker_wake = None;
+            rmake_linux::child::wait(&[(0, child)], true, true, worker_wake, None)?;
         }
     }
 
@@ -7841,6 +7901,8 @@ impl Engine {
                 self.load.started();
             }
             let mut signal_cleaned = false;
+            #[cfg(feature = "guile")]
+            let mut interpreter_failed = false;
             let result = if parallel {
                 match process {
                     Ok(child) => {
@@ -7882,9 +7944,13 @@ impl Engine {
                 match process {
                     Ok(mut child) => self
                         .wait_serial_child(&mut child, target, before, phony, debug_job.as_ref())
-                        .map(|(status, cleaned)| {
-                            signal_cleaned = cleaned;
-                            status
+                        .map(|wait| {
+                            signal_cleaned = wait.cleaned;
+                            #[cfg(feature = "guile")]
+                            {
+                                interpreter_failed = wait.interpreter_failed;
+                            }
+                            wait.status
                         }),
                     Err(error) => Err(error),
                 }
@@ -7907,6 +7973,11 @@ impl Engine {
                 launched,
                 parallel && self.parallel_jobs.values().any(|job| job.child.is_some()),
             );
+            #[cfg(feature = "guile")]
+            if interpreter_failed {
+                self.output.select(None);
+                return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
+            }
             let failure_cleanup = if !launched || signal_cleaned {
                 Cleanup::None
             } else if result

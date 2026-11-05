@@ -168,6 +168,7 @@ static void perform_operation(struct rm_session *s) {
         if (kill(getpid(),s->number)) _Exit(2);
         _Exit(128+s->number);
     }
+    case 7: rg_workers_service_wait();break;
 #endif
     default: abort();
     }

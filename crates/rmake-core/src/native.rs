@@ -51,6 +51,11 @@ pub struct LoadOutcome {
 
 pub trait NativeRuntime {
     fn lookup(&self, name: &[u8]) -> Option<Rc<NativeFunction>>;
+    fn service_waiting_workers(&self, _host: &mut dyn NativeHost) -> Result<(), ExpandError> {
+        Err(ExpandError::Unsupported(
+            b"native worker callbacks".to_vec(),
+        ))
+    }
     fn terminate(&self, _status: u8, _host: &mut dyn NativeHost) -> Result<(), ExpandError> {
         Err(ExpandError::Unsupported(
             b"native process termination".to_vec(),

@@ -1,0 +1,221 @@
+{
+  "classification": "Original exact detached Scheme worker controls at observed serial recipe waits",
+  "host_release": {
+    "gnu_x86_64_syscalls": {
+      "wait4": 61,
+      "waitid": 247,
+      "rt_sigtimedwait": 128
+    },
+    "rmake_x86_64_syscalls": {
+      "poll": 7,
+      "ppoll": 271
+    }
+  },
+  "cases": [
+    {
+      "id": "scheme-child-wait",
+      "gate": "recipe",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART := $(guile (begin (use-modules (ice-9 threads)) (define detached-id (quote ())) (call-with-new-thread (lambda () (set! detached-id (current-thread)) (let wait () (unless (file-exists? \"release\") (usleep 2000) (wait))) (let ((answer \"scheme\")) (call-with-output-file \"done.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n$(file >>seen,read-after)\n\n.PHONY: all gate\nall: gate\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\ngate:\n\t@printf 'waiting\\n' > ready; while test ! -e done; do sleep .003; done; cat done\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "stdout": "scheme\nVALUE=outer\n",
+        "stderr": "",
+        "returncode": 0,
+        "limit": null,
+        "leftover_processes": false,
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\n"
+        },
+        "added": {
+          "release": "go\n",
+          "done": "scheme\n",
+          "ready": "waiting\n"
+        }
+      },
+      "gates": [
+        {
+          "ready": "ready",
+          "release": "release"
+        }
+      ]
+    },
+    {
+      "id": "expand-later-active-evaluator",
+      "gate": "evaluator",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART := $(guile (begin (use-modules (ice-9 threads)) (define detached-id (quote ())) (call-with-new-thread (lambda () (set! detached-id (current-thread)) (let wait () (unless (file-exists? \"release\") (usleep 2000) (wait))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"done.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n$(file >>seen,read-after)\n\nLATER := $(guile (begin (call-with-output-file \"release\" (lambda (p) (display \"go\\n\" p))) (let wait () (unless (file-exists? \"done\") (usleep 2000) (wait))) \"\"))\n.PHONY: all\nall:\n\t@cat done; printf 'VALUE=%s\\n' '$(VALUE)'\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "stdout": "outer\nVALUE=outer\n",
+        "stderr": "",
+        "returncode": 0,
+        "limit": null,
+        "leftover_processes": false,
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\n"
+        },
+        "added": {
+          "release": "go\n",
+          "done": "outer\n"
+        }
+      },
+      "gates": []
+    },
+    {
+      "id": "expand-child-wait",
+      "gate": "recipe",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART := $(guile (begin (use-modules (ice-9 threads)) (define detached-id (quote ())) (call-with-new-thread (lambda () (set! detached-id (current-thread)) (let wait () (unless (file-exists? \"release\") (usleep 2000) (wait))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"done.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n$(file >>seen,read-after)\n\n.PHONY: all gate\nall: gate\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\ngate:\n\t@printf 'waiting\\n' > ready; while test ! -e done; do sleep .003; done; cat done\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "stdout": "outer\nVALUE=outer\n",
+        "stderr": "",
+        "returncode": 0,
+        "limit": null,
+        "leftover_processes": false,
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\n"
+        },
+        "added": {
+          "release": "go\n",
+          "done": "outer\n",
+          "ready": "waiting\n"
+        }
+      },
+      "gates": [
+        {
+          "ready": "ready",
+          "release": "release"
+        }
+      ]
+    },
+    {
+      "id": "eval-child-wait",
+      "gate": "recipe",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART := $(guile (begin (use-modules (ice-9 threads)) (define detached-id (quote ())) (call-with-new-thread (lambda () (set! detached-id (current-thread)) (let wait () (unless (file-exists? \"release\") (usleep 2000) (wait))) (let ((answer (begin (gmk-eval \"VALUE := detached\") \"eval\"))) (call-with-output-file \"done.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n$(file >>seen,read-after)\n\n.PHONY: all gate\nall: gate\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\ngate:\n\t@printf 'waiting\\n' > ready; while test ! -e done; do sleep .003; done; cat done\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "stdout": "eval\nVALUE=detached\n",
+        "stderr": "",
+        "returncode": 0,
+        "limit": null,
+        "leftover_processes": false,
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\n"
+        },
+        "added": {
+          "release": "go\n",
+          "done": "eval\n",
+          "ready": "waiting\n"
+        }
+      },
+      "gates": [
+        {
+          "ready": "ready",
+          "release": "release"
+        }
+      ]
+    },
+    {
+      "id": "nested-child-wait",
+      "gate": "recipe",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART := $(guile (begin (use-modules (ice-9 threads)) (define detached-id (quote ())) (call-with-new-thread (lambda () (set! detached-id (current-thread)) (let wait () (unless (file-exists? \"release\") (usleep 2000) (wait))) (let ((answer (gmk-expand \"$$(guile (if (eq? (current-thread) detached-id) \\\"worker\\\" \\\"leading\\\"))\"))) (call-with-output-file \"done.tmp\" (lambda (p) (display answer p) (newline p))) (rename-file \"done.tmp\" \"done\")))) \"\"))\n$(file >>seen,read-after)\n\n.PHONY: all gate\nall: gate\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\ngate:\n\t@printf 'waiting\\n' > ready; while test ! -e done; do sleep .003; done; cat done\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "stdout": "worker\nVALUE=outer\n",
+        "stderr": "",
+        "returncode": 0,
+        "limit": null,
+        "leftover_processes": false,
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\n"
+        },
+        "added": {
+          "release": "go\n",
+          "done": "worker\n",
+          "ready": "waiting\n"
+        }
+      },
+      "gates": [
+        {
+          "ready": "ready",
+          "release": "release"
+        }
+      ]
+    },
+    {
+      "id": "two-independent-serial-waits",
+      "gate": "recipe",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART := $(guile (begin (use-modules (ice-9 threads)) (define (wait-file name) (let again () (unless (file-exists? name) (usleep 2000) (again)))) (define (write-answer name answer) (let ((temp (string-append name \".tmp\"))) (call-with-output-file temp (lambda (p) (display answer p) (newline p))) (rename-file temp name))) (call-with-new-thread (lambda () (wait-file \"release-one\") (write-answer \"done-one\" (gmk-expand \"$$(VALUE)\")))) (call-with-new-thread (lambda () (wait-file \"release-two\") (gmk-eval \"VALUE := switched\") (write-answer \"done-two\" \"second\"))) \"\"))\n$(file >>seen,read-after)\n\n.PHONY: all one two\nall: one two\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\none:\n\t@printf 'waiting\\n' > ready-one; while test ! -e done-one; do sleep .003; done; cat done-one\ntwo:\n\t@printf 'waiting\\n' > ready-two; while test ! -e done-two; do sleep .003; done; cat done-two\n",
+        "seen": "anchor\n"
+      },
+      "gates": [
+        {
+          "ready": "ready-one",
+          "release": "release-one"
+        },
+        {
+          "ready": "ready-two",
+          "release": "release-two"
+        }
+      ],
+      "expected": {
+        "stdout": "outer\nsecond\nVALUE=switched\n",
+        "stderr": "",
+        "returncode": 0,
+        "limit": null,
+        "leftover_processes": false,
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\n"
+        },
+        "added": {
+          "ready-one": "waiting\n",
+          "release-one": "go\n",
+          "done-one": "outer\n",
+          "ready-two": "waiting\n",
+          "release-two": "go\n",
+          "done-two": "second\n"
+        }
+      }
+    }
+  ]
+}
