@@ -14,6 +14,7 @@ mod file_aliases;
 mod intermediates;
 mod load;
 mod makefiles;
+mod messages;
 mod native;
 mod oneshell;
 mod output;
@@ -25,6 +26,12 @@ mod stdin_source;
 
 /// Concrete semantic entry used by the reviewed process bootstrap.
 pub fn run() -> ExitCode {
+    if let Err(error) =
+        rmake_linux::messages::initialize(std::path::Path::new(env!("RMAKE_LOCALEDIR")))
+    {
+        eprintln!("rmake: {error}");
+        return ExitCode::from(2);
+    }
     rmake_linux::output::initialize();
     let signals = match rmake_linux::signals::Guard::install() {
         Ok(guard) => guard,
@@ -74,8 +81,8 @@ pub fn run() -> ExitCode {
                         &[
                             &message.prefix(&program),
                             b"*** ",
-                            message.message.as_bytes(),
-                            b".  Stop.\n",
+                            &messages::diagnostic(&message.message),
+                            &messages::stop_for(&message.message),
                         ],
                     );
                 }

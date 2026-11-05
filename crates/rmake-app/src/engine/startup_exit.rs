@@ -197,8 +197,8 @@ impl Host {
                             &[
                                 &error.prefix(&self.program),
                                 b"*** ",
-                                error.message.as_bytes(),
-                                b".  Stop.\n",
+                                &crate::messages::diagnostic(&error.message),
+                                &crate::messages::stop_for(&error.message),
                             ],
                         );
                     }

@@ -46,6 +46,7 @@ struct State {
     current: RefCell<Option<Weak<Buffer>>>,
     coordination: RefCell<Option<Coordination>>,
     program: RefCell<Vec<u8>>,
+    directory_program: Cell<(usize, u32)>,
     interrupted_owner: RefCell<Option<Owner>>,
     directory: RefCell<Option<Vec<u8>>>,
     directory_trace: Cell<ProcessTrace>,
@@ -69,6 +70,7 @@ impl Controller {
             current: RefCell::new(None),
             coordination: RefCell::new(None),
             program: RefCell::new(program.to_vec()),
+            directory_program: Cell::new((program.len(), 0)),
             interrupted_owner: RefCell::new(None),
             directory: RefCell::new(None),
             directory_trace: Cell::new(ProcessTrace::NotEntered),
@@ -183,29 +185,16 @@ impl Controller {
         } else {
             b""
         };
-        let verb = if entering {
-            b": Entering".as_slice()
-        } else {
-            b": Leaving".as_slice()
-        };
-        if let Some(directory) = directory.as_deref() {
-            plain_parts(
-                false,
-                &[
-                    prefix,
-                    program.as_slice(),
-                    verb,
-                    b" directory '",
-                    directory,
-                    b"'\n",
-                ],
-            );
-        } else {
-            plain_parts(
-                false,
-                &[prefix, program.as_slice(), verb, b" an unknown directory\n"],
-            );
-        }
+        // Startup publishes the base boundary and depth along with the
+        // display name. A translated template can reorder those arguments.
+        let (base_length, depth) = self.0.directory_program.get();
+        let line = crate::messages::system(rmake_core::messages::Message::Directory {
+            entering,
+            program: &program[..base_length],
+            depth,
+            path: directory.as_deref(),
+        });
+        plain_parts(false, &[prefix, &line]);
     }
     fn dump_frame(&self, entering: bool, active: &mut bool) {
         if entering {
@@ -233,10 +222,12 @@ impl Controller {
     pub fn set_mode(&self, mode: Mode) {
         self.0.mode.set(mode);
     }
-    pub fn set_program(&self, program: &[u8]) {
+    pub fn set_program(&self, program: &[u8], base_length: usize, depth: u32) {
+        debug_assert!(base_length <= program.len());
         let mut stored = self.0.program.borrow_mut();
         stored.clear();
         stored.extend_from_slice(program);
+        self.0.directory_program.set((base_length, depth));
     }
     fn allocate_buffer(&self, enabled: bool) -> Rc<Buffer> {
         Rc::new(Buffer {

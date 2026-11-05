@@ -9,6 +9,7 @@
 pub use crate::diagnostic::Location;
 use crate::diagnostic::SourceName;
 use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Output};
+use crate::messages::Message;
 use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
     Assignment, ExpandError, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
@@ -360,6 +361,18 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    fn system(
+        location: Location,
+        message: Message<'_>,
+        context: &mut ExpansionContext<'_>,
+    ) -> Self {
+        Self {
+            unlocated: false,
+            location,
+            message: context.freeze_diagnostic(Diagnostic::system(message)),
+        }
+    }
+
     pub fn source_location(&self) -> Option<&Location> {
         (!self.unlocated).then_some(&self.location)
     }
@@ -1693,14 +1706,16 @@ impl Database {
                 }
                 // This expansion finished outside a file context. Freeze its
                 // selected diagnostic before a recipe/search caller handles it.
-                let message = error.diagnostic().as_bytes().to_vec();
-                match error.diagnostic_location(None) {
+                let diagnostic = error.diagnostic();
+                let message = diagnostic.as_bytes().to_vec();
+                let selected = match error.diagnostic_location(None) {
                     Some(location) => ExpandError::Located {
                         location: std::sync::Arc::new(location.clone()),
                         error: Box::new(ExpandError::FileError(message)),
                     },
                     None => ExpandError::UnlocatedError(message),
-                }
+                };
+                selected.preserve_frozen(diagnostic)
             })?
         } else {
             Vec::new()
@@ -2112,10 +2127,7 @@ fn record_warning(
     location: Location,
     message: Diagnostic,
 ) {
-    context.emit(Output::Warning {
-        location: Some(&location),
-        message: message.as_bytes(),
-    });
+    context.emit_diagnostic_warning(&location, &message);
     warnings.push((location, message));
 }
 
@@ -2249,11 +2261,11 @@ impl Database {
     ) -> Result<Vec<u8>, ParseError> {
         let name = self.expand(spec.name, location, context)?;
         if name.is_empty() {
-            return Err(ParseError {
-                unlocated: false,
-                location: location.clone(),
-                message: "empty variable name".into(),
-            });
+            return Err(ParseError::system(
+                location.clone(),
+                Message::EmptyVariableName,
+                context,
+            ));
         }
         self.define_expanded(
             AssignmentSpec {
@@ -2506,11 +2518,11 @@ impl Database {
                     message: error.diagnostic(),
                 })?;
             if name.is_empty() {
-                return Err(ParseError {
-                    unlocated: false,
-                    location: location.clone(),
-                    message: "empty variable name".into(),
-                });
+                return Err(ParseError::system(
+                    location.clone(),
+                    Message::EmptyVariableName,
+                    context,
+                ));
             }
             scope
                 .define_with(
@@ -2550,11 +2562,11 @@ impl Database {
                     .position(|byte| is_c_space(*byte))
                     .unwrap_or(name.len());
                 if !assignment_start(&name[end..]).is_empty() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location: location.clone(),
-                        message: "invalid syntax in conditional".into(),
-                    });
+                    return Err(ParseError::system(
+                        location.clone(),
+                        Message::InvalidConditional,
+                        context,
+                    ));
                 }
                 return Ok(Some(
                     self.evaluation_bindings
@@ -2574,10 +2586,8 @@ impl Database {
         }
         for (keyword, negate) in [(b"ifeq".as_slice(), false), (b"ifneq", true)] {
             if let Some(args) = directive(bytes, keyword) {
-                let invalid = || ParseError {
-                    unlocated: false,
-                    location: location.clone(),
-                    message: "invalid syntax in conditional".into(),
+                let invalid = |context: &mut ExpansionContext<'_>| {
+                    ParseError::system(location.clone(), Message::InvalidConditional, context)
                 };
                 let (left, right, extra) = if args.starts_with(b"(") {
                     // The outer parentheses delimit the directive; literal
@@ -2601,7 +2611,7 @@ impl Database {
                             _ => {}
                         }
                     }
-                    let comma = comma.ok_or_else(invalid)?;
+                    let comma = comma.ok_or_else(|| invalid(context))?;
                     // GNU evaluates the complete left operand before it checks
                     // that the right operand has a closing delimiter.
                     let left = &args[1..comma];
@@ -2624,32 +2634,32 @@ impl Database {
                             _ => {}
                         }
                     }
-                    let closing = closing.ok_or_else(invalid)?;
+                    let closing = closing.ok_or_else(|| invalid(context))?;
                     (
                         left,
                         assignment_start(&args[comma + 1..closing]),
                         &args[closing + 1..],
                     )
                 } else {
-                    let quote = *args.first().ok_or_else(invalid)?;
+                    let quote = *args.first().ok_or_else(|| invalid(context))?;
                     if quote != b'\'' && quote != b'"' {
-                        return Err(invalid());
+                        return Err(invalid(context));
                     }
                     let end = args[1..]
                         .iter()
                         .position(|b| *b == quote)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(|| invalid(context))?
                         + 1;
                     let left = self.expand(&args[1..end], location, context)?;
                     let rest = assignment_start(&args[end + 1..]);
-                    let quote2 = *rest.first().ok_or_else(invalid)?;
+                    let quote2 = *rest.first().ok_or_else(|| invalid(context))?;
                     if quote2 != b'\'' && quote2 != b'"' {
-                        return Err(invalid());
+                        return Err(invalid(context));
                     }
                     let end2 = rest[1..]
                         .iter()
                         .position(|b| *b == quote2)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(|| invalid(context))?
                         + 1;
                     (left, &rest[1..end2], &rest[end2 + 1..])
                 };
@@ -2658,11 +2668,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        format!(
-                            "extraneous text after '{}' directive",
-                            String::from_utf8_lossy(keyword)
-                        )
-                        .into(),
+                        Diagnostic::system(Message::DirectiveTail(keyword)),
                     );
                 }
                 return Ok(Some(
@@ -2946,9 +2952,16 @@ impl Database {
                 database: self,
                 context: context.at(Some(location)),
             },
-        )?;
+        );
+        let loaded = loaded.map_err(|error| {
+            if error.system_message().is_some() {
+                context.freeze_error(error)
+            } else {
+                error
+            }
+        })?;
         if loaded.status == NativeLoadStatus::Failed && !optional {
-            return Err(ExpandError::FileError([name, b": failed to load"].concat()));
+            return Err(context.freeze_error(ExpandError::system(Message::LoadFailed(name))));
         }
         self.loaded_modules
             .entry(loaded.name.clone())
@@ -3336,14 +3349,14 @@ impl Database {
                 .map_err(|message| source_read_error_at(source_name.clone(), message))?
             else {
                 if !conditions.is_empty() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location: Location {
+                    return Err(ParseError::system(
+                        Location {
                             file: source_name.clone(),
                             line: evaluated_at.unwrap_or(*last_line + 1),
                         },
-                        message: "missing 'endif'".into(),
-                    });
+                        Message::MissingEndif,
+                        context,
+                    ));
                 }
                 self.finish_declaration(
                     declaration,
@@ -3461,7 +3474,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        "extraneous text after 'else' directive".into(),
+                        Diagnostic::system(Message::DirectiveTail(b"else")),
                     );
                     top.otherwise = true;
                     eligible
@@ -3482,7 +3495,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        "extraneous text after 'endif' directive".into(),
+                        Diagnostic::system(Message::DirectiveTail(b"endif")),
                     );
                 }
                 continue;
@@ -3522,7 +3535,7 @@ impl Database {
                             &mut self.warnings,
                             context,
                             location.clone(),
-                            "extraneous text after 'define' directive".into(),
+                            Diagnostic::system(Message::DefineTail),
                         );
                     }
                     let (raw_name, kind) = spec.map_or((header, Assignment::Recursive), |spec| {
@@ -3538,11 +3551,11 @@ impl Database {
                         name.pop();
                     }
                     if name.is_empty() {
-                        return Err(ParseError {
-                            unlocated: false,
+                        return Err(ParseError::system(
                             location,
-                            message: "empty variable name".into(),
-                        });
+                            Message::EmptyVariableName,
+                            context,
+                        ));
                     }
                     Some((name, kind))
                 } else {
@@ -3568,11 +3581,7 @@ impl Database {
                             // reader, whose EOF error is the open conditional.
                             break;
                         }
-                        return Err(ParseError {
-                            unlocated: false,
-                            location,
-                            message: "missing 'endef', unterminated 'define'".into(),
-                        });
+                        return Err(ParseError::system(location, Message::MissingEndef, context));
                     };
                     if context.is_cancelled() {
                         return Err(ParseError {
@@ -3619,7 +3628,7 @@ impl Database {
                                         file: source_name.clone(),
                                         line: part.end_line,
                                     },
-                                    "extraneous text after 'endef' directive".into(),
+                                    Diagnostic::system(Message::EndefTail),
                                 );
                             }
                             depth -= 1;
@@ -3859,13 +3868,11 @@ impl Database {
                     if let Some(open) = name.iter().position(|&byte| byte == b'(')
                         && name.get(open + 1..) == Some(b")")
                     {
-                        return Err(ParseError {
-                            unlocated: false,
+                        return Err(ParseError::system(
                             location,
-                            message: [b"Empty symbol name for load: ".as_slice(), &name]
-                                .concat()
-                                .into(),
-                        });
+                            Message::EmptyLoadSymbol(&name),
+                            context,
+                        ));
                     }
                     self.load_native_with(&name, keyword == b"-load", &location, context)
                         .map_err(|error| ParseError {
@@ -3881,11 +3888,7 @@ impl Database {
             }
             self.finish_declaration(declaration, &location, context)?;
             if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
-                return Err(ParseError {
-                    unlocated: false,
-                    location,
-                    message: "recipe commences before first target".into(),
-                });
+                return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
             // Preserve raw assignment text after either a literal colon or one
             // generated by expanding the target prefix. Semicolons and colons
@@ -3957,16 +3960,13 @@ impl Database {
                 continue;
             }
             let Some(colon) = separator(expanded, b':') else {
-                let message = if line.bytes.starts_with(b"        ") {
-                    "missing separator (did you mean TAB instead of 8 spaces?)"
-                } else {
-                    "missing separator"
-                };
-                return Err(ParseError {
-                    unlocated: false,
+                return Err(ParseError::system(
                     location,
-                    message: message.into(),
-                });
+                    Message::MissingSeparator {
+                        tabs: line.bytes.starts_with(b"        "),
+                    },
+                    context,
+                ));
             };
             let double_colon = expanded.get(colon + 1) == Some(&b':');
             let grouped = expanded[..colon].ends_with(b"&");
@@ -4003,18 +4003,14 @@ impl Database {
                 let pattern_text = crate::filenames::target_colons(&prereqs[..second]);
                 let patterns: Vec<_> = crate::filenames::words(&pattern_text).collect();
                 if patterns.len() != 1 || !Pattern::new(&patterns[0]).has_wildcard() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: if patterns.is_empty() {
-                            "missing target pattern"
-                        } else if patterns.len() > 1 {
-                            "multiple target patterns"
-                        } else {
-                            "target pattern contains no '%'"
-                        }
-                        .into(),
-                    });
+                    let message = if patterns.is_empty() {
+                        Message::MissingTargetPattern
+                    } else if patterns.len() > 1 {
+                        Message::MultipleTargetPatterns
+                    } else {
+                        Message::TargetPatternWithoutPercent
+                    };
+                    return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);
                 prereqs = &prereqs[second + 1..];
@@ -4494,23 +4490,17 @@ impl Database {
             if let Some(previous) = &rule.recipe_location {
                 warnings.push((
                     recipe.location.clone(),
-                    [
-                        b"warning: overriding recipe for target '".as_slice(),
+                    Diagnostic::system(Message::DuplicateRecipe {
+                        ignoring_previous: false,
                         target,
-                        b"'",
-                    ]
-                    .concat()
-                    .into(),
+                    }),
                 ));
                 warnings.push((
                     previous.clone(),
-                    [
-                        b"warning: ignoring old recipe for target '".as_slice(),
+                    Diagnostic::system(Message::DuplicateRecipe {
+                        ignoring_previous: true,
                         target,
-                        b"'",
-                    ]
-                    .concat()
-                    .into(),
+                    }),
                 ));
             }
             rule.recipes = Some(Vec::new());
@@ -5237,6 +5227,9 @@ mod tests {
                     Output::Info(message) => events.push((0, message.to_vec())),
                     Output::Warning { location, message } => {
                         events.push((location.unwrap().line, message.to_vec()))
+                    }
+                    Output::SystemWarning { location, message } => {
+                        events.push((location.unwrap().line, message.english()))
                     }
                 }),
             )

@@ -20,3 +20,5 @@ pub mod reader;
 pub mod safety;
 mod variable_order;
 pub mod variables;
+
+pub mod messages;

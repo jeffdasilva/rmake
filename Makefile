@@ -9,6 +9,7 @@
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv
+.PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release
 .PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
 
 .PHONY: test-job-debug
@@ -16,6 +17,9 @@
 .PHONY: test-debug-output test-directory-reporting test-native-modules help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
 
 PYTHON ?= python3
+PREFIX ?= /usr/local
+DESTDIR ?=
+CATALOG_INSTALL_DIR ?= $(PREFIX)/share/rmake/locale
 INTEGRATION_CASE ?=
 STDIN_CASE ?=
 PROCESS_RESTART_CASE ?=
@@ -31,6 +35,8 @@ GUILE_TOOLCHAIN_ROOT ?= $(CURDIR)/.tools/guile
 GUILE_FRONTEND_OUTPUT ?= $(CURDIR)/artifacts/guile-frontend
 NATIVE_FENV_CASE ?=
 LOCALE_CASE ?=
+NLS_CASE ?=
+NLS_DIRECTORY_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
@@ -87,6 +93,8 @@ help:
 		'  bootstrap-guile  Verify the optional Ubuntu Guile tools and separate oracle' \
 		'  doctor          Check the toolchain and oracle' \
 		'  build / release Build debug / optimized rmake' \
+		'  catalog-check / catalog-install Verify and stage owned message data' \
+		'  test-nls / test-nls-directory Compare localized diagnostics and directory output' \
 		'  fmt / fmt-check Format Rust / check formatting' \
 		'  lint            Run Clippy with warnings denied' \
 		'  test-unit       Run Rust unit and integration tests' \
@@ -221,7 +229,15 @@ test-unit:
 test-tools:
 	$(PYTHON) -m unittest discover -s tools -p 'test_*.py' -v
 
-check-core: fmt-check lint test-unit test-tools
+catalog-check:
+	$(PYTHON) tools/catalogs.py
+
+catalog-install: catalog-check
+	install -d "$(DESTDIR)$(CATALOG_INSTALL_DIR)/fr/LC_MESSAGES"
+	install -m 644 catalogs/fr/LC_MESSAGES/make.mo "$(DESTDIR)$(CATALOG_INSTALL_DIR)/fr/LC_MESSAGES/make.mo"
+	install -m 644 catalogs/COPYING catalogs/fr.po catalogs/provenance.json "$(DESTDIR)$(CATALOG_INSTALL_DIR)/"
+
+check-core: catalog-check fmt-check lint test-unit test-tools
 
 oracle-verify:
 	$(PYTHON) tools/oracle.py verify --binary "$(ORACLE)"
@@ -286,6 +302,8 @@ test-include-stat: build oracle-verify
 
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_CASE=nls-private-messages-warning test-nls
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_DIRECTORY_CASE=nls-directory-fr-inherited-depth test-nls-directory
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=lua-5.4.9 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_CASE=database-minimal test-database-output
@@ -330,7 +348,7 @@ m5-acceptance:
 
 test-m5-release: test-m4-release
 
-test-m4-release: release oracle-verify
+test-m4-release: release oracle-verify test-nls-release test-nls-directory-release
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/stdin-sources/optimized.json
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
@@ -381,6 +399,18 @@ test-database-output: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/development.json $(if $(DATABASE_CASE),--case "$(DATABASE_CASE)")
 bootstrap-locale-data:
 	$(PYTHON) tools/locale_data.py --root "$(LOCALE_DATA_ROOT)"
+
+test-nls: build oracle-verify catalog-check
+	$(PYTHON) tools/nls_diagnostics.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/development.json $(if $(NLS_CASE),--case "$(NLS_CASE)")
+
+test-nls-release: release oracle-verify catalog-check
+	$(PYTHON) tools/nls_diagnostics.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/optimized.json $(if $(NLS_CASE),--case "$(NLS_CASE)")
+
+test-nls-directory: build oracle-verify catalog-check
+	$(PYTHON) tools/nls_directory.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/directory-development.json $(if $(NLS_DIRECTORY_CASE),--case "$(NLS_DIRECTORY_CASE)")
+
+test-nls-directory-release: release oracle-verify catalog-check
+	$(PYTHON) tools/nls_directory.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/directory-optimized.json $(if $(NLS_DIRECTORY_CASE),--case "$(NLS_DIRECTORY_CASE)")
 
 test-locale-collation: build oracle-verify
 	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/development.json $(if $(COLLATION_CASE),--case "$(COLLATION_CASE)")
@@ -491,9 +521,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-nls test-nls-directory
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-nls test-nls-directory
 
 ci: check test-selfhost
 

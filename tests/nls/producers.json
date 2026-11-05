@@ -1,0 +1,439 @@
+{
+  "classification": "Original18 literal catalog producer models. Input LOCPATH is supplied by the verified locale profile.",
+  "original_models_sha256": "78853414ec1b9e0bec84ad5fb9d9868efe94f6c01d67e39f1c7039e51a1db646",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {
+    "producer_native.c": "1e2286d2994c3100586dd3a1a9ebf1609f5c0322e3a68d8dd2c436136f76a6f2",
+    "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e"
+  },
+  "rows": [
+    {
+      "id": "nls-fr-cached-recipe-summary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6361636865643a203b20407072696e74662027666f7262696464656e5c6e270a",
+        "cached": "6578697374696e670a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6d616b653a20c2abc2a0636163686564c2a0c2bb2065737420c3a0206a6f75722e0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-c-cached-recipe-summary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6361636865643a203b20407072696e74662027666f7262696464656e5c6e270a",
+        "cached": "6578697374696e670a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6d616b653a20276361636865642720697320757020746f20646174652e0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-cycle-serial",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e50484f4e593a206f7574657220696e6e65720a6f757465723a20696e6e6572203b2040242866696c65203e3e7365656e2c4f55544552297072696e746620276f757465725c6e270a696e6e65723a206f75746572203b2040242866696c65203e3e7365656e2c494e4e4552297072696e74662027696e6e65725c6e270a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "696e6e65720a6f757465720a",
+        "stderr_hex": "6d616b653a2044c3a970656e64616e63652063697263756c6169726520696e6e6572203c2d206f75746572206162616e646f6e6ec3a9652e0a",
+        "seen_hex": "616e63686f720a494e4e45520a4f555445520a"
+      }
+    },
+    {
+      "id": "nls-fr-cycle-parallel-raw",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e50484f4e593a206f75746572ff20696e6e65720a6f75746572ff3a20696e6e6572203b2040242866696c65203e3e7365656e2c4f55544552297072696e746620276f757465725c6e270a696e6e65723a206f75746572ff203b2040242866696c65203e3e7365656e2c494e4e4552297072696e74662027696e6e65725c6e270a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "696e6e65720a6f757465720a",
+        "stderr_hex": "6d616b653a2044c3a970656e64616e63652063697263756c6169726520696e6e6572203c2d206f75746572ff206162616e646f6e6ec3a9652e0a",
+        "seen_hex": "616e63686f720a494e4e45520a4f555445520a"
+      }
+    },
+    {
+      "id": "nls-c-cycle-raw",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e50484f4e593a206f75746572ff20696e6e65720a6f75746572ff3a20696e6e6572203b2040242866696c65203e3e7365656e2c4f55544552297072696e746620276f757465725c6e270a696e6e65723a206f75746572ff203b2040242866696c65203e3e7365656e2c494e4e4552297072696e74662027696e6e65725c6e270a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "696e6e65720a6f757465720a",
+        "stderr_hex": "6d616b653a2043697263756c617220696e6e6572203c2d206f75746572ff20646570656e64656e63792064726f707065642e0a",
+        "seen_hex": "616e63686f720a494e4e45520a4f555445520a"
+      }
+    },
+    {
+      "id": "nls-fr-static-pattern-missing",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a616c6c3a203a20696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a206d6f746966206465206369626c65206d616e7175616e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-fr-static-pattern-multiple",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a616c6c3a20252e7820252e793a20696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a206d6f74696673206465206369626c65206d756c7469706c65732e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-fr-static-pattern-literal",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a616c6c3a206c69746572616c3a20696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a206c65206d6f746966206465206369626c65206e6520636f6e7469656e742070617320c2abc2a025c2a0c2bb2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-fr-conditional-tail-warnings",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6966657120282428696e666f204c454654297965732c7965732920747261696c696e670a2428696e666f20414354495645290a656c736520747261696c696e670a24286572726f7220666f7262696464656e290a656e64696620747261696c696e670a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4c4546540a4143544956450a",
+        "stderr_hex": "4d616b6566696c653a313a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a069666571c2a0c2bb0a4d616b6566696c653a333a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0656c7365c2a0c2bb0a4d616b6566696c653a353a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0656e646966c2a0c2bb0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-define-tail-warnings",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "646566696e652056414c5545203d20747261696c696e670a626f64790a656e64656620747261696c696e670a2428696e666f2056414c55453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "56414c55453d5b626f64795d0a",
+        "stderr_hex": "4d616b6566696c653a313a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0646566696e65c2a0c2bb0a4d616b6566696c653a333a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0656e646566c2a0c2bb0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-file-write-empty",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56203a3d20242866696c65203e20290a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2066696c65203a2066696368696572206d616e7175616e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-fr-file-read-empty",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56203a3d20242866696c65203c20290a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2066696c65203a2066696368696572206d616e7175616e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-fr-file-read-extra",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56203a3d20242866696c65203c696e7075742c6578747261290a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2066696c65203a2074726f70206427617267756d656e74732e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-fr-file-invalid-raw",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56203a3d20242866696c6520696e76616c6964ff290a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2066696c65203a206f70c3a9726174696f6e20696e76616c696465c2a03a20696e76616c6964ff2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-c-file-invalid-raw",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "56203a3d20242866696c6520696e76616c6964ff290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a2066696c653a20696e76616c69642066696c65206f7065726174696f6e3a20696e76616c6964ff2e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-user-catalog-identical-text",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "24286572726f722066696c653a206d697373696e672066696c656e616d65290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a2066696c653a206d697373696e672066696c656e616d652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-native-catalog-identical-text",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f70726f64756365725f6e61746976652e736f0a56203a3d2024286e6c735f6e61746976655f7261775f6572726f7220290a"
+      },
+      "modules": [
+        {
+          "source": "producer_native.c",
+          "filename": "producer_native.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2066696c653a206d697373696e672066696c656e616d652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6e61746976652d6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-private-fr-file-error",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f707269766174655f667220290a242866696c65203e3e7365656e2c6265666f7265290a56203a3d20242866696c65203e20290a"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a343a202a2a2a2066696c65203a2066696368696572206d616e7175616e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    }
+  ]
+}

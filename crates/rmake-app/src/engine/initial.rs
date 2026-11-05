@@ -180,7 +180,7 @@ impl Plan {
         crate::native::register_guile().map_err(StartupError::expansion)?;
         let output = if let Some(output) = &self.output {
             output.set_mode(crate::output::Mode::None);
-            output.set_program(&self.program);
+            output.set_program(&self.program, self.program.len(), 0);
             output.set_imported_directory(None);
             output.clone()
         } else {
@@ -252,7 +252,13 @@ impl Plan {
                 exports.insert(name.to_vec());
             }
         }
-        let initial_directory = std::env::current_dir().ok();
+        let initial_directory = match std::env::current_dir() {
+            Ok(directory) => Some(directory),
+            Err(error) => {
+                emit_getcwd_error(&output, &self.program, &error);
+                None
+            }
+        };
         database.variables.set_startup_directory_pending();
         let filesystem = RefCell::new(FilesystemRuntime::default());
         filesystem.borrow_mut().set_database_history(
@@ -381,8 +387,8 @@ impl Plan {
                             &[
                                 &error.prefix(&self.program),
                                 b"*** ",
-                                error.message.as_bytes(),
-                                b".  Stop.\n",
+                                &crate::messages::diagnostic(&error.message),
+                                &crate::messages::stop_for(&error.message),
                             ],
                         );
                         error.buffered = Some(buffer.clone());
@@ -667,8 +673,8 @@ pub(super) fn emit_error(
             &[
                 &error.prefix(program),
                 b"*** ",
-                error.message.as_bytes(),
-                b".  Stop.\n",
+                &crate::messages::diagnostic(&error.message),
+                &crate::messages::stop_for(&error.message),
             ],
         ),
     }
