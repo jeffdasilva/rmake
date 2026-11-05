@@ -716,6 +716,7 @@ pub struct Engine {
     database_contexts: HashMap<Vec<u8>, VariableStore>,
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
+    database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
@@ -1271,6 +1272,7 @@ impl Engine {
             database_contexts: HashMap::new(),
             database_branch_contexts: HashMap::new(),
             database_branch_outcomes: HashMap::new(),
+            database_branch_secondary: BTreeSet::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
@@ -4038,6 +4040,16 @@ impl Engine {
                     .or_insert(outcome);
             }
         }
+        let secondary_keys: Vec<_> = self
+            .database_branch_secondary
+            .iter()
+            .filter(|(name, _)| name.as_slice() == from)
+            .cloned()
+            .collect();
+        for key in secondary_keys {
+            self.database_branch_secondary.remove(&key);
+            self.database_branch_secondary.insert((to.to_vec(), key.1));
+        }
         let mut unchecked_times = self.database_unchecked_times.borrow_mut();
         if unchecked_times.remove(from) {
             unchecked_times.insert(to.to_vec());
@@ -5786,6 +5798,7 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
+                state.combined.database_dry_run_mtime |= result.database_dry_run_mtime;
                 self.record_graph_failure(result);
                 state.active = None;
                 if result.fatal
@@ -5799,6 +5812,10 @@ impl Engine {
                 state.branches.clear();
             }
             let Some((ordinal, entry)) = state.branches.pop_front() else {
+                // A real recipe refreshes the shared time even if another
+                // branch simulated its recipe during the same update.
+                state.combined.database_dry_run_mtime &=
+                    state.combined.completion == CompletionTime::AssumeNew;
                 state.combined.time = if state.phony {
                     None
                 } else if state.combined.completion.preserves() || state.combined.failed {
@@ -6781,7 +6798,6 @@ impl Engine {
                 outcome.database_dry_run_mtime = self.options.dry_run
                     && !self.options.question
                     && !self.options.touch
-                    && branch.is_none()
                     && rule.grouped_targets().is_none()
                     && outcome.completion == CompletionTime::AssumeNew
                     && execution.status == Status::Success;
@@ -6841,7 +6857,12 @@ impl Engine {
             };
         }
         if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
-            self.database_secondary.insert(target.to_vec());
+            if let Some(ordinal) = branch {
+                self.database_branch_secondary
+                    .insert((target.to_vec(), ordinal));
+            } else {
+                self.database_secondary.insert(target.to_vec());
+            }
         }
         // A stopping synchronous child failure exits before GNU's ordinary
         // update-return diagnostic. Keep-going updates retain that diagnostic.
@@ -7088,15 +7109,23 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let branch_variables = trace.branch.filter(|ordinal| *ordinal > 0).and_then(|_| {
-            self.database_branch_contexts
-                .get(&(target.to_vec(), 0))
-                .map(VariableStore::fresh_double_colon_scope)
-        });
-        let mut variables = match branch_variables
-            .map(Ok)
-            .unwrap_or_else(|| self.target_variables(target))
-        {
+        let variables = if trace.branch.is_some_and(|ordinal| ordinal > 0) {
+            let head_key = (target.to_vec(), 0);
+            if let Some(head) = self.database_branch_contexts.get(&head_key) {
+                Ok(head.fresh_double_colon_scope())
+            } else {
+                // A later branch initializes its own table even if the head
+                // never expanded a recipe. Its lookups can visit the head.
+                self.target_variables(target).map(|head| {
+                    let variables = head.fresh_double_colon_scope();
+                    self.database_branch_contexts.insert(head_key, head);
+                    variables
+                })
+            }
+        } else {
+            self.target_variables(target)
+        };
+        let mut variables = match variables {
             Ok(variables) => variables,
             Err(error) => {
                 self.expansion_error(None, &error);

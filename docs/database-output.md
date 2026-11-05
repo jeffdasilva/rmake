@@ -109,3 +109,14 @@ empty recipe and flags enabled at two later phases. The renderer uses this
 logical timestamp without changing dependency freshness or physical file times.
 The ten cases also check physical timestamps, outputs, and preserved controls.
 Grouped, double-colon and mixed execution-mode timestamps remain separate.
+
+Double-colon records retain their own update-time flags and target-variable
+views. The first branch owns command-line target identity and explicit
+assignments; a later recipe can inherit values through a separate local table
+while the first recipe remains inactive. Nine original full-transcript cases
+cover attribution, inactive branches, and original physical file effects.
+
+Pure dry-run simulation also retains branch-local synthetic times, while
+mixed forced and simulated executions can publish their observed physical
+time. Six further original GNU2 comparisons cover this distinction. Explicit
+and implicit grouped rule records have separate remaining requirements.

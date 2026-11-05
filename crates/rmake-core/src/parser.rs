@@ -2489,7 +2489,10 @@ impl Database {
                 continue;
             }
             let target = pattern.literal_bytes();
-            if let Some(history) = &self.database_history {
+            if let Some(history) = &self.database_history
+                && !self.file_records.contains(target)
+            {
+                // A target-specific assignment reuses an existing file's name.
                 history.intern(target);
             }
             self.file_records.enter_prerequisite(target);

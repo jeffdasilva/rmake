@@ -165,21 +165,30 @@ impl Engine {
         rule: Option<&'a Rule>,
         branch: Option<usize>,
     ) -> io::Result<FileSnapshot<'a>> {
-        let variables = if let Some(ordinal) = branch {
-            self.database_branch_contexts.get(&(name.to_vec(), ordinal))
+        let is_head = branch.is_none_or(|ordinal| ordinal == 0);
+        let branch_key = branch.map(|ordinal| (name.to_vec(), ordinal));
+        let variables = if let Some(key) = &branch_key {
+            self.database_branch_contexts.get(key)
         } else {
             self.database_contexts.get(name)
         }
-        .or_else(|| self.target_contexts.get(name));
+        .or_else(|| {
+            if is_head {
+                self.target_contexts.get(name)
+            } else {
+                None
+            }
+        });
         let mut view = FileView::unchecked(name, rule);
         view.double_colon |= branch.is_some();
         view.phony = self.special(b".PHONY", name, false);
         view.precious = self.special_for_rule(b".PRECIOUS", name);
-        view.command_line = self
-            .options
-            .goals
-            .iter()
-            .any(|goal| self.resolved_name_ref(goal) == self.resolved_name_ref(name));
+        view.command_line = is_head
+            && self
+                .options
+                .goals
+                .iter()
+                .any(|goal| self.resolved_name_ref(goal) == self.resolved_name_ref(name));
         view.dont_care = self
             .database
             .makefiles
@@ -198,14 +207,19 @@ impl Engine {
         });
         view.intermediate = self.intermediates.contains(name);
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
-        view.secondary =
-            self.special(b".SECONDARY", name, true) || self.database_secondary.contains(name);
+        view.secondary = self.special(b".SECONDARY", name, true)
+            || match &branch_key {
+                Some(key) => self.database_branch_secondary.contains(key),
+                None => self.database_secondary.contains(name),
+            };
         if let Some(group) = rule.and_then(|rule| rule.group.as_deref()) {
             view.also_make = &group.targets;
         }
-        view.target_variables = self.database.target_scopes.get(name);
-        let outcome = if let Some(ordinal) = branch {
-            self.database_branch_outcomes.get(&(name.to_vec(), ordinal))
+        if is_head {
+            view.target_variables = self.database.target_scopes.get(name);
+        }
+        let outcome = if let Some(key) = &branch_key {
+            self.database_branch_outcomes.get(key)
         } else {
             self.done
                 .get(name)
@@ -224,8 +238,8 @@ impl Engine {
                     .contains_key(&(name.to_vec(), branches.len() - 1))
             })
             .and_then(|_| self.done.get(name));
-        let cached = shared_time
-            .or(outcome)
+        let timestamp_outcome = shared_time.or(outcome);
+        let cached = timestamp_outcome
             .and_then(|outcome| outcome.time)
             .or_else(|| {
                 observed
@@ -246,7 +260,7 @@ impl Engine {
         {
             view.time = FileTime::Old;
             None
-        } else if outcome.is_some_and(|outcome| outcome.database_dry_run_mtime)
+        } else if timestamp_outcome.is_some_and(|outcome| outcome.database_dry_run_mtime)
             || self
                 .assumptions
                 .as_ref()

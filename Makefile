@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: bootstrap-integration test-integration
-.PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time
+.PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time test-database-branch-metadata test-database-double-dry-run
 .PHONY: test-database-lifecycle
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
@@ -19,6 +19,8 @@ INTEGRATION_CASE ?=
 DATABASE_NUMERIC_CASE ?=
 DATABASE_ORDER_ROLE_CASE ?=
 DATABASE_DRY_RUN_CASE ?=
+DATABASE_BRANCH_CASE ?=
+DATABASE_DOUBLE_DRY_RUN_CASE ?=
 DATABASE_SEARCH_CASE ?=
 DATABASE_CASE ?=
 DATABASE_LIFECYCLE_GROUP ?= generic
@@ -128,6 +130,8 @@ help:
 		'  test-database-numeric Compare native rounding and registration history' \
 		'  test-database-order-roles Compare prepared normal and order-only duplicates' \
 		'  test-database-dry-run-time Compare synthetic and physical timestamps' \
+		'  test-database-branch-metadata Compare per-branch double-colon records' \
+		'  test-database-double-dry-run Compare double-colon recipe timestamps' \
 		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
@@ -283,6 +287,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_NUMERIC_CASE=database-native-numeric-minimal-upward test-database-numeric
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_ORDER_ROLE_CASE=late-recipe-eval test-database-order-roles
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_DRY_RUN_CASE=missing-dry-run test-database-dry-run-time
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_BRANCH_CASE=inactive-head-local test-database-branch-metadata
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_FENV_CASE=native-fenv-successive-upward test-native-fenv
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
@@ -325,6 +330,8 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/database_numeric.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/numeric-optimized.json
 	$(PYTHON) tools/database_order_roles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-order-roles/optimized.json
 	$(PYTHON) tools/database_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-dry-run/optimized.json
+	$(PYTHON) tools/database_branch_metadata.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-branch-metadata/optimized.json
+	$(PYTHON) tools/database_double_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-double-dry-run/optimized.json
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native-fenv/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
 	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/optimized.json
@@ -358,6 +365,12 @@ test-database-numeric: build oracle-verify
 
 test-database-search: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite search --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/search-development.json $(if $(DATABASE_SEARCH_CASE),--case "$(DATABASE_SEARCH_CASE)")
+
+test-database-branch-metadata: build oracle-verify
+	$(PYTHON) tools/database_branch_metadata.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-branch-metadata/development.json $(if $(DATABASE_BRANCH_CASE),--case "$(DATABASE_BRANCH_CASE)")
+
+test-database-double-dry-run: build oracle-verify
+	$(PYTHON) tools/database_double_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-double-dry-run/development.json $(if $(DATABASE_DOUBLE_DRY_RUN_CASE),--case "$(DATABASE_DOUBLE_DRY_RUN_CASE)")
 
 test-database-dry-run-time: build oracle-verify
 	$(PYTHON) tools/database_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-dry-run/development.json $(if $(DATABASE_DRY_RUN_CASE),--case "$(DATABASE_DRY_RUN_CASE)")
@@ -492,3 +505,5 @@ bench-compare: release oracle-verify
 
 clean:
 	+$(CARGO) clean
+
+test check: test-database-branch-metadata test-database-double-dry-run
