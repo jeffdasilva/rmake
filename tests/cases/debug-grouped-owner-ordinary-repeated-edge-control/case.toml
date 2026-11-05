@@ -1,0 +1,12 @@
+id = "debug-grouped-owner-ordinary-repeated-edge-control"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Check grouped freshness trace ownership, repeated prerequisites, and aliases."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "--debug=b", "a"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n Prerequisite 'input' is newer than target 'a'.\n Prerequisite 'input' is newer than target 'a'.\nMust remake target 'a'.\nbuilt:a\nSuccessfully remade target file 'a'.\n"
+stderr = ""

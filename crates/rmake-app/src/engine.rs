@@ -7882,6 +7882,11 @@ impl Engine {
             && !outcome.failed
             && !outcome.question_outdated
         {
+            // Peer segments affect the rebuild decision. The trace lists
+            // only the selected file's original prerequisite occurrences.
+            let owner_end = group.as_ref().map_or(rule.dependencies.len(), |group| {
+                group.recipe_rule.dependencies.len()
+            });
             // A deferred intermediate can still be missing when its parent
             // is current. Its inspection did not produce a completion record.
             let deferred: HashSet<_> = deferred_intermediates
@@ -7911,6 +7916,9 @@ impl Engine {
                         natural_remake |=
                             inspected_stale || self.prerequisite_timestamp_stale(comparison, child);
                     }
+                }
+                if index >= owner_end {
+                    continue;
                 }
                 use crate::debug::Prerequisite;
                 let state = match child {
