@@ -269,21 +269,25 @@ pub fn wait(
     additional: Option<c_int>,
     maximum_wait: Option<std::time::Duration>,
 ) -> io::Result<Vec<u64>> {
-    let mut descriptors: Vec<_> = children
-        .iter()
-        .map(|(_, child)| PollFd {
-            descriptor: child.pidfd.as_ref().map_or(-1, AsRawFd::as_raw_fd),
-            events: 1,
-            returned: 0,
-        })
-        .collect();
+    let mut descriptors = Vec::with_capacity(children.len());
+    for (_, child) in children {
+        if let Some(pidfd) = &child.pidfd {
+            descriptors.push(PollFd {
+                descriptor: pidfd.as_raw_fd(),
+                events: 1,
+                returned: 0,
+            });
+        }
+    }
+    let child_descriptors = descriptors.len();
     let wake = interruptible
         .then(crate::signals::wake_descriptor)
         .filter(|fd| *fd >= 0);
-    // With no pipe, EINTR still wakes an already waiting poll. A finite timeout
-    // also bounds the race between checking pending() and entering that poll.
-    let fallback =
-        descriptors.iter().any(|fd| fd.descriptor < 0) || (interruptible && wake.is_none());
+    // Linux counts even ignored poll slots against RLIMIT_NOFILE. Compact
+    // pools can have more children than descriptors; check their owned PIDs
+    // after a bounded wait without adding placeholder descriptors.
+    // With no wake pipe, this also bounds the pending-signal race.
+    let fallback = child_descriptors < children.len() || (interruptible && wake.is_none());
     if let Some(descriptor) = wake {
         descriptors.push(PollFd {
             descriptor,
@@ -321,10 +325,14 @@ pub fn wait(
             return Err(error);
         }
     }
+    let mut polled_children = descriptors[..child_descriptors].iter();
     let mut ready: Vec<_> = children
         .iter()
-        .zip(&descriptors)
-        .filter_map(|((id, child), fd)| (child.pidfd.is_none() || fd.returned != 0).then_some(*id))
+        .filter_map(|(id, child)| {
+            (child.pidfd.is_none()
+                || polled_children.next().expect("one slot per pidfd").returned != 0)
+                .then_some(*id)
+        })
         .collect();
     ready.sort_unstable();
     Ok(ready)
@@ -466,6 +474,39 @@ mod tests {
         let mut child = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
         child.pidfd = None;
         terminated(child);
+    }
+
+    #[test]
+    fn child_wait_keeps_mixed_descriptor_and_pid_readiness_aligned() {
+        let sleeping = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
+        let mut fallback = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
+        let mut exited = Child::spawn(&mut Command::new("/bin/true")).unwrap();
+        if sleeping.pidfd.is_none() || exited.pidfd.is_none() {
+            return;
+        }
+        fallback.pidfd = None;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while exited.try_wait().unwrap().is_none() {
+            assert!(Instant::now() < deadline, "owned child did not exit");
+            wait(
+                &[(0, &exited)],
+                true,
+                false,
+                None,
+                Some(Duration::from_millis(10)),
+            )
+            .unwrap();
+        }
+
+        let ready = wait(
+            &[(3, &sleeping), (2, &fallback), (1, &exited)],
+            false,
+            false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(ready, [1, 2]);
     }
 
     fn dropping_reaps(child: Child) {
