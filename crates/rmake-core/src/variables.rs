@@ -2083,6 +2083,10 @@ impl PatternVariable {
         })
     }
 
+    pub(crate) fn uses_shell(&self) -> bool {
+        self.assignment == Assignment::Shell
+    }
+
     pub fn name(&self) -> &[u8] {
         &self.name
     }
@@ -2164,6 +2168,33 @@ impl TargetScope {
         prepared: &PatternVariable,
         context: ExpansionContext<'_>,
     ) -> Result<bool, ExpandError> {
+        self.apply_pattern_with_using(
+            globals,
+            prepared,
+            context,
+            |_, scope, bytes, shell, context| {
+                if shell {
+                    scope.shell_with(bytes, context)
+                } else {
+                    scope.expand_mut_with(bytes, context)
+                }
+            },
+        )
+    }
+
+    pub(crate) fn apply_pattern_with_using(
+        &mut self,
+        globals: &mut VariableStore,
+        prepared: &PatternVariable,
+        context: ExpansionContext<'_>,
+        mut expand: impl FnMut(
+            &mut VariableStore,
+            &mut VariableStore,
+            &[u8],
+            bool,
+            ExpansionContext<'_>,
+        ) -> Result<Vec<u8>, ExpandError>,
+    ) -> Result<bool, ExpandError> {
         if !self.pattern && self.variables.is_empty() {
             self.variables = empty_bindings(16);
         }
@@ -2209,13 +2240,16 @@ impl TargetScope {
                 prepared.assignment == Assignment::Conditional && scope.get(name).is_some();
             let append_outer =
                 prepared.assignment == Assignment::Append && !self.variables.contains_key(name);
-            scope.define_with(
+            scope.define_with_using(
                 name,
                 &prepared.value,
                 prepared.assignment,
                 prepared.origin,
                 prepared.definition.as_deref(),
                 context,
+                None,
+                None,
+                |scope, bytes, shell, context| expand(globals, scope, bytes, shell, context),
             )?;
             if !conditional_exists
                 && let Some(variable) = Arc::make_mut(&mut scope.variables).get_mut(name)

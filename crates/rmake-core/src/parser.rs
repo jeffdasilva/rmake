@@ -18,6 +18,7 @@ use crate::variables::{
     VariableStore, reference_end,
 };
 use std::borrow::Cow;
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
 fn source_read_error_at(
@@ -526,34 +527,71 @@ impl Database {
         target: &[u8],
         mut context: ExpansionContext<'_>,
     ) -> Result<Option<TargetScope>, ExpandError> {
+        let matches_target = |assignment: &PatternAssignment| {
+            assignment
+                .pattern
+                .matches(target)
+                .is_some_and(|stem| !stem.is_empty())
+        };
         let mut matching = self
             .pattern_assignments
             .iter()
-            .filter(|assignment| {
-                assignment
-                    .pattern
-                    .matches(target)
-                    .is_some_and(|stem| !stem.is_empty())
-            })
+            .enumerate()
+            .filter_map(|(index, assignment)| matches_target(assignment).then_some(index))
             .collect::<Vec<_>>();
         // More fixed bytes mean a shorter stem, hence higher precedence.
-        // Stable sorting preserves declaration order when stem lengths tie.
-        matching.sort_by_key(|assignment| assignment.pattern.fixed_len());
+        // Pop in increasing specificity, with declaration order at each rank.
+        let order = |assignments: &[PatternAssignment], index: usize| {
+            (assignments[index].pattern.fixed_len(), index)
+        };
+        matching.sort_unstable_by_key(|&index| Reverse(order(&self.pattern_assignments, index)));
         // Most targets have no matching pattern bindings. Do not allocate an
         // empty scope for them; matching declarations still run in full order.
         let mut pattern_scope = None;
-        for assignment in matching {
-            if pattern_scope
-                .get_or_insert_with(TargetScope::default)
-                .apply_pattern_with(
-                    &mut self.variables,
-                    &assignment.variable,
+        while let Some(index) = matching.pop() {
+            let scope = pattern_scope.get_or_insert_with(TargetScope::default);
+            let prepared = &self.pattern_assignments[index].variable;
+            let aliases_global = if prepared.uses_shell() {
+                // A deferred shell expression may reenter the reader and add
+                // pattern declarations. Keep the current binding independent
+                // of storage that can grow during that expansion.
+                let prepared = prepared.clone();
+                let before = self.pattern_assignments.len();
+                let mut globals = std::mem::take(&mut self.variables);
+                let result = scope.apply_pattern_with_using(
+                    &mut globals,
+                    &prepared,
                     context.reborrow(),
-                )?
-            {
+                    |globals, scope, bytes, _, context| {
+                        std::mem::swap(globals, &mut self.variables);
+                        let result =
+                            crate::variables::shell_scoped_database(self, scope, bytes, context);
+                        std::mem::swap(globals, &mut self.variables);
+                        result
+                    },
+                );
+                self.variables = globals;
+                let aliases_global = result?;
+                if before != self.pattern_assignments.len() {
+                    // Declarations inserted before the active binding can
+                    // only affect later file activations.
+                    let current = order(&self.pattern_assignments, index);
+                    matching.extend((before..self.pattern_assignments.len()).filter(|&added| {
+                        matches_target(&self.pattern_assignments[added])
+                            && order(&self.pattern_assignments, added) > current
+                    }));
+                    matching.sort_unstable_by_key(|&index| {
+                        Reverse(order(&self.pattern_assignments, index))
+                    });
+                }
+                aliases_global
+            } else {
+                scope.apply_pattern_with(&mut self.variables, prepared, context.reborrow())?
+            };
+            if aliases_global {
                 // A suppressed conditional can return the global binding. Its
                 // modifiers then replace global export policy too.
-                let name = assignment.variable.name();
+                let name = self.pattern_assignments[index].variable.name();
                 match self
                     .variables
                     .get(name)

@@ -22,6 +22,7 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-resource-fd-fifo-failure test-resource-fd-fifo-failure-release
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-trace-nls test-trace-nls-release
+.PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
 .PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose
 
@@ -207,6 +208,7 @@ help:
 		'  test-debug-verbose Compare timestamp and remake decisions in C and French' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
 		'  test-job-debug-nls Compare C and French JOBS events' \
+		'  test-trace-job-languages Compare German, Japanese and Brazilian Portuguese trace and JOBS events' \
 		'  test-job-debug-load Compare controller phase and controlled load events' \
 		'  m5-acceptance  Run combined development and optimized runtime gates' \
 		'  m4-acceptance  Run development and optimized rule-resolution gates' \
@@ -665,6 +667,12 @@ test-trace-nls: build oracle-verify catalog-check
 test-trace-nls-release: release oracle-verify catalog-check
 	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-optimized.json
 
+test-trace-job-languages: build oracle-verify catalog-check
+	$(PYTHON) tools/trace_job_languages.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace-job-languages/development.json
+
+test-trace-job-languages-release: release oracle-verify catalog-check
+	$(PYTHON) tools/trace_job_languages.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace-job-languages/optimized.json
+
 test-job-debug: build oracle-verify
 	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/job-debug/development.json $(if $(JOB_DEBUG_CASE),--case "$(JOB_DEBUG_CASE)")
 
@@ -763,6 +771,9 @@ check: test-integration test-database-output test-database-lifecycle test-databa
 test: test-trace-nls
 check: test-trace-nls
 test-m4-release: test-trace-nls-release
+
+test check: test-trace-job-languages
+test-m4-release: test-trace-job-languages-release
 
 test: test-shell-capture-lifetime
 check: test-shell-capture-lifetime

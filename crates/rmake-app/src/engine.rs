@@ -5919,7 +5919,8 @@ impl Engine {
                     );
                     self.filesystem.borrow_mut().child_completed();
                     result
-                }),
+                })
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?;
             let context = match prepared.as_ref() {
                 Some(scope) => self.database.variables.with_target_scopes(&[scope]),
@@ -8040,7 +8041,8 @@ impl Engine {
                     );
                     self.filesystem.borrow_mut().child_completed();
                     result
-                }),
+                })
+                .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?
         };
         self.target_contexts

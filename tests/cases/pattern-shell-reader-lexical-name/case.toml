@@ -1,0 +1,12 @@
+id = "pattern-shell-reader-lexical-name"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "pattern shell reader lexical name"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "reader=[PICKED]\nfile=[LATE//LATE]\n"
+stderr = ""

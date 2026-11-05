@@ -1,0 +1,12 @@
+id = "pattern-shell-nested-eval"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "pattern shell nested eval"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "reader=[/global]\nfile=[pattern/pattern/pattern/0]\n"
+stderr = ""

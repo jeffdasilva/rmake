@@ -90,3 +90,7 @@ output retain their original bytes. The message IDs come from GNU Make
 4.4.1's trace producer in `src/job.c`. Catalog provenance and translation
 notices are recorded in [catalogs/provenance.json](../catalogs/provenance.json)
 and [catalogs/COPYING](../catalogs/COPYING).
+
+`make test-trace-job-languages` also checks 18 trace and JOBS comparisons
+in German, Japanese, and Brazilian Portuguese. The gate verifies each
+catalog and preserves the existing live PID and address checks.

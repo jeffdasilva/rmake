@@ -82,3 +82,10 @@ before storing their values. The six required cases cover reader and recipe
 `eval`, a nested include, caller lexical values, command-line precedence,
 and a filesystem control. The prepared value is stored without running its
 effects again.
+
+Deferred pattern shell assignments can evaluate nested make statements
+and includes while activating a target. A pattern registered during that
+expansion is considered for the current target only if it follows the
+active position in specificity and declaration order. Earlier registrations
+remain available for later targets. Twelve required cases cover these rules,
+local shell status, computed names, and implicit secondary expansion.
