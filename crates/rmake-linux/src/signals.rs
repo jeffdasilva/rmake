@@ -52,11 +52,10 @@ extern "C" fn caught(number: c_int) {
     PENDING.store(number, Ordering::SeqCst);
     let byte = number as u8;
     unsafe {
-        write(
-            WAKE_WRITER.load(Ordering::Relaxed),
-            (&byte as *const u8).cast(),
-            1,
-        );
+        let descriptor = WAKE_WRITER.load(Ordering::Relaxed);
+        if descriptor >= 0 {
+            write(descriptor, (&byte as *const u8).cast(), 1);
+        }
     }
     unsafe { *__errno_location() = saved };
 }
@@ -74,31 +73,47 @@ fn private_wake_end(file: File) -> io::Result<File> {
     Ok(unsafe { File::from_raw_fd(descriptor) })
 }
 
+fn wake_pipe() -> io::Result<(File, File)> {
+    let mut descriptors = [-1; 2];
+    if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let reader = unsafe { File::from_raw_fd(descriptors[0]) };
+    let writer = unsafe { File::from_raw_fd(descriptors[1]) };
+    Ok((private_wake_end(reader)?, private_wake_end(writer)?))
+}
+
 pub struct Guard {
     saved: Vec<(c_int, usize)>,
-    _reader: File,
-    _writer: File,
+    _reader: Option<File>,
+    _writer: Option<File>,
 }
 
 impl Guard {
     /// Install once, before parsing or launching children. Preserve dispositions
     /// explicitly ignored by the caller, and restore ordinary SIGCHLD reaping.
     pub fn install() -> io::Result<Self> {
-        let mut descriptors = [-1; 2];
-        if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let reader = unsafe { File::from_raw_fd(descriptors[0]) };
-        let writer = unsafe { File::from_raw_fd(descriptors[1]) };
-        let reader = private_wake_end(reader)?;
-        let writer = private_wake_end(writer)?;
+        let (reader, writer) = match wake_pipe() {
+            Ok((reader, writer)) => (Some(reader), Some(writer)),
+            // A low descriptor limit can reject the pipe itself or the minimum
+            // private descriptor number. Do not occupy protocol slots 3/4.
+            // Interruptible scheduler waits use a bounded poll in this mode.
+            Err(error) if matches!(error.raw_os_error(), Some(22..=24)) => (None, None),
+            Err(error) => return Err(error),
+        };
         let mut guard = Self {
             saved: Vec::new(),
             _reader: reader,
             _writer: writer,
         };
-        WAKE_READER.store(guard._reader.as_raw_fd(), Ordering::Relaxed);
-        WAKE_WRITER.store(guard._writer.as_raw_fd(), Ordering::Relaxed);
+        WAKE_READER.store(
+            guard._reader.as_ref().map_or(-1, AsRawFd::as_raw_fd),
+            Ordering::Relaxed,
+        );
+        WAKE_WRITER.store(
+            guard._writer.as_ref().map_or(-1, AsRawFd::as_raw_fd),
+            Ordering::Relaxed,
+        );
         PENDING.store(0, Ordering::SeqCst);
         TERMINAL_STATUS.store(-1, Ordering::Relaxed);
         CANCELLED.store(false, Ordering::Relaxed);

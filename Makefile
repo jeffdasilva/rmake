@@ -9,7 +9,7 @@
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
 .PHONY: test-native-fenv
-.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
+.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd
 
 .PHONY: test-job-debug
 
@@ -20,6 +20,7 @@ INTEGRATION_CASE ?=
 STDIN_CASE ?=
 PROCESS_RESTART_CASE ?=
 RESTART_ENVIRONMENT_CASE ?=
+RESOURCE_FD_CASE ?=
 DATABASE_NUMERIC_CASE ?=
 DATABASE_SEARCH_CASE ?=
 DATABASE_CASE ?=
@@ -134,6 +135,7 @@ help:
 		'  test-process-restarts Compare new process entry and executable replacement' \
 		'  test-restart-environment Compare the complete live process environment vector' \
 		'  test-restart-pipe Check original inherited jobserver descriptors across exec' \
+		'  test-resource-fd Compare descriptor pressure and live cancellation' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
@@ -292,6 +294,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESTART_ENVIRONMENT_CASE=raw-ordered-vector test-restart-environment
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_CASE=low6-term-live-recipe test-resource-fd
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -329,6 +332,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
 	$(PYTHON) tools/restart_environment.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-environment/optimized.json
 	$(PYTHON) tools/restart_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-pipe/optimized.json
+	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd/optimized.json
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/optimized.json
 	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-lifecycle/optimized.json
@@ -389,6 +393,9 @@ test-restart-environment: build oracle-verify
 
 test-restart-pipe: build oracle-verify
 	$(PYTHON) tools/restart_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/restart-pipe/development.json
+
+test-resource-fd: build oracle-verify
+	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd/development.json $(if $(RESOURCE_FD_CASE),--case "$(RESOURCE_FD_CASE)")
 
 test-native-fenv: build oracle-verify
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native-fenv/development.json $(if $(NATIVE_FENV_CASE),--case "$(NATIVE_FENV_CASE)")
@@ -484,9 +491,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd
 
 ci: check test-selfhost
 

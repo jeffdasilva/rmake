@@ -136,10 +136,16 @@ pub fn wait(
             returned: 0,
         })
         .collect();
-    let fallback = descriptors.iter().any(|fd| fd.descriptor < 0);
-    if interruptible {
+    let wake = interruptible
+        .then(crate::signals::wake_descriptor)
+        .filter(|fd| *fd >= 0);
+    // With no pipe, EINTR still wakes an already waiting poll. A finite timeout
+    // also bounds the race between checking pending() and entering that poll.
+    let fallback =
+        descriptors.iter().any(|fd| fd.descriptor < 0) || (interruptible && wake.is_none());
+    if let Some(descriptor) = wake {
         descriptors.push(PollFd {
-            descriptor: crate::signals::wake_descriptor(),
+            descriptor,
             events: 1,
             returned: 0,
         });
