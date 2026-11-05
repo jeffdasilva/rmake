@@ -71,6 +71,11 @@ def check_live(live, image, inherited, is_oracle, expected):
         for fd in (16, 17):
             if not endpoint_matches(recipe[fd], wire, fd, cloexec=False):
                 errors.append(f"unadvertised inherited alias {fd}")
+        for kind, table, fds in (("host", host, WIRE), ("recipe", recipe, (16, 17))):
+            for fd in fds:
+                entry = table[fd]
+                if entry is not None and bool(entry["flags"] & os.O_NONBLOCK) != (fd in (16, 18)):
+                    errors.append(f"{kind} inherited alias {fd} open-file status")
         if any(recipe[fd] is not None for fd in (18, 19)):
             errors.append("advertised descriptors leaked into a nonrecursive recipe")
 

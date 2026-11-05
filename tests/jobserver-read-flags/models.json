@@ -1,0 +1,18 @@
+{
+  "args": ["-rR", "--no-print-directory"],
+  "models": [
+    {"id":"roomy-advertised-read", "limit":64, "slots":[16,17,18,19], "join":true},
+    {"id":"compact-advertised-read", "limit":10, "slots":[3,4,5,6], "join":true},
+    {"id":"roomy-no-auth-control", "limit":64, "slots":[16,17,18,19], "join":false}
+  ],
+  "expected": {
+    "stdout":"child\n", "stderr":"", "exit_code":0,
+    "seeded_tokens":["51","55"], "queued_token_counts":[1,1],
+    "original_before_nonblock":[false,false,false,false,false,false,false,false],
+    "joined_after_nonblock":[true,false,false,false,true,false,false,false],
+    "joined_child_nonblock":[true,false],
+    "control_after_nonblock":[false,false,false,false,false,false,false,false],
+    "control_child_nonblock":[]
+  },
+  "profile": "Four wire descriptors are passed from a dedicated supervisor. Only the first pair is advertised. The supervisor retains originals and disjoint descriptor aliases, with one seeded byte per pipe. The one recursive-marked recipe uses the implicit slot and checks the actual published child protocol."
+}

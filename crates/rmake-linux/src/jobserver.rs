@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 
 const NONBLOCK: c_int = 0x800;
 const CLOEXEC: c_int = 0x80000;
+const DUPFD_CLOEXEC: c_int = 1030;
 const NOFOLLOW: c_int = 0x20000;
 const EBADF: c_int = 9;
 const EMFILE: c_int = 24;
@@ -538,7 +539,13 @@ impl Jobserver {
         if crate::signals::compact_pipe_budget() {
             return Self::join_compact(read, write).map(|server| server.with_diagnostic_auth(auth));
         }
-        let reader = reopen(read, true, false)?;
+        let protocol_read = descriptor_control(read, DUPFD_CLOEXEC, 0)?;
+        // SAFETY: F_DUPFD_CLOEXEC returned a new, uniquely owned descriptor
+        // for the advertised read description. Keep it pinned through setup.
+        let reader = unsafe { File::from_raw_fd(protocol_read) };
+        if pipe_identity(protocol_read, Some(true))? != pipe_identity(write, Some(false))? {
+            return Err(io::Error::from_raw_os_error(EBADF));
+        }
         let writer = reopen(write, false, false)?;
         let mut server = Self::from_pipe(reader, writer)?;
         // FD flags belong to this process's descriptors, not the parent's open
@@ -547,6 +554,13 @@ impl Jobserver {
             if unsafe { fcntl(descriptor, 2, 1) } < 0 {
                 return Err(io::Error::last_os_error());
             }
+        }
+        // The recursive protocol reader and the incoming read aliases share
+        // this description. Keep the writer and the scheduler's own reader
+        // on their existing separate descriptions.
+        let flags = descriptor_control(protocol_read, 3, 0)?;
+        if flags & NONBLOCK == 0 {
+            descriptor_control(protocol_read, 4, flags | NONBLOCK)?;
         }
         Arc::get_mut(&mut server.0)
             .expect("unshared joined jobserver")

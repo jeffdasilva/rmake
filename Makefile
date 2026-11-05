@@ -15,6 +15,7 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv test-resource-nproc test-resource-nproc-release test-resource-nproc-selfhost
+.PHONY: test-jobserver-read-flags test-jobserver-read-flags-release
 .PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release test-catalog-coverage
 .PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 .PHONY: test-resource-fd-parallel
@@ -431,6 +432,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_FIFO_CASE=owned-fifo-inherited-user-descriptor-7 test-resource-fd-fifo
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_PARALLEL_CASE=pipe-8-workers-10 RESOURCE_FD_PARALLEL_REPORT=artifacts/resource-fd-parallel/selfhost.json test-resource-fd-parallel
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOBSERVER_RELEASE_CASE=implicit-child-finishes-first test-jobserver-release
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-jobserver-read-flags
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -613,6 +615,15 @@ test-resource-fd: build oracle-verify
 
 test-jobserver-release: build oracle-verify
 	$(PYTHON) tools/jobserver_release.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report-dir artifacts/jobserver-release/development $(if $(JOBSERVER_RELEASE_CASE),--case "$(JOBSERVER_RELEASE_CASE)")
+
+test-jobserver-read-flags: build oracle-verify
+	$(PYTHON) tools/jobserver_read_flags.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/jobserver-read-flags/development.json
+
+test-jobserver-read-flags-release: release oracle-verify
+	$(PYTHON) tools/jobserver_read_flags.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/jobserver-read-flags/optimized.json
+
+test check: test-jobserver-read-flags
+test-m4-release: test-jobserver-read-flags-release
 
 test-resource-fd-pipe: build oracle-verify
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")

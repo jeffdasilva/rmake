@@ -13,11 +13,10 @@ identities, their access modes, the queued byte count and the inheritance
 policy of the selected and unadvertised aliases. The candidate's private wake
 pair uses 20/21 in this control, and neither end reaches the recipe.
 
-The runner retains full observed descriptor flags. GNU marks the inherited
-read description nonblocking in this control. rmake uses a private
-nonblocking reader and leaves the inherited read aliases blocking. That
-separate observable remains open. These models cover wake-slot isolation,
-literal output and status, the complete fixture filesystem, and reaping.
+The runner checks the actual inherited read aliases become nonblocking, as in
+GNU, while the write aliases stay blocking. The models also cover wake-slot
+isolation, literal output and status, the complete fixture filesystem, and
+reaping.
 
 Run the development gate with `make test-roomy-wake-slots` and the optimized
 gate with `make test-roomy-wake-slots-release`. Both also run the existing
