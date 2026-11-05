@@ -22,6 +22,7 @@ import time
 
 import conformance as h
 import database_output as database
+from database_expected import Preparation
 import oracle as reference_oracle
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,9 +117,10 @@ def expected_model(model: database.Model, runtime: Path) -> database.Model:
             if model.id in EXEC_FAILURES else model)
 
 
-def execute(model: database.Model, case: h.Case, runtime: Path, binary: Path) -> database.Execution:
+def execute(model: database.Model, case: h.Case, runtime: Path, binary: Path, *,
+            expected: Preparation | None = None) -> database.Execution:
     if model.id not in EXEC_FAILURES:
-        return database.execute(model, case, runtime, binary)
+        return database.execute(model, case, runtime, binary, expected=expected)
     h.reset_workspace(case, runtime, binary)
     before = time.time(); before_libc = database.libc_time()
     stdout, stderr, status, limit, leftovers = h.capture(
@@ -131,7 +133,7 @@ def execute(model: database.Model, case: h.Case, runtime: Path, binary: Path) ->
 
 
 def run_campaign(selected: list[database.Model], oracle: Path, candidate: Path | None,
-                 root: Path) -> dict:
+                 root: Path, *, expected: Preparation | None = None) -> dict:
     inputs = root / 'inputs'; inputs.mkdir()
     runtime = root / 'runtime'; runtime.mkdir()
     records = []
@@ -139,7 +141,7 @@ def run_campaign(selected: list[database.Model], oracle: Path, candidate: Path |
         compilations = []
         case, filesystem = database.prepare(model, inputs / model.id, runtime, compilations)
         binaries = [oracle, oracle] if candidate is None else [oracle, oracle, candidate]
-        executions = [execute(model, case, runtime, binary) for binary in binaries]
+        executions = [execute(model, case, runtime, binary, expected=expected) for binary in binaries]
         judgment = database.assess(expected_model(model, runtime), runtime, filesystem, executions)
         records.append({'id': model.id, 'args': list(model.args), 'environment': model.environment,
                         'expected_status': model.expected_status, 'stdout_template_hex': model.stdout.hex(),
@@ -176,14 +178,15 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             raise h.HarnessError('unknown database lifecycle cases: ' + ', '.join(sorted(unknown)))
         selected = [model for model in available if not args.case or model.id in args.case]
-        reference_oracle.verify(args.oracle)
+        profile = reference_oracle.verify(args.oracle)
         identities = {'oracle': h.executable_identity(args.oracle, oracle=True)}
         if args.candidate is not None:
             identities['candidate'] = h.executable_identity(args.candidate)
         with tempfile.TemporaryDirectory(prefix='rmake-database-lifecycle-') as temporary:
             report = run_campaign(selected, Path(identities['oracle']['path']),
                                   Path(identities['candidate']['path']) if args.candidate else None,
-                                  Path(temporary).resolve())
+                                  Path(temporary).resolve(),
+                                  expected=database.expected_preparation(profile, Path(temporary).resolve()))
         report.update(group=args.group, identities=identities,
                       classification='Original strict lifecycle differential profiles; no ordinary-ledger, exception, full milestone or performance credit',
                       source_hashes={name: h.sha256_file(path) for name, path in {
@@ -191,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
                           'pipe_cleanup': PIPE_MODELS, 'pipe_refinement': PIPE_REFINEMENT,
                           'database_driver': ROOT / 'tools/database_output.py',
                           'conformance': ROOT / 'tools/conformance.py'}.items()})
+        report['source_hashes'].update(database.expected_source_hashes())
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
         report.update(error=str(error), passed=False)

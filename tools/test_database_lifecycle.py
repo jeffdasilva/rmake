@@ -79,6 +79,7 @@ class DatabaseLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             report = Path(temporary) / 'failed.json'
             with patch.object(lifecycle.reference_oracle, 'verify'), \
+                 patch.object(lifecycle.database, 'expected_preparation'), \
                  patch.object(h, 'executable_identity', side_effect=lambda _path, oracle=False: identity['oracle' if oracle else 'candidate']), \
                  patch.object(lifecycle, 'run_campaign', return_value={'passed': False, 'totals': {'pass': 0, 'fail': 14}}):
                 status = lifecycle.main(['--candidate', '/candidate', '--report', str(report)])

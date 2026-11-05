@@ -130,3 +130,8 @@ actual logical removal/cache events. The core 14 and phases 19 files stay unchan
 `--suite all` now selects 41. Separate history and final qualification archives
 preserve earlier failures and exact source/binary identities. This does not close
 the broader database surface or M3/M6.
+
+The original template bytes remain sealed. `expected-inputs.json` and the
+[independent portable input replay](../../docs/database-portability.md) compute
+exact configured-prefix and directory-cache fields before comparing each engine.
+The portability and trusted trace manifests index the independent evidence.

@@ -20,6 +20,7 @@ from typing import Any
 
 import conformance as h
 import database_output as database
+from database_expected import Preparation
 import native_fenv as fenv
 import native_modules as native
 import oracle as reference_oracle
@@ -80,14 +81,14 @@ def prepare(model: database.Model, directory: Path, runtime: Path,
 
 
 def run_campaign(selected: list[database.Model], oracle: Path, candidate: Path | None,
-                 compiler: str, root: Path) -> dict[str, Any]:
+                 compiler: str, root: Path, *, expected: Preparation | None = None) -> dict[str, Any]:
     inputs = root / 'inputs'; inputs.mkdir()
     runtime = root / 'runtime'; runtime.mkdir()
     records = []
     for model in selected:
         case, compilation, filesystem = prepare(model, inputs / model.id, runtime, oracle, compiler)
         binaries = [oracle, oracle] if candidate is None else [oracle, oracle, candidate]
-        executions = [database.execute(model, case, runtime, binary) for binary in binaries]
+        executions = [database.execute(model, case, runtime, binary, expected=expected) for binary in binaries]
         judgment = database.assess(model, runtime, filesystem, executions)
         records.append({'id': model.id, 'args': list(model.args), 'environment': model.environment,
                         'expected_status': model.expected_status, 'stdout_template_hex': model.stdout.hex(),
@@ -129,14 +130,15 @@ def main(argv: list[str] | None = None) -> int:
         compiler = shutil.which(args.cc)
         if compiler is None:
             raise h.HarnessError('C compiler executable not found: ' + args.cc)
-        reference_oracle.verify(args.oracle)
+        profile = reference_oracle.verify(args.oracle)
         identities = {'oracle': h.executable_identity(args.oracle, oracle=True)}
         if args.candidate is not None:
             identities['candidate'] = h.executable_identity(args.candidate)
         with tempfile.TemporaryDirectory(prefix='rmake-database-numeric-') as temporary:
             report = run_campaign(selected, Path(identities['oracle']['path']),
                                   Path(identities['candidate']['path']) if args.candidate is not None else None,
-                                  compiler, Path(temporary))
+                                  compiler, Path(temporary),
+                                  expected=database.expected_preparation(profile, Path(temporary)))
         report['identities'] = identities
         report['compiler'] = compiler
         report['source_hashes'] = {name: h.sha256_file(path) for name, path in {
@@ -145,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
             'native_fenv_driver': ROOT / 'tools/native_fenv.py',
             'native_models': ROOT / 'tools/native_modules.py',
             'conformance': ROOT / 'tools/conformance.py'}.items()}
+        report['source_hashes'].update(database.expected_source_hashes())
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
         report.update(error=str(error), passed=False)

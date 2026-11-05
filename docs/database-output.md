@@ -7,7 +7,7 @@ update outcomes, timestamps and cache statistics. A late `MAKEFLAGS` selection
 retains earlier events. Formatting performs no expansion, lookup, filesystem
 search, callback or assignment.
 
-The selected combined database/locale branch passes 640 Rust and 727 tooling
+The first combined database/locale checkpoint passed 640 Rust and 727 tooling
 checks with strict Clippy. Frozen development and optimized builds both pass
 41 complete database profiles, six native rounding/registration profiles,
 18 floating-environment controls, 74 collation profiles and 183 startup-locale
@@ -69,9 +69,11 @@ parent; an isolated storage improvement is not total performance parity.
 ## Evidence boundaries
 
 Every selected database transcript compares all literal sections, values,
-origins, declaration order, recipes, filenames and logical statistics. Only
-anchored libc `time(NULL)` fields and independently statted directory device/
-inode slots may vary. Clock bounds use the same libc domain as the program,
+origins, declaration order, recipes, filenames and logical statistics. Each
+[portable expectation](database-portability.md) uses verified build configuration
+and independently observed raw directory entry order to compute exact cache
+fields. Anchored libc `time(NULL)` and independently statted directory device/
+inode slots retain their positioned checks. Clock bounds use the same libc domain,
 without widening tolerance. Each observation retains exact streams, status,
 full work/home/tmp state, ordered effects and process bounds against two GNU
 runs. The independent eight search plans predate observation; full literal
@@ -89,3 +91,9 @@ the final combined runtime still requires its own full acceptance.
 Broader database/native/Guile interactions, asynchronous lifecycle, non-C numeric
 locales, descriptor/resource faults, help/version database boundaries and wider
 real projects remain open. No new safety exception is introduced.
+
+The generic lifecycle gate adds a fixed whole-second timestamp, four live
+restart environment witnesses, and one failed-exec lifecycle. It checks that
+regular stderr, exit 127 and finalizer absence agree with the reference. Owned
+stdin and the advertised private descriptor observer have separate profiles
+when the stdin runtime is enabled.
