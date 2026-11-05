@@ -133,6 +133,47 @@
         "after_hex": "232020646566696e65204f535f434f444520203078666620202f2a20617373756d6520556e6978202a2f0a",
         "fresh_smoke_stdout_hex": "330a677a697020696e746567726174696f6e207769746e6573730a"
       }
+    },
+    {
+      "id": "patch-2.8",
+      "target": "all",
+      "configure": [
+        "/bin/sh",
+        "./configure",
+        "--enable-dependency-tracking"
+      ],
+      "args": [
+        "-j1",
+        "--no-print-directory",
+        "V=0",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
+      ],
+      "header": "config.h",
+      "watched": [
+        "src/version.o",
+        "src/patch"
+      ],
+      "smoke": [
+        "/bin/sh",
+        "-ec",
+        "version=$(./src/patch --version)\nprintf '%s\n' \"$version\" | sed -n '1p'\ntest ! -e .rmake-patch-witness\nprintf 'before\n' > .rmake-patch-witness\nprintf '%s\n' '--- .rmake-patch-witness' '+++ .rmake-patch-witness' '@@ -1 +1 @@' '-before' '+after' |\n  ./src/patch -s -p0\ncat .rmake-patch-witness\nrm .rmake-patch-witness\n"
+      ],
+      "smoke_stdout_hex": "474e5520706174636820322e382d726d616b650a61667465720a",
+      "source_url": "https://ftp.gnu.org/gnu/patch/patch-2.8.tar.gz",
+      "archive_sha256": "308a4983ff324521b9b21310bfc2398ca861798f02307c79eb99bb0e0d2bf980",
+      "topdir": "patch-2.8",
+      "license_file": "COPYING",
+      "license_sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "source_ref": "GNU Patch 2.8 signed distribution",
+      "license_note": "GNU GPL-3.0-or-later program, with original archive notices retained",
+      "header_rebuild": {
+        "before_hex": "23646566696e65205041434b4147455f56455253494f4e2022322e38220a",
+        "after_hex": "23646566696e65205041434b4147455f56455253494f4e2022322e382d726d616b65220a",
+        "fresh_smoke_stdout_hex": "474e5520706174636820322e380a61667465720a"
+      }
     }
   ],
   "phases": [
