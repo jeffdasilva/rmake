@@ -323,6 +323,13 @@ struct Outcome {
     debug_time_changed: bool,
 }
 
+struct RequestedGoal {
+    name: Vec<u8>,
+    already_done: bool,
+    initial: Outcome,
+    awaiting_recipe: bool,
+}
+
 struct OptionalMakefileFailure {
     open_error: Option<PendingIncludeError>,
     before: Option<SystemTime>,
@@ -3077,7 +3084,14 @@ impl Engine {
                 outcome
             };
             if self.parallel_graph() {
-                requested.push((goal, already_done, outcome));
+                let awaiting_recipe =
+                    !already_done && self.parallel_jobs.contains_key(self.aliases.resolve(&goal));
+                requested.push(RequestedGoal {
+                    name: goal,
+                    already_done,
+                    initial: outcome,
+                    awaiting_recipe,
+                });
             } else {
                 failed |= outcome.failed;
                 self.report_goal(&goal, already_done, outcome);
@@ -3086,33 +3100,46 @@ impl Engine {
                 break;
             }
         }
-        while requested.iter().any(|(goal, _, _)| self.pending(goal)) {
+        while requested.iter().any(|goal| self.pending(&goal.name)) {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
-            for (goal, _, _) in &requested {
-                if self.graph_pending(goal) {
-                    self.build(goal, None, 0);
+            for goal in &mut requested {
+                if self.graph_pending(&goal.name) {
+                    self.build(&goal.name, None, 0);
+                    if !goal.already_done && !goal.awaiting_recipe {
+                        goal.awaiting_recipe = self
+                            .parallel_jobs
+                            .contains_key(self.aliases.resolve(&goal.name));
+                    }
+                } else if goal.awaiting_recipe && !self.pending(&goal.name) {
+                    self.debug_completed_goal_visit(&goal.name);
+                    goal.awaiting_recipe = false;
                 }
             }
             // A completion observed while walking a later branch may make an
             // earlier one ready. Rescan that work before blocking on a child
             // which can itself be waiting for the newly ready recipe.
             if self.graph_epoch == pass_epoch
-                && requested.iter().any(|(goal, _, _)| self.pending(goal))
+                && requested.iter().any(|goal| self.pending(&goal.name))
                 && !self.parallel_jobs.is_empty()
             {
                 self.reap_job();
             }
         }
-        for (goal, already_done, initial) in requested {
+        for goal in requested {
+            // Reaping the last job can end the pending-work loop before the
+            // next scan. This is the final visit to those completed goals.
+            if goal.awaiting_recipe {
+                self.debug_completed_goal_visit(&goal.name);
+            }
             let outcome = self
                 .done
-                .get(self.aliases.resolve(&goal))
+                .get(self.aliases.resolve(&goal.name))
                 .copied()
-                .unwrap_or(initial);
-            let outcome = self.observe_updated(&goal, outcome);
+                .unwrap_or(goal.initial);
+            let outcome = self.observe_updated(&goal.name, outcome);
             failed |= outcome.failed;
-            self.report_goal(&goal, already_done, outcome);
+            self.report_goal(&goal.name, goal.already_done, outcome);
         }
         self.wait_all_jobs();
         self.remove_intermediates();
@@ -3131,6 +3158,38 @@ impl Engine {
         } else {
             0
         }
+    }
+
+    fn debug_completed_goal_visit(&self, goal: &[u8]) {
+        use crate::debug::{Event, Mask, emit};
+
+        if !self.output.debug_mask().has(Mask::VERBOSE)
+            || self.graph_abort.is_some()
+            || self.shutdown.get() != Shutdown::Running
+        {
+            return;
+        }
+        let name = self.aliases.resolve(goal);
+        let Some(outcome) = self.done.get(name) else {
+            return;
+        };
+        if outcome.fatal
+            || outcome.question_outdated
+            || (outcome.failed && !self.options.keep_going)
+        {
+            return;
+        }
+        // The goal chain reads the cached completion here. No rule, timestamp,
+        // or prerequisite expansion is evaluated for this diagnostic visit.
+        emit(&self.output, Event::Considering(name, 0));
+        emit(
+            &self.output,
+            if outcome.failed {
+                Event::RecentlyFailed(name, 0)
+            } else {
+                Event::Already(name, 0)
+            },
+        );
     }
 
     fn report_goal(&self, goal: &[u8], already_done: bool, outcome: Outcome) {

@@ -75,7 +75,7 @@ def _model_file(filename: str) -> list[Model]:
 def models() -> list[Model]:
     result = (_model_file('models.toml') + _model_file('extension.toml')
               + _model_file('child.toml') + _model_file('vpath.toml')
-              + _model_file('dispatch.toml'))
+              + _model_file('dispatch.toml') + _model_file('revisit.toml'))
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
     return result
