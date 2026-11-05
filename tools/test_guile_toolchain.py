@@ -176,10 +176,15 @@ class GuileToolchainTests(unittest.TestCase):
                   patch.object(frontend.subprocess, 'run') as execute):
                 self.assertEqual(frontend.main(), 0)
                 commands = execute.call_args_list
-                self.assertEqual(len(commands), 12)
-                self.assertIn('--all-targets', commands[0].args[0])
-                self.assertIn('--workspace', commands[0].args[0])
-                self.assertIn('test', commands[0].args[0])
+                workspace_tests = [command.args[0] for command in commands
+                                   if command.args[0][1:4] == ['tools/rust.py', 'cargo', 'test']]
+                self.assertEqual(len(workspace_tests), 1)
+                command, = workspace_tests
+                self.assertIn('--all-targets', command)
+                self.assertIn('--workspace', command)
+                self.assertIn('--locked', command)
+                feature = command.index('--features')
+                self.assertEqual(command[feature + 1], 'guile')
                 for command in commands:
                     self.assertTrue(selectors.keys().isdisjoint(command.kwargs['env']), command.args)
                 self.assertEqual({key: os.environ[key] for key in selectors}, selectors)
