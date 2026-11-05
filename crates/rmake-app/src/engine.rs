@@ -4548,13 +4548,7 @@ impl Engine {
                 self.database.rules.insert(to.to_vec(), source);
             }
         }
-        if let Some(scope) = self.database.target_scopes.remove(from) {
-            self.database
-                .target_scopes
-                .entry(to.to_vec())
-                .or_default()
-                .merge_missing(&scope);
-        }
+        self.database.merge_target_scope(from, to);
         if let Some(parent) = self.scope_parents.remove(from) {
             self.scope_parents.entry(to.to_vec()).or_insert(parent);
         }
@@ -8009,7 +8003,7 @@ impl Engine {
         let target = alias.as_deref().unwrap_or(target);
         if let Some(variables) = self.target_contexts.get(target) {
             let mut variables = variables.clone();
-            variables.refresh_globals(&self.database.variables);
+            self.database.refresh_scoped_variables(&mut variables);
             return Ok(variables);
         }
         let parent = self.scope_parents.get(target).cloned().flatten();
@@ -8208,7 +8202,7 @@ impl Engine {
                 return Execution::fatal(false);
             }
         };
-        variables.refresh_globals(&self.database.variables);
+        self.database.refresh_scoped_variables(&mut variables);
         if !implicit_group {
             if let Some(history) = self.database.database_history() {
                 history.intern(b".SUFFIXES");
@@ -8715,7 +8709,7 @@ impl Engine {
                     environment_variables.environment_order(|name, _| eligible.contains(name));
                 let mut emitted_order = Vec::new();
                 for name in &exports {
-                    variables.refresh_globals(&self.database.variables);
+                    self.database.refresh_scoped_variables(variables);
                     let environment_variables = variables.for_environment();
                     if !export_selected(
                         &environment_variables,

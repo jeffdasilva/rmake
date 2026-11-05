@@ -556,6 +556,7 @@ impl Clone for NamesCache {
 
 #[derive(Clone, Debug)]
 struct Bindings {
+    target: Option<Arc<[u8]>>,
     database_history: Option<crate::database::TableHistory>,
     values: std::collections::HashMap<Arc<[u8]>, Variable>,
     order: crate::variable_order::NameOrder,
@@ -571,6 +572,7 @@ impl Default for Bindings {
 impl Bindings {
     fn new(size: usize) -> Self {
         Self {
+            target: None,
             database_history: None,
             values: std::collections::HashMap::new(),
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
@@ -647,6 +649,7 @@ pub struct VariableStore {
     environment_override: bool,
     scoped: bool,
     file_locals: bool,
+    target_scope_revision: u64,
 }
 
 impl Default for VariableStore {
@@ -659,6 +662,7 @@ impl Default for VariableStore {
             environment_override: false,
             scoped: false,
             file_locals: false,
+            target_scope_revision: 0,
         }
     }
 }
@@ -691,6 +695,7 @@ struct VariableLayer {
 pub struct TargetScope {
     variables: Arc<Bindings>,
     pattern: bool,
+    target: Option<Arc<[u8]>>,
 }
 
 impl Default for TargetScope {
@@ -698,6 +703,7 @@ impl Default for TargetScope {
         Self {
             variables: empty_bindings(32),
             pattern: false,
+            target: None,
         }
     }
 }
@@ -1234,6 +1240,7 @@ impl VariableStore {
             environment_override: false,
             scoped: true,
             file_locals: true,
+            target_scope_revision: self.target_scope_revision,
         }
     }
 
@@ -1263,6 +1270,7 @@ impl VariableStore {
             environment_override: self.environment_override,
             scoped: true,
             file_locals: true,
+            target_scope_revision: self.target_scope_revision,
         }
     }
 
@@ -1335,6 +1343,35 @@ impl VariableStore {
                 pattern: false,
             });
         }
+    }
+
+    /// Rebase only declared target layers after an eval changes their source
+    /// tables. Pattern activation and automatic values stay owned by the file.
+    pub(crate) fn refresh_declared_scopes(
+        &mut self,
+        scopes: &std::collections::HashMap<Vec<u8>, TargetScope>,
+        revision: u64,
+    ) {
+        if self.target_scope_revision == revision {
+            return;
+        }
+        for layer in &mut self.layers {
+            if let Some(scope) = layer
+                .variables
+                .target
+                .as_deref()
+                .and_then(|name| scopes.get(name))
+            {
+                layer.variables = Arc::clone(&scope.variables);
+            }
+        }
+        self.target_scope_revision = revision;
+    }
+
+    fn declared_binding_at(&self, name: &[u8], layer: usize) -> Option<&Variable> {
+        let layer = self.layers.get(layer.checked_sub(1)?)?;
+        layer.variables.target.as_ref()?;
+        layer.variables.get(name)
     }
 
     /// Environment binding selection treats pattern layers as inherited even
@@ -2115,6 +2152,13 @@ impl PatternVariable {
 }
 
 impl TargetScope {
+    pub(crate) fn for_target(name: &[u8]) -> Self {
+        Self {
+            target: Some(Arc::from(name)),
+            ..Self::default()
+        }
+    }
+
     pub fn database_definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
         self.variables
             .order
@@ -2140,6 +2184,7 @@ impl TargetScope {
     /// File-record merging retains bindings already present on the destination.
     pub fn merge_missing(&mut self, other: &Self) {
         let variables = Arc::make_mut(&mut self.variables);
+        variables.target.clone_from(&self.target);
         for name in other.variables.order.names() {
             if !variables.contains_key(name) {
                 variables.insert(name, other.variables.get(name).unwrap().clone());
@@ -2376,7 +2421,9 @@ impl TargetScope {
             None,
             |store, bytes, shell, context| expand(globals, store, bytes, shell, context),
         )?;
-        let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
+        let bindings = Arc::make_mut(&mut scope.variables);
+        bindings.target.clone_from(&self.target);
+        let variable = bindings.get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
         if origin != Origin::Override {
@@ -2641,7 +2688,7 @@ pub(crate) fn shell_database(
     let bindings = std::mem::take(&mut db.evaluation_bindings);
     let mut scope = db.evaluation_scope.take();
     if let Some(scope) = &mut scope {
-        scope.refresh_globals(&db.variables);
+        db.refresh_scoped_variables(scope);
     }
     let result = {
         let store = if let Some(variables) = &mut scope {
@@ -3047,9 +3094,10 @@ impl Expansion<'_, '_> {
             self.append_layer_body(&mut value, variable)?;
             return Ok(value);
         }
-        // Snapshot each outer binding before any body effects, just as the
-        // former recursive descent did. The innermost binding is already owned
-        // by our caller and needs no additional clone.
+        // Select the append chain before any body effects. Keep its values
+        // owned, but resume pending target parts from any newly published
+        // table after an outer part evaluates a target declaration.
+        let revision = self.store.target_scope_revision;
         let mut outers = Vec::new();
         let mut append = true;
         let mut selected = layer;
@@ -3078,18 +3126,25 @@ impl Expansion<'_, '_> {
             }
             append = outer.scope.append_outer;
             selected = Some(outer_layer);
-            outers.push(outer);
+            outers.push((outer_layer, outer));
         }
-        for (index, body) in outers
+        let bodies = outers
             .iter()
             .rev()
-            .chain(std::iter::once(variable))
-            .enumerate()
-        {
+            .map(|(layer, body)| (Some(*layer), body))
+            .chain(std::iter::once((layer, variable)));
+        for (index, (owner, body)) in bodies.enumerate() {
             if index != 0 && !value.is_empty() {
                 push(&mut value, b" ")?;
             }
-            self.append_layer_body(&mut value, body)?;
+            let current = if self.store.target_scope_revision != revision {
+                owner
+                    .and_then(|layer| self.store.declared_binding_at(name, layer))
+                    .cloned()
+            } else {
+                None
+            };
+            self.append_layer_body(&mut value, current.as_ref().unwrap_or(body))?;
         }
         Ok(value)
     }
@@ -3380,7 +3435,7 @@ impl Expansion<'_, '_> {
                     active,
                     self.context.reborrow(),
                 );
-                variables.refresh_globals(&database.variables);
+                database.refresh_scoped_variables(variables);
                 result
             }
             _ => return Err(ExpandError::Unsupported(b"eval".to_vec())),

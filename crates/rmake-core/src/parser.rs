@@ -430,6 +430,7 @@ pub struct Database {
     pub variables: VariableStore,
     /// Target-only variable declarations never create rules or select a goal.
     pub target_scopes: HashMap<Vec<u8>, TargetScope>,
+    target_scope_revision: u64,
     pub pattern_assignments: Vec<PatternAssignment>,
     pub rules: HashMap<Vec<u8>, Rule>,
     /// Names mentioned by explicit declarations, distinct from inferred graph
@@ -631,12 +632,28 @@ impl Database {
         pattern: Option<&TargetScope>,
     ) -> VariableStore {
         let mut parent = parent.clone();
-        parent.refresh_globals(&self.variables);
+        self.refresh_scoped_variables(&mut parent);
         match (pattern, self.target_scopes.get(target)) {
             (Some(pattern), Some(scope)) => parent.with_target_scopes(&[pattern, scope]),
             (Some(pattern), None) => parent.with_target_scopes(&[pattern]),
             (None, Some(scope)) => parent.with_target_scopes(&[scope]),
             (None, None) => parent.with_target_scopes(&[]),
+        }
+    }
+
+    /// Refresh a cached file context without rerunning its pattern effects.
+    pub fn refresh_scoped_variables(&self, variables: &mut VariableStore) {
+        variables.refresh_globals(&self.variables);
+        variables.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
+    }
+
+    pub fn merge_target_scope(&mut self, from: &[u8], to: &[u8]) {
+        if let Some(scope) = self.target_scopes.remove(from) {
+            self.target_scopes
+                .entry(to.to_vec())
+                .or_insert_with(|| TargetScope::for_target(to))
+                .merge_missing(&scope);
+            self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
         }
     }
 
@@ -2388,6 +2405,7 @@ impl Database {
         let lookup_scope = if matches!(spec.kind, Assignment::Append | Assignment::Conditional) {
             self.evaluation_scope.as_mut().map(|scope| {
                 scope.refresh_globals(&self.variables);
+                scope.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
                 scope.clone()
             })
         } else {
@@ -2586,7 +2604,7 @@ impl Database {
                 let mut parse_variables = self
                     .target_scopes
                     .entry(target.to_vec())
-                    .or_default()
+                    .or_insert_with(|| TargetScope::for_target(target))
                     .context(&self.variables);
                 let name = self.expand_target_read(
                     target,
@@ -2604,7 +2622,10 @@ impl Database {
                 scope.retain_read_bindings(&parse_variables);
                 (scope, name)
             } else {
-                let scope = self.target_scopes.entry(target.to_vec()).or_default();
+                let scope = self
+                    .target_scopes
+                    .entry(target.to_vec())
+                    .or_insert_with(|| TargetScope::for_target(target));
                 let name = scope
                     .context(&self.variables)
                     .expand_with(raw_name, context.at(Some(location)));
@@ -2678,13 +2699,16 @@ impl Database {
                     .clone(),
                 message: error.diagnostic(),
             })?;
-            if self
-                .target_read
-                .as_ref()
-                .is_some_and(|read| read.target == target)
-                && let Some(active) = self.evaluation_scope.as_mut()
-            {
-                self.target_scopes[target].refresh_read_bindings(active);
+            self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+            if let Some(active) = self.evaluation_scope.as_mut() {
+                active.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
+                if self
+                    .target_read
+                    .as_ref()
+                    .is_some_and(|read| read.target == target)
+                {
+                    self.target_scopes[target].refresh_read_bindings(active);
+                }
             }
         }
         Ok(())
@@ -3254,7 +3278,7 @@ impl Database {
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         if let Some(mut scope) = self.evaluation_scope.take() {
-            scope.refresh_globals(&self.variables);
+            self.refresh_scoped_variables(&mut scope);
             let result =
                 crate::variables::expand_scoped_database::<NAMED>(self, &mut scope, bytes, context);
             self.evaluation_scope = Some(scope);
@@ -3270,7 +3294,7 @@ impl Database {
         bytes: &[u8],
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
-        variables.refresh_globals(&self.variables);
+        self.refresh_scoped_variables(variables);
         let previous = std::mem::replace(&mut self.rules_frozen, true);
         let result =
             crate::variables::expand_scoped_database::<false>(self, variables, bytes, context);
@@ -3284,7 +3308,7 @@ impl Database {
         name: &[u8],
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
-        variables.refresh_globals(&self.variables);
+        self.refresh_scoped_variables(variables);
         let previous = std::mem::replace(&mut self.rules_frozen, true);
         let result = crate::variables::expand_environment_database(self, variables, name, context);
         self.rules_frozen = previous;

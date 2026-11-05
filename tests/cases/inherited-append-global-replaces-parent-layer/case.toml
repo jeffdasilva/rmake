@@ -1,0 +1,12 @@
+id = "inherited-append-global-replaces-parent-layer"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "inherited append global replaces parent layer"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first=[outer changed child-tail] second=[changed child-tail]\nparent=[changed]\n"
+stderr = ""

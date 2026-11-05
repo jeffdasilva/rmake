@@ -1,0 +1,12 @@
+id = "inherited-append-pattern-simple-deferred"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "inherited append pattern simple deferred"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "reading=[/global]\npre=[] target=[global tail-target/target/recursive]\n"
+stderr = ""
