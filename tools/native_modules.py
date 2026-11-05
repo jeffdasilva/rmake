@@ -135,6 +135,7 @@ def models() -> list[Model]:
         expected = b'LOADED=[probe_api.so]\nRESULT=[' + (b'target' if kind == 'target' else b'all') + b']\n'
         result.append(Model('native-recipe-' + kind, {'Makefile': body, 'seen': b'anchor\n'}, {'exit_code': 0, 'stdout_hex': expected.hex(), 'stderr_hex': ''}, b'anchor\nbefore\n'))
     result.extend(lifecycle_models())
+    result.extend(setup_result_models())
     result.extend(additional_models())
     result.extend(stdio_models())
     result.extend(registration_models())
@@ -194,6 +195,41 @@ def lifecycle_models() -> list[Model]:
                                 args=('-rR', '--no-print-directory', '-k', '-j2', '--jobserver-style=' + transport, '-O' + sync)))
     return result
 
+
+
+def setup_result_models() -> list[Model]:
+    header = b'.DEFAULT_GOAL := all\n.LOADED := seeded\n'
+    body = (b'$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            b'$(info read=[$(MAKE_RESTARTS)] loaded=[$(.LOADED)] image=[$(probe_image )])\n'
+            b'.PHONY: all\nall:\n\t@$(file >>seen,goal-$(MAKE_RESTARTS)):\n'
+            b'probe.so: replacement.so\n'
+            b'\t@$(file >>seen,rebuild)cp replacement.so stage.so\n'
+            b'\t@mv stage.so probe.so\n')
+    read_old = b'read=[] loaded=[seeded probe.so] image=[old]\n'
+    read_new = b'read=[1] loaded=[seeded probe.so] image=[new]\n'
+    old_read = b'anchor\nctor-old\nsetup-old\nread-\n'
+    no_remake = old_read + b'goal-\ndtor-old\n'
+    remade = old_read + b'dtor-old\nrebuild\nctor-new\nsetup-new\nread-1\ngoal-1\ndtor-new\n'
+    cases = (
+        ('negative-one', -1, b'load ./probe.so\n', (), read_old, no_remake),
+        ('negative-one-optional-explicit-and-repeat', -1,
+         b'-load probe.so(alternate_setup)\nload ./probe.so(unused_setup)\n', (), read_old, no_remake),
+        ('negative-one-explicit-goal', -1, b'load probe.so\n', ('probe.so',),
+         read_old, old_read + b'dtor-old\nrebuild\n'),
+        ('negative-two-remakes', -2, b'load probe.so\n', (), read_old + read_new, remade),
+        ('positive-one-remakes', 1, b'load probe.so\n', (), read_old + read_new, remade),
+    )
+    older = 1_600_000_000_000_000_000
+    result = []
+    for ident, status, loads, args, stdout, seen in cases:
+        modules = (Module('setup_result.c', 'probe.so', ('IMAGE="old"', f'SETUP_RESULT={status}')),
+                   Module('setup_result.c', 'replacement.so', ('IMAGE="new"', 'SETUP_RESULT=1')))
+        result.append(Model('native-setup-result-' + ident,
+                            {'Makefile': header + loads + body, 'seen': b'anchor\n'},
+                            {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''}, seen, modules,
+                            args=('-rR', '--no-print-directory', *args),
+                            mtimes_ns={'probe.so': older, 'replacement.so': older + 2_000_000_000}))
+    return result
 
 
 def additional_models() -> list[Model]:

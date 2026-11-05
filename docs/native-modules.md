@@ -35,18 +35,20 @@ valid C strings, callback pointers and allocation ownership from trusted native
 modules, as required by the public interface.
 
 The dynamic-loader namespace survives ordinary evaluation and resets through a
-real process exec when a Makefile or module actually changes. A module is unloaded
-before its recipe expands; an unchanged rebuilt module is reloaded without a
-restart. Runtime destruction does not invoke premature DSO finalizers. At process
-exit the interpreter remains alive while libc executes module finalizers through
+real process exec when a Makefile or module actually changes. A setup return of
+`-1` keeps the module and its `.LOADED` entry while excluding it from automatic
+makefile remaking. An explicit build goal can still rebuild that module. A module
+is unloaded before its recipe expands. An unchanged rebuilt module is reloaded
+without a restart. Runtime destruction does not invoke premature DSO finalizers.
+At process exit the interpreter remains alive while libc executes module finalizers through
 the same request bridge. GNU's stdout-close ordering and raw native stdio behavior
 are retained: raw C output bypasses output-sync spools, and a warning does not
 flush a partial C stdout buffer.
 
 ## Acceptance and remaining work
 
-`make test-native-modules` checks 215 original models. It compiles original C modules into disposable inputs and
-checks two GNU runs and the candidate against independently written byte streams,
+`make test-native-modules` checks 220 original models. It compiles original C
+modules into disposable inputs and checks two GNU runs and the candidate against independently written byte streams,
 exit status, ordered file witnesses and full filesystem snapshots. It rejects
 leftover children, compiler failures and reached limits. `NATIVE_CASE` selects a
 case. Development, optimized and focused self-host flows invoke this gate.

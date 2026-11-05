@@ -3186,7 +3186,10 @@ impl Database {
         self.loaded_modules
             .entry(loaded.name.clone())
             .or_insert_with(|| location.clone());
-        if loaded.status == NativeLoadStatus::Loaded {
+        if matches!(
+            loaded.status,
+            NativeLoadStatus::Loaded | NativeLoadStatus::LoadedWithoutRemake
+        ) {
             self.variables
                 .append_literal_at(b".LOADED", &loaded.name, Origin::File, location)?;
         }
@@ -3194,7 +3197,10 @@ impl Database {
         // when the runtime has already loaded the module. Only a genuinely
         // absent record performs a logical enter.
         self.file_records.enter_prerequisite(&loaded.name);
-        if loaded.status != NativeLoadStatus::Skipped {
+        if matches!(
+            loaded.status,
+            NativeLoadStatus::Loaded | NativeLoadStatus::Failed
+        ) {
             self.makefiles.push(Makefile {
                 name: loaded.name.clone(),
                 optional: false,
