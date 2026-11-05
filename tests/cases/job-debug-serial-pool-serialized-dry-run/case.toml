@@ -1,0 +1,12 @@
+id = "job-debug-serial-pool-serialized-dry-run"
+requirement = "runtime.jobs-serialized-pool-debug"
+candidate = "required"
+description = "Original JOBS publication control under serialized or unstarted recipes."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "--debug=j", "--jobserver-style=pipe", "-j2", "-n", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "Using jobserver controller 3,4\nNeed a job token; we don't have children\nprintf '%s\\n' no-launch\nAcquired all 1 jobserver tokens.\n"
+stderr = ""

@@ -1852,3 +1852,13 @@ candidate_required = 10
 reference = "https://www.gnu.org/software/make/manual/html_node/Parallel-Disable.html"
 fixture_count = 10
 cases = ["load-option-negative-underflow", "load-option-nan-payload-prefix", "load-option-option-after-goal", "load-option-bare-resets-all-sources", "load-option-literal-default-sentinel", "load-option-rounded-default-sentinel", "load-option-live-preserves-unmentioned-limit", "load-option-live-explicitly-replays-rounded-limit", "load-option-contextual-live-preserves-unmentioned-limit", "load-option-published-load-with-quoted-include"]
+
+[[requirements]]
+id = "runtime.jobs-serialized-pool-debug"
+title = "Jobserver debug publication for serialized and unstarted recipes"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 12
+reference = "https://www.gnu.org/software/make/manual/html_node/Options-Summary.html"
+fixture_count = 12
+cases = ["job-debug-serial-pool-dry-run-with-pool", "job-debug-serial-pool-no-debug-control", "job-debug-serial-pool-parallel-noop", "job-debug-serial-pool-question-with-pool", "job-debug-serial-pool-scoped-noop", "job-debug-serial-pool-serial-without-pool", "job-debug-serial-pool-serialized-dry-run", "job-debug-serial-pool-serialized-empty-expanded", "job-debug-serial-pool-serialized-noop", "job-debug-serial-pool-serialized-question", "job-debug-serial-pool-serialized-two", "job-debug-serial-pool-touch-phony-skips-recipe"]

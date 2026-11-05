@@ -8233,7 +8233,9 @@ impl Engine {
         // A new recipe's dispatch scans the existing live chain before asking
         // for its slot. Continuations retain their existing chain position.
         self.job_debug.live(self.output.debug_mask());
-        let permit = if parallel {
+        // A configured jobserver grants the implicit slot to serial recipes
+        // too. Synchronous execution has already drained the other jobs.
+        let permit = if self.jobserver.is_some() {
             match self.reserve_job(debug_job.as_ref()) {
                 Ok(permit) => permit,
                 Err(error) => {

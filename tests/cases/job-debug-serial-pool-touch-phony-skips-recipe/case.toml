@@ -1,0 +1,12 @@
+id = "job-debug-serial-pool-touch-phony-skips-recipe"
+requirement = "runtime.jobs-serialized-pool-debug"
+candidate = "required"
+description = "Original JOBS publication control under serialized or unstarted recipes."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "--debug=j", "--jobserver-style=pipe", "-j2", "-t", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "Using jobserver controller 3,4\nAcquired all 1 jobserver tokens.\n"
+stderr = ""
