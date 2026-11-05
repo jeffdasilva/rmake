@@ -720,6 +720,12 @@ struct ArchiveLocation {
     path: Option<Vec<u8>>,
 }
 
+enum ImplicitPresence {
+    Local,
+    Search(Vec<u8>),
+    Absent,
+}
+
 struct ImplicitSelection {
     name: Vec<u8>,
     rule: Rule,
@@ -2764,7 +2770,6 @@ impl Engine {
             return 2;
         }
         self.unlink_stdin();
-        crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
@@ -2849,6 +2854,7 @@ impl Engine {
         } else {
             self.options.goals.clone()
         };
+        crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
             self.shuffle.start(&mut goals, &self.database, disabled);
@@ -3136,6 +3142,11 @@ impl Engine {
                     );
                 }
                 continue;
+            }
+            // GNU emits the debug heading whenever it starts a printed rm
+            // list; under -s the list stays empty, so each removal logs it.
+            if line.is_empty() {
+                crate::debug::emit(&self.output, crate::debug::Event::RemovingIntermediates);
             }
             if !self.globally_silent() {
                 if line.is_empty() {
@@ -4741,12 +4752,16 @@ impl Engine {
 
     /// Local implicit prerequisites use directory membership without a fresh
     /// stat. VPATH candidates still require its positive-name stat check.
-    fn implicit_vpath_exists(&mut self, target: &[u8]) -> Result<bool, ExpandError> {
+    fn implicit_presence(&mut self, target: &[u8]) -> Result<ImplicitPresence, ExpandError> {
         if rmake_core::filenames::archive_parts(target).is_none() {
             return if self.directory_member(target)? {
-                Ok(true)
+                Ok(ImplicitPresence::Local)
             } else {
-                Ok(self.searched_file(target)?.is_some())
+                Ok(match self.searched_file(target)? {
+                    Some((Some(path), _)) => ImplicitPresence::Search(path),
+                    Some((None, _)) => ImplicitPresence::Local,
+                    None => ImplicitPresence::Absent,
+                })
             };
         }
         // Viability uses the archive date alone. Standalone-member freshness
@@ -4772,7 +4787,7 @@ impl Engine {
             .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?
             .is_some()
         {
-            return Ok(true);
+            return Ok(ImplicitPresence::Local);
         }
         if self.vpath_searchable(target) {
             for directory in self
@@ -4785,11 +4800,11 @@ impl Engine {
                 if self.search_record_matches(target, &lookup)
                     || (self.directory_member(&membership)? && fs::metadata(os(&name)).is_ok())
                 {
-                    return Ok(true);
+                    return Ok(ImplicitPresence::Search(name));
                 }
             }
         }
-        Ok(false)
+        Ok(ImplicitPresence::Absent)
     }
 
     fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
@@ -4887,12 +4902,6 @@ impl Engine {
                     return false;
                 }
             };
-        if plan.is_none() {
-            crate::debug::emit(
-                &self.output,
-                crate::debug::Event::NoRule(target, debug_depth + 1),
-            );
-        }
         if plan.is_none() && budget == 0 {
             self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
             return false;
@@ -5014,7 +5023,20 @@ impl Engine {
         if *budget == 0 {
             return Ok(None);
         }
+        let depth = debug_depth + active.len() + 1;
+        let archive_name = rmake_core::filenames::archive_parts(target)
+            .map(|(archive, _)| &target[archive.len()..]);
+        let root = active.is_empty();
         for archive_search in [false, true] {
+            if archive_search && archive_name.is_none() {
+                break;
+            }
+            if archive_search && root {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::LookingArchive(target, depth),
+                );
+            }
             if let Some(plan) = self.implicit_search(
                 target,
                 active,
@@ -5024,6 +5046,20 @@ impl Engine {
                 debug_depth,
             )? {
                 return Ok(Some(plan));
+            }
+            let printed = if archive_search {
+                archive_name.unwrap_or(target)
+            } else {
+                target
+            };
+            if !archive_search || root {
+                crate::debug::emit(&self.output, crate::debug::Event::NoRule(printed, depth));
+            }
+            if archive_search && root {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::NoArchiveRule(target, depth),
+                );
             }
         }
         Ok(None)
@@ -5038,6 +5074,18 @@ impl Engine {
         budget: &mut usize,
         debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
+        let tracing = self.output.debug_mask().has(crate::debug::Mask::IMPLICIT);
+        if tracing && !active.is_empty() {
+            let mut blocked = active.clone();
+            blocked.sort_unstable();
+            for identity in blocked {
+                let label = crate::debug::rule_label(&self.database, identity);
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::AvoidingRecursion(&label, debug_depth + active.len() + 2),
+                );
+            }
+        }
         let candidates = if archive_search {
             self.database
                 .implicit_archive_candidates_excluding(target, active)
@@ -5050,6 +5098,12 @@ impl Engine {
         let mut variables = None;
         let mut pattern_scope = None;
         for chain in [false, true] {
+            if chain && !candidates.is_empty() {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::TryingHarder(debug_depth + active.len() + 2),
+                );
+            }
             for (ordinal, candidate) in candidates.iter().enumerate() {
                 if *budget == 0 {
                     return Ok(None);
@@ -5062,17 +5116,27 @@ impl Engine {
                 {
                     continue;
                 }
-                let debug_label = self
-                    .output
-                    .debug_mask()
-                    .has(crate::debug::Mask::IMPLICIT)
-                    .then(|| crate::debug::rule_label(&self.database, candidate.identity));
+                let debug_label =
+                    tracing.then(|| crate::debug::rule_label(&self.database, candidate.identity));
                 if let Some(label) = &debug_label {
+                    let stem = candidate.rule.stem.as_deref().unwrap_or_default();
+                    let printed_stem = if !archive_search
+                        && candidate
+                            .rule
+                            .implicit_pattern
+                            .as_ref()
+                            .is_some_and(|pattern| !pattern.contains(&b'/'))
+                        && let Some(slash) = target.iter().rposition(|byte| *byte == b'/')
+                    {
+                        stem.strip_prefix(&target[..=slash]).unwrap_or(stem)
+                    } else {
+                        stem
+                    };
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::TryingRule(
                             label,
-                            candidate.rule.stem.as_deref().unwrap_or_default(),
+                            printed_stem,
                             debug_depth + active.len() + 2,
                         ),
                     );
@@ -5157,8 +5221,26 @@ impl Engine {
                                 dependency.name = identity.to_vec();
                             }
                             let name = &dependency.name;
+                            let event_depth = debug_depth + active.len() + 1;
+                            let literal = tracing
+                                && self
+                                    .database
+                                    .implicit_rule_source(candidate.identity)
+                                    .and_then(|(_, source)| source.dependencies.get(index))
+                                    .is_some_and(|declared| declared.name.as_slice() == name);
                             self.refresh_impossible_prerequisites();
                             if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
+                                if let Some(label) = &debug_label {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::RejectedPrerequisite(
+                                            label,
+                                            name,
+                                            Some(literal),
+                                            event_depth,
+                                        ),
+                                    );
+                                }
                                 cancelled.insert(ordinal);
                                 valid = false;
                                 break 'prerequisites;
@@ -5172,10 +5254,7 @@ impl Engine {
                             }
                             crate::debug::emit(
                                 &self.output,
-                                crate::debug::Event::TryingPrerequisite(
-                                    name,
-                                    debug_depth + active.len() + 1,
-                                ),
+                                crate::debug::Event::TryingPrerequisite(name, literal, event_depth),
                             );
                             let explicit = (self.has_file_record(name)
                                 && self.record_is_target(name))
@@ -5196,8 +5275,73 @@ impl Engine {
                                     ),
                                 );
                             }
-                            if name != b".WAIT" && !explicit && !self.implicit_vpath_exists(name)? {
-                                if self.implicit_known_file(name) {
+                            if name != b".WAIT" && !explicit {
+                                let presence = self.implicit_presence(name)?;
+                                if matches!(presence, ImplicitPresence::Local) {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::FoundPrerequisite(name, event_depth),
+                                    );
+                                    dependencies.push(dependency);
+                                    continue;
+                                }
+                                if let ImplicitPresence::Search(path) = presence {
+                                    if let Some(label) = &debug_label {
+                                        let known = self.implicit_known_file(name);
+                                        if known {
+                                            crate::debug::emit(
+                                                &self.output,
+                                                if compatibility {
+                                                    crate::debug::Event::UsingCompatibilityRule(
+                                                        label,
+                                                        name,
+                                                        event_depth,
+                                                    )
+                                                } else {
+                                                    crate::debug::Event::NotOughtToExist(
+                                                        name,
+                                                        label,
+                                                        event_depth,
+                                                    )
+                                                },
+                                            );
+                                        }
+                                        if !known || !compatibility {
+                                            crate::debug::emit(
+                                                &self.output,
+                                                crate::debug::Event::FoundVpath(
+                                                    name,
+                                                    &path,
+                                                    event_depth,
+                                                ),
+                                            );
+                                        }
+                                    }
+                                    dependencies.push(dependency);
+                                    continue;
+                                }
+                                let known = self.implicit_known_file(name);
+                                if let Some(label) = &debug_label
+                                    && known
+                                {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        if compatibility {
+                                            crate::debug::Event::UsingCompatibilityRule(
+                                                label,
+                                                name,
+                                                event_depth,
+                                            )
+                                        } else {
+                                            crate::debug::Event::NotOughtToExist(
+                                                name,
+                                                label,
+                                                event_depth,
+                                            )
+                                        },
+                                    );
+                                }
+                                if known {
                                     if compatibility {
                                         dependencies.push(dependency);
                                         continue;
@@ -5205,6 +5349,16 @@ impl Engine {
                                     compatibility_needed = true;
                                 }
                                 if chain {
+                                    let child_explicit = explicit_word
+                                        || self.database.explicit_names.contains(name);
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::SearchingChildRule(
+                                            name,
+                                            child_explicit,
+                                            event_depth,
+                                        ),
+                                    );
                                     if let Some(child) = self.implicit_plan(
                                         name,
                                         active,
@@ -5214,6 +5368,17 @@ impl Engine {
                                     )? {
                                         plan.extend(child);
                                     } else {
+                                        if let Some(label) = &debug_label {
+                                            crate::debug::emit(
+                                                &self.output,
+                                                crate::debug::Event::RejectedPrerequisite(
+                                                    label,
+                                                    name,
+                                                    None,
+                                                    event_depth,
+                                                ),
+                                            );
+                                        }
                                         if !self.implicit_known_file(name) {
                                             self.refresh_impossible_prerequisites();
                                             if let Some(history) = self.database.database_history()
@@ -5230,6 +5395,10 @@ impl Engine {
                                         break 'prerequisites;
                                     }
                                 } else {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::MissingPrerequisite(name, event_depth),
+                                    );
                                     valid = false;
                                     break 'prerequisites;
                                 }
@@ -5241,11 +5410,17 @@ impl Engine {
                 active.pop();
                 if valid {
                     if let Some(label) = &debug_label {
+                        let printed = if archive_search {
+                            rmake_core::filenames::archive_parts(target)
+                                .map_or(target, |(archive, _)| &target[archive.len()..])
+                        } else {
+                            target
+                        };
                         crate::debug::emit(
                             &self.output,
                             crate::debug::Event::FoundRule(
                                 label,
-                                target,
+                                printed,
                                 debug_depth + active.len() + 1,
                             ),
                         );
@@ -5266,6 +5441,10 @@ impl Engine {
             }
         }
         if compatibility_needed && !compatibility {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::SearchingCompatibility(target, debug_depth + active.len() + 1),
+            );
             return self.implicit_search(target, active, true, archive_search, budget, debug_depth);
         }
         Ok(None)

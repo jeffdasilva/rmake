@@ -466,3 +466,9 @@ notices. This does not claim that every diagnostic producer is covered.
 filename and saved Linux error to the actual GNU publication phase. Twenty
 new models include a remake recipe that changes the locale and proves the
 later libc error translation without changing which errno was captured.
+
+[Implicit search debug output](../tests/debug-traversal/README.md) checks the
+candidate order, intermediate search and removal, prerequisite spellings,
+VPATH hits, grouped targets, and archive-member search against two GNU 4.4.1
+runs. The focused cases run in both build profiles and a selected recursive
+self-host recipe. Wider localized and dynamic debug output remains open.

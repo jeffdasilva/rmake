@@ -132,8 +132,21 @@ pub enum Event<'a> {
     NoNeed(&'a [u8], usize),
     Already(&'a [u8], usize),
     Looking(&'a [u8], usize),
+    LookingArchive(&'a [u8], usize),
+    NoArchiveRule(&'a [u8], usize),
     TryingRule(&'a [u8], &'a [u8], usize),
-    TryingPrerequisite(&'a [u8], usize),
+    TryingPrerequisite(&'a [u8], bool, usize),
+    TryingHarder(usize),
+    AvoidingRecursion(&'a [u8], usize),
+    FoundPrerequisite(&'a [u8], usize),
+    FoundVpath(&'a [u8], &'a [u8], usize),
+    MissingPrerequisite(&'a [u8], usize),
+    SearchingChildRule(&'a [u8], bool, usize),
+    RejectedPrerequisite(&'a [u8], &'a [u8], Option<bool>, usize),
+    NotOughtToExist(&'a [u8], &'a [u8], usize),
+    UsingCompatibilityRule(&'a [u8], &'a [u8], usize),
+    SearchingCompatibility(&'a [u8], usize),
+    RemovingIntermediates,
     OughtToExist(&'a [u8], usize),
     FoundRule(&'a [u8], &'a [u8], usize),
     NoRule(&'a [u8], usize),
@@ -146,8 +159,20 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::NoNeed(_, depth)
         | Event::Already(_, depth) => (Mask::VERBOSE, depth),
         Event::Looking(_, depth)
+        | Event::LookingArchive(_, depth)
+        | Event::NoArchiveRule(_, depth)
         | Event::TryingRule(_, _, depth)
-        | Event::TryingPrerequisite(_, depth)
+        | Event::TryingPrerequisite(_, _, depth)
+        | Event::TryingHarder(depth)
+        | Event::AvoidingRecursion(_, depth)
+        | Event::FoundPrerequisite(_, depth)
+        | Event::FoundVpath(_, _, depth)
+        | Event::MissingPrerequisite(_, depth)
+        | Event::SearchingChildRule(_, _, depth)
+        | Event::RejectedPrerequisite(_, _, _, depth)
+        | Event::NotOughtToExist(_, _, depth)
+        | Event::UsingCompatibilityRule(_, _, depth)
+        | Event::SearchingCompatibility(_, depth)
         | Event::OughtToExist(_, depth)
         | Event::FoundRule(_, _, depth)
         | Event::NoRule(_, depth) => (Mask::IMPLICIT, depth),
@@ -184,6 +209,18 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::Looking(name, _) => {
             raw(&[prefix, b"Looking for an implicit rule for '", name, b"'.\n"])
         }
+        Event::LookingArchive(name, _) => raw(&[
+            prefix,
+            b"Looking for archive-member implicit rule for '",
+            name,
+            b"'.\n",
+        ]),
+        Event::NoArchiveRule(name, _) => raw(&[
+            prefix,
+            b"No archive-member implicit rule found for '",
+            name,
+            b"'.\n",
+        ]),
         Event::TryingRule(rule, stem, _) => raw(&[
             prefix,
             b"Trying pattern rule '",
@@ -192,9 +229,80 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
             stem,
             b"'.\n",
         ]),
-        Event::TryingPrerequisite(name, _) => {
-            raw(&[prefix, b"Trying implicit prerequisite '", name, b"'.\n"])
-        }
+        Event::TryingPrerequisite(name, literal, _) => raw(&[
+            prefix,
+            if literal {
+                b"Trying rule prerequisite '"
+            } else {
+                b"Trying implicit prerequisite '"
+            },
+            name,
+            b"'.\n",
+        ]),
+        Event::TryingHarder(_) => raw(&[prefix, b"Trying harder.\n"]),
+        Event::AvoidingRecursion(rule, _) => raw(&[
+            prefix,
+            b"Avoiding implicit rule recursion for rule '",
+            rule,
+            b"'.\n",
+        ]),
+        Event::FoundPrerequisite(name, _) => raw(&[prefix, b"Found '", name, b"'.\n"]),
+        Event::FoundVpath(name, path, _) => raw(&[
+            prefix,
+            b"Found prerequisite '",
+            name,
+            b"' as VPATH '",
+            path,
+            b"'.\n",
+        ]),
+        Event::MissingPrerequisite(name, _) => raw(&[prefix, b"Not found '", name, b"'.\n"]),
+        Event::SearchingChildRule(name, explicit, _) => raw(&[
+            prefix,
+            if explicit {
+                b"Looking for a rule with explicit file '"
+            } else {
+                b"Looking for a rule with intermediate file '"
+            },
+            name,
+            b"'.\n",
+        ]),
+        Event::RejectedPrerequisite(rule, name, literal, _) => raw(&[
+            prefix,
+            b"Rejecting rule '",
+            rule,
+            b"' due to impossible ",
+            match literal {
+                Some(true) => b"rule ",
+                Some(false) => b"implicit ",
+                None => b"",
+            },
+            b"prerequisite '",
+            name,
+            b"'.\n",
+        ]),
+        Event::NotOughtToExist(name, rule, _) => raw(&[
+            prefix,
+            b"Prerequisite '",
+            name,
+            b"' of rule '",
+            rule,
+            b"' does not qualify as ought to exist.\n",
+        ]),
+        Event::UsingCompatibilityRule(rule, name, _) => raw(&[
+            prefix,
+            b"Using compatibility rule '",
+            rule,
+            b"' due to '",
+            name,
+            b"'.\n",
+        ]),
+        Event::SearchingCompatibility(name, _) => raw(&[
+            prefix,
+            b"Searching for a compatibility rule for '",
+            name,
+            b"'.\n",
+        ]),
+        Event::RemovingIntermediates => raw(&[b"Removing intermediate files...\n"]),
         Event::OughtToExist(name, _) => raw(&[prefix, b"'", name, b"' ought to exist.\n"]),
         Event::FoundRule(rule, name, _) => raw(&[
             prefix,
@@ -247,16 +355,29 @@ pub fn rule_label(database: &rmake_core::parser::Database, identity: usize) -> V
     let Some((pattern, rule)) = database.implicit_rule_source(identity) else {
         return Vec::new();
     };
-    let mut text = pattern.literal_bytes().to_vec();
+    let mut text = if let Some(patterns) = rule.grouped_targets() {
+        patterns.join(b" ".as_slice())
+    } else {
+        pattern.literal_bytes().to_vec()
+    };
     text.extend_from_slice(if rule.terminal { b"::" } else { b":" });
     let mut order_only = false;
-    for dependency in &rule.dependencies {
+    for (index, dependency) in rule.dependencies.iter().enumerate() {
         if dependency.order_only && !order_only {
             text.extend_from_slice(b" |");
             order_only = true;
         }
         text.push(b' ');
-        text.extend_from_slice(&dependency.name);
+        let spelling = if rule
+            .secondary
+            .as_ref()
+            .is_some_and(|clauses| clauses.iter().any(|clause| clause.index == index))
+        {
+            dependency.name.trim_ascii_start()
+        } else {
+            dependency.name.as_slice()
+        };
+        text.extend_from_slice(spelling);
     }
     text
 }
