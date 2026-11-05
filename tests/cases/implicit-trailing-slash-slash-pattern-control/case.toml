@@ -1,0 +1,12 @@
+id = "implicit-trailing-slash-slash-pattern-control"
+requirement = "rules.implicit-final-slash"
+candidate = "required"
+description = "Preserve a target final slash in the implicit pattern stem."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "virtual/box/"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target=[virtual/box/] stem=[ox/] first=[]\n"
+stderr = ""

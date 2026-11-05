@@ -8,6 +8,12 @@ locally, through VPATH, or as explicit targets. Directory stripping and stem
 reconstruction follow target-pattern slash semantics. Pattern declarations do
 not select the default goal. No failed resolution result is persistently cached.
 
+For slashless target patterns, a final slash remains part of the basename
+during implicit search. `virtual/box/` matches `b%` with basename stem `ox/`
+and full stem `virtual/ox/`. The same split supplies prerequisite substitution
+and the implicit trace. Ten exact fixtures cover those boundaries, including
+deferred percent substitution and patterns that already contain a slash.
+
 Static pattern rules substitute each target's stem, retain order-only inputs,
 and warn for mismatched target names without discarding their recipes.
 Double-colon branches retain separate dependency lists, recipes and source

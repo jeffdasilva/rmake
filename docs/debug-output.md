@@ -76,6 +76,11 @@ and skipped before prerequisite expansion, including when debug output is off.
 The fixtures use bounded virtual names, preserving ordinary stat diagnostics
 and comparing the complete filesystem after each run.
 
+Implicit tracing keeps the full stem when matching the whole archive member
+reference, including slashes in the container or member name. Seven archive
+and ordinary controls distinguish that first search from member-only fallback
+and the directory prefix ignored by an ordinary slashless pattern.
+
 Automatic debug-triggered version headers are exact GNU protocol, including the
 pinned build identity. Only the case that explicitly requests `--version` with an
 invalid debug selection permits one fixed branding block. Its GNU calibration

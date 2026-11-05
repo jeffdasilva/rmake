@@ -206,6 +206,7 @@ pub enum Event<'a> {
     UpdatingGoals,
     Considering(&'a [u8], usize),
     Missing(&'a [u8], usize),
+    GroupedPeerMissing(&'a [u8], &'a [u8], usize),
     PrerequisitesRunning(&'a [u8], usize),
     Finished(&'a [u8], usize),
     Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
@@ -216,6 +217,7 @@ pub enum Event<'a> {
     Failed(&'a [u8], usize),
     QuestionOutdated(&'a [u8], usize),
     NoNeed(&'a [u8], Option<&'a [u8]>, usize),
+    StillUpdating(&'a [u8], usize),
     Already(&'a [u8], usize),
     RecentlyFailed(&'a [u8], usize),
     Pruning(&'a [u8], usize),
@@ -262,6 +264,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::Finished(_, depth)
         | Event::RecipeRunning(_, depth)
         | Event::NoNeed(_, _, depth)
+        | Event::StillUpdating(_, depth)
         | Event::Already(_, depth)
         | Event::RecentlyFailed(_, depth)
         | Event::Pruning(_, depth)
@@ -290,6 +293,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::UsingDefaultRecipe(_, depth)
         | Event::UsingDefaultCommands(_, depth) => (Mask::IMPLICIT, depth),
         Event::Missing(_, depth)
+        | Event::GroupedPeerMissing(_, _, depth)
         | Event::MustRemake(_, depth)
         | Event::Remade(_, depth)
         | Event::Failed(_, depth)
@@ -310,6 +314,9 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
         Event::Considering(name, _) => print(msg::CONSIDERING, &[bytes(name)]),
         Event::Missing(name, _) => print(msg::MISSING, &[bytes(name)]),
+        Event::GroupedPeerMissing(peer, target, _) => {
+            print(msg::GROUPED_PEER_MISSING, &[bytes(peer), bytes(target)])
+        }
         Event::PrerequisitesRunning(name, _) => print(msg::PREREQUISITES_RUNNING, &[bytes(name)]),
         Event::Finished(name, _) => print(msg::FINISHED, &[bytes(name)]),
         Event::Prerequisite(state, dependency, target, _) => print(
@@ -332,6 +339,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
             let suffix = path.map(|path| localized(msg::USING_VPATH, &[bytes(path)]));
             raw(&[prefix, &line, suffix.as_deref().unwrap_or_default(), b".\n"]);
         }
+        Event::StillUpdating(name, _) => print(msg::STILL_UPDATING, &[bytes(name)]),
         Event::Already(name, _) => print(msg::ALREADY, &[bytes(name)]),
         Event::RecentlyFailed(name, _) => print(msg::RECENTLY_FAILED, &[bytes(name)]),
         Event::Pruning(name, _) => print(msg::PRUNING, &[bytes(name)]),

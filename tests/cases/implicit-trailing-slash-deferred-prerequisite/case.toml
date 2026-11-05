@@ -1,0 +1,12 @@
+id = "implicit-trailing-slash-deferred-prerequisite"
+requirement = "rules.implicit-final-slash"
+candidate = "required"
+description = "Apply deferred percent substitution when the stem's automatic basename is empty."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "virtual/box/"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "secondary=[virtual/ox/] basename=[]\ntarget=[virtual/box/] stem=[virtual/ox/] first=[virtual/stamp]\n"
+stderr = ""
