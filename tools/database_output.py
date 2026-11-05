@@ -92,11 +92,11 @@ def safe_relative(name: str, *, dot: bool = False) -> Path:
 
 def models(suite: str = 'core') -> list[Model]:
     if suite == 'all':
-        return models('core') + models('phases')
-    if suite not in ('core', 'phases'):
+        return models('core') + models('phases') + models('search')
+    if suite not in ('core', 'phases', 'search'):
         raise h.HarnessError('unknown database suite')
     data = (tomllib.loads((SOURCES / 'models.toml').read_text()) if suite == 'core'
-            else json.loads((SOURCES / 'phases.json').read_text()))
+            else json.loads((SOURCES / ('phases.json' if suite == 'phases' else 'search-spelling.json')).read_text()))
     if data.get('schema_version') != 1:
         raise h.HarnessError('unsupported database model schema')
     result = []
@@ -386,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--oracle-only', action='store_true')
     parser.add_argument('--report', type=Path, default=ROOT / 'artifacts/database-output/campaign.json')
     parser.add_argument('--case', action='append', default=[])
-    parser.add_argument('--suite', choices=('core', 'phases', 'all'), default='core')
+    parser.add_argument('--suite', choices=('core', 'phases', 'search', 'all'), default='core')
     args = parser.parse_args(argv)
     if args.oracle_only == (args.candidate is not None):
         parser.error('supply either --candidate or --oracle-only')
@@ -407,7 +407,7 @@ def main(argv: list[str] | None = None) -> int:
         report['identities'] = identities
         report['source_hashes'] = {name: h.sha256_file(path) for name, path in {
             'driver': Path(__file__), 'models': SOURCES / 'models.toml', 'phases': SOURCES / 'phases.json',
-            'conformance': ROOT / 'tools/conformance.py'}.items()}
+            'search': SOURCES / 'search-spelling.json', 'conformance': ROOT / 'tools/conformance.py'}.items()}
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
         report.update(error=str(error), passed=False)

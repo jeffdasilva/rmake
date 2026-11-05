@@ -479,7 +479,7 @@ impl Clone for NamesCache {
 #[derive(Clone, Debug)]
 struct Bindings {
     database_history: Option<crate::database::TableHistory>,
-    values: BTreeMap<Arc<[u8]>, Variable>,
+    values: std::collections::HashMap<Arc<[u8]>, Variable>,
     order: crate::variable_order::NameOrder,
     reserved_exports: Vec<Vec<u8>>,
     generation: u64,
@@ -494,7 +494,7 @@ impl Bindings {
     fn new(size: usize) -> Self {
         Self {
             database_history: None,
-            values: BTreeMap::new(),
+            values: std::collections::HashMap::new(),
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
             reserved_exports: Vec::new(),
             generation: 0,
@@ -506,7 +506,7 @@ impl Bindings {
             history.enter_after_lookup(name);
         }
         match self.values.entry(name.into()) {
-            std::collections::btree_map::Entry::Occupied(mut entry) => {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
                 if entry.get().scope.variable_names
                     && let Some(cache) = self.names_cache.get_mut()
                 {
@@ -518,7 +518,7 @@ impl Bindings {
                 }
                 entry.insert(variable);
             }
-            std::collections::btree_map::Entry::Vacant(entry) => {
+            std::collections::hash_map::Entry::Vacant(entry) => {
                 if let Some(cache) = self.names_cache.get_mut() {
                     Arc::make_mut(cache);
                 }
@@ -547,7 +547,7 @@ impl Bindings {
     }
 }
 impl std::ops::Deref for Bindings {
-    type Target = BTreeMap<Arc<[u8]>, Variable>;
+    type Target = std::collections::HashMap<Arc<[u8]>, Variable>;
     fn deref(&self) -> &Self::Target {
         &self.values
     }
@@ -1012,6 +1012,8 @@ impl VariableStore {
         })
     }
 
+    /// Visible definitions in physical storage order. Make's observable name,
+    /// environment and database orders use their separate logical traversals.
     pub fn definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
         std::iter::once((0, &self.variables))
             .chain(

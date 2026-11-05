@@ -123,3 +123,10 @@ large/expansion paired regressions of23.13%/27.48%; all negative data remain.
 Later optimizations and the native numeric fix require fresh selected-head
 measurements. No timing comparison is inferred while functional gates share
 the host.
+
+Eight additive [search-spelling profiles](SEARCH.md) qualify the complete
+VPATH/vpath/GPATH renamed-file protocol, repeated original/aliased goals and
+actual logical removal/cache events. The core 14 and phases 19 files stay unchanged;
+`--suite all` now selects 41. Separate history and final qualification archives
+preserve earlier failures and exact source/binary identities. This does not close
+the broader database surface or M3/M6.

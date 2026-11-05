@@ -140,6 +140,9 @@ impl FileRecords {
     fn move_key(&mut self, from: &[u8], to: &[u8]) {
         let (position, found) = self.position(from);
         if found {
+            if let Some(history) = &self.database_history {
+                history.record_file_remove(from);
+            }
             self.slots[position] = Some(Box::default());
             self.live -= 1;
         }
@@ -234,6 +237,23 @@ pub(crate) fn fingerprint(name: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filename_moves_and_merges_retire_the_actual_logical_key() {
+        let history = crate::database::History::default();
+        let mut records = FileRecords::default();
+        records.enable_database_history(history.clone());
+        records.insert(b"alpha");
+        records.rehash(b"alpha", b"beta");
+        assert_eq!(history.file_stats().filled, 1);
+        assert_eq!(history.file_stats().lookups, 3); // enter, remove, enter
+        assert_eq!(records.names().collect::<Vec<_>>(), [b"alpha"]);
+        records.insert(b"gamma");
+        records.rename(b"alpha", b"gamma");
+        assert_eq!(records.names().collect::<Vec<_>>(), [b"gamma"]);
+        assert_eq!(history.file_stats().filled, records.names().count());
+        assert_eq!(history.file_stats().lookups, 6);
+    }
 
     #[test]
     fn observed_numeric_fingerprints_cover_word_and_triple_boundaries() {

@@ -274,13 +274,31 @@ pub fn write_pattern_variables(output: &mut impl Write, database: &Database) -> 
     }
 }
 
+/// Borrow retained runtime filename decisions without searching or expanding.
+/// Static components omit this view and preserve declaration spelling.
+pub trait FileNames {
+    fn resolve<'a>(&'a self, name: &'a [u8]) -> &'a [u8];
+}
+
+fn resolved_file_name<'a>(names: Option<&'a dyn FileNames>, name: &'a [u8]) -> &'a [u8] {
+    names.map_or(name, |names| names.resolve(name))
+}
+
 pub fn write_prerequisites(output: &mut impl Write, dependencies: &[Dependency]) -> io::Result<()> {
+    write_prerequisites_with_names(output, dependencies, None)
+}
+
+fn write_prerequisites_with_names(
+    output: &mut impl Write,
+    dependencies: &[Dependency],
+    names: Option<&dyn FileNames>,
+) -> io::Result<()> {
     for dependency in dependencies
         .iter()
         .filter(|dependency| !dependency.order_only)
     {
         output.write_all(b" ")?;
-        output.write_all(c_bytes(&dependency.name))?;
+        output.write_all(c_bytes(resolved_file_name(names, &dependency.name)))?;
     }
     let mut order = dependencies
         .iter()
@@ -290,7 +308,7 @@ pub fn write_prerequisites(output: &mut impl Write, dependencies: &[Dependency])
         output.write_all(b" |")?;
         for dependency in order {
             output.write_all(b" ")?;
-            output.write_all(c_bytes(&dependency.name))?;
+            output.write_all(c_bytes(resolved_file_name(names, &dependency.name)))?;
         }
     }
     output.write_all(b"\n")
@@ -840,6 +858,14 @@ impl History {
             .unwrap_or_else(|error| error.into_inner())
             .intern(value)
     }
+    /// Record a supplied filename-buffer span. Identity ends at the first NUL,
+    /// while a new cache allocation retains the complete supplied extent.
+    pub fn intern_buffer(&self, value: &[u8]) -> Interned {
+        self.strings
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .intern_buffer(value)
+    }
     pub fn with_string_cache<R>(&self, visit: impl FnOnce(&StringCacheTelemetry) -> R) -> R {
         visit(
             &self
@@ -1021,6 +1047,7 @@ pub struct FilePrinter<'a, W> {
     output: &'a mut W,
     recipe_prefix: u8,
     numeric: &'a dyn NumericFormatting,
+    names: Option<&'a dyn FileNames>,
 }
 
 impl<'a, W: Write> FilePrinter<'a, W> {
@@ -1028,13 +1055,23 @@ impl<'a, W: Write> FilePrinter<'a, W> {
         Self::with_numeric(output, &RustNumericFormatting)
     }
     pub fn with_numeric(output: &'a mut W, numeric: &'a dyn NumericFormatting) -> Self {
+        Self::with_numeric_and_names(output, numeric, None)
+    }
+    pub fn with_numeric_and_names(
+        output: &'a mut W,
+        numeric: &'a dyn NumericFormatting,
+        names: Option<&'a dyn FileNames>,
+    ) -> Self {
         Self {
             output,
             recipe_prefix: b'\t',
             numeric,
+            names,
         }
     }
     pub fn write(&mut self, file: FileView<'_>) -> io::Result<()> {
+        let names = self.names;
+        let file_name = resolved_file_name(names, file.name);
         let output = &mut self.output;
         output.write_all(b"\n")?;
         if let Some(recipes) = file.rule.and_then(|rule| rule.recipes.as_ref()) {
@@ -1060,7 +1097,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
                         variable.is_private(),
                         variable.definition(),
                     )?;
-                    output.write_all(c_bytes(file.name))?;
+                    output.write_all(c_bytes(file_name))?;
                     write_value(
                         output,
                         b": ",
@@ -1075,11 +1112,12 @@ impl<'a, W: Write> FilePrinter<'a, W> {
         if !file.is_target {
             output.write_all(b"# Not a target:\n")?;
         }
-        output.write_all(c_bytes(file.name))?;
+        output.write_all(c_bytes(file_name))?;
         output.write_all(if file.double_colon { b"::" } else { b":" })?;
-        write_prerequisites(
+        write_prerequisites_with_names(
             output,
             file.rule.map_or(&[], |rule| rule.dependencies.as_slice()),
+            names,
         )?;
         for (selected, text) in [
             (
@@ -1130,7 +1168,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
             output.write_all(b"#  Also makes:")?;
             for name in file.also_make {
                 output.write_all(b" ")?;
-                output.write_all(c_bytes(name))?;
+                output.write_all(c_bytes(resolved_file_name(names, name)))?;
             }
             output.write_all(b"\n")?;
         }
@@ -1183,7 +1221,7 @@ pub fn write_files(
     files: &[FileView<'_>],
     stats: HashStats,
 ) -> io::Result<()> {
-    write_files_with_numeric(output, files, stats, &RustNumericFormatting)
+    write_files_with_numeric(output, files, stats, &RustNumericFormatting, None)
 }
 
 fn write_files_with_numeric(
@@ -1191,9 +1229,10 @@ fn write_files_with_numeric(
     files: &[FileView<'_>],
     stats: HashStats,
     numeric: &dyn NumericFormatting,
+    names: Option<&dyn FileNames>,
 ) -> io::Result<()> {
     output.write_all(b"\n# Files\n")?;
-    let mut printer = FilePrinter::with_numeric(output, numeric);
+    let mut printer = FilePrinter::with_numeric_and_names(output, numeric, names);
     for file in files {
         printer.write(*file)?;
     }
@@ -1223,6 +1262,15 @@ pub fn write_database_contents_with_numeric(
     view: DatabaseView<'_>,
     numeric: &dyn NumericFormatting,
 ) -> io::Result<()> {
+    write_database_contents_with_numeric_and_names(output, view, numeric, None)
+}
+
+pub fn write_database_contents_with_numeric_and_names(
+    output: &mut impl Write,
+    view: DatabaseView<'_>,
+    numeric: &dyn NumericFormatting,
+    names: Option<&dyn FileNames>,
+) -> io::Result<()> {
     write_variables_with_numeric(
         output,
         &view.database.variables,
@@ -1232,7 +1280,7 @@ pub fn write_database_contents_with_numeric(
     write_pattern_variables(output, view.database)?;
     write_directories(output, view.directories)?;
     write_implicit_rules_with_numeric(output, view.database, numeric)?;
-    write_files_with_numeric(output, view.files, view.file_stats, numeric)?;
+    write_files_with_numeric(output, view.files, view.file_stats, numeric, names)?;
     write_vpaths(output, view.database, view.general_vpath)?;
     view.string_cache.write_with_numeric(output, numeric)
 }
@@ -1295,12 +1343,15 @@ impl Default for StringCacheTelemetry {
 
 impl StringCacheTelemetry {
     pub fn intern(&mut self, value: &[u8]) -> Interned {
-        let value = c_bytes(value);
+        self.intern_buffer(c_bytes(value))
+    }
+
+    pub fn intern_buffer(&mut self, value: &[u8]) -> Interned {
         if value.len() > 65534 {
             return Interned::UncachedHuge;
         }
         self.adds = self.adds.wrapping_add(1);
-        if !self.names.insert(value) {
+        if !self.names.insert(c_bytes(value)) {
             return Interned::Existing;
         }
         let bytes = value.len() + 1;
@@ -1418,6 +1469,52 @@ impl StringCacheTelemetry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supplied_filename_span_keeps_c_identity_and_first_allocation_extent() {
+        let mut cache = StringCacheTelemetry::default();
+        assert_eq!(cache.intern_buffer(b"path\0"), Interned::New);
+        assert_eq!(cache.storage, 6); // supplied span plus its final terminator
+        assert_eq!(cache.intern(b"path"), Interned::Existing);
+        assert_eq!(cache.intern_buffer(b"path\0unused"), Interned::Existing);
+        assert_eq!(cache.storage, 6);
+        assert_eq!(cache.strings, 1);
+        assert_eq!(cache.hash_stats().lookups, 3);
+    }
+
+    #[test]
+    fn runtime_filename_views_resolve_diagnostics_without_mutating_declarations() {
+        struct Names;
+        impl FileNames for Names {
+            fn resolve<'a>(&'a self, name: &'a [u8]) -> &'a [u8] {
+                match name {
+                    b"all" => b"remote/all",
+                    b"input" => b"remote/input",
+                    b"order" => b"remote/order",
+                    b"peer" => b"remote/peer",
+                    _ => name,
+                }
+            }
+        }
+        let mut database = Database::default();
+        database.read(b"all: input | order\n", b"Makefile").unwrap();
+        let rule = &database.rules[b"all".as_slice()];
+        let peers = [b"peer".to_vec()];
+        let mut view = FileView::unchecked(b"all", Some(rule));
+        view.also_make = &peers;
+        let mut output = Vec::new();
+        FilePrinter::with_numeric_and_names(&mut output, &RustNumericFormatting, Some(&Names))
+            .write(view)
+            .unwrap();
+        assert!(output.starts_with(b"\nremote/all: remote/input | remote/order\n"));
+        assert!(
+            output
+                .windows(b"#  Also makes: remote/peer\n".len())
+                .any(|text| text == b"#  Also makes: remote/peer\n")
+        );
+        assert_eq!(rule.dependencies[0].name, b"input");
+        assert_eq!(rule.dependencies[1].name, b"order");
+    }
     use crate::variables::Assignment;
 
     #[test]

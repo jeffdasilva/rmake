@@ -1033,7 +1033,11 @@ impl Engine {
         );
         output.set_imported_directory(Some(cwd.as_os_str().as_bytes()));
         for goal in &options.goals {
-            database.file_records.insert(goal);
+            // Ordered argv preparation has already entered ordinary goals.
+            // Retain support for callers constructing an invocation directly.
+            if !database.file_records.contains(goal) {
+                database.file_records.insert(goal);
+            }
         }
         database
             .variables
@@ -3821,9 +3825,7 @@ impl Engine {
                 .insert(name.clone(), observation.map(|(_, time)| (None, time)));
             return Ok(Some(name));
         }
-        if let Some((Some(name), _)) = &observation
-            && !self.has_file_record(name)
-        {
+        if let Some((Some(name), _)) = &observation {
             self.database.file_records.rehash(target, name);
         }
         self.path_observations.insert(target.to_vec(), observation);
@@ -3834,7 +3836,9 @@ impl Engine {
         if from == to {
             return Ok(());
         }
-        if self.has_file_record(from) && self.database.file_records.logical_name(to) == Some(from) {
+        if self.database.file_records.contains(from)
+            && self.database.file_records.logical_name(to) == Some(from)
+        {
             // A fresh lookup of the original archive spelling can meet its
             // older rehashed record. They share the logical runtime data;
             // remove the new hash entry without renaming that runtime name.
@@ -4080,9 +4084,11 @@ impl Engine {
     }
 
     fn other_file_record(&self, key: &[u8], target: &[u8]) -> bool {
+        // Search already looked up the destination. These checks inspect its
+        // retained ownership; moving the key records actual remove/enter events.
         key != target
-            && self.has_file_record(key)
-            && (self.has_file_record(target)
+            && self.database.file_records.contains(key)
+            && (self.database.file_records.contains(target)
                 || self.database.file_records.logical_name(key).unwrap_or(key) != target)
     }
 
@@ -4253,7 +4259,7 @@ impl Engine {
             .chain(self.vpath_dirs.iter().map(Vec::as_slice))
             .filter(|directory| *directory != b".")
         {
-            let name = searched_name(directory, target);
+            let mut name = searched_name(directory, target);
             let (lookup, membership) = search_probe_names(directory, target, &name);
             let declared = self.search_record_matches(target, &lookup);
             if declared || self.directory_member(&membership)? {
@@ -4268,6 +4274,32 @@ impl Engine {
                             physical
                         }
                     });
+                    if let Some(history) = self.database.database_history() {
+                        // Search supplies a directory/separator/filename buffer.
+                        // Its retained span includes the separator even when
+                        // the historical trailing-slash spelling ends earlier.
+                        let visible = name.len();
+                        let directory = if directory.len() > 1 {
+                            directory.strip_suffix(b"/").unwrap_or(directory)
+                        } else {
+                            directory
+                        };
+                        let extent = if target.starts_with(b"/") {
+                            visible
+                        } else {
+                            directory
+                                .len()
+                                .checked_add(1)
+                                .and_then(|length| length.checked_add(target.len()))
+                                .ok_or(ExpandError::ExpansionLimit)?
+                        };
+                        if extent < visible {
+                            return Err(ExpandError::ExpansionLimit);
+                        }
+                        name.resize(extent, 0);
+                        history.intern_buffer(&name);
+                        name.truncate(visible);
+                    }
                     return Ok(Some((Some(name), time)));
                 }
             }
@@ -5322,12 +5354,13 @@ impl Engine {
         Ok(())
     }
 
-    fn resolved_name(&self, name: &[u8]) -> Vec<u8> {
+    fn resolved_name_ref<'a>(&'a self, name: &'a [u8]) -> &'a [u8] {
         let name = self.aliases.resolve(name);
-        self.resolved_names
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| name.to_vec())
+        self.resolved_names.get(name).map_or(name, Vec::as_slice)
+    }
+
+    fn resolved_name(&self, name: &[u8]) -> Vec<u8> {
+        self.resolved_name_ref(name).to_vec()
     }
 
     fn record_graph_failure(&mut self, outcome: Outcome) {

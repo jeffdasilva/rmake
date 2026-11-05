@@ -16,6 +16,12 @@ struct FileSnapshot<'a> {
     automatic_stats: HashStats,
 }
 
+impl database::FileNames for Engine {
+    fn resolve<'a>(&'a self, name: &'a [u8]) -> &'a [u8] {
+        self.resolved_name_ref(name)
+    }
+}
+
 impl Engine {
     /// Acquiring the post-read special-file policy is one semantic lookup
     /// phase, independent of later cached flag tests during graph traversal.
@@ -134,7 +140,7 @@ impl Engine {
         let general_vpath: Vec<_> = self.vpath_dirs.iter().map(Vec::as_slice).collect();
         database::write_database_open(output, &rmake_linux::clock::current_ctime()?)?;
         history.with_string_cache(|string_cache| {
-            database::write_database_contents_with_numeric(
+            database::write_database_contents_with_numeric_and_names(
                 output,
                 DatabaseView {
                     database: &self.database,
@@ -146,6 +152,7 @@ impl Engine {
                     string_cache,
                 },
                 &rmake_linux::database_numeric::Formatting,
+                Some(self),
             )
         })?;
         database::write_database_close(output, &rmake_linux::clock::current_ctime()?)?;
@@ -168,7 +175,11 @@ impl Engine {
         view.double_colon |= branch.is_some();
         view.phony = self.special(b".PHONY", name, false);
         view.precious = self.special_for_rule(b".PRECIOUS", name);
-        view.command_line = self.options.goals.iter().any(|goal| goal == name);
+        view.command_line = self
+            .options
+            .goals
+            .iter()
+            .any(|goal| self.resolved_name_ref(goal) == self.resolved_name_ref(name));
         view.dont_care = self
             .database
             .makefiles

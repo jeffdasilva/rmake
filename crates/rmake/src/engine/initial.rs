@@ -562,19 +562,17 @@ impl State {
                 crate::cli::Argument::Goal(index) => {
                     let path = self.path(program, &options.goals[index])?;
                     let name = path.as_os_str().as_bytes();
+                    if let Some(history) = self.database.database_history() {
+                        // Filename preparation and goal entry each retain the
+                        // prepared name, including repeated argv goals.
+                        history.intern(name);
+                        history.intern(name);
+                    }
                     self.database.file_records.insert(name);
-                    let mut value = self
-                        .database
-                        .variables
-                        .database_lookup(b"MAKECMDGOALS")
-                        .map(|v| v.raw_value().to_vec())
-                        .unwrap_or_default();
-                    if self
-                        .database
-                        .variables
-                        .database_lookup(b"MAKECMDGOALS")
-                        .is_some()
-                    {
+                    let previous = self.database.variables.database_lookup(b"MAKECMDGOALS");
+                    let had_previous = previous.is_some();
+                    let mut value = previous.map(|v| v.raw_value().to_vec()).unwrap_or_default();
+                    if had_previous {
                         value.push(b' ');
                     }
                     value.extend_from_slice(name);

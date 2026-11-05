@@ -58,10 +58,38 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertEqual(len(d.models()), 14)
         phases = d.models('phases')
         self.assertEqual(len(phases), 19)
-        self.assertEqual(len(d.models('all')), 33)
+        self.assertEqual(len(d.models('all')), 41)
         self.assertEqual({m.dump_count for m in phases}, {1, 2})
         self.assertEqual(sum(bool(m.compile_shared) for m in phases), 2)
         self.assertTrue(all(source in model.files for model in phases for source, _ in model.compile_shared))
+
+    def test_search_models_pin_full_names_cache_storage_and_goal_flags(self):
+        search = d.models('search')
+        self.assertEqual(len(search), 8)
+        self.assertEqual(len({model.id for model in d.models('all')}), 41)
+        self.assertTrue(all(not model.compile_shared for model in search))
+        model = next(model for model in search if model.id == 'database-search-repeated-aliased')
+        metadata = {name: {'device': 42, 'inode': 99 + index, 'mode': stat.S_IFDIR | 0o755}
+                    for index, name in enumerate(model.directories)}
+        stdout = d.render_paths(model.stdout, self.runtime)
+        stdout = stdout.replace(b'@CTIME_OPEN@', b'Sun Sep 13 12:26:40 2020').replace(
+            b'@CTIME_CLOSE@', b'Sun Sep 13 12:26:40 2020')
+        for index, name in enumerate(model.directories):
+            stdout = stdout.replace(f'@DEVICE_{index}@'.encode(), str(metadata[name]['device']).encode())
+            stdout = stdout.replace(f'@INODE_{index}@'.encode(), str(metadata[name]['inode']).encode())
+        good = replace(self.good, observation=replace(self.good.observation, stdout=stdout, stderr=model.stderr,
+                       returncode=model.expected_status), directories_before=metadata, directories_after=metadata)
+        self.assertFalse(d.stream_errors(model, self.runtime, good))
+        for old, new in ((b'search/input:', b'input:'),
+                         (b'#  Command line target.\n', b''),
+                         (b'# files hash-table stats:', b'# wrong files hash-table stats:'),
+                         (b'# strcache performance:', b'# wrong strcache performance:'),
+                         (b'storage = 165 B', b'storage = 164 B'),
+                         (b'Collisions=0/34=0%', b'Collisions=0/35=0%')):
+            wrong = stdout.replace(old, new)
+            self.assertNotEqual(stdout, wrong)
+            execution = replace(good, observation=replace(good.observation, stdout=wrong))
+            self.assertTrue(d.stream_errors(model, self.runtime, execution))
 
     def test_native_fixture_compiles_once_before_engine_runs_and_full_snapshot_contains_it(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -217,7 +245,7 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertTrue(all(model.stdout.count(b'@CTIME_OPEN@') == 1 and model.stdout.count(b'@CTIME_CLOSE@') == 1 for model in models))
         self.assertEqual(next(model for model in models if model.id == 'database-read-fatal').stderr, b'Makefile:4: *** DB_STOP.  Stop.\n')
         for path in d.SOURCES.glob('*.json'):
-            if path.name in ('phases.json', 'numeric.json'):
+            if path.name in ('phases.json', 'numeric.json', 'search-spelling.json'):
                 continue
             manifest = json.loads(path.read_bytes()); packed = path.with_suffix('.json.gz').read_bytes()
             raw = gzip.decompress(packed)
