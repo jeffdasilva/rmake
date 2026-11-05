@@ -4847,37 +4847,47 @@ impl Engine {
                             physical
                         }
                     });
-                    if let Some(history) = self.database.database_history() {
-                        // Search supplies a directory/separator/filename buffer.
-                        // Its retained span includes the separator even when
-                        // the historical trailing-slash spelling ends earlier.
-                        let visible = name.len();
-                        let directory = if directory.len() > 1 {
-                            directory.strip_suffix(b"/").unwrap_or(directory)
-                        } else {
-                            directory
-                        };
-                        let extent = if target.starts_with(b"/") {
-                            visible
-                        } else {
-                            directory
-                                .len()
-                                .checked_add(1)
-                                .and_then(|length| length.checked_add(target.len()))
-                                .ok_or(ExpandError::ExpansionLimit)?
-                        };
-                        if extent < visible {
-                            return Err(ExpandError::ExpansionLimit);
-                        }
-                        name.resize(extent, 0);
-                        history.intern_buffer(&name);
-                        name.truncate(visible);
-                    }
+                    self.record_vpath_result(directory, target, &mut name)?;
                     return Ok(Some((Some(name), time)));
                 }
             }
         }
         Ok(None)
+    }
+
+    fn record_vpath_result(
+        &self,
+        directory: &[u8],
+        target: &[u8],
+        name: &mut Vec<u8>,
+    ) -> Result<(), ExpandError> {
+        let Some(history) = self.database.database_history() else {
+            return Ok(());
+        };
+        // The retained span includes the separator even when the historical
+        // trailing-slash spelling ends earlier.
+        let visible = name.len();
+        let directory = if directory.len() > 1 {
+            directory.strip_suffix(b"/").unwrap_or(directory)
+        } else {
+            directory
+        };
+        let extent = if target.starts_with(b"/") {
+            visible
+        } else {
+            directory
+                .len()
+                .checked_add(1)
+                .and_then(|length| length.checked_add(target.len()))
+                .ok_or(ExpandError::ExpansionLimit)?
+        };
+        if extent < visible {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        name.resize(extent, 0);
+        history.intern_buffer(name);
+        name.truncate(visible);
+        Ok(())
     }
 
     fn archive_location(&mut self, target: &[u8]) -> Result<ArchiveLocation, ExpandError> {
@@ -5025,6 +5035,7 @@ impl Engine {
 
     fn library_search(&mut self, library: &[u8]) -> Result<PathObservation, ExpandError> {
         let patterns = self.expand_global(b"$(.LIBPATTERNS)", None)?;
+        let history = self.database.database_history();
         let mut selected: Option<((usize, usize), Vec<u8>)> = None;
         for text in words(&patterns) {
             let pattern = Pattern::new(text);
@@ -5041,6 +5052,9 @@ impl Engine {
             }
             let name = pattern.replace(library)?;
             if self.name_time(&name).is_some() {
+                if let Some(history) = history {
+                    history.intern(&name);
+                }
                 selected = Some(((0, 0), name));
                 break;
             }
@@ -5053,11 +5067,19 @@ impl Engine {
                         ((self.database.vpath_group_count(), index), path.as_slice())
                     }),
             );
+            let mut observed_group = None;
             for (rank, directory) in paths {
-                let path = searched_name(directory, &name);
+                if let Some(history) = history
+                    && observed_group != Some(rank.0)
+                {
+                    history.record_file_lookup(&name);
+                    observed_group = Some(rank.0);
+                }
+                let mut path = searched_name(directory, &name);
                 let (lookup, membership) = search_probe_names(directory, &name, &path);
                 let declared = self.search_record_matches(&name, &lookup);
                 if declared || (self.directory_member(&membership)? && modified(&path).is_some()) {
+                    self.record_vpath_result(directory, &name, &mut path)?;
                     if selected
                         .as_ref()
                         .is_none_or(|(previous, _)| rank < *previous)
@@ -5086,6 +5108,9 @@ impl Engine {
                         .as_ref()
                         .is_none_or(|(previous, _)| rank < *previous)
                 {
+                    if let Some(history) = history {
+                        history.intern(&path);
+                    }
                     selected = Some((rank, path));
                 }
             }

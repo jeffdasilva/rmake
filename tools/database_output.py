@@ -35,6 +35,7 @@ import oracle as reference_oracle
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / 'tests/database-output'
 EXPECTED_INPUTS = SOURCES / 'expected-inputs.json'
+JSON_SUITES = {'phases': 'phases.json', 'search': 'search-spelling.json', 'library': 'library-search.json'}
 TOKEN = re.compile(rb'@[A-Z_0-9]+@')
 # GNU uses libc time(NULL), whose Linux vdso/coarse domain can lag the
 # high-resolution realtime clock across a second boundary. Sample that exact
@@ -66,6 +67,7 @@ class Model:
     compile_shared: tuple[tuple[str, str], ...] = ()
     extra_files: tuple[tuple[str, bytes], ...] = ()
     removed_files: tuple[str, ...] = ()
+    fixed_input_mtimes: bool = False
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ class Execution:
     directories_after: dict[str, dict[str, int]]
     libc_time_interval: tuple[int, int] | None = None
     expected_inputs: portable.PublicInputs | None = None
+    input_mtimes: tuple[dict[str, int | None], dict[str, int | None]] | None = None
 
 
 def expected_preparation(profile: dict[str, Any], root: Path) -> portable.Preparation:
@@ -114,11 +117,13 @@ def safe_relative(name: str, *, dot: bool = False) -> Path:
 
 def models(suite: str = 'core') -> list[Model]:
     if suite == 'all':
-        return models('core') + models('phases') + models('search')
-    if suite not in ('core', 'phases', 'search'):
+        return [model for name in ('core', *JSON_SUITES) for model in models(name)]
+    if suite == 'core':
+        data = tomllib.loads((SOURCES / 'models.toml').read_text())
+    elif suite in JSON_SUITES:
+        data = json.loads((SOURCES / JSON_SUITES[suite]).read_text())
+    else:
         raise h.HarnessError('unknown database suite')
-    data = (tomllib.loads((SOURCES / 'models.toml').read_text()) if suite == 'core'
-            else json.loads((SOURCES / ('phases.json' if suite == 'phases' else 'search-spelling.json')).read_text()))
     if data.get('schema_version') != 1:
         raise h.HarnessError('unsupported database model schema')
     result = []
@@ -133,7 +138,7 @@ def models(suite: str = 'core') -> list[Model]:
                       row.get('user_variable_count'), row.get('dump_count', 1),
                       tuple(tuple(pair) for pair in row.get('compile_shared', [])),
                       tuple((name, bytes.fromhex(value)) for name, value in row.get('expected_additions_hex', {}).items()),
-                      tuple(row.get('expected_removals', [])))
+                      tuple(row.get('expected_removals', [])), row.get('fixed_input_mtimes', False))
         safe_relative(model.id)
         for name in model.files:
             safe_relative(name)
@@ -256,6 +261,10 @@ def prepared_stream_errors(model: Model, runtime: Path, execution: Execution) ->
         errors.append('execution bound: ' + observation.limit)
     if observation.leftover_processes:
         errors.append('child cleanup')
+    if model.fixed_input_mtimes:
+        expected = dict.fromkeys(model.files, model.fixed_mtime_ns)
+        if execution.input_mtimes != (expected, expected):
+            errors.append('fixed input file mtimes')
     # These pre-observation assertions are retained in addition to the exact
     # full transcript; they do not substitute for any literal protocol bytes.
     for required in model.required:
@@ -310,8 +319,9 @@ def prepare(model: Model, directory: Path, runtime: Path, compilations: list[dic
     case = h.Case(directory, model.id, 'database.output', 'required', model.args, 8, model.environment, {})
     filesystem = h.snapshot({'work': directory})
     filesystem.update({name: {'type': 'directory', 'mode': 0o755} for name in ('home', 'tmp')})
-    filesystem['work/seen'] = {'type': 'file', 'mode': 0o644, 'size': len(model.seen),
-                               'sha256': hashlib.sha256(model.seen).hexdigest(), 'content': base64.b64encode(model.seen).decode()}
+    if model.seen or 'work/seen' in filesystem:
+        filesystem['work/seen'] = {'type': 'file', 'mode': 0o644, 'size': len(model.seen),
+                                  'sha256': hashlib.sha256(model.seen).hexdigest(), 'content': base64.b64encode(model.seen).decode()}
     for name in model.removed_files:
         safe_relative(name)
         key = 'work/' + name
@@ -335,10 +345,21 @@ def directory_metadata(model: Model, runtime: Path) -> dict[str, dict[str, int]]
     return result
 
 
+def input_mtimes(model: Model, runtime: Path) -> dict[str, int | None]:
+    times = {}
+    for name in model.files:
+        try:
+            times[name] = (runtime / 'work' / name).lstat().st_mtime_ns
+        except FileNotFoundError:
+            times[name] = None
+    return times
+
+
 def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
             expected: portable.Preparation | None = None) -> Execution:
     h.reset_workspace(case, runtime, executable)
     before = directory_metadata(model, runtime)
+    mtimes_before = input_mtimes(model, runtime) if model.fixed_input_mtimes else None
     plan = expected.plan(model.id, model.stdout, model.dump_count) if expected is not None else None
     public_before = expected.capture(runtime / "work", plan) if expected is not None and plan is not None else {}
     started = time.time()
@@ -352,14 +373,16 @@ def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
     public = (portable.PublicInputs(expected.config, public_before, public_after, expected.witness, plan)
               if expected is not None and plan is not None else None)
     filesystem = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
-    return Execution(h.Observation(stdout, stderr, status, limit, filesystem, leftovers), (started, ended), before, after, (libc_started, libc_ended), public)
+    mtimes = (mtimes_before, input_mtimes(model, runtime)) if mtimes_before is not None else None
+    return Execution(h.Observation(stdout, stderr, status, limit, filesystem, leftovers), (started, ended), before, after, (libc_started, libc_ended), public, mtimes)
 
 
 def evidence(execution: Execution) -> dict[str, Any]:
     observation = execution.observation
     return dict(h.observation_json(observation), stdout_hex=observation.stdout.hex(), stderr_hex=observation.stderr.hex(),
                 execution_interval=list(execution.interval), directories_before=execution.directories_before,
-                directories_after=execution.directories_after, libc_time_interval=list(execution.libc_time_interval) if execution.libc_time_interval is not None else None)
+                directories_after=execution.directories_after, libc_time_interval=list(execution.libc_time_interval) if execution.libc_time_interval is not None else None,
+                **({'fixed_input_mtimes_ns': execution.input_mtimes} if execution.input_mtimes is not None else {}))
 
 
 def assess(model: Model, runtime: Path, filesystem: dict[str, Any], executions: list[Execution]) -> dict[str, Any]:
@@ -433,7 +456,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--oracle-only', action='store_true')
     parser.add_argument('--report', type=Path, default=ROOT / 'artifacts/database-output/campaign.json')
     parser.add_argument('--case', action='append', default=[])
-    parser.add_argument('--suite', choices=('core', 'phases', 'search', 'all'), default='core')
+    parser.add_argument('--suite', choices=('core', *JSON_SUITES, 'all'), default='core')
     args = parser.parse_args(argv)
     if args.oracle_only == (args.candidate is not None):
         parser.error('supply either --candidate or --oracle-only')
@@ -456,7 +479,8 @@ def main(argv: list[str] | None = None) -> int:
         report['identities'] = identities
         report['source_hashes'] = {name: h.sha256_file(path) for name, path in {
             'driver': Path(__file__), 'models': SOURCES / 'models.toml', 'phases': SOURCES / 'phases.json',
-            'search': SOURCES / 'search-spelling.json', 'conformance': ROOT / 'tools/conformance.py'}.items()}
+            'search': SOURCES / 'search-spelling.json', 'library': SOURCES / 'library-search.json',
+            'conformance': ROOT / 'tools/conformance.py'}.items()}
         report['source_hashes'].update(expected_source_hashes())
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
