@@ -6,16 +6,11 @@
 
 use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
-use rmake_linux::child::{CapturePipe, CaptureSpawnError, Child};
+use rmake_linux::child::{CaptureSpawnError, Child};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
-use std::sync::Mutex;
-
-// Failed captures remain owned through C finalization. Both ends are CLOEXEC,
-// so a real restart or process exit releases them without a Rust drop hook.
-static FAILED_CAPTURES: Mutex<Vec<CapturePipe>> = Mutex::new(Vec::new());
 
 pub fn run(
     request: ShellRequest<'_>,
@@ -83,10 +78,8 @@ pub fn run(
         Ok(child) => child,
         Err(error) => {
             if retain_failed_pipe {
-                FAILED_CAPTURES
-                    .lock()
-                    .expect("failed capture ownership")
-                    .push(pipe.expect("failed launch owns a capture pipe"));
+                pipe.expect("failed launch owns a capture pipe")
+                    .retain_failed();
             }
             output.write_parts(
                 true,
