@@ -5566,19 +5566,23 @@ impl Engine {
                 }
                 let debug_label =
                     tracing.then(|| crate::debug::rule_label(&self.database, candidate.identity));
+                let stem = candidate.rule.stem.as_deref().unwrap_or_default();
+                // The candidate stem already includes any ignored directory.
+                // GNU's stem buffer holds PATH_MAX bytes plus the terminator.
+                let stem_too_long = stem.len() > rmake_linux::filesystem::PATH_MAX;
                 if let Some(label) = &debug_label {
-                    let stem = candidate.rule.stem.as_deref().unwrap_or_default();
-                    let printed_stem = if !archive_search
+                    let (directory, printed_stem) = if !archive_search
                         && candidate
                             .rule
                             .implicit_pattern
                             .as_ref()
                             .is_some_and(|pattern| !pattern.contains(&b'/'))
                         && let Some(slash) = target.iter().rposition(|byte| *byte == b'/')
+                        && let Some(printed) = stem.strip_prefix(&target[..=slash])
                     {
-                        stem.strip_prefix(&target[..=slash]).unwrap_or(stem)
+                        (&target[..=slash], printed)
                     } else {
-                        stem
+                        (b"".as_slice(), stem)
                     };
                     crate::debug::emit(
                         &self.output,
@@ -5588,6 +5592,19 @@ impl Engine {
                             debug_depth + active.len() + 2,
                         ),
                     );
+                    if stem_too_long {
+                        crate::debug::emit(
+                            &self.output,
+                            crate::debug::Event::StemTooLong(
+                                directory,
+                                printed_stem,
+                                debug_depth + active.len() + 2,
+                            ),
+                        );
+                    }
+                }
+                if stem_too_long {
+                    continue;
                 }
                 let mut plan = Vec::new();
                 let mut explicit_names = Vec::new();

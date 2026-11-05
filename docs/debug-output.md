@@ -69,6 +69,13 @@ dynamic job addresses/PIDs. No compiler or native module is needed by these
 debug fixtures.
 The gate is wired into development, optimized and focused self-host flows.
 
+Eight implicit-stem profiles cover short relative names and the Linux stem
+limit. Implicit search counts the bytes of the stem plus any directory prefix
+ignored during matching. An overlong candidate is reported after the attempt
+and skipped before prerequisite expansion, including when debug output is off.
+The fixtures use bounded virtual names, preserving ordinary stat diagnostics
+and comparing the complete filesystem after each run.
+
 Automatic debug-triggered version headers are exact GNU protocol, including the
 pinned build identity. Only the case that explicitly requests `--version` with an
 invalid debug selection permits one fixed branding block. Its GNU calibration

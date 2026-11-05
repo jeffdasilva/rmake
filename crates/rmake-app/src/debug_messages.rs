@@ -51,6 +51,7 @@ keys! {
     LOOKING_ARCHIVE: c"Looking for archive-member implicit rule for '%s'.\n", [B];
     NO_ARCHIVE_RULE: c"No archive-member implicit rule found for '%s'.\n", [B];
     TRYING_RULE: c"Trying pattern rule '%s' with stem '%.*s'.\n", [B, P, B];
+    STEM_TOO_LONG: c"Stem too long: '%s%.*s'.\n", [B, P, B];
     TRYING_LITERAL: c"Trying rule prerequisite '%s'.\n", [B];
     TRYING_IMPLICIT: c"Trying implicit prerequisite '%s'.\n", [B];
     TRYING_HARDER: c"Trying harder.\n", [];

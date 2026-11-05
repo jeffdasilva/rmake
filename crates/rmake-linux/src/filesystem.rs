@@ -14,6 +14,9 @@ use rmake_core::variables::MAX_OUTPUT;
 use crate::stdio::Stream;
 use crate::{posix, wildcard::Wildcard};
 
+/// Path buffer size on the Linux process ABI, including the terminating NUL.
+pub const PATH_MAX: usize = 4096;
+
 type MissingReadObserver = dyn Fn(&[u8], &io::Error);
 
 #[derive(Default)]
@@ -102,13 +105,13 @@ fn execute_with(
         FilesystemEffect::Realpath(path) => {
             // GNU's Linux profile uses PATH_MAX-sized input/output buffers and
             // verifies the resolved path still exists. Failures omit this word.
-            if path.len() >= 4096 {
+            if path.len() >= PATH_MAX {
                 return Ok(Vec::new());
             }
             let Ok(path) = retry_interrupted(|| fs::canonicalize(OsStr::from_bytes(path))) else {
                 return Ok(Vec::new());
             };
-            if path.as_os_str().as_bytes().len() >= 4096
+            if path.as_os_str().as_bytes().len() >= PATH_MAX
                 || retry_interrupted(|| fs::metadata(&path)).is_err()
             {
                 return Ok(Vec::new());
