@@ -5631,6 +5631,9 @@ impl Engine {
         debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         let tracing = self.output.debug_mask().has(crate::debug::Mask::IMPLICIT);
+        // Both archive search phases match without ignoring any directory.
+        let trace_directory =
+            tracing && !archive_search && rmake_core::filenames::archive_parts(target).is_none();
         if tracing && !active.is_empty() {
             let mut blocked = active.clone();
             blocked.sort_unstable();
@@ -5679,7 +5682,7 @@ impl Engine {
                 // GNU's stem buffer holds PATH_MAX bytes plus the terminator.
                 let stem_too_long = stem.len() > rmake_linux::filesystem::PATH_MAX;
                 if let Some(label) = &debug_label {
-                    let directory = if !archive_search
+                    let directory = if trace_directory
                         && candidate
                             .rule
                             .implicit_pattern

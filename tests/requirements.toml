@@ -1922,3 +1922,13 @@ candidate_required = 10
 fixture_count = 10
 reference = "docs/rule-resolution.md"
 cases = ["implicit-trailing-slash-bare", "implicit-trailing-slash-debug-stem", "implicit-trailing-slash-deferred-prerequisite", "implicit-trailing-slash-directory", "implicit-trailing-slash-immediate-prerequisite", "implicit-trailing-slash-nested-directory", "implicit-trailing-slash-no-final-slash-control", "implicit-trailing-slash-secondary-expansion", "implicit-trailing-slash-slash-pattern-control", "implicit-trailing-slash-two-final-slashes-control"]
+
+[[requirements]]
+id = "debug.archive-implicit-stem"
+title = "Whole archive implicit stem diagnostics"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 7
+fixture_count = 7
+reference = "docs/debug-output.md"
+cases = ["debug-archive-implicit-stem-container-and-member-path", "debug-archive-implicit-stem-container-path", "debug-archive-implicit-stem-member-fallback-control", "debug-archive-implicit-stem-member-path", "debug-archive-implicit-stem-ordinary-control", "debug-archive-implicit-stem-quiet-control", "debug-archive-implicit-stem-slash-pattern-control"]

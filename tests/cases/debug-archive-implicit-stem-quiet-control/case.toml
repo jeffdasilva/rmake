@@ -1,0 +1,12 @@
+id = "debug-archive-implicit-stem-quiet-control"
+requirement = "debug.archive-implicit-stem"
+candidate = "required"
+description = "Report the full stem of a whole archive implicit match."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "virtual/lib.a(one.o)"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target=[virtual/lib.a] member=[one.o] stem=[virtual/lib]\n"
+stderr = ""
