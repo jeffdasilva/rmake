@@ -23,19 +23,25 @@ DATA = ROOT / "tests/nls"
 def cases(selection):
     data = json.loads((DATA / "models.json").read_bytes())
     structure = json.loads((DATA / "structure.json").read_bytes())
-    if len(data["rows"]) != 30 or len(structure["rows"]) != 16:
+    producers = json.loads((DATA / "producers.json").read_bytes())
+    if (len(data["rows"]), len(structure["rows"]), len(producers["rows"])) != (30, 16, 18):
         raise h.HarnessError("unexpected NLS model inventory")
-    rows = data["rows"] + structure["rows"]
+    rows = data["rows"] + structure["rows"] + producers["rows"]
     if len({row["id"] for row in rows}) != len(rows):
         raise h.HarnessError("duplicate NLS model ID")
-    if structure["reference_catalog_sha256"] != data["reference_catalog_sha256"]:
+    if any(suite["reference_catalog_sha256"] != data["reference_catalog_sha256"]
+           for suite in (structure, producers)):
         raise h.HarnessError("NLS catalog identity differs across suites")
     unknown = set(selection) - {row["id"] for row in rows}
     if unknown:
         raise h.HarnessError("unknown exact NLS IDs: " + ", ".join(sorted(unknown)))
-    fixtures = data["fixture_sha256"]
-    if set(fixtures) != {"nls_probe.c", "nls_control.c"}:
+    fixtures = {**data["fixture_sha256"]}
+    new_fixtures = producers["fixture_sha256"]
+    if set(fixtures) != {"nls_probe.c", "nls_control.c"} or set(new_fixtures) != {"nls_control.c", "producer_native.c"}:
         raise h.HarnessError("unexpected owned NLS source inventory")
+    if new_fixtures["nls_control.c"] != fixtures["nls_control.c"]:
+        raise h.HarnessError("shared NLS fixture identity differs")
+    fixtures["producer_native.c"] = new_fixtures["producer_native.c"]
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -87,6 +93,7 @@ def main(argv=None):
     native.SOURCES = DATA
     report = {"classification": data["classification"], "models_sha256": h.sha256_file(DATA / "models.json"),
               "structure_sha256": h.sha256_file(DATA / "structure.json"),
+              "producer_sha256": h.sha256_file(DATA / "producers.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},

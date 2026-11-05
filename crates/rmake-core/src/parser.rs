@@ -2668,11 +2668,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        format!(
-                            "extraneous text after '{}' directive",
-                            String::from_utf8_lossy(keyword)
-                        )
-                        .into(),
+                        Diagnostic::system(Message::DirectiveTail(keyword)),
                     );
                 }
                 return Ok(Some(
@@ -3471,7 +3467,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        "extraneous text after 'else' directive".into(),
+                        Diagnostic::system(Message::DirectiveTail(b"else")),
                     );
                     top.otherwise = true;
                     eligible
@@ -3492,7 +3488,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        "extraneous text after 'endif' directive".into(),
+                        Diagnostic::system(Message::DirectiveTail(b"endif")),
                     );
                 }
                 continue;
@@ -3532,7 +3528,7 @@ impl Database {
                             &mut self.warnings,
                             context,
                             location.clone(),
-                            "extraneous text after 'define' directive".into(),
+                            Diagnostic::system(Message::DefineTail),
                         );
                     }
                     let (raw_name, kind) = spec.map_or((header, Assignment::Recursive), |spec| {
@@ -3625,7 +3621,7 @@ impl Database {
                                         file: source_name.clone(),
                                         line: part.end_line,
                                     },
-                                    "extraneous text after 'endef' directive".into(),
+                                    Diagnostic::system(Message::EndefTail),
                                 );
                             }
                             depth -= 1;
@@ -4002,18 +3998,14 @@ impl Database {
                 let pattern_text = crate::filenames::target_colons(&prereqs[..second]);
                 let patterns: Vec<_> = crate::filenames::words(&pattern_text).collect();
                 if patterns.len() != 1 || !Pattern::new(&patterns[0]).has_wildcard() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: if patterns.is_empty() {
-                            "missing target pattern"
-                        } else if patterns.len() > 1 {
-                            "multiple target patterns"
-                        } else {
-                            "target pattern contains no '%'"
-                        }
-                        .into(),
-                    });
+                    let message = if patterns.is_empty() {
+                        Message::MissingTargetPattern
+                    } else if patterns.len() > 1 {
+                        Message::MultipleTargetPatterns
+                    } else {
+                        Message::TargetPatternWithoutPercent
+                    };
+                    return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);
                 prereqs = &prereqs[second + 1..];

@@ -98,3 +98,18 @@ private French messages in a joined worker and preservation of that locale
 through fatal diagnostics and finalizers. The default profile retains the
 restart, stdin, database, and native-module behaviors covered by their
 existing gates.
+
+## Scheduler, parser, and file arguments
+
+The diagnostic gate also covers the up-to-date summary, cycle drops,
+static-pattern errors, and warnings about text after directives. The
+`file` function reports typed argument errors for a missing name, an
+extra read argument, or an invalid operation. The tests check source lines,
+side effects, and raw bytes in target names and operation arguments. User and
+native error text can match a catalog message ID byte for byte and still
+retain its original text.
+
+These 18 cases extend `test-nls` and `test-nls-release` to 64 diagnostic
+profiles. Their literal expectations use translations from the pinned
+compiled catalog. The 17 directory profiles run through the separate
+directory gate.

@@ -43,10 +43,21 @@ pub enum MessageId {
     LeaveUnknownDirectoryAtDepth,
     OsError,
     NothingToBeDone,
+    UpToDate,
+    CircularDependency,
+    MissingTargetPattern,
+    MultipleTargetPatterns,
+    TargetPatternWithoutPercent,
+    DirectiveTail,
+    DefineTail,
+    EndefTail,
+    MissingFileName,
+    ExtraFileArgument,
+    InvalidFileOperation,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 47] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -83,6 +94,17 @@ impl MessageId {
         Self::LeaveUnknownDirectoryAtDepth,
         Self::OsError,
         Self::NothingToBeDone,
+        Self::UpToDate,
+        Self::CircularDependency,
+        Self::MissingTargetPattern,
+        Self::MultipleTargetPatterns,
+        Self::TargetPatternWithoutPercent,
+        Self::DirectiveTail,
+        Self::DefineTail,
+        Self::EndefTail,
+        Self::MissingFileName,
+        Self::ExtraFileArgument,
+        Self::InvalidFileOperation,
     ];
     pub fn sample(self) -> Message<'static> {
         match self {
@@ -172,6 +194,20 @@ impl MessageId {
             },
             Self::OsError => Message::GetcwdError(b"File not found"),
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
+            Self::UpToDate => Message::UpToDate(b"target"),
+            Self::CircularDependency => Message::CircularDependency {
+                target: b"target",
+                prerequisite: b"input",
+            },
+            Self::MissingTargetPattern => Message::MissingTargetPattern,
+            Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
+            Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
+            Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
+            Self::DefineTail => Message::DefineTail,
+            Self::EndefTail => Message::EndefTail,
+            Self::MissingFileName => Message::MissingFileName,
+            Self::ExtraFileArgument => Message::ExtraFileArgument,
+            Self::InvalidFileOperation => Message::InvalidFileOperation(b"invalid"),
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -218,6 +254,17 @@ impl MessageId {
             Self::LeaveUnknownDirectoryAtDepth => c"%s[%u]: Leaving an unknown directory\n",
             Self::OsError => c"%s%s: %s",
             Self::NothingToBeDone => c"Nothing to be done for '%s'.",
+            Self::UpToDate => c"'%s' is up to date.",
+            Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
+            Self::MissingTargetPattern => c"missing target pattern",
+            Self::MultipleTargetPatterns => c"multiple target patterns",
+            Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
+            Self::DirectiveTail => c"extraneous text after '%s' directive",
+            Self::DefineTail => c"extraneous text after 'define' directive",
+            Self::EndefTail => c"extraneous text after 'endef' directive",
+            Self::MissingFileName => c"file: missing filename",
+            Self::ExtraFileArgument => c"file: too many arguments",
+            Self::InvalidFileOperation => c"file: invalid file operation: %s",
         }
     }
 }
@@ -314,6 +361,20 @@ pub enum Message<'a> {
     },
     GetcwdError(&'a [u8]),
     NothingToBeDone(&'a [u8]),
+    UpToDate(&'a [u8]),
+    CircularDependency {
+        target: &'a [u8],
+        prerequisite: &'a [u8],
+    },
+    MissingTargetPattern,
+    MultipleTargetPatterns,
+    TargetPatternWithoutPercent,
+    DirectiveTail(&'a [u8]),
+    DefineTail,
+    EndefTail,
+    MissingFileName,
+    ExtraFileArgument,
+    InvalidFileOperation(&'a [u8]),
 }
 impl<'a> Message<'a> {
     pub fn id(self) -> MessageId {
@@ -389,6 +450,17 @@ impl<'a> Message<'a> {
             },
             Self::GetcwdError(_) => MessageId::OsError,
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
+            Self::UpToDate(_) => MessageId::UpToDate,
+            Self::CircularDependency { .. } => MessageId::CircularDependency,
+            Self::MissingTargetPattern => MessageId::MissingTargetPattern,
+            Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
+            Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
+            Self::DirectiveTail(_) => MessageId::DirectiveTail,
+            Self::DefineTail => MessageId::DefineTail,
+            Self::EndefTail => MessageId::EndefTail,
+            Self::MissingFileName => MessageId::MissingFileName,
+            Self::ExtraFileArgument => MessageId::ExtraFileArgument,
+            Self::InvalidFileOperation(_) => MessageId::InvalidFileOperation,
         }
     }
     fn arguments(self) -> ([Argument<'a>; 6], usize) {
@@ -409,11 +481,28 @@ impl<'a> Message<'a> {
             | Self::MissingEndif
             | Self::EmptyVariableName
             | Self::MissingEndef
-            | Self::UnterminatedReference => {}
+            | Self::UnterminatedReference
+            | Self::MissingTargetPattern
+            | Self::MultipleTargetPatterns
+            | Self::TargetPatternWithoutPercent
+            | Self::DefineTail
+            | Self::EndefTail
+            | Self::MissingFileName
+            | Self::ExtraFileArgument => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
-            | Self::NothingToBeDone(name) => {
+            | Self::NothingToBeDone(name)
+            | Self::UpToDate(name)
+            | Self::DirectiveTail(name)
+            | Self::InvalidFileOperation(name) => {
                 push(Argument::Bytes(name));
+            }
+            Self::CircularDependency {
+                target,
+                prerequisite,
+            } => {
+                push(Argument::Bytes(target));
+                push(Argument::Bytes(prerequisite));
             }
             Self::Directory {
                 program,
@@ -886,6 +975,20 @@ mod user_error_boundary {
             )
             .unwrap_err();
         assert_eq!(direct.diagnostic().as_bytes(), b"text");
+    }
+
+    #[test]
+    fn raw_file_error_keeps_text_that_matches_a_system_message() {
+        let raw = b"file: missing filename";
+        let error = crate::variables::ExpandError::FileError(raw.to_vec());
+        let diagnostic = ExpansionContext::with_receiver(None, &mut Receiver)
+            .freeze_error(error)
+            .diagnostic();
+        assert_eq!(diagnostic.as_bytes(), raw);
+        assert_eq!(
+            diagnostic.frozen_stop(),
+            Some(b" private-stop\n".as_slice())
+        );
     }
 }
 

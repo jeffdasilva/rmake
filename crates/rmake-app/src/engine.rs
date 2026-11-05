@@ -1646,6 +1646,15 @@ impl Engine {
             .write_parts(true, &[&self.program, b": ", body, b"\n"]);
     }
 
+    fn warn_circular_dependency(&self, target: &[u8], prerequisite: &[u8]) {
+        self.stderr(&crate::messages::system(
+            rmake_core::messages::Message::CircularDependency {
+                target,
+                prerequisite,
+            },
+        ));
+    }
+
     fn stdout(&self, body: &[u8]) {
         self.output.write_parts(false, &[body, b"\n"]);
     }
@@ -2884,11 +2893,12 @@ impl Engine {
                 return;
             }
             let goal = reported_goal;
-            let body = if has_recipe {
-                [b"'".as_slice(), goal, b"' is up to date."].concat()
+            let message = if has_recipe {
+                rmake_core::messages::Message::UpToDate(goal)
             } else {
-                crate::messages::system(rmake_core::messages::Message::NothingToBeDone(goal))
+                rmake_core::messages::Message::NothingToBeDone(goal)
             };
+            let body = crate::messages::system(message);
             self.stdout(&[self.program.as_slice(), b": ", &body].concat());
         }
     }
@@ -3244,16 +3254,7 @@ impl Engine {
                 continue;
             }
             if self.visiting.contains(&dep.name) {
-                self.stderr(
-                    &[
-                        b"Circular ".as_slice(),
-                        target,
-                        b" <- ",
-                        &dep.name,
-                        b" dependency dropped.",
-                    ]
-                    .concat(),
-                );
+                self.warn_circular_dependency(target, &dep.name);
                 rule.dependencies.remove(index);
                 self.shuffle.discard(target, index);
                 if !order.is_empty() {
@@ -6422,16 +6423,7 @@ impl Engine {
                         .get_or_insert_with(Default::default)
                         .insert(state.next - 1);
                 }
-                self.stderr(
-                    &[
-                        b"Circular ".as_slice(),
-                        target,
-                        b" <- ",
-                        dependency,
-                        b" dependency dropped.",
-                    ]
-                    .concat(),
-                );
+                self.warn_circular_dependency(target, dependency);
                 if let Some((_, owner, ordinal)) = state.group.as_ref().and_then(|group| {
                     group
                         .peer_segments
