@@ -28,6 +28,10 @@ Five public bridge controls cover shell status in the reader, a `foreach` scope,
 and a target recipe. They also cover missing-file diagnostics during target
 output synchronization in the reader and a serialized recipe.
 
+The public `gmk-var` binding is a one-argument Scheme procedure in `(gnu make)`.
+It selects that module's expansion and formatting procedures before converting
+the variable name. A rebind during conversion affects the next call.
+
 Run `make test-guile-frontend` to verify the private SDK and enabled reference,
 build separate Cargo profiles, run workspace tests and Clippy, compare both
 build modes and drive core checks through each enabled executable. Reports are
