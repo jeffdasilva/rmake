@@ -50,6 +50,8 @@ impl NativeExit {
                 engine.prepare_native_exit();
                 if let Some(exit) = &mut engine.native_exit_override {
                     exit.prepare();
+                } else {
+                    engine.print_database();
                 }
             }
         }
@@ -76,6 +78,7 @@ pub struct Host {
     pub(super) reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
     pub(super) construction: Option<crate::output::Construction>,
     pub(super) restore_directory: Option<std::path::PathBuf>,
+    pub(super) database_dumped: Cell<bool>,
 }
 impl Host {
     fn evaluate<T>(
@@ -116,12 +119,16 @@ impl Host {
         {
             buffer.dump();
         }
+        database_output::print_startup(self);
     }
 
     fn finish(&mut self, mut status: u8) -> u8 {
         self.output.process_lifetime().finish();
         if let Some(directory) = self.restore_directory.take() {
             let _ = std::env::set_current_dir(directory);
+        }
+        if !crate::native::has_modules() {
+            return status;
         }
         loop {
             let result = self.evaluate(|database, mut context| {

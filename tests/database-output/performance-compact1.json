@@ -1,0 +1,7 @@
+{
+  "classification": "Serialized firstcompact DB default-cost experiment; predates later single-pass lookup/dead-key/timestamp improvements and numeric fixes; no final acceptance",
+  "sha256": "63c9c0c1093cb97809cb6251a2e373c0854f93fef0d34f80a5b9777fb0a6cd1c",
+  "raw_sha256": "b9f771baf016ee7a04e0b4b3a19b8a17bd9f2a6b02548a3dddde8ee0c4452003",
+  "raw_bytes": 4239445,
+  "gzip_bytes": 633469
+}

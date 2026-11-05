@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct FileRecords {
+    database_history: Option<crate::database::History>,
     // None is unused; an empty owned name is a deletion marker. Make filenames
     // are nonempty. Keeping tombstones preserves collision chains on renaming.
     slots: Vec<Option<Box<[u8]>>>,
@@ -21,6 +22,7 @@ pub struct FileRecords {
 impl Default for FileRecords {
     fn default() -> Self {
         Self {
+            database_history: None,
             slots: vec![None; 1024],
             live: 0,
             empty: 1024,
@@ -30,6 +32,10 @@ impl Default for FileRecords {
 }
 
 impl FileRecords {
+    pub(crate) fn enable_database_history(&mut self, history: crate::database::History) {
+        self.database_history = Some(history);
+    }
+
     fn position(&self, name: &[u8]) -> (usize, bool) {
         let mask = self.slots.len() - 1;
         let mut position = fingerprint(name) as usize & mask;
@@ -51,9 +57,40 @@ impl FileRecords {
         !name.is_empty() && self.position(name).1
     }
 
+    /// GNU prerequisite binding observes the existing file first and enters
+    /// a new record only when absent. A found builtin retains its origin.
+    pub fn enter_prerequisite(&mut self, name: &[u8]) {
+        if name.is_empty() {
+            return;
+        }
+        if let Some(history) = &self.database_history {
+            history.record_file_lookup(name);
+        }
+        if !self.contains(name) {
+            self.insert(name);
+        }
+    }
+
+    /// Install a declarative default without turning an existing explicit
+    /// user's record back into a builtin. Ordinary enters clear that origin.
+    pub fn insert_builtin(&mut self, name: &[u8]) {
+        let explicit = self.contains(name)
+            && self
+                .database_history
+                .as_ref()
+                .is_some_and(|history| !history.is_builtin_file(name));
+        self.insert(name);
+        if !explicit && let Some(history) = &self.database_history {
+            history.mark_file_builtin(name);
+        }
+    }
+
     pub fn insert(&mut self, name: &[u8]) {
         if name.is_empty() {
             return;
+        }
+        if let Some(history) = &self.database_history {
+            history.record_file_enter(name);
         }
         let (position, found) = self.position(name);
         if found {
@@ -73,12 +110,19 @@ impl FileRecords {
             let previous = std::mem::replace(&mut self.slots, vec![None; size]);
             self.empty = size;
             self.live = 0;
+            // Existing owned keys can move without allocating new names.
+            // This is physical placement only: the logical history already
+            // recorded its own growth at the original insertion boundary.
             for name in previous
                 .into_iter()
                 .flatten()
                 .filter(|name| !name.is_empty())
             {
-                self.insert(&name);
+                let (position, found) = self.position(&name);
+                debug_assert!(!found);
+                self.slots[position] = Some(name);
+                self.empty -= 1;
+                self.live += 1;
             }
         }
     }
@@ -101,6 +145,9 @@ impl FileRecords {
     fn move_key(&mut self, from: &[u8], to: &[u8]) {
         let (position, found) = self.position(from);
         if found {
+            if let Some(history) = &self.database_history {
+                history.record_file_remove(from);
+            }
             self.slots[position] = Some(Box::default());
             self.live -= 1;
         }
@@ -198,7 +245,7 @@ pub fn traversal_order(names: &[&[u8]], initial: usize) -> Option<Vec<usize>> {
     Some(slots)
 }
 
-fn fingerprint(name: &[u8]) -> u32 {
+pub(crate) fn fingerprint(name: &[u8]) -> u32 {
     let mut lanes = [0xdead_beef_u32; 3];
     let mut offset = 0;
     loop {
@@ -234,6 +281,23 @@ fn fingerprint(name: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filename_moves_and_merges_retire_the_actual_logical_key() {
+        let history = crate::database::History::default();
+        let mut records = FileRecords::default();
+        records.enable_database_history(history.clone());
+        records.insert(b"alpha");
+        records.rehash(b"alpha", b"beta");
+        assert_eq!(history.file_stats().filled, 1);
+        assert_eq!(history.file_stats().lookups, 3); // enter, remove, enter
+        assert_eq!(records.names().collect::<Vec<_>>(), [b"alpha"]);
+        records.insert(b"gamma");
+        records.rename(b"alpha", b"gamma");
+        assert_eq!(records.names().collect::<Vec<_>>(), [b"gamma"]);
+        assert_eq!(history.file_stats().filled, records.names().count());
+        assert_eq!(history.file_stats().lookups, 6);
+    }
 
     #[test]
     fn directory_traversal_preserves_raw_equal_collation_keys_across_growth() {

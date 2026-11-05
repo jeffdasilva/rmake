@@ -56,7 +56,7 @@ fn main() -> ExitCode {
         Ok(launch) => match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
             Ok(mut engine) => {
                 let status = engine.run_retained();
-                let exit = if crate::native::has_modules() {
+                let exit = if engine.requires_retained_exit() {
                     Some(Box::new(engine::NativeExit::Engine(Box::new(engine))))
                 } else {
                     None
@@ -108,6 +108,7 @@ pub(crate) fn print_requested_exit(options: &cli::Options) -> bool {
         println!("  -f FILE    Read the specified Makefile (may be repeated)");
         println!("  -E STRING  Evaluate Makefile text before reading files (--eval)");
         println!("  --trace    Print rebuild reasons and recipe commands");
+        println!("  -p         Print the Make database (--print-data-base)");
         println!("  --warn-undefined-variables  Diagnose missing variable references");
         println!("  -C DIR     Change directory before reading Makefiles");
         println!("  -w / --no-print-directory  Enable / suppress directory reports");

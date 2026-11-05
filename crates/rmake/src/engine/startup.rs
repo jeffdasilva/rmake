@@ -69,6 +69,9 @@ pub(super) fn include_metadata(
         .define_literal(b".INCLUDE_DIRS", b"", Origin::Default)
         .map_err(StartupError::expansion)?;
     for directory in search.borrow().directories() {
+        if let Some(history) = database.database_history() {
+            history.intern(directory);
+        }
         evaluate(database, &runtime, |database, context| {
             database.define_variable_with(
                 rmake_core::parser::AssignmentSpec {

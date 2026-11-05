@@ -20,9 +20,21 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    pub fn set_database_history(&mut self, history: rmake_core::database::History) {
+        self.wildcard.set_database_history(history);
+    }
+
     /// The same boundary expires both directory data and failed rule searches.
     pub fn generation(&self) -> u64 {
         self.wildcard.generation()
+    }
+
+    /// Existing directory cache facts only; no new stat, stream read or lookup.
+    /// The engine supplies GNU logical traversal and impossible-file history.
+    pub fn database_directories(
+        &self,
+    ) -> impl Iterator<Item = crate::wildcard::DirectoryObservation<'_>> {
+        self.wildcard.database_directories()
     }
 
     /// Rule searches share directory membership with wildcard queries. This
@@ -73,6 +85,7 @@ fn execute_with(
                 home
             }))
         }
+        FilesystemEffect::DirectoryName(path) => wildcard.directory_name(path),
         FilesystemEffect::Realpath(path) => {
             // GNU's Linux profile uses PATH_MAX-sized input/output buffers and
             // verifies the resolved path still exists. Failures omit this word.

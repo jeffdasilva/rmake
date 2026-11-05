@@ -17,6 +17,15 @@ unsafe extern "C" {
     fn getloadavg(values: *mut f64, count: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
+    fn _exit(status: c_int) -> !;
+}
+
+/// Terminate after an unsuccessful self-exec, without running C/native
+/// finalizers or Rust owners. The caller flushes streams and retires published
+/// temporary-source ownership before selecting this process boundary.
+pub fn exit_immediately(status: i32) -> ! {
+    // SAFETY: _exit has no pointer arguments and never returns to Rust frames.
+    unsafe { _exit(status) }
 }
 
 /// Parallel commands without the input lease receive a pipe with no writers.

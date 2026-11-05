@@ -1,0 +1,7 @@
+{
+  "classification": "HashMap-only physical binding selection history before search/locale dependency integration;27766 ordinary cases pass;637Rust/706tools after actual search fix; earlier renderer unit regression retained; no final-head acceptance/performance or fullM3/M6 claim",
+  "sha256": "62a0e72e90b301cadb474dfb9be1607b8abc2f4241cbf23ec283afa3964c8284",
+  "raw_sha256": "c07cde481fd7b204de8ae5fb35e07f3a68bfb92c9ece81d1780b76d5c9e11dfc",
+  "raw_bytes": 7292045,
+  "gzip_bytes": 668197
+}
