@@ -213,7 +213,7 @@ help:
 		'Directory reporting replay: DIRECTORY_REPORT_CASE=<case ID>.' \
 		'Debug replay: DEBUG_CASE=<case ID>.' \
 		'Implicit search replay: DEBUG_TRAVERSAL_CASE=<case ID>.' \
-		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2.' \
+		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14.' \
 		'Database replay: DATABASE_CASE=<case ID>; DATABASE_SEARCH_CASE=<search case ID>.' \
 		'Locale replay: LOCALE_CASE=<case ID>.' \
 		'JOBS replay: JOB_DEBUG_CASE=<case ID>.' \
