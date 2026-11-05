@@ -60,8 +60,8 @@ impl NativeHost for Host {
         true
     }
 }
-#[test]
-fn independent_runtimes_pin_active_code_and_alias_records_do_not_own_handles() {
+#[cfg_attr(all(test, not(feature = "guile")), test)]
+pub(super) fn independent_runtimes_pin_active_code_and_alias_records_do_not_own_handles() {
     let temp = std::env::temp_dir().join(format!(
         "rmake-native-host-safety-{}-{}",
         std::process::id(),
@@ -192,10 +192,13 @@ int rmake_retry_unit_gmk_setup(const struct Place *location){(void)location;if(a
                 line: 1,
             };
             match runtime.load(&name, false, &location, &mut host) {
-                Err(error) => error
-                    .diagnostic()
-                    .as_bytes()
-                    .ends_with(b"require the process interpreter thread"),
+                Err(error) => {
+                    #[cfg(not(feature = "guile"))]
+                    let suffix = b"require the process interpreter thread".as_slice();
+                    #[cfg(feature = "guile")]
+                    let suffix = b"require the leading-C dispatcher".as_slice();
+                    error.diagnostic().as_bytes().ends_with(suffix)
+                }
                 Ok(_) => false,
             }
         })

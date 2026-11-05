@@ -12,15 +12,18 @@ local user. The archive is checked before any extracted code is executed.
 from __future__ import annotations
 
 import argparse
+import errno
 import contextlib
 import fcntl
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
+import socket
 import signal
 import subprocess
 import sys
@@ -148,6 +151,33 @@ def verify_archive(path: Path, expected: str) -> None:
         raise OracleError(f"archive SHA256 mismatch for {path}: expected {expected}, got {actual}; archive was not executed")
 
 
+DOWNLOAD_ERRORS = (OSError, http.client.IncompleteRead)
+
+
+def transient_download_error(error: BaseException) -> bool:
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in (408, 429, 500, 502, 503, 504)
+    if isinstance(error, urllib.error.URLError):
+        error = error.reason
+    return isinstance(error, (TimeoutError, ConnectionError, http.client.IncompleteRead)) or (
+        isinstance(error, socket.gaierror) and error.errno == socket.EAI_AGAIN
+    ) or (isinstance(error, OSError) and error.errno in (
+        errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ETIMEDOUT,
+    ))
+
+
+def retry_download(attempt):
+    """Retry bounded transport failures; callers still verify every archive."""
+    for delay in (1, 2, 0):
+        try:
+            return attempt()
+        except DOWNLOAD_ERRORS as error:
+            if not delay or not transient_download_error(error):
+                raise
+            time.sleep(delay)
+    raise AssertionError("three attempts must return or raise")
+
+
 def download_archive(config: dict, directory: Path) -> Path:
     archive = config["archive"]
     directory.mkdir(parents=True, exist_ok=True)
@@ -157,29 +187,34 @@ def download_archive(config: dict, directory: Path) -> Path:
         return destination
     opener = urllib.request.build_opener(HTTPSRedirectsOnly())
     request = urllib.request.Request(archive["url"], headers={"User-Agent": "rmake-oracle-bootstrap/1"})
-    temporary = None
+
+    def attempt() -> None:
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=directory, prefix=".download-", delete=False) as output:
+                temporary = Path(output.name)
+                started = time.monotonic()
+                size = 0
+                with opener.open(request, timeout=30) as response:
+                    if urllib.parse.urlsplit(response.url).scheme != "https":
+                        raise OracleError("archive response did not use HTTPS")
+                    while chunk := response.read(64 * 1024):
+                        size += len(chunk)
+                        if size > archive["max_download_bytes"]:
+                            raise OracleError("archive exceeds configured download size limit")
+                        if time.monotonic() - started > 120:
+                            raise OracleError("archive download exceeded 120s")
+                        output.write(chunk)
+            verify_archive(temporary, archive["sha256"])
+            os.replace(temporary, destination)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
     try:
-        with tempfile.NamedTemporaryFile(dir=directory, prefix=".download-", delete=False) as output:
-            temporary = Path(output.name)
-            started = time.monotonic()
-            size = 0
-            with opener.open(request, timeout=30) as response:
-                if urllib.parse.urlsplit(response.url).scheme != "https":
-                    raise OracleError("archive response did not use HTTPS")
-                while chunk := response.read(64 * 1024):
-                    size += len(chunk)
-                    if size > archive["max_download_bytes"]:
-                        raise OracleError("archive exceeds configured download size limit")
-                    if time.monotonic() - started > 120:
-                        raise OracleError("archive download exceeded 120s")
-                    output.write(chunk)
-        verify_archive(temporary, archive["sha256"])
-        os.replace(temporary, destination)
-    except (OSError, urllib.error.URLError) as error:
+        retry_download(attempt)
+    except DOWNLOAD_ERRORS as error:
         raise OracleError(f"archive download failed: {error}") from error
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
     return destination
 
 

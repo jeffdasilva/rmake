@@ -12,6 +12,7 @@ use std::rc::Rc;
 unsafe extern "C" {
     fn rg_dispatch_run(entry: unsafe extern "C" fn(*mut c_void), data: *mut c_void) -> c_int;
     fn rg_dispatch_on_host() -> c_int;
+    fn rg_dispatch_abort() -> !;
     fn rg_guile_initialized() -> c_int;
     fn rg_guile_component_signal(number: c_int);
     fn rg_guile_notify_signal(number: c_int);
@@ -36,6 +37,14 @@ pub fn pending_signal() -> Option<i32> {
         0 => None,
         number => Some(number),
     }
+}
+
+/// Terminate immediately without unwinding a retained private host stack or
+/// invoking foreign finalizers. A privileged application entry uses this from
+/// its panic hook before any interpreter context can be destroyed.
+pub fn abort_host() -> ! {
+    // SAFETY: this fail-stop path has no thread or initialization precondition.
+    unsafe { rg_dispatch_abort() }
 }
 
 /// Enter a private Rust host stack while C retains the ordinary leading stack.

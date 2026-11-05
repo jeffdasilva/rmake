@@ -64,3 +64,6 @@ pub mod database_numeric;
 #[cfg(feature = "guile")]
 #[allow(unsafe_code)]
 pub mod guile;
+
+#[allow(unsafe_code)]
+pub mod messages;

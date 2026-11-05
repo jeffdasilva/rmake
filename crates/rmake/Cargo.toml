@@ -8,9 +8,24 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+guile = ["rmake-app/guile", "rmake-linux/guile"]
+
 [dependencies]
-rmake-core = { path = "../rmake-core" }
+rmake-app = { path = "../rmake-app" }
 rmake-linux = { path = "../rmake-linux" }
 
-[lints]
-workspace = true
+# Only this process bootstrap owns the reviewed foreign-stack entry.
+[lints.rust]
+unsafe_code = "deny"
+
+[dev-dependencies]
+rmake-core = { path = "../rmake-core" }
+rmake-app = { path = "../rmake-app", features = ["test-support"] }
+
+[[test]]
+name = "native_entry"
+path = "tests/native_entry.rs"
+harness = false
+required-features = ["guile"]

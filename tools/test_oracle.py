@@ -3,6 +3,8 @@
 """Original tests for provenance, archive safety and reference identity checks."""
 
 import copy
+import errno
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -12,9 +14,58 @@ import tarfile
 import tempfile
 import time
 import unittest
+import urllib.error
 from unittest import mock
 
 import oracle
+
+
+class DownloadTests(unittest.TestCase):
+    class Response(io.BytesIO):
+        url = "https://example.invalid/verified.tar.gz"
+
+    def configuration(self, data):
+        config = oracle.load_config()
+        config["archive"]["sha256"] = hashlib.sha256(data).hexdigest()
+        return config
+
+    def test_retries_network_unreachable_and_commits_only_verified_bytes(self):
+        expected = b"verified reference archive"
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+                oracle.urllib.request, "build_opener") as opener, mock.patch.object(oracle.time, "sleep") as sleep:
+            cache = Path(temporary)
+            transport = opener.return_value.open
+            transport.side_effect = [urllib.error.URLError(OSError(errno.ENETUNREACH, "network unreachable")),
+                                     self.Response(expected)]
+            path = oracle.download_archive(self.configuration(expected), cache)
+            self.assertEqual(path.read_bytes(), expected)
+            self.assertEqual(list(cache.iterdir()), [path])
+            self.assertEqual(transport.call_count, 2)
+            sleep.assert_called_once_with(1)
+
+    def test_integrity_failure_is_not_retried_or_published(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+                oracle.urllib.request, "build_opener") as opener, mock.patch.object(oracle.time, "sleep") as sleep:
+            cache = Path(temporary)
+            transport = opener.return_value.open
+            transport.side_effect = [self.Response(b"unexpected data"), self.Response(b"verified")]
+            with self.assertRaisesRegex(oracle.OracleError, "SHA256 mismatch"):
+                oracle.download_archive(self.configuration(b"verified"), cache)
+            self.assertEqual(list(cache.iterdir()), [])
+            transport.assert_called_once()
+            sleep.assert_not_called()
+
+    def test_transport_retries_stop_after_three_attempts(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+                oracle.urllib.request, "build_opener") as opener, mock.patch.object(oracle.time, "sleep") as sleep:
+            cache = Path(temporary)
+            transport = opener.return_value.open
+            transport.side_effect = TimeoutError("pinned source timed out")
+            with self.assertRaisesRegex(oracle.OracleError, "archive download failed"):
+                oracle.download_archive(self.configuration(b"verified"), cache)
+            self.assertEqual(transport.call_count, 3)
+            self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+            self.assertEqual(list(cache.iterdir()), [])
 
 
 class ArchiveTests(unittest.TestCase):
