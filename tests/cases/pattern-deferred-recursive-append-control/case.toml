@@ -1,0 +1,11 @@
+id = "pattern-deferred-recursive-append-control"
+requirement = "scope.pattern-specific"
+candidate = "required"
+provenance = "Original rmake fixture for GNU 4.4.1 activation order."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read=[before]\nvalue=[head updated] raw=[head $(eval SEED := updated)$(SEED)] seed=[updated] extra=[]\n"
+stderr = ""

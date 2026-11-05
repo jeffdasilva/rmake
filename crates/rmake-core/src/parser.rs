@@ -555,8 +555,8 @@ impl Database {
         while let Some(index) = matching.pop() {
             let scope = pattern_scope.get_or_insert_with(TargetScope::default);
             let prepared = &self.pattern_assignments[index].variable;
-            let aliases_global = if prepared.uses_shell() {
-                // A deferred shell expression may reenter the reader and add
+            let aliases_global = if prepared.needs_database_expansion(scope) {
+                // A deferred expression can reenter the reader and add
                 // pattern declarations. Keep the current binding independent
                 // of storage that can grow during that expansion.
                 let prepared = prepared.clone();
@@ -566,10 +566,15 @@ impl Database {
                     &mut globals,
                     &prepared,
                     context.reborrow(),
-                    |globals, scope, bytes, _, context| {
+                    |globals, scope, bytes, shell, context| {
                         std::mem::swap(globals, &mut self.variables);
-                        let result =
-                            crate::variables::shell_scoped_database(self, scope, bytes, context);
+                        let result = if shell {
+                            crate::variables::shell_scoped_database(self, scope, bytes, context)
+                        } else {
+                            crate::variables::expand_scoped_database::<false>(
+                                self, scope, bytes, context,
+                            )
+                        };
                         std::mem::swap(globals, &mut self.variables);
                         result
                     },
