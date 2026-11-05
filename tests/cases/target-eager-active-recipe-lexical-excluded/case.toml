@@ -1,0 +1,12 @@
+id = "target-eager-active-recipe-lexical-excluded"
+requirement = "scope.target-eager-active"
+candidate = "required"
+description = "Read an eager target declaration in its existing file scope."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "result=[inherited|child]\n"
+stderr = ""

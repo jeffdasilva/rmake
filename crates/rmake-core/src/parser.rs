@@ -2793,18 +2793,30 @@ impl Database {
         } else {
             crate::variables::DeclarationLexical::default()
         };
-        scope.add_declaration_lexical(&global_lexical);
+        let mut previous_scope = self.evaluation_scope.take();
+        let mut active_read = previous_scope
+            .as_ref()
+            .and_then(|caller| caller.active_target_read(target, scope));
+        let read = if let Some(read) = active_read.as_mut() {
+            read.refresh_globals(&self.variables);
+            read
+        } else {
+            scope.add_declaration_lexical(&global_lexical);
+            &mut *scope
+        };
         let parent = self.target_read.replace(TargetRead {
             target: target.to_vec(),
             global_lexical,
         });
-        let previous_scope = self.evaluation_scope.take();
         let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
         let result = if shell {
-            crate::variables::shell_scoped_database(self, scope, bytes, context)
+            crate::variables::shell_scoped_database(self, read, bytes, context)
         } else {
-            crate::variables::expand_scoped_database::<false>(self, scope, bytes, context)
+            crate::variables::expand_scoped_database::<false>(self, read, bytes, context)
         };
+        if let Some(read) = active_read {
+            scope.finish_active_target_read(read, previous_scope.as_mut().expect("active caller"));
+        }
         if owns_reader_lexical {
             self.target_read
                 .as_ref()
