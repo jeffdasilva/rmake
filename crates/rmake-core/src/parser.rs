@@ -2534,18 +2534,42 @@ impl Database {
                 history.intern(target);
             }
             self.file_records.enter_prerequisite(target);
-            let scope = self.target_scopes.entry(target.to_vec()).or_default();
-            let parse_variables = scope.context(&self.variables);
-            let name = parse_variables
-                .expand_with(assignment.spec.name, context.at(Some(location)))
-                .map_err(|error| ParseError {
-                    unlocated: error.is_unlocated(),
-                    location: error
-                        .diagnostic_location(Some(location))
-                        .unwrap_or(location)
-                        .clone(),
-                    message: error.diagnostic(),
-                })?;
+            let raw_name = assignment.spec.name;
+            let (scope, name) = if raw_name.contains(&b'$') {
+                let mut parse_variables = self
+                    .target_scopes
+                    .entry(target.to_vec())
+                    .or_default()
+                    .context(&self.variables);
+                let name = self.expand_target_read(
+                    target,
+                    &mut parse_variables,
+                    raw_name,
+                    context.at(Some(location)),
+                );
+                // The name may have changed this target's own table. Finish
+                // those effects before selecting the RHS definition owner.
+                let scope = self
+                    .target_scopes
+                    .get_mut(target)
+                    .expect("target declaration");
+                scope.retain_read_bindings(&parse_variables);
+                (scope, name)
+            } else {
+                let scope = self.target_scopes.entry(target.to_vec()).or_default();
+                let name = scope
+                    .context(&self.variables)
+                    .expand_with(raw_name, context.at(Some(location)));
+                (scope, name)
+            };
+            let name = name.map_err(|error| ParseError {
+                unlocated: error.is_unlocated(),
+                location: error
+                    .diagnostic_location(Some(location))
+                    .unwrap_or(location)
+                    .clone(),
+                message: error.diagnostic(),
+            })?;
             if name.is_empty() {
                 return Err(ParseError::system(
                     location.clone(),
@@ -2575,7 +2599,7 @@ impl Database {
                     context.at(Some(location)),
                     |globals, scope, bytes, _, context| {
                         std::mem::swap(globals, &mut self.variables);
-                        let result = self.expand_target_rhs(target, scope, bytes, context);
+                        let result = self.expand_target_read(target, scope, bytes, context);
                         std::mem::swap(globals, &mut self.variables);
                         result
                     },
@@ -2618,7 +2642,7 @@ impl Database {
         Ok(())
     }
 
-    fn expand_target_rhs(
+    fn expand_target_read(
         &mut self,
         target: &[u8],
         scope: &mut VariableStore,

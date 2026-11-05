@@ -103,3 +103,9 @@ bindings and the reader's applicable lexical context. A nested `eval` or
 hand side observe the new values. Recipe variables belonging to a different
 target stay isolated. Eleven required cases cover these boundaries, including
 simple append, immediate recursive escaping, and command-line precedence.
+
+Computed target variable names expand in the same reader context before
+conditional selection or right hand side expansion. Name effects happen once
+for each target, and survive an empty-name error without evaluating the RHS.
+Ten further required fixtures cover these boundaries and the unchanged
+literal-name rules.
