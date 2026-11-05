@@ -2523,6 +2523,9 @@ impl Engine {
             if let Some(server) = &self.jobserver {
                 crate::debug::Jobs::controller(self.output.debug_mask(), server.diagnostic_auth());
             }
+            if let Some(authentication) = self.options.sync_mutex.as_deref() {
+                crate::debug::output_sync_mutex(self.output.debug_mask(), authentication);
+            }
 
             if let Err(error) = self.database.variables.update_mflags(
                 &self.options.recursive_flags(),

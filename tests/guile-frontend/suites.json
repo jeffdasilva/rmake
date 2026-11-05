@@ -85,6 +85,13 @@
       "plan_sha256": "dc94018b89d4fbc3062212ce15ddc346eeb2aaeea30b4d3dee0c6c81013a8c52",
       "schema": "files",
       "count": 4
+    },
+    {
+      "name": "bridge-effects",
+      "plan": "bridge-effects.json",
+      "plan_sha256": "ff8d9ad47367b338fea7776edd85e14b3c5869f85f0999b617d9c302ba2932d1",
+      "schema": "files",
+      "count": 5
     }
   ]
 }

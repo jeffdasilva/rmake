@@ -1,0 +1,12 @@
+id = "output-verbose-named-mutex-serial"
+requirement = "runtime.output-sync-verbose-mutex"
+candidate = "required"
+description = "Observe a deterministic named output mutex at its verbose publication boundary."
+provenance = "Original finite test with independently declared GNU Make 4.4.1 streams and input files."
+args = ["-rR", "--no-print-directory", "-Otarget", "--sync-mutex=fnm:lock", "-j1", "--debug=v"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nqueued-reader\nUsing output-sync mutex fnm:lock\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\njob\nSuccessfully remade target file 'all'.\n"
+stderr = ""

@@ -142,3 +142,9 @@ complete debug/M3/M6 acceptance remain open. Its [measurement page](benchmarks/j
 and [performance archive](../tests/job-debug/performance.json) retain mixed elapsed
 results, unchanged allocation calls/frees and all exact inputs; they establish no
 general performance parity.
+
+Verbose output reports the output-sync mutex after the makefile reader completes
+and after any jobserver controller line. Four original named-lock cases
+cover active target synchronization, serial spool drain, a live `MAKEFLAGS`
+selection, and the quiet BASIC control. The selected Guile gate also checks
+this ordering while a recipe expands a missing file through `gmk-expand`.

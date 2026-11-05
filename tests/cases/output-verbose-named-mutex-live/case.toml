@@ -1,0 +1,12 @@
+id = "output-verbose-named-mutex-live"
+requirement = "runtime.output-sync-verbose-mutex"
+candidate = "required"
+description = "Observe a deterministic named output mutex at its verbose publication boundary."
+provenance = "Original finite test with independently declared GNU Make 4.4.1 streams and input files."
+args = ["-rR", "--no-print-directory", "-Otarget", "--sync-mutex=fnm:lock", "-j"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "Using output-sync mutex fnm:lock\nqueued-reader\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\njob\nSuccessfully remade target file 'all'.\n"
+stderr = ""

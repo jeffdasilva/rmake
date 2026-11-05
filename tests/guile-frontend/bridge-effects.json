@@ -1,0 +1,100 @@
+{
+  "classification": "Original terminating public Guile effects, shell status and synchronized file-read diagnostics",
+  "rows": [
+    {
+      "id": "guile-bridge-shell-reader",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "53454544203a3d2024287368656c6c20657869742033290a4245464f5245203a3d2024282e5348454c4c535441545553290a524553554c54203a3d2024286775696c652028676d6b2d657870616e6420222424287368656c6c207072696e746620277265616465722d746f6b656e273b206563686f207265616465722d7368656c6c203e3e7365656e3b20657869742037293a2424282e5348454c4c535441545553292229290a535441545553203a3d2024286775696c652028676d6b2d76617220272e5348454c4c53544154555329290a2428696e666f206265666f72653d5b24284245464f5245295d20726573756c743d5b2428524553554c54295d207374617475733d5b2428535441545553295d206f726967696e3d5b24286f726967696e202e5348454c4c535441545553295d290a616c6c3a3b40242866696c65203e3e7365656e2c676f616c2d24282e5348454c4c53544154555329293a0a",
+        "seen": "616e63686f720a"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "before=[3] result=[reader-token:7] status=[7] origin=[override]\n",
+        "stderr": "",
+        "seen": "anchor\nreader-shell\ngoal-7\n"
+      }
+    },
+    {
+      "id": "guile-bridge-shell-foreach",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "53454544203a3d2024287368656c6c20657869742033290a524553554c54203a3d202428666f726561636820762c616c70686120626574612c24286775696c652028676d6b2d657870616e6420222424282e5348454c4c535441545553292f2424287368656c6c207072696e7466202725732720272424287629273b206563686f202724242876292d7368656c6c27203e3e7365656e3b20657869742037292f2424282e5348454c4c53544154555329222929290a2428696e666f206c65786963616c3d5b2428524553554c54295d206f757465723d5b24282e5348454c4c535441545553295d290a616c6c3a3b40242866696c65203e3e7365656e2c676f616c2d24282e5348454c4c53544154555329293a0a",
+        "seen": "616e63686f720a"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "lexical=[3/alpha/7 7/beta/7] outer=[3]\n",
+        "stderr": "",
+        "seen": "anchor\nalpha-shell\nbeta-shell\ngoal-3\n"
+      }
+    },
+    {
+      "id": "guile-bridge-shell-target",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "other"
+      ],
+      "files": {
+        "Makefile": "53454544203a3d2024287368656c6c20657869742033290a2e50484f4e593a20616c6c206f746865720a616c6c3a202e5348454c4c535441545553203a3d2034310a616c6c3a0a09402428696e666f206265666f72653d5b24282e5348454c4c535441545553295d206272696467653d5b24286775696c652028676d6b2d657870616e6420222424287368656c6c207072696e746620277265636970652d746f6b656e273b206563686f207265636970652d7368656c6c203e3e7365656e3b20657869742039293a2424403a2424282e5348454c4c535441545553292229295d2061667465723d5b24282e5348454c4c535441545553295d29242866696c65203e3e7365656e2c7265636970652d24282e5348454c4c53544154555329293a0a6f746865723a0a09402428696e666f206f746865723d5b24282e5348454c4c535441545553295d29242866696c65203e3e7365656e2c6f746865722d24282e5348454c4c53544154555329293a0a",
+        "seen": "616e63686f720a"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "before=[41] bridge=[recipe-token:all:9] after=[9]\nother=[3]\n",
+        "stderr": "",
+        "seen": "anchor\nrecipe-shell\nrecipe-9\nother-3\n"
+      }
+    },
+    {
+      "id": "guile-bridge-missing-file-reader-target-sync",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=v",
+        "-j1",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "2428696e666f207175657565642d6265666f7265290a56414c5545203a3d2024286775696c652028676d6b2d657870616e64202224242866696c65203c7265616465722e6d697373696e67292229290a2428696e666f2076616c75653d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nguile: Expanding '$(file <reader.missing)'\nfile: Failed to open 'reader.missing': No such file or directory\nqueued-before\nvalue=[]\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+        "stderr": "",
+        "seen": "anchor\ngoal\n"
+      }
+    },
+    {
+      "id": "guile-bridge-missing-file-recipe-target-sync",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=v",
+        "-j",
+        "-Otarget",
+        "--sync-mutex=fnm:lock"
+      ],
+      "files": {
+        "Makefile": "2e4e4f54504152414c4c454c3a0a2e50484f4e593a20616c6c0a616c6c3a0a09406563686f2066697273743b206563686f206669727374203e3e7365656e0a0940242866696c65203e3e7365656e2c657870616e646564297072696e746620277265636970653d3c25733e5c6e27202724286775696c652028676d6b2d657870616e64202224242866696c65203c7265636970652e6d697373696e6729222929273b206563686f207365636f6e64203e3e7365656e0a",
+        "seen": "616e63686f720a",
+        "lock": "6669786564206c6f636b0a"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUsing output-sync mutex fnm:lock\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nguile: Expanding '$(file <recipe.missing)'\nfile: Failed to open 'recipe.missing': No such file or directory\nfirst\nrecipe=<>\nSuccessfully remade target file 'all'.\n",
+        "stderr": "",
+        "seen": "anchor\nexpanded\nfirst\nsecond\n"
+      }
+    }
+  ]
+}

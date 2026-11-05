@@ -24,6 +24,10 @@ The list converter reads a pair's tail after converting its head. Four original
 cases cover live tail changes in returned values, `gmk-expand`, and `gmk-eval`,
 plus reuse of an acyclic shared pair. Traversal remains iterative.
 
+Five public bridge controls cover shell status in the reader, a `foreach` scope,
+and a target recipe. They also cover missing-file diagnostics during target
+output synchronization in the reader and a serialized recipe.
+
 Run `make test-guile-frontend` to verify the private SDK and enabled reference,
 build separate Cargo profiles, run workspace tests and Clippy, compare both
 build modes and drive core checks through each enabled executable. Reports are

@@ -84,6 +84,7 @@ keys! {
     GUILE_EVALUATING: c"guile: Evaluating '%s'\n", [B];
     SKIPPING_BOM: c"Skipping UTF-8 BOM in makefile '%s'\n", [B];
     JOB_CONTROLLER: c"Using jobserver controller %s\n", [B];
+    OUTPUT_SYNC_MUTEX: c"Using output-sync mutex %s\n", [B];
     JOB_OBTAINED: c"Obtained token for child %p (%s).\n", [A, B];
     JOB_PUT: c"Putting child %p (%s) PID %s%s on the chain.\n", [A, B, B, B];
     JOB_LIVE: c"Live child %p (%s) PID %s %s\n", [A, B, B, B];

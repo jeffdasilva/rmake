@@ -144,6 +144,12 @@ pub fn missing_file_read(output: &crate::output::Controller, path: &[u8], error:
     }
 }
 
+pub fn output_sync_mutex(mask: Mask, authentication: &[u8]) {
+    if mask.has(Mask::VERBOSE) {
+        raw(&[&localized(msg::OUTPUT_SYNC_MUTEX, &[bytes(authentication)])]);
+    }
+}
+
 pub enum TraceReason<'a> {
     Phony,
     Missing,
