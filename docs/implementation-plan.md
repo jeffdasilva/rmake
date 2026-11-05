@@ -499,3 +499,26 @@ real Makefile and scripts in an owned offline Cargo workspace. It covers warm
 oracle bootstrap, six cleanup modes and three benchmark preconditions in both
 build profiles. Cold provisioning and positive timing runs remain separate
 campaigns.
+
+[Output spools under low descriptor limits](../tests/resource-fd-spool/README.md)
+retain GNU's grouped bytes and physical child descriptor identity. The selected
+Linux launch can borrow existing spools for child-only descriptor actions
+without duplicating them or changing the parent's ownership.
+
+[Compact pipe pools](../tests/resource-fd-pipe/README.md) cover canonical
+startup, actual recursion and self-exec at low descriptor limits. Borrowed
+wire numbers retain their original ownership and are checked against the live
+pipe identity before process replacement. The separately observed noncanonical
+return byte and parent fatal-loss differences remain open.
+
+[Ordinary jobserver release](../tests/jobserver-release/README.md) matches
+GNU Make's canonical byte at qualified completion and keeps a failed launch
+lease outstanding through the ordinary drain. Parent-fatal recovery and raw
+lease drop preserve bytes. The observed GNU parent-fatal token loss remains
+an open compatibility difference; no approved safety count changes.
+
+[Low descriptor FIFO pools](../tests/resource-fd-fifo/README.md) preserve the
+borrowed endpoint's identity and let an owned pool launch eligible recipes
+without carrying unnecessary descriptors across exec. Twelve original GNU2
+cases cover owned and borrowed pools, startup failures, recursion, and
+returned capacity. The GNU FD4 error and leftover FIFO remain open.

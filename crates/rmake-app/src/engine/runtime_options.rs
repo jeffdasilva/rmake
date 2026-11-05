@@ -637,7 +637,7 @@ impl Engine {
             }
             Some(
                 Jobserver::create(jobs, self.options.jobserver_pipe).map_err(|error| {
-                    Diagnostic::from(format!("jobserver: {}", os_error(&error)))
+                    Diagnostic::from(format!("{}: {}", error.operation, os_error(&error.error)))
                 })?,
             )
         } else {

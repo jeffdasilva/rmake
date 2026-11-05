@@ -6,7 +6,7 @@
 use std::ffi::{CString, c_char, c_int, c_short};
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
@@ -232,6 +232,13 @@ impl Spool {
             child.stderr(Stdio::from(file.try_clone()?));
         }
         Ok(())
+    }
+
+    pub(crate) fn child_output(&self) -> [Option<BorrowedFd<'_>>; 2] {
+        [
+            self.stream(false).map(AsFd::as_fd),
+            self.stream(true).map(AsFd::as_fd),
+        ]
     }
 
     pub fn configure_stderr(&self, child: &mut Command) -> io::Result<()> {

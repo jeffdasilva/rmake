@@ -644,9 +644,10 @@ impl ParallelJobs {
     }
 }
 
-/// Rule observations borrowed until recipe dispatch; disabled tracing allocates
-/// nothing and does not add state to suspended continuations.
-struct TraceInputs<'a> {
+/// Rule observations borrowed until recipe dispatch.
+struct RecipeInputs<'a> {
+    phony: bool,
+    before: Option<SystemTime>,
     branch: Option<usize>,
     implicit_group: bool,
     location: Option<&'a Location>,
@@ -666,6 +667,11 @@ struct RecipeState {
     ran: bool,
     one_shell: bool,
     environment: Option<RecipeEnvironment>,
+    permit: Option<Permit>,
+    debug_job: Option<crate::debug::JobHandle>,
+}
+
+struct RecipeOwner {
     permit: Option<Permit>,
     debug_job: Option<crate::debug::JobHandle>,
 }
@@ -819,6 +825,7 @@ pub struct Engine {
     impossible_generation: u64,
     would_build: bool,
     parallel_jobs: ParallelJobs,
+    aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
     load_waiting: Vec<(Vec<u8>, u64)>,
     load: crate::load::Monitor,
@@ -1395,6 +1402,7 @@ impl Engine {
             impossible_generation: 0,
             would_build: false,
             parallel_jobs: ParallelJobs::default(),
+            aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
             load_waiting: Vec::new(),
             load: crate::load::Monitor::default(),
@@ -1977,6 +1985,8 @@ impl Engine {
         if self.interrupt.is_none() || self.shutdown.get() == Shutdown::Reentered {
             self.print_database();
         }
+        let aborted_permit = self.aborted_recipe_permit.take();
+        self.release_completed_permit(aborted_permit);
         status
     }
 
@@ -2281,6 +2291,10 @@ impl Engine {
                     Ok(input) => input,
                     Err(err) => {
                         if rmake_linux::signals::pending().is_some() {
+                            return 2;
+                        }
+                        if matches!(err.raw_os_error(), Some(12 | 23 | 24)) {
+                            self.fatal(None, os_error(&err).as_bytes());
                             return 2;
                         }
                         let detail = rmake_linux::filesystem::source_error_detail(&err);
@@ -3554,7 +3568,7 @@ impl Engine {
             }
             // Wait for this pool's reader, owned child exits, or a fatal signal.
             // No polling delay is added to tokens returned by another process.
-            self.child_events(true, Some(server.readiness()))?;
+            self.child_events(true, Some(server.readiness()?))?;
             self.observe_interrupt();
             if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
                 return Ok(None);
@@ -3630,7 +3644,7 @@ impl Engine {
     fn child_events(
         &mut self,
         block: bool,
-        additional: Option<std::os::fd::BorrowedFd<'_>>,
+        additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
         let children: Vec<_> = self
             .parallel_jobs
@@ -3816,11 +3830,36 @@ impl Engine {
         }
     }
 
-    /// The inherited slot belongs to the live pool, not permanently to its
-    /// first recipe. Move an outstanding paid lease into the newly freed slot
-    /// and return that lease's original byte to other jobserver participants.
-    fn reuse_implicit_job_slot(&mut self) {
+    fn release_completed_permit(&self, permit: Option<Permit>) {
+        if let Some(permit) = permit
+            && !permit.is_implicit()
+            && self.interrupt.is_none()
+            && rmake_linux::signals::pending().is_none()
+        {
+            permit.release_completed();
+        }
+    }
+
+    /// A user error during command configuration leaves the already reserved
+    /// logical slot outstanding while the real children drain.
+    fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, error: &ExpandError) {
+        if error.is_user_error()
+            && self.aborted_recipe_permit.is_none()
+            && self.interrupt.is_none()
+            && rmake_linux::signals::pending().is_none()
+        {
+            self.aborted_recipe_permit = permit.take();
+        }
+    }
+
+    /// Move one outstanding paid lease into the newly freed implicit slot.
+    /// A failed dispatch can still own a logical slot during ordinary drain.
+    fn reuse_implicit_job_slot(&mut self, ordinary_completion: bool) {
         if self.jobserver.is_none()
+            || self
+                .aborted_recipe_permit
+                .as_ref()
+                .is_some_and(Permit::is_implicit)
             || self.parallel_jobs.values().any(|job| {
                 job.continuation
                     .permit
@@ -3830,7 +3869,7 @@ impl Engine {
         {
             return;
         }
-        if let Some((_, job)) = self
+        let paid = if let Some((_, job)) = self
             .parallel_jobs
             .entries_mut()
             .filter(|(_, job)| {
@@ -3841,8 +3880,14 @@ impl Engine {
             })
             .min_by_key(|(_, job)| job.identity)
         {
-            let paid = job.continuation.permit.replace(Permit::implicit());
-            drop(paid);
+            job.continuation.permit.replace(Permit::implicit())
+        } else if self.aborted_recipe_permit.is_some() {
+            self.aborted_recipe_permit.replace(Permit::implicit())
+        } else {
+            None
+        };
+        if ordinary_completion {
+            self.release_completed_permit(paid);
         }
     }
 
@@ -3975,8 +4020,8 @@ impl Engine {
         }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
-        if !failed {
-            let execution =
+        let completed_permit = if !failed {
+            let (execution, permit) =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
             failed |= matches!(execution.status, Status::Failure | Status::Fatal);
             outcome.fatal |= execution.status == Status::Fatal;
@@ -3984,7 +4029,10 @@ impl Engine {
                 failed = true;
                 outcome.fatal = true;
             }
-        }
+            permit
+        } else {
+            job.continuation.permit.take()
+        };
         if let Some(buffer) = output {
             if outcome.fatal && self.interrupt.is_none() {
                 self.fatal_outputs.push(buffer);
@@ -4038,8 +4086,11 @@ impl Engine {
         if !self.parallel_jobs.contains_key(&target) {
             self.finish_group(&target, outcome);
         }
+        if !outcome.fatal {
+            self.release_completed_permit(completed_permit);
+        }
         self.finish_debug_job(debug_job.as_ref());
-        self.reuse_implicit_job_slot();
+        self.reuse_implicit_job_slot(!outcome.fatal);
         self.job_debug.live(self.output.debug_mask());
     }
 
@@ -7376,9 +7427,9 @@ impl Engine {
                         .as_ref()
                         .map(|values| values.as_slice())
                         .unwrap_or(&[]),
-                    phony,
-                    before,
-                    TraceInputs {
+                    RecipeInputs {
+                        phony,
+                        before,
                         branch,
                         implicit_group,
                         location: recipes.first().map(|recipe| &recipe.location),
@@ -7669,11 +7720,13 @@ impl Engine {
         target: &[u8],
         recipes: &[Recipe],
         automatic: &[(&[u8], Vec<u8>)],
-        phony: bool,
-        before: Option<SystemTime>,
-        trace: TraceInputs<'_>,
+        inputs: RecipeInputs<'_>,
     ) -> Execution {
-        let mut result = self.execute_inner(target, recipes, automatic, phony, before, trace);
+        let phony = inputs.phony;
+        let before = inputs.before;
+        let mut completed_permit = None;
+        let mut result =
+            self.execute_inner(target, recipes, automatic, inputs, &mut completed_permit);
         if let Some(buffer) = self.dispatch_output.take() {
             if result.status == Status::Fatal {
                 self.fatal_outputs.push(buffer);
@@ -7693,6 +7746,9 @@ impl Engine {
                 buffer.dump();
             }
         }
+        if result.status != Status::Fatal {
+            self.release_completed_permit(completed_permit);
+        }
         result
     }
 
@@ -7701,10 +7757,17 @@ impl Engine {
         target: &[u8],
         recipes: &[Recipe],
         automatic: &[(&[u8], Vec<u8>)],
-        phony: bool,
-        before: Option<SystemTime>,
-        trace: TraceInputs<'_>,
+        inputs: RecipeInputs<'_>,
+        completed_permit: &mut Option<Permit>,
     ) -> Execution {
+        let RecipeInputs {
+            phony,
+            before,
+            branch,
+            location,
+            dependencies,
+            dropped,
+        } = inputs;
         self.observe_interrupt();
         if self.interrupt.is_some() {
             return Execution::fatal(false);
@@ -7887,12 +7950,11 @@ impl Engine {
                 };
                 if newer.is_empty() {
                     let missing = joined(
-                        trace
-                            .dependencies
+                        dependencies
                             .iter()
                             .filter(|dependency| {
                                 dependency.name != b".WAIT"
-                                    && !trace.dropped.contains(&dependency.name)
+                                    && !dropped.contains(&dependency.name)
                                     && self.done.get(&dependency.name).is_some_and(|child| {
                                         child.time.is_none()
                                             && (child.completion != CompletionTime::AssumeNew
@@ -7910,9 +7972,7 @@ impl Engine {
                     newer
                 }
             };
-            let prefix = trace
-                .location
-                .map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
+            let prefix = location.map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
             self.output.write_parts(
                 false,
                 &[
@@ -7926,7 +7986,7 @@ impl Engine {
             );
         }
         let state = RecipeState {
-            branch: trace.branch,
+            branch,
             output,
             expanded,
             variables,
@@ -7961,7 +8021,9 @@ impl Engine {
             self.output.select(None);
             return Execution::success(true);
         }
-        self.continue_recipe(target, state, phony, before, parallel)
+        let (execution, permit) = self.continue_recipe(target, state, phony, before, parallel);
+        *completed_permit = permit;
+        execution
     }
 
     fn remember_prepared_prerequisite_roles(&mut self, target: &[u8], trace: &TraceInputs<'_>) {
@@ -8035,13 +8097,16 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
         parallel: bool,
-    ) -> Execution {
+    ) -> (Execution, Option<Permit>) {
         let mut state = state;
-        let mut debug_job = state.debug_job.take();
+        let mut owner = RecipeOwner {
+            permit: state.permit.take(),
+            debug_job: state.debug_job.take(),
+        };
         let execution =
-            self.continue_recipe_inner(target, state, phony, before, parallel, &mut debug_job);
-        self.finish_debug_job(debug_job.as_ref());
-        execution
+            self.continue_recipe_inner(target, state, phony, before, parallel, &mut owner);
+        self.finish_debug_job(owner.debug_job.as_ref());
+        (execution, owner.permit)
     }
 
     fn continue_recipe_inner(
@@ -8051,7 +8116,7 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
         parallel: bool,
-        debug_job: &mut Option<crate::debug::JobHandle>,
+        owner: &mut RecipeOwner,
     ) -> Execution {
         let RecipeState {
             branch,
@@ -8062,7 +8127,7 @@ impl Engine {
             mut ran,
             one_shell,
             mut environment,
-            permit,
+            permit: _,
             debug_job: _,
         } = state;
         let variables = &mut variables;
@@ -8117,6 +8182,7 @@ impl Engine {
                         ignore,
                         output.as_ref(),
                     );
+                    self.retain_configuration_abort(&mut owner.permit, &err);
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -8148,6 +8214,7 @@ impl Engine {
                         ignore,
                         output.as_ref(),
                     );
+                    self.retain_configuration_abort(&mut owner.permit, &err);
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -8163,6 +8230,7 @@ impl Engine {
                             ignore,
                             output.as_ref(),
                         );
+                        self.retain_configuration_abort(&mut owner.permit, &err);
                         return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                     }
                 }
@@ -8436,16 +8504,69 @@ impl Engine {
                 &environment.as_ref().expect("prepared environment").order,
                 self.database.variables.original_shell(),
                 |mut command, image, arg0| {
-                    if let Some(server) = &self.jobserver {
-                        server.configure_child(&mut command, force);
+                    let descriptor_limited_pool = self.jobserver.as_ref().filter(|server| {
+                        (server.uses_compact_pipe()
+                            || (server.auth().starts_with(b"fifo:")
+                                && rmake_linux::child::Child::wake_pipe_unavailable()))
+                            && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                    });
+                    if let Some(server) = descriptor_limited_pool {
+                        let stdin = if stdin_owner {
+                            None
+                        } else {
+                            match rmake_linux::process::closed_stdin_file() {
+                                Ok(stdin) => Some(stdin),
+                                // The reference inherits stdin when its
+                                // unused-input pipe cannot be allocated.
+                                Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => None,
+                                Err(error) => return Err(error),
+                            }
+                        };
+                        if crate::native::has_modules() {
+                            rmake_linux::native::flush_standard_streams()?;
+                        }
+                        if let Some(process) = rmake_linux::child::Child::try_spawn_ordered_pool(
+                            &command,
+                            image,
+                            os(arg0),
+                            stdin.as_ref(),
+                            server,
+                            force,
+                        ) {
+                            return process;
+                        }
+                        if let Some(stdin) = stdin {
+                            command.stdin(std::process::Stdio::from(stdin));
+                        }
                     }
-                    if !stdin_owner {
+                    if let Some(server) = &self.jobserver {
+                        server.configure_child(&mut command, force)?;
+                    }
+                    if !stdin_owner && descriptor_limited_pool.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
                     if let Some(buffer) = &output {
+                        // Descriptor pressure can leave room for the spool but
+                        // no room to clone it or open std's spawn error pipe.
+                        if buffer.enabled()
+                            && stdin_owner
+                            && self.jobserver.is_none()
+                            && rmake_linux::child::Child::wake_pipe_unavailable()
+                            && !crate::native::has_modules()
+                            && let Some(spool) = buffer.child_spool()
+                            && let Some(process) =
+                                rmake_linux::child::Child::try_spawn_ordered_spool(
+                                    &command,
+                                    image,
+                                    os(arg0),
+                                    &spool,
+                                )
+                        {
+                            return process;
+                        }
                         buffer.configure_child(&mut command)?;
                     }
-                    if crate::native::has_modules() {
+                    if descriptor_limited_pool.is_none() && crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
                     }
                     if stdin_owner
@@ -8466,10 +8587,10 @@ impl Engine {
             self.retain_database_context(target, branch, variables);
             self.output.select(None);
             if let Ok(child) = &process {
-                if debug_job.is_none() {
-                    *debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
+                if owner.debug_job.is_none() {
+                    owner.debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
                 }
-                if let Some(record) = debug_job.as_ref() {
+                if let Some(record) = owner.debug_job.as_ref() {
                     self.job_debug
                         .launched(self.output.debug_mask(), record, child.id());
                 }
@@ -8505,8 +8626,8 @@ impl Engine {
                                     ran,
                                     one_shell,
                                     environment,
-                                    permit,
-                                    debug_job: debug_job.clone(),
+                                    permit: owner.permit.take(),
+                                    debug_job: owner.debug_job.clone(),
                                 },
                             },
                         );
@@ -8518,7 +8639,13 @@ impl Engine {
             } else {
                 match process {
                     Ok(mut child) => self
-                        .wait_serial_child(&mut child, target, before, phony, debug_job.as_ref())
+                        .wait_serial_child(
+                            &mut child,
+                            target,
+                            before,
+                            phony,
+                            owner.debug_job.as_ref(),
+                        )
                         .map(|(status, cleaned)| {
                             signal_cleaned = cleaned;
                             status

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "classification": "Original exact low-limit output spool launch models",
+  "models": [
+    {
+      "id": "spool-separate-fd6",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@/usr/bin/printf recipe\\\\n\n\t@/usr/bin/touch goal\n"
+      },
+      "merged": false,
+      "stdout": "recipe\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    },
+    {
+      "id": "spool-merged-fd5",
+      "nofile": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@/usr/bin/printf recipe\\\\n\n\t@/usr/bin/touch goal\n"
+      },
+      "merged": true,
+      "stdout": "recipe\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    },
+    {
+      "id": "spool-separate-roomy",
+      "nofile": 16,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@/usr/bin/printf recipe\\\\n\n\t@/usr/bin/touch goal\n"
+      },
+      "merged": false,
+      "stdout": "recipe\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    },
+    {
+      "id": "spool-fd6-separate-identity",
+      "nofile": 6,
+      "merged": false,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j",
+        "-Otarget"
+      ],
+      "compile": true,
+      "files": {
+        "Makefile": "all:\n\t@./stream-id\n\t@/usr/bin/touch goal\n"
+      },
+      "stdout": "separate-spool\nout-first\nout-last\n",
+      "stderr": "err-middle\n",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    },
+    {
+      "id": "spool-fd5-shared-identity",
+      "nofile": 5,
+      "merged": true,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j",
+        "-Otarget"
+      ],
+      "compile": true,
+      "files": {
+        "Makefile": "all:\n\t@./stream-id\n\t@/usr/bin/touch goal\n"
+      },
+      "stdout": "shared-spool\nout-first\nerr-middle\nout-last\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    },
+    {
+      "id": "spool-fd6-ignored-exec-error",
+      "nofile": 6,
+      "merged": false,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j",
+        "-Otarget"
+      ],
+      "compile": true,
+      "files": {
+        "Makefile": "all:\n\t@-./missing\n\t@./stream-id\n\t@/usr/bin/touch goal\n"
+      },
+      "stdout": "separate-spool\nout-first\nout-last\n",
+      "stderr": "make: ./missing: No such file or directory\nmake: [Makefile:2: all] Error 127 (ignored)\nerr-middle\n",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    }
+  ]
+}

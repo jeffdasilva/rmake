@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 use std::ffi::{CString, OsStr, OsString, c_char, c_int};
 use std::io;
+use std::os::fd::{AsRawFd, BorrowedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
@@ -24,12 +25,14 @@ unsafe extern "C" {
         level: u32,
         traced: c_int,
         pipe: *const c_int,
+        compact_identity: *const u64,
     ) -> c_int;
     fn rmake_spawn_inherited(
         program: *const c_char,
         argv: *const *const c_char,
         envp: *const *mut c_char,
         preserve_pipe_ignore: c_int,
+        descriptors: *const c_int,
         pid: *mut c_int,
     ) -> c_int;
 }
@@ -59,12 +62,23 @@ pub fn exec_live_restart(
         .map(|argument| argument.as_ptr().cast_mut())
         .collect();
     pointers.push(std::ptr::null_mut());
+    let compact = match jobserver
+        .map(crate::jobserver::Jobserver::compact_restart_pipe)
+        .transpose()
+    {
+        Ok(compact) => compact.flatten(),
+        Err(error) => return error,
+    };
     let pair = jobserver.and_then(crate::jobserver::Jobserver::recursive_exec_pipe);
-    let descriptors = pair.as_ref().map(|pipe| pipe.descriptors());
+    let descriptors = compact
+        .as_ref()
+        .map(|(fds, _)| *fds)
+        .or_else(|| pair.as_ref().map(|pipe| pipe.descriptors()));
     // SAFETY: the terminated vector and every CString remain live for the
     // call. The optional descriptor array contains two incoming numbers and
-    // two references kept live by the borrowed jobserver. C checks identity
-    // before adjusting incoming flags, owns the environment and returns errno.
+    // either two references kept live by the borrowed jobserver or the
+    // compact join's captured identity. C checks identity before adjusting
+    // incoming flags, owns the environment and returns errno.
     let failure = unsafe {
         rmake_exec_live_restart(
             pointers.as_ptr(),
@@ -74,6 +88,9 @@ pub fn exec_live_restart(
             descriptors
                 .as_ref()
                 .map_or(std::ptr::null(), |fds| fds.as_ptr()),
+            compact
+                .as_ref()
+                .map_or(std::ptr::null(), |(_, identity)| identity.as_ptr()),
         )
     };
     io::Error::from_raw_os_error(failure)
@@ -200,20 +217,32 @@ impl Image {
         &self,
         command: &Command,
         arg0: &OsStr,
+        stdio: [Option<BorrowedFd<'_>>; 3],
+        wire: Option<[c_int; 2]>,
     ) -> Option<io::Result<c_int>> {
         let frame = match self.exec_frame(command, arg0) {
             Ok(frame) => frame,
             Err(error) => return Some(Err(error)),
         };
         let mut pid = 0;
+        let [read, write] = wire.unwrap_or([-1; 2]);
+        let descriptors = [
+            stdio[0].map_or(-1, |fd| fd.as_raw_fd()),
+            stdio[1].map_or(-1, |fd| fd.as_raw_fd()),
+            stdio[2].map_or(-1, |fd| fd.as_raw_fd()),
+            read,
+            write,
+        ];
         // SAFETY: the frame keeps both terminated vectors and their CStrings
-        // live for the full synchronous libc call; pid is a writable scalar.
+        // live for the full synchronous libc call. Both optional spool
+        // sources remain borrowed for the same call; pid is a writable scalar.
         let error = unsafe {
             rmake_spawn_inherited(
                 frame.program.as_ptr(),
                 frame.pointers.as_ptr(),
                 frame.environment.0.pointers.as_ptr(),
                 crate::signals::preserve_child_pipe_ignore().into(),
+                descriptors.as_ptr(),
                 &mut pid,
             )
         };

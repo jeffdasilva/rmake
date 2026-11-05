@@ -35,7 +35,8 @@ def anchors(work: Path, observation: harness.Observation, fail: bool = False) ->
     return errors
 
 
-def execute(root: Path, parent: Path, child: Path, style: str, borrowed: bool, token_bytes: bytes = b"++", fail: bool = False):
+def execute(root: Path, parent: Path, child: Path, style: str, borrowed: bool,
+            token_bytes: bytes = b"++", fail: bool = False, *, expected_token_bytes: bytes | None = None):
     for name in ('work', 'home', 'tmp', 'bin'):
         path = root / name
         if path.exists():
@@ -75,7 +76,8 @@ def execute(root: Path, parent: Path, child: Path, style: str, borrowed: bool, t
                 tokens = os.read(descriptor, 64)
             except BlockingIOError:
                 tokens = b''
-            if sorted(tokens) != sorted(token_bytes):
+            expected = token_bytes if expected_token_bytes is None else expected_token_bytes
+            if sorted(tokens) != sorted(expected):
                 errors.append('borrowed token bytes changed/lost')
         if any((root / 'tmp').iterdir()):
             errors.append('jobserver temporary resource leaked')
@@ -124,9 +126,17 @@ def main() -> int:
                 observed, errors = execute(destination, binary, binary, 'fifo', True, fail=fail)
                 results.append(dict(repeat=repeat, style='borrowed', fail=fail, parent=name, child=name, errors=errors))
                 print(('FAIL' if errors else 'PASS'), 'borrowed', name, repeat, fail, errors)
-    observed, errors = execute(destination, candidate, candidate, 'fifo', True, b'QZ')
-    results.append(dict(style='sentinel-bytes', parent='rmake', child='rmake', errors=errors))
-    print(('FAIL' if errors else 'PASS'), 'sentinel token bytes', errors)
+    baseline, baseline_errors = execute(destination, reference, reference, 'fifo', True, b'QZ',
+                                        expected_token_bytes=b'++')
+    repeated, repeat_errors = execute(destination, reference, reference, 'fifo', True, b'QZ',
+                                       expected_token_bytes=b'++')
+    observed, errors = execute(destination, candidate, candidate, 'fifo', True, b'QZ',
+                               expected_token_bytes=b'++')
+    errors += baseline_errors + repeat_errors + harness.differences(baseline, repeated)
+    errors += harness.differences(baseline, observed)
+    results.append(dict(style='sentinel-bytes', parent='rmake', child='rmake', seed_hex='515a',
+                        expected_hex='2b2b', errors=errors))
+    print(('FAIL' if errors else 'PASS'), 'ordinary sentinel token bytes', errors)
     report = dict(profile_id=profile['profile_id'], candidate=identity,
                   fixture_sha256={p.name: harness.sha256_file(p) for p in (ROOT / 'tests/jobserver').iterdir()},
                   results=results)
