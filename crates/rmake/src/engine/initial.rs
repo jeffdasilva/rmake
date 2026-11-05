@@ -11,6 +11,7 @@ pub(super) struct Plan {
     stdin_argument: Option<crate::cli::StdinArgument>,
     stdin_index: Option<usize>,
     environment: Vec<(OsString, OsString)>,
+    pub(super) startup_restarts: u32,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
     restart_invocation: Option<OsString>,
@@ -83,6 +84,7 @@ impl Plan {
             stdin_argument: None,
             stdin_index: None,
             environment,
+            startup_restarts: 0,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
             restart_invocation,
@@ -118,63 +120,22 @@ impl Plan {
         level: u32,
         jobserver: Option<&Jobserver>,
     ) -> io::Error {
-        let mut command = Command::new(self.restart_program());
         let rewritten = self.restart_arguments();
-        // Native setup can deliberately update the process environment. A
-        // real exec inherits that live state, with only the restart counters
-        // overridden below.
-        command
-            .arg0(self.restart_program())
-            .args(rewritten.as_deref().unwrap_or(&self.args));
-        let restart = if self
+        let traced = self
             .output
             .as_ref()
-            .is_some_and(|output| output.has_directory_trace())
-        {
-            format!("-{count}")
-        } else {
-            count.to_string()
-        };
-        let mut environment: Vec<_> = std::env::vars_os().collect();
-        let mut has_restart = false;
-        for (name, value) in &mut environment {
-            if name == "MAKELEVEL" {
-                *value = level.to_string().into();
-            } else if name == "MAKE_RESTARTS" {
-                *value = restart.clone().into();
-                has_restart = true;
-            }
-        }
-        if !has_restart {
-            environment.push(("MAKE_RESTARTS".into(), restart.into()));
-        }
-        let order: Vec<_> = environment
-            .iter()
-            .map(|(name, _)| name.as_os_str().as_bytes().to_vec())
-            .collect();
-        command.env_clear().envs(environment);
+            .is_some_and(|output| output.has_directory_trace());
         if let Err(error) = rmake_linux::native::flush_standard_streams() {
             return error;
         }
-        // The owned image preserves the live vector through exec; Command's
-        // ordinary environment rebuild would alphabetize its entries. Reuse
-        // the existing PATH search and ENOEXEC handling for a bare argv[0].
-        match launch_child::<()>(
-            self.restart_program().as_bytes(),
-            &command,
-            &order,
-            None,
-            |mut command, environment, arg0| {
-                if let Some(server) = jobserver {
-                    server.configure_child(&mut command, true);
-                }
-                environment.configure_exec(&mut command, os(arg0))?;
-                Err(command.exec())
-            },
-        ) {
-            Err(error) => error,
-            Ok(()) => unreachable!("a successful restart replaces this process"),
-        }
+        rmake_linux::environment::exec_live_restart(
+            self.restart_program(),
+            rewritten.as_deref().unwrap_or(&self.args),
+            count,
+            level,
+            traced,
+            jobserver,
+        )
     }
 
     fn restart_arguments(&self) -> Option<Vec<OsString>> {
@@ -279,7 +240,11 @@ impl Plan {
                 .or(updated_restart.as_ref())
                 .map_or(value.as_bytes(), |value| value.as_bytes());
             let value = if name == b"MAKE_RESTARTS" {
-                startup_restart_value(value)
+                let value = startup_restart_value(value);
+                // Import in vector order: the last binding controls startup.
+                // Later native edits affect the live exec image, not this seed.
+                self.startup_restarts = startup_unsigned(value);
+                value
             } else {
                 value
             };
@@ -300,6 +265,7 @@ impl Plan {
         if let Some((count, _)) = restart
             && database.variables.get(b"MAKE_RESTARTS").is_none()
         {
+            self.startup_restarts = count;
             database
                 .variables
                 .define(

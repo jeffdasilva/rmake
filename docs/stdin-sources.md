@@ -16,4 +16,10 @@ The legacy cancellation gate has21 early-copy stdin cells across seven signals a
 
 The [three process restart profiles](../tests/process-restarts/README.md) reproduce differences hidden by an in-process reread. The corrected runtime checks the temporary directory again, runs loader constructors before the next Makefile read, and follows a replacement of the invoked executable. Two GNU runs and both frozen rmake builds pass each case. The preceding candidate fails all three. The corrected optimized candidate also passes all 27,766 ordinary cases, and both builds pass the 44 stdin, 41 database, and 14 restart lifecycle profiles. The observer refinement requires both actual advertised private jobserver descriptors to retain their original pipe identity and close-on-exec flags at cleanup.
 
-Further descriptor/read/write/close faults, raw environment-vector edge cases, internal-option combinations, pathname mutation, database/debug interactions, enabled Guile, and broader resource profiles still need qualification. General performance parity is unproven. The selected corpus and typed observers add no ordinary-ledger cells or safety exceptions.
+[Three raw environment controls](../tests/restart-environment/README.md) require
+ordered duplicate and unkeyed entries, non-UTF-8 bytes, synchronous native edits,
+and exact duplicate or wrapped restart-counter behavior. The Linux adapter
+owns the vector passed to real exec, preserving live PATH search and signal
+state. Both corrected builds pass; the preceding build fails each case.
+
+Further descriptor/read/write/close faults, inherited pipe self-exec, internal-option combinations, pathname mutation, database/debug interactions, enabled Guile, and broader resource profiles still need qualification. General performance parity is unproven. The selected corpus and typed observers add no ordinary-ledger cells or safety exceptions.

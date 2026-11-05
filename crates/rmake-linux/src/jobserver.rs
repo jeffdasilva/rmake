@@ -323,6 +323,13 @@ impl Jobserver {
         }
     }
 
+    pub(crate) fn recursive_exec_pipe(&self) -> Option<(BorrowedFd<'_>, BorrowedFd<'_>)> {
+        self.0
+            .protocol_reader
+            .as_ref()
+            .map(|reader| (reader.as_fd(), self.0.writer.as_fd()))
+    }
+
     /// A failed recursive self-exec returns with its protocol pair exposed.
     /// Restore this process's private descriptor flags before source cleanup.
     pub fn finish_recursive_exec(&self) {

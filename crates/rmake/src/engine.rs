@@ -1959,11 +1959,10 @@ impl Engine {
             return 2;
         }
         let mut iterations = 0_u32;
-        let mut restarts = startup_unsigned(startup_restart_value(
-            std::env::var_os("MAKE_RESTARTS")
-                .as_deref()
-                .map_or(b"".as_slice(), OsStrExt::as_bytes),
-        ));
+        let mut restarts = self
+            .initial_plan
+            .as_ref()
+            .map_or(0, |plan| plan.startup_restarts);
         loop {
             if iterations > 0 {
                 self.print_database();
