@@ -49,3 +49,9 @@ Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its
 verified source archives.
+
+Pinned source acquisition retries transient DNS, connection, and selected HTTP
+failures up to three attempts per configured URL. Permanent HTTP errors may
+move to an already configured source. Existing size, digest, and transport
+checks remain in force; integrity failures do not retry or publish the archive.
+The verified cache stays the same on a warm run.

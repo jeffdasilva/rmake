@@ -456,3 +456,9 @@ native extensions still passes through unchanged.
 The [native loader localization tranche](nls-diagnostics.md) adds 15 original
 GNU2 cases. The loader carries typed system wrappers to the correct diagnostic
 boundary while preserving the raw `dlerror` argument and foreign/user messages.
+
+[Inherited signal masks](../tests/signal-mask/README.md) now retain the launch
+mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
+verified boundary, and pass an empty mask to command children without mutating
+the parent's live mask around spawn. Ten original GNU2 comparisons cover
+native callbacks, actual self-exec, early exits and low descriptor limits.
