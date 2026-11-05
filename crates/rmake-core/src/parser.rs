@@ -2952,9 +2952,16 @@ impl Database {
                 database: self,
                 context: context.at(Some(location)),
             },
-        )?;
+        );
+        let loaded = loaded.map_err(|error| {
+            if error.system_message().is_some() {
+                context.freeze_error(error)
+            } else {
+                error
+            }
+        })?;
         if loaded.status == NativeLoadStatus::Failed && !optional {
-            return Err(ExpandError::FileError([name, b": failed to load"].concat()));
+            return Err(context.freeze_error(ExpandError::system(Message::LoadFailed(name))));
         }
         self.loaded_modules
             .entry(loaded.name.clone())
@@ -3861,13 +3868,11 @@ impl Database {
                     if let Some(open) = name.iter().position(|&byte| byte == b'(')
                         && name.get(open + 1..) == Some(b")")
                     {
-                        return Err(ParseError {
-                            unlocated: false,
+                        return Err(ParseError::system(
                             location,
-                            message: [b"Empty symbol name for load: ".as_slice(), &name]
-                                .concat()
-                                .into(),
-                        });
+                            Message::EmptyLoadSymbol(&name),
+                            context,
+                        ));
                     }
                     self.load_native_with(&name, keyword == b"-load", &location, context)
                         .map_err(|error| ParseError {

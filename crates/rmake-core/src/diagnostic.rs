@@ -1015,9 +1015,9 @@ impl<'a> ExpansionContext<'a> {
             return error;
         }
         let body = error.system_message().and_then(|message| {
-            self.output.as_mut().and_then(|receiver| {
-                receiver.format_system_message(crate::messages::MessageRef::Borrowed(message))
-            })
+            self.output
+                .as_mut()
+                .and_then(|receiver| receiver.format_system_message(message))
         });
         let stop = self.output.as_mut().and_then(|receiver| {
             receiver.format_system_message(crate::messages::MessageRef::Borrowed(
@@ -1123,8 +1123,11 @@ impl Diagnostic {
         }
     }
     pub fn system(message: crate::messages::Message<'_>) -> Self {
+        Self::system_owned(message.owned())
+    }
+    pub(crate) fn system_owned(message: crate::messages::OwnedMessage) -> Self {
         Self::System(Box::new(SystemDiagnostic {
-            message: message.owned(),
+            message,
             english: std::sync::OnceLock::new(),
         }))
     }
