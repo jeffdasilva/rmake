@@ -176,9 +176,11 @@ impl Plan {
 
     pub(super) fn decode(mut self: Box<Self>) -> Result<Invocation, Failure<InvocationError>> {
         crate::native::reset();
+        #[cfg(feature = "guile")]
+        crate::native::register_guile().map_err(StartupError::expansion)?;
         let output = if let Some(output) = &self.output {
             output.set_mode(crate::output::Mode::None);
-            output.set_program(&self.program);
+            output.set_program(&self.program, self.program.len(), 0);
             output.set_imported_directory(None);
             output.clone()
         } else {
@@ -250,7 +252,13 @@ impl Plan {
                 exports.insert(name.to_vec());
             }
         }
-        let initial_directory = std::env::current_dir().ok();
+        let initial_directory = match std::env::current_dir() {
+            Ok(directory) => Some(directory),
+            Err(error) => {
+                emit_getcwd_error(&output, &self.program, &error);
+                None
+            }
+        };
         database.variables.set_startup_directory_pending();
         let filesystem = RefCell::new(FilesystemRuntime::default());
         filesystem.borrow_mut().set_database_history(
@@ -379,8 +387,8 @@ impl Plan {
                             &[
                                 &error.prefix(&self.program),
                                 b"*** ",
-                                error.message.as_bytes(),
-                                b".  Stop.\n",
+                                &crate::messages::diagnostic(&error.message),
+                                &crate::messages::stop_for(&error.message),
                             ],
                         );
                         error.buffered = Some(buffer.clone());
@@ -665,8 +673,8 @@ pub(super) fn emit_error(
             &[
                 &error.prefix(program),
                 b"*** ",
-                error.message.as_bytes(),
-                b".  Stop.\n",
+                &crate::messages::diagnostic(&error.message),
+                &crate::messages::stop_for(&error.message),
             ],
         ),
     }
@@ -675,7 +683,20 @@ pub(super) fn emit_error(
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "test-support")]
+pub(super) fn run_native_ownership_check(name: &str) -> bool {
+    match name {
+        "decoder_failure_retains_effects_and_last_policy_without_defaults_or_replay" => exit_ownership_tests::decoder_failure_retains_effects_and_last_policy_without_defaults_or_replay(),
+        "prepared_help_pass_keeps_constructor_unstarted_and_actual_bindings" => exit_ownership_tests::prepared_help_pass_keeps_constructor_unstarted_and_actual_bindings(),
+        "failed_constructor_keeps_only_metadata_published_before_home_expansion" => exit_ownership_tests::failed_constructor_keeps_only_metadata_published_before_home_expansion(),
+        "failed_chdir_keeps_early_database_without_late_constructor_metadata" => exit_ownership_tests::failed_chdir_keeps_early_database_without_late_constructor_metadata(),
+        "restarted_help_owns_fresh_decoder_bindings_and_restart_count" => exit_ownership_tests::restarted_help_owns_fresh_decoder_bindings_and_restart_count(),
+        _ => return false,
+    }
+    true
+}
+
+#[cfg(any(all(test, not(feature = "guile")), feature = "test-support"))]
 mod exit_ownership_tests {
     use super::*;
     use std::io::Write;
@@ -773,6 +794,24 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let _ = fs::remove_dir_all(&self.0);
         }
     }
+    fn finish_owned_check(host: startup_exit::Host, fixture: Fixture) {
+        #[cfg(feature = "guile")]
+        {
+            // Every feature child retains its actual phase through C exit.
+            // Delete only the owned fixture before that non-returning boundary.
+            drop(fixture);
+            let mut exit = NativeExit::Startup(Box::new(host));
+            exit.prepare();
+            exit.finish(0);
+            rmake_linux::guile::abort_host();
+        }
+        #[cfg(not(feature = "guile"))]
+        {
+            drop(host);
+            drop(fixture);
+        }
+    }
+
     fn startup(exit: Option<Box<NativeExit>>) -> startup_exit::Host {
         match *exit.expect("native phase must remain owned") {
             NativeExit::Startup(host) => *host,
@@ -798,8 +837,8 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
         );
     }
 
-    #[test]
-    fn decoder_failure_retains_effects_and_last_policy_without_defaults_or_replay() {
+    #[cfg_attr(all(test, not(feature = "guile")), test)]
+    pub(super) fn decoder_failure_retains_effects_and_last_policy_without_defaults_or_replay() {
         isolated(|| {
             let fixture = Fixture::new();
             let failure = match fixture
@@ -838,11 +877,12 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             assert!(host.database.variables.get(b"CURDIR").is_none());
             assert!(host.database.variables.get(b".INCLUDE_DIRS").is_none());
             assert!(host.include_search.is_none());
+            finish_owned_check(host, fixture);
         });
     }
 
-    #[test]
-    fn prepared_help_pass_keeps_constructor_unstarted_and_actual_bindings() {
+    #[cfg_attr(all(test, not(feature = "guile")), test)]
+    pub(super) fn prepared_help_pass_keeps_constructor_unstarted_and_actual_bindings() {
         isolated(|| {
             let fixture = Fixture::new();
             let launch = fixture
@@ -859,11 +899,12 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                 value(&host.database, b"USER_VALUE"),
                 Some(b"command".to_vec())
             );
+            finish_owned_check(host, fixture);
         });
     }
 
-    #[test]
-    fn failed_constructor_keeps_only_metadata_published_before_home_expansion() {
+    #[cfg_attr(all(test, not(feature = "guile")), test)]
+    pub(super) fn failed_constructor_keeps_only_metadata_published_before_home_expansion() {
         isolated(|| {
             let fixture = Fixture::new();
             let launch = fixture
@@ -888,11 +929,12 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                 value(&host.database, b"USER_VALUE"),
                 Some(b"command".to_vec())
             );
+            finish_owned_check(host, fixture);
         });
     }
 
-    #[test]
-    fn failed_chdir_keeps_early_database_without_late_constructor_metadata() {
+    #[cfg_attr(all(test, not(feature = "guile")), test)]
+    pub(super) fn failed_chdir_keeps_early_database_without_late_constructor_metadata() {
         isolated(|| {
             let fixture = Fixture::new();
             let missing = fixture.0.join("missing");
@@ -906,11 +948,12 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             assert!(host.database.variables.get(b"CURDIR").is_none());
             assert!(host.database.variables.get(b"MAKE_COMMAND").is_none());
             assert!(host.restore_directory.is_some());
+            finish_owned_check(host, fixture);
         });
     }
 
-    #[test]
-    fn restarted_help_owns_fresh_decoder_bindings_and_restart_count() {
+    #[cfg_attr(all(test, not(feature = "guile")), test)]
+    pub(super) fn restarted_help_owns_fresh_decoder_bindings_and_restart_count() {
         isolated(|| {
             let fixture = Fixture::new();
             let mut plan = fixture.plan(&[]);
@@ -928,6 +971,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             assert_eq!(value(&host.database, b"MAKE_RESTARTS"), Some(b"1".to_vec()));
             assert!(host.database.variables.get(b"MAKE_COMMAND").is_none());
             assert!(host.database.variables.get(b"CURDIR").is_none());
+            finish_owned_check(host, fixture);
         });
     }
 }

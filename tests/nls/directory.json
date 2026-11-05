@@ -1,0 +1,459 @@
+{
+  "classification": "Original17 GNU2 directory localization models. Path slots come from the fresh workspace. The explicit ENOENT slot comes from an independent public libc call using the verified locale and original environment.",
+  "original_models_sha256": "6281bc03103a311c5d968b610d9481cb0db599cea025fdae3fc85981f5aeea80",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {
+    "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e",
+    "deleted_cwd.py": "4e00366df1d0b63b08de660c5f2c8e0e30ce13ac2bf3d5a301608000b156cfbf"
+  },
+  "rows": [
+    {
+      "id": "nls-directory-c-depth-zero",
+      "args": [
+        "-rR",
+        "-w"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a5245414445520a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-depth-zero",
+      "args": [
+        "-rR",
+        "-w"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b65c2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a5245414445520a6d616b653a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a6d616b65c2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-inherited-depth",
+      "args": [
+        "-rR"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "7"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b655b375dc2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a5245414445520a6d616b655b375d3a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a6d616b655b375dc2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-c-inherited-depth",
+      "args": [
+        "-rR"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKELEVEL": "7"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b655b375d3a20456e746572696e67206469726563746f7279202740574f524b40270a5245414445520a6d616b655b375d3a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a6d616b655b375d3a204c656176696e67206469726563746f7279202740574f524b40270a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-explicit-C",
+      "args": [
+        "-rR",
+        "-C",
+        "sub"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "sub/Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b65c2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b402f737562c2a0c2bb0a5245414445520a6d616b653a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a6d616b65c2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b402f737562c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-target-spool",
+      "args": [
+        "-rR",
+        "-w",
+        "-Otarget",
+        "-j2"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c4f4e45297072696e746620276f6e655c6e270a0940242866696c65203e3e7365656e2c54574f297072696e7466202774776f5c6e270a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b65c2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a6f6e650a74776f0a6d616b65c2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a4f4e450a54574f0a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-line-spool",
+      "args": [
+        "-rR",
+        "-w",
+        "-Oline",
+        "-j2"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "4"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c52454144290a2e50484f4e593a20616c6c0a616c6c3a0a0940242866696c65203e3e7365656e2c4f4e45297072696e746620276f6e655c6e270a0940242866696c65203e3e7365656e2c54574f297072696e7466202774776f5c6e270a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b655b345dc2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a6f6e650a6d616b655b345dc2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a6d616b655b345dc2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a74776f0a6d616b655b345dc2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a4f4e450a54574f0a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-eager-unknown",
+      "args": [
+        "-rR",
+        "-w",
+        "EARLY:=$(info EAGER)"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "7"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b65203a206f6e20656e7472652064616e7320756e2072c3a9706572746f69726520696e636f6e6e750a45414745520a5245414445520a6d616b655b375d3a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a6d616b655b375dc2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-c-eager-unknown",
+      "args": [
+        "-rR",
+        "-w",
+        "EARLY:=$(info EAGER)"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKELEVEL": "7"
+      },
+      "launch": null,
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b653a20456e746572696e6720616e20756e6b6e6f776e206469726563746f72790a45414745520a5245414445520a6d616b655b375d3a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a6d616b655b375d3a204c656176696e67206469726563746f7279202740574f524b40270a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-to-c-live",
+      "args": [
+        "-rR",
+        "-w"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "3"
+      },
+      "launch": null,
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a242866696c65203e3e7365656e2c52454144290a2428696e666f204649525354290a24286e6c735f676c6f62616c5f6320290a2428696e666f205345434f4e44290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b655b335dc2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a46495253540a5345434f4e440a6d616b655b335d3a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a6d616b655b335d3a204c656176696e67206469726563746f7279202740574f524b40270a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-c-to-fr-live",
+      "args": [
+        "-rR",
+        "-w"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "launch": null,
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a242866696c65203e3e7365656e2c52454144290a2428696e666f204649525354290a24286e6c735f676c6f62616c5f667220290a2428696e666f205345434f4e44290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a46495253540a5345434f4e440a6d616b653a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a6d616b65c2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a040574f524b40c2a0c2bb0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-live-target-spool",
+      "args": [
+        "-rR",
+        "-w",
+        "-Otarget",
+        "-j2"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "launch": null,
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a242866696c65203e3e7365656e2c52454144290a2428696e666f204649525354290a24286e6c735f676c6f62616c5f6320290a2428696e666f205345434f4e44290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b653a20456e746572696e67206469726563746f7279202740574f524b40270a46495253540a5345434f4e440a6d616b653a204c656176696e67206469726563746f7279202740574f524b40270a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-deleted-after-C-level-0",
+      "args": [
+        "-rR",
+        "-w",
+        "-Otarget",
+        "-j2",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "launch": "after-C",
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f204355524449523d3c2428435552444952293e290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b65203a206f6e20656e7472652064616e7320756e2072c3a9706572746f69726520696e636f6e6e750a4355524449523d3c40574f524b403e0a6d616b65203a206f6e2071756974746520756e2072c3a9706572746f69726520696e636f6e6e750a6d616b653a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a",
+        "stderr_template_hex": "6d616b653a20676574637764203a2040454e4f454e54400a",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-deleted-after-C-level-4",
+      "args": [
+        "-rR",
+        "-w",
+        "-Otarget",
+        "-j2",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "4"
+      },
+      "launch": "after-C",
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f204355524449523d3c2428435552444952293e290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b655b345d203a206f6e20656e7472652064616e7320756e2072c3a9706572746f69726520696e636f6e6e750a4355524449523d3c40574f524b403e0a6d616b655b345d203a206f6e2071756974746520756e2072c3a9706572746f69726520696e636f6e6e750a6d616b655b345d3a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a",
+        "stderr_template_hex": "6d616b655b345d3a20676574637764203a2040454e4f454e54400a",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-c-deleted-after-C-level-4",
+      "args": [
+        "-rR",
+        "-w",
+        "-Otarget",
+        "-j2",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKELEVEL": "4"
+      },
+      "launch": "after-C",
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f204355524449523d3c2428435552444952293e290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b655b345d3a20456e746572696e6720616e20756e6b6e6f776e206469726563746f72790a4355524449523d3c40574f524b403e0a6d616b655b345d3a204c656176696e6720616e20756e6b6e6f776e206469726563746f72790a6d616b655b345d3a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
+        "stderr_template_hex": "6d616b655b345d3a206765746377643a2040454e4f454e54400a",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-fr-deleted-initial-empty",
+      "args": [
+        "-rR",
+        "-w",
+        "-f",
+        "@WORK@/Makefile"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "launch": "initial",
+      "modules": [],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f204355524449523d3c2428435552444952293e290a2e50484f4e593a20616c6c0a616c6c3a203b0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "6d616b65c2a03a206f6e20656e7472652064616e73206c652072c3a9706572746f69726520c2abc2a0c2a0c2bb0a4355524449523d3c3e0a6d616b653a205269656e20c3a020666169726520706f757220c2abc2a0616c6cc2a0c2bb2e0a6d616b65c2a03a206f6e20717569747465206c652072c3a9706572746f69726520c2abc2a0c2a0c2bb0a",
+        "stderr_template_hex": "6d616b653a20676574637764203a2040454e4f454e54400a",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-custom-domain-typed-depth",
+      "args": [
+        "-rR",
+        "-w"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "9"
+      },
+      "launch": null,
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f637573746f6d20290a242866696c65203e3e40574f524b402f7365656e2c52454144290a2428696e666f20524541444552290a2e50484f4e593a20616c6c0a616c6c3a203b0a",
+        "custom/fr/LC_MESSAGES/rmake-nls-fixture.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000200000004d0000001f0000006e000000280000008e00000028000000b700000026000000e00000000025735b25755d3a20456e746572696e67206469726563746f727920272573270a0025735b25755d3a204c656176696e67206469726563746f727920272573270a00436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a0073746172742064657074683d2532247520706174683d253324732070726f6772616d3d253124730a00656e6420706174683d253324732070726f6772616d3d253124732064657074683d253224750a00"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "73746172742064657074683d3920706174683d40574f524b402070726f6772616d3d6d616b650a5245414445520a6d616b655b395d3a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a656e6420706174683d40574f524b402070726f6772616d3d6d616b652064657074683d390a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a524541440a"
+      }
+    }
+  ]
+}

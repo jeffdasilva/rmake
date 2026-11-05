@@ -1,0 +1,457 @@
+{
+  "classification": "Original15 exact loader cases. The declared raw loader argument comes from an independent public dlopen/dlsym witness in the case locale.",
+  "original_models_sha256": "e59ba8c92f9c6a9c0acd66f9925dac3a5909063f23cb32be17bbffe8cb563b91",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {
+    "loader_probe.c": "75aa62577c8eb8a3bd7b64da6d3b812adde01567135f6f765a5ea9dcade8d004",
+    "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e"
+  },
+  "rows": [
+    {
+      "id": "nls-fr-loader-missing-object",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f616273656e745f6e6c732e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [],
+      "loader_fact": "open",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a20404c4f414445525f44455441494c400a4d616b6566696c653a313a202a2a2a20616273656e745f6e6c732e736fc2a03a206563686563206475206368617267656d656e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-c-loader-missing-object",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f616273656e745f6e6c732e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [],
+      "loader_fact": "open",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a20404c4f414445525f44455441494c400a4d616b6566696c653a313a202a2a2a20616273656e745f6e6c732e736f3a206661696c656420746f206c6f61642e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-optional-missing",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2d6c6f6164202e2f616273656e745f6e6c732e736f0a2428696e666f204c4f414445443d5b24282e4c4f41444544295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "modules": [],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "4c4f414445443d5b5d0a",
+        "stderr_hex": "6d616b653a202a2a2a20417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0616273656e745f6e6c732e736fc2a0c2bb2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a61667465720a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-missing-license",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "OMIT_LICENSE=1"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204c276f626a6574206368617267c3a920c2abc2a06c6f616465725f70726f62652e736fc2a0c2bb206e27657374207061732064c3a9636c6172c3a920636f6d70617469626c652061766563206c612047504c2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-missing-symbol",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f286e6c735f6d697373696e675f7365747570290a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": []
+        }
+      ],
+      "loader_fact": "symbol",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204563686563206475206368617267656d656e742064752073796d626f6c65206e6c735f6d697373696e675f736574757020c3a020706172746972206465206c6f616465725f70726f62652e736f203a20404c4f414445525f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-setup-failed",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": []
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a206c6f616465725f70726f62652e736fc2a03a206563686563206475206368617267656d656e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a73657475700a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-empty-symbol-required",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f28290a"
+      },
+      "modules": [],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d2064752073796d626f6c6520616273656e7420706f7572206c276f70c3a9726174696f6e20c2abc2a06c6f6164c2a0c2bbc2a03a206c6f616465725f70726f62652e736f28292e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-empty-symbol-optional",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2d6c6f6164202e2f6c6f616465725f70726f62652e736f28290a"
+      },
+      "modules": [],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d2064752073796d626f6c6520616273656e7420706f7572206c276f70c3a9726174696f6e20c2abc2a06c6f6164c2a0c2bbc2a03a206c6f616465725f70726f62652e736f28292e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-registration-empty",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "PROBE_KIND=1"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d20646520666f6e6374696f6e20616273656e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a73657475700a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-registration-invalid-raw",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "PROBE_KIND=2"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d20646520666f6e6374696f6e20696e76616c696465c2a03a20626164ff2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a73657475700a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-registration-too-long",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "PROBE_KIND=3"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d20646520666f6e6374696f6e2074726f70206c6f6e67c2a03a20787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878782e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a73657475700a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-registration-minimum",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "PROBE_KIND=4"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d627265206427617267756d656e747320696e737566666973616e7420283235362920706f7572206c6120666f6e6374696f6e206e61746976655f6d696e2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a73657475700a"
+      }
+    },
+    {
+      "id": "nls-fr-loader-registration-maximum",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "modules": [
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "PROBE_KIND=5"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204e6f6d627265206427617267756d656e74732065786365737369662028312920706f7572206c6120666f6e6374696f6e206e61746976655f6d61782e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a73657475700a"
+      }
+    },
+    {
+      "id": "nls-private-fr-loader-include-registration",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f707269766174655f667220290a242866696c65203e3e7365656e2c6265666f7265290a696e636c756465206368696c642e6d6b0a242866696c65203e3e7365656e2c666f7262696464656e290a",
+        "child.mk": "6c6f6164202e2f6c6f616465725f70726f62652e736f0a"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        },
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": [
+            "PROBE_KIND=1"
+          ]
+        }
+      ],
+      "loader_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6368696c642e6d6b3a313a202a2a2a204e6f6d20646520666f6e6374696f6e20616273656e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a73657475700a"
+      }
+    },
+    {
+      "id": "nls-loader-custom-domain-raw-error-argument",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f637573746f6d20290a6c6f6164202e2f6c6f616465725f70726f62652e736f286e6c735f6d697373696e675f7365747570290a",
+        "custom/fr/LC_MESSAGES/rmake-nls-fixture.mo": "de12049500000000020000001c0000002c0000000000000000000000000000003c000000240000003d00000028000000620000001e0000008b000000004661696c656420746f206c6f61642073796d626f6c2025732066726f6d2025733a20257300436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a005241573d25332473204e414d453d25312473204f424a4543543d2532247300"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        },
+        {
+          "source": "loader_probe.c",
+          "filename": "loader_probe.so",
+          "defines": []
+        }
+      ],
+      "loader_fact": "symbol",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a205241573d404c4f414445525f44455441494c40204e414d453d6e6c735f6d697373696e675f7365747570204f424a4543543d6c6f616465725f70726f62652e736f2e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    }
+  ]
+}

@@ -4,10 +4,12 @@ import gzip
 import hashlib
 import io
 import json
+import socket
 from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 import conformance as h
@@ -41,6 +43,34 @@ class IntegrationTests(unittest.TestCase):
             network.assert_not_called()
         with self.assertRaisesRegex(h.HarnessError, 'identifier'):
             i.archive_for({'id': '../escape'}, Path('/not-written'))
+
+    def test_missing_primary_moves_to_fallback_and_retries_transient_dns(self):
+        source = b'verified source'
+        primary = 'https://example.invalid/primary'
+        fallback = 'https://example.invalid/fallback'
+        project = {'id': 'unit', 'archive_sha256': hashlib.sha256(source).hexdigest(),
+                   'source_url': primary, 'fallback_url': fallback}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(i.urllib.request, 'urlopen') as network, \
+                patch.object(i.oracle.time, 'sleep') as sleep:
+            network.side_effect = [urllib.error.HTTPError(primary, 404, 'not found', {}, None),
+                                   urllib.error.URLError(socket.gaierror(socket.EAI_AGAIN, 'temporary DNS')),
+                                   io.BytesIO(source)]
+            cache = Path(tmp)
+            result = i.archive_for(project, cache)
+            self.assertEqual(result.read_bytes(), source)
+            self.assertEqual(list(cache.iterdir()), [result])
+            self.assertEqual([call.args[0] for call in network.call_args_list], [primary, fallback, fallback])
+            sleep.assert_called_once_with(1)
+
+    def test_bad_integrity_does_not_try_the_fallback(self):
+        project = {'id': 'unit', 'archive_sha256': hashlib.sha256(b'expected').hexdigest(),
+                   'source_url': 'https://example.invalid/primary', 'fallback_url': 'https://example.invalid/fallback'}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(i.urllib.request, 'urlopen') as network:
+            network.side_effect = [io.BytesIO(b'incorrect'), io.BytesIO(b'expected')]
+            with self.assertRaisesRegex(h.HarnessError, 'pinned size/digest'):
+                i.archive_for(project, Path(tmp))
+            network.assert_called_once()
+            self.assertEqual(list(Path(tmp).iterdir()), [])
 
     def test_archive_rejects_path_escape_special_files_and_escaping_links(self):
         for kind in ('path', 'special', 'link'):

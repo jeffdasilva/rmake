@@ -1,0 +1,13 @@
+{
+  "classification": "Verified original optional Guile development, phase and signal evidence; no qualified integrated-head claim",
+  "sha256": "e950773d80eebf2121c8e3ed871c7a32b600b1beb2d297acff31b7c366911718",
+  "raw_sha256": "e5efc4a4c0ae0440de276dad72e74369d56a6fe89d07f002ce339b0511281064",
+  "raw_bytes": 12233602,
+  "baseline_commit": "d9ed10a51d3f57380cbe3bb5517d730b77ca3b1e",
+  "original_profile_counts": {
+    "enabled_language": 57,
+    "enabled_phase": 9,
+    "enabled_home": 3,
+    "signal_both": 14
+  }
+}

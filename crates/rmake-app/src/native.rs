@@ -34,6 +34,17 @@ pub fn reset() {
     }
 }
 
+#[cfg(feature = "guile")]
+pub fn register_guile() -> Result<(), rmake_core::variables::ExpandError> {
+    RUNTIME.with(|runtime| {
+        let runtime = runtime.borrow();
+        runtime
+            .as_ref()
+            .expect("fresh invocation namespace")
+            .register_guile()
+    })
+}
+
 pub fn has_modules() -> bool {
     RUNTIME.with(|runtime| {
         runtime
@@ -61,5 +72,10 @@ pub fn can_retry_exit() -> bool {
     })
 }
 
-#[cfg(test)]
+#[cfg(feature = "test-support")]
+pub(crate) fn run_native_safety_check() {
+    tests::independent_runtimes_pin_active_code_and_alias_records_do_not_own_handles();
+}
+
+#[cfg(any(all(test, not(feature = "guile")), feature = "test-support"))]
 mod tests;
