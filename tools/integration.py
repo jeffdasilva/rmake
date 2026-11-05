@@ -122,7 +122,7 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, plan['environment'])
-        command = [str(runtime / 'bin/make'), *plan['args'], project['target']]
+        command = [str(runtime / 'bin/make'), *project.get('args', plan['args']), project['target']]
         run = {'binary': str(binary), 'command': command, 'parts': [], 'errors': []}
         row['runs'].append(run)
         steps = []

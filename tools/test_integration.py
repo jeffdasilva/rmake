@@ -19,7 +19,7 @@ class IntegrationTests(unittest.TestCase):
     def test_sources_and_build_plans_are_pinned_and_have_independent_smokes(self):
         data = json.loads(i.MANIFEST.read_text())
         self.assertEqual(data['schema_version'], 1)
-        self.assertEqual({p['id'] for p in data['projects']}, {'xxhash-0.8.3', 'zlib-1.3.2'})
+        self.assertEqual({p['id'] for p in data['projects']}, {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9'})
         for project in data['projects']:
             self.assertRegex(project['archive_sha256'], r'^[0-9a-f]{64}$')
             self.assertRegex(project['license_sha256'], r'^[0-9a-f]{64}$')
