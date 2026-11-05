@@ -14,12 +14,23 @@ use rmake_core::variables::MAX_OUTPUT;
 use crate::stdio::Stream;
 use crate::{posix, wildcard::Wildcard};
 
+type MissingReadObserver = dyn Fn(&[u8], &io::Error);
+
 #[derive(Default)]
 pub struct Runtime {
     wildcard: Wildcard,
+    missing_read: Option<Box<MissingReadObserver>>,
 }
 
 impl Runtime {
+    /// Observe the original open failure without probing the path again.
+    pub fn with_missing_read_observer(observer: impl Fn(&[u8], &io::Error) + 'static) -> Self {
+        Self {
+            missing_read: Some(Box::new(observer)),
+            ..Self::default()
+        }
+    }
+
     pub fn set_database_history(&mut self, history: rmake_core::database::History) {
         self.wildcard.set_database_history(history);
     }
@@ -44,7 +55,7 @@ impl Runtime {
     }
 
     pub fn execute(&mut self, effect: FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> {
-        execute_with(effect, &mut self.wildcard)
+        execute_with(effect, &mut self.wildcard, self.missing_read.as_deref())
     }
 
     /// Completed make children invalidate directory observations, including
@@ -65,6 +76,7 @@ pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
 fn execute_with(
     effect: FilesystemEffect<'_>,
     wildcard: &mut Wildcard,
+    missing_read: Option<&MissingReadObserver>,
 ) -> Result<Vec<u8>, FilesystemError> {
     match effect {
         FilesystemEffect::Wildcard(pattern) => wildcard.expand(pattern),
@@ -103,7 +115,7 @@ fn execute_with(
             }
             Ok(path.into_os_string().as_bytes().to_vec())
         }
-        FilesystemEffect::ReadFile(path) => read(path).map_err(Into::into),
+        FilesystemEffect::ReadFile(path) => read(path, missing_read).map_err(Into::into),
         FilesystemEffect::WriteFile { path, text, append } => {
             let mut stream = Stream::open(path, if append { c"a" } else { c"w" })
                 .map_err(|error| diagnostic(b"open", path, error))?;
@@ -130,10 +142,15 @@ pub(crate) fn retry_interrupted<T>(mut operation: impl FnMut() -> io::Result<T>)
     }
 }
 
-fn read(path: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
+fn read(path: &[u8], missing_read: Option<&MissingReadObserver>) -> Result<Vec<u8>, Vec<u8>> {
     let mut stream = match Stream::open(path, c"r") {
         Ok(stream) => stream,
-        Err(error) if error.raw_os_error() == Some(2) => return Ok(Vec::new()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if let Some(observer) = missing_read {
+                observer(path, &error);
+            }
+            return Ok(Vec::new());
+        }
         Err(error) => return Err(diagnostic(b"open", path, error)),
     };
     let mut output = Vec::new();

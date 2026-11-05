@@ -136,6 +136,7 @@ def models() -> list[Model]:
         result.append(Model('native-recipe-' + kind, {'Makefile': body, 'seen': b'anchor\n'}, {'exit_code': 0, 'stdout_hex': expected.hex(), 'stderr_hex': ''}, b'anchor\nbefore\n'))
     result.extend(lifecycle_models())
     result.extend(setup_result_models())
+    result.extend(loader_debug_models())
     result.extend(additional_models())
     result.extend(stdio_models())
     result.extend(registration_models())
@@ -230,6 +231,67 @@ def setup_result_models() -> list[Model]:
                             args=('-rR', '--no-print-directory', *args),
                             mtimes_ns={'probe.so': older, 'replacement.so': older + 2_000_000_000}))
     return result
+
+
+def loader_debug_models() -> list[Model]:
+    banner = (b'GNU Make 4.4.1\n'
+              b'Built for x86_64-pc-linux-gnu\n'
+              b'Copyright (C) 1988-2023 Free Software Foundation, Inc.\n'
+              b'License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n'
+              b'This is free software: you are free to change and redistribute it.\n'
+              b'There is NO WARRANTY, to the extent permitted by law.\n')
+    basic = banner + b'Reading makefiles...\n'
+    verbose = basic + b"Reading makefile 'Makefile'...\n"
+    update = b'Updating makefiles....\n'
+    goals = b'Updating goal targets....\n'
+    all = (update + goals + b"Considering target file 'all'.\n File 'all' does not exist.\n"
+           b"Finished prerequisites of target file 'all'.\nMust remake target 'all'.\n"
+           b"Successfully remade target file 'all'.\n")
+    prologue = b'.DEFAULT_GOAL := all\n'
+    run_all = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    read = b'$(info read loaded=[$(.LOADED)])\n'
+    lookup = b'Loading symbol probe_gmk_setup from probe.so\n'
+    opened = b'constructor stdout\nLoaded shared object probe.so\n'
+    setup = b'setup stdout\n'
+    ready = b'read loaded=[probe.so]\n'
+
+    cases = (
+        ('verbose-success', ('--debug=v',), prologue + b'load ./probe.so\n' + read + run_all,
+         True, False, 0, verbose + lookup + opened + setup + ready + all, b'',
+         b'anchor\nctor\nsetup\ngoal\ndtor\n'),
+        ('verbose-global-symbol-and-repeat', ('--debug=v',),
+         prologue + b'load probe.so\nload ./probe.so(unused_setup)\nload alias.so(probe_gmk_setup)\n' + read + run_all,
+         True, True, 0, verbose + lookup + opened + setup +
+         b'Loading symbol probe_gmk_setup from alias.so\nsetup stdout\nread loaded=[probe.so alias.so]\n' + all,
+         b'', b'anchor\nctor\nsetup\nsetup\ngoal\ndtor\n'),
+        ('verbose-bad-symbol', ('--debug=v',), b'load probe.so(absent_setup)\n' + read + run_all,
+         True, False, 2, verbose + b'Loading symbol absent_setup from probe.so\n' + opened,
+         b'Makefile:1: *** Failed to load symbol absent_setup from probe.so: ./probe.so: undefined symbol: absent_setup.  Stop.\n',
+         b'anchor\nctor\ndtor\n'),
+        ('basic-optional-missing', ('--debug=b',), prologue + b'-load absent.so\n' + read + run_all,
+         False, False, 2, basic + b'absent.so: cannot open shared object file: No such file or directory\n' +
+         b'read loaded=[]\n' + update,
+         b"make: *** No rule to make target 'absent.so'.  Stop.\n", b'anchor\n'),
+        ('verbose-required-missing', ('--debug=v',), b'load absent.so\n' + read + run_all,
+         False, False, 2, verbose + b'Loading symbol absent_gmk_setup from absent.so\n',
+         b'Makefile:1: absent.so: cannot open shared object file: No such file or directory\n'
+         b'Makefile:1: *** absent.so: failed to load.  Stop.\n', b'anchor\n'),
+        ('verbose-explicit-unload', ('--debug=v', '-B', 'probe.so'), prologue + b'load probe.so\n' + read +
+         run_all + b'probe.so:;@$(file >>seen,rebuild):\n',
+         True, False, 0, verbose + lookup + opened + setup + ready + update + goals +
+         b"Considering target file 'probe.so'.\nFinished prerequisites of target file 'probe.so'.\n"
+         b"Making 'probe.so' due to always-make flag.\nMust remake target 'probe.so'.\n"
+         b"Unloading shared object probe.so\nSuccessfully remade target file 'probe.so'.\n", b'',
+         b'anchor\nctor\nsetup\ndtor\nrebuild\n'),
+    )
+    return [
+        Model('native-loader-debug-' + ident, {'Makefile': makefile, 'seen': b'anchor\n'},
+              {'exit_code': status, 'stdout_hex': stdout.hex(), 'stderr_hex': stderr.hex()}, seen,
+              (Module('loader_debug.c', 'probe.so'),) if dso else (),
+              args=('-rR', '--no-print-directory', *args),
+              symlinks={'alias.so': 'probe.so'} if alias else {})
+        for ident, args, makefile, dso, alias, status, stdout, stderr, seen in cases
+    ]
 
 
 def additional_models() -> list[Model]:

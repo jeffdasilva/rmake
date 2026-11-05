@@ -556,6 +556,10 @@ impl<'a> RuntimeOutput<'a> {
     }
 }
 impl OutputReceiver for RuntimeOutput<'_> {
+    fn loader_event(&mut self, event: rmake_core::native::LoaderEvent<'_>) {
+        crate::debug::loader_event(self.controller, event);
+    }
+
     fn guile_callback(&mut self, callback: rmake_core::native::GuileCallback<'_>) {
         crate::debug::guile_callback(self.controller, callback);
     }
@@ -8229,7 +8233,9 @@ impl Engine {
         // A new recipe's dispatch scans the existing live chain before asking
         // for its slot. Continuations retain their existing chain position.
         self.job_debug.live(self.output.debug_mask());
-        let permit = if parallel {
+        // A configured jobserver grants the implicit slot to serial recipes
+        // too. Synchronous execution has already drained the other jobs.
+        let permit = if self.jobserver.is_some() {
             match self.reserve_job(debug_job.as_ref()) {
                 Ok(permit) => permit,
                 Err(error) => {

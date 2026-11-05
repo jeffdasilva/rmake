@@ -134,6 +134,16 @@ pub fn raw(parts: &[&[u8]]) {
     crate::output::stdout_parts(parts);
 }
 
+pub fn missing_file_read(output: &crate::output::Controller, path: &[u8], error: &std::io::Error) {
+    if output.debug_mask().has(Mask::VERBOSE) {
+        let detail = rmake_linux::filesystem::source_error_detail(error);
+        raw(&[&localized(
+            msg::FILE_READ_MISSING,
+            &[bytes(path), bytes(&detail)],
+        )]);
+    }
+}
+
 pub enum TraceReason<'a> {
     Phony,
     Missing,
@@ -355,6 +365,31 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::OughtToExist(name, _) => print(msg::OUGHT_TO_EXIST, &[bytes(name)]),
         Event::FoundRule(rule, name, _) => print(msg::FOUND_RULE, &[bytes(rule), bytes(name)]),
         Event::NoRule(name, _) => print(msg::NO_RULE, &[bytes(name)]),
+    }
+}
+
+pub fn loader_event(
+    output: &crate::output::Controller,
+    event: rmake_core::native::LoaderEvent<'_>,
+) {
+    use rmake_core::native::LoaderEvent;
+    let category = match event {
+        LoaderEvent::OptionalOpenFailed(_) => Mask::BASIC,
+        _ => Mask::VERBOSE,
+    };
+    if !output.debug_mask().has(category) || rmake_linux::native::stdout_closed() {
+        return;
+    }
+    match event {
+        LoaderEvent::LoadingSymbol { symbol, object } => raw(&[&localized(
+            msg::NATIVE_LOADING_SYMBOL,
+            &[bytes(symbol), bytes(object)],
+        )]),
+        LoaderEvent::Opened(object) => raw(&[&localized(msg::NATIVE_OPENED, &[bytes(object)])]),
+        LoaderEvent::Unloading(object) => {
+            raw(&[&localized(msg::NATIVE_UNLOADING, &[bytes(object)])])
+        }
+        LoaderEvent::OptionalOpenFailed(error) => raw(&[error, b"\n"]),
     }
 }
 

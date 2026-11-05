@@ -45,9 +45,14 @@ the same request bridge. GNU's stdout-close ordering and raw native stdio behavi
 are retained: raw C output bypasses output-sync spools, and a warning does not
 flush a partial C stdout buffer.
 
+Verbose debug output reports setup-symbol lookup, actual shared-object open,
+and unload at the corresponding loader operations. A repeated load of the same
+name performs none of these operations. BASIC debug reports the raw loader error
+for an optional object that could not be opened.
+
 ## Acceptance and remaining work
 
-`make test-native-modules` checks 220 original models. It compiles original C
+`make test-native-modules` checks 226 original models. It compiles original C
 modules into disposable inputs and checks two GNU runs and the candidate against independently written byte streams,
 exit status, ordered file witnesses and full filesystem snapshots. It rejects
 leftover children, compiler failures and reached limits. `NATIVE_CASE` selects a

@@ -1,0 +1,12 @@
+id = "job-debug-serial-pool-no-debug-control"
+requirement = "runtime.jobs-serialized-pool-debug"
+candidate = "required"
+description = "Original JOBS publication control under serialized or unstarted recipes."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "--jobserver-style=pipe", "-j2", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""
