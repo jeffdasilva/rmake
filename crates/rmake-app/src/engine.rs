@@ -7781,6 +7781,12 @@ impl Engine {
                         normal_names: &normal_names,
                     },
                 );
+                if execution.pending {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::RecipeRunning(target, debug_depth),
+                    );
+                }
                 outcome.ran |= execution.ran;
                 outcome.completion =
                     if (self.options.dry_run || self.options.question || self.options.touch)
@@ -8368,7 +8374,7 @@ impl Engine {
                 },
             );
             self.output.select(None);
-            return Execution::success(true);
+            return Execution::pending();
         }
         let (execution, permit) = self.continue_recipe(target, state, phony, before, parallel);
         *completed_permit = permit;
@@ -8980,7 +8986,7 @@ impl Engine {
                             },
                         );
                         self.observe_interrupt();
-                        return Execution::success(true);
+                        return Execution::pending();
                     }
                     Err(error) => Err(error),
                 }

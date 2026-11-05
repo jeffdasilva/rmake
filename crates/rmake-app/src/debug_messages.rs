@@ -34,6 +34,7 @@ keys! {
     FINISHED: c"Finished prerequisites of target file '%s'.\n", [B];
     MUST_REMAKE: c"Must remake target '%s'.\n", [B];
     IGNORING_VPATH: c"  Ignoring VPATH name '%s'.\n", [B];
+    RECIPE_RUNNING: c"Recipe of '%s' is being run.\n", [B];
     REMADE: c"Successfully remade target file '%s'.\n", [B];
     FAILED: c"Failed to remake target file '%s'.\n", [B];
     NO_NEED: c"No need to remake target '%s'", [B];
