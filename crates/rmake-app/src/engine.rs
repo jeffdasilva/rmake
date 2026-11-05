@@ -1574,9 +1574,6 @@ impl Engine {
 
     #[cfg(feature = "guile")]
     pub fn native_signal_exit(&mut self, number: i32) -> u8 {
-        if let Some(mut exit) = self.native_exit_override.take() {
-            return exit.finish_signal(number);
-        }
         self.output.process_lifetime().finish();
         if !self.options.directories.is_empty()
             && let Some(directory) = &self.startup_directory

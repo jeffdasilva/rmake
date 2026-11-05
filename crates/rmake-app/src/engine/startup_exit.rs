@@ -78,6 +78,8 @@ impl NativeExit {
         match self {
             Self::Startup(host) => host.finish_signal(number),
             Self::Engine(engine) => engine.native_signal_exit(number),
+            // A source-only exit never owns a live native phase.
+            Self::Source(_) => rmake_linux::guile::abort_host(),
         }
     }
 

@@ -74,7 +74,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, required=True)
     parser.add_argument("--candidate", type=Path)
-    parser.add_argument("--suite", action="append", choices=("language", "phase", "home", "signal"), default=[])
+    parser.add_argument("--suite", action="append", choices=("language", "phase", "home", "signal", "stdin"), default=[])
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
@@ -139,7 +139,18 @@ def main():
             record["expected_filesystem"] = filesystem
             actual = []
             for executable in [oracle, oracle, *([args.candidate] if args.candidate else [])]:
-                observed = h.execute(case, runtime, executable)
+                if spec["schema"] == "stdin":
+                    h.reset_workspace(case, runtime, executable)
+                    # Redirect one original named fixture into the same real
+                    # argv[0] for each engine. The shell is replaced by make.
+                    command = ["/bin/sh", "-c", 'exec "$@" < input.mk', "guile-stdin",
+                               str(runtime / "bin/make"), *case.args]
+                    out, err, status, limit, leftovers = h.capture(
+                        command, runtime / "work", h.clean_environment(runtime, case.environment), case.timeout)
+                    snapshot = h.snapshot({name: runtime / name for name in ("work", "home", "tmp")})
+                    observed = h.Observation(out, err, status, limit, snapshot, leftovers)
+                else:
+                    observed = h.execute(case, runtime, executable)
                 errors = h.expectation_errors(case, observed)
                 difference = h.differences(actual[0], observed) if actual else []
                 actual.append(observed)

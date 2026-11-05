@@ -16,7 +16,7 @@ that handles ordinary Makefiles. It keeps early decoder, reader, signal,
 standard-stream and native-finalizer lifetimes explicit. Output and process
 ownership stay live through native shutdown. The gate covers 57 language and
 native integration cases, nine startup phase cases, three HOME cases and 14
-signal cases in the enabled profile. The signal cases also run against the
+signal cases in the enabled profile, plus one named stdin restart. The signal cases also run against the
 default binary. Two GNU runs and each rmake build must independently match
 literal streams, status, ordered effects, complete filesystems and bounds.
 
@@ -37,3 +37,8 @@ The [first integrated stage](../tests/guile-frontend/qualification-staged.json)
 passes all four comparison campaigns and both core self-host flows against the
 main172 source base. The later database and stdin integration requires its own
 full selected-head validation.
+
+The stdin profile requires both Makefile reads, cleanup of the owned source,
+and the final goal effect. The first image's Scheme port output is still
+buffered at exec and is discarded, so only the second image emits its line. Both GNU runs and both
+candidate builds are compared to that literal result.

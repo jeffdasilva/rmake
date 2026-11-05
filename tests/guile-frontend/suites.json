@@ -34,6 +34,13 @@
       "count": 14,
       "source": "signal.c",
       "source_sha256": "e0290382b4a731d7affb606e0d58021cee71abe76f0438525d14dc343a9b3919"
+    },
+    {
+      "name": "stdin",
+      "plan": "stdin.json",
+      "plan_sha256": "3127230e4421cb3d3026147f5ccb49dcc34aff69918b090ef8358cb681d0d58e",
+      "schema": "stdin",
+      "count": 1
     }
   ]
 }
