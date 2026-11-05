@@ -29,6 +29,11 @@ def save(name, data):
     Path(name).write_text(json.dumps(data, sort_keys=True) + "\n")
 
 
+def exec_make(limit, executable, args):
+    resource.setrlimit(resource.RLIMIT_NOFILE, (limit, limit))
+    os.execv(executable, [executable, *args])
+
+
 def launch(limit, executable, args):
     expected = tuple(map(int, os.environ["WIRE_SLOTS"].split(",")))
     protocol = os.pipe2(os.O_CLOEXEC)
@@ -46,8 +51,7 @@ def launch(limit, executable, args):
         for fd in (*original, *aliases):
             if fd not in expected:
                 os.close(fd)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (limit, limit))
-        os.execv(executable, [executable, *args])
+        exec_make(limit, executable, args)
 
     _, status = os.waitpid(child, 0)
     after = [descriptor(fd) for fd in (*original, *aliases)]
@@ -62,17 +66,30 @@ def launch(limit, executable, args):
 
 def recipe(value):
     wire = tuple(map(int, value.removeprefix("--jobserver-auth=").split(","))) if value else ()
-    passed = [descriptor(fd) for fd in wire]
-    unrelated = tuple(map(int, os.environ["WIRE_SLOTS"].split(",")[2:]))
     parent = os.getppid()
-    save("recipe.json", {"protocol": passed, "unrelated": [descriptor(fd) for fd in unrelated],
-                         "parent": parent, "image": os.readlink(f"/proc/{parent}/exe"),
-                         "limit": list(resource.getrlimit(resource.RLIMIT_NOFILE))})
-    print("child")
+    observed = {"protocol": [descriptor(fd) for fd in wire],
+                "parent": parent, "image": os.readlink(f"/proc/{parent}/exe"),
+                "limit": list(resource.getrlimit(resource.RLIMIT_NOFILE))}
+    if "WIRE_SLOTS" in os.environ:
+        unrelated = tuple(map(int, os.environ["WIRE_SLOTS"].split(",")[2:]))
+        observed["unrelated"] = [descriptor(fd) for fd in unrelated]
+        save("recipe.json", observed)
+        print("child")
+    else:
+        reader, writer = wire
+        observed["token_count"] = count(reader)
+        save("recipe.json", observed)
+        for name, endpoint in zip(("reader", "writer"), observed["protocol"], strict=True):
+            status = "nonblocking" if endpoint["status_flags"] & os.O_NONBLOCK else "blocking"
+            print(f"{name}={status}")
 
 
 if __name__ == "__main__":
     if sys.argv[1] == "launch":
-        launch(int(sys.argv[2]), sys.argv[3], sys.argv[4:])
+        limit, executable, args = int(sys.argv[2]), sys.argv[3], sys.argv[4:]
+        if "WIRE_SLOTS" in os.environ:
+            launch(limit, executable, args)
+        else:
+            exec_make(limit, executable, args)
     else:
         recipe(sys.argv[1])

@@ -1,4 +1,4 @@
-# Borrowed jobserver read flags
+# Jobserver pipe read flags
 
 A supervisor owns two pipes and retains duplicates of every end. It seeds the
 advertised pipe with one byte and seeds a separate unadvertised pipe with a
@@ -16,6 +16,11 @@ original flags. Both seeded bytes stay queued. The gate retains raw descriptor
 numbers and flags and checks their physical identity and access mode against
 the supervisor's input. It also checks literal streams, status, filesystem
 effects, and process containment.
+
+Two owned controls start a two-slot pipe pool at limits 64 and 10. The first
+recursive-marked recipe checks its actual inherited reader and writer.
+Both ends refer to the same live pipe. The read side is nonblocking, the
+write side is blocking, and one seeded byte remains queued.
 
 Run the development gate with `make test-jobserver-read-flags` and the
 optimized gate with `make test-jobserver-read-flags-release`. The harness

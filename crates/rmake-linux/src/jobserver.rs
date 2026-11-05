@@ -355,6 +355,13 @@ impl Jobserver {
             // the unpublished FIFO without spending a third descriptor.
             (&server.0.writer).write_all(&tokens)?;
         }
+        // Publish the seeded pipe with a nonblocking protocol reader. The
+        // compact pipe already shares its nonblocking scheduler reader.
+        if let Some(reader) = &server.0.protocol_reader {
+            let descriptor = reader.as_raw_fd();
+            let flags = descriptor_control(descriptor, 3, 0)?;
+            descriptor_control(descriptor, 4, flags | NONBLOCK)?;
+        }
         Arc::get_mut(&mut server.0)
             .expect("unshared new jobserver")
             .owned_slots = Some(jobs);

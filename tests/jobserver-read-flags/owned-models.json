@@ -1,0 +1,6 @@
+{
+  "args":["-rR","--no-print-directory","-j2","--jobserver-style=pipe"],
+  "models":[{"id":"owned-roomy-first-child","limit":64},{"id":"owned-compact-first-child","limit":10}],
+  "expected":{"stdout":"reader=nonblocking\nwriter=blocking\n","stderr":"","exit_code":0,"queued_bytes":1},
+  "scope":"No borrowed jobserver. One recursive-marked recipe occupies the implicit slot and inspects the two live inherited ends without waiting for or consuming any token."
+}

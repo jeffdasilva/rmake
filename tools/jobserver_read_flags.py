@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Compare shared status flags after joining a validated borrowed Linux pipe."""
+"""Compare the read status of owned and borrowed Linux jobserver pipes."""
 import argparse
 import fcntl
 import json
@@ -19,8 +19,9 @@ ROOT = Path(h.__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/jobserver-read-flags"
 FIXTURE_SOURCES = ("Makefile", "witness.py")
 CONFIG = json.loads((FIXTURE / "models.json").read_bytes())
+OWNED_CONFIG = json.loads((FIXTURE / "owned-models.json").read_bytes())
 MODEL_IDS = ("roomy-advertised-read", "compact-advertised-read", "roomy-no-auth-control")
-OBSERVATION_FILES = ("recipe.json", "supervisor.json")
+OWNED_IDS = ("owned-roomy-first-child", "owned-compact-first-child")
 
 
 def identity(row):
@@ -84,13 +85,34 @@ def check(model, engine, records):
     return errors
 
 
-def run(model, image, fixture, runtime):
-    expected = CONFIG["expected"]
-    additions = {"WIRE_SLOTS": ",".join(map(str, model["slots"]))}
-    if model["join"]:
-        additions["MAKEFLAGS"] = "-j2 --jobserver-auth=" + ",".join(map(str, model["slots"][:2]))
+def check_owned(model, engine, records):
+    recipe = records["recipe.json"]
+    protocol = recipe["protocol"]
+    errors = []
+    if (len(protocol) != 2 or protocol[0]["fd"] == protocol[1]["fd"]
+            or not flags_match(protocol[0], protocol[1], True, True)
+            or not flags_match(protocol[1], protocol[0], False, False)
+            or any(endpoint["descriptor_flags"] for endpoint in protocol)
+            or recipe["token_count"] != OWNED_CONFIG["expected"]["queued_bytes"]):
+        errors.append("actual published read and write descriptions and queued byte")
+    if (recipe["image"] != str(engine) or recipe["limit"] != [model["limit"]] * 2
+            or (Path("/proc") / str(recipe["parent"])).exists()):
+        errors.append("actual profile, parent image and reap")
+    return errors
+
+
+def run(model, image, fixture, runtime, owned):
+    config = OWNED_CONFIG if owned else CONFIG
+    expected = config["expected"]
+    additions = {}
+    witness_files = ("recipe.json",)
+    if not owned:
+        additions["WIRE_SLOTS"] = ",".join(map(str, model["slots"]))
+        if model["join"]:
+            additions["MAKEFLAGS"] = "-j2 --jobserver-auth=" + ",".join(map(str, model["slots"][:2]))
+        witness_files += ("supervisor.json",)
     case = h.Case(fixture, model["id"], "parallel.jobserver", "required",
-                  tuple(CONFIG["args"]), 5, additions,
+                  tuple(config["args"]), 5, additions,
                   {name: expected[name] for name in ("stdout", "stderr", "exit_code")})
     h.reset_workspace(case, runtime, image)
     work = runtime / "work"
@@ -103,7 +125,7 @@ def run(model, image, fixture, runtime):
     errors = h.expectation_errors(case, observed)
     other = dict(observed.filesystem)
     records = {}
-    for name in OBSERVATION_FILES:
+    for name in witness_files:
         evidence = other.pop("work/" + name, None)
         if evidence is None or evidence["type"] != "file" or evidence["mode"] != 0o644 or evidence.get("hardlinks"):
             errors.append("missing or invalid witness file " + name)
@@ -111,8 +133,9 @@ def run(model, image, fixture, runtime):
             records[name] = json.loads((work / name).read_bytes())
     if other != expected_filesystem:
         errors.append("complete fixture filesystem outside typed witness files")
-    if len(records) == len(OBSERVATION_FILES):
-        errors.extend(check(model, image, records))
+    if len(records) == len(witness_files):
+        check_witness = check_owned if owned else check
+        errors.extend(check_witness(model, image, records))
     return {"model": model, "image": str(image), "sha256": h.sha256_file(image),
             "expected_filesystem": expected_filesystem,
             "observed": h.observation_json(observed), "records": records, "errors": errors}
@@ -124,12 +147,14 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
-    models = CONFIG["models"]
-    if tuple(model["id"] for model in models) != MODEL_IDS:
+    borrowed, owned = CONFIG["models"], OWNED_CONFIG["models"]
+    if tuple(model["id"] for model in borrowed) != MODEL_IDS:
         raise h.HarnessError("unexpected borrowed-read flag profile inventory")
+    if tuple(model["id"] for model in owned) != OWNED_IDS:
+        raise h.HarnessError("unexpected owned-read flag profile inventory")
     _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    if hard != resource.RLIM_INFINITY and hard < max(model["limit"] for model in models):
-        raise h.HarnessError("borrowed-read profiles require a hard descriptor limit of at least 64")
+    if hard != resource.RLIM_INFINITY and hard < max(model["limit"] for model in borrowed + owned):
+        raise h.HarnessError("jobserver read-flag profiles require a hard descriptor limit of at least 64")
     reference = args.oracle.resolve(strict=True)
     profile = oracle.verify(reference)
     images = [reference, reference]
@@ -145,19 +170,21 @@ def main():
             (fixture / name).chmod(0o644)
         h.validate_fixture(fixture)
         cases = []
-        for model in models:
-            observations = [run(model, image, fixture, runtime) for image in images]
-            errors = [row["errors"] for row in observations]
-            cases.append({"id": model["id"], "observations": observations, "passed": not any(errors)})
-            print("FAIL" if any(errors) else "PASS", model["id"], errors)
+        for owned_pool, models in ((False, borrowed), (True, owned)):
+            for model in models:
+                observations = [run(model, image, fixture, runtime, owned_pool) for image in images]
+                errors = [row["errors"] for row in observations]
+                cases.append({"id": model["id"], "observations": observations, "passed": not any(errors)})
+                print("FAIL" if any(errors) else "PASS", model["id"], errors)
     report = {
         "oracle_profile": profile["profile_id"],
         "model": CONFIG,
+        "owned_model": OWNED_CONFIG,
         "cases": cases,
         "affinity": sorted(os.sched_getaffinity(0)),
         "source_sha256": h.sha256_file(Path(__file__)),
         "fixture_sha256": {name: h.sha256_file(FIXTURE / name)
-                           for name in (*FIXTURE_SOURCES, "models.json")},
+                           for name in (*FIXTURE_SOURCES, "models.json", "owned-models.json")},
         "passed": all(case["passed"] for case in cases),
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
