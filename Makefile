@@ -9,7 +9,7 @@
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv
-.PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release
+.PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release test-catalog-coverage
 .PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask
 
 .PHONY: test-job-debug
@@ -40,6 +40,7 @@ NATIVE_FENV_CASE ?=
 LOCALE_CASE ?=
 NLS_CASE ?=
 NLS_DIRECTORY_CASE ?=
+CATALOG_COVERAGE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
@@ -97,6 +98,7 @@ help:
 		'  doctor          Check the toolchain and oracle' \
 		'  build / release Build debug / optimized rmake' \
 		'  catalog-check / catalog-install Verify and stage owned message data' \
+		'  test-catalog-coverage Compare all GNU catalog languages and fallback' \
 		'  test-nls / test-nls-directory Compare localized diagnostics and directory output' \
 		'  fmt / fmt-check Format Rust / check formatting' \
 		'  lint            Run Clippy with warnings denied' \
@@ -238,10 +240,8 @@ test-tools:
 catalog-check:
 	$(PYTHON) tools/catalogs.py
 
-catalog-install: catalog-check
-	install -d "$(DESTDIR)$(CATALOG_INSTALL_DIR)/fr/LC_MESSAGES"
-	install -m 644 catalogs/fr/LC_MESSAGES/make.mo "$(DESTDIR)$(CATALOG_INSTALL_DIR)/fr/LC_MESSAGES/make.mo"
-	install -m 644 catalogs/COPYING catalogs/fr.po catalogs/provenance.json "$(DESTDIR)$(CATALOG_INSTALL_DIR)/"
+catalog-install:
+	$(PYTHON) tools/catalogs.py --install "$(DESTDIR)$(CATALOG_INSTALL_DIR)"
 
 check-core: catalog-check fmt-check lint test-unit test-tools
 
@@ -307,6 +307,7 @@ test-include-stat: build oracle-verify
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
 
 test-selfhost: build
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" CATALOG_COVERAGE_CASE=partial-language-fallback test-catalog-coverage
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_CASE=nls-private-messages-warning test-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_DIRECTORY_CASE=nls-directory-fr-inherited-depth test-nls-directory
@@ -358,6 +359,7 @@ m5-acceptance:
 test-m5-release: test-m4-release
 
 test-m4-release: release oracle-verify test-nls-release test-nls-directory-release
+	$(PYTHON) tools/catalog_coverage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/catalog-coverage/optimized.json
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/stdin-sources/optimized.json
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
@@ -411,6 +413,9 @@ test-database-output: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/development.json $(if $(DATABASE_CASE),--case "$(DATABASE_CASE)")
 bootstrap-locale-data:
 	$(PYTHON) tools/locale_data.py --root "$(LOCALE_DATA_ROOT)"
+
+test-catalog-coverage: build oracle-verify catalog-check
+	$(PYTHON) tools/catalog_coverage.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/catalog-coverage/development.json $(if $(CATALOG_COVERAGE_CASE),--case "$(CATALOG_COVERAGE_CASE)")
 
 test-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/nls_diagnostics.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/development.json $(if $(NLS_CASE),--case "$(NLS_CASE)")
@@ -564,3 +569,5 @@ bench-compare: release oracle-verify
 
 clean:
 	+$(CARGO) clean
+
+test check: test-catalog-coverage

@@ -462,3 +462,8 @@ mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
 verified boundary, and pass an empty mask to command children without mutating
 the parent's live mask around spawn. Ten original GNU2 comparisons cover
 native callbacks, actual self-exec, early exits and low descriptor limits.
+
+The [catalog coverage gate](../tests/catalog-coverage/README.md) checks all 30
+attributed GNU release languages plus three fallback/C controls in both build
+profiles. The complete catalog data are installed with their original source
+notices. This does not claim that every diagnostic producer is covered.
