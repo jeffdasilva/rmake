@@ -4,9 +4,9 @@
 .DEFAULT_GOAL := help
 
 .PHONY: bootstrap-integration test-integration
+.PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
 .PHONY: test-native-fenv
-.PHONY: test-locales
 
 .PHONY: test-job-debug
 
@@ -14,11 +14,16 @@
 
 PYTHON ?= python3
 INTEGRATION_CASE ?=
+COLLATION_CASE ?=
+LOCALE_DATA_ROOT ?= $(CURDIR)/.tools/locale-data
 NATIVE_FENV_CASE ?=
 LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
+BENCH_LOCALE ?= C
+BENCH_LOCPATH ?=
+BENCH_SILENT ?=
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
 PROFILE_WORKLOAD ?= large-noop
 PROFILE_CANDIDATE ?= $(CURDIR)/artifacts/profile/target/release/rmake
@@ -111,6 +116,8 @@ help:
 		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
+		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
+		'  test-locale-collation Compare exact locale and live native glob ordering' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
@@ -255,6 +262,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_FENV_CASE=native-fenv-successive-upward test-native-fenv
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -291,6 +299,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native-fenv/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
+	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/optimized.json
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
 	$(PYTHON) tools/directory_reporting.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/directory-reporting/optimized.json
 	$(PYTHON) tools/debug_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/debug-output/optimized.json
@@ -315,6 +324,12 @@ test-m4-release: release oracle-verify
 
 test-integration: build oracle-verify
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/integration/development.json $(if $(INTEGRATION_CASE),--case "$(INTEGRATION_CASE)")
+
+bootstrap-locale-data:
+	$(PYTHON) tools/locale_data.py --root "$(LOCALE_DATA_ROOT)"
+
+test-locale-collation: build oracle-verify
+	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/development.json $(if $(COLLATION_CASE),--case "$(COLLATION_CASE)")
 
 test-native-fenv: build oracle-verify
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native-fenv/development.json $(if $(NATIVE_FENV_CASE),--case "$(NATIVE_FENV_CASE)")
@@ -410,14 +425,14 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-native-fenv test-locales
+test: test-integration test-native-fenv test-locales test-locale-collation
 
-check: test-integration test-native-fenv test-locales
+check: test-integration test-native-fenv test-locales test-locale-collation
 
 ci: check test-selfhost
 
 bench: oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
 
 profile-allocations:
 	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
@@ -428,7 +443,7 @@ profile-allocations-frozen:
 
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
 
 clean:
 	+$(CARGO) clean

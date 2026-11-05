@@ -159,6 +159,45 @@ impl FileRecords {
     }
 }
 
+/// Slot traversal for a freshly populated filename table. The borrowed input
+/// is insertion order; the returned indices never copy or modify its names.
+/// Directory globbing uses this order before a stable locale collation, where
+/// distinct byte names can compare equal. No table or string storage escapes.
+pub fn traversal_order(names: &[&[u8]], initial: usize) -> Option<Vec<usize>> {
+    if initial < 16 || !initial.is_power_of_two() {
+        return None;
+    }
+    fn insert(slots: &mut [usize], names: &[&[u8]], item: usize) -> bool {
+        let mask = slots.len() - 1;
+        let mut position = fingerprint(names[item]) as usize & mask;
+        loop {
+            if slots[position] == usize::MAX {
+                slots[position] = item;
+                return true;
+            }
+            if names[slots[position]] == names[item] {
+                slots[position] = item;
+                return false;
+            }
+            position = (position + 1) & mask;
+        }
+    }
+    let mut slots = vec![usize::MAX; initial];
+    let mut live = 0;
+    for item in 0..names.len() {
+        live += usize::from(insert(&mut slots, names, item));
+        if live > slots.len() * 15 / 16 {
+            let size = slots.len().checked_mul(2)?;
+            let old = std::mem::replace(&mut slots, vec![usize::MAX; size]);
+            for item in old.into_iter().filter(|item| *item != usize::MAX) {
+                insert(&mut slots, names, item);
+            }
+        }
+    }
+    slots.retain(|item| *item != usize::MAX);
+    Some(slots)
+}
+
 fn fingerprint(name: &[u8]) -> u32 {
     let mut lanes = [0xdead_beef_u32; 3];
     let mut offset = 0;
@@ -195,6 +234,59 @@ fn fingerprint(name: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn directory_traversal_preserves_raw_equal_collation_keys_across_growth() {
+        let mut names: Vec<Vec<u8>> = [
+            b".".as_slice(),
+            b"..",
+            b"Makefile",
+            b"fZ",
+            b"fa",
+            b"fE",
+            b"f\xc3\x89",
+            b"f\x80",
+            b"f\xff",
+            b"f\xc3",
+            b"f\xc3(",
+        ]
+        .into_iter()
+        .map(<[u8]>::to_vec)
+        .collect();
+        // These distinct raw names have the same fr_FR.UTF-8 collation key.
+        // Original GNU2 fixtures pin their observable order before/after each
+        // directory-table growth, independently of the Rust map layout.
+        for (padding, expected) in [
+            (0, [b"f\xff".as_slice(), b"f\x80", b"f\xc3"]),
+            (120, [b"f\x80".as_slice(), b"f\xff", b"f\xc3"]),
+            (240, [b"f\x80".as_slice(), b"f\xc3", b"f\xff"]),
+            (500, [b"f\x80".as_slice(), b"f\xc3", b"f\xff"]),
+        ] {
+            while names.len() < 11 + padding {
+                names.push(format!("pad{:04}", names.len() - 11).into_bytes());
+            }
+            let borrowed: Vec<_> = names.iter().map(Vec::as_slice).collect();
+            let order = traversal_order(&borrowed, 128).unwrap();
+            let ties: Vec<_> = order
+                .into_iter()
+                .map(|index| borrowed[index])
+                .filter(|name| expected.contains(name))
+                .collect();
+            assert_eq!(ties, expected, "padding={padding}");
+        }
+    }
+
+    #[test]
+    fn borrowed_filename_traversal_replaces_duplicate_identity_and_rejects_bad_capacity() {
+        let names = [b"same".as_slice(), b"other", b"same"];
+        let order = traversal_order(&names, 16).unwrap();
+        assert_eq!(order.len(), 2);
+        assert!(order.contains(&2));
+        assert!(!order.contains(&0));
+        for initial in [0, 8, 17] {
+            assert!(traversal_order(&names, initial).is_none());
+        }
+    }
 
     #[test]
     fn observed_numeric_fingerprints_cover_word_and_triple_boundaries() {

@@ -22,6 +22,13 @@ const LIMIT: &[u8] = b"variable expansion resource limit exceeded";
 struct Entry {
     name: CString,
     directory: Option<bool>,
+    order: u32,
+}
+
+#[derive(Clone, Copy)]
+struct EntryState {
+    directory: Option<bool>,
+    order: u32,
 }
 
 // Borrow raw filename bytes without another string allocation or hashing the
@@ -46,8 +53,10 @@ struct Contents {
     generation: Option<u64>,
     opened: bool,
     stream: Option<directory::Stream>,
-    pending: HashMap<Name, Option<bool>>,
+    pending: HashMap<Name, EntryState>,
     sorted: Option<Vec<Entry>>,
+    collation_rank: Option<Box<[usize]>>,
+    next_order: u32,
     bytes: usize,
 }
 
@@ -356,16 +365,22 @@ impl Wildcard {
         Ok(Some(index))
     }
 
-    fn next_entry(
-        &mut self,
-        index: usize,
-        path: &[u8],
-    ) -> Result<Option<directory::Entry>, FilesystemError> {
+    fn next_entry(&mut self, index: usize, path: &[u8]) -> Result<Option<Entry>, FilesystemError> {
         let Some(stream) = &mut self.contents[index].stream else {
             return Ok(None);
         };
         match stream.next_entry() {
-            Ok(Some(entry)) => Ok(Some(entry)),
+            Ok(Some(entry)) => {
+                let order = self.contents[index].next_order;
+                self.contents[index].next_order = order
+                    .checked_add(1)
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
+                Ok(Some(Entry {
+                    name: entry.name,
+                    directory: entry.directory,
+                    order,
+                }))
+            }
             Ok(None) => {
                 self.close_stream(index);
                 Ok(None)
@@ -391,9 +406,10 @@ impl Wildcard {
         }
         let mut entries: Vec<_> = std::mem::take(&mut self.contents[index].pending)
             .into_iter()
-            .map(|(name, directory)| Entry {
+            .map(|(name, state)| Entry {
                 name: name.0,
-                directory,
+                directory: state.directory,
+                order: state.order,
             })
             .collect();
         // A full glob needs no incremental hash index. Append directly and
@@ -403,10 +419,7 @@ impl Wildcard {
             let bytes = entry.name.as_bytes().len() + 48;
             self.charge(bytes)?;
             self.contents[index].bytes += bytes;
-            entries.push(Entry {
-                name: entry.name,
-                directory: entry.directory,
-            });
+            entries.push(entry);
         }
         entries.sort_by(|left, right| left.name.as_bytes().cmp(right.name.as_bytes()));
         let mut discarded = 0;
@@ -458,7 +471,12 @@ impl Wildcard {
             }
             self.contents[index]
                 .pending
-                .insert(Name(entry.name), entry.directory);
+                .entry(Name(entry.name))
+                .and_modify(|known| known.directory = entry.directory)
+                .or_insert(EntryState {
+                    directory: entry.directory,
+                    order: entry.order,
+                });
             if matches {
                 return Ok(true);
             }
@@ -482,14 +500,41 @@ impl Wildcard {
         self.read_directory(index, parent, Some(filename))
     }
 
-    fn entries(&mut self, path: &[u8]) -> Result<&[Entry], FilesystemError> {
+    fn entries(
+        &mut self,
+        path: &[u8],
+        collated: bool,
+    ) -> Result<(&[Entry], Option<&[usize]>), FilesystemError> {
         let Some(index) = self.directory(path)? else {
-            return Ok(&[]);
+            return Ok((&[], None));
         };
         if self.contents[index].sorted.is_none() {
             self.read_all(index, path)?;
         }
-        Ok(self.contents[index].sorted.as_deref().unwrap_or_default())
+        if collated && self.contents[index].collation_rank.is_none() {
+            let entries = self.contents[index].sorted.as_deref().unwrap_or_default();
+            let mut insertion: Vec<_> = (0..entries.len()).collect();
+            insertion.sort_unstable_by_key(|index| entries[*index].order);
+            let names: Vec<_> = insertion
+                .iter()
+                .map(|index| entries[*index].name.as_bytes())
+                .collect();
+            let order = rmake_core::file_records::traversal_order(&names, 128)
+                .expect("fixed directory table capacity");
+            let mut rank = vec![0; entries.len()].into_boxed_slice();
+            for (position, index) in order.into_iter().enumerate() {
+                rank[insertion[index]] = position;
+            }
+            let bytes = rank.len() * std::mem::size_of::<usize>();
+            self.charge(bytes)?;
+            self.contents[index].bytes += bytes;
+            self.contents[index].collation_rank = Some(rank);
+        }
+        let contents = &self.contents[index];
+        Ok((
+            contents.sorted.as_deref().unwrap_or_default(),
+            contents.collation_rank.as_deref(),
+        ))
     }
 
     fn paths(&mut self, pattern: &[u8]) -> Result<Vec<Vec<u8>>, FilesystemError> {
@@ -549,8 +594,10 @@ impl Wildcard {
         };
         let mut result = Vec::new();
         let mut bytes = 0usize;
+        let collation = crate::locale::Collation::current();
+        let mut rank_base = 0usize;
         for parent in parents {
-            let mut emit = |name: &[u8]| -> Result<(), FilesystemError> {
+            let mut emit = |name: &[u8], rank: usize| -> Result<(), FilesystemError> {
                 let mut path = if prefix {
                     join(&parent, name)
                 } else {
@@ -563,6 +610,14 @@ impl Wildcard {
                 if bytes > MAX_OUTPUT {
                     return Err(LIMIT.to_vec().into());
                 }
+                if !collation.is_bytewise() {
+                    let rank = rank_base
+                        .checked_add(rank)
+                        .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
+                    path.reserve(1 + size_of::<usize>());
+                    path.push(0);
+                    path.extend_from_slice(&rank.to_ne_bytes());
+                }
                 result.push(path);
                 Ok(())
             };
@@ -570,22 +625,31 @@ impl Wildcard {
                 let Some(matcher) = posix::Matcher::new(leaf) else {
                     continue;
                 };
-                let entries = self.entries(&parent)?;
-                for entry in entries.iter() {
+                let (entries, rank) = self.entries(&parent, !collation.is_bytewise())?;
+                for (index, entry) in entries.iter().enumerate() {
                     if matcher.matches(&entry.name)
                         && (!directories_only
                             || entry.directory.unwrap_or_else(|| {
                                 exists(&join(&parent, entry.name.as_bytes()), true)
                             }))
                     {
-                        emit(entry.name.as_bytes())?;
+                        emit(
+                            entry.name.as_bytes(),
+                            rank.map_or(index, |rank| rank[index]),
+                        )?;
                     }
                 }
+                rank_base = rank_base
+                    .checked_add(entries.len())
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
             } else if exists(&join(&parent, leaf), false) {
-                emit(leaf)?;
+                emit(leaf, 0)?;
+                rank_base = rank_base
+                    .checked_add(1)
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
             }
         }
-        result.sort_unstable();
+        collation.sort(&mut result);
         Ok(result)
     }
 
@@ -671,6 +735,52 @@ fn archive_matches(path: &[u8], pattern: &[u8]) -> Result<usize, FilesystemError
 #[cfg(test)]
 mod stream_budget_tests {
     use super::*;
+
+    #[test]
+    fn repeated_directory_entry_updates_type_without_moving_its_insertion() {
+        let root = std::env::temp_dir().join(format!(
+            "rmake-dir-order-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(root.join("entry")).unwrap();
+        struct Remove(std::path::PathBuf);
+        impl Drop for Remove {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let _remove = Remove(root.clone());
+        let path = root.as_os_str().as_bytes();
+        for partial in [false, true] {
+            let mut cache = Wildcard::default();
+            let index = cache.directory(path).unwrap().unwrap();
+            // A prior observation may recur while a directory stream changes.
+            // Reuse the actual stream to exercise both accumulation paths.
+            cache.contents[index].pending.insert(
+                Name(CString::new("entry").unwrap()),
+                EntryState {
+                    directory: Some(false),
+                    order: 7,
+                },
+            );
+            cache.contents[index].next_order = 8;
+            if partial {
+                assert!(!cache.read_directory(index, path, Some(b"missing")).unwrap());
+            }
+            let (entries, _) = cache.entries(path, false).unwrap();
+            let entry = entries
+                .iter()
+                .find(|entry| entry.name.as_bytes() == b"entry")
+                .unwrap();
+            assert_eq!(entry.directory, Some(true));
+            assert_eq!(entry.order, 7);
+        }
+    }
 
     #[test]
     fn allocation_failure_while_draining_tenth_stream_releases_it() {
