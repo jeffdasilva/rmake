@@ -2495,20 +2495,19 @@ impl TargetScope {
         Ok(lookup_origin)
     }
 
-    pub(crate) fn adopt_target_command_value(&mut self, name: &[u8], mut value: Variable) -> bool {
+    pub(crate) fn adopt_target_command_value(&mut self, name: &[u8], value: Variable) -> bool {
         let Some(old) = self.variables.get(name) else {
             return false;
         };
         if value.origin <= old.origin {
             return false;
         }
-        // Preserve target policy while copying the caller's command value.
-        value.scope.private = old.scope.private;
-        value.scope.append_outer = false;
-        if let Some(policy) = old.scope.export.get() {
-            value.scope.export.set(Some(policy));
-        }
-        *Arc::make_mut(&mut self.variables).get_mut(name).unwrap() = value;
+        // The destination retains its definition location and binding policy.
+        let target = Arc::make_mut(&mut self.variables).get_mut(name).unwrap();
+        target.value = value.value;
+        target.origin = value.origin;
+        target.flavor = value.flavor;
+        target.scope.append_outer = false;
         true
     }
 
