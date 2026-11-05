@@ -8,6 +8,7 @@ FLAG_TERMINATOR_CASE ?=
 STARTUP_USAGE_CASE ?=
 RUNTIME_OPTION_VALUE_CASE ?=
 DEVELOPER_FLOW_CASE ?=
+DEVELOPER_FLOW_REPORT ?= artifacts/developer-flows/development.json
 
 .PHONY: bootstrap-integration test-integration
 .PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time test-database-branch-metadata test-database-double-dry-run test-database-grouped test-database-implicit-grouped test-database-grouped-double
@@ -394,14 +395,14 @@ test-flag-terminator: build oracle-verify
 	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/flag-terminator/development.json $(if $(FLAG_TERMINATOR_CASE),--case "$(FLAG_TERMINATOR_CASE)")
 
 test-developer-flows: build oracle-verify
-	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/developer-flows/development.json $(if $(DEVELOPER_FLOW_CASE),--case "$(DEVELOPER_FLOW_CASE)")
+	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(DEVELOPER_FLOW_REPORT)" $(if $(DEVELOPER_FLOW_CASE),--case "$(DEVELOPER_FLOW_CASE)")
 
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" CATALOG_COVERAGE_CASE=partial-language-fallback test-catalog-coverage
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RUNTIME_OPTION_VALUE_CASE=ordered-immediate test-runtime-option-values
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" STARTUP_USAGE_CASE=empty-directory-then-assignment test-startup-usage
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FLAG_TERMINATOR_CASE=inherited-short-goal test-flag-terminator
-	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe test-developer-flows
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe DEVELOPER_FLOW_REPORT=artifacts/developer-flows/selfhost.json test-developer-flows
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_CASE=nls-private-messages-warning test-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_DIRECTORY_CASE=nls-directory-fr-inherited-depth test-nls-directory
