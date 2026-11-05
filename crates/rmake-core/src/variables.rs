@@ -735,6 +735,25 @@ impl VariableStore {
         self.database_lookup_from(name).map(|(_, value)| value)
     }
 
+    /// The post-definition target-priority check reads the caller's table.
+    pub(crate) fn target_command_value(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Variable>, ExpandError> {
+        let selected = self.database_lookup(name);
+        if selected.is_some_and(|variable| variable.scope.variable_names) {
+            self.variable_names(true)?;
+        }
+        Ok(selected
+            .filter(|variable| {
+                matches!(
+                    variable.origin,
+                    Origin::CommandLine | Origin::EnvironmentOverride
+                )
+            })
+            .cloned())
+    }
+
     pub fn database_stats(&self) -> Option<crate::database::HashStats> {
         self.variables
             .database_history
@@ -2371,7 +2390,7 @@ impl TargetScope {
         definition: Option<&Location>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
-        self.define_with_using(
+        let lookup_origin = self.define_before_origin_lookup(
             globals,
             name,
             value,
@@ -2388,11 +2407,15 @@ impl TargetScope {
                     store.expand_mut_with(bytes, context)
                 }
             },
-        )
+        )?;
+        if lookup_origin && let Some(value) = globals.target_command_value(name)? {
+            self.adopt_target_command_value(name, value);
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn define_with_using(
+    pub(crate) fn define_before_origin_lookup(
         &mut self,
         globals: &mut VariableStore,
         name: &[u8],
@@ -2410,7 +2433,7 @@ impl TargetScope {
             bool,
             ExpansionContext<'_>,
         ) -> Result<Vec<u8>, ExpandError>,
-    ) -> Result<(), ExpandError> {
+    ) -> Result<bool, ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
@@ -2436,7 +2459,7 @@ impl TargetScope {
                     variable.scope.export.set(export);
                 }
             }
-            return Ok(());
+            return Ok(false);
         }
         let append_outer = assignment == Assignment::Append && !self.variables.contains_key(name);
         scope.define_with_using(
@@ -2453,36 +2476,30 @@ impl TargetScope {
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
-        if origin != Origin::Override {
-            globals.record_database_lookup(name);
-        }
-        if globals
-            .get(name)
-            .is_some_and(|variable| variable.scope.variable_names)
-        {
-            globals.variable_names(true)?;
-        }
-        if let Some(global) = globals.get(name)
-            && matches!(
-                global.origin,
-                Origin::CommandLine | Origin::EnvironmentOverride
-            )
-            && global.origin > variable.origin
-        {
-            // Preserve a snapshot: a later global override must not change the
-            // command-line/environment binding selected for this target.
-            let policy = variable.scope.export.get();
-            *variable = global.clone();
-            if policy.is_some() {
-                variable.scope.export.set(policy);
-            }
-        }
         variable.scope.private = private;
         if export.is_some() {
             variable.scope.export.set(export);
         }
+        let lookup_origin = variable.origin != Origin::Override;
         self.variables = scope.variables;
-        Ok(())
+        Ok(lookup_origin)
+    }
+
+    pub(crate) fn adopt_target_command_value(&mut self, name: &[u8], mut value: Variable) -> bool {
+        let Some(old) = self.variables.get(name) else {
+            return false;
+        };
+        if value.origin <= old.origin {
+            return false;
+        }
+        // Preserve target policy while copying the caller's command value.
+        value.scope.private = old.scope.private;
+        value.scope.append_outer = false;
+        if let Some(policy) = old.scope.export.get() {
+            value.scope.export.set(Some(policy));
+        }
+        *Arc::make_mut(&mut self.variables).get_mut(name).unwrap() = value;
+        true
     }
 
     pub(crate) fn retain_read_bindings(&mut self, scope: &VariableStore) {

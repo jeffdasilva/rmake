@@ -2695,7 +2695,7 @@ impl Database {
             let result = if kind == Assignment::Shell || (immediate && rhs.contains(&b'$')) {
                 let mut updated = scope.clone();
                 let mut globals = std::mem::take(&mut self.variables);
-                let result = updated.define_with_using(
+                let result = updated.define_before_origin_lookup(
                     &mut globals,
                     &name,
                     rhs,
@@ -2718,7 +2718,7 @@ impl Database {
                 }
                 result
             } else {
-                scope.define_with(
+                scope.define_before_origin_lookup(
                     &mut self.variables,
                     &name,
                     rhs,
@@ -2728,29 +2728,56 @@ impl Database {
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
+                    |_, scope, bytes, _, context| scope.expand_mut_with(bytes, context),
                 )
             };
-            result.map_err(|error| ParseError {
+            let parse_error = |error: ExpandError| ParseError {
                 unlocated: error.is_unlocated(),
                 location: error
                     .diagnostic_location(Some(location))
                     .unwrap_or(location)
                     .clone(),
                 message: error.diagnostic(),
-            })?;
-            self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
-            if let Some(active) = self.evaluation_scope.as_mut() {
-                active.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
-                if self
-                    .target_read
+            };
+            let lookup_origin = result.map_err(parse_error)?;
+            self.publish_target_scope(target);
+            if lookup_origin
+                && !self
+                    .evaluation_bindings
+                    .iter()
+                    .rev()
+                    .any(|binding| binding.contains_key(&name))
+                && let Some(value) = self
+                    .evaluation_scope
                     .as_ref()
-                    .is_some_and(|read| read.target == target)
-                {
-                    self.target_scopes[target].refresh_read_bindings(active);
-                }
+                    .unwrap_or(&self.variables)
+                    .target_command_value(&name)
+                    .map_err(parse_error)?
+                && self
+                    .target_scopes
+                    .get_mut(target)
+                    .expect("target declaration")
+                    .adopt_target_command_value(&name, value)
+            {
+                self.publish_target_scope(target);
             }
         }
         Ok(())
+    }
+
+    fn publish_target_scope(&mut self, target: &[u8]) {
+        self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+        if let Some(active) = self.evaluation_scope.as_mut() {
+            active.refresh_globals(&self.variables);
+            active.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
+            if self
+                .target_read
+                .as_ref()
+                .is_some_and(|read| read.target == target)
+            {
+                self.target_scopes[target].refresh_read_bindings(active);
+            }
+        }
     }
 
     fn expand_target_read(

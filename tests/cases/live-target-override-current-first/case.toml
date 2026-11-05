@@ -1,0 +1,12 @@
+id = "live-target-override-current-first"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Resolve a target definition command-line priority in the live caller scope."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "LIVE=cli"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "value=[file] origin=[file]\n"
+stderr = ""
