@@ -42,6 +42,7 @@ keys! {
     QUESTION_OUTDATED: c"Target file '%s' needs to be remade under -q.\n", [B];
     NO_NEED: c"No need to remake target '%s'", [B];
     USING_VPATH: c"; using VPATH name '%s'", [B];
+    STILL_UPDATING: c"Still updating file '%s'.\n", [B];
     ALREADY: c"File '%s' was considered already.\n", [B];
     RECENTLY_FAILED: c"Recently tried and failed to update file '%s'.\n", [B];
     PRUNING: c"Pruning file '%s'.\n", [B];

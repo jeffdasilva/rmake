@@ -35,6 +35,7 @@ class Model:
     updates: dict[str, bytes] = field(default_factory=dict)
     mtimes_ns: dict[str, int] = field(default_factory=dict)
     explicit_version_reference: bytes | None = None
+    release_after: bytes | None = None
 
 
 def safe_relative(name: str) -> Path:
@@ -55,11 +56,18 @@ def _model_file(filename: str) -> list[Model]:
                     bytes.fromhex(row['expected_seen_template_hex']), row.get('output', 'separate'),
                     {name: bytes.fromhex(value) for name, value in row.get('expected_file_updates', {}).items()},
                     row.get('mtimes_ns', {}),
-                    bytes.fromhex(row['oracle_explicit_version_hex']) if 'oracle_explicit_version_hex' in row else None)
+                    bytes.fromhex(row['oracle_explicit_version_hex']) if 'oracle_explicit_version_hex' in row else None,
+                    bytes.fromhex(row['release_after_stdout_hex']) if 'release_after_stdout_hex' in row else None)
               for row in data['models']]
     for model in result:
         stdout = bytes.fromhex(model.expected['stdout_template_hex'])
         stderr = bytes.fromhex(model.expected['stderr_template_hex'])
+        if model.release_after is not None and (
+            not model.release_after.endswith(b'\n') or stdout.count(model.release_after) != 1
+            or {'started', 'started.tmp', 'release', 'release.tmp'} & model.files.keys()
+            or model.updates.get('started') != b'started\n' or model.updates.get('release') != b'yes\n'
+        ):
+            raise h.HarnessError('invalid held-worker release boundary')
         uses_version = b'@EXPLICIT_VERSION@' in stdout
         if uses_version != (model.explicit_version_reference is not None):
             raise h.HarnessError('explicit version reference and slot must agree')
@@ -76,7 +84,8 @@ def models() -> list[Model]:
     result = (_model_file('models.toml') + _model_file('extension.toml')
               + _model_file('child.toml') + _model_file('vpath.toml')
               + _model_file('dispatch.toml') + _model_file('revisit.toml')
-              + _model_file('prerequisite-wait.toml') + stem_limit_models())
+              + _model_file('prerequisite-wait.toml') + _model_file('post-reap.toml')
+              + stem_limit_models())
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
     return result
@@ -244,6 +253,28 @@ def calibrate_version(binary: Path, root: Path, reference: bytes | None = None) 
     return observations[0].stdout, records
 
 
+def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.Observation:
+    boundary = model.release_after
+    if boundary is None:
+        return h.execute(case, runtime, binary)
+    work = runtime / 'work'
+    released = False
+
+    def release(_parent: int, stdout: bytes) -> None:
+        nonlocal released
+        if released or boundary not in stdout or not (work / 'started').is_file():
+            return
+        if (work / 'started').read_bytes() != b'started\n' or (work / 'done').exists():
+            raise h.HarnessError('worker was not held at the declared boundary')
+        temporary = work / 'release.tmp'
+        temporary.write_bytes(b'yes\n')
+        temporary.chmod(0o644)
+        temporary.rename(work / 'release')
+        released = True
+
+    return h.execute(case, runtime, binary, observe=release)
+
+
 def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, root: Path) -> dict[str, Any]:
     inputs = root / 'inputs'
     inputs.mkdir()
@@ -257,7 +288,7 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
     records = []
     for model in selected:
         case, filesystem = prepare(model, inputs / safe_relative(model.id), runtime)
-        observations = [h.execute(case, runtime, binary) for binary in
+        observations = [execute_model(model, case, runtime, binary) for binary in
                         ([oracle, oracle] if candidate is None else [oracle, oracle, candidate])]
         judgment = assess(model, case, runtime, filesystem, observations,
                           [oracle_version, oracle_version] + ([candidate_version] if candidate is not None else []))
@@ -265,6 +296,7 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
                         'expected': model.expected, 'expected_seen_template_hex': model.seen.hex(),
                         'input_files_hex': {name: value.hex() for name, value in model.files.items()},
                         'input_mtimes_ns': model.mtimes_ns, 'expected_filesystem': filesystem,
+                        'release_after_stdout_hex': model.release_after.hex() if model.release_after is not None else None,
                         'output': model.output, 'oracle_explicit_version_hex': model.explicit_version_reference.hex() if model.explicit_version_reference is not None else None, **judgment})
         print(('PASS ' if judgment['passed'] else 'FAIL ') + model.id, flush=True)
     return {'classification': 'Original static debug-output oracle qualification; zero ordinary-ledger or exception credit' if candidate is None else 'Original static debug-output differential profile; ordinary-ledger credit is separate',
