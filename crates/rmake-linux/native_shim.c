@@ -322,6 +322,7 @@ int rm_native_flush(void) { return fflush(NULL); }
  * after this close, matching the public stdout lifetime of the reference. */
 static atomic_int native_stdout_closed;
 static atomic_uint stdout_level;
+extern void rm_format_stdout_error(const char *, char *, size_t);
 static void close_native_stdout(void) {
     int previous_error = ferror(stdout);
     atomic_store_explicit(&native_stdout_closed, 1, memory_order_release);
@@ -329,10 +330,7 @@ static void close_native_stdout(void) {
     int saved = errno;
     if (previous_error || closed != 0) {
         char message[1024];
-        if (closed != 0)
-            snprintf(message, sizeof message, "write error: stdout: %s", strerror(saved));
-        else
-            snprintf(message, sizeof message, "write error: stdout");
+        rm_format_stdout_error(closed != 0 ? strerror(saved) : NULL, message, sizeof message);
         if (active) {
             active->request.text = message;
             yield_request(active, 5);
