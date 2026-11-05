@@ -320,6 +320,7 @@ struct Outcome {
     search_after_update: bool,
     completion: CompletionTime,
     database_result: DatabaseResult,
+    debug_time_changed: bool,
 }
 
 struct OptionalMakefileFailure {
@@ -707,6 +708,8 @@ struct RuleState {
     // Rebuild evidence is rare; keep ordinary suspended graph frames compact.
     #[allow(clippy::box_collection)]
     intermediate_stale: Option<Box<HashSet<usize>>>,
+    #[allow(clippy::box_collection)]
+    debug_changed_edges: Option<Box<HashSet<usize>>>,
     stopped: bool,
     stale: bool,
     outcome: Outcome,
@@ -824,6 +827,8 @@ pub struct Engine {
     inherited_exports: HashSet<Vec<u8>>,
     command_replay: bool,
     done: HashMap<Vec<u8>, Outcome>,
+    #[allow(clippy::box_collection)]
+    debug_serial_considered: Option<Box<HashSet<Vec<u8>>>>,
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
@@ -1402,6 +1407,7 @@ impl Engine {
             inherited_exports,
             command_replay,
             done: HashMap::new(),
+            debug_serial_considered: None,
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
@@ -3001,6 +3007,8 @@ impl Engine {
         } else {
             self.options.goals.clone()
         };
+        // Remake and ordinary goals are separate diagnostic traversals.
+        self.debug_serial_considered = None;
         crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
@@ -6025,6 +6033,16 @@ impl Engine {
         self.resolved_name_ref(name).to_vec()
     }
 
+    fn debug_no_remake(&self, target: &[u8], depth: usize) {
+        if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) {
+            let path = self.resolved_name_ref(target);
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::NoNeed(target, (path != target).then_some(path), depth),
+            );
+        }
+    }
+
     fn record_graph_failure(&mut self, outcome: Outcome) {
         if !(outcome.fatal || (outcome.failed && !self.options.keep_going))
             || !self.parallel_graph()
@@ -6202,6 +6220,9 @@ impl Engine {
             // before that check and prepare their aliases before entering here.
             self.done.remove(name);
         }
+        // A new goal can announce consideration before a GPATH rename.
+        // Prerequisites prepare their lookup before beginning consideration.
+        let original_goal = (!known_alias && parent.is_none()).then_some(target);
         let target = renamed.as_deref().unwrap_or(target);
         self.poll_jobs();
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
@@ -6218,7 +6239,7 @@ impl Engine {
                 ..Outcome::default()
             }
         } else {
-            self.build_inner(target, parent, depth)
+            self.build_inner(target, original_goal.unwrap_or(target), parent, depth)
         };
         if archive_target
             && !previously_done
@@ -6242,7 +6263,13 @@ impl Engine {
         outcome
     }
 
-    fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+    fn build_inner(
+        &mut self,
+        target: &[u8],
+        considering_name: &[u8],
+        parent: Option<&[u8]>,
+        depth: usize,
+    ) -> Outcome {
         if !self.remaking && self.optional_remake_failures.remove(target).is_some() {
             self.report_missing_rule(target, parent);
         }
@@ -6260,9 +6287,18 @@ impl Engine {
             return self.resume_rule(target);
         }
         if let Some(mut outcome) = self.done.get(target).copied() {
+            let debug_depth = depth + usize::from(self.remaking);
+            let pruned = self
+                .debug_serial_considered
+                .as_ref()
+                .is_some_and(|files| files.contains(target));
             crate::debug::emit(
                 &self.output,
-                crate::debug::Event::Already(target, depth + usize::from(self.remaking)),
+                if pruned {
+                    crate::debug::Event::Pruning(target, debug_depth)
+                } else {
+                    crate::debug::Event::Already(target, debug_depth)
+                },
             );
             if outcome.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(target).is_some()
@@ -6316,9 +6352,14 @@ impl Engine {
             };
         }
         let debug_depth = depth + usize::from(self.remaking);
+        if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) && !self.parallel_graph() {
+            self.debug_serial_considered
+                .get_or_insert_default()
+                .insert(target.to_vec());
+        }
         crate::debug::emit(
             &self.output,
-            crate::debug::Event::Considering(target, debug_depth),
+            crate::debug::Event::Considering(considering_name, debug_depth),
         );
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
@@ -6394,10 +6435,7 @@ impl Engine {
                 crate::debug::Event::Finished(target, debug_depth),
             );
             if before.is_some() {
-                crate::debug::emit(
-                    &self.output,
-                    crate::debug::Event::NoNeed(target, debug_depth),
-                );
+                self.debug_no_remake(target, debug_depth);
                 let result = Outcome {
                     time: before,
                     ..Outcome::default()
@@ -6527,6 +6565,9 @@ impl Engine {
                 } else {
                     self.modified(target)
                 };
+                state.combined.debug_time_changed =
+                    self.output.debug_mask().has(crate::debug::Mask::BASIC)
+                        && state.before != state.combined.time;
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
@@ -6841,6 +6882,7 @@ impl Engine {
             serial_phase,
             inspections: HashMap::new(),
             intermediate_stale: None,
+            debug_changed_edges: None,
             stopped: false,
             stale,
             outcome: Outcome {
@@ -7158,6 +7200,12 @@ impl Engine {
             }
             (child, pending)
         } else {
+            // Only the edge that actually saw an update can report the
+            // changed timestamp independently of the final freshness test.
+            let observe_change = first
+                && self.output.debug_mask().has(crate::debug::Mask::BASIC)
+                && !self.done.contains_key(dependency)
+                && !self.parallel_graph();
             let unknown_archive = self
                 .done
                 .get(dependency)
@@ -7174,6 +7222,12 @@ impl Engine {
             } else {
                 self.observe_updated(dependency, child)
             };
+            if observe_change && !pending && child.debug_time_changed {
+                state
+                    .debug_changed_edges
+                    .get_or_insert_default()
+                    .insert(index);
+            }
             if first
                 && child.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(dependency).is_some()
@@ -7185,9 +7239,10 @@ impl Engine {
     }
 
     fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
-        if self.options.always {
-            return true;
-        }
+        self.options.always || self.prerequisite_timestamp_stale(before, child)
+    }
+
+    fn prerequisite_timestamp_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
         if child.completion == CompletionTime::AssumeNew
             && self
                 .assumptions
@@ -7242,6 +7297,7 @@ impl Engine {
             dropped,
             presentation_drops,
             intermediate_stale,
+            debug_changed_edges,
             depth,
             ..
         } = state;
@@ -7348,12 +7404,19 @@ impl Engine {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
-        crate::debug::emit(
-            &self.output,
-            crate::debug::Event::Finished(target, debug_depth),
-        );
+        let stopping_dependency = outcome.blocked
+            && (outcome.fatal
+                || (!self.options.keep_going && !self.optional_remake && !self.parallel_graph()));
+        if !stopping_dependency {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Finished(target, debug_depth),
+            );
+        }
         let mask = self.output.debug_mask();
-        if (mask.has(crate::debug::Mask::BASIC) || mask.has(crate::debug::Mask::VERBOSE))
+        let mut natural_remake = comparison.is_none();
+        let mut dependencies_changed = false;
+        if mask.has(crate::debug::Mask::BASIC)
             && before.is_some()
             && !phony
             && !outcome.failed
@@ -7369,17 +7432,29 @@ impl Engine {
                 let Some(child) = self.done.get(dependency).copied() else {
                     continue;
                 };
+                let changed = debug_changed_edges
+                    .as_ref()
+                    .is_some_and(|edges| edges.contains(&index));
+                let inspected_stale = intermediate_stale
+                    .as_ref()
+                    .is_some_and(|edges| edges.contains(&index));
+                if !occurrence.order_only {
+                    dependencies_changed |= changed;
+                    if self.options.always {
+                        natural_remake |=
+                            inspected_stale || self.prerequisite_timestamp_stale(comparison, child);
+                    }
+                }
                 use crate::debug::Prerequisite;
-                let state = if !normal_names.contains(dependency.as_slice()) {
+                let state = if occurrence.order_only {
                     Prerequisite::OrderOnly
                 } else if child.time.is_none() {
                     Prerequisite::Missing
-                } else if child.time > comparison
+                } else if changed
+                    || child.time > comparison
                     || (child.completion == CompletionTime::AssumeNew
                         && self.prerequisite_stale(comparison, child))
-                    || intermediate_stale
-                        .as_ref()
-                        .is_some_and(|edges| edges.contains(&index))
+                    || inspected_stale
                 {
                     Prerequisite::Newer
                 } else {
@@ -7387,16 +7462,50 @@ impl Engine {
                 };
                 crate::debug::emit(
                     &self.output,
-                    crate::debug::Event::Prerequisite(state, dependency, target, debug_depth + 1),
+                    crate::debug::Event::Prerequisite(
+                        state,
+                        self.resolved_name_ref(dependency),
+                        target,
+                        debug_depth + 1,
+                    ),
                 );
             }
         }
         let debug_remake = stale && !outcome.failed && !outcome.question_outdated;
-        if debug_remake {
+        let double_without_prerequisites = branch.is_some() && rule.dependencies.is_empty();
+        let no_recipe_no_changes = mask.has(crate::debug::Mask::BASIC)
+            && !outcome.failed
+            && !outcome.question_outdated
+            && !double_without_prerequisites
+            && before.is_some()
+            && !phony
+            && !rule.record_only
+            && rule.recipes.is_none()
+            && !self.options.always
+            && !dependencies_changed;
+        if debug_remake && double_without_prerequisites {
             crate::debug::emit(
                 &self.output,
-                crate::debug::Event::MustRemake(target, debug_depth),
+                crate::debug::Event::DoubleWithoutPrerequisites(target, debug_depth),
             );
+        } else if no_recipe_no_changes {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::NoRecipeNoChanges(target, debug_depth),
+            );
+        } else if debug_remake && self.options.always && rule.recipes.is_some() && !natural_remake {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::AlwaysMake(target, debug_depth),
+            );
+        }
+        if debug_remake {
+            if !no_recipe_no_changes {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::MustRemake(target, debug_depth),
+                );
+            }
             if let Some(recipes) = &rule.recipes {
                 let normal: Vec<_> = normal
                     .iter()
@@ -7598,6 +7707,10 @@ impl Engine {
             } else {
                 before
             };
+            outcome.debug_time_changed = mask.has(crate::debug::Mask::BASIC)
+                && !outcome.failed
+                && !self.parallel_jobs.contains_key(target)
+                && outcome.time != before;
         }
         if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
             if let Some(ordinal) = branch {
@@ -7610,19 +7723,24 @@ impl Engine {
         // A stopping synchronous child failure exits before GNU's ordinary
         // update-return diagnostic. Keep-going updates retain that diagnostic.
         let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
-        if !self.parallel_jobs.contains_key(target) && !stopping_failure {
-            crate::debug::emit(
-                &self.output,
-                if debug_remake {
+        if !self.parallel_jobs.contains_key(target) && !stopping_failure && !stopping_dependency {
+            if outcome.blocked {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::GiveUp(target, debug_depth),
+                );
+            } else if debug_remake && !no_recipe_no_changes {
+                crate::debug::emit(
+                    &self.output,
                     if outcome.failed {
                         crate::debug::Event::Failed(target, debug_depth)
                     } else {
                         crate::debug::Event::Remade(target, debug_depth)
-                    }
-                } else {
-                    crate::debug::Event::NoNeed(target, debug_depth)
-                },
-            );
+                    },
+                );
+            } else {
+                self.debug_no_remake(target, debug_depth);
+            }
         }
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);
