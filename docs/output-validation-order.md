@@ -67,7 +67,7 @@ side effects; a failed lock open stops subsequent file reads and recipes.
 When both the mode and lock are invalid, mode validation takes precedence.
 
 `make test-output-lock-completion` and `make test-output-lock-completion-release`
-exercise 17 original models in C, French, German, Japanese, and Brazilian
+exercise 20 original models in C, French, German, Japanese, and Brazilian
 Portuguese. They compare two pinned GNU runs
 and rmake against independently specified status, byte streams, and complete
 filesystem effects, including repeated options, an included reader, raw path
@@ -79,3 +79,8 @@ not create a lock-open attempt. When output buffering is activated, setup
 reopens the selected path independently. Nineteen required cases cover
 fatal and warning order, retained authentication, pathname removal, and
 suspended include option decoding.
+
+After a replacement mutex fails to open, buffered fatal output no longer
+waits for the previous lock. The gate holds that previous lock during live,
+post-read, and active setup failures and checks the complete output, status,
+and filesystem against GNU without releasing it early.
