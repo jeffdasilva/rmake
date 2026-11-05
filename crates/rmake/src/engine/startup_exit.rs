@@ -68,11 +68,7 @@ impl NativeExit {
             }
             Self::Engine(engine) => {
                 engine.prepare_native_exit();
-                if let Some(exit) = &mut engine.native_exit_override {
-                    exit.prepare();
-                } else {
-                    engine.print_database();
-                }
+                engine.print_database();
             }
         }
     }

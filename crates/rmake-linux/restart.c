@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 struct restart_labels {
@@ -96,16 +97,57 @@ static int copy_live_environment(const struct restart_labels *labels,
     return 0;
 }
 
-static int expose_descriptor(int descriptor)
+static int descriptor_control(int descriptor, int command, int value)
 {
-    if (descriptor < 0)
-        return 0;
-    for (;;) {
-        if (fcntl(descriptor, F_SETFD, 0) >= 0)
-            return 0;
-        if (errno != EINTR)
-            return errno;
+    int result;
+    do {
+        result = fcntl(descriptor, command, value);
+    } while (result < 0 && errno == EINTR);
+    return result;
+}
+
+static int descriptor_stat(int descriptor, struct stat *identity)
+{
+    int result;
+    do {
+        result = fstat(descriptor, identity);
+    } while (result < 0 && errno == EINTR);
+    return result;
+}
+
+static void restart_pipe_visibility(const int pipe[4], int make_private)
+{
+    if (!pipe)
+        return;
+    for (size_t i = 0; i < 2; ++i) {
+        /* Never expose a descriptor that now belongs to something else.
+           The owned reference keeps the original pipe inode live, without
+           replacing the incoming number or touching the child's own pair.
+           As with normal descriptor use, native code must not close or
+           rebind these descriptors concurrently with this boundary. */
+        struct stat incoming, owned;
+        if (descriptor_stat(pipe[i], &incoming) < 0
+            || descriptor_stat(pipe[i + 2], &owned) < 0
+            || !S_ISFIFO(incoming.st_mode) || !S_ISFIFO(owned.st_mode)
+            || incoming.st_dev != owned.st_dev || incoming.st_ino != owned.st_ino)
+            continue;
+        int mode = descriptor_control(pipe[i], F_GETFL, 0);
+        int access = mode & O_ACCMODE;
+        if (mode < 0 || (mode & O_PATH)
+            || (access != O_RDWR && access != (i == 0 ? O_RDONLY : O_WRONLY)))
+            continue;
+        int flags = descriptor_control(pipe[i], F_GETFD, 0);
+        if (flags >= 0) {
+            int changed = make_private ? flags | FD_CLOEXEC : flags & ~FD_CLOEXEC;
+            if (changed != flags)
+                descriptor_control(pipe[i], F_SETFD, changed);
+        }
     }
+}
+
+void rmake_restart_pipe_private(const int pipe[4])
+{
+    restart_pipe_visibility(pipe, 1);
 }
 
 /* Called only by the serialized process owner, after makefile jobs finish.
@@ -115,7 +157,7 @@ static int expose_descriptor(int descriptor)
    execvpe searches the live PATH; the replacement vector only changes the
    counter slots and leaves the global environment untouched on failure. */
 int rmake_exec_live_restart(char *const arguments[], uint32_t count,
-                            uint32_t level, int traced, int reader, int writer)
+                            uint32_t level, int traced, const int pipe[4])
 {
     struct restart_labels labels;
     const char *marker = traced ? "-" : "";
@@ -134,13 +176,9 @@ int rmake_exec_live_restart(char *const arguments[], uint32_t count,
     int failure = copy_live_environment(&labels, count, &environment);
     if (failure)
         return failure;
-    failure = expose_descriptor(reader);
-    if (!failure)
-        failure = expose_descriptor(writer);
-    if (!failure) {
-        execvpe(arguments[0], arguments, environment);
-        failure = errno;
-    }
+    restart_pipe_visibility(pipe, 0);
+    execvpe(arguments[0], arguments, environment);
+    failure = errno;
     free(environment);
     return failure;
 }

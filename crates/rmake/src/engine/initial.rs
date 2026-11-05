@@ -174,10 +174,7 @@ impl Plan {
         state.argument(&self.program, options, argument)
     }
 
-    pub(super) fn decode(
-        mut self: Box<Self>,
-        restart: Option<(u32, u32)>,
-    ) -> Result<Invocation, Failure<InvocationError>> {
+    pub(super) fn decode(mut self: Box<Self>) -> Result<Invocation, Failure<InvocationError>> {
         crate::native::reset();
         let output = if let Some(output) = &self.output {
             output.set_mode(crate::output::Mode::None);
@@ -224,21 +221,12 @@ impl Plan {
                 .map_err(StartupError::expansion)?;
         }
         let mut exports = HashSet::new();
-        for (name, value) in &self.environment {
+        for (name, value) in std::mem::take(&mut self.environment) {
             let name = name.as_bytes();
             if name == b"MAKE_RESTARTS" && value.as_bytes().starts_with(b"-") {
                 output.import_directory_trace();
             }
-            let updated_level = restart
-                .filter(|_| name == b"MAKELEVEL")
-                .map(|(_, level)| level.to_string());
-            let updated_restart = restart
-                .filter(|_| name == b"MAKE_RESTARTS")
-                .map(|(count, _)| count.to_string());
-            let value = updated_level
-                .as_ref()
-                .or(updated_restart.as_ref())
-                .map_or(value.as_bytes(), |value| value.as_bytes());
+            let value = value.as_bytes();
             let value = if name == b"MAKE_RESTARTS" {
                 let value = startup_restart_value(value);
                 // Import in vector order: the last binding controls startup.
@@ -261,23 +249,6 @@ impl Plan {
                 database.variables.set_export_policy(name, Some(true));
                 exports.insert(name.to_vec());
             }
-        }
-        if let Some((count, _)) = restart
-            && database.variables.get(b"MAKE_RESTARTS").is_none()
-        {
-            self.startup_restarts = count;
-            database
-                .variables
-                .define(
-                    b"MAKE_RESTARTS",
-                    count.to_string().as_bytes(),
-                    Assignment::Recursive,
-                    Origin::Environment,
-                )
-                .map_err(StartupError::expansion)?;
-            database
-                .variables
-                .set_export_policy(b"MAKE_RESTARTS", Some(false));
         }
         let initial_directory = std::env::current_dir().ok();
         database.variables.set_startup_directory_pending();
@@ -838,7 +809,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                     "-e",
                     "--not-an-option",
                 ])
-                .decode(None)
+                .decode()
             {
                 Ok(_) => panic!("invalid option accepted"),
                 Err(error) => error,
@@ -876,7 +847,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let fixture = Fixture::new();
             let launch = fixture
                 .plan(&["USER_VALUE=command", "--help"])
-                .decode(None)
+                .decode()
                 .unwrap();
             assert!(launch.options.help);
             let host = startup(launch.into_native_exit(b"rmake".to_vec()));
@@ -901,7 +872,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                     "-I~/inc",
                     "USER_VALUE=command",
                 ])
-                .decode(None)
+                .decode()
                 .unwrap();
             let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
                 .err()
@@ -926,7 +897,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let fixture = Fixture::new();
             let missing = fixture.0.join("missing");
             let missing = missing.to_str().unwrap();
-            let launch = fixture.plan(&["-C", missing]).decode(None).unwrap();
+            let launch = fixture.plan(&["-C", missing]).decode().unwrap();
             let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
                 .err()
                 .expect("missing directory accepted");
@@ -948,7 +919,9 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                 fixture.0.join("startup_owner_unit.so").display()
             )
             .into();
-            let launch = plan.decode(Some((1, 3))).unwrap();
+            plan.environment.push(("MAKELEVEL".into(), "3".into()));
+            plan.environment.push(("MAKE_RESTARTS".into(), "1".into()));
+            let launch = plan.decode().unwrap();
             assert!(launch.options.help);
             let host = startup(launch.into_native_exit(b"rmake".to_vec()));
             check_setup(&host.database);

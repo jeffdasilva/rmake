@@ -7,7 +7,6 @@
 use std::collections::BTreeMap;
 use std::ffi::{CString, OsStr, OsString, c_char, c_int};
 use std::io;
-use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
@@ -24,8 +23,7 @@ unsafe extern "C" {
         count: u32,
         level: u32,
         traced: c_int,
-        reader: c_int,
-        writer: c_int,
+        pipe: *const c_int,
     ) -> c_int;
 }
 
@@ -55,20 +53,20 @@ pub fn exec_live_restart(
         .collect();
     pointers.push(std::ptr::null_mut());
     let pair = jobserver.and_then(crate::jobserver::Jobserver::recursive_exec_pipe);
-    let (reader, writer) = pair.map_or((-1, -1), |(reader, writer)| {
-        (reader.as_raw_fd(), writer.as_raw_fd())
-    });
+    let descriptors = pair.as_ref().map(|pipe| pipe.descriptors());
     // SAFETY: the terminated vector and every CString remain live for the
-    // call. The optional pipe pair stays owned by the borrowed jobserver.
-    // The C adapter owns its environment image and returns only errno.
+    // call. The optional descriptor array contains two incoming numbers and
+    // two references kept live by the borrowed jobserver. C checks identity
+    // before adjusting incoming flags, owns the environment and returns errno.
     let failure = unsafe {
         rmake_exec_live_restart(
             pointers.as_ptr(),
             count,
             level,
             traced.into(),
-            reader,
-            writer,
+            descriptors
+                .as_ref()
+                .map_or(std::ptr::null(), |fds| fds.as_ptr()),
         )
     };
     io::Error::from_raw_os_error(failure)

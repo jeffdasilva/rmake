@@ -687,7 +687,6 @@ pub struct Engine {
     options: Options,
     assumptions: Option<Box<assumptions::Files>>,
     initial_plan: Option<Box<initial::Plan>>,
-    native_exit_override: Option<Box<NativeExit>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
@@ -889,7 +888,7 @@ impl Engine {
     ) -> Result<Invocation, Failure<InvocationError>> {
         let args: Vec<_> = args.into_iter().collect();
         let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags, output);
-        Box::new(plan).decode(None)
+        Box::new(plan).decode()
     }
 }
 
@@ -1248,7 +1247,6 @@ impl Engine {
         let initial_plan = Some(plan);
         let mut engine = Self {
             initial_plan,
-            native_exit_override: None,
             assumptions,
             startup_directory,
             output,
@@ -1493,7 +1491,7 @@ impl Engine {
     }
 
     pub fn requires_retained_exit(&self) -> bool {
-        crate::native::has_modules() || self.native_exit_override.is_some()
+        crate::native::has_modules()
     }
 
     pub fn prepare_native_exit(&mut self) {
@@ -1506,9 +1504,6 @@ impl Engine {
     }
 
     pub fn native_exit(&mut self, mut status: u8) -> u8 {
-        if let Some(mut exit) = self.native_exit_override.take() {
-            return exit.finish(status);
-        }
         self.output.process_lifetime().finish();
         if !self.options.directories.is_empty()
             && let Some(directory) = &self.startup_directory
@@ -1813,9 +1808,7 @@ impl Engine {
             self.output.debug_mask(),
             self.jobserver.as_ref().and_then(Jobserver::owned_slots),
         );
-        if self.native_exit_override.is_none() {
-            self.print_database();
-        }
+        self.print_database();
         status
     }
 
@@ -1947,6 +1940,64 @@ impl Engine {
         Ok(())
     }
 
+    fn restart_after_makefiles(&mut self, restarts: u32) -> u8 {
+        self.print_database();
+        let plan = self.initial_plan.take().expect("initial invocation");
+        let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
+        let inherited_jobserver = self
+            .jobserver
+            .as_ref()
+            .filter(|server| server.owned_slots().is_none())
+            .cloned();
+        self.jobserver.take();
+        self.output.select(None);
+        self.output.clear();
+        if !self.options.directories.is_empty() {
+            let restored = if let Some(directory) = &self.startup_directory {
+                match std::env::set_current_dir(directory) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        self.stderr(
+                            [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
+                                .concat()
+                                .as_slice(),
+                        );
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+            if !restored {
+                self.fatal(None, b"Couldn't change back to original directory");
+                if let Some(slots) = retired_slots {
+                    self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
+                }
+                return 2;
+            }
+        }
+        if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
+            plan.debug_restart(restarts);
+        }
+        // A makefile restart is a new program image. Replaying only
+        // Rust construction misses process-entry hooks, temporary
+        // cache validation and replacement of the invoked program.
+        let error = plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
+        self.stderr(
+            &[
+                plan.restart_program().as_bytes(),
+                b": ",
+                os_error(&error).as_bytes(),
+            ]
+            .concat(),
+        );
+        if let Some(server) = &inherited_jobserver {
+            server.finish_recursive_exec();
+        }
+        crate::stdin_source::unlink(plan.stdin_source.as_ref(), &self.output, &self.program);
+        rmake_linux::process::exit_immediately(127);
+    }
+
     fn run_inner(&mut self) -> u8 {
         if self.prepare_stdin().is_err() {
             return 2;
@@ -1958,75 +2009,11 @@ impl Engine {
         if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
             return 2;
         }
-        let mut iterations = 0_u32;
-        let mut restarts = self
+        let restarts = self
             .initial_plan
             .as_ref()
             .map_or(0, |plan| plan.startup_restarts);
-        loop {
-            if iterations > 0 {
-                self.print_database();
-                let plan = self.initial_plan.take().expect("initial invocation");
-                let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
-                let inherited_jobserver = self
-                    .jobserver
-                    .as_ref()
-                    .filter(|server| server.owned_slots().is_none())
-                    .cloned();
-                self.jobserver.take();
-                self.output.select(None);
-                self.output.clear();
-                if !self.options.directories.is_empty() {
-                    let restored = if let Some(directory) = &self.startup_directory {
-                        match std::env::set_current_dir(directory) {
-                            Ok(()) => true,
-                            Err(error) => {
-                                self.stderr(
-                                    [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
-                                        .concat()
-                                        .as_slice(),
-                                );
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    };
-                    if !restored {
-                        self.fatal(None, b"Couldn't change back to original directory");
-                        if let Some(slots) = retired_slots {
-                            self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
-                        }
-                        return 2;
-                    }
-                }
-                if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
-                    plan.debug_restart(restarts);
-                }
-                // A makefile restart is a new program image. Replaying only
-                // Rust construction misses process-entry hooks, temporary
-                // cache validation and replacement of the invoked program.
-                let error =
-                    plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
-                self.stderr(
-                    &[
-                        plan.restart_program().as_bytes(),
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                );
-                if let Some(server) = &inherited_jobserver {
-                    server.finish_recursive_exec();
-                }
-                crate::stdin_source::unlink(
-                    plan.stdin_source.as_ref(),
-                    &self.output,
-                    &self.program,
-                );
-                rmake_linux::process::exit_immediately(127);
-            }
-
+        let restart_pending = 'makefiles: {
             if !self.options.evals.is_empty() {
                 let eval_entry_no_rules = self.options.no_rules;
                 if self.read_command_evals().is_err() {
@@ -2203,8 +2190,7 @@ impl Engine {
             if self.options.no_variables && !entry_no_variables {
                 self.database.disable_builtin_variables();
             }
-            if iterations == 0
-                && let Some(authentication) = &self.options.sync_mutex
+            if let Some(authentication) = &self.options.sync_mutex
                 && let Err(error) = self.output.decode_mutex(authentication)
             {
                 self.fatal(
@@ -2582,13 +2568,7 @@ impl Engine {
             }
             if changed {
                 self.remove_intermediates();
-                restarts = restarts.wrapping_add(1);
-                iterations += 1;
-                if iterations > 128 {
-                    self.fatal(None, b"rmake: makefile restart limit exceeded");
-                    return 2;
-                }
-                continue;
+                break 'makefiles true;
             }
             if failed {
                 self.remove_intermediates();
@@ -2601,7 +2581,10 @@ impl Engine {
                     return 2;
                 }
             }
-            break;
+            false
+        };
+        if restart_pending {
+            return self.restart_after_makefiles(restarts.wrapping_add(1));
         }
         if let Err(error) = self.publish_phase_makeflags(false) {
             self.expansion_error(None, &error);

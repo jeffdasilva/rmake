@@ -22,4 +22,10 @@ and exact duplicate or wrapped restart-counter behavior. The Linux adapter
 owns the vector passed to real exec, preserving live PATH search and signal
 state. Both corrected builds pass; the preceding build fails each case.
 
-Further descriptor/read/write/close faults, inherited pipe self-exec, internal-option combinations, pathname mutation, database/debug interactions, enabled Guile, and broader resource profiles still need qualification. General performance parity is unproven. The selected corpus and typed observers add no ordinary-ledger cells or safety exceptions.
+[The inherited pipe profile](../tests/restart-pipe/README.md) requires both
+process images to see the same incoming jobserver pipe, with the advertised
+descriptors private again after startup. The exec boundary verifies their
+physical identity and access roles. An independently rebound descriptor must
+remain close-on-exec. The existing failed-exec observer still checks cleanup.
+
+Further descriptor/read/write/close faults, internal-option combinations, pathname mutation, database/debug interactions, enabled Guile, and broader resource profiles still need qualification. General performance parity is unproven. The selected corpus and typed observers add no ordinary-ledger cells or safety exceptions.
