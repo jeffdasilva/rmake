@@ -532,9 +532,6 @@ struct State {
 impl State {
     fn complete_mutex(&self, authentication: &[u8]) -> Result<(), StartupError> {
         self.output.decode_mutex(authentication).map_err(|error| {
-            // A failed open leaves no usable synchronization handle for
-            // startup diagnostics, even if an earlier source opened one.
-            self.output.clear();
             Diagnostic::from(crate::usage::sync_mutex_open(authentication, &error)).into()
         })
     }
