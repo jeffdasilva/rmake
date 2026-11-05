@@ -30,7 +30,7 @@ OUTPUT_LOCK_REPORT ?= artifacts/output-lock-completion/development.json
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
-.PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose
+.PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose test-debug-reap-race test-debug-reap-race-release
 
 .PHONY: test-debug-output test-directory-reporting test-native-modules help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
 
@@ -209,6 +209,7 @@ help:
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
+		'  test-debug-reap-race Compare a waitable child at the inner prerequisite boundary' \
 		'  test-debug-traversal Compare implicit search and intermediate cleanup traces' \
 		'  test-debug-traversal-nls Compare debug events in the verified French locale' \
 		'  test-debug-verbose Compare timestamp and remake decisions in C and French' \
@@ -707,6 +708,12 @@ test-directory-reporting: build oracle-verify
 test-debug-output: build oracle-verify
 	$(PYTHON) tools/debug_output.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/debug-output/development.json $(if $(DEBUG_CASE),--case "$(DEBUG_CASE)")
 
+test-debug-reap-race: build oracle-verify
+	$(PYTHON) tools/debug_reap_race.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report-dir artifacts/debug-reap-race/development
+
+test-debug-reap-race-release: release oracle-verify
+	$(PYTHON) tools/debug_reap_race.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report-dir artifacts/debug-reap-race/optimized
+
 test-debug-traversal: build oracle-verify
 	$(PYTHON) tools/debug_traversal.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/debug-traversal/development.json $(if $(DEBUG_TRAVERSAL_CASE),--case "$(DEBUG_TRAVERSAL_CASE)")
 
@@ -885,3 +892,7 @@ test check: test-database-branch-metadata test-database-double-dry-run
 test check: test-database-grouped test-database-implicit-grouped test-database-grouped-double
 
 test check: test-developer-flows test-flag-terminator test-startup-usage test-runtime-option-values
+
+test: test-debug-reap-race
+check: test-debug-reap-race
+test-m4-release: test-debug-reap-race-release
