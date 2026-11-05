@@ -700,7 +700,7 @@ pub(super) fn emit_error(
         InvocationError::Usage { version } => {
             if version {
                 crate::print_version();
-                println!();
+                let _ = rmake_linux::output::write_standard(false, b"\n");
             }
             output.write_parts(true, &[&crate::usage::text(program)]);
         }
