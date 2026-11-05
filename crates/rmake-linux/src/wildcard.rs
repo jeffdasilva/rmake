@@ -55,7 +55,7 @@ struct Contents {
     stream: Option<directory::Stream>,
     pending: HashMap<Name, EntryState>,
     sorted: Option<Vec<Entry>>,
-    collation_order: Option<Box<[usize]>>,
+    collation_rank: Option<Box<[usize]>>,
     next_order: u32,
     bytes: usize,
 }
@@ -511,7 +511,7 @@ impl Wildcard {
         if self.contents[index].sorted.is_none() {
             self.read_all(index, path)?;
         }
-        if collated && self.contents[index].collation_order.is_none() {
+        if collated && self.contents[index].collation_rank.is_none() {
             let entries = self.contents[index].sorted.as_deref().unwrap_or_default();
             let mut insertion: Vec<_> = (0..entries.len()).collect();
             insertion.sort_unstable_by_key(|index| entries[*index].order);
@@ -521,16 +521,19 @@ impl Wildcard {
                 .collect();
             let order = rmake_core::file_records::traversal_order(&names, 128)
                 .expect("fixed directory table capacity");
-            let order: Box<[_]> = order.into_iter().map(|index| insertion[index]).collect();
-            let bytes = order.len() * std::mem::size_of::<usize>();
+            let mut rank = vec![0; entries.len()].into_boxed_slice();
+            for (position, index) in order.into_iter().enumerate() {
+                rank[insertion[index]] = position;
+            }
+            let bytes = rank.len() * std::mem::size_of::<usize>();
             self.charge(bytes)?;
             self.contents[index].bytes += bytes;
-            self.contents[index].collation_order = Some(order);
+            self.contents[index].collation_rank = Some(rank);
         }
         let contents = &self.contents[index];
         Ok((
             contents.sorted.as_deref().unwrap_or_default(),
-            contents.collation_order.as_deref(),
+            contents.collation_rank.as_deref(),
         ))
     }
 
@@ -592,8 +595,9 @@ impl Wildcard {
         let mut result = Vec::new();
         let mut bytes = 0usize;
         let collation = crate::locale::Collation::current();
+        let mut rank_base = 0usize;
         for parent in parents {
-            let mut emit = |name: &[u8]| -> Result<(), FilesystemError> {
+            let mut emit = |name: &[u8], rank: usize| -> Result<(), FilesystemError> {
                 let mut path = if prefix {
                     join(&parent, name)
                 } else {
@@ -606,6 +610,14 @@ impl Wildcard {
                 if bytes > MAX_OUTPUT {
                     return Err(LIMIT.to_vec().into());
                 }
+                if !collation.is_bytewise() {
+                    let rank = rank_base
+                        .checked_add(rank)
+                        .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
+                    path.reserve(1 + size_of::<usize>());
+                    path.push(0);
+                    path.extend_from_slice(&rank.to_ne_bytes());
+                }
                 result.push(path);
                 Ok(())
             };
@@ -613,20 +625,28 @@ impl Wildcard {
                 let Some(matcher) = posix::Matcher::new(leaf) else {
                     continue;
                 };
-                let (entries, order) = self.entries(&parent, !collation.is_bytewise())?;
-                for index in 0..entries.len() {
-                    let entry = &entries[order.map_or(index, |order| order[index])];
+                let (entries, rank) = self.entries(&parent, !collation.is_bytewise())?;
+                for (index, entry) in entries.iter().enumerate() {
                     if matcher.matches(&entry.name)
                         && (!directories_only
                             || entry.directory.unwrap_or_else(|| {
                                 exists(&join(&parent, entry.name.as_bytes()), true)
                             }))
                     {
-                        emit(entry.name.as_bytes())?;
+                        emit(
+                            entry.name.as_bytes(),
+                            rank.map_or(index, |rank| rank[index]),
+                        )?;
                     }
                 }
+                rank_base = rank_base
+                    .checked_add(entries.len())
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
             } else if exists(&join(&parent, leaf), false) {
-                emit(leaf)?;
+                emit(leaf, 0)?;
+                rank_base = rank_base
+                    .checked_add(1)
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
             }
         }
         collation.sort(&mut result);

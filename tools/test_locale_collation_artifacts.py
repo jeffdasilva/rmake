@@ -26,6 +26,42 @@ def archive(name):
 
 
 class LocaleCollationArtifactTests(unittest.TestCase):
+    def test_ranked_selection_retains_both_builds_clocks_and_previous_regression(self):
+        value = archive('ranked-qualification')
+        for profile in ('debug', 'release'):
+            for count in (74, 183):
+                name = f'rmake-collation-checked-{profile}{count}.json'
+                report = json.loads(bytes.fromhex(value['files'][name]['content_hex']))
+                self.assertEqual(report['totals'], {'cases': count, 'pass': count, 'fail': 0})
+        self.assertEqual(sum(name.endswith('/report.json') for name in value['files']), 20)
+        failed = bytes.fromhex(value['files']['rmake-collation-ranked-build.log']['content_hex'])
+        self.assertIn(b'FAILED (failures=1)', failed)
+        corrected = bytes.fromhex(value['files']['rmake-collation-ranked-benchmark-units.log']['content_hex'])
+        self.assertIn(b'Ran 32 tests', corrected)
+        self.assertTrue(corrected.rstrip().endswith(b'OK'))
+        for record in value['source']['source'].values():
+            self.assertEqual(hashlib.sha256(record['text'].encode()).hexdigest(), record['sha256'])
+
+    def test_performance_screen_retains_all_variants_samples_and_allocator_traces(self):
+        value = archive('performance-storage-collation-screen')
+        files = value['files']
+        self.assertEqual(sum(name.endswith('/report.json') for name in files), 80)
+        self.assertEqual(sum(name.endswith('/trace.txt') for name in files), 80)
+        reports = {name: json.loads(bytes.fromhex(record['content_hex']))
+                   for name, record in files.items()
+                   if '/' not in name and name.endswith('.json') and not name.startswith('context')}
+        self.assertEqual(len(reports), 13)
+        for name, report in reports.items():
+            count = 301 if 'runtime-arguments' in name else 31 if 'wildcard-' in name else 101
+            self.assertTrue(all(len(row['paired_baseline_over_candidate']) == count
+                                for row in report['workloads']))
+        # Keep the measured C.UTF8 regression and both rejected layout variants.
+        self.assertTrue(any(row['median_paired_baseline_ratio'] < 0.8
+                            for row in reports['collation-wildcard-utf8.json']['workloads']))
+        self.assertEqual(set(value['source_closures']), {'binding', 'inline', 'combined', 'collation'})
+        for record in value['source_closures'].values():
+            self.assertEqual(hashlib.sha256(bytes.fromhex(record['content_hex'])).hexdigest(), record['sha256'])
+
     def test_qualified_full_observations_preceding_failures_and_coherent_sources(self):
         value = archive('qualification')
         files = value['files']

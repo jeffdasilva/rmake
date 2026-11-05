@@ -56,19 +56,26 @@ impl Collation {
             names.sort_unstable();
             return;
         }
-        // One terminator per owned result, reused for every comparison. The
-        // comparator allocates nothing and keeps raw Linux filename bytes.
-        for name in names.iter_mut() {
-            name.push(0);
-        }
+        // Non-byte results carry a terminator followed by their original
+        // directory traversal rank. Emission stays byte ordered, so byte-like
+        // libc collations can use the sort's already-ordered fast path. The
+        // rank restores GNU's stable order for distinct equal collation keys.
         names.sort_by(|left, right| {
             // Both owned vectors remain terminated and immovable for this
-            // call. Equal collation keys preserve the directory traversal.
+            // call; the rank lies after the terminator and is never passed
+            // through to filesystem or interpreter consumers.
             let value = unsafe { strcoll(left.as_ptr().cast(), right.as_ptr().cast()) };
-            value.cmp(&0)
+            value.cmp(&0).then_with(|| {
+                let rank = |name: &[u8]| {
+                    usize::from_ne_bytes(
+                        name[name.len() - size_of::<usize>()..].try_into().unwrap(),
+                    )
+                };
+                rank(left).cmp(&rank(right))
+            })
         });
         for name in names {
-            name.pop();
+            name.truncate(name.len() - 1 - size_of::<usize>());
         }
     }
 }

@@ -10,6 +10,31 @@ import conformance
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_locale_workloads_bound_queries_without_rewriting_historical_inputs(self):
+        original = dict(benchmark.wildcard_workloads())
+        bounded = dict(benchmark.selected_workloads('wildcard-locale'))
+        self.assertEqual(set(bounded), {name.replace('wildcard-', 'wildcard-locale-', 1) for name in original})
+        self.assertEqual(original['wildcard-warm'].count(b' := '), 200)
+        self.assertEqual(bounded['wildcard-locale-warm'].count(b' := '), 20)
+        for suffix in ('cold', 'literal'):
+            self.assertEqual(original['wildcard-' + suffix], bounded['wildcard-locale-' + suffix])
+
+    def test_locale_preflight_rejects_unavailable_or_noisy_profile(self):
+        from unittest.mock import patch
+        import subprocess
+        environment = {'LC_ALL': 'fr_FR.UTF-8', 'LOCPATH': '/verified/locales'}
+        with patch.object(benchmark.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'fr_FR.UTF-8\n', b'')) as child:
+            self.assertEqual(benchmark.qualify_locale(environment), 'fr_FR.UTF-8')
+            self.assertEqual(child.call_args.kwargs['env'], environment)
+            self.assertTrue(child.call_args.kwargs['check'])
+        for output, error in [(b'', b''), (b'C\n', b'bad locale')]:
+            with patch.object(benchmark.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output, error)):
+                with self.assertRaises(RuntimeError):
+                    benchmark.qualify_locale(environment)
+        with patch.object(benchmark.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['locale'])):
+            with self.assertRaises(subprocess.CalledProcessError):
+                benchmark.qualify_locale(environment)
+
     def test_builtin_transition_workloads_reach_cleanup_with_unused_graph_nodes(self):
         workloads = list(benchmark.builtin_transition_workloads())
         self.assertEqual(workloads, list(benchmark.selected_workloads('builtin-transitions')))
@@ -200,7 +225,7 @@ class BenchmarkTests(unittest.TestCase):
         for _, source in spans:
             self.assertEqual(source.count(b"one  two\t"), 100000)
         self.assertEqual(list(benchmark.selected_workloads("word-spans")), spans)
-        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + list(benchmark.startup_workloads()) + list(benchmark.eval_workloads()) + list(benchmark.startup_effect_workloads()) + list(benchmark.initial_flag_workloads()) + list(benchmark.include_operand_workloads()) + list(benchmark.nested_eval_workloads()) + list(benchmark.deep_append_workloads()) + list(benchmark.function_body_workloads()) + list(benchmark.linear_leaf_workloads()) + list(benchmark.text_frame_workloads()) + list(benchmark.literal_chain_workloads()) + list(benchmark.runtime_include_workloads()) + list(benchmark.runtime_argument_workloads()) + list(benchmark.builtin_transition_workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
+        self.assertEqual(list(benchmark.selected_workloads("all")), list(benchmark.workloads()) + list(benchmark.startup_workloads()) + list(benchmark.eval_workloads()) + list(benchmark.startup_effect_workloads()) + list(benchmark.initial_flag_workloads()) + list(benchmark.include_operand_workloads()) + list(benchmark.nested_eval_workloads()) + list(benchmark.deep_append_workloads()) + list(benchmark.function_body_workloads()) + list(benchmark.linear_leaf_workloads()) + list(benchmark.text_frame_workloads()) + list(benchmark.literal_chain_workloads()) + list(benchmark.runtime_include_workloads()) + list(benchmark.runtime_argument_workloads()) + list(benchmark.builtin_transition_workloads()) + spans + list(benchmark.wildcard_workloads()) + list(benchmark.locale_wildcard_workloads()) + list(benchmark.binding_workloads()) + list(benchmark.implicit_search_workloads()) + list(benchmark.parallel_branch_workloads()) + list(benchmark.target_context_workloads()) + list(benchmark.archive_workloads()) + list(benchmark.archive_sequence_workloads()) + list(benchmark.vpath_workloads()) + list(benchmark.secondary_workloads()) + list(benchmark.implicit_rejection_workloads()) + list(benchmark.gpath_workloads()) + list(benchmark.intermediate_workloads()) + list(benchmark.lazy_record_workloads()) + list(benchmark.vpath_record_workloads()) + list(benchmark.directory_search_workloads()) + list(benchmark.archive_name_workloads()) + list(benchmark.symlink_time_workloads()) + list(benchmark.rule_filename_workloads()) + list(benchmark.rule_tilde_workloads()) + list(benchmark.library_workloads()))
         self.assertEqual(list(benchmark.selected_workloads("core")), list(benchmark.workloads()))
 
     def test_implicit_search_has_real_targets_and_no_process_launches(self):

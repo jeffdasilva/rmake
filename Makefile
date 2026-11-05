@@ -21,6 +21,9 @@ LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
+BENCH_LOCALE ?= C
+BENCH_LOCPATH ?=
+BENCH_SILENT ?=
 BENCH_CANDIDATE ?= $(CURDIR)/target/release/rmake
 PROFILE_WORKLOAD ?= large-noop
 PROFILE_CANDIDATE ?= $(CURDIR)/artifacts/profile/target/release/rmake
@@ -429,7 +432,7 @@ check: test-integration test-native-fenv test-locales test-locale-collation
 ci: check test-selfhost
 
 bench: oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
 
 profile-allocations:
 	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
@@ -440,7 +443,7 @@ profile-allocations-frozen:
 
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)"
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
 
 clean:
 	+$(CARGO) clean

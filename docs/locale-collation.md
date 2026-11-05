@@ -27,20 +27,27 @@ The first growth predictions were wrong and remain archived. The candidate's
 raw observations matched both GNU runs even before those expectations were
 corrected; that failed model run receives no acceptance credit.
 
-Directory observations remain byte ordered for deduplication and binary
-membership. Each entry retains its insertion ordinal in existing structure
+Directory observations remain byte ordered for deduplication, binary membership
+and emission. Each entry retains its insertion ordinal in existing structure
 padding. A borrowed filename-table traversal is built lazily for collation;
-the retained boxed index participates in the existing directory resource
-budget. Final result vectors receive one temporary terminator per name, and
-libc comparisons allocate nothing per comparison. A stable sort preserves
-equal-key traversal. Archive-member ordering is unchanged.
+its inverse ranks participate in the existing directory resource budget. Each
+owned non-C result temporarily carries a terminator and discovery rank. Sorting
+compares libc collation first and original rank second, then removes the entire
+trailer before returning paths. This preserves GNU's equal-key order while
+letting already ordered input use Rust's adaptive sorting path. Comparisons
+allocate nothing; directory streams and interpreter effects run once. Archive
+member ordering is unchanged.
 
 The byte path applies only when the actual global LC_COLLATE is C/POSIX and
 there is no thread-local locale override. Each glob queries current state;
 neither environment names nor startup selections are cached across native
 callbacks. C.UTF8 and other selections use libc. This avoids assuming that a
 locale alias or a later native `setlocale`/`uselocale` call has byte collation.
-No elapsed or allocation improvement is claimed by this implementation.
+The initial implementation's C.UTF8 warm-glob regression and all slower samples
+remain archived. The selected rank representation reduces that initial time by
+18% and the measured French warm-glob time by 75%, while retaining all 74 exact
+models and both existing 183-case gates. C.UTF8 still costs more than preceding
+rmake on those controls. See the [measurement limits and full results](benchmarks/locale-collation.md).
 
 `tools/locale_data.py` verifies a pinned noble InRelease and main Packages
 index, then extracts authenticated `locales` and `libc-bin` packages locally.
