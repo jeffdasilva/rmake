@@ -4,6 +4,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: bootstrap-integration test-integration
+.PHONY: test-locales
 
 .PHONY: test-job-debug
 
@@ -11,6 +12,7 @@
 
 PYTHON ?= python3
 INTEGRATION_CASE ?=
+LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
 M4_RELEASE ?= $(CURDIR)/target/release/rmake
@@ -102,6 +104,7 @@ help:
 		'  test-jobserver  Compare mixed GNU/rmake FIFO and pipe jobserver trees' \
 		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
+		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
@@ -126,6 +129,7 @@ help:
 		'Directory reporting replay: DIRECTORY_REPORT_CASE=<case ID>.' \
 		'Debug replay: DEBUG_CASE=<case ID>.' \
 		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2.' \
+		'Locale replay: LOCALE_CASE=<case ID>.' \
 		'JOBS replay: JOB_DEBUG_CASE=<case ID>.' \
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
@@ -237,6 +241,7 @@ test-include-stat: build oracle-verify
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -271,6 +276,7 @@ test-m5-release: test-m4-release
 test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
+	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
 	$(PYTHON) tools/directory_reporting.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/directory-reporting/optimized.json
 	$(PYTHON) tools/debug_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/debug-output/optimized.json
@@ -295,6 +301,9 @@ test-m4-release: release oracle-verify
 
 test-integration: build oracle-verify
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/integration/development.json $(if $(INTEGRATION_CASE),--case "$(INTEGRATION_CASE)")
+
+test-locales: build oracle-verify
+	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/locales/development.json $(if $(LOCALE_CASE),--case "$(LOCALE_CASE)")
 
 test-native-modules: build oracle-verify
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native/development.json $(if $(NATIVE_CASE),--case "$(NATIVE_CASE)")
@@ -384,9 +393,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration
+test: test-integration test-locales
 
-check: test-integration
+check: test-integration test-locales
 
 ci: check test-selfhost
 

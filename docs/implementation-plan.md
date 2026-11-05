@@ -118,6 +118,12 @@ incomplete, because the complete compatibility contract extends beyond M4.
 
 ## Milestones and exit criteria
 
+[Startup locale selection](startup-locale.md) adds 183 independently modeled
+glibc C/C.UTF8 profiles with exact streams, full filesystems and process bounds
+across startup effects, later assignments and recursion. Broader locales/NLS,
+Linux/Guile profiles, complete M3/M6 and general performance acceptance remain
+open.
+
 [Pinned project integration](project-integration.md) introduces separately
 required xxHash and zlib profiles with exact GNU2/candidate observations through
 build, no-op, header rebuild and executable smoke. Top-level development,
