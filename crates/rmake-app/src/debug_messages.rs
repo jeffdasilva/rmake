@@ -72,6 +72,7 @@ keys! {
     FOUND_RULE: c"Found implicit rule '%s' for '%s'.\n", [B, B];
     NO_RULE: c"No implicit rule found for '%s'.\n", [B];
     USING_DEFAULT_RECIPE: c"Using default recipe for '%s'.\n", [B];
+    USING_DEFAULT_COMMANDS: c"Using default commands for '%s'.\n", [B];
     READING_FILE: c"Reading makefile '%s'", [B];
     FILE_READ_MISSING: c"file: Failed to open '%s': %s\n", [B, B];
     NO_DEFAULT_GOAL: c" (no default goal)", [];

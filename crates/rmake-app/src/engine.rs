@@ -3494,7 +3494,7 @@ impl Engine {
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
-        if !self.resolve_implicit_for_intermediate(target) {
+        if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
                     failed: true,
@@ -5305,8 +5305,10 @@ impl Engine {
     }
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
-    fn resolve_implicit_for_intermediate(&mut self, target: &[u8]) -> bool {
-        self.resolve_implicit_at(target, usize::from(self.remaking), false)
+    fn resolve_implicit_for_intermediate(&mut self, target: &[u8], depth: usize) -> bool {
+        // Inspection already receives the edge depth used by search output.
+        let debug_depth = depth - 1 + usize::from(self.remaking);
+        self.resolve_implicit_at(target, debug_depth, false)
     }
     fn resolve_implicit_at(
         &mut self,
@@ -5446,13 +5448,12 @@ impl Engine {
             && let Some(default) = self.database.rules.get(b".DEFAULT".as_slice())
             && default.recipes.is_some()
         {
-            // Intermediate inspection has its own fallback diagnostic.
-            if graph_visit {
-                crate::debug::emit(
-                    &self.output,
-                    crate::debug::Event::UsingDefaultRecipe(target, debug_depth + 1),
-                );
-            }
+            let event = if graph_visit {
+                crate::debug::Event::UsingDefaultRecipe(target, debug_depth + 1)
+            } else {
+                crate::debug::Event::UsingDefaultCommands(target, debug_depth + 1)
+            };
+            crate::debug::emit(&self.output, event);
             self.database.rules.insert(
                 target.to_vec(),
                 Rule {
@@ -7587,6 +7588,7 @@ impl Engine {
             presentation_drops,
             intermediate_stale,
             debug_changed_edges,
+            deferred_intermediates,
             waited_for_prerequisites,
             depth,
             ..
@@ -7716,23 +7718,30 @@ impl Engine {
             && !outcome.failed
             && !outcome.question_outdated
         {
-            // This reports recorded freshness after dependency traversal. It
-            // must not re-stat, expand, or trigger another prerequisite.
+            // A deferred intermediate can still be missing when its parent
+            // is current. Its inspection did not produce a completion record.
+            let deferred: HashSet<_> = deferred_intermediates
+                .iter()
+                .map(|name| self.aliases.resolve(name))
+                .collect();
             for (index, occurrence) in rule.dependencies.iter().enumerate() {
                 let dependency = &occurrence.name;
                 if dependency == b".WAIT" || dropped.contains(dependency) {
                     continue;
                 }
-                let Some(child) = self.done.get(dependency).copied() else {
+                let child = self.done.get(dependency).copied();
+                if child.is_none() && !deferred.contains(dependency.as_slice()) {
                     continue;
-                };
+                }
                 let changed = debug_changed_edges
                     .as_ref()
                     .is_some_and(|edges| edges.contains(&index));
                 let inspected_stale = intermediate_stale
                     .as_ref()
                     .is_some_and(|edges| edges.contains(&index));
-                if !occurrence.order_only {
+                if let Some(child) = child
+                    && !occurrence.order_only
+                {
                     dependencies_changed |= changed;
                     if self.options.always {
                         natural_remake |=
@@ -7740,19 +7749,21 @@ impl Engine {
                     }
                 }
                 use crate::debug::Prerequisite;
-                let state = if occurrence.order_only {
-                    Prerequisite::OrderOnly
-                } else if child.time.is_none() {
-                    Prerequisite::Missing
-                } else if changed
-                    || child.time > comparison
-                    || (child.completion == CompletionTime::AssumeNew
-                        && self.prerequisite_stale(comparison, child))
-                    || inspected_stale
-                {
-                    Prerequisite::Newer
-                } else {
-                    Prerequisite::Older
+                let state = match child {
+                    _ if occurrence.order_only => Prerequisite::OrderOnly,
+                    Some(child) if child.time.is_some() => {
+                        if changed
+                            || child.time > comparison
+                            || (child.completion == CompletionTime::AssumeNew
+                                && self.prerequisite_stale(comparison, child))
+                            || inspected_stale
+                        {
+                            Prerequisite::Newer
+                        } else {
+                            Prerequisite::Older
+                        }
+                    }
+                    _ => Prerequisite::Missing,
                 };
                 crate::debug::emit(
                     &self.output,
