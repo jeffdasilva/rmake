@@ -1,0 +1,801 @@
+{
+  "classification": "Thirty bounded French/C/live LC_MESSAGES and native-domain profiles. Input LOCPATH comes from the pinned verified locale data, not observed output. Exact model and fixture bytes otherwise unchanged.",
+  "original_model_sha256": {
+    "models-refined.json": "dd1c7dff3e5de3ff352e0802a7347c9f90a1f128f97f10211096d6f71858f7ca",
+    "c-controls-refined.json": "69d2d7fa10c16a43a010c5318bc598005c0c964f1b9f6385c3928897f5caf8a1",
+    "ambient-domain-before.json": "7eac26a8a617dc15b22e7c35f8a2d459332ce4adaebb81aaa4c4726f579de100"
+  },
+  "fixture_sha256": {
+    "nls_probe.c": "1ce2e437e67d1854b1c8847fe46bb6d13f085fefc05907660115814cfdb95793",
+    "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e"
+  },
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "rows": [
+    {
+      "id": "nls-missing-goal",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "unavailable"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Aucune règle pour fabriquer la cible « unavailable ». Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-prerequisite",
+      "files": {
+        "Makefile": "616c6c3a206e65656465640a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: ***  Aucune règle pour fabriquer la cible « needed », nécessaire pour « all ». Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-reader-separator",
+      "files": {
+        "Makefile": "74686973206973206e6f7420612072756c650a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** séparateur manquant. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-function-unclosed",
+      "files": {
+        "Makefile": "56414c5545203a3d2024287375627374206e6f7274682c736f7574682c0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** appel à la fonction « subst » non terminé : « ) » manquant. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-function-untranslated",
+      "files": {
+        "Makefile": "56414c5545203a3d202428696e74636d7020782c32290a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** non-numeric first argument to 'intcmp' function: 'x'. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-undefined-warning",
+      "files": {
+        "Makefile": "2428696e666f2056414c55453d24285f5f6e6c735f616273656e7429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "VALUE=\n",
+        "stderr": "Makefile:1: avertissement : variable « __nls_absent » indéfinie\nmake: avertissement : variable « GNUMAKEFLAGS » indéfinie\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-recipe-untranslated",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a09406578697420370a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** [Makefile:3: all] Error 7\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-recipe-ignored",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a09406578697420370a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-i"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "make: [Makefile:3: all] Error 7 (ignorée)\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-keep-going",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c20676f6f640a616c6c3a206e656564656420676f6f640a676f6f643a0a09407072696e74662027676f6f645c6e27203e3e7365656e0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: ***  Aucune règle pour fabriquer la cible « needed », nécessaire pour « all ».\nmake: La cible « all » n'a pas été refabriquée à cause d'erreurs.\n",
+        "seen": "anchor\ngood\n"
+      }
+    },
+    {
+      "id": "nls-recursive",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d66206368696c642e6d6b20756e617661696c61626c650a",
+        "seen": "616e63686f720a",
+        "child.mk": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make[1]: *** Aucune règle pour fabriquer la cible « unavailable ». Arrêt.\nmake: *** [Makefile:3: all] Error 2\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-lc-messages-c",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "unavailable"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "fr_FR.UTF-8",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** No rule to make target 'unavailable'.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-native-messages-phase",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f70726f62652e736f0a24286e6c735f6320290a24287761726e696e67206d697373696e6720736570617261746f72290a2428696e666f20413d24285f5f6e6c735f666972737429290a24286e6c735f667220290a2428696e666f20423d24285f5f6e6c735f7365636f6e6429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_probe.c",
+          "filename": "nls_probe.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "A=\nB=\n",
+        "stderr": "Makefile:3: missing separator\nMakefile:4: warning: undefined variable '__nls_first'\nMakefile:6: avertissement : variable « __nls_second » indéfinie\nmake: avertissement : variable « GNUMAKEFLAGS » indéfinie\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "c-nls-missing-goal",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "unavailable"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** No rule to make target 'unavailable'.  Stop.\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-missing-goal"
+    },
+    {
+      "id": "c-nls-missing-prerequisite",
+      "files": {
+        "Makefile": "616c6c3a206e65656465640a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** No rule to make target 'needed', needed by 'all'.  Stop.\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-missing-prerequisite"
+    },
+    {
+      "id": "c-nls-reader-separator",
+      "files": {
+        "Makefile": "74686973206973206e6f7420612072756c650a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** missing separator.  Stop.\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-reader-separator"
+    },
+    {
+      "id": "c-nls-function-unclosed",
+      "files": {
+        "Makefile": "56414c5545203a3d2024287375627374206e6f7274682c736f7574682c0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** unterminated call to function 'subst': missing ')'.  Stop.\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-function-unclosed"
+    },
+    {
+      "id": "c-nls-function-untranslated",
+      "files": {
+        "Makefile": "56414c5545203a3d202428696e74636d7020782c32290a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** non-numeric first argument to 'intcmp' function: 'x'.  Stop.\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-function-untranslated"
+    },
+    {
+      "id": "c-nls-undefined-warning",
+      "files": {
+        "Makefile": "2428696e666f2056414c55453d24285f5f6e6c735f616273656e7429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "VALUE=\n",
+        "stderr": "Makefile:1: warning: undefined variable '__nls_absent'\nmake: warning: undefined variable 'GNUMAKEFLAGS'\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-undefined-warning"
+    },
+    {
+      "id": "c-nls-recipe-untranslated",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a09406578697420370a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** [Makefile:3: all] Error 7\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-recipe-untranslated"
+    },
+    {
+      "id": "c-nls-recipe-ignored",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a09406578697420370a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-i"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "make: [Makefile:3: all] Error 7 (ignored)\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-recipe-ignored"
+    },
+    {
+      "id": "c-nls-keep-going",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c20676f6f640a616c6c3a206e656564656420676f6f640a676f6f643a0a09407072696e74662027676f6f645c6e27203e3e7365656e0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** No rule to make target 'needed', needed by 'all'.\nmake: Target 'all' not remade because of errors.\n",
+        "seen": "anchor\ngood\n"
+      },
+      "derived_input": "nls-keep-going"
+    },
+    {
+      "id": "c-nls-recursive",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d66206368696c642e6d6b20756e617661696c61626c650a",
+        "seen": "616e63686f720a",
+        "child.mk": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make[1]: *** No rule to make target 'unavailable'.  Stop.\nmake: *** [Makefile:3: all] Error 2\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-recursive"
+    },
+    {
+      "id": "c-nls-lc-messages-c",
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "unavailable"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** No rule to make target 'unavailable'.  Stop.\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-lc-messages-c"
+    },
+    {
+      "id": "c-nls-native-messages-phase",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f70726f62652e736f0a24286e6c735f6320290a24287761726e696e67206d697373696e6720736570617261746f72290a2428696e666f20413d24285f5f6e6c735f666972737429290a24286e6c735f667220290a2428696e666f20423d24285f5f6e6c735f7365636f6e6429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LC_MESSAGES": "C"
+      },
+      "modules": [
+        {
+          "source": "nls_probe.c",
+          "filename": "nls_probe.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "A=\nB=\n",
+        "stderr": "Makefile:3: missing separator\nMakefile:4: warning: undefined variable '__nls_first'\nMakefile:6: avertissement : variable << __nls_second >> ind?finie\nmake: avertissement : variable << GNUMAKEFLAGS >> ind?finie\n",
+        "seen": "anchor\n"
+      },
+      "derived_input": "nls-native-messages-phase"
+    },
+    {
+      "id": "nls-private-messages-warning",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f676c6f62616c5f6320290a24286e6c735f707269766174655f667220290a2428696e666f20413d24285f5f666972737429290a24286e6c735f7573655f676c6f62616c20290a2428696e666f20423d24285f5f7365636f6e6429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "A=\nB=\n",
+        "stderr": "Makefile:4: avertissement : variable « __first » indéfinie\nMakefile:6: warning: undefined variable '__second'\nmake: warning: undefined variable 'GNUMAKEFLAGS'\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-global-messages-live",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f676c6f62616c5f6320290a24286e6c735f707269766174655f6320290a24286e6c735f676c6f62616c5f667220290a2428696e666f20413d24285f5f666972737429290a24286e6c735f7573655f676c6f62616c20290a2428696e666f20423d24285f5f7365636f6e6429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "A=\nB=\n",
+        "stderr": "Makefile:5: warning: undefined variable '__first'\nMakefile:7: avertissement : variable « __second » indéfinie\nmake: avertissement : variable « GNUMAKEFLAGS » indéfinie\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-private-messages-fatal",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a56414c5545203a3d2024286e6c735f666174616c5f7072697661746520290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": [
+            "NLS_FINAL"
+          ]
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric first argument to 'intcmp' function: 'bad'. Arrêt.\nFINAL=séparateur manquant\n",
+        "seen": "anchor\nbefore-fatal\nfinal\n"
+      }
+    },
+    {
+      "id": "nls-native-custom-domain-warning",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f676c6f62616c5f667220290a24286e6c735f637573746f6d20290a2428696e666f20413d24285f5f666972737429290a24286e6c735f726573746f726520290a2428696e666f20423d24285f5f7365636f6e6429290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a",
+        "custom/fr/LC_MESSAGES/rmake-nls-fixture.mo": "de12049500000000040000001c0000003c0000000000000000000000000000005c0000001f0000005d000000090000007d000000220000008700000065000000aa0000001100000010010000050000002201000015000000280100000025734e6f2072756c6520746f206d616b652074617267657420272573272573002e202053746f702e0a007761726e696e673a20756e646566696e6564207661726961626c652027252e2a73270050726f6a6563742d49642d56657273696f6e3a206f726967696e616c20726d616b65204e4c532066697874757265310a436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a4c616e67756167653a2066720a004f574e3a253224732f25322473253124730021454e440a004f574e3a2532242e2a3124732f2532242e2a31247300"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--warn-undefined-variables"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "A=\nB=\n",
+        "stderr": "Makefile:4: OWN:__first/__first\nMakefile:6: avertissement : variable « __second » indéfinie\nmake: avertissement : variable « GNUMAKEFLAGS » indéfinie\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-native-custom-domain-fatal",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f676c6f62616c5f667220290a24286e6c735f637573746f6d20290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a",
+        "custom/fr/LC_MESSAGES/rmake-nls-fixture.mo": "de12049500000000040000001c0000003c0000000000000000000000000000005c0000001f0000005d000000090000007d000000220000008700000065000000aa0000001100000010010000050000002201000015000000280100000025734e6f2072756c6520746f206d616b652074617267657420272573272573002e202053746f702e0a007761726e696e673a20756e646566696e6564207661726961626c652027252e2a73270050726f6a6563742d49642d56657273696f6e3a206f726967696e616c20726d616b65204e4c532066697874757265310a436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a4c616e67756167653a2066720a004f574e3a253224732f25322473253124730021454e440a004f574e3a2532242e2a3124732f2532242e2a31247300"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "unavailable"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** OWN:unavailable/unavailable!END\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-native-unbound-domain",
+      "files": {
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f676c6f62616c5f667220290a24286e6c735f756e626f756e6420290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "unavailable"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** No rule to make target 'unavailable'.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    }
+  ]
+}
