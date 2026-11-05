@@ -69,7 +69,8 @@ impl State {
         self.output
             .set_directory_policy(options.directory_choice, options.silent);
         self.output.set_database_requested(options.print_database);
-        self.output.set_debug_mask(options.debug_mask);
+        // This is a passive policy snapshot. A signal-only effective debug
+        // level is not a serialized request and must survive this copy.
         self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
         self.dirty.set(false);
@@ -94,11 +95,13 @@ impl State {
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
         passive: bool,
     ) -> Result<Option<Box<dyn rmake_core::diagnostic::FlagDecoder>>, Vec<u8>> {
-        let prepared = self
-            .options
-            .borrow()
-            .include_decoder(request.value)
-            .map_err(String::into_bytes)?;
+        let prepared = {
+            let mut options = self.options.borrow_mut();
+            options.debug_mask = self.output.debug_mask();
+            options
+                .include_decoder(request.value)
+                .map_err(String::into_bytes)?
+        };
         let Some(mut decoder) = prepared else {
             return Ok(None);
         };
@@ -126,7 +129,8 @@ impl State {
         &self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
     ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
-        let current = self.options.borrow();
+        let mut current = self.options.borrow_mut();
+        current.debug_mask = self.output.debug_mask();
         let (mut updated, _, warning_positions) = current
             .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
             .map_err(String::into_bytes)?;
@@ -470,6 +474,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         if passive && let Some(jobs) = current.command_jobs {
             current.jobs = Some(jobs);
         }
+        current.debug_mask = output.debug_mask();
         current.decode_debug().map_err(String::into_bytes)?;
         let mode = current
             .output_sync
@@ -797,6 +802,7 @@ impl Engine {
 
     fn apply_runtime_flag_source(&mut self, value: Vec<u8>) -> Result<Option<usize>, ()> {
         // Source expansion can itself change policy; capture its completed state.
+        self.options.debug_mask = self.output.debug_mask();
         let warning_entry = self.flag_state.warn_undefined.get();
         if value.contains(&b'~') {
             self.flag_state.refresh(&self.options);
@@ -885,6 +891,7 @@ impl Engine {
         // path unchanged instead of cloning and replaying an inert policy.
         if !updated.assignments.is_empty() {
             let assignments = std::mem::take(&mut updated.assignments);
+            self.output.set_debug_mask(updated.debug_mask);
             self.flag_state.refresh(&updated);
             let assignments = assignments
                 .into_iter()
@@ -978,6 +985,9 @@ impl Engine {
         self.database
             .variables
             .set_environment_override(self.options.environment_override);
+        // This completed source has actually decoded switches; unlike passive
+        // snapshots, it publishes its selected debug requests.
+        self.output.set_debug_mask(self.options.debug_mask);
         // The following source may re-enter the live receiver or take its state.
         self.flag_state.refresh(&self.options);
         Ok(file_jobs)

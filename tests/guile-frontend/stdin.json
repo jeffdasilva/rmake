@@ -1,0 +1,27 @@
+{
+  "classification": "Original enabled Guile and named stdin actual restart profile",
+  "rows": [
+    {
+      "id": "guile-stdin-exec",
+      "files": {
+        "input.mk": "24286775696c652028646973706c61792022736368656d657c24284d414b455f5245535441525453295c6e2229290a242866696c65203e3e7365656e2c524541447c24284d414b455f524553544152545329290a696e636c7564652067656e6572617465642e6d6b0a616c6c3a3b40242866696c65203e3e7365656e2c474f414c293a0a67656e6572617465642e6d6b3a3b407072696e7466202752454144593a3d7965735c6e27203e2067656e6572617465642e6d6b0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-f",
+        "-"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "scheme|1\n",
+        "stderr": "",
+        "seen": "anchor\nREAD|\nREAD|1\nGOAL\n"
+      },
+      "expected_additions_hex": {
+        "generated.mk": "52454144593a3d7965730a"
+      }
+    }
+  ]
+}

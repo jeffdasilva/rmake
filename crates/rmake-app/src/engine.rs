@@ -34,7 +34,10 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, SystemTime};
 
+#[cfg(not(feature = "guile"))]
 const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load";
+#[cfg(feature = "guile")]
+const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink guile load";
 
 fn os(bytes: &[u8]) -> &OsStr {
     OsStr::from_bytes(bytes)
@@ -431,6 +434,17 @@ fn runtime_context<'a>(
 }
 
 fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
+    if let Output::SystemWarning { location, message } = output {
+        let message = crate::messages::system(message.message());
+        return emit_output(
+            controller,
+            program,
+            Output::Warning {
+                location,
+                message: &message,
+            },
+        );
+    }
     if matches!(output, Output::Info(_))
         && controller.current().is_none()
         && rmake_linux::native::stdout_closed()
@@ -442,6 +456,7 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
     }
     match output {
         Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
+        Output::SystemWarning { .. } => unreachable!("typed warning was formatted above"),
         Output::Warning { location, message } => {
             if let Some(location) = location.filter(|location| !location.file.is_null()) {
                 controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
@@ -450,6 +465,21 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
             }
         }
     }
+}
+
+fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: &io::Error) {
+    let detail = os_error(error);
+    let message = crate::messages::system(rmake_core::messages::Message::GetcwdError(
+        detail.as_bytes(),
+    ));
+    emit_output(
+        output,
+        program,
+        Output::Warning {
+            location: None,
+            message: &message,
+        },
+    );
 }
 
 /// All reader/expansion contexts observe the same live diagnostic policy.
@@ -472,6 +502,12 @@ impl<'a> RuntimeOutput<'a> {
     }
 }
 impl OutputReceiver for RuntimeOutput<'_> {
+    fn format_system_message(
+        &mut self,
+        message: rmake_core::messages::MessageRef<'_>,
+    ) -> Option<Result<Vec<u8>, Vec<u8>>> {
+        Some(crate::messages::try_format(message))
+    }
     fn emit(&mut self, event: Output<'_>) {
         emit_output(self.controller, self.program, event);
     }
@@ -967,6 +1003,7 @@ impl Engine {
         if options.debug_mask.has(crate::debug::Mask::BASIC) {
             output.print_compatibility_header(options.print_database);
         }
+        rmake_linux::native::line_buffer_stdout();
         output.set_database_requested(options.print_database);
         output.set_debug_mask(options.debug_mask);
         // Explicit switches select the active context only after every CLI
@@ -990,10 +1027,11 @@ impl Engine {
         );
         exit_level = makelevel;
         output.set_recursive(makelevel != 0);
+        let program_base_length = program.len();
         if makelevel != 0 {
             program.extend_from_slice(format!("[{makelevel}]").as_bytes());
         }
-        output.set_program(&program);
+        output.set_program(&program, program_base_length, makelevel);
         let relative_command =
             !Path::new(invocation).is_absolute() && invocation.as_bytes().contains(&b'/');
         let startup_directory = if !options.directories.is_empty() || relative_command {
@@ -1009,11 +1047,11 @@ impl Engine {
         } else {
             invocation.to_owned()
         };
-        output.set_imported_directory(
+        output.set_imported_directory(Some(
             initial_directory
                 .as_ref()
-                .map(|path| path.as_os_str().as_bytes()),
-        );
+                .map_or(b"".as_slice(), |path| path.as_os_str().as_bytes()),
+        ));
         if !options.directories.is_empty() {
             exit_directory = startup_directory.clone();
         }
@@ -1033,19 +1071,24 @@ impl Engine {
                 .with_program(&program)
             }));
         }
-        // GNU retains its initial logical directory without -C, even if a CLI
-        // child renamed it. A real -C list refreshes that value after chdir.
-        let cwd = retain!(
-            if options.directories.is_empty() {
-                initial_directory.map_or_else(std::env::current_dir, Ok)
-            } else {
-                std::env::current_dir()
+        // GNU retains the initial logical directory without -C. An initial
+        // getcwd failure leaves an empty named path. After -C, a failed refresh
+        // keeps the prior CURDIR bytes and publishes an unknown reporting path.
+        let cwd = if options.directories.is_empty() {
+            initial_directory.unwrap_or_default()
+        } else {
+            match std::env::current_dir() {
+                Ok(cwd) => {
+                    output.set_imported_directory(Some(cwd.as_os_str().as_bytes()));
+                    cwd
+                }
+                Err(error) => {
+                    emit_getcwd_error(&output, &program, &error);
+                    output.set_imported_directory(None);
+                    initial_directory.unwrap_or_default()
+                }
             }
-            .map_err(|error| {
-                StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
-            })
-        );
-        output.set_imported_directory(Some(cwd.as_os_str().as_bytes()));
+        };
         for goal in &options.goals {
             // Ordered argv preparation has already entered ordinary goals.
             // Retain support for callers constructing an invocation directly.
@@ -1094,6 +1137,9 @@ impl Engine {
             },
             &mut exit_includes,
         ));
+        retain!(output.activate_debug_signal().map_err(|error| {
+            StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
+        }));
         retain!(
             database
                 .variables
@@ -1522,35 +1568,7 @@ impl Engine {
             return status;
         }
         loop {
-            let result = {
-                let mut output = RuntimeOutput::new(
-                    &self.output,
-                    &self.program,
-                    &self.flag_state.warn_undefined,
-                );
-                let mut flags = self.flag_state.receiver();
-                let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
-                    self.filesystem.borrow_mut().execute(effect)
-                };
-                let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-                    let result = crate::shell::run(
-                        request,
-                        &self.program,
-                        self.makelevel,
-                        &self.output,
-                        self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
-                };
-                let mut include = |name: &[u8]| self.include_search.borrow().read(name);
-                let mut context = runtime_context(None, &mut output)
-                    .with_makeflags(&mut flags)
-                    .with_filesystem(&mut filesystem)
-                    .with_shell(&mut shell)
-                    .with_includes(&mut include);
-                self.database.terminate_native_with(status, &mut context)
-            };
+            let result = self.terminate_native(rmake_linux::signals::ExitAction::Code(status));
             match result {
                 Ok(()) => return status,
                 Err(error) => {
@@ -1562,6 +1580,60 @@ impl Engine {
                 }
             }
         }
+    }
+
+    fn terminate_native(
+        &mut self,
+        action: rmake_linux::signals::ExitAction,
+    ) -> Result<(), ExpandError> {
+        let mut output =
+            RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
+        let mut flags = self.flag_state.receiver();
+        let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+            self.filesystem.borrow_mut().execute(effect)
+        };
+        let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let result = crate::shell::run(
+                request,
+                &self.program,
+                self.makelevel,
+                &self.output,
+                self.jobserver.as_ref(),
+            );
+            self.filesystem.borrow_mut().child_completed();
+            result
+        };
+        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+        let mut context = runtime_context(None, &mut output)
+            .with_makeflags(&mut flags)
+            .with_filesystem(&mut filesystem)
+            .with_shell(&mut shell)
+            .with_includes(&mut include);
+        match action {
+            rmake_linux::signals::ExitAction::Code(status) => {
+                self.database.terminate_native_with(status, &mut context)
+            }
+            rmake_linux::signals::ExitAction::Signal(number) => self
+                .database
+                .terminate_native_signal_with(number, &mut context),
+        }
+    }
+
+    #[cfg(feature = "guile")]
+    pub fn native_signal_exit(&mut self, number: i32) -> u8 {
+        self.output.process_lifetime().finish();
+        if !self.options.directories.is_empty()
+            && let Some(directory) = &self.startup_directory
+        {
+            let _ = std::env::set_current_dir(directory);
+        }
+        if let Err(error) = self.terminate_native(rmake_linux::signals::ExitAction::Signal(number))
+        {
+            self.expansion_error(None, &error);
+        }
+        // A valid platform signal operation never returns. The bootstrap
+        // contract guard retains this host and fail-stops if it does.
+        2
     }
 
     fn show_makefile_error(&self) {
@@ -1582,6 +1654,15 @@ impl Engine {
             .write_parts(true, &[&self.program, b": ", body, b"\n"]);
     }
 
+    fn warn_circular_dependency(&self, target: &[u8], prerequisite: &[u8]) {
+        self.stderr(&crate::messages::system(
+            rmake_core::messages::Message::CircularDependency {
+                target,
+                prerequisite,
+            },
+        ));
+    }
+
     fn stdout(&self, body: &[u8]) {
         self.output.write_parts(false, &[body, b"\n"]);
     }
@@ -1590,7 +1671,24 @@ impl Engine {
         self.fatal_with_owner(location, message, false);
     }
 
+    fn fatal_system(&self, message: rmake_core::messages::Message<'_>) {
+        self.fatal(None, &crate::messages::system(message));
+    }
+
     fn fatal_with_owner(&self, location: Option<&Location>, message: &[u8], owner: bool) {
+        self.fatal_parts(location, message, &crate::messages::stop(), owner);
+    }
+
+    fn fatal_diagnostic(&self, location: Option<&Location>, message: &Diagnostic, owner: bool) {
+        self.fatal_parts(
+            location,
+            &crate::messages::diagnostic(message),
+            &crate::messages::stop_for(message),
+            owner,
+        );
+    }
+
+    fn fatal_parts(&self, location: Option<&Location>, message: &[u8], stop: &[u8], owner: bool) {
         if rmake_linux::signals::pending().is_some() {
             return;
         }
@@ -1598,12 +1696,11 @@ impl Engine {
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
         if let Some(location) = location.filter(|location| !location.file.is_null()) {
-            self.output.write_parts(
-                true,
-                &[&location_prefix(location), b"*** ", message, b".  Stop.\n"],
-            );
+            self.output
+                .write_parts(true, &[&location_prefix(location), b"*** ", message, stop]);
         } else {
-            self.stderr(&[b"*** ".as_slice(), message, b".  Stop."].concat());
+            self.output
+                .write_parts(true, &[&self.program, b": *** ", message, stop]);
         }
         self.unlink_stdin();
         if wait {
@@ -1621,9 +1718,9 @@ impl Engine {
         output: Option<&std::rc::Rc<crate::output::Buffer>>,
     ) {
         let first = self.shutdown.get() == Shutdown::Running;
-        self.fatal_with_owner(
+        self.fatal_diagnostic(
             error.diagnostic_location(Some(location)),
-            error.diagnostic().as_bytes(),
+            &error.diagnostic(),
             flow.retained_owner(),
         );
         if first && flow.retained_owner() && flow.failed_launch() {
@@ -1637,9 +1734,10 @@ impl Engine {
     }
 
     fn expansion_error(&self, fallback: Option<&Location>, error: &ExpandError) {
-        self.fatal(
+        self.fatal_diagnostic(
             error.diagnostic_location(fallback),
-            error.diagnostic().as_bytes(),
+            &error.diagnostic(),
+            false,
         );
     }
 
@@ -1767,7 +1865,7 @@ impl Engine {
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
-                self.fatal(error.source_location(), error.message.as_bytes());
+                self.fatal_diagnostic(error.source_location(), &error.message, false);
                 return Err(());
             }
         }
@@ -1856,7 +1954,7 @@ impl Engine {
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             );
             if let Err(error) = result {
-                self.fatal(error.source_location(), error.message.as_bytes());
+                self.fatal_diagnostic(error.source_location(), &error.message, false);
                 return Err(());
             }
             if let Some(options) = self.flag_state.take() {
@@ -2193,7 +2291,7 @@ impl Engine {
                     })
                     .with_includes(&mut |name| self.include_search.borrow().read(name)),
                 ) {
-                    self.fatal(err.source_location(), err.message.as_bytes());
+                    self.fatal_diagnostic(err.source_location(), &err.message, false);
                     return 2;
                 }
             }
@@ -2377,7 +2475,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver()),
             ) {
-                self.fatal(error.source_location(), error.message.as_bytes());
+                self.fatal_diagnostic(error.source_location(), &error.message, false);
                 return 2;
             }
             if let Err(error) = self.database.snap_implicit_extra_prerequisites(
@@ -2682,21 +2780,16 @@ impl Engine {
                             }
                         };
                         if goals.len() != 1 {
-                            self.fatal(None, b".DEFAULT_GOAL contains more than one target");
+                            self.fatal_system(rmake_core::messages::Message::MultipleDefaultGoals);
                             return 2;
                         }
                         goals
                     }
                 }
                 Ok(_) => {
-                    self.fatal(
-                        None,
-                        if found_makefile {
-                            b"No targets"
-                        } else {
-                            b"No targets specified and no makefile found"
-                        },
-                    );
+                    self.fatal_system(rmake_core::messages::Message::NoTargets {
+                        makefile_found: found_makefile,
+                    });
                     return 2;
                 }
                 Err(err) => {
@@ -2793,14 +2886,9 @@ impl Engine {
             && !self.options.question
             && !self.options.dry_run
         {
-            self.stderr(
-                &[
-                    b"Target '".as_slice(),
-                    goal,
-                    b"' not remade because of errors.",
-                ]
-                .concat(),
-            );
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::TargetNotRemade(goal),
+            ));
         } else if !outcome.failed
             && (!outcome.ran || already_done)
             && !self.options.question
@@ -2831,11 +2919,12 @@ impl Engine {
                 return;
             }
             let goal = reported_goal;
-            let body = if has_recipe {
-                [b"'".as_slice(), goal, b"' is up to date."].concat()
+            let message = if has_recipe {
+                rmake_core::messages::Message::UpToDate(goal)
             } else {
-                [b"Nothing to be done for '".as_slice(), goal, b"'."].concat()
+                rmake_core::messages::Message::NothingToBeDone(goal)
             };
+            let body = crate::messages::system(message);
             self.stdout(&[self.program.as_slice(), b": ", &body].concat());
         }
     }
@@ -3191,16 +3280,7 @@ impl Engine {
                 continue;
             }
             if self.visiting.contains(&dep.name) {
-                self.stderr(
-                    &[
-                        b"Circular ".as_slice(),
-                        target,
-                        b" <- ",
-                        &dep.name,
-                        b" dependency dropped.",
-                    ]
-                    .concat(),
-                );
+                self.warn_circular_dependency(target, &dep.name);
                 rule.dependencies.remove(index);
                 self.shuffle.discard(target, index);
                 if !order.is_empty() {
@@ -3669,6 +3749,11 @@ impl Engine {
             .as_ref()
             .and_then(|status| status.as_ref().ok())
             .is_some_and(|status| status.signal().is_some());
+        let error_code = match result.as_ref() {
+            Some(Ok(status)) => status.code().filter(|code| *code != 0),
+            Some(Err(_)) => Some(127),
+            None => None,
+        };
         let error = match result {
             None => None,
             Some(Ok(status)) if status.success() => None,
@@ -3689,15 +3774,33 @@ impl Engine {
         if let Some(error) = error
             && (!job.ignore || !self.globally_silent())
         {
-            let message = [
-                if job.ignore { b"".as_slice() } else { b"*** " },
-                b"[",
-                &location_prefix(&job.location),
-                &target,
-                format!("] {error}{}", if job.ignore { " (ignored)" } else { "" }).as_bytes(),
-                self.shuffle.suffix(),
-            ]
-            .concat();
+            let source = location_prefix(&job.location);
+            let ignored = if job.ignore {
+                crate::messages::system(rmake_core::messages::Message::Ignored)
+            } else {
+                Vec::new()
+            };
+            let message = if let Some((code, source)) = error_code.zip(source.strip_suffix(b": ")) {
+                crate::messages::system(rmake_core::messages::Message::RecipeError {
+                    prefix: if job.ignore { b"" } else { b"*** " },
+                    source,
+                    target: &target,
+                    code,
+                    ignored: &ignored,
+                    suffix: self.shuffle.suffix(),
+                })
+            } else {
+                [
+                    if job.ignore { b"".as_slice() } else { b"*** " },
+                    b"[",
+                    &location_prefix(&job.location),
+                    &target,
+                    format!("] {error}").as_bytes(),
+                    &ignored,
+                    self.shuffle.suffix(),
+                ]
+                .concat()
+            };
             self.stderr(&message);
         }
         if report_error {
@@ -5481,16 +5584,20 @@ impl Engine {
     }
 
     fn report_missing_rule(&self, target: &[u8], parent: Option<&[u8]>) {
-        let mut message = [b"*** No rule to make target '".as_slice(), target, b"'"].concat();
-        if let Some(parent) = parent {
-            message.extend_from_slice(&[b", needed by '".as_slice(), parent, b"'"].concat());
-        }
-        message.extend_from_slice(if self.options.keep_going {
-            b"."
-        } else {
-            b".  Stop."
+        let keep = self.options.keep_going;
+        let body = crate::messages::system(rmake_core::messages::Message::NoRule {
+            prefix: if keep { b"*** " } else { b"" },
+            target,
+            parent,
+            suffix: if keep { b"." } else { b"" },
         });
-        self.stderr(&message);
+        if keep {
+            self.stderr(&body);
+        } else {
+            let stop = crate::messages::stop();
+            self.output
+                .write_parts(true, &[&self.program, b": *** ", &body, &stop]);
+        }
     }
 
     fn archive_metadata_error(&mut self, target: &[u8], search: bool) -> bool {
@@ -6384,16 +6491,7 @@ impl Engine {
                         .get_or_insert_with(Default::default)
                         .insert(state.next - 1);
                 }
-                self.stderr(
-                    &[
-                        b"Circular ".as_slice(),
-                        target,
-                        b" <- ",
-                        dependency,
-                        b" dependency dropped.",
-                    ]
-                    .concat(),
-                );
+                self.warn_circular_dependency(target, dependency);
                 if let Some((_, owner, ordinal)) = state.group.as_ref().and_then(|group| {
                     group
                         .peer_segments
@@ -7954,6 +8052,10 @@ impl Engine {
             } else {
                 Cleanup::ChangedOnError
             };
+            let error_code = match &result {
+                Ok(status) => status.code().filter(|code| *code != 0),
+                Err(_) => Some(127),
+            };
             let error = match result {
                 Ok(status) if status.success() => None,
                 // Recursive make uses exit 1 to report an out-of-date build in
@@ -7985,14 +8087,32 @@ impl Engine {
                     self.show_makefile_error();
                 }
                 if (ignore || !self.optional_remake) && (!ignore || !self.globally_silent()) {
-                    let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
-                    message.push(b'[');
-                    message.extend_from_slice(&location_prefix(&recipe.location));
-                    message.extend_from_slice(target);
-                    message.extend_from_slice(
-                        format!("] {error}{}", if ignore { " (ignored)" } else { "" }).as_bytes(),
-                    );
-                    message.extend_from_slice(self.shuffle.suffix());
+                    let source = location_prefix(&recipe.location);
+                    let ignored = if ignore {
+                        crate::messages::system(rmake_core::messages::Message::Ignored)
+                    } else {
+                        Vec::new()
+                    };
+                    let message =
+                        if let Some((code, source)) = error_code.zip(source.strip_suffix(b": ")) {
+                            crate::messages::system(rmake_core::messages::Message::RecipeError {
+                                prefix: if ignore { b"" } else { b"*** " },
+                                source,
+                                target,
+                                code,
+                                ignored: &ignored,
+                                suffix: self.shuffle.suffix(),
+                            })
+                        } else {
+                            let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
+                            message.push(b'[');
+                            message.extend_from_slice(&location_prefix(&recipe.location));
+                            message.extend_from_slice(target);
+                            message.extend_from_slice(format!("] {error}").as_bytes());
+                            message.extend_from_slice(&ignored);
+                            message.extend_from_slice(self.shuffle.suffix());
+                            message
+                        };
                     self.stderr(&message);
                 }
                 if !ignore {
@@ -8312,6 +8432,11 @@ pub(crate) fn launch_child<T>(
         }
     }
     Err(denied.unwrap_or(missing))
+}
+
+#[cfg(feature = "test-support")]
+pub(crate) fn run_native_ownership_check(name: &str) -> bool {
+    initial::run_native_ownership_check(name)
 }
 
 #[cfg(test)]

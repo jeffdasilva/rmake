@@ -1,0 +1,69 @@
+{
+  "classification": "Expectation-only HOME phase refinement after stable GNU2 and preceding-candidate observations: constructor stdout is not line buffered before successful decode/include-HOME completion. Original model/source/report are unchanged; same three input programs, no runtime fix for this observation.",
+  "source_sha256": "dcd75e5fcf04add0efc3d1997a95267b792aba190dcbe2035e0f53ba10875f65",
+  "rows": [
+    {
+      "id": "home-phase-normal",
+      "makefile_hex": "2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I~/inc"
+      ],
+      "gnumakeflags": "",
+      "environment": {
+        "HOME": "$(eval load ./phase_probe.so)/nonexistent"
+      },
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nprobe|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "home-phase-empty",
+      "makefile_hex": "2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I~/inc"
+      ],
+      "gnumakeflags": "",
+      "environment": {
+        "HOME": "$(eval load ./phase_probe.so)$(guile )/nonexistent"
+      },
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nprobe|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "home-phase-empty-fatal",
+      "makefile_hex": "2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I~/inc"
+      ],
+      "gnumakeflags": "",
+      "environment": {
+        "HOME": "$(eval load ./phase_probe.so)$(guile )$(error HOMEFAIL)"
+      },
+      "redirect": false,
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "make: *** HOMEFAIL.  Stop.\n",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=D\n"
+      }
+    }
+  ]
+}

@@ -256,7 +256,7 @@ mod tests {
             fn emit(&mut self, event: Output<'_>) {
                 match event {
                     Output::Info(_) => self.infos += 1,
-                    Output::Warning { .. } => self.warnings += 1,
+                    Output::Warning { .. } | Output::SystemWarning { .. } => self.warnings += 1,
                 }
             }
         }

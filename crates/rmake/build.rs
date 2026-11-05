@@ -2,6 +2,18 @@
 // Copyright 2026 Jeff DaSilva
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=RMAKE_GUILE_PREFIX");
+    if std::env::var_os("CARGO_FEATURE_GUILE").is_some() {
+        // This development profile resolves the authenticated private Guile
+        // runtime even when an actual application child clears its environment.
+        // A distributable install must supply its own verified runtime layout.
+        let prefix = std::path::PathBuf::from(
+            std::env::var_os("RMAKE_GUILE_PREFIX")
+                .expect("guile requires an explicit verified library prefix"),
+        );
+        let library = prefix.join("usr/lib/x86_64-linux-gnu");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", library.display());
+    }
     // Existing GNU plugins resolve these public C entry points from the host.
     for name in [
         "gmk_alloc",

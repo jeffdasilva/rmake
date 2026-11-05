@@ -13,6 +13,7 @@ use std::rc::{Rc, Weak};
 use std::sync::OnceLock;
 
 use rmake_core::diagnostic::{Location, Output};
+use rmake_core::messages::Message;
 use rmake_core::native::{
     LoadOutcome, NativeCallback, NativeFunction, NativeHost, NativeLoadStatus, NativeRuntime,
 };
@@ -54,11 +55,20 @@ unsafe extern "C" {
     fn rm_native_base(address: *mut c_void) -> *mut c_void;
     fn rm_native_flush() -> c_int;
     fn rm_native_stdio_initialize();
+    fn rm_native_stdout_line_buffered();
     fn rm_native_flush_stream(error: c_int) -> c_int;
     fn rm_native_stdout_closed() -> c_int;
     fn rm_native_thread_id() -> usize;
     #[cfg(feature = "guile")]
     fn rg_guile_callback(name: *const c_char, argc: c_uint, argv: *mut *mut c_char) -> *mut c_char;
+    #[cfg(feature = "guile")]
+    fn rg_guile_public_callback(
+        name: *const c_char,
+        argc: c_uint,
+        argv: *mut *mut c_char,
+    ) -> *mut c_char;
+    #[cfg(feature = "guile")]
+    fn rg_workers_function_base(function: *mut c_void, base: *mut usize) -> c_int;
     fn malloc(size: usize) -> *mut c_void;
     fn free(pointer: *mut c_void);
 }
@@ -211,6 +221,32 @@ impl Runtime {
     }
     pub fn unloaded(&self) -> Vec<Vec<u8>> {
         self.0.unloaded.borrow().clone()
+    }
+    /// Register the opt-in Guile function without initializing the language.
+    /// This trusted executable-resident callback needs no foreign image lookup
+    /// or interpreter-thread claim. Actual invocation still requires an active
+    /// dispatcher host. Frontends control their own feature publication.
+    #[cfg(feature = "guile")]
+    pub fn register_guile(&self) -> Result<(), ExpandError> {
+        if self.0.poisoned.get() && !self.0.exiting.get() {
+            return Err(error(
+                b"rmake: native invocation stopped after a fatal error".to_vec(),
+            ));
+        }
+        self.0.functions.borrow_mut().insert(
+            b"guile".to_vec(),
+            Rc::new(NativeFunction {
+                minimum: 0,
+                maximum: Some(1),
+                expand_arguments: true,
+                callback: Rc::new(Callback {
+                    state: Rc::downgrade(&self.0),
+                    function: rg_guile_public_callback as *const () as usize,
+                    owner: None,
+                }),
+            }),
+        );
+        Ok(())
     }
     #[cfg(feature = "guile")]
     pub(crate) fn evaluate_guile(
@@ -385,8 +421,20 @@ impl Runtime {
             }
         }
     }
+    fn function_base(&self, function: usize) -> usize {
+        #[cfg(feature = "guile")]
+        {
+            let mut base = 0;
+            // The worker resolves this while it owns any constructor loader
+            // lock; only an owned integer address crosses back to this thread.
+            if unsafe { rg_workers_function_base(function as *mut c_void, &mut base) } != 0 {
+                return base;
+            }
+        }
+        unsafe { rm_native_base(function as *mut c_void) as usize }
+    }
     fn image_for(&self, function: usize) -> Option<Rc<Image>> {
-        let base = unsafe { rm_native_base(function as *mut c_void) } as usize;
+        let base = self.function_base(function);
         KNOWN_IMAGES.with(|known| {
             let mut known = known.borrow_mut();
             known.retain(|image| image.strong_count() != 0);
@@ -416,37 +464,27 @@ impl Runtime {
             .take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
             .count();
         if prefix == 0 {
-            return Err(error(b"Empty function name".to_vec()));
+            return Err(ExpandError::system(Message::EmptyNativeFunction));
         }
         if name[0] == b'.' || prefix != name.len() {
-            return Err(error(
-                [b"Invalid function name: ".as_slice(), &name].concat(),
-            ));
+            return Err(ExpandError::system(Message::InvalidNativeFunction(&name)));
         }
         if name.len() > 255 {
-            return Err(error(
-                [b"Function name too long: ".as_slice(), &name].concat(),
-            ));
+            return Err(ExpandError::system(Message::LongNativeFunction(&name)));
         }
         if request.minimum > 255 {
-            return Err(error(
-                format!(
-                    "Invalid minimum argument count ({}) for function {}",
-                    request.minimum,
-                    String::from_utf8_lossy(&name)
-                )
-                .into_bytes(),
-            ));
+            return Err(ExpandError::system(Message::NativeArgumentCount {
+                minimum: true,
+                count: request.minimum,
+                name: &name,
+            }));
         }
         if request.maximum > 255 || (request.maximum != 0 && request.maximum < request.minimum) {
-            return Err(error(
-                format!(
-                    "Invalid maximum argument count ({}) for function {}",
-                    request.maximum,
-                    String::from_utf8_lossy(&name)
-                )
-                .into_bytes(),
-            ));
+            return Err(ExpandError::system(Message::NativeArgumentCount {
+                minimum: false,
+                count: request.maximum,
+                name: &name,
+            }));
         }
         if rmake_core::native::is_builtin_function(&name) {
             return Err(error(
@@ -469,7 +507,7 @@ impl Runtime {
         {
             image
                 .base
-                .set(unsafe { rm_native_base(request.function) } as usize);
+                .set(self.function_base(request.function as usize));
         }
         host.registered_function_name(&name);
         let callback = Rc::new(Callback {
@@ -762,14 +800,7 @@ impl NativeRuntime for Runtime {
                 host,
             )?;
             if marker.pointer.is_null() {
-                return Err(error(
-                    [
-                        b"Loaded object ".as_slice(),
-                        &name,
-                        b" is not declared to be GPL compatible",
-                    ]
-                    .concat(),
-                ));
+                return Err(ExpandError::system(Message::MissingNativeLicense(&name)));
             }
             let found = self.run(
                 1,
@@ -782,17 +813,11 @@ impl NativeRuntime for Runtime {
                 host,
             )?;
             if found.pointer.is_null() {
-                return Err(error(
-                    [
-                        b"Failed to load symbol ".as_slice(),
-                        &symbol,
-                        b" from ",
-                        &name,
-                        b": ",
-                        &found.message,
-                    ]
-                    .concat(),
-                ));
+                return Err(ExpandError::system(Message::NativeSymbolFailure {
+                    symbol: &symbol,
+                    object: &name,
+                    detail: &found.message,
+                }));
             }
             function = found.pointer as usize;
             image
@@ -845,9 +870,7 @@ fn setup_name(input: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ExpandError> {
         && close + 1 == input.len()
     {
         if close == open + 1 {
-            return Err(error(
-                [b"Empty symbol name for load: ".as_slice(), input].concat(),
-            ));
+            return Err(ExpandError::system(Message::EmptyLoadSymbol(input)));
         }
         return Ok((input[..open].to_vec(), input[open + 1..close].to_vec()));
     }
@@ -872,6 +895,12 @@ pub fn flush_standard_streams() -> std::io::Result<()> {
 /// Sessions initialize this lazily before the first object constructor executes.
 pub fn initialize_stdio() {
     unsafe { rm_native_stdio_initialize() };
+}
+
+/// Publish the running application's C stdout policy after early CLI exits.
+/// Registering final stdout cleanup and loading a native module do not select it.
+pub fn line_buffer_stdout() {
+    unsafe { rm_native_stdout_line_buffered() };
 }
 
 /// Flush only the selected libc stream before a direct host write to that
