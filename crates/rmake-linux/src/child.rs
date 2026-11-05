@@ -321,7 +321,10 @@ pub fn wait_with_notification(
             returned: 0,
         });
     }
-    for fd in [additional, notification.map(|fd| fd.as_raw_fd())].into_iter().flatten() {
+    for fd in [additional, notification.map(|fd| fd.as_raw_fd())]
+        .into_iter()
+        .flatten()
+    {
         descriptors.push(PollFd {
             descriptor: fd,
             events: 1,
@@ -501,7 +504,7 @@ mod tests {
                 &[],
                 false,
                 false,
-                Some(token.as_fd()),
+                Some(token.as_raw_fd()),
                 Some(notification.as_fd()),
                 None,
             )
