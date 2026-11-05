@@ -440,9 +440,10 @@ impl Plan {
             })?;
             output_mode(options.output_sync.as_deref())?;
             if let Some(authentication) = &options.sync_mutex {
-                state
-                    .complete_mutex(authentication)
-                    .map_err(buffered_failure)?;
+                state.complete_mutex(authentication).map_err(|mut error| {
+                    error.version = options.version;
+                    buffered_failure(error)
+                })?;
             }
             let shuffle = if options.help || options.version {
                 crate::shuffle::Mode::None

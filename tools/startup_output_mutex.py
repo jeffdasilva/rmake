@@ -3,6 +3,7 @@
 # Copyright 2026 Jeff DaSilva
 """Compare initial output mutex completion across inherited and explicit flags."""
 import argparse
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import tempfile
 
 import conformance as h
 import oracle
+from debug_output import calibrate_version, models as debug_models
 from shell_capture_lifetime import file_entry
 
 
@@ -30,6 +32,10 @@ IDS = (
 )
 
 
+VERSION_IDS = ("explicit-missing-with-version", "explicit-missing-with-spooled-version")
+VERSION_SLOT = b"@EXPLICIT_VERSION@"
+
+
 def prepare(model, fixture):
     fixture.mkdir()
     for name, content in model["inputs"].items():
@@ -45,7 +51,15 @@ def prepare(model, fixture):
                   "merged" if model["merged"] else "separate")
 
 
-def observe(model, case, runtime, image):
+def observe(model, case, runtime, image, version):
+    if case.id in VERSION_IDS:
+        expected = dict(case.expected)
+        template = expected.pop("stdout").encode()
+        if (version is None or template.count(VERSION_SLOT) != 1
+                or VERSION_SLOT in expected["stderr"].encode() or "--version" not in case.args):
+            raise h.HarnessError("invalid explicit version slot in startup mutex model")
+        expected["stdout_hex"] = template.replace(VERSION_SLOT, version).hex()
+        case = replace(case, expected=expected)
     h.reset_workspace(case, runtime, image)
     roots = {name: runtime / name for name in ("work", "home", "tmp", "bin")}
     expected_files = h.snapshot(roots)
@@ -63,6 +77,7 @@ def observe(model, case, runtime, image):
         errors.append("complete work/home/tmp/bin filesystem")
     return {"image": str(image), "sha256": h.sha256_file(image),
             "expected_filesystem": expected_files, "observed": h.observation_json(value),
+            "stdout_hex": out.hex(), "stderr_hex": err.hex(),
             "errors": errors}
 
 
@@ -77,23 +92,41 @@ def main():
     images = [reference, reference]
     if args.candidate is not None:
         images.append(args.candidate.resolve(strict=True))
-    config = json.loads((FIXTURE / "models.json").read_bytes())
-    if config["schema"] != 1 or tuple(model["id"] for model in config["models"]) != IDS:
-        raise h.HarnessError("unexpected startup mutex profile inventory")
+    models = []
+    for filename, ids in (("models.json", IDS), ("version-models.json", VERSION_IDS)):
+        config = json.loads((FIXTURE / filename).read_bytes())
+        if config["schema"] != 1 or tuple(model["id"] for model in config["models"]) != ids:
+            raise h.HarnessError("unexpected startup mutex profile inventory")
+        models.extend(config["models"])
+    reference_version, = (model.explicit_version_reference for model in debug_models()
+                          if model.id == "debug-invalid-before-version")
+    if reference_version is None:
+        raise h.HarnessError("missing pinned GNU version banner")
     with tempfile.TemporaryDirectory(prefix="rmake-startup-output-mutex-") as directory:
         root = Path(directory)
         runtime = root / "runtime"
         runtime.mkdir()
+        oracle_version, oracle_calibration = calibrate_version(reference, root / "oracle-version", reference_version)
+        versions = [oracle_version, oracle_version]
+        candidate_calibration = []
+        if args.candidate is not None:
+            candidate_version, candidate_calibration = calibrate_version(images[-1], root / "candidate-version")
+            if b"eager\n" in candidate_version or b"cannot open output sync mutex" in candidate_version:
+                raise h.HarnessError("version banner contains a fixture effect")
+            versions.append(candidate_version)
         records = []
-        for model in config["models"]:
+        for model in models:
             case = prepare(model, root / model["id"])
-            observations = [observe(model, case, runtime, image) for image in images]
+            observations = [observe(model, case, runtime, image, version)
+                            for image, version in zip(images, versions)]
             errors = [row["errors"] for row in observations]
             records.append({"model": model, "observations": observations, "passed": not any(errors)})
             print("FAIL" if any(errors) else "PASS", case.id, errors)
     report = {"oracle_profile": profile["profile_id"], "records": records,
               "source_sha256": h.sha256_file(Path(__file__)),
               "model_sha256": h.sha256_file(FIXTURE / "models.json"),
+              "version_model_sha256": h.sha256_file(FIXTURE / "version-models.json"),
+              "explicit_version_calibration": {"oracle": oracle_calibration, "candidate": candidate_calibration},
               "witness_sha256": h.sha256_file(FIXTURE / "witness.py"),
               "affinity": sorted(os.sched_getaffinity(0)),
               "passed": all(row["passed"] for row in records)}

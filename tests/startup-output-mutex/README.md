@@ -12,7 +12,9 @@ identity, write access, and close-on-exec status before later effects.
 Relative paths on the explicit command line are opened before changing
 directories. The other controls check eager buffered output and an open
 failure that occurs before the help branch. All profiles check literal
-streams, status, and the complete fixture filesystem.
+streams, status, and the complete fixture filesystem. Two explicit version
+failures also require the separately calibrated banner at its declared position
+in direct or spooled startup output.
 
 Run `make test-startup-output-mutex` or
 `make test-startup-output-mutex-release`. The existing live and passive
