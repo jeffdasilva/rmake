@@ -5,6 +5,9 @@ with GNU Make 4.4.1 twice and with rmake. Both engines are invoked under
 one `make` basename; executable naming is otherwise observable in diagnostics.
 The gate copies the Makefile and its scripts into an owned disposable fixture.
 It uses the pinned compiler as an input and a private offline Cargo cache.
+The catalog flows validate the owned files and install all 63 package assets
+through a staging path containing a space. The gate checks the full installed
+layout, bytes, modes and link topology and verifies the source tree is preserved.
 
 The fixture runs warm oracle bootstrap, six real Cargo clean modes (including
 parallel pipe jobserver and `-n`, `-q`, `-t` guards), and three benchmark
