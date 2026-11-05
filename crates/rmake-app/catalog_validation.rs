@@ -68,16 +68,31 @@ pub fn validate_bytes(bytes: &[u8]) -> Result<(), String> {
             return Err("duplicate catalog message".into());
         }
     }
+    let resolve = |msgid: &'static [u8]| -> Result<&[u8], String> {
+        for index in 0..count {
+            if entry(originals, index)? == msgid {
+                let translated = entry(translations, index)?;
+                if !translated.is_empty() {
+                    return Ok(translated);
+                }
+                break;
+            }
+        }
+        Ok(msgid)
+    };
     for id in MessageId::ALL {
-        let original = id.msgid().to_bytes();
-        let template = entries
-            .get(original)
-            .copied()
-            .filter(|value| !value.is_empty())
-            .unwrap_or(original);
         id.sample()
-            .render(template)
+            .render(resolve(id.msgid().to_bytes())?)
             .map_err(|error| format!("invalid {:?} translation schema: {error:?}", id))?;
+    }
+    for key in crate::debug_messages::ALL {
+        crate::system_messages::checked_format(resolve(key.msgid.to_bytes())?, key.sample)
+            .map_err(|error| {
+                format!(
+                    "invalid {:?} debug translation schema: {error:?}",
+                    key.msgid
+                )
+            })?;
     }
     Ok(())
 }

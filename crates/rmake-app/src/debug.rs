@@ -3,6 +3,8 @@
 
 //! Debug requests preserve input history; events describe interpreter decisions.
 //! Rendering never evaluates make expressions or performs filesystem searches.
+use crate::debug_messages as msg;
+use rmake_core::messages::{Argument, checked_format};
 use std::io::{self, Write};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -99,14 +101,31 @@ impl Requests {
 
 /// Protocol header for debug mode. Explicit --version retains rmake branding.
 pub fn print_compatibility_header(commented: bool) {
-    let header = b"GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n";
-    if commented {
-        for line in header.split_inclusive(|byte| *byte == b'\n') {
-            raw(&[b"# ", line]);
-        }
-    } else {
-        raw(&[header]);
-    }
+    let prefix: &[u8] = if commented { b"# " } else { b"" };
+    raw(&[
+        prefix,
+        b"GNU Make 4.4.1\n",
+        &localized(
+            msg::BUILT_FOR,
+            &[bytes(prefix), bytes(b"x86_64-pc-linux-gnu")],
+        ),
+        prefix,
+        b"Copyright (C) 1988-2023 Free Software Foundation, Inc.\n",
+        &localized(msg::LICENSE, &[bytes(prefix), bytes(prefix), bytes(prefix)]),
+    ]);
+}
+
+fn bytes(text: &[u8]) -> Argument<'_> {
+    Argument::Bytes(text)
+}
+
+fn localized(key: msg::Key, arguments: &[Argument<'_>]) -> Vec<u8> {
+    // A native module can install a different public gettext domain. Keep a
+    // checked English fallback if that foreign format has an invalid schema.
+    rmake_linux::messages::render_format(key.msgid, arguments).unwrap_or_else(|_| {
+        checked_format(key.msgid.to_bytes(), arguments)
+            .expect("static debug key and arguments have matching types")
+    })
 }
 
 pub fn raw(parts: &[&[u8]]) {
@@ -118,6 +137,18 @@ pub fn raw(parts: &[&[u8]]) {
     let _ = stdout.flush();
 }
 
+pub fn restart_prefix(count: u32) -> Vec<u8> {
+    localized(msg::REEXECUTING, &[Argument::Unsigned(count.into())])
+}
+
+#[derive(Clone, Copy)]
+pub enum Prerequisite {
+    Older,
+    Newer,
+    Missing,
+    OrderOnly,
+}
+
 #[derive(Clone, Copy)]
 pub enum Event<'a> {
     Reading,
@@ -126,6 +157,7 @@ pub enum Event<'a> {
     Considering(&'a [u8], usize),
     Missing(&'a [u8], usize),
     Finished(&'a [u8], usize),
+    Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
     MustRemake(&'a [u8], usize),
     Remade(&'a [u8], usize),
     Failed(&'a [u8], usize),
@@ -154,6 +186,13 @@ pub enum Event<'a> {
 
 pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     let (category, depth) = match event {
+        Event::Prerequisite(state, _, _, depth) => (
+            match state {
+                Prerequisite::Older | Prerequisite::OrderOnly => Mask::VERBOSE,
+                Prerequisite::Newer | Prerequisite::Missing => Mask::BASIC,
+            },
+            depth,
+        ),
         Event::Considering(_, depth)
         | Event::Finished(_, depth)
         | Event::NoNeed(_, depth)
@@ -187,132 +226,81 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     }
     let indent = vec![b' '; depth];
     let prefix = indent.as_slice();
+    let print = |key, arguments: &[Argument<'_>]| raw(&[prefix, &localized(key, arguments)]);
     match event {
-        Event::Reading => raw(&[b"Reading makefiles...\n"]),
-        Event::UpdatingMakefiles => raw(&[b"Updating makefiles....\n"]),
-        Event::UpdatingGoals => raw(&[b"Updating goal targets....\n"]),
-        Event::Considering(name, _) => raw(&[prefix, b"Considering target file '", name, b"'.\n"]),
-        Event::Missing(name, _) => raw(&[prefix, b"File '", name, b"' does not exist.\n"]),
-        Event::Finished(name, _) => raw(&[
-            prefix,
-            b"Finished prerequisites of target file '",
-            name,
-            b"'.\n",
-        ]),
-        Event::MustRemake(name, _) => raw(&[prefix, b"Must remake target '", name, b"'.\n"]),
-        Event::Remade(name, _) => {
-            raw(&[prefix, b"Successfully remade target file '", name, b"'.\n"])
-        }
-        Event::Failed(name, _) => raw(&[prefix, b"Failed to remake target file '", name, b"'.\n"]),
-        Event::NoNeed(name, _) => raw(&[prefix, b"No need to remake target '", name, b"'.\n"]),
-        Event::Already(name, _) => raw(&[prefix, b"File '", name, b"' was considered already.\n"]),
-        Event::Looking(name, _) => {
-            raw(&[prefix, b"Looking for an implicit rule for '", name, b"'.\n"])
-        }
-        Event::LookingArchive(name, _) => raw(&[
-            prefix,
-            b"Looking for archive-member implicit rule for '",
-            name,
-            b"'.\n",
-        ]),
-        Event::NoArchiveRule(name, _) => raw(&[
-            prefix,
-            b"No archive-member implicit rule found for '",
-            name,
-            b"'.\n",
-        ]),
-        Event::TryingRule(rule, stem, _) => raw(&[
-            prefix,
-            b"Trying pattern rule '",
-            rule,
-            b"' with stem '",
-            stem,
-            b"'.\n",
-        ]),
-        Event::TryingPrerequisite(name, literal, _) => raw(&[
-            prefix,
+        Event::Reading => print(msg::READING, &[]),
+        Event::UpdatingMakefiles => print(msg::UPDATING_MAKEFILES, &[]),
+        Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
+        Event::Considering(name, _) => print(msg::CONSIDERING, &[bytes(name)]),
+        Event::Missing(name, _) => print(msg::MISSING, &[bytes(name)]),
+        Event::Finished(name, _) => print(msg::FINISHED, &[bytes(name)]),
+        Event::Prerequisite(state, dependency, target, _) => print(
+            match state {
+                Prerequisite::Older => msg::PREREQ_OLDER,
+                Prerequisite::Newer => msg::PREREQ_NEWER,
+                Prerequisite::Missing => msg::PREREQ_MISSING,
+                Prerequisite::OrderOnly => msg::PREREQ_ORDER_ONLY,
+            },
+            &[bytes(dependency), bytes(target)],
+        ),
+        Event::MustRemake(name, _) => print(msg::MUST_REMAKE, &[bytes(name)]),
+        Event::Remade(name, _) => print(msg::REMADE, &[bytes(name)]),
+        Event::Failed(name, _) => print(msg::FAILED, &[bytes(name)]),
+        Event::NoNeed(name, _) => raw(&[prefix, &localized(msg::NO_NEED, &[bytes(name)]), b".\n"]),
+        Event::Already(name, _) => print(msg::ALREADY, &[bytes(name)]),
+        Event::Looking(name, _) => print(msg::LOOKING, &[bytes(name)]),
+        Event::LookingArchive(name, _) => print(msg::LOOKING_ARCHIVE, &[bytes(name)]),
+        Event::NoArchiveRule(name, _) => print(msg::NO_ARCHIVE_RULE, &[bytes(name)]),
+        Event::TryingRule(rule, stem, _) => print(
+            msg::TRYING_RULE,
+            &[
+                bytes(rule),
+                Argument::Unsigned(stem.len() as u64),
+                bytes(stem),
+            ],
+        ),
+        Event::TryingPrerequisite(name, literal, _) => print(
             if literal {
-                b"Trying rule prerequisite '"
+                msg::TRYING_LITERAL
             } else {
-                b"Trying implicit prerequisite '"
+                msg::TRYING_IMPLICIT
             },
-            name,
-            b"'.\n",
-        ]),
-        Event::TryingHarder(_) => raw(&[prefix, b"Trying harder.\n"]),
-        Event::AvoidingRecursion(rule, _) => raw(&[
-            prefix,
-            b"Avoiding implicit rule recursion for rule '",
-            rule,
-            b"'.\n",
-        ]),
-        Event::FoundPrerequisite(name, _) => raw(&[prefix, b"Found '", name, b"'.\n"]),
-        Event::FoundVpath(name, path, _) => raw(&[
-            prefix,
-            b"Found prerequisite '",
-            name,
-            b"' as VPATH '",
-            path,
-            b"'.\n",
-        ]),
-        Event::MissingPrerequisite(name, _) => raw(&[prefix, b"Not found '", name, b"'.\n"]),
-        Event::SearchingChildRule(name, explicit, _) => raw(&[
-            prefix,
+            &[bytes(name)],
+        ),
+        Event::TryingHarder(_) => print(msg::TRYING_HARDER, &[]),
+        Event::AvoidingRecursion(rule, _) => print(msg::AVOIDING_RECURSION, &[bytes(rule)]),
+        Event::FoundPrerequisite(name, _) => print(msg::FOUND_PREREQUISITE, &[bytes(name)]),
+        Event::FoundVpath(name, path, _) => print(msg::FOUND_VPATH, &[bytes(name), bytes(path)]),
+        Event::MissingPrerequisite(name, _) => print(msg::MISSING_PREREQUISITE, &[bytes(name)]),
+        Event::SearchingChildRule(name, explicit, _) => print(
             if explicit {
-                b"Looking for a rule with explicit file '"
+                msg::SEARCHING_EXPLICIT
             } else {
-                b"Looking for a rule with intermediate file '"
+                msg::SEARCHING_INTERMEDIATE
             },
-            name,
-            b"'.\n",
-        ]),
-        Event::RejectedPrerequisite(rule, name, literal, _) => raw(&[
-            prefix,
-            b"Rejecting rule '",
-            rule,
-            b"' due to impossible ",
+            &[bytes(name)],
+        ),
+        Event::RejectedPrerequisite(rule, name, literal, _) => print(
             match literal {
-                Some(true) => b"rule ",
-                Some(false) => b"implicit ",
-                None => b"",
+                Some(true) => msg::REJECTED_LITERAL,
+                Some(false) => msg::REJECTED_IMPLICIT,
+                None => msg::REJECTED_PREREQUISITE,
             },
-            b"prerequisite '",
-            name,
-            b"'.\n",
-        ]),
-        Event::NotOughtToExist(name, rule, _) => raw(&[
-            prefix,
-            b"Prerequisite '",
-            name,
-            b"' of rule '",
-            rule,
-            b"' does not qualify as ought to exist.\n",
-        ]),
-        Event::UsingCompatibilityRule(rule, name, _) => raw(&[
-            prefix,
-            b"Using compatibility rule '",
-            rule,
-            b"' due to '",
-            name,
-            b"'.\n",
-        ]),
-        Event::SearchingCompatibility(name, _) => raw(&[
-            prefix,
-            b"Searching for a compatibility rule for '",
-            name,
-            b"'.\n",
-        ]),
-        Event::RemovingIntermediates => raw(&[b"Removing intermediate files...\n"]),
-        Event::OughtToExist(name, _) => raw(&[prefix, b"'", name, b"' ought to exist.\n"]),
-        Event::FoundRule(rule, name, _) => raw(&[
-            prefix,
-            b"Found implicit rule '",
-            rule,
-            b"' for '",
-            name,
-            b"'.\n",
-        ]),
-        Event::NoRule(name, _) => raw(&[prefix, b"No implicit rule found for '", name, b"'.\n"]),
+            &[bytes(rule), bytes(name)],
+        ),
+        Event::NotOughtToExist(name, rule, _) => {
+            print(msg::NOT_OUGHT_TO_EXIST, &[bytes(name), bytes(rule)])
+        }
+        Event::UsingCompatibilityRule(rule, name, _) => {
+            print(msg::USING_COMPATIBILITY, &[bytes(rule), bytes(name)])
+        }
+        Event::SearchingCompatibility(name, _) => {
+            print(msg::SEARCHING_COMPATIBILITY, &[bytes(name)])
+        }
+        Event::RemovingIntermediates => print(msg::REMOVING_INTERMEDIATES, &[]),
+        Event::OughtToExist(name, _) => print(msg::OUGHT_TO_EXIST, &[bytes(name)]),
+        Event::FoundRule(rule, name, _) => print(msg::FOUND_RULE, &[bytes(rule), bytes(name)]),
+        Event::NoRule(name, _) => print(msg::NO_RULE, &[bytes(name)]),
     }
 }
 
@@ -331,22 +319,22 @@ pub fn reader(output: &crate::output::Controller, event: rmake_core::diagnostic:
             optional,
             no_default_goal,
             no_tilde,
-        } => raw(&[
-            b"Reading makefile '",
-            name,
-            b"'",
-            if no_default_goal {
-                b" (no default goal)"
-            } else {
-                b""
-            },
-            if search { b" (search path)" } else { b"" },
-            if optional { b" (don't care)" } else { b"" },
-            if no_tilde { b" (no ~ expansion)" } else { b"" },
-            b"...\n",
-        ]),
+        } => {
+            let mut line = localized(msg::READING_FILE, &[bytes(name)]);
+            for (flag, key) in [
+                (no_default_goal, msg::NO_DEFAULT_GOAL),
+                (search, msg::SEARCH_PATH),
+                (optional, msg::OPTIONAL),
+                (no_tilde, msg::NO_TILDE),
+            ] {
+                if flag {
+                    line.extend(localized(key, &[]));
+                }
+            }
+            raw(&[&line, b"...\n"]);
+        }
         rmake_core::diagnostic::ReaderEvent::Bom(name) => {
-            raw(&[b"Skipping UTF-8 BOM in makefile '", name, b"'\n"])
+            raw(&[&localized(msg::SKIPPING_BOM, &[bytes(name)])])
         }
     }
 }

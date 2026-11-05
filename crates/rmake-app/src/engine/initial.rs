@@ -101,7 +101,8 @@ impl Plan {
     }
 
     pub(super) fn debug_restart(&self, count: u32) {
-        let mut line = format!("Re-executing[{count}]: ").into_bytes();
+        let mut line = crate::debug::restart_prefix(count);
+        line.push(b' ');
         line.extend_from_slice(self.restart_program().as_bytes());
         let rewritten = self.restart_arguments();
         for argument in rewritten.as_deref().unwrap_or(&self.args) {

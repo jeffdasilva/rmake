@@ -7000,6 +7000,45 @@ impl Engine {
             &self.output,
             crate::debug::Event::Finished(target, debug_depth),
         );
+        let mask = self.output.debug_mask();
+        if (mask.has(crate::debug::Mask::BASIC) || mask.has(crate::debug::Mask::VERBOSE))
+            && before.is_some()
+            && !phony
+            && !outcome.failed
+            && !outcome.question_outdated
+        {
+            // This reports recorded freshness after dependency traversal. It
+            // must not re-stat, expand, or trigger another prerequisite.
+            for (index, occurrence) in rule.dependencies.iter().enumerate() {
+                let dependency = &occurrence.name;
+                if dependency == b".WAIT" || dropped.contains(dependency) {
+                    continue;
+                }
+                let Some(child) = self.done.get(dependency).copied() else {
+                    continue;
+                };
+                use crate::debug::Prerequisite;
+                let state = if !normal_names.contains(dependency.as_slice()) {
+                    Prerequisite::OrderOnly
+                } else if child.time.is_none() {
+                    Prerequisite::Missing
+                } else if child.time > comparison
+                    || (child.completion == CompletionTime::AssumeNew
+                        && self.prerequisite_stale(comparison, child))
+                    || intermediate_stale
+                        .as_ref()
+                        .is_some_and(|edges| edges.contains(&index))
+                {
+                    Prerequisite::Newer
+                } else {
+                    Prerequisite::Older
+                };
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Prerequisite(state, dependency, target, debug_depth + 1),
+                );
+            }
+        }
         let debug_remake = stale && !outcome.failed && !outcome.question_outdated;
         if debug_remake {
             crate::debug::emit(

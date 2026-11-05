@@ -9,12 +9,15 @@ use std::process::ExitCode;
 mod cli;
 mod command_variables;
 mod debug;
+#[allow(dead_code)] // Samples are used by the catalog build script.
+mod debug_messages;
 mod engine;
 mod file_aliases;
 mod intermediates;
 mod load;
 mod makefiles;
 mod messages;
+use rmake_core::messages as system_messages;
 mod native;
 mod oneshell;
 mod output;

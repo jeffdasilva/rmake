@@ -13,6 +13,8 @@ import subprocess
 import tempfile
 
 import conformance as h
+import locale_data
+import nls_diagnostics
 import oracle
 
 INPUT_TIME = 1600000000000000000
@@ -34,6 +36,7 @@ class Model:
     absent: tuple[bytes, ...] = ()
     status: int = 0
     archive_seed: bool = False
+    newer_inputs: tuple[bytes, ...] = ()
 
 
 def models():
@@ -127,8 +130,47 @@ def models():
     yield Model('secondary-literal', b'.SECONDEXPANSION:\nS = a.src\n%.out: $$(S)' + COPY,
                 files={b'a.src': SOURCE}, created={b'a.out': SOURCE})
 
+    yield Model('verbose-source-flags',
+                b'include definitions.mk\n-include optional.mk\nall: ; @:\n',
+                args=(b'--debug=v', b'all'), files={b'definitions.mk': b'', b'optional.mk': b''},
+                markers=(b"Reading makefile 'definitions.mk' (search path) (no ~ expansion)...",
+                         b"Reading makefile 'optional.mk' (search path) (don't care) (no ~ expansion)..."))
+    yield Model('verbose-source-bom', b'\xef\xbb\xbfall: ; @:\n',
+                args=(b'--debug=v', b'all'), markers=(b"Skipping UTF-8 BOM in makefile 'Makefile'",))
+    yield Model('verbose-no-update', b'all: source\n\t@cp $< $@\n',
+                args=(b'--debug=v', b'all'), files={b'source': SOURCE, b'all': SOURCE},
+                markers=(b"No need to remake target 'all'.",))
 
-def observe(model, executable, invoke, reset):
+    yield Model('verbose-order-only', b'all: | order\n\t@:\n',
+                args=(b'--debug=v', b'all'), files={b'order': SOURCE, b'all': SOURCE},
+                newer_inputs=(b'order',),
+                markers=(b"Prerequisite 'order' is order-only for target 'all'.",))
+    yield Model('basic-newer-prerequisite', b'all: source\n\t@:\n',
+                args=(b'--debug=b', b'all'), files={b'source': SOURCE, b'all': SOURCE},
+                newer_inputs=(b'source',),
+                markers=(b"Prerequisite 'source' is newer than target 'all'.",))
+    yield Model('basic-phony-prerequisite', b'.PHONY: child\nall: child\n\t@:\n',
+                args=(b'--debug=b', b'all'), files={b'all': SOURCE},
+                markers=(b"Prerequisite 'child' of target 'all' does not exist.",))
+
+
+def french_markers(model):
+    """Positive independent assertions for mixed translation and fallback."""
+    selected = {
+        'chain': ("Recherche d'une règle contenant le fichier intermédaire «\u00a0a.mid\u00a0».",
+                  'Suppression des fichiers intermédiaires...', "Found 'a.src'.", 'rm a.mid\n'),
+        'archive-member-no-rule': ("Recherche d'une règle implicite de membre d'archive pour «\u00a0lib.a(a.o)\u00a0».",
+                                   "No archive-member implicit rule found for 'lib.a(a.o)'."),
+        'raw-byte-stem': ("Le fichier «\u00a0", "Found '"),
+        'verbose-source-flags': ("Lecture du makefile «\u00a0optional.mk\u00a0»",
+                                 ' (chemin de recherche) (peu importe) (pas de remplacement du ~)...'),
+        'verbose-source-bom': ('On saute les BOM UTF-8 du makefile',),
+        'verbose-no-update': ('Inutile de refabriquer la cible «\u00a0all\u00a0».',),
+    }
+    return tuple(marker.encode() for marker in selected.get(model.id, ()))
+
+
+def observe(model, executable, invoke, reset, locale):
     reset.mkdir()
     work, home, temporary = (reset / name for name in ('work', 'home', 'tmp'))
     for directory in (work, home, temporary):
@@ -140,7 +182,8 @@ def observe(model, executable, invoke, reset):
         path = work / os.fsdecode(name)
         path.parent.mkdir(exist_ok=True, parents=True)
         path.write_bytes(data)
-        os.utime(path, ns=(INPUT_TIME, INPUT_TIME))
+        timestamp = INPUT_TIME + (2_000_000_000 if name in model.newer_inputs else 0)
+        os.utime(path, ns=(timestamp, timestamp))
     if model.archive_seed:
         subprocess.run(['/usr/bin/ar', 'rcsD', 'lib.a', 'a.o'], cwd=work, check=True, capture_output=True)
         archive = work / 'lib.a'
@@ -149,15 +192,24 @@ def observe(model, executable, invoke, reset):
     invoke.unlink(missing_ok=True)
     invoke.symlink_to(executable)
     environment = oracle.clean_environment(home) | {'TMPDIR': str(temporary)}
+    if locale is not None:
+        environment.update(locale['environment'], LC_ALL=locale['locale'])
     out, err, status, limit, children = h.capture([str(invoke), '-rR', '--no-print-directory', *model.args],
                                                   work, environment, 12)
     files = h.snapshot({'work': work, 'home': home, 'tmp': temporary})
     actual_files = {os.fsencode(path.relative_to(work)): path.read_bytes()
                     for path in work.rglob('*') if path.is_file()}
+    if locale is None:
+        present, absent = model.markers, model.absent
+    else:
+        present = french_markers(model)
+        if out.startswith(b'GNU Make 4.4.1\n'):
+            present += (b'Construit pour x86_64-pc-linux-gnu\n',)
+        absent = tuple(marker for marker in model.absent if not marker.startswith(b'Removing intermediate'))
     tests = [('status or containment', (status, limit, children) == (model.status, None, False)),
              ('expected file effects', actual_files == inputs | model.created),
-             ('selected positive marker', all(marker in out for marker in model.markers)),
-             ('selected absent marker', all(marker not in out for marker in model.absent))]
+             ('selected positive marker', all(marker in out for marker in present)),
+             ('selected absent marker', all(marker not in out for marker in absent))]
     return {'stdout_hex': out.hex(), 'stderr_hex': err.hex(), 'status': status, 'limit': limit,
             'leftover_processes': children, 'filesystem': files,
             'errors': [name for name, success in tests if not success]}
@@ -169,11 +221,17 @@ def main():
     parser.add_argument('--candidate', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
     parser.add_argument('--case')
+    parser.add_argument('--locale-root', type=Path,
+                        help='run in the verified private French locale instead of C')
     args = parser.parse_args()
     selected = [model for model in models() if args.case is None or args.case == model.id]
     if not selected:
         parser.error(f'unknown debug traversal case: {args.case}')
-    profile = oracle.verify(args.oracle)
+    if args.locale_root is None:
+        profile, locale = oracle.verify(args.oracle), None
+    else:
+        identity = json.loads((nls_diagnostics.DATA / 'models.json').read_bytes())['reference_catalog_sha256']
+        _, profile, _, locale = nls_diagnostics.prepare_reference(args.oracle, identity, args.locale_root)
     rows = []
     previous_umask = os.umask(0o022)
     try:
@@ -184,7 +242,7 @@ def main():
                 reset = root / 'reset'
                 for executable in (args.oracle, args.oracle, args.candidate):
                     try:
-                        observations.append(observe(model, executable.absolute(), root / 'make', reset))
+                        observations.append(observe(model, executable.absolute(), root / 'make', reset, locale))
                     finally:
                         h.remove_tree(reset)
                 passed = not observations[0]['errors'] and observations[0] == observations[1] == observations[2]
@@ -195,7 +253,7 @@ def main():
     args.report.parent.mkdir(parents=True, exist_ok=True)
     passed = sum(row['pass'] for row in rows)
     args.report.write_text(json.dumps({'cases': len(rows), 'passed': passed, 'results': rows,
-                                      'oracle_profile': profile['profile_id'],
+                                      'oracle_profile': profile['profile_id'], 'locale_profile': locale,
                                       'candidate_sha256': h.sha256_file(args.candidate)}, indent=2) + '\n')
     print(f'Debug traversal gate: {passed}/{len(rows)}', flush=True)
     return int(passed != len(rows))
@@ -204,5 +262,5 @@ def main():
 if __name__ == '__main__':
     try:
         raise SystemExit(main())
-    except (h.HarnessError, oracle.OracleError, OSError) as error:
+    except (h.HarnessError, oracle.OracleError, locale_data.ProfileError, OSError) as error:
         raise SystemExit(f'debug traversal gate: {error}') from error
