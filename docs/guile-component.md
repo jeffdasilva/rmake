@@ -63,4 +63,4 @@ The privileged application entry/lifetime boundary, full Scheme value/error
 conversion, real CLI registration, signals/finalizers, native resource/fork/exec
 interactions, wider floating-point/locale formatting and full Guile compatibility remain additional
 work. Neither these controls nor their separate GNU2 observations close M3/M6.
-Default and enabled performance remain independent measurement requirements.
+The selected default [cost measurements](benchmarks/guile-component.md) retain all slower timings and unchanged allocation summaries. Native-context throughput and enabled-profile performance remain separate measurement requirements.
