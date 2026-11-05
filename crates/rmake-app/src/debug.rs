@@ -134,6 +134,42 @@ pub fn raw(parts: &[&[u8]]) {
     crate::output::stdout_parts(parts);
 }
 
+pub enum TraceReason<'a> {
+    Phony,
+    Missing,
+    Unknown,
+    Prerequisites(&'a [u8]),
+}
+
+pub fn trace_reason(
+    output: &crate::output::Controller,
+    location: Option<&rmake_core::diagnostic::Location>,
+    target: &[u8],
+    reason: TraceReason<'_>,
+) {
+    let source = location
+        .and_then(|location| {
+            let file = location.file.as_option()?;
+            Some([file, b":", location.line.to_string().as_bytes()].concat())
+        })
+        .unwrap_or_else(|| {
+            let label = c"<builtin>";
+            rmake_linux::messages::lookup_static(label)
+                .unwrap_or_else(|_| label.to_bytes().to_vec())
+        });
+    let basic = [bytes(&source), bytes(target)];
+    let line = match reason {
+        TraceReason::Phony => localized(msg::TRACE_PHONY, &basic),
+        TraceReason::Missing => localized(msg::TRACE_MISSING, &basic),
+        TraceReason::Unknown => localized(msg::TRACE_UNKNOWN, &basic),
+        TraceReason::Prerequisites(names) => localized(
+            msg::TRACE_PREREQUISITES,
+            &[basic[0], basic[1], bytes(names)],
+        ),
+    };
+    output.write_parts(false, &[&line, b"\n"]);
+}
+
 pub fn restart_prefix(count: u32) -> Vec<u8> {
     localized(msg::REEXECUTING, &[Argument::Unsigned(count.into())])
 }

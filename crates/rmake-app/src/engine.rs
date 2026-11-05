@@ -8246,10 +8246,13 @@ impl Engine {
             return Execution::failure(false, Cleanup::None);
         }
         if self.output.debug_mask().has(crate::debug::Mask::WHY) {
+            use crate::debug::TraceReason;
+
+            let prerequisites;
             let reason = if phony {
-                b"target is .PHONY".to_vec()
+                TraceReason::Phony
             } else if before.is_none() {
-                b"target does not exist".to_vec()
+                TraceReason::Missing
             } else {
                 let newer = match self.expand(&mut variables, b"$?", None) {
                     Ok(newer) => newer,
@@ -8258,8 +8261,8 @@ impl Engine {
                         return Execution::fatal(false);
                     }
                 };
-                if newer.is_empty() {
-                    let missing = joined(
+                prerequisites = if newer.is_empty() {
+                    joined(
                         dependencies
                             .iter()
                             .filter(|dependency| {
@@ -8272,28 +8275,17 @@ impl Engine {
                                     })
                             })
                             .map(|dependency| dependency.name.as_slice()),
-                    );
-                    if missing.is_empty() {
-                        b"unknown reasons".to_vec()
-                    } else {
-                        missing
-                    }
+                    )
                 } else {
                     newer
+                };
+                if prerequisites.is_empty() {
+                    TraceReason::Unknown
+                } else {
+                    TraceReason::Prerequisites(&prerequisites)
                 }
             };
-            let prefix = location.map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
-            self.output.write_parts(
-                false,
-                &[
-                    &prefix,
-                    b"update target '",
-                    target,
-                    b"' due to: ",
-                    &reason,
-                    b"\n",
-                ],
-            );
+            crate::debug::trace_reason(&self.output, location, target, reason);
         }
         let state = RecipeState {
             branch,

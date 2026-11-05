@@ -85,4 +85,8 @@ keys! {
     JOB_RELEASED: c"Released token for child %p (%s).\n", [A, B];
     BUILT_FOR: c"%sBuilt for %s\n", [B, B];
     LICENSE: c"%sLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n%sThis is free software: you are free to change and redistribute it.\n%sThere is NO WARRANTY, to the extent permitted by law.\n", [B, B, B];
+    TRACE_PHONY: c"%s: update target '%s' due to: target is .PHONY", [B, B];
+    TRACE_MISSING: c"%s: update target '%s' due to: target does not exist", [B, B];
+    TRACE_UNKNOWN: c"%s: update target '%s' due to: unknown reasons", [B, B];
+    TRACE_PREREQUISITES: c"%s: update target '%s' due to: %s", [B, B, B];
 }
