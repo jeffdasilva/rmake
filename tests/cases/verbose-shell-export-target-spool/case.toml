@@ -1,0 +1,12 @@
+id = "verbose-shell-export-target-spool"
+requirement = "functions.shell"
+candidate = "required"
+description = "Check the VERBOSE notice for a recursive shell export fallback."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "-j2", "--output-sync=target"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "definitions.mk:2: not recursively expanding CYCLE to export to shell function\nbefore\nresult=[child=[]]\nafter\nSuccessfully remade target file 'all'.\n"
+stderr = ""

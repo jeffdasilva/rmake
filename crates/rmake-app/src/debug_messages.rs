@@ -25,6 +25,7 @@ macro_rules! keys {
 
 keys! {
     READING: c"Reading makefiles...\n", [];
+    RECURSIVE_SHELL_EXPORT: c"%s:%lu: not recursively expanding %s to export to shell function\n", [B, P, B];
     UPDATING_MAKEFILES: c"Updating makefiles....\n", [];
     SKIP_MAKEFILE_LOOP: c"Makefile '%s' might loop; not remaking it.\n", [B];
     UPDATING_GOALS: c"Updating goal targets....\n", [];

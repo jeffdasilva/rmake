@@ -3324,10 +3324,11 @@ impl Expansion<'_, '_> {
         let mut environment = Vec::new();
         for name in names {
             let current = self.store.for_environment();
-            let Some(variable) = current.get(&name).cloned() else {
+            let Some((layer, variable)) = current.lookup_from(&name, 0) else {
                 environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
                 continue;
             };
+            let variable = variable.clone();
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
@@ -3352,6 +3353,19 @@ impl Expansion<'_, '_> {
             // GNU uses the original process environment when constructing an
             // exported recursive variable would re-enter the current binding.
             if self.active_keys().any(|(active, _)| *active == name) {
+                if let Some(definition) = variable.definition.as_deref()
+                    && variable.flavor == Flavor::Recursive
+                    && (name == b"MAKEFLAGS"
+                        || !matches!(
+                            variable.origin,
+                            Origin::Environment | Origin::EnvironmentOverride
+                        ))
+                    && self.active_keys().any(|(active, active_layer)| {
+                        *active == name && *active_layer == Some(layer)
+                    })
+                {
+                    self.context.recursive_shell_export(definition, &name);
+                }
                 environment.push((name, crate::diagnostic::EnvironmentValue::Original));
                 continue;
             }

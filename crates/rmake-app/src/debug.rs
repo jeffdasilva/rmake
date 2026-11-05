@@ -412,6 +412,25 @@ pub fn guile_callback(
     raw(&[&localized(key, &[bytes(input)])]);
 }
 
+pub fn recursive_shell_export(
+    output: &crate::output::Controller,
+    definition: &rmake_core::diagnostic::Location,
+    name: &[u8],
+) {
+    if !output.debug_mask().has(Mask::VERBOSE) || rmake_linux::native::stdout_closed() {
+        return;
+    }
+    let file = definition.file.as_option().unwrap_or(b"(null)");
+    raw(&[&localized(
+        msg::RECURSIVE_SHELL_EXPORT,
+        &[
+            bytes(file),
+            Argument::Unsigned(definition.line as u64),
+            bytes(name),
+        ],
+    )]);
+}
+
 pub fn reader(output: &crate::output::Controller, event: rmake_core::diagnostic::ReaderEvent<'_>) {
     let category = match event {
         rmake_core::diagnostic::ReaderEvent::Bom(_) => Mask::BASIC,

@@ -579,6 +579,10 @@ impl OutputReceiver for RuntimeOutput<'_> {
     fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
         crate::debug::reader(self.controller, event);
     }
+
+    fn recursive_shell_export(&mut self, definition: &Location, name: &[u8]) {
+        crate::debug::recursive_shell_export(self.controller, definition, name);
+    }
 }
 
 struct SerialWait {
