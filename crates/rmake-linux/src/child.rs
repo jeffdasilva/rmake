@@ -9,11 +9,12 @@ use std::fs::File;
 use std::io;
 use std::io::Read;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
-use std::os::unix::process::ExitStatusExt;
+use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::process::{Command, ExitStatus};
 
 unsafe extern "C" {
     fn syscall(number: c_long, ...) -> c_long;
+    fn dup2(source: c_int, destination: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn read(descriptor: c_int, bytes: *mut std::ffi::c_void, size: usize) -> isize;
     fn kill(pid: c_int, signal: c_int) -> c_int;
@@ -39,6 +40,36 @@ enum Process {
         pid: c_int,
         status: Option<ExitStatus>,
     },
+}
+
+/// One logical shell capture owns the same pair across executable attempts.
+pub struct CapturePipe {
+    reader: File,
+    writer: File,
+}
+
+pub enum CaptureSpawnError {
+    Prepare(io::Error),
+    Launch(io::Error),
+}
+
+impl CapturePipe {
+    fn new() -> io::Result<Self> {
+        let (reader, writer) = io::pipe()?;
+        Ok(Self {
+            reader: crate::process::private_descriptor(File::from(OwnedFd::from(reader)))?,
+            writer: crate::process::private_descriptor(File::from(OwnedFd::from(writer)))?,
+        })
+    }
+}
+
+fn prepare_capture_reader(stdout: File) -> io::Result<File> {
+    let stdout = crate::process::private_descriptor(stdout)?;
+    let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
+    if flags < 0 || unsafe { fcntl(stdout.as_raw_fd(), 4, flags | 0x800) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(stdout)
 }
 
 impl Child {
@@ -137,12 +168,41 @@ impl Child {
     }
 
     pub fn spawn_capture_ordered(
-        command: &mut Command,
+        mut command: Command,
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
-    ) -> io::Result<(Self, File)> {
-        image.configure_exec(command, arg0)?;
-        Self::spawn_capture(command)
+        capture: &mut Option<CapturePipe>,
+    ) -> Result<(Self, File), CaptureSpawnError> {
+        let pipe = match capture.as_ref() {
+            Some(pipe) => pipe,
+            None => capture.insert(CapturePipe::new().map_err(CaptureSpawnError::Prepare)?),
+        };
+        let writer = pipe.writer.as_raw_fd();
+        // SAFETY: the command is local to this call and spawns synchronously
+        // while the writer is owned by capture. In the forked child, dup2
+        // establishes stdout without moving either parent descriptor.
+        unsafe {
+            command.pre_exec(move || {
+                loop {
+                    if dup2(writer, 1) >= 0 {
+                        return Ok(());
+                    }
+                    let error = io::Error::last_os_error();
+                    if error.kind() != io::ErrorKind::Interrupted {
+                        return Err(error);
+                    }
+                }
+            });
+        }
+        image
+            .configure_exec(&mut command, arg0)
+            .map_err(CaptureSpawnError::Prepare)?;
+        let child = command.spawn().map_err(CaptureSpawnError::Launch)?;
+        let CapturePipe { reader, writer } = capture.take().expect("capture pipe exists");
+        drop(writer);
+        let child = Self::from_std(child);
+        let stdout = prepare_capture_reader(reader).map_err(CaptureSpawnError::Prepare)?;
+        Ok((child, stdout))
     }
 
     fn from_std(child: std::process::Child) -> Self {
@@ -172,12 +232,7 @@ impl Child {
         let mut child = command.spawn()?;
         let descriptor: OwnedFd = child.stdout.take().expect("piped stdout").into();
         let child = Self::from_std(child);
-        let stdout = crate::process::private_descriptor(File::from(descriptor))?;
-        let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
-        if flags < 0 || unsafe { fcntl(stdout.as_raw_fd(), 4, flags | 0x800) } < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        Ok((child, stdout))
+        Ok((child, prepare_capture_reader(File::from(descriptor))?))
     }
 
     pub fn id(&self) -> u32 {
