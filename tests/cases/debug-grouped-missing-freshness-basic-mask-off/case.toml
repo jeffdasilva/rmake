@@ -1,0 +1,12 @@
+id = "debug-grouped-missing-freshness-basic-mask-off"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Check grouped prerequisite diagnostics and side effects with missing or current peers."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "--debug=n", "a"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "built:a\n"
+stderr = ""

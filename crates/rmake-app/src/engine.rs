@@ -7922,7 +7922,8 @@ impl Engine {
                             inspected_stale || self.prerequisite_timestamp_stale(comparison, child);
                     }
                 }
-                if index >= owner_end {
+                // A missing peer makes the whole group absent for the trace.
+                if comparison.is_none() || index >= owner_end {
                     continue;
                 }
                 use crate::debug::Prerequisite;
