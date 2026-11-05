@@ -1,0 +1,20 @@
+{
+  "description": "Exact prior #167 normal borrowed FIFO sentinel. The fixture and invocation are retained as historical evidence.",
+  "prior_driver_sha256": "cc25833f7ad3506023bdf82cbaedfd05a0fef7d560a8ebe98fd57769bbbced46",
+  "prior_fixture_sha256": {
+    "Makefile": "79ec3794c6cbfac5de4a82593af109935ad2ad05c7e10510439a4bd6bbeb507c",
+    "child.mk": "211fb48390e647edd11e3f80eca25e6c53296a5ad43641b3e0933ccde8b1cdf9",
+    "worker.py": "c05abf1a54ecd7a9b6c92d391812c6f14d6057cbb02bd9fdc2a2cc0da4c2e68d"
+  },
+  "invocation": "execute(destination, candidate, candidate, 'fifo', True, b'QZ')",
+  "mode": "ordinary success",
+  "seed_hex": "515a",
+  "original_assertion": "sorted(tokens) == sorted(token_bytes)",
+  "original_expected_hex_sorted": "515a",
+  "gnu_4_4_1_observed_hex_sorted": "2b2b",
+  "gnu_4_4_1_observed_status": 0,
+  "gnu_4_4_1_observed_stdout": "complete\n",
+  "gnu_4_4_1_observed_stderr": "",
+  "prior_error_if_gnu_was_used": "borrowed token bytes changed/lost",
+  "current_expected_hex_sorted": "2b2b"
+}

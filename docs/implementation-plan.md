@@ -462,3 +462,9 @@ startup, actual recursion and self-exec at low descriptor limits. Borrowed
 wire numbers retain their original ownership and are checked against the live
 pipe identity before process replacement. The separately observed noncanonical
 return byte and parent fatal-loss differences remain open.
+
+[Ordinary jobserver release](../tests/jobserver-release/README.md) matches
+GNU Make's canonical byte at qualified completion and keeps a failed launch
+lease outstanding through the ordinary drain. Parent-fatal recovery and raw
+lease drop preserve bytes. The observed GNU parent-fatal token loss remains
+an open compatibility difference; no approved safety count changes.

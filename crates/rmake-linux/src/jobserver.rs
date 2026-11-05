@@ -206,6 +206,12 @@ impl Permit {
     pub fn is_implicit(&self) -> bool {
         self.server.is_none()
     }
+
+    /// Ordinary scheduler completion returns the protocol byte. A dropped
+    /// permit still recovers its original byte on an interrupted path.
+    pub fn release_completed(mut self) {
+        self.byte = b'+';
+    }
 }
 
 impl Drop for Permit {
