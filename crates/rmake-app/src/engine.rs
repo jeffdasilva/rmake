@@ -2802,8 +2802,11 @@ impl Engine {
                 };
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
-                if !self.ignores_file_rules(&makefile.name)
-                    && !self.resolve_implicit(&makefile.name)
+                // A recorded rule goes through normal traversal. Its implicit
+                // search can expand prerequisites with observable side effects.
+                if !self.database.rules.contains_key(name)
+                    && !self.ignores_file_rules(name)
+                    && !self.resolve_implicit(name)
                 {
                     self.remove_intermediates();
                     return 2;

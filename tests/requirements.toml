@@ -1882,3 +1882,13 @@ candidate_required = 8
 reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
 fixture_count = 8
 cases = ["debug-makefile-loop-basic-control", "debug-makefile-loop-optional-missing", "debug-makefile-loop-preflight-order", "debug-makefile-loop-present-double-colon", "debug-makefile-loop-required-missing", "debug-makefile-loop-rule-control", "debug-makefile-loop-spaced-name", "debug-makefile-loop-top-phony"]
+
+[[requirements]]
+id = "dynamic.remake-implicit-effects"
+title = "Single makefile implicit-rule search with secondary expansion"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 5
+reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
+fixture_count = 5
+cases = ["remake-secondary-once-explicit-resolved", "remake-secondary-once-explicit-unresolved", "remake-secondary-once-phony-control", "remake-secondary-once-recipe-control", "remake-secondary-once-unruled-unresolved"]
