@@ -22,7 +22,6 @@ use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule,
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
 };
-use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
@@ -36,6 +35,8 @@ use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
+
+type FilesystemRuntime = rmake_linux::filesystem::Runtime<crate::output::Controller>;
 
 #[cfg(not(feature = "guile"))]
 const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load";
