@@ -134,6 +134,11 @@ struct Loop<'a> {
     body: Source<'a>,
     output: Vec<u8>,
 }
+impl Loop<'_> {
+    fn storage(&self) -> usize {
+        self.name.capacity() + self.list.capacity() + self.output.capacity()
+    }
+}
 enum Kind<'a> {
     Read(Reader<'a>),
     Append(Reader<'a>),
@@ -168,7 +173,7 @@ enum Kind<'a> {
     Foreach(Vec<Source<'a>>, Option<Vec<u8>>),
     Let(Vec<Source<'a>>, Option<Vec<u8>>),
     Iterate(Loop<'a>),
-    Iterated(Loop<'a>),
+    Iterated(Loop<'a>, usize),
 }
 impl Kind<'_> {
     fn storage(&self) -> usize {
@@ -206,9 +211,8 @@ impl Kind<'_> {
                 args.capacity() * std::mem::size_of::<Source<'_>>()
                     + value.as_ref().map_or(0, Vec::capacity)
             }
-            Self::Iterate(state) | Self::Iterated(state) => {
-                state.name.capacity() + state.list.capacity() + state.output.capacity()
-            }
+            Self::Iterate(state) => state.storage(),
+            Self::Iterated(state, scope) => state.storage() + scope,
             _ => 0,
         }
     }
@@ -333,7 +337,7 @@ impl Expansion<'_, '_> {
             // foreach checks its separator after evaluating the body, even if
             // the body failed. Preserve that narrow error-precedence rule.
             while let Some(job) = m.jobs.pop() {
-                if let Kind::Iterated(mut state) = job.kind
+                if let Kind::Iterated(mut state, _) = job.kind
                     && state.index != 0
                     && let Err(replacement) = push(&mut state.output, b" ")
                 {
@@ -913,17 +917,29 @@ impl Expansion<'_, '_> {
             Kind::Iterate(mut state) => {
                 let next = word_spans(&state.list[state.cursor..]).next();
                 if let Some((a, b)) = next {
-                    let value = state.list[state.cursor + a..state.cursor + b].to_vec();
+                    let value = &state.list[state.cursor + a..state.cursor + b];
                     state.cursor += b;
-                    let start = self.bindings.len();
-                    self.bindings.push(LocalFrame {
-                        values: BTreeMap::from([(state.name.clone(), local(value))]),
-                        call: false,
-                    });
+                    let scope = if state.index == 0 {
+                        let start = self.bindings.len();
+                        self.bindings.push(LocalFrame {
+                            values: BTreeMap::from([(state.name.clone(), local(value.to_vec()))]),
+                            call: false,
+                        });
+                        m.job(Kind::ScopeEnd(start, 0), depth, nearest.clone())?;
+                        start
+                    } else {
+                        let index = self.bindings.len() - 1;
+                        let binding = self.bindings[index]
+                            .values
+                            .get_mut(&state.name)
+                            .expect("foreach binding");
+                        binding.value.clear();
+                        binding.value.extend_from_slice(value);
+                        index
+                    };
                     let body = state.body.clone();
-                    m.job(Kind::Iterated(state), depth, nearest.clone())?;
                     m.job(
-                        Kind::ScopeEnd(start, scope_storage(&self.bindings[start..])),
+                        Kind::Iterated(state, scope_storage(&self.bindings[scope..])),
                         depth,
                         nearest.clone(),
                     )?;
@@ -932,7 +948,7 @@ impl Expansion<'_, '_> {
                     m.values.push(state.output);
                 }
             }
-            Kind::Iterated(mut state) => {
+            Kind::Iterated(mut state, _) => {
                 let value = m.value();
                 if state.index != 0 {
                     push(&mut state.output, b" ")?;

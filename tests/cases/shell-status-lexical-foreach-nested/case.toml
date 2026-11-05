@@ -1,0 +1,12 @@
+id = "shell-status-lexical-foreach-nested"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: foreach nested"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parent=4 child-before=4 child-after=0 parent-after=4\nouter=[7] override simple\n"
+stderr = ""

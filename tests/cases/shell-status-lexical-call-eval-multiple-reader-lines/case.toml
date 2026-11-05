@@ -1,0 +1,12 @@
+id = "shell-status-lexical-call-eval-multiple-reader-lines"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: call eval multiple reader lines"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[5:5]\nafter=[5]\nouter=[7] override simple\n"
+stderr = ""

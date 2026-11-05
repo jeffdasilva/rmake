@@ -3139,13 +3139,13 @@ impl Database {
         bytes: &[u8],
         location: Option<&Location>,
         scope: Option<&mut VariableStore>,
-        bindings: Vec<crate::variables::LocalFrame>,
+        bindings: &mut Vec<crate::variables::LocalFrame>,
         active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
         context: ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         let previous_scope =
             std::mem::replace(&mut self.evaluation_scope, scope.as_deref().cloned());
-        let previous_bindings = std::mem::replace(&mut self.evaluation_bindings, bindings);
+        std::mem::swap(&mut self.evaluation_bindings, bindings);
         let previous_active = std::mem::replace(&mut self.evaluation_active, active);
         let result = self.read_evaluated(bytes, location, context);
         self.evaluation_active = previous_active;
@@ -3153,7 +3153,7 @@ impl Database {
             *scope = self.evaluation_scope.take().expect("evaluation scope");
         }
         self.evaluation_scope = previous_scope;
-        self.evaluation_bindings = previous_bindings;
+        std::mem::swap(&mut self.evaluation_bindings, bindings);
         result
     }
 

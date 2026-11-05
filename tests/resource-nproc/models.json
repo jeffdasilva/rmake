@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "direct-recipe",
+      "files": {
+        "Makefile": "all:; @/usr/bin/touch forbidden\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: /usr/bin/touch: Resource temporarily unavailable\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "shell-recipe",
+      "files": {
+        "Makefile": "all:; @/usr/bin/touch forbidden && /usr/bin/touch never\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: /bin/sh: Resource temporarily unavailable\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "ignored-recipe",
+      "files": {
+        "Makefile": "all:\n\t-@/usr/bin/touch forbidden\n\t@:\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: /usr/bin/touch: Resource temporarily unavailable\nmake: [Makefile:2: all] Error 127 (ignored)\n",
+      "stdout": "",
+      "status": 0
+    },
+    {
+      "id": "keep-going-target-sync",
+      "files": {
+        "Makefile": ".PHONY: all a b\nall: a b\na:; /usr/bin/touch a\nb:; /usr/bin/touch b\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-k",
+        "-j2",
+        "-Otarget"
+      ],
+      "stderr": "make: /usr/bin/touch: Resource temporarily unavailable\nmake: *** [Makefile:3: a] Error 127\nmake: /usr/bin/touch: Resource temporarily unavailable\nmake: *** [Makefile:4: b] Error 127\nmake: Target 'all' not remade because of errors.\n",
+      "stdout": "/usr/bin/touch a\n/usr/bin/touch b\n",
+      "status": 2
+    },
+    {
+      "id": "reader-shell-function",
+      "files": {
+        "Makefile": "VALUE := $(shell /usr/bin/touch forbidden)\n$(info result=$(VALUE); status=$(.SHELLSTATUS))\nall:; @:\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: /usr/bin/touch: Resource temporarily unavailable\n",
+      "stdout": "result=; status=127\n",
+      "status": 0
+    },
+    {
+      "id": "reader-shell-assignment",
+      "files": {
+        "Makefile": "VALUE != /usr/bin/touch forbidden\n$(info result=$(VALUE); status=$(.SHELLSTATUS))\nall:; @:\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: /usr/bin/touch: Resource temporarily unavailable\n",
+      "stdout": "result=; status=127\n",
+      "status": 0
+    },
+    {
+      "id": "recipe-shell-line-sync",
+      "files": {
+        "Makefile": "all:; @$(info result=$(shell /usr/bin/touch forbidden); status=$(.SHELLSTATUS)):\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Oline"
+      ],
+      "stderr": "make: /usr/bin/touch: Resource temporarily unavailable\n",
+      "stdout": "result=; status=127\n",
+      "status": 0
+    },
+    {
+      "id": "recursive-pipe-setup",
+      "files": {
+        "Makefile": "all:; +@$(MAKE) -f child.mk all\n",
+        "child.mk": "all:; @/usr/bin/touch forbidden\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "stderr": "make: @MAKE@: Resource temporarily unavailable\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "missing-direct-program",
+      "files": {
+        "Makefile": "all:; @./missing-command\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: ./missing-command: No such file or directory\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "missing-path-program",
+      "files": {
+        "Makefile": "all:; @rmake-nproc-missing-command\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: rmake-nproc-missing-command: No such file or directory\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "nonexecutable-program",
+      "files": {
+        "Makefile": "all:; @./blocked\n",
+        "blocked": "not executable\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: ./blocked: Permission denied\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "missing-shell-capture",
+      "files": {
+        "Makefile": "VALUE := $(shell rmake-nproc-missing-command)\n$(info result=$(VALUE); status=$(.SHELLSTATUS))\nall:; @:\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: rmake-nproc-missing-command: No such file or directory\n",
+      "stdout": "result=; status=127\n",
+      "status": 0
+    },
+    {
+      "id": "directory-is-not-executable",
+      "files": {
+        "Makefile": "all:; @./blocked-directory\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: ./blocked-directory: Permission denied\nmake: *** [Makefile:1: all] Error 127\n",
+      "stdout": "",
+      "status": 2,
+      "directories": [
+        "blocked-directory"
+      ]
+    },
+    {
+      "id": "bare-program-after-directory",
+      "files": {
+        "Makefile": "export PATH := .:/usr/bin\nall:; @touch forbidden\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: touch: Resource temporarily unavailable\nmake: *** [Makefile:2: all] Error 127\n",
+      "stdout": "",
+      "status": 2,
+      "directories": [
+        "touch"
+      ]
+    },
+    {
+      "id": "path-denied-then-missing",
+      "files": {
+        "Makefile": "export PATH := .:./absent-dir:/usr/bin\nall:; @rmake-nproc-denied-probe\n",
+        "rmake-nproc-denied-probe": "not executable\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: rmake-nproc-denied-probe: Permission denied\nmake: *** [Makefile:2: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    },
+    {
+      "id": "path-last-non-missing-error",
+      "files": {
+        "Makefile": "export PATH := .:./not-directory\nall:; @rmake-nproc-denied-probe\n",
+        "rmake-nproc-denied-probe": "not executable\n",
+        "not-directory": "regular\n"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stderr": "make: rmake-nproc-denied-probe: Not a directory\nmake: *** [Makefile:2: all] Error 127\n",
+      "stdout": "",
+      "status": 2
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+id = "shell-status-lexical-foreach-fresh"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: foreach fresh"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[undefined|1:override] [override|1:override]\nouter=[] undefined undefined\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "shell-status-lexical-foreach-retains-status"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: foreach retains status"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[a:7/0] [b:0/0]\nouter=[7] override simple\n"
+stderr = ""
