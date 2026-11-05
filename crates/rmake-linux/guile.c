@@ -205,6 +205,8 @@ extern int rg_guile_prepare_interrupts(void);
 extern int rg_guile_pending_signal(void);
 extern void rm_native_interrupt_request(int);
 static int module_ready;
+static SCM scalar_binding;
+static SCM default_scalar_converter;
 static atomic_int guile_entered;
 static atomic_uint leading_evaluations;
 int rg_guile_leading_evaluator_active(void) {
@@ -232,9 +234,16 @@ static SCM scalar_text(SCM value) {
     return scm_call_2(scm_c_public_ref("guile","error"),
                       scm_from_locale_string("Unknown object:"),value);
 }
+static SCM convert_scalar(SCM value) {
+    /* Scheme code can rebind the converter, even while walking a list. */
+    SCM converter = scm_variable_ref(scalar_binding);
+    if (scm_is_eq(converter, default_scalar_converter))
+        return scalar_text(value);
+    return scm_call_1(converter, value);
+}
 static SCM object_text(SCM value) {
     if (!scm_is_pair(value)) {
-        SCM text = scalar_text(value);
+        SCM text = convert_scalar(value);
         return scm_is_false(text) ? scm_from_utf8_string("") : text;
     }
     SCM work=scm_list_1(scm_cons(SCM_BOOL_F,value));
@@ -257,7 +266,7 @@ static SCM object_text(SCM value) {
             work=scm_cons(scm_cons(SCM_BOOL_F,scm_cdr(current)),work);
             work=scm_cons(scm_cons(SCM_BOOL_F,scm_car(current)),work);
         }else {
-            SCM text=scalar_text(current);
+            SCM text=convert_scalar(current);
             if (scm_is_true(text))
                 parts = scm_cons(text, parts);
         }
@@ -301,7 +310,8 @@ static void define_module(void *unused) {
     scm_c_define_gsubr("gmk-expand",1,0,0,make_expand);
     scm_c_define_gsubr("gmk-eval",1,0,0,make_evaluate);
     scm_c_define_gsubr("obj-to-str", 1, 0, 0, object_text);
-    scm_c_define_gsubr("to-string-maybe", 1, 0, 0, scalar_text);
+    default_scalar_converter = scm_c_define_gsubr("to-string-maybe", 1, 0, 0, scalar_text);
+    scalar_binding = scm_c_lookup("to-string-maybe");
     scm_c_define_gsubr("gmk-var", 1, 0, 0, make_variable);
     scm_c_export("gmk-expand", "gmk-eval", "gmk-var", NULL);
 }

@@ -71,6 +71,13 @@
       "plan_sha256": "5f676f160317ab7c7b238c6e21ee6a99690a1e34666943dab903a198ce104735",
       "schema": "files",
       "count": 1
+    },
+    {
+      "name": "live-converter",
+      "plan": "live-converter.json",
+      "plan_sha256": "acabbed9e13bc0daac90a16f74dee2b65eed8f3e437ba67349dda02c82ca2aed",
+      "schema": "files",
+      "count": 5
     }
   ]
 }
