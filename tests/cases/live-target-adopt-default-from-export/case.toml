@@ -1,0 +1,12 @@
+id = "live-target-adopt-default-from-export"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Adopt a caller command value while retaining destination target metadata."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "LIVE=cli", "all", "other"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "value=[cli] origin=[command line] flavor=[recursive]\nother=[unset]\n"
+stderr = ""
