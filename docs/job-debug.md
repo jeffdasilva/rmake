@@ -105,3 +105,20 @@ compiled French catalog. See the translator and license records in
 [catalogs/provenance.json](../catalogs/provenance.json) and
 [catalogs/COPYING](../catalogs/COPYING). The existing workers and observers
 supply the independently verified identities and effects.
+
+## Controller and load observations
+
+`make test-job-debug-load` and `make test-job-debug-load-release` compare
+owned, inherited and disabled controllers under verbose debug in C and French.
+The reader marker fixes the controller's publication phase independently of
+when descriptors are attached.
+
+The load cases use an original preload fixture to supply fixed Linux runnable
+counts or a fixed fallback average. They cover interrupted reads, malformed
+bytes, errno detail, the first fallback sample and a disabled limit. The
+literal load lines occupy declared positions in the existing JOBS event
+protocol. The live-child and full filesystem witnesses still validate every
+other event and effect. Fallback pressure advances at the first sample in a
+new libc wall-clock second and accounts for actual child launches and reaps.
+The raw load messages follow GNU Make 4.4.1's Linux `load_too_high` producer.
+The numerical fields use the active libc numeric locale.

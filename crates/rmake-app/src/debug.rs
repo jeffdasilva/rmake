@@ -487,7 +487,7 @@ impl Jobs {
         raw(&[&localized(key, arguments)]);
     }
     pub fn controller(mask: Mask, authentication: &[u8]) {
-        if mask.has(Mask::JOBS) {
+        if mask.has(Mask::JOBS) || mask.has(Mask::VERBOSE) {
             Self::emit(msg::JOB_CONTROLLER, &[bytes(authentication)]);
         }
     }
@@ -595,6 +595,48 @@ impl Jobs {
                 b" jobserver tokens.\n",
             ]);
         }
+    }
+}
+
+pub fn load(observation: crate::load::Observation<'_>, limit: f64, running: usize) {
+    use crate::load::Observation;
+    use rmake_linux::process::load_debug_spelling as number;
+
+    match observation {
+        Observation::Method { procfs: true } => {
+            raw(&[b"Using /proc/loadavg load detection method.\n"])
+        }
+        Observation::Method { procfs: false } => raw(&[b"Using system load detection method.\n"]),
+        Observation::Running(system) => raw(&[
+            b"Running: system = ",
+            system.to_string().as_bytes(),
+            b" / make = ",
+            running.to_string().as_bytes(),
+            b" (max requested = ",
+            &number(limit),
+            b")\n",
+        ]),
+        Observation::Malformed(bytes) => {
+            let end = bytes
+                .iter()
+                .position(|byte| *byte == 0)
+                .unwrap_or(bytes.len());
+            raw(&[b"Failed to parse /proc/loadavg: ", &bytes[..end], b"\n"]);
+        }
+        Observation::ReadFailure(error) => {
+            let reason = rmake_linux::filesystem::source_error_detail(error);
+            raw(&[b"Failed to read /proc/loadavg: ", &reason, b"\n"]);
+        }
+        Observation::Estimate { estimated, actual } => raw(&[
+            b"Estimated system load = ",
+            &number(estimated),
+            b" (actual = ",
+            &number(actual),
+            b") (max requested = ",
+            &number(limit),
+            b")\n",
+        ]),
+        Observation::AverageFailure(_) => {}
     }
 }
 
