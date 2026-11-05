@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "models": [
+    {
+      "id": "explicit-missing-with-version",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--version",
+        "VALUE:=$(info eager)$(file >>seen,eager)",
+        "--sync-mutex=fnm:absent"
+      ],
+      "inputs": {
+        "Makefile": "$(file >>seen,forbidden)\nall:;@:\n",
+        "lock": "",
+        "seen": "anchor\n"
+      },
+      "seen": "anchor\neager\n",
+      "remove": [],
+      "stdout": "eager\n@EXPLICIT_VERSION@",
+      "stderr": "make: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "explicit-missing-with-spooled-version",
+      "environment": {
+        "GNUMAKEFLAGS": "-Otarget --sync-mutex=fnm:lock"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--version",
+        "VALUE:=$(info eager)$(file >>seen,eager)",
+        "--sync-mutex=fnm:absent"
+      ],
+      "inputs": {
+        "Makefile": "$(file >>seen,forbidden)\nall:;@:\n",
+        "lock": "",
+        "seen": "anchor\n"
+      },
+      "seen": "anchor\neager\n",
+      "remove": [],
+      "stdout": "@EXPLICIT_VERSION@eager\nmake: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "stderr": "",
+      "status": 2,
+      "merged": true
+    }
+  ]
+}

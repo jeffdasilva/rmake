@@ -1,0 +1,17 @@
+id = "shell-initial-env-ordinary-inherited-environment-remains-literal"
+requirement = "shell.initial-environment"
+candidate = "required"
+description = "Ordinary inherited environment remains literal."
+provenance = "Original rmake fixture with a literal shell execution and child environment journal."
+args = ["-rR", "--no-print-directory", "EAGER:=$(shell /usr/bin/python3 -B witness.py argv)"]
+timeout_seconds = 4
+
+[environment]
+SHELL = "/bin/sh"
+MAKEFLAGS = "-s"
+OTHER = "$(shell /usr/bin/python3 -B witness.py forbidden)"
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** reader stop.  Stop.\n"

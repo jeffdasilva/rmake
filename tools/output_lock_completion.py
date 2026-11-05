@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Check output-mutex completion in five catalog profiles against two GNU runs."""
+"""Check output-mutex completion and all release catalogs against two GNU runs."""
 
 import argparse
 from dataclasses import dataclass, field
@@ -12,9 +12,9 @@ import os
 from pathlib import Path
 import tempfile
 
+import catalogs
 import conformance as h
 import nls_diagnostics as nls
-from trace_job_languages import CATALOGS
 from trace_nls import CATALOG_HASH, file_entry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +28,8 @@ INVALID_TAG = "invalid --sync-mutex string '%s'"
 OPEN_ERROR = 'cannot open output sync mutex %s: %s'
 MODE_ERROR = ("unknown output-sync type '%s'", (b'broken',))
 STOP = '.  Stop.\n'
+FULL_LANGUAGES = {'C', 'fr', 'de', 'ja', 'pt_BR'}
+CATALOG_CONTROLS = {'cli-invalid-tag', 'cli-raw-path', 'live-mode-first'}
 
 
 @dataclass(frozen=True)
@@ -134,16 +136,18 @@ def main():
     catalog_root = french.parents[2]
     languages = [('C', {}, str.encode)]
     localized = {**locale['environment'], 'LC_ALL': locale['locale'], 'LANG': locale['locale']}
-    for language, digest in {'fr': CATALOG_HASH, **CATALOGS}.items():
-        path = Path(language) / 'LC_MESSAGES/make.mo'
-        for base in (catalog_root, ROOT / 'catalogs'):
-            if h.sha256_file(base / path) != digest:
-                raise h.HarnessError('incorrect output lock catalog: ' + language)
+    directory = ROOT / 'catalogs'
+    digests = json.loads((directory / 'provenance.json').read_bytes())['files']
+    for language, path in catalogs.catalog_paths(directory).items():
+        if h.sha256_file(catalog_root / path) != digests[path]:
+            raise h.HarnessError('incorrect output lock catalog: ' + language)
         with (catalog_root / path).open('rb') as stream:
             catalog = gettext.GNUTranslations(stream)
         languages.append((language, {**localized, 'LANGUAGE': language},
                           lambda key, catalog=catalog: catalog.gettext(key).encode()))
     inventory = models()
+    declared = sum(language in FULL_LANGUAGES or model.name in CATALOG_CONTROLS
+                   for model in inventory for language, _, _ in languages)
     with tempfile.TemporaryDirectory(prefix='rmake-output-lock-') as directory:
         root = Path(directory)
         runtime = root / 'runtime'
@@ -154,6 +158,8 @@ def main():
             for name, contents in {'Makefile': model.makefile, **model.inputs}.items():
                 (fixture / name).write_bytes(contents)
             for language, environment, lookup in languages:
+                if language not in FULL_LANGUAGES and model.name not in CATALOG_CONTROLS:
+                    continue
                 stderr = b''
                 if model.invalid_warnings:
                     warning = b'make: ' + (lookup(INVALID_TAG) % (b'broken',)) + b'\n'
@@ -189,7 +195,7 @@ def main():
                 print('PASS' if row['passed'] else 'FAIL', case.id,
                       [run['differences'] for run in row['runs']], flush=True)
     passed = sum(row['passed'] for row in report['cases'])
-    report['totals'] = {'cases': len(inventory) * len(languages), 'pass': passed}
+    report['totals'] = {'cases': declared, 'pass': passed}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')
     return int(passed != report['totals']['cases'])

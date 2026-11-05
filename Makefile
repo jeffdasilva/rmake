@@ -26,6 +26,7 @@ OUTPUT_LOCK_REPORT ?= artifacts/output-lock-completion/development.json
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-roomy-wake-slots test-roomy-wake-slots-release
 .PHONY: test-output-lock-completion test-output-lock-completion-release
+.PHONY: test-startup-output-mutex test-startup-output-mutex-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
@@ -338,6 +339,16 @@ test-shell-capture-lifetime-release: release oracle-verify
 	$(PYTHON) tools/shell_capture_low_slots.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/low-slots-optimized.json
 	$(PYTHON) tools/shell_capture_cached_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/cached-spool-optimized.json
 
+.PHONY: test-native-spawn-stdio test-native-spawn-stdio-release
+test-native-spawn-stdio: build oracle-verify
+	$(PYTHON) tools/native_spawn_stdio.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native/spawn-stdio-development.json
+
+test-native-spawn-stdio-release: release oracle-verify
+	$(PYTHON) tools/native_spawn_stdio.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/spawn-stdio-optimized.json
+
+test check: test-native-spawn-stdio
+test-m4-release: test-native-spawn-stdio-release
+
 test-roomy-wake-slots: build oracle-verify
 	$(PYTHON) tools/shell_capture_launch_failure.py --roomy-slots --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/capture-development.json
 	$(PYTHON) tools/jobserver_wake_slots.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/roomy-wake-slots/auth-development.json
@@ -428,6 +439,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FILE_SIZE_CASE=stdin-4096-limit-128 test-resource-file-size
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" STDOUT_FILE_SIZE_CASE=native-host-stdout-ferror test-stdout-file-size
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_RESTART_STDIO_REPORT=artifacts/process-restarts/native-stdio-selfhost.json test-native-restart-stdio
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESTART_ENVIRONMENT_CASE=raw-ordered-vector test-restart-environment
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-roomy-wake-slots
@@ -448,6 +460,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_TRAVERSAL_CASE=chain-secondary test-debug-traversal
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_TRAVERSAL_CASE=generated-include test-debug-traversal-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" OUTPUT_LOCK_REPORT=artifacts/output-lock-completion/selfhost.json test-output-lock-completion
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-startup-output-mutex
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_VERBOSE_CASE=vpath-no-update test-debug-verbose
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOB_DEBUG_CASE=jobs-serial-multiline test-job-debug
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
@@ -612,6 +625,17 @@ test-stdout-file-size: build oracle-verify
 test-process-restarts: build oracle-verify
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/process-restarts/development.json $(if $(PROCESS_RESTART_CASE),--case "$(PROCESS_RESTART_CASE)")
 
+.PHONY: test-native-restart-stdio test-native-restart-stdio-release
+NATIVE_RESTART_STDIO_REPORT ?= artifacts/process-restarts/native-stdio-development.json
+test-native-restart-stdio: build oracle-verify
+	$(PYTHON) tools/native_restart_stdio.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(NATIVE_RESTART_STDIO_REPORT)"
+
+test-native-restart-stdio-release: release oracle-verify
+	$(PYTHON) tools/native_restart_stdio.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/native-stdio-optimized.json
+
+test check: test-native-restart-stdio
+test-m4-release: test-native-restart-stdio-release
+
 test-restart-environment: build oracle-verify
 	$(PYTHON) tools/restart_environment.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/restart-environment/development.json $(if $(RESTART_ENVIRONMENT_CASE),--case "$(RESTART_ENVIRONMENT_CASE)")
 
@@ -695,6 +719,13 @@ test-output-lock-completion: build oracle-verify catalog-check
 
 test-output-lock-completion-release: release oracle-verify catalog-check
 	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/optimized.json
+
+test-startup-output-mutex: build oracle-verify
+	$(PYTHON) tools/startup_output_mutex.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/startup-output-mutex/development.json
+
+test-startup-output-mutex-release: release oracle-verify
+	$(PYTHON) tools/startup_output_mutex.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/startup-output-mutex/optimized.json
+
 
 test-trace-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-development.json
@@ -805,6 +836,9 @@ check: test-integration test-database-output test-database-lifecycle test-databa
 
 test check: test-output-lock-completion
 test-m4-release: test-output-lock-completion-release
+
+test check: test-startup-output-mutex
+test-m4-release: test-startup-output-mutex-release
 
 test: test-trace-nls
 check: test-trace-nls

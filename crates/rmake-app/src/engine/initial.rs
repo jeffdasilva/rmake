@@ -126,9 +126,10 @@ impl Plan {
             .output
             .as_ref()
             .is_some_and(|output| output.has_directory_trace());
-        if let Err(error) = rmake_linux::native::flush_standard_streams() {
-            return error;
-        }
+        // Only flush the public streams here. Exec discards plugin-owned
+        // buffers, and a standard-stream write failure does not cancel it.
+        let _ = rmake_linux::native::flush_stream(false);
+        let _ = rmake_linux::native::flush_stream(true);
         rmake_linux::environment::exec_live_restart(
             self.restart_program(),
             rewritten.as_deref().unwrap_or(&self.args),
@@ -347,6 +348,10 @@ impl Plan {
                     parsed_prefix
                         .decode_debug()
                         .map_err(|error| StartupError::from(Diagnostic::from(error)))?;
+                    if let Some(authentication) = &parsed_prefix.sync_mutex {
+                        output_mode(parsed_prefix.output_sync.as_deref())?;
+                        state.complete_mutex(authentication)?;
+                    }
                     prefix_count += count;
                     state
                         .database
@@ -400,26 +405,27 @@ impl Plan {
                 .database
                 .variables
                 .set_environment_override(selected_policy.1);
+            let mut buffered_failure = |mut error: StartupError| {
+                if rmake_linux::signals::pending().is_none()
+                    && let Some(buffer) = &reader_output
+                {
+                    state.output.write_parts(
+                        true,
+                        &[
+                            &error.prefix(&self.program),
+                            b"*** ",
+                            &crate::messages::diagnostic(&error.message),
+                            &crate::messages::stop_for(&error.message),
+                        ],
+                    );
+                    error.buffered = Some(buffer.clone());
+                    construction.disarm();
+                }
+                InvocationError::Expansion(error)
+            };
             let mut options = match decoded {
                 Ok(options) => options,
-                Err(InvocationError::Expansion(mut error)) => {
-                    if rmake_linux::signals::pending().is_none()
-                        && let Some(buffer) = &reader_output
-                    {
-                        state.output.write_parts(
-                            true,
-                            &[
-                                &error.prefix(&self.program),
-                                b"*** ",
-                                &crate::messages::diagnostic(&error.message),
-                                &crate::messages::stop_for(&error.message),
-                            ],
-                        );
-                        error.buffered = Some(buffer.clone());
-                        construction.disarm();
-                    }
-                    return Err(InvocationError::Expansion(error));
-                }
+                Err(InvocationError::Expansion(error)) => return Err(buffered_failure(error)),
                 Err(error) => return Err(error),
             };
             if options.invalid_usage {
@@ -433,6 +439,12 @@ impl Plan {
                 error
             })?;
             output_mode(options.output_sync.as_deref())?;
+            if let Some(authentication) = &options.sync_mutex {
+                state.complete_mutex(authentication).map_err(|mut error| {
+                    error.version = options.version;
+                    buffered_failure(error)
+                })?;
+            }
             let shuffle = if options.help || options.version {
                 crate::shuffle::Mode::None
             } else {
@@ -519,6 +531,12 @@ struct State {
 }
 
 impl State {
+    fn complete_mutex(&self, authentication: &[u8]) -> Result<(), StartupError> {
+        self.output.decode_mutex(authentication).map_err(|error| {
+            Diagnostic::from(crate::usage::sync_mutex_open(authentication, &error)).into()
+        })
+    }
+
     fn evaluate<T>(
         &mut self,
         program: &[u8],

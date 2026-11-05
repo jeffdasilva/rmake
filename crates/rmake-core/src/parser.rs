@@ -2811,22 +2811,16 @@ impl Database {
                 let invalid = |context: &mut ExpansionContext<'_>| {
                     ParseError::system(location.clone(), Message::InvalidConditional, context)
                 };
-                let (left, right, extra) = if args.starts_with(b"(") {
-                    // The outer parentheses delimit the directive; literal
-                    // parentheses within either argument also nest. Do not
-                    // expand first: commas created by expansion are data.
-                    let mut depth = 1usize;
+                let (left, right, extra) = if matches!(args.first(), Some(b'(' | b',')) {
+                    // The first operand can include literal closing parentheses.
+                    // A comma ends it once no unmatched opener precedes it.
+                    let mut depth = 0isize;
                     let mut comma = None;
                     for (index, byte) in args.iter().copied().enumerate().skip(1) {
                         match byte {
                             b'(' => depth += 1,
-                            b')' => {
-                                depth -= 1;
-                                if depth == 0 {
-                                    break;
-                                }
-                            }
-                            b',' if depth == 1 => {
+                            b')' => depth -= 1,
+                            b',' if depth <= 0 => {
                                 comma = Some(index);
                                 break;
                             }
@@ -2842,6 +2836,7 @@ impl Database {
                         .rposition(|byte| !matches!(byte, b' ' | b'\t'))
                         .map_or(0, |i| i + 1);
                     let left = self.expand(&left[..left_end], location, context)?;
+                    let mut depth = 1usize;
                     let mut closing = None;
                     for (index, byte) in args.iter().copied().enumerate().skip(comma + 1) {
                         match byte {
@@ -2874,16 +2869,19 @@ impl Database {
                         + 1;
                     let left = self.expand(&args[1..end], location, context)?;
                     let rest = assignment_start(&args[end + 1..]);
-                    let quote2 = *rest.first().ok_or_else(|| invalid(context))?;
-                    if quote2 != b'\'' && quote2 != b'"' {
-                        return Err(invalid(context));
-                    }
-                    let end2 = rest[1..]
-                        .iter()
-                        .position(|b| *b == quote2)
-                        .ok_or_else(|| invalid(context))?
-                        + 1;
-                    (left, &rest[1..end2], &rest[end2 + 1..])
+                    let (right, extra) = match *rest.first().ok_or_else(|| invalid(context))? {
+                        b')' => (&b""[..], &rest[1..]),
+                        quote @ (b'\'' | b'"') => {
+                            let end = rest[1..]
+                                .iter()
+                                .position(|b| *b == quote)
+                                .ok_or_else(|| invalid(context))?
+                                + 1;
+                            (&rest[1..end], &rest[end + 1..])
+                        }
+                        _ => return Err(invalid(context)),
+                    };
+                    (left, right, extra)
                 };
                 if !assignment_start(extra).is_empty() {
                     record_warning(

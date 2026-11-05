@@ -1,0 +1,17 @@
+id = "shell-initial-env-inherited-gnumakeflags-cleared-before-argv-shell"
+requirement = "shell.initial-environment"
+candidate = "required"
+description = "Inherited gnumakeflags cleared before argv shell."
+provenance = "Original rmake fixture with a literal shell execution and child environment journal."
+args = ["-rR", "--no-print-directory", "EAGER:=$(shell /usr/bin/python3 -B witness.py argv)"]
+timeout_seconds = 4
+
+[environment]
+SHELL = "/bin/sh"
+GNUMAKEFLAGS = "$(shell /usr/bin/python3 -B witness.py gnu)-s"
+MAKEFLAGS = "-s"
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** reader stop.  Stop.\n"

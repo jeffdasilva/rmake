@@ -1,0 +1,244 @@
+{
+  "schema": 1,
+  "models": [
+    {
+      "id": "inherited-gnu-missing",
+      "environment": {
+        "GNUMAKEFLAGS": "$(file >seen,gnu)--sync-mutex=fnm:absent",
+        "MAKEFLAGS": "$(file >>seen,make)-s"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(file >>seen,argv)"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n"
+      },
+      "seen": "gnu\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "make: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "inherited-make-missing",
+      "environment": {
+        "GNUMAKEFLAGS": "$(file >seen,gnu)-s",
+        "MAKEFLAGS": "$(file >>seen,make)--sync-mutex=fnm:absent"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(file >>seen,argv)"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n"
+      },
+      "seen": "gnu\nmake\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "make: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "nonempty-make-reopens-retained-lock",
+      "environment": {
+        "GNUMAKEFLAGS": "--sync-mutex=fnm:lock",
+        "MAKEFLAGS": "$(file >seen,make)$(shell /usr/bin/rm -- lock)-s",
+        "SHELL": "/bin/sh"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(file >>seen,argv)"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n",
+        "lock": ""
+      },
+      "seen": "make\n",
+      "remove": [
+        "lock"
+      ],
+      "stdout": "",
+      "stderr": "make: *** cannot open output sync mutex lock: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "empty-make-defers-retained-reopen",
+      "environment": {
+        "GNUMAKEFLAGS": "--sync-mutex=fnm:lock",
+        "MAKEFLAGS": "$(file >seen,make-empty)$(shell /usr/bin/rm -- lock)",
+        "SHELL": "/bin/sh"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(file >>seen,argv)"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n",
+        "lock": ""
+      },
+      "seen": "make-empty\nargv\n",
+      "remove": [
+        "lock"
+      ],
+      "stdout": "",
+      "stderr": "make: *** cannot open output sync mutex lock: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "invalid-repeated-before-explicit-replacement",
+      "environment": {
+        "GNUMAKEFLAGS": "--sync-mutex=broken",
+        "MAKEFLAGS": "$(file >seen,make)-s"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(file >>seen,argv)",
+        "--sync-mutex=fnm:absent"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n"
+      },
+      "seen": "make\nargv\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "make: invalid --sync-mutex string 'broken'\nmake: invalid --sync-mutex string 'broken'\nmake: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "invalid-empty-explicit-completion",
+      "environment": {
+        "GNUMAKEFLAGS": "--sync-mutex=broken"
+      },
+      "args": [],
+      "inputs": {
+        "Makefile": "$(file >>seen,reader)\n$(error reader stop)\n"
+      },
+      "seen": "reader\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "make: invalid --sync-mutex string 'broken'\nmake: invalid --sync-mutex string 'broken'\nMakefile:2: *** reader stop.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "valid-visible-before-later-effects",
+      "environment": {
+        "GNUMAKEFLAGS": "--sync-mutex=fnm:lock",
+        "MAKEFLAGS": "$(if $(wildcard seen),,$(shell /usr/bin/python3 -B witness.py make))-s",
+        "SHELL": "/bin/sh"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(shell /usr/bin/python3 -B witness.py argv)"
+      ],
+      "inputs": {
+        "Makefile": "$(file >>seen,reader)\n$(error reader stop)\n",
+        "lock": ""
+      },
+      "seen": "make-open=yes child-inherited=no\nargv-open=yes child-inherited=no\nreader\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "Makefile:2: *** reader stop.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "explicit-open-before-directory-change",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--sync-mutex=fnm:lock",
+        "-C",
+        "sub"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n",
+        "lock": "",
+        "sub/Makefile": "$(file >>../seen,reader)\n$(error reader stop)\n"
+      },
+      "seen": "reader\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "Makefile:2: *** reader stop.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "explicit-missing-before-directory-change",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--sync-mutex=fnm:lock",
+        "-C",
+        "sub"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n",
+        "sub/lock": "",
+        "sub/Makefile": "$(file >>../seen,forbidden)\nall:;@:\n"
+      },
+      "seen": null,
+      "remove": [],
+      "stdout": "",
+      "stderr": "make: *** cannot open output sync mutex lock: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    },
+    {
+      "id": "explicit-missing-in-inherited-reader-buffer",
+      "environment": {
+        "GNUMAKEFLAGS": "-Otarget --sync-mutex=fnm:lock"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "X:=$(info argv)$(file >seen,argv)",
+        "--sync-mutex=fnm:absent"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n",
+        "lock": ""
+      },
+      "seen": "argv\n",
+      "remove": [],
+      "stdout": "argv\nmake: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "stderr": "",
+      "status": 2,
+      "merged": true
+    },
+    {
+      "id": "explicit-missing-before-help",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--help",
+        "--sync-mutex=fnm:absent",
+        "X:=$(file >>seen,argv)"
+      ],
+      "inputs": {
+        "Makefile": "all:;@printf 'recipe\\n'\n"
+      },
+      "seen": "argv\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "make: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n",
+      "status": 2,
+      "merged": false
+    }
+  ]
+}
