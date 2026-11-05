@@ -52,3 +52,21 @@ gates and optimized conformance pass with 2,813 corpus cases: 2,801 required
 matches and 12 existing pending mismatches. Stateful coverage remains 50 scenarios
 / 133 invocations. No upstream code or tests were copied. M4/M8 remain open; see
 [archive VPATH](archive-vpath.md) for the resolution scope and remaining work.
+
+## Search path allocation
+
+The Linux traversal reserves the complete VPATH or GPATH search spelling
+before writing it. It preserves the byte spelling, including GNU's trailing
+separator behavior, and uses the same lookup and filesystem observations.
+
+The preceding and updated optimized binaries were built in the same checkout.
+Three allocation-only repetitions per binary used identical arguments and
+environment. Both binaries and two GNU 4.4.1 runs produced identical streams,
+statuses and file snapshots for each workload.
+
+| Workload | Allocation requests before | After | Requested bytes before | After |
+| --- | ---: | ---: | ---: | ---: |
+| 1,000 VPATH misses | 74,277 | 42,261 | 4,837,279 | 4,677,215 |
+| 1,000 explicit VPATH records | 46,640 | 44,638 | 5,533,131 | 5,510,111 |
+| 1,000 GPATH aliases | 55,666 | 53,664 | 6,350,382 | 6,332,366 |
+| Tiny no-op control | 350 | 350 | 175,750 | 175,750 |
