@@ -56,3 +56,8 @@ pub mod clock;
 // Percentage diagnostics use the live libc locale/fenv on the same OS thread.
 #[allow(unsafe_code)]
 pub mod database_numeric;
+
+// Explicit component only: no function registration or public profile claim.
+#[cfg(feature = "guile")]
+#[allow(unsafe_code)]
+pub mod guile;
