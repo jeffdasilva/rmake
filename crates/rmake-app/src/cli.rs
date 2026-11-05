@@ -168,7 +168,7 @@ impl UsageIssue {
 #[derive(Clone)]
 pub(crate) enum Argument {
     Definition(usize),
-    File(usize),
+    File(usize, Option<FileArgument>),
     OldFile(usize),
     NewFile(usize),
     Directory(usize),
@@ -189,7 +189,7 @@ pub enum DirectoryChoice {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct StdinArgument {
+pub(crate) struct FileArgument {
     pub(crate) argument: usize,
     pub(crate) consumed: usize,
     pub(crate) prefix: usize,
@@ -199,7 +199,6 @@ pub(crate) struct StdinArgument {
 pub struct Options {
     pub files: Vec<PathBuf>,
     pub(crate) temp_stdin_file: Option<usize>,
-    pub(crate) stdin_argument: Option<StdinArgument>,
     pub old_files: Vec<PathBuf>,
     pub new_files: Vec<PathBuf>,
     pub evals: Vec<Vec<u8>>,
@@ -568,20 +567,18 @@ impl Decoder {
                             } else {
                                 if name == b"--temp-stdin" {
                                     result.temp_stdin_file = Some(result.files.len());
-                                } else if track_jobs
-                                    && path == std::path::Path::new("-")
-                                    && result.stdin_argument.is_none()
-                                    && expanded_long != Some(argument_index)
-                                {
-                                    result.stdin_argument = Some(StdinArgument {
-                                        argument: argument_index,
-                                        consumed: i - argument_index + 1,
-                                        prefix: 0,
-                                    });
                                 }
+                                let span = (track_jobs
+                                    && name != b"--temp-stdin"
+                                    && expanded_long != Some(argument_index))
+                                .then_some(FileArgument {
+                                    argument: argument_index,
+                                    consumed: i - argument_index + 1,
+                                    prefix: 0,
+                                });
                                 result.files.push(path);
                                 let index = result.files.len() - 1;
-                                pause!(Some(Argument::File(index)));
+                                pause!(Some(Argument::File(index, span)));
                             }
                         }
                         b"--eval" => {
@@ -808,16 +805,14 @@ impl Decoder {
                                     result.command_jobs = result.jobs;
                                 }
                             } else if option == b'f' {
-                                if track_jobs && value == b"-" && result.stdin_argument.is_none() {
-                                    result.stdin_argument = Some(StdinArgument {
-                                        argument: argument_index,
-                                        consumed: i - argument_index + 1,
-                                        prefix: j,
-                                    });
-                                }
+                                let span = track_jobs.then_some(FileArgument {
+                                    argument: argument_index,
+                                    consumed: i - argument_index + 1,
+                                    prefix: j,
+                                });
                                 result.files.push(OsString::from_vec(value).into());
                                 let index = result.files.len() - 1;
-                                pause!(Some(Argument::File(index)));
+                                pause!(Some(Argument::File(index, span)));
                             } else {
                                 result.directories.push(OsString::from_vec(value).into());
                                 let index = result.directories.len() - 1;
@@ -1931,7 +1926,7 @@ mod tests {
         assert_eq!(options.assignment_context, [(1, false)]);
         assert!(matches!(
             events.as_slice(),
-            [Argument::File(0), Argument::Definition(0)]
+            [Argument::File(0, None), Argument::Definition(0)]
         ));
     }
 

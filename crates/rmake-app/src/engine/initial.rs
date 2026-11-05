@@ -8,7 +8,8 @@ use super::*;
 pub(super) struct Plan {
     args: Vec<OsString>,
     pub(super) stdin_source: Option<rmake_linux::stdin_source::Source>,
-    stdin_argument: Option<crate::cli::StdinArgument>,
+    stdin_argument: Option<crate::cli::FileArgument>,
+    restart_files: Vec<(crate::cli::FileArgument, std::path::PathBuf)>,
     stdin_index: Option<usize>,
     environment: Vec<(OsString, OsString)>,
     pub(super) startup_restarts: u32,
@@ -82,6 +83,7 @@ impl Plan {
             args,
             stdin_source: None,
             stdin_argument: None,
+            restart_files: Vec::new(),
             stdin_index: None,
             environment,
             startup_restarts: 0,
@@ -141,10 +143,16 @@ impl Plan {
     }
 
     fn restart_arguments(&self) -> Option<Vec<OsString>> {
+        let stdin = self
+            .stdin_argument
+            .zip(self.stdin_source.as_ref().map(|source| source.path()));
+        if self.restart_files.is_empty() && stdin.is_none() {
+            return None;
+        }
         Some(crate::stdin_source::restart_arguments(
             &self.args,
-            self.stdin_argument?,
-            self.stdin_source.as_ref()?.path(),
+            &self.restart_files,
+            stdin,
         ))
     }
 
@@ -170,7 +178,7 @@ impl Plan {
             }
             return Ok(());
         }
-        if let crate::cli::Argument::File(index) = argument
+        if let crate::cli::Argument::File(index, _) = argument
             && options.temp_stdin_file == Some(index)
         {
             if self.stdin_index.is_some_and(|index| index > 0) {
@@ -189,7 +197,22 @@ impl Plan {
                 previous.disarm();
             }
         }
-        state.argument(&self.program, options, argument)
+        let file = match argument {
+            crate::cli::Argument::File(index, Some(span)) if explicit => Some((index, span)),
+            _ => None,
+        };
+        state.argument(&self.program, options, argument)?;
+        if let Some((index, span)) = file {
+            let path = &options.files[index];
+            if path == std::path::Path::new("-") {
+                self.stdin_argument.get_or_insert(span);
+            } else {
+                // Retain the selected filename, including expansions already
+                // performed in the original argument's variable context.
+                self.restart_files.push((span, path.clone()));
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn decode(mut self: Box<Self>) -> Result<Invocation, Failure<InvocationError>> {
@@ -493,7 +516,6 @@ impl Plan {
                 return Err(Failure { error, exit });
             }
         };
-        self.stdin_argument = options.stdin_argument;
         Ok(Invocation {
             options,
             initial: Box::new(Prepared {
@@ -632,14 +654,14 @@ impl State {
                         options.directories.pop();
                     }
                 }
-                crate::cli::Argument::File(index) if options.temp_stdin_file == Some(index) => {
+                crate::cli::Argument::File(index, _) if options.temp_stdin_file == Some(index) => {
                     // The internal source operand is already a prepared raw
                     // filename. Retain its selection without tilde expansion.
                     if let Some(history) = self.database.database_history() {
                         history.intern(options.files[index].as_os_str().as_bytes());
                     }
                 }
-                crate::cli::Argument::File(index) => {
+                crate::cli::Argument::File(index, _) => {
                     let raw = options.files[index].as_os_str().as_bytes();
                     options.files[index] = self.path(program, raw)?;
                     if let Some(history) = self.database.database_history() {

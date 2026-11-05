@@ -2,11 +2,11 @@
 // Copyright 2026 Jeff DaSilva
 
 //! CLI source ownership and restart argument construction contain no replay.
-use crate::cli::StdinArgument;
+use crate::cli::FileArgument;
 use crate::output::Controller;
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn initialize(output: &Controller, program: &[u8]) {
     use rmake_linux::temporary::Warning;
@@ -62,20 +62,39 @@ pub(crate) fn unlink(
 
 pub(crate) fn restart_arguments(
     original: &[OsString],
-    span: StdinArgument,
-    path: &Path,
+    named: &[(FileArgument, PathBuf)],
+    stdin: Option<(FileArgument, &Path)>,
 ) -> Vec<OsString> {
+    let mut files: Vec<_> = named
+        .iter()
+        .map(|(span, path)| (*span, path.as_path(), false))
+        .chain(stdin.map(|(span, path)| (span, path, true)))
+        .collect();
+    files.sort_unstable_by_key(|(span, _, _)| span.argument);
+
     let mut result = Vec::with_capacity(original.len() + 1);
-    result.extend_from_slice(&original[..span.argument]);
-    if span.prefix > 1 {
-        result.push(OsString::from_vec(
-            original[span.argument].as_bytes()[..span.prefix].to_vec(),
-        ));
+    let mut next = 0;
+    for (span, path, stdin) in files {
+        result.extend_from_slice(&original[next..span.argument]);
+        let option = original[span.argument].as_bytes();
+        let prefix = if stdin {
+            if span.prefix > 1 {
+                result.push(OsString::from_vec(option[..span.prefix].to_vec()));
+            }
+            b"--temp-stdin=".as_slice()
+        } else if span.prefix == 0 {
+            b"-f"
+        } else if span.consumed == 1 {
+            &option[..=span.prefix]
+        } else {
+            result.push(original[span.argument].clone());
+            b""
+        };
+        let replacement = [prefix, path.as_os_str().as_bytes()].concat();
+        result.push(OsString::from_vec(replacement));
+        next = span.argument + span.consumed;
     }
-    let mut replacement = b"--temp-stdin=".to_vec();
-    replacement.extend_from_slice(path.as_os_str().as_bytes());
-    result.push(OsString::from_vec(replacement));
-    result.extend_from_slice(&original[span.argument + span.consumed..]);
+    result.extend_from_slice(&original[next..]);
     result
 }
 
@@ -111,17 +130,66 @@ mod tests {
             let arguments: Vec<_> = arguments.into_iter().map(OsString::from).collect();
             let rewritten = restart_arguments(
                 &arguments,
-                StdinArgument {
-                    argument: index,
-                    consumed,
-                    prefix,
-                },
-                Path::new("raw-$name"),
+                &[],
+                Some((
+                    FileArgument {
+                        argument: index,
+                        consumed,
+                        prefix,
+                    },
+                    Path::new("raw-$name"),
+                )),
             );
             assert_eq!(
                 rewritten,
                 expected.into_iter().map(OsString::from).collect::<Vec<_>>()
             );
         }
+    }
+
+    #[test]
+    fn named_operands_and_stdin_share_original_argv_coordinates() {
+        let input = [
+            "--makefile",
+            "~/first",
+            "-sf-",
+            "A=x",
+            "-kf",
+            "~/last",
+            "goal",
+        ];
+        let original: Vec<_> = input.into_iter().map(OsString::from).collect();
+        let first = FileArgument {
+            argument: 0,
+            consumed: 2,
+            prefix: 0,
+        };
+        let stdin = FileArgument {
+            argument: 2,
+            consumed: 1,
+            prefix: 2,
+        };
+        let last = FileArgument {
+            argument: 4,
+            consumed: 2,
+            prefix: 2,
+        };
+        let selected = [
+            (first, "retained/first".into()),
+            (last, "retained/last".into()),
+        ];
+        let expected = [
+            "-fretained/first",
+            "-s",
+            "--temp-stdin=tmp",
+            "A=x",
+            "-kf",
+            "retained/last",
+            "goal",
+        ];
+        assert_eq!(
+            restart_arguments(&original, &selected, Some((stdin, Path::new("tmp")))),
+            expected.into_iter().map(OsString::from).collect::<Vec<_>>()
+        );
     }
 }

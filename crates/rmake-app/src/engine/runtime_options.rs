@@ -239,7 +239,6 @@ impl State {
         let mut previous = self.options.borrow_mut();
         updated.files = std::mem::take(&mut previous.files);
         updated.temp_stdin_file = previous.temp_stdin_file;
-        updated.stdin_argument = previous.stdin_argument;
         updated.directories = std::mem::take(&mut previous.directories);
         updated.goals = std::mem::take(&mut previous.goals);
         updated.assignments = std::mem::take(&mut previous.assignments);
@@ -255,7 +254,6 @@ impl State {
 #[derive(Default)]
 struct InvocationInputs {
     temp_stdin_file: Option<usize>,
-    stdin_argument: Option<crate::cli::StdinArgument>,
     files: Vec<std::path::PathBuf>,
     directories: Vec<std::path::PathBuf>,
     old_files: Vec<std::path::PathBuf>,
@@ -269,7 +267,6 @@ impl InvocationInputs {
     fn take(options: &mut Options) -> Self {
         Self {
             temp_stdin_file: options.temp_stdin_file,
-            stdin_argument: options.stdin_argument,
             files: std::mem::take(&mut options.files),
             directories: std::mem::take(&mut options.directories),
             old_files: std::mem::take(&mut options.old_files),
@@ -283,7 +280,6 @@ impl InvocationInputs {
     fn restore(self, options: &mut Options) {
         options.files = self.files;
         options.temp_stdin_file = self.temp_stdin_file;
-        options.stdin_argument = self.stdin_argument;
         options.directories = self.directories;
         options.old_files = self.old_files;
         options.new_files = self.new_files;
@@ -1052,7 +1048,6 @@ impl Engine {
         }
         updated.files = std::mem::take(&mut self.options.files);
         updated.temp_stdin_file = self.options.temp_stdin_file;
-        updated.stdin_argument = self.options.stdin_argument;
         updated.directories = std::mem::take(&mut self.options.directories);
         updated.goals = std::mem::take(&mut self.options.goals);
         updated.assignments = std::mem::take(&mut self.options.assignments);
