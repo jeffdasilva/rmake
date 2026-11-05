@@ -277,7 +277,11 @@ def provision_locked(destination: Path) -> dict:
 
 
 def provision(destination: Path) -> dict:
-    destination = Path(destination).absolute(); no_symlinks(destination); destination.mkdir(parents=True, exist_ok=True)
+    destination = Path(destination).absolute()
+    no_symlinks(destination)
+    if (destination / 'fr_FR.UTF-8').is_dir():
+        raise ProfileError('locale profile root points to compiled LOCPATH')
+    destination.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(destination / '.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'a') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX)
