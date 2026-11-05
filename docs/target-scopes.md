@@ -96,3 +96,10 @@ Patterns with shorter stems are more specific; equal-specificity definitions
 retain declaration order. A deferred append to a simple pattern binding expands
 its suffix in the target activation context while retaining simple flavor.
 This behavior is implemented separately from the explicit target scope API.
+
+An immediate target-specific assignment expands against the target's own
+bindings and the reader's applicable lexical context. A nested `eval` or
+`include` can change those bindings, and later references in the same right
+hand side observe the new values. Recipe variables belonging to a different
+target stay isolated. Eleven required cases cover these boundaries, including
+simple append, immediate recursive escaping, and command-line precedence.
