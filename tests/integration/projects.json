@@ -91,6 +91,48 @@
         "after_hex": "23646566696e65204c55415f56455253494f4e5f4d494e4f520922342d726d616b65220a",
         "fresh_smoke_stdout_hex": "4c756120352e347c312c322c330a"
       }
+    },
+    {
+      "id": "gzip-1.14",
+      "target": "all",
+      "configure": [
+        "/bin/sh",
+        "./configure",
+        "--enable-dependency-tracking"
+      ],
+      "args": [
+        "-j1",
+        "--no-print-directory",
+        "SUBDIRS=lib .",
+        "V=0",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
+      ],
+      "header": "tailor.h",
+      "watched": [
+        "zip.o",
+        "gzip"
+      ],
+      "smoke": [
+        "/bin/sh",
+        "-ec",
+        "test ! -e .rmake-gzip-input; test ! -e .rmake-gzip-frame; printf 'gzip integration witness\\n' > .rmake-gzip-input; ./gzip -n -c .rmake-gzip-input > .rmake-gzip-frame; od -An -t u1 -j 9 -N 1 .rmake-gzip-frame | tr -d ' '; ./gzip -dc .rmake-gzip-frame; rm .rmake-gzip-input .rmake-gzip-frame"
+      ],
+      "smoke_stdout_hex": "3235350a677a697020696e746567726174696f6e207769746e6573730a",
+      "source_url": "https://ftp.gnu.org/gnu/gzip/gzip-1.14.tar.gz",
+      "archive_sha256": "613d6ea44f1248d7370c7ccdeee0dd0017a09e6c39de894b3c6f03f981191c6b",
+      "topdir": "gzip-1.14",
+      "license_file": "COPYING",
+      "license_sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "source_ref": "fbc4883eb9c304a04623ac506dd5cf5450d055f1",
+      "license_note": "GNU GPL-3.0-or-later program, with license texts and notices from the pinned release",
+      "header_rebuild": {
+        "before_hex": "232020646566696e65204f535f434f444520203078303320202f2a20617373756d6520556e6978202a2f0a",
+        "after_hex": "232020646566696e65204f535f434f444520203078666620202f2a20617373756d6520556e6978202a2f0a",
+        "fresh_smoke_stdout_hex": "330a677a697020696e746567726174696f6e207769746e6573730a"
+      }
     }
   ],
   "phases": [

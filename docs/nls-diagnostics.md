@@ -129,3 +129,66 @@ arguments. For the raw loader argument, the gate queries the same public
 `dlopen` and `dlsym` interfaces in a separate process before running either
 engine. The remaining diagnostic bytes, exit statuses, and file effects
 come from the literal expectations.
+
+## Include and source I/O diagnostics
+
+Makefile open failures retain their resolved search names and error numbers.
+Ordinary failed include remakes keep GNU's fixed colon separator. Skipped
+required makefiles report after the remake recipes, with the active locale
+and domain. Explicit `-f` open failures and fatal stream read failures use
+their respective catalog templates. A stream read error keeps the original
+include operand even if `-I` found the source under another path.
+
+Twenty additional cases check these boundaries in the diagnostic gate,
+bringing it to 99 profiles. The gate obtains the raw error detail from an
+independent libc call. The paths, translated templates, output, exit status
+and filesystem effects are exact. One remake recipe selects a custom domain
+before a deferred diagnostic. Its template reorders the error and filename
+arguments, and the filename retains its non-UTF-8 byte.
+A separate fixture binds a test-owned libc catalog during a failing remake
+recipe. It records different translations for the saved open error and a
+new, unrelated error, then checks that the deferred diagnostic uses the
+saved error number and the locale active at publication.
+
+Default makefile lookup selects the first matching directory entry in GNU's
+filename order. The ordinary reader then handles directories, symlinks and
+open errors. With `-k`, required makefiles that fail during remake report
+summaries after the remake chain. The summaries retain the include source
+when applicable and use the locale active at publication. Optional
+makefiles suppress these errors. The goal-phase blocked-target warning is
+reserved for ordinary goals.
+
+Fourteen cases for default source selection and failed remake summaries
+bring the diagnostic gate to 113 cases.
+
+A required makefile can appear in several include directives. Its remake
+recipe runs once, and each required read gets its own summary at the end of
+the remake pass. With `-k`, a failed update that leaves a required makefile
+present at a changed timestamp can still trigger a restart. The failure
+summary is published before restarting. The timestamp is checked after the
+whole remake chain, so a later recipe can restore or change it. A makefile
+that could not run its own recipe retains its cached timestamp for this
+decision.
+
+Thirteen further cases bring the diagnostic gate to 126. The restart cases
+assert the original and final timestamps, ordered read and recipe markers,
+the output of the next process and its exit status. Controls cover a file
+whose contents change with the same timestamp, an optional makefile, and
+stop mode without `-k`.
+
+An optional include can reach a failed update before a later required
+include of the same file. The required read publishes the cached failure.
+A blocked remake keeps the selected prerequisite and its immediate parent
+from the completed graph. The replay uses that reason without expanding
+prerequisites or executing recipes again. The first open error retains its
+original location and raw errno. Required read sites still get their
+separate summaries, and a failed recipe that changed the file can trigger
+a restart under `-k`.
+
+Eighteen cases for this path bring the diagnostic gate to 144. They cover
+direct and transitive failures, repeated sites, stop mode, secondary
+expansion, and real restarts after changing or creating the file. A missing
+intermediate can report a prerequisite error during inspection. In
+keep-going mode the later required read can report the cached failure too.
+The ordered cases distinguish those publications and confirm the early
+exit when keep-going mode is disabled.

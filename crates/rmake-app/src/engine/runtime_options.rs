@@ -41,6 +41,15 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0.dirty.set(true);
     }
 
+    fn report_flag_notice(&mut self, notice: rmake_core::diagnostic::FlagNotice) {
+        use rmake_core::diagnostic::FlagNotice;
+        let message = match notice {
+            FlagNotice::EmptyOption(name) => crate::usage::empty(name),
+            FlagNotice::InvalidJobs => crate::usage::jobs(),
+        };
+        self.0.output.write_option_notice(&message);
+    }
+
     fn set_warning_policy(&mut self, enabled: bool) {
         self.0.options.borrow_mut().warn_undefined = enabled;
         self.0.warn_undefined.set(enabled);
@@ -134,6 +143,7 @@ impl State {
         let (mut updated, _, warning_positions) = current
             .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
             .map_err(String::into_bytes)?;
+        let notices = std::mem::take(&mut updated.flag_notices);
         let assignments: Vec<_> = std::mem::take(&mut updated.assignments)
             .into_iter()
             .zip(std::mem::take(&mut updated.assignment_context))
@@ -150,7 +160,7 @@ impl State {
             .output_sync
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
-        if mode.is_none() && assignments.is_empty() {
+        if mode.is_none() && assignments.is_empty() && notices.is_empty() {
             return Err([
                 b"unknown output-sync type '".as_slice(),
                 updated.output_sync.as_deref().unwrap_or_default(),
@@ -206,6 +216,7 @@ impl State {
             },
             assignments,
             warning_positions,
+            notices,
             warning_entry: current.warn_undefined,
             next_argument: updated.flag_word_count,
         };
@@ -375,7 +386,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         let jobs = options.jobs.take();
         let directory = (options.directory_choice, options.directory_origin.take());
         self.decoder.cursor = cursor.saturating_sub(1);
-        let next = self
+        let mut next = self
             .decoder
             .advance::<false>()
             .map_err(String::into_bytes)?;
@@ -410,7 +421,10 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         } else {
             options.jobs = jobs;
         }
-        let action = match next.as_ref().and_then(|step| step.argument) {
+        let notice = next
+            .as_ref()
+            .and_then(|step| step.usage.iter().find_map(crate::cli::UsageIssue::notice));
+        let action = match next.as_mut().and_then(|step| step.argument.take()) {
             Some(Argument::Definition(index)) => {
                 FlagAction::Definition(options.assignments[index].clone())
             }
@@ -445,6 +459,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             environment_override,
             following_definition,
             action,
+            notice,
         }))
     }
     fn filename(&mut self, value: Vec<u8>) -> Result<(), Vec<u8>> {
@@ -498,6 +513,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             publish_includes: None,
             assignments: Vec::new(),
             warning_positions: Vec::new(),
+            notices: Vec::new(),
             warning_entry: current.warn_undefined,
             next_argument: current.flag_word_count,
         };
@@ -616,9 +632,12 @@ impl Engine {
             .jobs
             .filter(|jobs| create && *jobs > 1 && *jobs != usize::MAX)
         {
+            if let Some(style) = &self.options.unknown_jobserver_style {
+                return Err(Diagnostic::from(crate::usage::jobserver_style(style)));
+            }
             Some(
                 Jobserver::create(jobs, self.options.jobserver_pipe).map_err(|error| {
-                    Diagnostic::from(format!("jobserver: {}", os_error(&error)))
+                    Diagnostic::from(format!("{}: {}", error.operation, os_error(&error.error)))
                 })?,
             )
         } else {
@@ -889,7 +908,8 @@ impl Engine {
         };
         // A flag-only stream has no payload effects to interleave. Keep that
         // path unchanged instead of cloning and replaying an inert policy.
-        if !updated.assignments.is_empty() {
+        if !updated.assignments.is_empty() || !updated.flag_notices.is_empty() {
+            let notices = std::mem::take(&mut updated.flag_notices);
             let assignments = std::mem::take(&mut updated.assignments);
             self.output.set_debug_mask(updated.debug_mask);
             self.flag_state.refresh(&updated);
@@ -930,8 +950,11 @@ impl Engine {
                 &assignments,
                 Origin::Environment,
                 updated.flag_word_count,
-                &warning_positions,
-                warning_entry,
+                rmake_core::diagnostic::FlagReplay {
+                    warning_positions: &warning_positions,
+                    warning_entry,
+                    notices: &notices,
+                },
             );
             match names {
                 Ok(names) => {
@@ -1021,7 +1044,7 @@ mod decoder_ownership_tests {
             let mut decoder = state
                 .begin_include_decoder(
                     MakeflagsRequest {
-                        value: b"-I~/inc -f -jbad",
+                        value: b"-I~/inc -f -jbad --output-sync=unknown",
                         origin: Origin::File,
                     },
                     false,
@@ -1036,9 +1059,16 @@ mod decoder_ownership_tests {
                 decoder.filename(b"hdir/inc".to_vec()).unwrap();
                 // A nested reset can move the observable cursor into what was
                 // previously a consumed filename operand.
-                assert!(decoder.next(3).is_err());
+                assert!(matches!(
+                    decoder.next(3).unwrap().unwrap().notice,
+                    Some(rmake_core::diagnostic::FlagNotice::InvalidJobs)
+                ));
+                assert!(decoder.next(4).unwrap().is_some());
+                assert!(decoder.next(5).unwrap().is_none());
+                assert!(decoder.finish().is_err());
+            } else {
+                drop(decoder);
             }
-            drop(decoder);
             let restored = state.take().unwrap();
             assert_eq!(restored.files, original.files);
             assert_eq!(restored.directories, original.directories);

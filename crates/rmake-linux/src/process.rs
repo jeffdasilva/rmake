@@ -31,6 +31,10 @@ pub fn exit_immediately(status: i32) -> ! {
 /// Parallel commands without the input lease receive a pipe with no writers.
 /// Unlike /dev/null this preserves the observable FIFO descriptor type.
 pub fn closed_stdin() -> io::Result<Stdio> {
+    closed_stdin_file().map(Stdio::from)
+}
+
+pub fn closed_stdin_file() -> io::Result<File> {
     let mut descriptors = [-1; 2];
     // pipe2 initializes both descriptors on success. CLOEXEC is atomic even
     // when other recipe workers spawn concurrently with this call.
@@ -40,7 +44,7 @@ pub fn closed_stdin() -> io::Result<Stdio> {
     let reader = unsafe { File::from_raw_fd(descriptors[0]) };
     let writer = unsafe { File::from_raw_fd(descriptors[1]) };
     drop(writer);
-    Ok(Stdio::from(private_descriptor(reader)?))
+    private_descriptor(reader)
 }
 
 /// GNU's floating option accepts the C numeric prefix, including trailing text.

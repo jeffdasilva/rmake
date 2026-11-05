@@ -467,3 +467,68 @@ The [catalog coverage gate](../tests/catalog-coverage/README.md) checks all 30
 attributed GNU release languages plus three fallback/C controls in both build
 profiles. The complete catalog data are installed with their original source
 notices. This does not claim that every diagnostic producer is covered.
+
+[Include and remake diagnostics](nls-diagnostics.md) carry the original raw
+filename and saved Linux error to the actual GNU publication phase. Twenty
+new models include a remake recipe that changes the locale and proves the
+later libc error translation without changing which errno was captured.
+
+[Default makefile selection and keep-going remake summaries](nls-diagnostics.md)
+now retain the first matching directory entry and defer required-file
+summaries until after the remake phase. Fourteen original GNU2 cases cover
+source loci, failed prerequisites and locale selection.
+
+[Repeated required includes and failed timestamp changes](nls-diagnostics.md)
+retain each required source locus and permit real restart only after a failed
+recipe actually changes the final tracked timestamp. Thirteen GNU2 models
+cover one-recipe ownership, later changes, and prerequisites that never ran
+an own recipe. The optional-first follow-up preserves cached errors and
+prerequisite causes without rerunning evaluation, adding 18 exact cases.
+
+[Implicit search debug output](../tests/debug-traversal/README.md) checks the
+candidate order, intermediate search and removal, prerequisite spellings,
+VPATH hits, grouped targets, and archive-member search against two GNU 4.4.1
+runs. The focused cases run in both build profiles and a selected recursive
+self-host recipe. [Localized debug events](../tests/debug-traversal/README.md)
+extend this gate to 40 original cases in both C and verified French,
+including prerequisite freshness and the real restart transcript. Broader
+dynamic debug output and locale coverage remain open.
+
+The [developer entry point gate](../tests/developer-flows/README.md) runs the
+real Makefile and scripts in an owned offline Cargo workspace. It covers warm
+oracle bootstrap, six cleanup modes and three benchmark preconditions in both
+build profiles. Cold provisioning and positive timing runs remain separate
+campaigns.
+
+[Output spools under low descriptor limits](../tests/resource-fd-spool/README.md)
+retain GNU's grouped bytes and physical child descriptor identity. The selected
+Linux launch can borrow existing spools for child-only descriptor actions
+without duplicating them or changing the parent's ownership.
+
+[Compact pipe pools](../tests/resource-fd-pipe/README.md) cover canonical
+startup, actual recursion and self-exec at low descriptor limits. Borrowed
+wire numbers retain their original ownership and are checked against the live
+pipe identity before process replacement. The separately observed noncanonical
+return byte and parent fatal-loss differences remain open.
+
+[Ordinary jobserver release](../tests/jobserver-release/README.md) matches
+GNU Make's canonical byte at qualified completion and keeps a failed launch
+lease outstanding through the ordinary drain. Parent-fatal recovery and raw
+lease drop preserve bytes. The observed GNU parent-fatal token loss remains
+an open compatibility difference; no approved safety count changes.
+
+[Low descriptor FIFO pools](../tests/resource-fd-fifo/README.md) preserve the
+borrowed endpoint's identity and let an owned pool launch eligible recipes
+without carrying unnecessary descriptors across exec. Twelve original GNU2
+cases cover owned and borrowed pools, startup failures, recursion, and
+returned capacity. The GNU FD4 error and leftover FIFO remain open.
+
+[File-size limits during stdin capture](../tests/resource-file-size/README.md)
+preserve GNU's write and close boundaries before publishing a named makefile.
+Fifteen original GNU2 comparisons cover explicit write failure, buffered close
+truncation, early SIGXFSZ and ordinary file-function controls.
+
+[File-size limits on standard output](../tests/stdout-file-size/README.md)
+check fourteen exact GNU2 profiles, including native inspection of the
+shared libc error indicator, synchronized replay, and final process status.
+Write, flush, and close failures retain their distinct publication points.

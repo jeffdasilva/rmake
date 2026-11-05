@@ -684,6 +684,10 @@ impl NativeHost for NoHost {
     }
 }
 impl NativeRuntime for Runtime {
+    #[cfg(feature = "guile")]
+    fn service_waiting_workers(&self, host: &mut dyn NativeHost) -> Result<(), ExpandError> {
+        self.run(7, 0, None, 0, None, &[], None, host).map(|_| ())
+    }
     fn terminate(&self, status: u8, host: &mut dyn NativeHost) -> Result<(), ExpandError> {
         Runtime::exit(self, status, host)
     }
@@ -891,8 +895,7 @@ pub fn flush_standard_streams() -> std::io::Result<()> {
     }
 }
 
-/// GNU's native-visible stdout is line buffered independently of Rust output.
-/// Sessions initialize this lazily before the first object constructor executes.
+/// Initialize the native-visible line-buffered stdout stream once.
 pub fn initialize_stdio() {
     unsafe { rm_native_stdio_initialize() };
 }

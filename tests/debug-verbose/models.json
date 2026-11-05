@@ -1,0 +1,652 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "vpath-no-update",
+      "makefile": "VPATH = search\nall: source\n\t@:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "search/source": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'source'.\n Finished prerequisites of target file 'source'.\n No need to remake target 'source'; using VPATH name 'search/source'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'search/source' is older than target 'all'.\nNo need to remake target 'all'.\nmake: 'all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « source ».\n Fin des dépendances du fichier cible « source ».\n Inutile de refabriquer la cible « source » ; utilisation du nom VPATH « search/source ».\nFin des dépendances du fichier cible « all ».\n La dépendance « search/source » est plus ancienne que la cible « all ».\nInutile de refabriquer la cible « all ».\nmake: « all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "search/source": 1600000000,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "vpath-goal-no-update",
+      "makefile": "VPATH = search\nall: ; @:\n",
+      "initial_file_offsets": {
+        "search/all": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\nFinished prerequisites of target file 'all'.\nNo need to remake target 'all'; using VPATH name 'search/all'.\nmake: 'search/all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\nFin des dépendances du fichier cible « all ».\nInutile de refabriquer la cible « all » ; utilisation du nom VPATH « search/all ».\nmake: « search/all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "search/all": 1600000000,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "updated-prerequisite-older",
+      "makefile": "all: input\n\t@:\ninput: force\n\t@touch -d @1599999980 $@\n.PHONY: force\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n  Considering target file 'force'.\n   File 'force' does not exist.\n  Finished prerequisites of target file 'force'.\n  Must remake target 'force'.\n  Successfully remade target file 'force'.\n Finished prerequisites of target file 'input'.\n  Prerequisite 'force' of target 'input' does not exist.\n Must remake target 'input'.\n Successfully remade target file 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is newer than target 'all'.\nNo need to remake target 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n  Étude du fichier cible « force ».\n   Le fichier « force » n'existe pas.\n  Fin des dépendances du fichier cible « force ».\n  Il faut refabriquer la cible « force ».\n  Refabrication réussie du fichier cible « force ».\n Fin des dépendances du fichier cible « input ».\n  La dépendance « force » de la cible « input » n'existe pas.\n Il faut refabriquer la cible « input ».\n Refabrication réussie du fichier cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus récente que la cible « all ».\nInutile de refabriquer la cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999980,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "older-untouched-always",
+      "makefile": "all: input\n\t@:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\nMaking 'all' due to always-make flag.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\nFabrication de « all » à cause de l'indicateur « always-make ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "double-no-prerequisites",
+      "makefile": "all:: ; @:\n",
+      "initial_file_offsets": {
+        "all": 0
+      },
+      "args": [
+        "--debug=b",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\nTarget 'all' is double-colon and has no prerequisites.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nLa cible « all » a un deux-points double et n'a pas de dépendance.\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "no-recipe-existing",
+      "makefile": "all: input\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\nNo recipe for 'all' and no prerequisites actually changed.\nNo need to remake target 'all'.\nmake: Nothing to be done for 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\nPas de recette pour « all » et aucune dépendance n'a changé.\nInutile de refabriquer la cible « all ».\nmake: Rien à faire pour « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "failed-dependency",
+      "makefile": "all: input\n\t@:\ninput: ; @false\n",
+      "initial_file_offsets": {},
+      "args": [
+        "--debug=v",
+        "-k",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'input'.\n  File 'input' does not exist.\n Finished prerequisites of target file 'input'.\n Must remake target 'input'.\n Failed to remake target file 'input'.\nFinished prerequisites of target file 'all'.\nGiving up on target file 'all'.\n",
+          "stderr": "make: *** [Makefile:3: input] Error 1\nmake: Target 'all' not remade because of errors.\n",
+          "returncode": 2
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\n Étude du fichier cible « input ».\n  Le fichier « input » n'existe pas.\n Fin des dépendances du fichier cible « input ».\n Il faut refabriquer la cible « input ».\n Échec de refabrication du fichier cible « input ».\nFin des dépendances du fichier cible « all ».\nAbandon du fichier cible « all ».\n",
+          "stderr": "make: *** [Makefile:3: input] Error 1\nmake: La cible « all » n'a pas été refabriquée à cause d'erreurs.\n",
+          "returncode": 2
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "duplicate-normal-order",
+      "makefile": "all: input | input\n\t@:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\n Pruning file 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\n Prerequisite 'input' is order-only for target 'all'.\nNo need to remake target 'all'.\nmake: 'all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\n Élagage du fichier « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\n La dépendance « input » ne commande que la cible « all ».\nInutile de refabriquer la cible « all ».\nmake: « all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "explicit-with-default",
+      "makefile": ".DEFAULT: ; @:\nall: input\n\t@:\n",
+      "initial_file_offsets": {},
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'input'.\n  File 'input' does not exist.\n Finished prerequisites of target file 'input'.\n Must remake target 'input'.\n Successfully remade target file 'input'.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\n Étude du fichier cible « input ».\n  Le fichier « input » n'existe pas.\n Fin des dépendances du fichier cible « input ».\n Il faut refabriquer la cible « input ».\n Refabrication réussie du fichier cible « input ».\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "gpath-current-goal",
+      "makefile": "VPATH=search\nGPATH=search\nall: ; @:\n",
+      "initial_file_offsets": {
+        "search/all": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\nFinished prerequisites of target file 'search/all'.\nNo need to remake target 'search/all'.\nmake: 'search/all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\nFin des dépendances du fichier cible « search/all ».\nInutile de refabriquer la cible « search/all ».\nmake: « search/all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "search/all": 1600000000,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "same-time-child",
+      "makefile": "all: input; @:\ninput: force; @touch -d @1599999998 input\n.PHONY: force\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n  Considering target file 'force'.\n   File 'force' does not exist.\n  Finished prerequisites of target file 'force'.\n  Must remake target 'force'.\n  Successfully remade target file 'force'.\n Finished prerequisites of target file 'input'.\n  Prerequisite 'force' of target 'input' does not exist.\n Must remake target 'input'.\n Successfully remade target file 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\nNo need to remake target 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n  Étude du fichier cible « force ».\n   Le fichier « force » n'existe pas.\n  Fin des dépendances du fichier cible « force ».\n  Il faut refabriquer la cible « force ».\n  Refabrication réussie du fichier cible « force ».\n Fin des dépendances du fichier cible « input ».\n  La dépendance « force » de la cible « input » n'existe pas.\n Il faut refabriquer la cible « input ».\n Refabrication réussie du fichier cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\nInutile de refabriquer la cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "changed-older-basic",
+      "makefile": "all: input; @:\ninput: force; @touch -d @1599999980 input\n.PHONY: force\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=b",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n   File 'force' does not exist.\n  Must remake target 'force'.\n  Successfully remade target file 'force'.\n  Prerequisite 'force' of target 'input' does not exist.\n Must remake target 'input'.\n Successfully remade target file 'input'.\n Prerequisite 'input' is newer than target 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\n   Le fichier « force » n'existe pas.\n  Il faut refabriquer la cible « force ».\n  Refabrication réussie du fichier cible « force ».\n  La dépendance « force » de la cible « input » n'existe pas.\n Il faut refabriquer la cible « input ».\n Refabrication réussie du fichier cible « input ».\n La dépendance « input » est plus récente que la cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999980,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "changed-older-no-recipe",
+      "makefile": "all: input\ninput: force; @touch -d @1599999980 input\n.PHONY: force\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n  Considering target file 'force'.\n   File 'force' does not exist.\n  Finished prerequisites of target file 'force'.\n  Must remake target 'force'.\n  Successfully remade target file 'force'.\n Finished prerequisites of target file 'input'.\n  Prerequisite 'force' of target 'input' does not exist.\n Must remake target 'input'.\n Successfully remade target file 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is newer than target 'all'.\nNo need to remake target 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n  Étude du fichier cible « force ».\n   Le fichier « force » n'existe pas.\n  Fin des dépendances du fichier cible « force ».\n  Il faut refabriquer la cible « force ».\n  Refabrication réussie du fichier cible « force ».\n Fin des dépendances du fichier cible « input ».\n  La dépendance « force » de la cible « input » n'existe pas.\n Il faut refabriquer la cible « input ».\n Refabrication réussie du fichier cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus récente que la cible « all ».\nInutile de refabriquer la cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999980,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "empty-no-recipe",
+      "makefile": "all:\n",
+      "initial_file_offsets": {
+        "all": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\nFinished prerequisites of target file 'all'.\nNo recipe for 'all' and no prerequisites actually changed.\nNo need to remake target 'all'.\nmake: Nothing to be done for 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\nFin des dépendances du fichier cible « all ».\nPas de recette pour « all » et aucune dépendance n'a changé.\nInutile de refabriquer la cible « all ».\nmake: Rien à faire pour « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "always-missing-goal",
+      "makefile": "all: input; @:\n",
+      "initial_file_offsets": {
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "always-newer-child",
+      "makefile": "all: input; @:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": 2
+      },
+      "args": [
+        "--debug=v",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is newer than target 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus récente que la cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1600000002,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "always-basic",
+      "makefile": "all: input; @:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=b",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "double-missing",
+      "makefile": "all:: ; @:\n",
+      "initial_file_offsets": {},
+      "args": [
+        "--debug=b",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\nTarget 'all' is double-colon and has no prerequisites.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\n Le fichier « all » n'existe pas.\nLa cible « all » a un deux-points double et n'a pas de dépendance.\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "double-with-prerequisite",
+      "makefile": "all:: input; @:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\nNo need to remake target 'all'.\nmake: 'all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\nInutile de refabriquer la cible « all ».\nmake: « all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "duplicate-normal",
+      "makefile": "all: input input; @:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\n Pruning file 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\n Prerequisite 'input' is older than target 'all'.\nNo need to remake target 'all'.\nmake: 'all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\n Élagage du fichier « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\nInutile de refabriquer la cible « all ».\nmake: « all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "separate-parents-shared-leaf",
+      "makefile": "all: left right\nleft: input\nright: input\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "left": 0,
+        "right": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'left'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'left'.\n  Prerequisite 'input' is older than target 'left'.\n No recipe for 'left' and no prerequisites actually changed.\n No need to remake target 'left'.\n Considering target file 'right'.\n  Pruning file 'input'.\n Finished prerequisites of target file 'right'.\n  Prerequisite 'input' is older than target 'right'.\n No recipe for 'right' and no prerequisites actually changed.\n No need to remake target 'right'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'left' is older than target 'all'.\n Prerequisite 'right' is older than target 'all'.\nNo recipe for 'all' and no prerequisites actually changed.\nNo need to remake target 'all'.\nmake: Nothing to be done for 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « left ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « left ».\n  La dépendance « input » est plus ancienne que la cible « left ».\n Pas de recette pour « left » et aucune dépendance n'a changé.\n Inutile de refabriquer la cible « left ».\n Étude du fichier cible « right ».\n  Élagage du fichier « input ».\n Fin des dépendances du fichier cible « right ».\n  La dépendance « input » est plus ancienne que la cible « right ».\n Pas de recette pour « right » et aucune dépendance n'a changé.\n Inutile de refabriquer la cible « right ».\nFin des dépendances du fichier cible « all ».\n La dépendance « left » est plus ancienne que la cible « all ».\n La dépendance « right » est plus ancienne que la cible « all ».\nPas de recette pour « all » et aucune dépendance n'a changé.\nInutile de refabriquer la cible « all ».\nmake: Rien à faire pour « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "left": 1600000000,
+        "right": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "repeated-goal",
+      "makefile": "all: input; @:\n",
+      "initial_file_offsets": {
+        "all": 0,
+        "input": -2
+      },
+      "args": [
+        "--debug=v",
+        "all",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'input' is older than target 'all'.\nNo need to remake target 'all'.\nmake: 'all' is up to date.\nPruning file 'all'.\nmake: 'all' is up to date.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « input ».\n Fin des dépendances du fichier cible « input ».\n Inutile de refabriquer la cible « input ».\nFin des dépendances du fichier cible « all ».\n La dépendance « input » est plus ancienne que la cible « all ».\nInutile de refabriquer la cible « all ».\nmake: « all » est à jour.\nÉlagage du fichier « all ».\nmake: « all » est à jour.\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "all": 1600000000,
+        "input": 1599999998,
+        "Makefile": 1600000000
+      }
+    },
+    {
+      "id": "fail-stopping",
+      "makefile": "all: input; @:\ninput: ; @false\n",
+      "initial_file_offsets": {},
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'input'.\n  File 'input' does not exist.\n Finished prerequisites of target file 'input'.\n Must remake target 'input'.\n",
+          "stderr": "make: *** [Makefile:2: input] Error 1\n",
+          "returncode": 2
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\n Étude du fichier cible « input ».\n  Le fichier « input » n'existe pas.\n Fin des dépendances du fichier cible « input ».\n Il faut refabriquer la cible « input ».\n",
+          "stderr": "make: *** [Makefile:2: input] Error 1\n",
+          "returncode": 2
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000
+      }
+    }
+  ]
+}

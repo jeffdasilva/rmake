@@ -8,9 +8,12 @@
 #include "guile_workers.h"
 #include <libguile.h>
 #include <gc/gc.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#include <sys/eventfd.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -39,6 +42,11 @@ static _Thread_local struct worker *on_worker,*origin;
 static struct worker *terminal_origin;
 static SCM leading_thread,notification;
 static atomic_int ready;
+/* The Rust serial wait owns any descriptor. Queue admission can also
+ * remain open with bounded polling when no private wake descriptor fits.
+ * Publication, notification, and detachment share the same mutex. */
+enum { wait_inactive=-1, wait_polling=-3 };
+static atomic_int wait_descriptor=wait_inactive;
 static SCM service(void);
 extern void *rg_dispatch_worker_host_yield(const void *request);
 extern int rg_guile_leading_evaluator_active(void);
@@ -118,9 +126,26 @@ static void *submit_inside(void *data) {
      * qualification before this experimental transport can be enabled. */
     scm_dynwind_begin(0);scm_dynwind_block_asyncs();
     lock();
+    int evaluator=rg_guile_leading_evaluator_active();
+    int descriptor=atomic_load_explicit(&wait_descriptor,memory_order_relaxed);
+    if(!evaluator&&descriptor==wait_inactive) {
+        unlock();
+        static const char message[]="rmake: native API used outside an active invocation\n";
+        ssize_t written=write(STDERR_FILENO,message,sizeof message-1);
+        (void)written;
+        _Exit(2);
+    }
     if(tail)tail->next=worker;else head=worker;tail=worker;
+    if(descriptor>=0) {
+        int saved=errno;
+        uint64_t value=1;
+        ssize_t count;
+        do count=write(descriptor,&value,sizeof value);while(count<0&&errno==EINTR);
+        if(count!=(ssize_t)sizeof value&&(count>=0||errno!=EAGAIN))_Exit(2);
+        errno=saved;
+    }
     pthread_cond_broadcast(&changed);unlock();
-    scm_system_async_mark_for_thread(notification,leading_thread);
+    if(evaluator)scm_system_async_mark_for_thread(notification,leading_thread);
     (void)worker_turn(worker,NULL);
     on_worker=worker->previous;
     scm_dynwind_end();
@@ -211,8 +236,65 @@ void rg_workers_initialize(void) {
 int rg_workers_can_submit(void) {
     return !on_worker&&syscall(SYS_gettid)!=getpid()
         &&atomic_load_explicit(&ready,memory_order_acquire)
-        &&rg_guile_leading_evaluator_active()
+        &&(rg_guile_leading_evaluator_active()
+           ||atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=wait_inactive)
         &&GC_thread_is_registered();
+}
+int rg_workers_begin_wait(void) {
+    if(!atomic_load_explicit(&ready,memory_order_acquire))return -2;
+    int ambient=errno;
+    lock();
+    if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=wait_inactive) {
+        unlock();errno=EBUSY;return -1;
+    }
+    int descriptor=eventfd(0,EFD_NONBLOCK|EFD_CLOEXEC);
+    int relocating=descriptor>=0&&descriptor<5;
+    if(relocating) {
+        int replacement=fcntl(descriptor,F_DUPFD_CLOEXEC,5);
+        int saved=errno;
+        close(descriptor);descriptor=replacement;errno=saved;
+    }
+    if(descriptor<0&&(errno==EMFILE||errno==ENFILE||(relocating&&errno==EINVAL)))
+        descriptor=wait_polling;
+    if(descriptor!=wait_inactive)
+        atomic_store_explicit(&wait_descriptor,descriptor,memory_order_relaxed);
+    int saved=descriptor==wait_inactive?errno:ambient;
+    unlock();errno=saved;
+    return descriptor;
+}
+int rg_workers_wait_notification(int descriptor) {
+    int saved=errno;
+    lock();
+    if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=descriptor)_Exit(2);
+    if(descriptor>=0) {
+        uint64_t value;
+        ssize_t count;
+        do count=read(descriptor,&value,sizeof value);while(count<0&&errno==EINTR);
+        if(count!=(ssize_t)sizeof value&&(count>=0||errno!=EAGAIN))_Exit(2);
+    }
+    int pending=head!=NULL;
+    unlock();errno=saved;return pending;
+}
+int rg_workers_end_wait(int descriptor,int idle_only) {
+    lock();
+    if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=descriptor)_Exit(2);
+    if(idle_only&&head) {unlock();return 0;}
+    atomic_store_explicit(&wait_descriptor,wait_inactive,memory_order_relaxed);
+    unlock();return 1;
+}
+static void *service_wait(void *unused) {
+    (void)unused;
+    for(;;) {
+        lock();int pending=head!=NULL;unlock();
+        if(!pending)return NULL;
+        service();
+    }
+}
+void rg_workers_service_wait(void) {
+    struct rg_environment saved;
+    rg_environment_capture(&saved);
+    scm_with_guile(service_wait,NULL);
+    rg_environment_apply(&saved);
 }
 int rg_workers_on_worker(void){return on_worker!=NULL;}
 int rg_workers_have_origin(void){return origin!=NULL||terminal_origin!=NULL;}

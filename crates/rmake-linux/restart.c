@@ -115,7 +115,9 @@ static int descriptor_stat(int descriptor, struct stat *identity)
     return result;
 }
 
-static void restart_pipe_visibility(const int pipe[4], int make_private)
+static void restart_pipe_visibility(const int pipe[4],
+                                    const uint64_t compact_identity[2],
+                                    int make_private)
 {
     if (!pipe)
         return;
@@ -125,12 +127,20 @@ static void restart_pipe_visibility(const int pipe[4], int make_private)
            replacing the incoming number or touching the child's own pair.
            As with normal descriptor use, native code must not close or
            rebind these descriptors concurrently with this boundary. */
-        struct stat incoming, owned;
-        if (descriptor_stat(pipe[i], &incoming) < 0
-            || descriptor_stat(pipe[i + 2], &owned) < 0
-            || !S_ISFIFO(incoming.st_mode) || !S_ISFIFO(owned.st_mode)
-            || incoming.st_dev != owned.st_dev || incoming.st_ino != owned.st_ino)
+        struct stat incoming;
+        if (descriptor_stat(pipe[i], &incoming) < 0 || !S_ISFIFO(incoming.st_mode))
             continue;
+        if (compact_identity) {
+            if ((uint64_t)incoming.st_dev != compact_identity[0]
+                || (uint64_t)incoming.st_ino != compact_identity[1])
+                continue;
+        } else {
+            struct stat owned;
+            if (descriptor_stat(pipe[i + 2], &owned) < 0
+                || !S_ISFIFO(owned.st_mode) || incoming.st_dev != owned.st_dev
+                || incoming.st_ino != owned.st_ino)
+                continue;
+        }
         int mode = descriptor_control(pipe[i], F_GETFL, 0);
         int access = mode & O_ACCMODE;
         if (mode < 0 || (mode & O_PATH)
@@ -147,7 +157,7 @@ static void restart_pipe_visibility(const int pipe[4], int make_private)
 
 void rmake_restart_pipe_private(const int pipe[4])
 {
-    restart_pipe_visibility(pipe, 1);
+    restart_pipe_visibility(pipe, NULL, 1);
 }
 
 /* Called only by the serialized process owner, after makefile jobs finish.
@@ -157,7 +167,8 @@ void rmake_restart_pipe_private(const int pipe[4])
    execvpe searches the live PATH; the replacement vector only changes the
    counter slots and leaves the global environment untouched on failure. */
 int rmake_exec_live_restart(char *const arguments[], uint32_t count,
-                            uint32_t level, int traced, const int pipe[4])
+                            uint32_t level, int traced, const int pipe[4],
+                            const uint64_t compact_identity[2])
 {
     struct restart_labels labels;
     const char *marker = traced ? "-" : "";
@@ -176,7 +187,7 @@ int rmake_exec_live_restart(char *const arguments[], uint32_t count,
     int failure = copy_live_environment(&labels, count, &environment);
     if (failure)
         return failure;
-    restart_pipe_visibility(pipe, 0);
+    restart_pipe_visibility(pipe, compact_identity, 0);
     execvpe(arguments[0], arguments, environment);
     failure = errno;
     free(environment);

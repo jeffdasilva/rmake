@@ -28,7 +28,11 @@ def main() -> int:
     # This ordinary Make recipe starts isolated campaigns, not recursive jobs.
     # It does not inherit a jobserver whose descriptors were closed by Make.
     base = dict(os.environ)
-    for key in ('GNUMAKEFLAGS', 'MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKE_RESTARTS', 'CARGO_MAKEFLAGS'):
+    for key in (
+        'GNUMAKEFLAGS', 'MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKE_RESTARTS', 'CARGO_MAKEFLAGS',
+        # Custom test binaries use these variables only in their own children.
+        'RMAKE_GUILE_COMPONENT_CASE', 'RMAKE_NATIVE_ENTRY_CASE', 'RMAKE_STARTUP_OWNER_UNIT_CHILD',
+    ):
         base.pop(key, None)
     enabled = {**base, **{key: profile['environment'][key] for key in (*ENVIRONMENT, 'RMAKE_GUILE_PREFIX')}}
     output = args.output.resolve()
@@ -48,6 +52,8 @@ def main() -> int:
     run([*cargo, 'build', *common], build_env)
     run([*cargo, 'build', '--release', *common], build_env)
     compare = [python, 'tools/guile_frontend.py', '--profile', str(args.profile.resolve())]
+    detached = [python, 'tools/guile_detached.py', '--profile', str(args.profile.resolve())]
+    pressure = [python, 'tools/guile_eventfd_pressure.py', '--profile', str(args.profile.resolve())]
     for label, default in (('debug', args.default_debug), ('release', args.default_release)):
         default_frozen = directory / f'default-{label}'
         enabled_frozen = directory / f'enabled-{label}'
@@ -56,6 +62,10 @@ def main() -> int:
         run([*compare, '--candidate', str(default_frozen), '--suite', 'signal',
              '--report', str(directory / f'default-{label}-signal.json')])
         run([*compare, '--candidate', str(enabled_frozen), '--report', str(directory / f'enabled-{label}.json')])
+        run([*detached, '--candidate', str(enabled_frozen),
+             '--report', str(directory / f'enabled-{label}-detached.json')])
+        run([*pressure, '--candidate', str(enabled_frozen),
+             '--report', str(directory / f'enabled-{label}-eventfd-pressure.json')])
         run([str(enabled_frozen), '-rR', '--no-print-directory', 'build', 'check-core'], enabled)
     print(f'Guile application reports: {directory}', flush=True)
     return 0

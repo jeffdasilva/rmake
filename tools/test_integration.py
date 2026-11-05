@@ -21,7 +21,8 @@ class IntegrationTests(unittest.TestCase):
     def test_sources_and_build_plans_are_pinned_and_have_independent_smokes(self):
         data = json.loads(i.MANIFEST.read_text())
         self.assertEqual(data['schema_version'], 1)
-        self.assertEqual({p['id'] for p in data['projects']}, {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9'})
+        self.assertEqual({p['id'] for p in data['projects']},
+                         {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14'})
         for project in data['projects']:
             self.assertRegex(project['archive_sha256'], r'^[0-9a-f]{64}$')
             self.assertRegex(project['license_sha256'], r'^[0-9a-f]{64}$')
@@ -101,15 +102,20 @@ class IntegrationTests(unittest.TestCase):
             self.assertTrue(i.freshness_errors({'a': 10}, noop, rebuilt))
 
     def test_semantic_rebuild_requires_the_one_original_source_fragment(self):
-        lua = next(p for p in json.loads(i.MANIFEST.read_text())['projects'] if p['id'] == 'lua-5.4.9')
-        change = lua['header_rebuild']
-        old = bytes.fromhex(change['before_hex'])
-        new = bytes.fromhex(change['after_hex'])
-        self.assertNotEqual(change['fresh_smoke_stdout_hex'], lua['smoke_stdout_hex'])
-        self.assertEqual(i.rebuilt_header(lua, b'prefix\n' + old + b'suffix'), b'prefix\n' + new + b'suffix')
-        for content in (b'wrong upstream header', old + old, new):
-            with self.assertRaisesRegex(h.HarnessError, 'exactly one changed source fragment'):
-                i.rebuilt_header(lua, content)
+        projects = {p['id']: p for p in json.loads(i.MANIFEST.read_text())['projects']}
+        for name in ('lua-5.4.9', 'gzip-1.14'):
+            with self.subTest(project=name):
+                project = projects[name]
+                change = project['header_rebuild']
+                old = bytes.fromhex(change['before_hex'])
+                new = bytes.fromhex(change['after_hex'])
+                self.assertNotEqual(bytes.fromhex(change['fresh_smoke_stdout_hex']),
+                                    bytes.fromhex(project['smoke_stdout_hex']))
+                self.assertEqual(i.rebuilt_header(project, b'prefix\n' + old + b'suffix'),
+                                 b'prefix\n' + new + b'suffix')
+                for content in (b'wrong upstream header', old + old, new):
+                    with self.assertRaisesRegex(h.HarnessError, 'exactly one changed source fragment'):
+                        i.rebuilt_header(project, content)
 
     def test_partial_raw_observation_is_preserved_with_checksums(self):
         with tempfile.TemporaryDirectory() as tmp:

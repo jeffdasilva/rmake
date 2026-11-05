@@ -12,6 +12,7 @@ use rmake_core::variables::Variable;
 struct FileSnapshot<'a> {
     view: FileView<'a>,
     timestamp: Option<Vec<u8>>,
+    also_make: Vec<&'a [u8]>,
     automatic: Option<Vec<(&'a [u8], &'a Variable)>>,
     automatic_stats: HashStats,
 }
@@ -52,8 +53,11 @@ impl Engine {
         if crate::native::has_modules() {
             let _ = rmake_linux::native::flush_stream(false);
         }
-        let result = self.write_database(&mut io::stdout().lock());
-        if let Err(error) = result {
+        let mut output = rmake_linux::output::Stdout::default();
+        let result = self.write_database(&mut output);
+        if let Err(error) = result
+            && !output.failed()
+        {
             self.stderr(&[b"write error: ".as_slice(), os_error(&error).as_bytes()].concat());
         }
     }
@@ -81,6 +85,7 @@ impl Engine {
             .iter()
             .map(|snapshot| {
                 let mut view = snapshot.view;
+                view.also_make = &snapshot.also_make;
                 if let Some(timestamp) = snapshot.timestamp.as_deref() {
                     view.time = FileTime::Formatted(timestamp);
                 }
@@ -165,21 +170,30 @@ impl Engine {
         rule: Option<&'a Rule>,
         branch: Option<usize>,
     ) -> io::Result<FileSnapshot<'a>> {
-        let variables = if let Some(ordinal) = branch {
-            self.database_branch_contexts.get(&(name.to_vec(), ordinal))
+        let is_head = branch.is_none_or(|ordinal| ordinal == 0);
+        let branch_key = branch.map(|ordinal| (name.to_vec(), ordinal));
+        let variables = if let Some(key) = &branch_key {
+            self.database_branch_contexts.get(key)
         } else {
             self.database_contexts.get(name)
         }
-        .or_else(|| self.target_contexts.get(name));
+        .or_else(|| {
+            if is_head {
+                self.target_contexts.get(name)
+            } else {
+                None
+            }
+        });
         let mut view = FileView::unchecked(name, rule);
         view.double_colon |= branch.is_some();
         view.phony = self.special(b".PHONY", name, false);
         view.precious = self.special_for_rule(b".PRECIOUS", name);
-        view.command_line = self
-            .options
-            .goals
-            .iter()
-            .any(|goal| self.resolved_name_ref(goal) == self.resolved_name_ref(name));
+        view.command_line = is_head
+            && self
+                .options
+                .goals
+                .iter()
+                .any(|goal| self.resolved_name_ref(goal) == self.resolved_name_ref(name));
         view.dont_care = self
             .database
             .makefiles
@@ -198,14 +212,32 @@ impl Engine {
         });
         view.intermediate = self.intermediates.contains(name);
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
-        view.secondary =
-            self.special(b".SECONDARY", name, true) || self.database_secondary.contains(name);
-        if let Some(group) = rule.and_then(|rule| rule.group.as_deref()) {
-            view.also_make = &group.targets;
+        view.secondary = self.special(b".SECONDARY", name, true)
+            || match &branch_key {
+                Some(key) => self.database_branch_secondary.contains(key),
+                None => self.database_secondary.contains(name),
+            };
+        let mut also_make = Vec::new();
+        if let Some(rule) = rule
+            && let Some(group) = rule.group.as_deref()
+        {
+            also_make.extend(
+                group
+                    .targets
+                    .iter()
+                    .rev()
+                    .filter(|peer| {
+                        rule.implicit_pattern.is_none()
+                            || self.resolved_name_ref(peer) != self.resolved_name_ref(name)
+                    })
+                    .map(Vec::as_slice),
+            );
         }
-        view.target_variables = self.database.target_scopes.get(name);
-        let outcome = if let Some(ordinal) = branch {
-            self.database_branch_outcomes.get(&(name.to_vec(), ordinal))
+        if is_head {
+            view.target_variables = self.database.target_scopes.get(name);
+        }
+        let outcome = if let Some(key) = &branch_key {
+            self.database_branch_outcomes.get(key)
         } else {
             self.done
                 .get(name)
@@ -218,25 +250,37 @@ impl Engine {
         let shared_time = branch
             .and_then(|_| self.database.rules.get(name))
             .and_then(|head| head.double_colon.as_ref())
-            .filter(|branches| !branches.is_empty())
+            .filter(|branches| branches.len() > 1)
             .filter(|branches| {
                 self.database_branch_outcomes
                     .contains_key(&(name.to_vec(), branches.len() - 1))
             })
             .and_then(|_| self.done.get(name));
-        let cached = shared_time
-            .or(outcome)
-            .and_then(|outcome| outcome.time)
-            .or_else(|| {
-                observed
-                    .and_then(|observation| observation.as_ref())
-                    .and_then(|(_, time)| *time)
-            })
-            .or_else(|| times.get(name).copied().flatten());
+        let timestamp_outcome = shared_time.or(outcome);
+        let database_result =
+            timestamp_outcome.map_or(DatabaseResult::Outcome, |outcome| outcome.database_result);
+        let retained = || times.get(name).copied().flatten();
+        let outcome_time = || timestamp_outcome.and_then(|outcome| outcome.time);
+        let cached = if database_result == DatabaseResult::ObservedGroup {
+            if branch.is_some() {
+                outcome_time()
+            } else {
+                retained()
+            }
+        } else {
+            outcome_time()
+                .or_else(|| {
+                    observed
+                        .and_then(|observation| observation.as_ref())
+                        .and_then(|(_, time)| *time)
+                })
+                .or_else(retained)
+        };
         // Invocation-only ages live outside the filesystem timestamp range.
         // Print their logical GNU representation without passing those wide
         // sentinels through libc calendar conversion.
-        let unchecked = self.database_unchecked_times.borrow().contains(name);
+        let unchecked = database_result != DatabaseResult::ObservedGroup
+            && self.database_unchecked_times.borrow().contains(name);
         let timestamp = if unchecked {
             None
         } else if self
@@ -246,10 +290,11 @@ impl Engine {
         {
             view.time = FileTime::Old;
             None
-        } else if self
-            .assumptions
-            .as_ref()
-            .is_some_and(|files| files.is_new_time(cached))
+        } else if database_result == DatabaseResult::Simulated
+            || self
+                .assumptions
+                .as_ref()
+                .is_some_and(|files| files.is_new_time(cached))
         {
             Some(rmake_linux::clock::file_time(
                 SystemTime::UNIX_EPOCH + Duration::new((1u64 << 34) - 1, 107_374_182),
@@ -292,6 +337,7 @@ impl Engine {
         Ok(FileSnapshot {
             view,
             timestamp,
+            also_make,
             automatic,
             automatic_stats,
         })
@@ -306,8 +352,8 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
     let Some(history) = host.database.database_history() else {
         return;
     };
+    let mut output = rmake_linux::output::Stdout::default();
     let result = (|| {
-        let mut output = io::stdout().lock();
         database::write_database_open(&mut output, &rmake_linux::clock::current_ctime()?)?;
         let files: Vec<_> = host
             .database
@@ -333,7 +379,9 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
         database::write_database_close(&mut output, &rmake_linux::clock::current_ctime()?)?;
         output.flush()
     })();
-    if let Err(error) = result {
+    if let Err(error) = result
+        && !output.failed()
+    {
         host.output.write_parts(
             true,
             &[
@@ -548,6 +596,7 @@ mod tests {
             name: b"missing.mk".to_vec(),
             optional: true,
             missing: true,
+            location: None,
             read_error: None,
         });
         assert!(

@@ -42,6 +42,8 @@ pub enum MessageId {
     EnterUnknownDirectoryAtDepth,
     LeaveUnknownDirectoryAtDepth,
     OsError,
+    SourceError,
+    FailedMakefileRemake,
     NothingToBeDone,
     UpToDate,
     CircularDependency,
@@ -66,7 +68,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 56] = [
+    pub const ALL: [Self; 58] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -102,6 +104,8 @@ impl MessageId {
         Self::EnterUnknownDirectoryAtDepth,
         Self::LeaveUnknownDirectoryAtDepth,
         Self::OsError,
+        Self::SourceError,
+        Self::FailedMakefileRemake,
         Self::NothingToBeDone,
         Self::UpToDate,
         Self::CircularDependency,
@@ -210,7 +214,16 @@ impl MessageId {
                 )
                 .then_some(b"/directory".as_slice()),
             },
-            Self::OsError => Message::GetcwdError(b"File not found"),
+            Self::OsError => Message::OsError {
+                action: b"getcwd",
+                path: b"",
+                detail: b"File not found",
+            },
+            Self::SourceError => Message::SourceError {
+                path: b"Makefile",
+                detail: b"I/O error",
+            },
+            Self::FailedMakefileRemake => Message::FailedMakefileRemake(b"Makefile"),
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
             Self::UpToDate => Message::UpToDate(b"target"),
             Self::CircularDependency => Message::CircularDependency {
@@ -292,6 +305,8 @@ impl MessageId {
             Self::EnterUnknownDirectoryAtDepth => c"%s[%u]: Entering an unknown directory\n",
             Self::LeaveUnknownDirectoryAtDepth => c"%s[%u]: Leaving an unknown directory\n",
             Self::OsError => c"%s%s: %s",
+            Self::SourceError => c"%s: %s",
+            Self::FailedMakefileRemake => c"Failed to remake makefile '%s'.",
             Self::NothingToBeDone => c"Nothing to be done for '%s'.",
             Self::UpToDate => c"'%s' is up to date.",
             Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
@@ -407,7 +422,16 @@ pub enum Message<'a> {
         depth: u32,
         path: Option<&'a [u8]>,
     },
-    GetcwdError(&'a [u8]),
+    OsError {
+        action: &'a [u8],
+        path: &'a [u8],
+        detail: &'a [u8],
+    },
+    SourceError {
+        path: &'a [u8],
+        detail: &'a [u8],
+    },
+    FailedMakefileRemake(&'a [u8]),
     NothingToBeDone(&'a [u8]),
     UpToDate(&'a [u8]),
     CircularDependency {
@@ -512,7 +536,9 @@ impl<'a> Message<'a> {
                 (true, true, false) => MessageId::EnterUnknownDirectoryAtDepth,
                 (false, true, false) => MessageId::LeaveUnknownDirectoryAtDepth,
             },
-            Self::GetcwdError(_) => MessageId::OsError,
+            Self::OsError { .. } => MessageId::OsError,
+            Self::SourceError { .. } => MessageId::SourceError,
+            Self::FailedMakefileRemake(_) => MessageId::FailedMakefileRemake,
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
             Self::UpToDate(_) => MessageId::UpToDate,
             Self::CircularDependency { .. } => MessageId::CircularDependency,
@@ -569,6 +595,7 @@ impl<'a> Message<'a> {
             | Self::UpToDate(name)
             | Self::DirectiveTail(name)
             | Self::InvalidFileOperation(name)
+            | Self::FailedMakefileRemake(name)
             | Self::LoadFailed(name)
             | Self::EmptyLoadSymbol(name)
             | Self::MissingNativeLicense(name)
@@ -610,10 +637,18 @@ impl<'a> Message<'a> {
                     push(Argument::Bytes(path));
                 }
             }
-            Self::GetcwdError(error) => {
-                push(Argument::Bytes(b"getcwd"));
-                push(Argument::Bytes(b""));
-                push(Argument::Bytes(error));
+            Self::OsError {
+                action,
+                path,
+                detail,
+            } => {
+                push(Argument::Bytes(action));
+                push(Argument::Bytes(path));
+                push(Argument::Bytes(detail));
+            }
+            Self::SourceError { path, detail } => {
+                push(Argument::Bytes(path));
+                push(Argument::Bytes(detail));
             }
             Self::UnterminatedFunction { name, close } => {
                 push(Argument::Bytes(name));

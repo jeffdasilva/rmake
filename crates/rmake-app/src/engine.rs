@@ -16,13 +16,15 @@ use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output, OutputReceiver};
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver};
+use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
 };
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -32,6 +34,7 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::Command;
+use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 #[cfg(not(feature = "guile"))]
@@ -145,6 +148,29 @@ fn target_variable_names(name: &[u8]) -> (&[u8], &[u8]) {
     rmake_core::filenames::archive_parts(name).unwrap_or((name, b""))
 }
 
+/// A normal occurrence upgrades the first occurrence and later order-only
+/// duplicates. Order-only duplicates already passed before the first normal
+/// occurrence retain their roles in the recorded chain.
+fn promote_order_only_duplicates(dependencies: &mut [Dependency], ready: impl Fn(usize) -> bool) {
+    let mut first = HashMap::new();
+    let mut promotions = Vec::new();
+    for (index, dependency) in dependencies.iter().enumerate() {
+        if !ready(index) || dependency.hidden || dependency.name == b".WAIT" {
+            continue;
+        }
+        let (first_index, order_only) = first
+            .entry(dependency.name.as_slice())
+            .or_insert((index, dependency.order_only));
+        if *order_only != dependency.order_only {
+            promotions.extend([*first_index, index]);
+            *order_only = false;
+        }
+    }
+    for index in promotions {
+        dependencies[index].order_only = false;
+    }
+}
+
 fn secondary_automatic(
     target: &[u8],
     dependencies: &mut [Dependency],
@@ -161,23 +187,9 @@ fn secondary_automatic(
     let plus = joined(normal.map(prerequisite_variable_name));
     // GNU computes < and + before promoting duplicate order-only
     // occurrences. Promotion survives into later clause expansions.
-    let mut first = HashMap::new();
-    let mut promotions = Vec::new();
-    for (index, (dependency, ready)) in dependencies.iter().zip(ready).enumerate() {
-        if !ready || dependency.hidden || dependency.name == b".WAIT" {
-            continue;
-        }
-        let (first_index, order_only) = first
-            .entry(dependency.name.as_slice())
-            .or_insert((index, dependency.order_only));
-        if *order_only != dependency.order_only {
-            promotions.extend([*first_index, index]);
-            *order_only = false;
-        }
-    }
-    for index in promotions {
-        dependencies[index].order_only = false;
-    }
+    promote_order_only_duplicates(dependencies, |index| {
+        ready.get(index).copied().unwrap_or(false)
+    });
     let mut seen = HashSet::new();
     let canonical: Vec<_> = dependencies
         .iter()
@@ -286,6 +298,16 @@ impl CompletionTime {
     }
 }
 
+/// Diagnostic result provenance is separate from the graph's completion policy.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum DatabaseResult {
+    #[default]
+    Outcome,
+    Simulated,
+    ObservedGroup,
+    RecipeUnstarted,
+}
+
 #[derive(Clone, Copy, Default)]
 struct Outcome {
     time: Option<SystemTime>,
@@ -297,6 +319,36 @@ struct Outcome {
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
+    database_result: DatabaseResult,
+    debug_time_changed: bool,
+}
+
+struct OptionalMakefileFailure {
+    open_error: Option<PendingIncludeError>,
+    before: Option<SystemTime>,
+    refresh_timestamp: bool,
+}
+
+struct FailedPrerequisite {
+    target: Vec<u8>,
+    parent: Vec<u8>,
+}
+
+struct PendingIncludeError {
+    location: Option<Location>,
+    name: Vec<u8>,
+    detail: IncludeError,
+}
+
+impl PendingIncludeError {
+    fn bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        match &self.detail {
+            IncludeError::Errno(code) => std::borrow::Cow::Owned(
+                rmake_linux::filesystem::source_error_detail(&io::Error::from_raw_os_error(*code)),
+            ),
+            IncludeError::Bytes(detail) => std::borrow::Cow::Borrowed(detail),
+        }
+    }
 }
 
 /// Freshness is a per-parent decision, independent of the intermediate's final
@@ -469,9 +521,11 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
 
 fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: &io::Error) {
     let detail = os_error(error);
-    let message = crate::messages::system(rmake_core::messages::Message::GetcwdError(
-        detail.as_bytes(),
-    ));
+    let message = crate::messages::system(Message::OsError {
+        action: b"getcwd",
+        path: b"",
+        detail: detail.as_bytes(),
+    });
     emit_output(
         output,
         program,
@@ -517,6 +571,13 @@ impl OutputReceiver for RuntimeOutput<'_> {
     fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
         crate::debug::reader(self.controller, event);
     }
+}
+
+struct SerialWait {
+    status: std::process::ExitStatus,
+    cleaned: bool,
+    #[cfg(feature = "guile")]
+    interpreter_failed: bool,
 }
 
 struct ParallelJob {
@@ -591,13 +652,16 @@ impl ParallelJobs {
     }
 }
 
-/// Rule observations borrowed until recipe dispatch; disabled tracing allocates
-/// nothing and does not add state to suspended continuations.
-struct TraceInputs<'a> {
+/// Rule observations borrowed until recipe dispatch.
+struct RecipeInputs<'a> {
+    phony: bool,
+    before: Option<SystemTime>,
     branch: Option<usize>,
+    implicit_group: bool,
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
+    normal_names: &'a HashSet<&'a [u8]>,
 }
 
 /// Interpreter-owned continuation. Workers receive only one prepared Command;
@@ -611,6 +675,11 @@ struct RecipeState {
     ran: bool,
     one_shell: bool,
     environment: Option<RecipeEnvironment>,
+    permit: Option<Permit>,
+    debug_job: Option<crate::debug::JobHandle>,
+}
+
+struct RecipeOwner {
     permit: Option<Permit>,
     debug_job: Option<crate::debug::JobHandle>,
 }
@@ -639,6 +708,8 @@ struct RuleState {
     // Rebuild evidence is rare; keep ordinary suspended graph frames compact.
     #[allow(clippy::box_collection)]
     intermediate_stale: Option<Box<HashSet<usize>>>,
+    #[allow(clippy::box_collection)]
+    debug_changed_edges: Option<Box<HashSet<usize>>>,
     stopped: bool,
     stale: bool,
     outcome: Outcome,
@@ -700,6 +771,12 @@ struct ArchiveLocation {
     path: Option<Vec<u8>>,
 }
 
+enum ImplicitPresence {
+    Local,
+    Search(Vec<u8>),
+    Absent,
+}
+
 struct ImplicitSelection {
     name: Vec<u8>,
     rule: Rule,
@@ -738,6 +815,7 @@ pub struct Engine {
     database_contexts: HashMap<Vec<u8>, VariableStore>,
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
+    database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
@@ -749,6 +827,8 @@ pub struct Engine {
     inherited_exports: HashSet<Vec<u8>>,
     command_replay: bool,
     done: HashMap<Vec<u8>, Outcome>,
+    #[allow(clippy::box_collection)]
+    debug_serial_considered: Option<Box<HashSet<Vec<u8>>>>,
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
@@ -757,6 +837,7 @@ pub struct Engine {
     impossible_generation: u64,
     would_build: bool,
     parallel_jobs: ParallelJobs,
+    aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
     load_waiting: Vec<(Vec<u8>, u64)>,
     load: crate::load::Monitor,
@@ -778,7 +859,9 @@ pub struct Engine {
     shutdown_launch_failure: RefCell<Option<FailedOwner>>,
     remaking: bool,
     optional_remake: bool,
-    optional_remake_failures: HashSet<Vec<u8>>,
+    retain_remake_failure: bool,
+    // A missing cause here marks a direct, suppressed failure.
+    optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
     vpath_dirs: Vec<Vec<u8>>,
     gpath_dirs: HashSet<Vec<u8>>,
     makefile_names: HashSet<Vec<u8>>,
@@ -787,7 +870,7 @@ pub struct Engine {
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     archive_completion_times: HashMap<Vec<u8>, ArchiveCompletion>,
-    makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
+    makefile_error: RefCell<Option<PendingIncludeError>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
     intermediate_policy: crate::intermediates::Policy,
@@ -900,6 +983,7 @@ impl Invocation {
 #[derive(Debug)]
 pub enum InvocationError {
     Options(String),
+    Usage { version: bool },
     Expansion(StartupError),
 }
 
@@ -1019,6 +1103,7 @@ impl Engine {
                 .map_or(b"".as_slice(), |variable| variable.raw_value()),
         );
         exit_level = makelevel;
+        rmake_linux::output::set_stdout_level(makelevel);
         output.set_recursive(makelevel != 0);
         let program_base_length = program.len();
         if makelevel != 0 {
@@ -1310,6 +1395,7 @@ impl Engine {
             database_contexts: HashMap::new(),
             database_branch_contexts: HashMap::new(),
             database_branch_outcomes: HashMap::new(),
+            database_branch_secondary: BTreeSet::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
@@ -1321,6 +1407,7 @@ impl Engine {
             inherited_exports,
             command_replay,
             done: HashMap::new(),
+            debug_serial_considered: None,
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
@@ -1329,6 +1416,7 @@ impl Engine {
             impossible_generation: 0,
             would_build: false,
             parallel_jobs: ParallelJobs::default(),
+            aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
             load_waiting: Vec::new(),
             load: crate::load::Monitor::default(),
@@ -1350,7 +1438,8 @@ impl Engine {
             shutdown_launch_failure: RefCell::new(None),
             remaking: false,
             optional_remake: false,
-            optional_remake_failures: HashSet::new(),
+            retain_remake_failure: false,
+            optional_remake_failures: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
             makefile_names: HashSet::new(),
@@ -1574,10 +1663,10 @@ impl Engine {
         }
     }
 
-    fn terminate_native(
+    fn with_retained_native_context<T>(
         &mut self,
-        action: rmake_linux::signals::ExitAction,
-    ) -> Result<(), ExpandError> {
+        operation: impl FnOnce(&mut Database, &mut ExpansionContext<'_>) -> Result<T, ExpandError>,
+    ) -> Result<T, ExpandError> {
         let mut output =
             RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
         let mut flags = self.flag_state.receiver();
@@ -1601,14 +1690,31 @@ impl Engine {
             .with_filesystem(&mut filesystem)
             .with_shell(&mut shell)
             .with_includes(&mut include);
-        match action {
+        operation(&mut self.database, &mut context)
+    }
+
+    fn terminate_native(
+        &mut self,
+        action: rmake_linux::signals::ExitAction,
+    ) -> Result<(), ExpandError> {
+        self.with_retained_native_context(|database, context| match action {
             rmake_linux::signals::ExitAction::Code(status) => {
-                self.database.terminate_native_with(status, &mut context)
+                database.terminate_native_with(status, context)
             }
-            rmake_linux::signals::ExitAction::Signal(number) => self
-                .database
-                .terminate_native_signal_with(number, &mut context),
+            rmake_linux::signals::ExitAction::Signal(number) => {
+                database.terminate_native_signal_with(number, context)
+            }
+        })
+    }
+
+    #[cfg(feature = "guile")]
+    fn service_serial_workers(&mut self) -> Result<(), ExpandError> {
+        let result =
+            self.with_retained_native_context(Database::service_waiting_native_workers_with);
+        if let Some(options) = self.flag_state.take() {
+            self.options = options;
         }
+        result
     }
 
     #[cfg(feature = "guile")]
@@ -1629,13 +1735,16 @@ impl Engine {
     }
 
     fn show_makefile_error(&self) {
-        if let Some((location, message)) = self.makefile_error.borrow_mut().take() {
+        if let Some(error) = self.makefile_error.borrow_mut().take() {
+            // The ordinary remake complaint has fixed punctuation. Only the
+            // errno detail comes from the active libc messages locale.
+            let detail = error.bytes();
             emit_output(
                 &self.output,
                 &self.program,
                 Output::Warning {
-                    location: location.as_ref(),
-                    message: &message,
+                    location: error.location.as_ref(),
+                    message: &[error.name.as_slice(), b": ", &detail].concat(),
                 },
             );
         }
@@ -1799,15 +1908,12 @@ impl Engine {
             let file = match self.include_search.borrow().read(name) {
                 Ok(file) => file,
                 Err(error) => {
-                    if error == b"Is a directory" {
-                        self.fatal(None, &[name, b": ", &error].concat());
-                        return Err(());
-                    }
                     self.database.makefiles.push(Makefile {
-                        name: name.to_vec(),
+                        name: error.resolved_name.unwrap_or_else(|| name.to_vec()),
                         optional: true,
                         missing: true,
-                        read_error: None,
+                        location: None,
+                        read_error: Some(error.detail),
                     });
                     continue;
                 }
@@ -1817,6 +1923,7 @@ impl Engine {
                 name: file.name.clone(),
                 optional: true,
                 missing: false,
+                location: None,
                 read_error: None,
             });
             if let Err(error) = self.database.variables.append_literal_at(
@@ -1906,7 +2013,11 @@ impl Engine {
             self.output.debug_mask(),
             self.jobserver.as_ref().and_then(Jobserver::owned_slots),
         );
-        self.print_database();
+        if self.interrupt.is_none() || self.shutdown.get() == Shutdown::Reentered {
+            self.print_database();
+        }
+        let aborted_permit = self.aborted_recipe_permit.take();
+        self.release_completed_permit(aborted_permit);
         status
     }
 
@@ -2007,7 +2118,20 @@ impl Engine {
             let source = match rmake_linux::stdin_source::Source::copy_stdin() {
                 Ok(source) => source,
                 Err(_) if rmake_linux::signals::pending().is_some() => return Err(()),
-                Err(_) => {
+                Err(rmake_linux::stdin_source::CopyError::Write { path, error }) => {
+                    self.fatal(
+                        None,
+                        &[
+                            b"fwrite: temporary file ".as_slice(),
+                            path.as_os_str().as_bytes(),
+                            b": ",
+                            os_error(&error).as_bytes(),
+                        ]
+                        .concat(),
+                    );
+                    return Err(());
+                }
+                Err(rmake_linux::stdin_source::CopyError::Storage) => {
                     self.fatal(
                         None,
                         b"cannot store makefile from stdin to a temporary file",
@@ -2152,13 +2276,16 @@ impl Engine {
             if files.is_empty() {
                 let mut default_file = None;
                 for name in ["GNUmakefile", "makefile", "Makefile"] {
-                    if let Err(error) = self.directory_member(name.as_bytes()) {
-                        self.expansion_error(None, &error);
-                        return 2;
-                    }
-                    if Path::new(name).is_file() {
-                        default_file = Some(name);
-                        break;
+                    match self.directory_member(name.as_bytes()) {
+                        Ok(true) => {
+                            default_file = Some(name);
+                            break;
+                        }
+                        Ok(false) => {}
+                        Err(error) => {
+                            self.expansion_error(None, &error);
+                            return 2;
+                        }
                     }
                 }
                 if let Some(file) = default_file {
@@ -2171,6 +2298,7 @@ impl Engine {
                             name: name.to_vec(),
                             optional: true,
                             missing: true,
+                            location: None,
                             read_error: None,
                         });
                     }
@@ -2209,19 +2337,28 @@ impl Engine {
                         if rmake_linux::signals::pending().is_some() {
                             return 2;
                         }
+                        if matches!(err.raw_os_error(), Some(12 | 23 | 24)) {
+                            self.fatal(None, os_error(&err).as_bytes());
+                            return 2;
+                        }
+                        let detail = rmake_linux::filesystem::source_error_detail(&err);
                         emit_output(
                             &self.output,
                             &self.program,
                             Output::Warning {
                                 location: None,
-                                message: format!("{}: {}", file.display(), os_error(&err))
-                                    .as_bytes(),
+                                message: &crate::messages::system(Message::OsError {
+                                    action: b"",
+                                    path: file.as_os_str().as_bytes(),
+                                    detail: &detail,
+                                }),
                             },
                         );
                         self.database.makefiles.push(Makefile {
                             name: file.as_os_str().as_bytes().to_vec(),
                             optional: false,
                             missing: true,
+                            location: None,
                             read_error: None,
                         });
                         continue;
@@ -2233,6 +2370,7 @@ impl Engine {
                         name: file.as_os_str().as_bytes().to_vec(),
                         optional: false,
                         missing: false,
+                        location: None,
                         read_error: None,
                     });
                 }
@@ -2564,14 +2702,17 @@ impl Engine {
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
+            let mut skipped_errors = Vec::new();
+            let mut failed_remakes = HashMap::new();
+            let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut seen = HashSet::new();
             let read_files = self.database.makefiles.clone();
             let required_names: HashSet<_> = read_files
                 .iter()
                 .filter(|file| !file.optional)
-                .map(|file| file.name.clone())
+                .map(|file| file.name.as_slice())
                 .collect();
-            for mut makefile in read_files {
+            for makefile in &read_files {
                 // The published stdin source is already a completed input,
                 // retained across restarts. It is never a makefile remake goal.
                 if self.options.temp_stdin_file.is_some_and(|index| {
@@ -2582,8 +2723,7 @@ impl Engine {
                     continue;
                 }
                 self.database_remake_started.insert(makefile.name.clone());
-                if !seen.insert(makefile.name.clone())
-                    || self.special(b".PHONY", &makefile.name, false)
+                if self.special(b".PHONY", &makefile.name, false)
                     || self
                         .database
                         .rules
@@ -2595,18 +2735,46 @@ impl Engine {
                                 .any(|rule| rule.dependencies.is_empty() && rule.recipes.is_some())
                         })
                 {
+                    if !makefile.optional
+                        && let Some(detail) = &makefile.read_error
+                    {
+                        skipped_errors.push(PendingIncludeError {
+                            location: makefile.location.clone(),
+                            name: makefile.name.clone(),
+                            detail: detail.clone(),
+                        });
+                    }
+                    continue;
+                }
+                let name = makefile.name.as_slice();
+                if !seen.insert(name) {
+                    if !makefile.optional
+                        && let Some(failure) = optional_failures.get_mut(name)
+                    {
+                        if self.replay_makefile_failure(name, &mut failure.open_error)
+                            && !self.options.keep_going
+                        {
+                            self.remove_intermediates();
+                            return 2;
+                        }
+                        failed = true;
+                        if self.options.keep_going {
+                            failed_remakes
+                                .entry(name)
+                                .or_insert((failure.before, failure.refresh_timestamp));
+                        }
+                    }
                     continue;
                 }
                 // Global symbol lookup can load a logical module name whose
                 // file is absent. Loader success does not make that file exist.
-                if self.database.loaded_modules.contains_key(&makefile.name) {
-                    makefile.missing = self.modified(&makefile.name).is_none();
-                }
-                let promoted_required =
-                    makefile.optional && required_names.contains(&makefile.name);
-                if promoted_required {
-                    makefile.optional = false;
-                }
+                let missing = if self.database.loaded_modules.contains_key(&makefile.name) {
+                    self.modified(&makefile.name).is_none()
+                } else {
+                    makefile.missing
+                };
+                let optional = makefile.optional;
+                let may_replay = optional && required_names.contains(name);
                 if !self.ignores_file_rules(&makefile.name)
                     && !self.resolve_implicit(&makefile.name)
                 {
@@ -2614,8 +2782,8 @@ impl Engine {
                     return 2;
                 }
                 let before = self.modified(&makefile.name);
-                if !self.database.rules.contains_key(&makefile.name)
-                    && (!makefile.missing || makefile.optional)
+                if !self.database.rules.contains_key(name)
+                    && (!missing || (optional && !may_replay))
                 {
                     if before.is_some() {
                         self.database_secondary.insert(makefile.name.clone());
@@ -2630,32 +2798,46 @@ impl Engine {
                     );
                     continue;
                 }
-                *self.makefile_error.borrow_mut() = if makefile.optional {
-                    None
-                } else if promoted_required && makefile.missing && makefile.read_error.is_none() {
-                    Some((
-                        None,
-                        [makefile.name.as_slice(), b": No such file or directory"].concat(),
-                    ))
-                } else {
-                    makefile.read_error.map(|(location, error)| {
-                        (
-                            Some(location),
-                            [makefile.name.as_slice(), b": ", &error].concat(),
-                        )
-                    })
+                let pending_open_error = || {
+                    makefile
+                        .read_error
+                        .as_ref()
+                        .map(|detail| PendingIncludeError {
+                            location: makefile.location.clone(),
+                            name: makefile.name.clone(),
+                            detail: detail.clone(),
+                        })
                 };
-                self.optional_remake = makefile.optional;
+                *self.makefile_error.borrow_mut() =
+                    if optional { None } else { pending_open_error() };
+                self.optional_remake = optional;
+                self.retain_remake_failure = may_replay;
                 let result = self.build(&makefile.name, None, 0);
+                self.retain_remake_failure = false;
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
-                failed |= result.failed && !makefile.optional;
-                if !result.failed {
+                failed |= result.failed && !optional;
+                if result.failed && !result.fatal {
+                    // Without its own recipe run, the makefile keeps its cached time.
+                    let refresh_timestamp = result.ran && !result.blocked;
+                    if may_replay {
+                        optional_failures.insert(
+                            name,
+                            OptionalMakefileFailure {
+                                open_error: pending_open_error(),
+                                before,
+                                refresh_timestamp,
+                            },
+                        );
+                    } else if !optional && self.options.keep_going {
+                        failed_remakes.insert(name, (before, refresh_timestamp));
+                    }
+                } else if !result.failed {
                     self.database_unchecked_times
                         .borrow_mut()
                         .remove(&makefile.name);
+                    changed |= self.modified(&makefile.name) != before;
                 }
-                changed |= !result.failed && self.modified(&makefile.name) != before;
                 if result.fatal {
                     failed = true;
                     break;
@@ -2672,6 +2854,49 @@ impl Engine {
             if self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
                 return 2;
+            }
+            // These are reported after the remake chain, using the locale
+            // and gettext domain that its recipes left in effect.
+            failed |= !skipped_errors.is_empty();
+            for error in skipped_errors.iter().rev() {
+                let detail = error.bytes();
+                emit_output(
+                    &self.output,
+                    &self.program,
+                    Output::Warning {
+                        location: error.location.as_ref(),
+                        message: &crate::messages::system(Message::SourceError {
+                            path: &error.name,
+                            detail: &detail,
+                        }),
+                    },
+                );
+            }
+            // Build each name once, then report at every required read locus.
+            if !failed_remakes.is_empty() {
+                for makefile in read_files.iter().filter(|file| !file.optional) {
+                    let Some((before, refresh_timestamp)) =
+                        failed_remakes.get_mut(makefile.name.as_slice())
+                    else {
+                        continue;
+                    };
+                    emit_output(
+                        &self.output,
+                        &self.program,
+                        Output::Warning {
+                            location: makefile.location.as_ref(),
+                            message: &crate::messages::system(Message::FailedMakefileRemake(
+                                &makefile.name,
+                            )),
+                        },
+                    );
+                    // Later remake recipes can still change this file.
+                    if *refresh_timestamp {
+                        let after = self.modified(&makefile.name);
+                        changed |= after.is_some() && after != *before;
+                        *refresh_timestamp = false;
+                    }
+                }
             }
             if changed {
                 self.remove_intermediates();
@@ -2698,7 +2923,6 @@ impl Engine {
             return 2;
         }
         self.unlink_stdin();
-        crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
@@ -2783,6 +3007,9 @@ impl Engine {
         } else {
             self.options.goals.clone()
         };
+        // Remake and ordinary goals are separate diagnostic traversals.
+        self.debug_serial_considered = None;
+        crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
             self.shuffle.start(&mut goals, &self.database, disabled);
@@ -3071,6 +3298,11 @@ impl Engine {
                 }
                 continue;
             }
+            // GNU emits the debug heading whenever it starts a printed rm
+            // list; under -s the list stays empty, so each removal logs it.
+            if line.is_empty() {
+                crate::debug::emit(&self.output, crate::debug::Event::RemovingIntermediates);
+            }
             if !self.globally_silent() {
                 if line.is_empty() {
                     line.extend_from_slice(b"rm ");
@@ -3082,10 +3314,7 @@ impl Engine {
             if let Err(error) = result {
                 // GNU flushes the partial command before the unlink diagnostic
                 // and begins a new command for any later removable record.
-                let mut out = io::stdout().lock();
-                let _ = out.write_all(&line);
-                let _ = out.flush();
-                drop(out);
+                crate::output::stdout_parts(&[&line]);
                 line.clear();
                 self.stderr(
                     &[
@@ -3278,11 +3507,21 @@ impl Engine {
                 continue;
             }
             next += 1;
+            // Inspection of a missing intermediate does not carry the
+            // enclosing makefile's optional policy into its prerequisites.
+            let optional = std::mem::take(&mut self.optional_remake);
             let Inspection {
-                outcome: child,
+                outcome: mut child,
                 pending,
                 needs_rebuild,
             } = self.check_intermediate(&dep.name, target, time, depth + 1);
+            self.optional_remake = optional;
+            if optional && child.failed && !self.options.keep_going {
+                let mut shutdown = self.shutdown.get();
+                shutdown.drain();
+                self.shutdown.set(shutdown);
+                child.fatal = true;
+            }
             merge_child(&mut result, child);
             waiting |= pending;
             // A running child has no final timestamp yet. Never materialize an
@@ -3293,6 +3532,9 @@ impl Engine {
             if child.fatal || (child.failed && !self.options.keep_going) || (serial && pending) {
                 break;
             }
+        }
+        if self.retain_remake_failure && result.blocked && !result.fatal && !waiting {
+            self.remember_optional_prerequisite(target, &rule, None);
         }
         if dropped {
             self.store_inspected_rule(target, double_colon, rule);
@@ -3369,7 +3611,7 @@ impl Engine {
             }
             // Wait for this pool's reader, owned child exits, or a fatal signal.
             // No polling delay is added to tokens returned by another process.
-            self.child_events(true, Some(server.readiness()))?;
+            self.child_events(true, Some(server.readiness()?))?;
             self.observe_interrupt();
             if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
                 return Ok(None);
@@ -3445,7 +3687,7 @@ impl Engine {
     fn child_events(
         &mut self,
         block: bool,
-        additional: Option<std::os::fd::BorrowedFd<'_>>,
+        additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
         let children: Vec<_> = self
             .parallel_jobs
@@ -3537,16 +3779,22 @@ impl Engine {
         before: Option<SystemTime>,
         phony: bool,
         debug_job: Option<&crate::debug::JobHandle>,
-    ) -> io::Result<(std::process::ExitStatus, bool)> {
+    ) -> io::Result<SerialWait> {
         self.job_debug.live(self.output.debug_mask());
         let mut observed = None;
         let mut cleaned = false;
+        #[cfg(feature = "guile")]
+        let mut workers = rmake_linux::guile::WorkerWait::begin()?;
+        #[cfg(feature = "guile")]
+        let mut interpreter_failed = false;
         loop {
             self.observe_interrupt();
             if let Some(number) = self.interrupt
                 && observed != Some(number)
             {
                 observed = Some(number);
+                #[cfg(feature = "guile")]
+                workers.cancel();
                 if number == 15 {
                     child.send_signal(number)?;
                 }
@@ -3559,11 +3807,47 @@ impl Engine {
                     self.notice_waiting_for_jobs();
                 }
             }
-            if let Some(status) = child.try_wait()? {
-                crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
-                return Ok((status, cleaned));
+            let status = child.try_wait()?;
+            #[cfg(feature = "guile")]
+            let worker_pending = if status.is_some() {
+                !workers.finish_if_idle()
+            } else {
+                workers.pending()
+            };
+            #[cfg(feature = "guile")]
+            if worker_pending {
+                if let Err(error) = self.service_serial_workers() {
+                    workers.cancel();
+                    if !matches!(error, ExpandError::Cancelled) {
+                        self.expansion_error(None, &error);
+                        if status.is_none() {
+                            self.notice_waiting_for_jobs();
+                        }
+                        interpreter_failed = true;
+                    }
+                }
+                continue;
             }
-            rmake_linux::child::wait(&[(0, child)], true, true, None, None)?;
+            if let Some(status) = status {
+                crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
+                return Ok(SerialWait {
+                    status,
+                    cleaned,
+                    #[cfg(feature = "guile")]
+                    interpreter_failed,
+                });
+            }
+            #[cfg(feature = "guile")]
+            let (worker_wake, retry) = (workers.descriptor(), workers.poll_interval());
+            #[cfg(not(feature = "guile"))]
+            let (worker_wake, retry) = (None::<std::os::fd::BorrowedFd<'_>>, None);
+            rmake_linux::child::wait(
+                &[(0, child)],
+                true,
+                true,
+                worker_wake.map(|fd| std::os::fd::AsRawFd::as_raw_fd(&fd)),
+                retry,
+            )?;
         }
     }
 
@@ -3631,11 +3915,36 @@ impl Engine {
         }
     }
 
-    /// The inherited slot belongs to the live pool, not permanently to its
-    /// first recipe. Move an outstanding paid lease into the newly freed slot
-    /// and return that lease's original byte to other jobserver participants.
-    fn reuse_implicit_job_slot(&mut self) {
+    fn release_completed_permit(&self, permit: Option<Permit>) {
+        if let Some(permit) = permit
+            && !permit.is_implicit()
+            && self.interrupt.is_none()
+            && rmake_linux::signals::pending().is_none()
+        {
+            permit.release_completed();
+        }
+    }
+
+    /// A user error during command configuration leaves the already reserved
+    /// logical slot outstanding while the real children drain.
+    fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, error: &ExpandError) {
+        if error.is_user_error()
+            && self.aborted_recipe_permit.is_none()
+            && self.interrupt.is_none()
+            && rmake_linux::signals::pending().is_none()
+        {
+            self.aborted_recipe_permit = permit.take();
+        }
+    }
+
+    /// Move one outstanding paid lease into the newly freed implicit slot.
+    /// A failed dispatch can still own a logical slot during ordinary drain.
+    fn reuse_implicit_job_slot(&mut self, ordinary_completion: bool) {
         if self.jobserver.is_none()
+            || self
+                .aborted_recipe_permit
+                .as_ref()
+                .is_some_and(Permit::is_implicit)
             || self.parallel_jobs.values().any(|job| {
                 job.continuation
                     .permit
@@ -3645,7 +3954,7 @@ impl Engine {
         {
             return;
         }
-        if let Some((_, job)) = self
+        let paid = if let Some((_, job)) = self
             .parallel_jobs
             .entries_mut()
             .filter(|(_, job)| {
@@ -3656,8 +3965,14 @@ impl Engine {
             })
             .min_by_key(|(_, job)| job.identity)
         {
-            let paid = job.continuation.permit.replace(Permit::implicit());
-            drop(paid);
+            job.continuation.permit.replace(Permit::implicit())
+        } else if self.aborted_recipe_permit.is_some() {
+            self.aborted_recipe_permit.replace(Permit::implicit())
+        } else {
+            None
+        };
+        if ordinary_completion {
+            self.release_completed_permit(paid);
         }
     }
 
@@ -3790,8 +4105,8 @@ impl Engine {
         }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
-        if !failed {
-            let execution =
+        let completed_permit = if !failed {
+            let (execution, permit) =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
             failed |= matches!(execution.status, Status::Failure | Status::Fatal);
             outcome.fatal |= execution.status == Status::Fatal;
@@ -3799,7 +4114,10 @@ impl Engine {
                 failed = true;
                 outcome.fatal = true;
             }
-        }
+            permit
+        } else {
+            job.continuation.permit.take()
+        };
         if let Some(buffer) = output {
             if outcome.fatal && self.interrupt.is_none() {
                 self.fatal_outputs.push(buffer);
@@ -3853,8 +4171,11 @@ impl Engine {
         if !self.parallel_jobs.contains_key(&target) {
             self.finish_group(&target, outcome);
         }
+        if !outcome.fatal {
+            self.release_completed_permit(completed_permit);
+        }
         self.finish_debug_job(debug_job.as_ref());
-        self.reuse_implicit_job_slot();
+        self.reuse_implicit_job_slot(!outcome.fatal);
         self.job_debug.live(self.output.debug_mask());
     }
 
@@ -4151,6 +4472,16 @@ impl Engine {
                     .entry((to.to_vec(), key.1))
                     .or_insert(outcome);
             }
+        }
+        let secondary_keys: Vec<_> = self
+            .database_branch_secondary
+            .iter()
+            .filter(|(name, _)| name.as_slice() == from)
+            .cloned()
+            .collect();
+        for key in secondary_keys {
+            self.database_branch_secondary.remove(&key);
+            self.database_branch_secondary.insert((to.to_vec(), key.1));
         }
         let mut unchecked_times = self.database_unchecked_times.borrow_mut();
         if unchecked_times.remove(from) {
@@ -4675,12 +5006,16 @@ impl Engine {
 
     /// Local implicit prerequisites use directory membership without a fresh
     /// stat. VPATH candidates still require its positive-name stat check.
-    fn implicit_vpath_exists(&mut self, target: &[u8]) -> Result<bool, ExpandError> {
+    fn implicit_presence(&mut self, target: &[u8]) -> Result<ImplicitPresence, ExpandError> {
         if rmake_core::filenames::archive_parts(target).is_none() {
             return if self.directory_member(target)? {
-                Ok(true)
+                Ok(ImplicitPresence::Local)
             } else {
-                Ok(self.searched_file(target)?.is_some())
+                Ok(match self.searched_file(target)? {
+                    Some((Some(path), _)) => ImplicitPresence::Search(path),
+                    Some((None, _)) => ImplicitPresence::Local,
+                    None => ImplicitPresence::Absent,
+                })
             };
         }
         // Viability uses the archive date alone. Standalone-member freshness
@@ -4706,7 +5041,7 @@ impl Engine {
             .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?
             .is_some()
         {
-            return Ok(true);
+            return Ok(ImplicitPresence::Local);
         }
         if self.vpath_searchable(target) {
             for directory in self
@@ -4719,11 +5054,11 @@ impl Engine {
                 if self.search_record_matches(target, &lookup)
                     || (self.directory_member(&membership)? && fs::metadata(os(&name)).is_ok())
                 {
-                    return Ok(true);
+                    return Ok(ImplicitPresence::Search(name));
                 }
             }
         }
-        Ok(false)
+        Ok(ImplicitPresence::Absent)
     }
 
     fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
@@ -4821,12 +5156,6 @@ impl Engine {
                     return false;
                 }
             };
-        if plan.is_none() {
-            crate::debug::emit(
-                &self.output,
-                crate::debug::Event::NoRule(target, debug_depth + 1),
-            );
-        }
         if plan.is_none() && budget == 0 {
             self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
             return false;
@@ -4850,6 +5179,7 @@ impl Engine {
                 .map(|selection| (selection.name.as_slice(), &selection.rule))
                 .collect();
             for selection in &plan {
+                let group = selection.rule.group.as_ref();
                 for dependency in selection.rule.dependencies.iter().rev() {
                     if let Some(child) = inferred.get(dependency.name.as_slice()) {
                         self.database.file_records.insert(&dependency.name);
@@ -4857,13 +5187,36 @@ impl Engine {
                             self.database.file_records.insert(&input.name);
                         }
                     } else if selection.name == target && dependency.name != b".WAIT" {
-                        self.database.file_records.insert(&dependency.name);
+                        if group.is_some() {
+                            if let Some(history) = self.database.database_history() {
+                                history.intern(&dependency.name);
+                            }
+                            self.database
+                                .file_records
+                                .enter_prerequisite(&dependency.name);
+                        } else {
+                            self.database.file_records.insert(&dependency.name);
+                        }
                     }
                 }
-                if let Some(group) = &selection.rule.group {
-                    for peer in &group.targets {
+                if let Some(group) = group {
+                    if let Some(history) = self.database.database_history() {
+                        if let Some(stem) = &selection.rule.stem {
+                            history.intern(stem);
+                        }
+                        if let Some(pattern) = &selection.rule.implicit_pattern {
+                            history.record_file_lookup(pattern);
+                        }
+                    }
+                    for (peer, pattern) in &group.implicit_peer_patterns {
                         if peer != &selection.name {
+                            if let Some(history) = self.database.database_history() {
+                                history.intern(peer);
+                            }
                             self.database.file_records.insert(peer);
+                            if let Some(history) = self.database.database_history() {
+                                history.record_file_lookup(pattern);
+                            }
                         }
                     }
                 }
@@ -4948,7 +5301,20 @@ impl Engine {
         if *budget == 0 {
             return Ok(None);
         }
+        let depth = debug_depth + active.len() + 1;
+        let archive_name = rmake_core::filenames::archive_parts(target)
+            .map(|(archive, _)| &target[archive.len()..]);
+        let root = active.is_empty();
         for archive_search in [false, true] {
+            if archive_search && archive_name.is_none() {
+                break;
+            }
+            if archive_search && root {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::LookingArchive(target, depth),
+                );
+            }
             if let Some(plan) = self.implicit_search(
                 target,
                 active,
@@ -4958,6 +5324,20 @@ impl Engine {
                 debug_depth,
             )? {
                 return Ok(Some(plan));
+            }
+            let printed = if archive_search {
+                archive_name.unwrap_or(target)
+            } else {
+                target
+            };
+            if !archive_search || root {
+                crate::debug::emit(&self.output, crate::debug::Event::NoRule(printed, depth));
+            }
+            if archive_search && root {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::NoArchiveRule(target, depth),
+                );
             }
         }
         Ok(None)
@@ -4972,6 +5352,18 @@ impl Engine {
         budget: &mut usize,
         debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
+        let tracing = self.output.debug_mask().has(crate::debug::Mask::IMPLICIT);
+        if tracing && !active.is_empty() {
+            let mut blocked = active.clone();
+            blocked.sort_unstable();
+            for identity in blocked {
+                let label = crate::debug::rule_label(&self.database, identity);
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::AvoidingRecursion(&label, debug_depth + active.len() + 2),
+                );
+            }
+        }
         let candidates = if archive_search {
             self.database
                 .implicit_archive_candidates_excluding(target, active)
@@ -4984,6 +5376,12 @@ impl Engine {
         let mut variables = None;
         let mut pattern_scope = None;
         for chain in [false, true] {
+            if chain && !candidates.is_empty() {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::TryingHarder(debug_depth + active.len() + 2),
+                );
+            }
             for (ordinal, candidate) in candidates.iter().enumerate() {
                 if *budget == 0 {
                     return Ok(None);
@@ -4996,17 +5394,27 @@ impl Engine {
                 {
                     continue;
                 }
-                let debug_label = self
-                    .output
-                    .debug_mask()
-                    .has(crate::debug::Mask::IMPLICIT)
-                    .then(|| crate::debug::rule_label(&self.database, candidate.identity));
+                let debug_label =
+                    tracing.then(|| crate::debug::rule_label(&self.database, candidate.identity));
                 if let Some(label) = &debug_label {
+                    let stem = candidate.rule.stem.as_deref().unwrap_or_default();
+                    let printed_stem = if !archive_search
+                        && candidate
+                            .rule
+                            .implicit_pattern
+                            .as_ref()
+                            .is_some_and(|pattern| !pattern.contains(&b'/'))
+                        && let Some(slash) = target.iter().rposition(|byte| *byte == b'/')
+                    {
+                        stem.strip_prefix(&target[..=slash]).unwrap_or(stem)
+                    } else {
+                        stem
+                    };
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::TryingRule(
                             label,
-                            candidate.rule.stem.as_deref().unwrap_or_default(),
+                            printed_stem,
                             debug_depth + active.len() + 2,
                         ),
                     );
@@ -5091,8 +5499,50 @@ impl Engine {
                                 dependency.name = identity.to_vec();
                             }
                             let name = &dependency.name;
+                            let event_depth = debug_depth + active.len() + 1;
+                            let literal = tracing
+                                && self
+                                    .database
+                                    .implicit_rule_source(candidate.identity)
+                                    .and_then(|(_, source)| source.dependencies.get(index))
+                                    .is_some_and(|declared| declared.name.as_slice() == name);
+                            if candidate.rule.group.is_some() && name != b".WAIT" {
+                                let directory = match name.iter().rposition(|&byte| byte == b'/') {
+                                    None => b".".as_slice(),
+                                    Some(0) => b"/",
+                                    Some(index) => &name[..index],
+                                };
+                                // Checking the impossible-name cache first
+                                // registers the directory without reading it.
+                                self.filesystem
+                                    .borrow_mut()
+                                    .execute(
+                                        rmake_core::diagnostic::FilesystemEffect::DirectoryName(
+                                            directory,
+                                        ),
+                                    )
+                                    .map_err(|error| match error {
+                                        rmake_core::diagnostic::FilesystemError::Caller(
+                                            message,
+                                        ) => ExpandError::FileError(message),
+                                        rmake_core::diagnostic::FilesystemError::Unlocated(
+                                            message,
+                                        ) => ExpandError::UnlocatedError(message),
+                                    })?;
+                            }
                             self.refresh_impossible_prerequisites();
                             if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
+                                if let Some(label) = &debug_label {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::RejectedPrerequisite(
+                                            label,
+                                            name,
+                                            Some(literal),
+                                            event_depth,
+                                        ),
+                                    );
+                                }
                                 cancelled.insert(ordinal);
                                 valid = false;
                                 break 'prerequisites;
@@ -5106,10 +5556,7 @@ impl Engine {
                             }
                             crate::debug::emit(
                                 &self.output,
-                                crate::debug::Event::TryingPrerequisite(
-                                    name,
-                                    debug_depth + active.len() + 1,
-                                ),
+                                crate::debug::Event::TryingPrerequisite(name, literal, event_depth),
                             );
                             let explicit = (self.has_file_record(name)
                                 && self.record_is_target(name))
@@ -5130,8 +5577,73 @@ impl Engine {
                                     ),
                                 );
                             }
-                            if name != b".WAIT" && !explicit && !self.implicit_vpath_exists(name)? {
-                                if self.implicit_known_file(name) {
+                            if name != b".WAIT" && !explicit {
+                                let presence = self.implicit_presence(name)?;
+                                if matches!(presence, ImplicitPresence::Local) {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::FoundPrerequisite(name, event_depth),
+                                    );
+                                    dependencies.push(dependency);
+                                    continue;
+                                }
+                                if let ImplicitPresence::Search(path) = presence {
+                                    if let Some(label) = &debug_label {
+                                        let known = self.implicit_known_file(name);
+                                        if known {
+                                            crate::debug::emit(
+                                                &self.output,
+                                                if compatibility {
+                                                    crate::debug::Event::UsingCompatibilityRule(
+                                                        label,
+                                                        name,
+                                                        event_depth,
+                                                    )
+                                                } else {
+                                                    crate::debug::Event::NotOughtToExist(
+                                                        name,
+                                                        label,
+                                                        event_depth,
+                                                    )
+                                                },
+                                            );
+                                        }
+                                        if !known || !compatibility {
+                                            crate::debug::emit(
+                                                &self.output,
+                                                crate::debug::Event::FoundVpath(
+                                                    name,
+                                                    &path,
+                                                    event_depth,
+                                                ),
+                                            );
+                                        }
+                                    }
+                                    dependencies.push(dependency);
+                                    continue;
+                                }
+                                let known = self.implicit_known_file(name);
+                                if let Some(label) = &debug_label
+                                    && known
+                                {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        if compatibility {
+                                            crate::debug::Event::UsingCompatibilityRule(
+                                                label,
+                                                name,
+                                                event_depth,
+                                            )
+                                        } else {
+                                            crate::debug::Event::NotOughtToExist(
+                                                name,
+                                                label,
+                                                event_depth,
+                                            )
+                                        },
+                                    );
+                                }
+                                if known {
                                     if compatibility {
                                         dependencies.push(dependency);
                                         continue;
@@ -5139,6 +5651,16 @@ impl Engine {
                                     compatibility_needed = true;
                                 }
                                 if chain {
+                                    let child_explicit = explicit_word
+                                        || self.database.explicit_names.contains(name);
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::SearchingChildRule(
+                                            name,
+                                            child_explicit,
+                                            event_depth,
+                                        ),
+                                    );
                                     if let Some(child) = self.implicit_plan(
                                         name,
                                         active,
@@ -5148,6 +5670,17 @@ impl Engine {
                                     )? {
                                         plan.extend(child);
                                     } else {
+                                        if let Some(label) = &debug_label {
+                                            crate::debug::emit(
+                                                &self.output,
+                                                crate::debug::Event::RejectedPrerequisite(
+                                                    label,
+                                                    name,
+                                                    None,
+                                                    event_depth,
+                                                ),
+                                            );
+                                        }
                                         if !self.implicit_known_file(name) {
                                             self.refresh_impossible_prerequisites();
                                             if let Some(history) = self.database.database_history()
@@ -5164,6 +5697,10 @@ impl Engine {
                                         break 'prerequisites;
                                     }
                                 } else {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::MissingPrerequisite(name, event_depth),
+                                    );
                                     valid = false;
                                     break 'prerequisites;
                                 }
@@ -5175,11 +5712,17 @@ impl Engine {
                 active.pop();
                 if valid {
                     if let Some(label) = &debug_label {
+                        let printed = if archive_search {
+                            rmake_core::filenames::archive_parts(target)
+                                .map_or(target, |(archive, _)| &target[archive.len()..])
+                        } else {
+                            target
+                        };
                         crate::debug::emit(
                             &self.output,
                             crate::debug::Event::FoundRule(
                                 label,
-                                target,
+                                printed,
                                 debug_depth + active.len() + 1,
                             ),
                         );
@@ -5200,6 +5743,10 @@ impl Engine {
             }
         }
         if compatibility_needed && !compatibility {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::SearchingCompatibility(target, debug_depth + active.len() + 1),
+            );
             return self.implicit_search(target, active, true, archive_search, budget, debug_depth);
         }
         Ok(None)
@@ -5492,6 +6039,16 @@ impl Engine {
         self.resolved_name_ref(name).to_vec()
     }
 
+    fn debug_no_remake(&self, target: &[u8], depth: usize) {
+        if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) {
+            let path = self.resolved_name_ref(target);
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::NoNeed(target, (path != target).then_some(path), depth),
+            );
+        }
+    }
+
     fn record_graph_failure(&mut self, outcome: Outcome) {
         if !(outcome.fatal || (outcome.failed && !self.options.keep_going))
             || !self.parallel_graph()
@@ -5522,6 +6079,61 @@ impl Engine {
             outcome.failed = true;
             outcome.fatal |= status == Status::Fatal;
         }
+    }
+
+    fn remember_optional_prerequisite(
+        &mut self,
+        target: &[u8],
+        rule: &Rule,
+        dropped: Option<&HashSet<Vec<u8>>>,
+    ) {
+        let Some(dependency) = rule.dependencies.iter().find(|dependency| {
+            dependency.name != b".WAIT"
+                && dropped.is_none_or(|dropped| !dropped.contains(&dependency.name))
+                && self.done.get(&dependency.name).map_or_else(
+                    || self.optional_remake_failures.contains_key(&dependency.name),
+                    |child| child.failed,
+                )
+        }) else {
+            return;
+        };
+        let cause = self
+            .optional_remake_failures
+            .get(&dependency.name)
+            .and_then(Clone::clone)
+            .unwrap_or_else(|| {
+                Rc::new(FailedPrerequisite {
+                    target: dependency.name.clone(),
+                    parent: self
+                        .scope_parents
+                        .get(&dependency.name)
+                        .and_then(Clone::clone)
+                        .unwrap_or_else(|| target.to_vec()),
+                })
+            });
+        self.optional_remake_failures
+            .entry(target.to_vec())
+            .or_insert(Some(cause));
+    }
+
+    fn replay_makefile_failure(
+        &mut self,
+        name: &[u8],
+        open_error: &mut Option<PendingIncludeError>,
+    ) -> bool {
+        let Some(cause) = self.optional_remake_failures.get(name).cloned() else {
+            return false;
+        };
+        *self.makefile_error.borrow_mut() = open_error.take();
+        self.show_makefile_error();
+        let (target, parent) = cause.as_ref().map_or((name, None), |cause| {
+            (cause.target.as_slice(), Some(cause.parent.as_slice()))
+        });
+        self.report_missing_rule(target, parent);
+        // A direct complaint is emitted once. Blocked goals retain their cause
+        // and can be revisited by another required read of the same makefile.
+        self.optional_remake_failures.remove(target);
+        true
     }
 
     fn report_missing_rule(&self, target: &[u8], parent: Option<&[u8]>) {
@@ -5614,6 +6226,9 @@ impl Engine {
             // before that check and prepare their aliases before entering here.
             self.done.remove(name);
         }
+        // A new goal can announce consideration before a GPATH rename.
+        // Prerequisites prepare their lookup before beginning consideration.
+        let original_goal = (!known_alias && parent.is_none()).then_some(target);
         let target = renamed.as_deref().unwrap_or(target);
         self.poll_jobs();
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
@@ -5630,7 +6245,7 @@ impl Engine {
                 ..Outcome::default()
             }
         } else {
-            self.build_inner(target, parent, depth)
+            self.build_inner(target, original_goal.unwrap_or(target), parent, depth)
         };
         if archive_target
             && !previously_done
@@ -5646,14 +6261,22 @@ impl Engine {
             outcome.fatal = true;
         }
         if self.optional_remake && outcome.failed && !outcome.fatal {
-            self.optional_remake_failures.insert(target.to_vec());
+            self.optional_remake_failures
+                .entry(target.to_vec())
+                .or_default();
         }
         self.record_graph_failure(outcome);
         outcome
     }
 
-    fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
-        if !self.remaking && self.optional_remake_failures.remove(target) {
+    fn build_inner(
+        &mut self,
+        target: &[u8],
+        considering_name: &[u8],
+        parent: Option<&[u8]>,
+        depth: usize,
+    ) -> Outcome {
+        if !self.remaking && self.optional_remake_failures.remove(target).is_some() {
             self.report_missing_rule(target, parent);
         }
         if let Some(owner) = self.active_peers.get(target)
@@ -5670,9 +6293,18 @@ impl Engine {
             return self.resume_rule(target);
         }
         if let Some(mut outcome) = self.done.get(target).copied() {
+            let debug_depth = depth + usize::from(self.remaking);
+            let pruned = self
+                .debug_serial_considered
+                .as_ref()
+                .is_some_and(|files| files.contains(target));
             crate::debug::emit(
                 &self.output,
-                crate::debug::Event::Already(target, depth + usize::from(self.remaking)),
+                if pruned {
+                    crate::debug::Event::Pruning(target, debug_depth)
+                } else {
+                    crate::debug::Event::Already(target, debug_depth)
+                },
             );
             if outcome.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(target).is_some()
@@ -5726,9 +6358,14 @@ impl Engine {
             };
         }
         let debug_depth = depth + usize::from(self.remaking);
+        if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) && !self.parallel_graph() {
+            self.debug_serial_considered
+                .get_or_insert_default()
+                .insert(target.to_vec());
+        }
         crate::debug::emit(
             &self.output,
-            crate::debug::Event::Considering(target, debug_depth),
+            crate::debug::Event::Considering(considering_name, debug_depth),
         );
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
@@ -5804,10 +6441,7 @@ impl Engine {
                 crate::debug::Event::Finished(target, debug_depth),
             );
             if before.is_some() {
-                crate::debug::emit(
-                    &self.output,
-                    crate::debug::Event::NoNeed(target, debug_depth),
-                );
+                self.debug_no_remake(target, debug_depth);
                 let result = Outcome {
                     time: before,
                     ..Outcome::default()
@@ -5894,8 +6528,13 @@ impl Engine {
                     .done
                     .remove(target)
                     .expect("finished double-colon branch");
-                self.database_branch_outcomes
-                    .insert((target.to_vec(), ordinal), result);
+                if result.database_result != DatabaseResult::RecipeUnstarted {
+                    // Group completion can already have observed the owner's
+                    // timestamp after a failed child was reaped.
+                    self.database_branch_outcomes
+                        .entry((target.to_vec(), ordinal))
+                        .or_insert(result);
+                }
                 state.combined.time = result.time;
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
@@ -5904,6 +6543,9 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
+                if result.database_result == DatabaseResult::Simulated {
+                    state.combined.database_result = DatabaseResult::Simulated;
+                }
                 self.record_graph_failure(result);
                 state.active = None;
                 if result.fatal
@@ -5917,6 +6559,11 @@ impl Engine {
                 state.branches.clear();
             }
             let Some((ordinal, entry)) = state.branches.pop_front() else {
+                // A real recipe refreshes the shared time even if another
+                // branch simulated its recipe during the same update.
+                if state.combined.completion != CompletionTime::AssumeNew {
+                    state.combined.database_result = DatabaseResult::Outcome;
+                }
                 state.combined.time = if state.phony {
                     None
                 } else if state.combined.completion.preserves() || state.combined.failed {
@@ -5924,6 +6571,9 @@ impl Engine {
                 } else {
                     self.modified(target)
                 };
+                state.combined.debug_time_changed =
+                    self.output.debug_mask().has(crate::debug::Mask::BASIC)
+                        && state.before != state.combined.time;
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
@@ -6085,32 +6735,35 @@ impl Engine {
     ) -> Outcome {
         let double_colon = branch.is_some();
         let mut members = Vec::new();
+        let mut peer_targets = std::collections::VecDeque::new();
         let grouped = rule.grouped_targets().is_some();
-        if grouped {
+        if let Some(group) = &rule.group {
             let implicit = rule.implicit_pattern.is_some();
             if !implicit {
                 comparison = comparison.min(before);
             }
             let double = rule.grouped_double_id().is_some();
-            let group = rule.group.as_mut().expect("grouped targets have metadata");
-            let mut times = vec![None; group.targets.len()];
-            let mut observed = vec![false; group.targets.len()];
+            let mut peers: Vec<_> = group
+                .targets
+                .iter()
+                .map(|name| (Cow::Borrowed(name.as_slice()), None, false))
+                .collect();
             let mut compare_peers = before.is_some() && !implicit;
-            for (index, peer) in group.targets.iter_mut().enumerate().rev() {
+            for (peer, time, observed) in peers.iter_mut().rev() {
                 let name = self.aliases.resolve(peer);
-                if name != peer {
-                    *peer = name.to_vec();
+                if name != peer.as_ref() {
+                    *peer = Cow::Owned(name.to_vec());
                 }
-                if peer.as_slice() == target {
-                    times[index] = before;
-                    observed[index] = true;
+                if peer.as_ref() == target {
+                    *time = before;
+                    *observed = true;
                     continue;
                 }
                 if !compare_peers {
                     continue;
                 }
                 match self.prepare_search_name(peer) {
-                    Ok(Some(name)) => *peer = name,
+                    Ok(Some(name)) => *peer = Cow::Owned(name),
                     Ok(None) => {}
                     Err(()) => {
                         return Outcome {
@@ -6120,12 +6773,12 @@ impl Engine {
                         };
                     }
                 }
-                let time = if self.special(b".PHONY", peer, false) {
+                *time = if self.special(b".PHONY", peer, false) {
                     None
                 } else {
                     match self
                         .path_observations
-                        .get(peer)
+                        .get(peer.as_ref())
                         .cloned()
                         .map(Ok)
                         .unwrap_or_else(|| self.find_vpath(peer))
@@ -6141,21 +6794,30 @@ impl Engine {
                         }
                     }
                 };
-                times[index] = time;
-                observed[index] = true;
-                comparison = comparison.min(time);
+                *observed = true;
+                comparison = comparison.min(*time);
                 compare_peers = time.is_some();
             }
-            let mut seen = HashSet::new();
-            for (index, peer) in group.targets.iter().enumerate() {
-                if !seen.insert(peer.clone()) {
-                    continue;
+            // Resolve scheduler peer identities without rewriting declaration
+            // names, which the database exposes even after a GPATH rename.
+            let mut seen = HashMap::<&[u8], usize>::new();
+            for (peer, time, observed) in &peers {
+                let peer = peer.as_ref();
+                let ordinal = seen.entry(peer).or_default();
+                if *ordinal == 0 {
+                    let mut before = *time;
+                    if double && *observed {
+                        before = *self
+                            .double_colon_before
+                            .entry(peer.to_vec())
+                            .or_insert(before);
+                    }
+                    members.push((peer.to_vec(), before, self.special(b".PHONY", peer, false)));
                 }
-                let mut time = times[index];
-                if double && observed[index] {
-                    time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
+                if !implicit || peer != target {
+                    peer_targets.push_front((peer.to_vec(), if double { *ordinal } else { 0 }));
                 }
-                members.push((peer.clone(), time, self.special(b".PHONY", peer, false)));
+                *ordinal += 1;
             }
         }
         let had_secondary = rule.secondary.is_some();
@@ -6169,27 +6831,6 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        let peer_targets =
-            rule.grouped_targets()
-                .map_or_else(std::collections::VecDeque::new, |targets| {
-                    let mut seen = HashMap::<&[u8], usize>::new();
-                    let mut peers = Vec::new();
-                    for peer in targets {
-                        let ordinal = seen.entry(peer).or_default();
-                        if rule.implicit_pattern.is_none() || peer.as_slice() != target {
-                            peers.push((
-                                peer.clone(),
-                                if rule.grouped_double_id().is_some() {
-                                    *ordinal
-                                } else {
-                                    0
-                                },
-                            ));
-                        }
-                        *ordinal += 1;
-                    }
-                    peers.into_iter().rev().collect()
-                });
         if grouped {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
@@ -6247,6 +6888,7 @@ impl Engine {
             serial_phase,
             inspections: HashMap::new(),
             intermediate_stale: None,
+            debug_changed_edges: None,
             stopped: false,
             stale,
             outcome: Outcome {
@@ -6564,6 +7206,12 @@ impl Engine {
             }
             (child, pending)
         } else {
+            // Only the edge that actually saw an update can report the
+            // changed timestamp independently of the final freshness test.
+            let observe_change = first
+                && self.output.debug_mask().has(crate::debug::Mask::BASIC)
+                && !self.done.contains_key(dependency)
+                && !self.parallel_graph();
             let unknown_archive = self
                 .done
                 .get(dependency)
@@ -6580,6 +7228,12 @@ impl Engine {
             } else {
                 self.observe_updated(dependency, child)
             };
+            if observe_change && !pending && child.debug_time_changed {
+                state
+                    .debug_changed_edges
+                    .get_or_insert_default()
+                    .insert(index);
+            }
             if first
                 && child.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(dependency).is_some()
@@ -6591,9 +7245,10 @@ impl Engine {
     }
 
     fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
-        if self.options.always {
-            return true;
-        }
+        self.options.always || self.prerequisite_timestamp_stale(before, child)
+    }
+
+    fn prerequisite_timestamp_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {
         if child.completion == CompletionTime::AssumeNew
             && self
                 .assumptions
@@ -6648,6 +7303,7 @@ impl Engine {
             dropped,
             presentation_drops,
             intermediate_stale,
+            debug_changed_edges,
             depth,
             ..
         } = state;
@@ -6750,17 +7406,112 @@ impl Engine {
                 }
             }
         }
+        if self.retain_remake_failure && outcome.blocked && !outcome.fatal {
+            self.remember_optional_prerequisite(target, &rule, Some(&dropped));
+        }
         let debug_depth = depth + usize::from(self.remaking);
-        crate::debug::emit(
-            &self.output,
-            crate::debug::Event::Finished(target, debug_depth),
-        );
-        let debug_remake = stale && !outcome.failed && !outcome.question_outdated;
-        if debug_remake {
+        let stopping_dependency = outcome.blocked
+            && (outcome.fatal
+                || (!self.options.keep_going && !self.optional_remake && !self.parallel_graph()));
+        if !stopping_dependency {
             crate::debug::emit(
                 &self.output,
-                crate::debug::Event::MustRemake(target, debug_depth),
+                crate::debug::Event::Finished(target, debug_depth),
             );
+        }
+        let mask = self.output.debug_mask();
+        let mut natural_remake = comparison.is_none();
+        let mut dependencies_changed = false;
+        if mask.has(crate::debug::Mask::BASIC)
+            && before.is_some()
+            && !phony
+            && !outcome.failed
+            && !outcome.question_outdated
+        {
+            // This reports recorded freshness after dependency traversal. It
+            // must not re-stat, expand, or trigger another prerequisite.
+            for (index, occurrence) in rule.dependencies.iter().enumerate() {
+                let dependency = &occurrence.name;
+                if dependency == b".WAIT" || dropped.contains(dependency) {
+                    continue;
+                }
+                let Some(child) = self.done.get(dependency).copied() else {
+                    continue;
+                };
+                let changed = debug_changed_edges
+                    .as_ref()
+                    .is_some_and(|edges| edges.contains(&index));
+                let inspected_stale = intermediate_stale
+                    .as_ref()
+                    .is_some_and(|edges| edges.contains(&index));
+                if !occurrence.order_only {
+                    dependencies_changed |= changed;
+                    if self.options.always {
+                        natural_remake |=
+                            inspected_stale || self.prerequisite_timestamp_stale(comparison, child);
+                    }
+                }
+                use crate::debug::Prerequisite;
+                let state = if occurrence.order_only {
+                    Prerequisite::OrderOnly
+                } else if child.time.is_none() {
+                    Prerequisite::Missing
+                } else if changed
+                    || child.time > comparison
+                    || (child.completion == CompletionTime::AssumeNew
+                        && self.prerequisite_stale(comparison, child))
+                    || inspected_stale
+                {
+                    Prerequisite::Newer
+                } else {
+                    Prerequisite::Older
+                };
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Prerequisite(
+                        state,
+                        self.resolved_name_ref(dependency),
+                        target,
+                        debug_depth + 1,
+                    ),
+                );
+            }
+        }
+        let debug_remake = stale && !outcome.failed && !outcome.question_outdated;
+        let double_without_prerequisites = branch.is_some() && rule.dependencies.is_empty();
+        let no_recipe_no_changes = mask.has(crate::debug::Mask::BASIC)
+            && !outcome.failed
+            && !outcome.question_outdated
+            && !double_without_prerequisites
+            && before.is_some()
+            && !phony
+            && !rule.record_only
+            && rule.recipes.is_none()
+            && !self.options.always
+            && !dependencies_changed;
+        if debug_remake && double_without_prerequisites {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::DoubleWithoutPrerequisites(target, debug_depth),
+            );
+        } else if no_recipe_no_changes {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::NoRecipeNoChanges(target, debug_depth),
+            );
+        } else if debug_remake && self.options.always && rule.recipes.is_some() && !natural_remake {
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::AlwaysMake(target, debug_depth),
+            );
+        }
+        if debug_remake {
+            if !no_recipe_no_changes {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::MustRemake(target, debug_depth),
+                );
+            }
             if let Some(recipes) = &rule.recipes {
                 let normal: Vec<_> = normal
                     .iter()
@@ -6853,6 +7604,8 @@ impl Engine {
                     self.running_groups.insert(target.to_vec(), group);
                 }
                 self.archive_completion_times.remove(target);
+                let implicit_group =
+                    rule.grouped_targets().is_some() && rule.implicit_pattern.is_some();
                 let execution = self.execute(
                     target,
                     recipes,
@@ -6860,13 +7613,15 @@ impl Engine {
                         .as_ref()
                         .map(|values| values.as_slice())
                         .unwrap_or(&[]),
-                    phony,
-                    before,
-                    TraceInputs {
+                    RecipeInputs {
+                        phony,
+                        before,
                         branch,
+                        implicit_group,
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
+                        normal_names: &normal_names,
                     },
                 );
                 outcome.ran |= execution.ran;
@@ -6886,6 +7641,24 @@ impl Engine {
                     } else {
                         CompletionTime::Refresh
                     };
+                if self.options.dry_run
+                    && !self.options.question
+                    && !self.options.touch
+                    && (rule.grouped_targets().is_none() || implicit_group)
+                    && (outcome.completion == CompletionTime::AssumeNew
+                        || (implicit_group
+                            && !phony
+                            && outcome.completion == CompletionTime::Preserve))
+                    && execution.status == Status::Success
+                {
+                    outcome.database_result = DatabaseResult::Simulated;
+                }
+                if rule.grouped_double_id().is_some()
+                    && execution.status == Status::Fatal
+                    && !execution.ran
+                {
+                    outcome.database_result = DatabaseResult::RecipeUnstarted;
+                }
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
@@ -6940,26 +7713,40 @@ impl Engine {
             } else {
                 before
             };
+            outcome.debug_time_changed = mask.has(crate::debug::Mask::BASIC)
+                && !outcome.failed
+                && !self.parallel_jobs.contains_key(target)
+                && outcome.time != before;
         }
         if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
-            self.database_secondary.insert(target.to_vec());
+            if let Some(ordinal) = branch {
+                self.database_branch_secondary
+                    .insert((target.to_vec(), ordinal));
+            } else {
+                self.database_secondary.insert(target.to_vec());
+            }
         }
         // A stopping synchronous child failure exits before GNU's ordinary
         // update-return diagnostic. Keep-going updates retain that diagnostic.
         let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
-        if !self.parallel_jobs.contains_key(target) && !stopping_failure {
-            crate::debug::emit(
-                &self.output,
-                if debug_remake {
+        if !self.parallel_jobs.contains_key(target) && !stopping_failure && !stopping_dependency {
+            if outcome.blocked {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::GiveUp(target, debug_depth),
+                );
+            } else if debug_remake && !no_recipe_no_changes {
+                crate::debug::emit(
+                    &self.output,
                     if outcome.failed {
                         crate::debug::Event::Failed(target, debug_depth)
                     } else {
                         crate::debug::Event::Remade(target, debug_depth)
-                    }
-                } else {
-                    crate::debug::Event::NoNeed(target, debug_depth)
-                },
-            );
+                    },
+                );
+            } else {
+                self.debug_no_remake(target, debug_depth);
+            }
         }
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);
@@ -6976,6 +7763,36 @@ impl Engine {
         if let Some(id) = group.branch {
             self.active_group_branches.remove(&id);
             self.completed_group_branches.insert(id, outcome);
+            if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
+                for (peer, _, phony) in group.members {
+                    if peer == target && !outcome.failed {
+                        continue;
+                    }
+                    let Some(branches) = self
+                        .database
+                        .rules
+                        .get(&peer)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                    else {
+                        continue;
+                    };
+                    // A recipe completes these declared peer branches even
+                    // if the graph never visits the peer as its own goal.
+                    let mut completed = outcome;
+                    completed.database_result = DatabaseResult::ObservedGroup;
+                    completed.time = if phony {
+                        None
+                    } else {
+                        self.observed_modified(&peer)
+                    };
+                    for (ordinal, branch) in branches.iter().enumerate() {
+                        if branch.grouped_double_id() == Some(id) {
+                            self.database_branch_outcomes
+                                .insert((peer.clone(), ordinal), completed);
+                        }
+                    }
+                }
+            }
             return;
         }
         let warn_missing = group.implicit
@@ -6983,13 +7800,34 @@ impl Engine {
             && self
                 .modified(target)
                 .is_some_and(|time| Some(time) > group.before);
+        let observe_dry_group = self.options.dry_run
+            && !self.options.question
+            && !self.options.touch
+            && !outcome.failed
+            && outcome.completion.preserves();
         for (peer, before, phony) in group.members.into_iter().rev() {
+            let database_result =
+                if observe_dry_group && !phony && (!group.implicit || peer != target) {
+                    // Only explicit groups include the owner in the physical
+                    // refresh. Implicit owners keep their simulated timestamp.
+                    self.modified(&peer);
+                    self.database_unchecked_times.borrow_mut().remove(&peer);
+                    DatabaseResult::ObservedGroup
+                } else {
+                    DatabaseResult::Outcome
+                };
             if peer == target {
+                if database_result == DatabaseResult::ObservedGroup
+                    && let Some(owner) = self.done.get_mut(target)
+                {
+                    owner.database_result = database_result;
+                }
                 continue;
             }
             self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
+            completed.database_result = database_result;
             completed.search_after_update = false;
             completed.time = if phony {
                 None
@@ -7077,11 +7915,13 @@ impl Engine {
         target: &[u8],
         recipes: &[Recipe],
         automatic: &[(&[u8], Vec<u8>)],
-        phony: bool,
-        before: Option<SystemTime>,
-        trace: TraceInputs<'_>,
+        inputs: RecipeInputs<'_>,
     ) -> Execution {
-        let mut result = self.execute_inner(target, recipes, automatic, phony, before, trace);
+        let phony = inputs.phony;
+        let before = inputs.before;
+        let mut completed_permit = None;
+        let mut result =
+            self.execute_inner(target, recipes, automatic, inputs, &mut completed_permit);
         if let Some(buffer) = self.dispatch_output.take() {
             if result.status == Status::Fatal {
                 self.fatal_outputs.push(buffer);
@@ -7101,6 +7941,9 @@ impl Engine {
                 buffer.dump();
             }
         }
+        if result.status != Status::Fatal {
+            self.release_completed_permit(completed_permit);
+        }
         result
     }
 
@@ -7109,10 +7952,19 @@ impl Engine {
         target: &[u8],
         recipes: &[Recipe],
         automatic: &[(&[u8], Vec<u8>)],
-        phony: bool,
-        before: Option<SystemTime>,
-        trace: TraceInputs<'_>,
+        inputs: RecipeInputs<'_>,
+        completed_permit: &mut Option<Permit>,
     ) -> Execution {
+        let RecipeInputs {
+            phony,
+            before,
+            branch,
+            implicit_group,
+            location,
+            dependencies,
+            dropped,
+            ..
+        } = inputs;
         self.observe_interrupt();
         if self.interrupt.is_some() {
             return Execution::fatal(false);
@@ -7189,15 +8041,23 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let branch_variables = trace.branch.filter(|ordinal| *ordinal > 0).and_then(|_| {
-            self.database_branch_contexts
-                .get(&(target.to_vec(), 0))
-                .map(VariableStore::fresh_double_colon_scope)
-        });
-        let mut variables = match branch_variables
-            .map(Ok)
-            .unwrap_or_else(|| self.target_variables(target))
-        {
+        let variables = if branch.is_some_and(|ordinal| ordinal > 0) {
+            let head_key = (target.to_vec(), 0);
+            if let Some(head) = self.database_branch_contexts.get(&head_key) {
+                Ok(head.fresh_double_colon_scope())
+            } else {
+                // A later branch initializes its own table even if the head
+                // never expanded a recipe. Its lookups can visit the head.
+                self.target_variables(target).map(|head| {
+                    let variables = head.fresh_double_colon_scope();
+                    self.database_branch_contexts.insert(head_key, head);
+                    variables
+                })
+            }
+        } else {
+            self.target_variables(target)
+        };
+        let mut variables = match variables {
             Ok(variables) => variables,
             Err(error) => {
                 self.expansion_error(None, &error);
@@ -7205,17 +8065,20 @@ impl Engine {
             }
         };
         variables.refresh_globals(&self.database.variables);
-        if let Some(history) = self.database.database_history() {
-            history.intern(b".SUFFIXES");
+        if !implicit_group {
+            if let Some(history) = self.database.database_history() {
+                history.intern(b".SUFFIXES");
+            }
+            self.database.file_records.insert(b".SUFFIXES");
         }
-        self.database.file_records.insert(b".SUFFIXES");
         for (name, value) in automatic {
             if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
                 self.expansion_error(None, &error);
                 return Execution::fatal(false);
             }
         }
-        self.retain_database_context(target, trace.branch, &variables);
+        self.remember_prepared_prerequisite_roles(target, &inputs);
+        self.retain_database_context(target, branch, &variables);
         let output = Some(self.output.recipe_buffer());
         if let Some(buffer) = &output
             && buffer.enabled()
@@ -7234,7 +8097,7 @@ impl Engine {
                 }
             }
         }
-        self.retain_database_context(target, trace.branch, &variables);
+        self.retain_database_context(target, branch, &variables);
         if parallel {
             while self.parallel_jobs.len() >= self.job_slots() {
                 self.reap_job();
@@ -7284,12 +8147,11 @@ impl Engine {
                 };
                 if newer.is_empty() {
                     let missing = joined(
-                        trace
-                            .dependencies
+                        dependencies
                             .iter()
                             .filter(|dependency| {
                                 dependency.name != b".WAIT"
-                                    && !trace.dropped.contains(&dependency.name)
+                                    && !dropped.contains(&dependency.name)
                                     && self.done.get(&dependency.name).is_some_and(|child| {
                                         child.time.is_none()
                                             && (child.completion != CompletionTime::AssumeNew
@@ -7307,9 +8169,7 @@ impl Engine {
                     newer
                 }
             };
-            let prefix = trace
-                .location
-                .map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
+            let prefix = location.map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
             self.output.write_parts(
                 false,
                 &[
@@ -7323,7 +8183,7 @@ impl Engine {
             );
         }
         let state = RecipeState {
-            branch: trace.branch,
+            branch,
             output,
             expanded,
             variables,
@@ -7358,7 +8218,43 @@ impl Engine {
             self.output.select(None);
             return Execution::success(true);
         }
-        self.continue_recipe(target, state, phony, before, parallel)
+        let (execution, permit) = self.continue_recipe(target, state, phony, before, parallel);
+        *completed_permit = permit;
+        execution
+    }
+
+    fn remember_prepared_prerequisite_roles(&mut self, target: &[u8], trace: &RecipeInputs<'_>) {
+        if !trace.dropped.is_empty()
+            || !trace.dependencies.iter().any(|dependency| {
+                dependency.order_only
+                    && !dependency.hidden
+                    && trace.normal_names.contains(dependency.name.as_slice())
+            })
+        {
+            return;
+        }
+        let Some(head) = self.database.rules.get_mut(target) else {
+            return;
+        };
+        let rule = match trace.branch {
+            Some(ordinal) => head
+                .double_colon
+                .as_mut()
+                .and_then(|branches| branches.get_mut(ordinal)),
+            None => Some(head),
+        };
+        // Only a direct retained rule with the same occurrence chain can
+        // receive the promotions. A prepared group or transformed chain
+        // has a different owner or occurrence mapping.
+        if let Some(rule) = rule
+            && rule.group.is_none()
+            && rule.secondary.is_none()
+            && rule.dependencies.as_slice() == trace.dependencies
+        {
+            // $< and $+ have already captured the original normal
+            // occurrences. The role changes survive for the database dump.
+            promote_order_only_duplicates(&mut rule.dependencies, |_| true);
+        }
     }
 
     fn retain_database_context(
@@ -7398,13 +8294,16 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
         parallel: bool,
-    ) -> Execution {
+    ) -> (Execution, Option<Permit>) {
         let mut state = state;
-        let mut debug_job = state.debug_job.take();
+        let mut owner = RecipeOwner {
+            permit: state.permit.take(),
+            debug_job: state.debug_job.take(),
+        };
         let execution =
-            self.continue_recipe_inner(target, state, phony, before, parallel, &mut debug_job);
-        self.finish_debug_job(debug_job.as_ref());
-        execution
+            self.continue_recipe_inner(target, state, phony, before, parallel, &mut owner);
+        self.finish_debug_job(owner.debug_job.as_ref());
+        (execution, owner.permit)
     }
 
     fn continue_recipe_inner(
@@ -7414,7 +8313,7 @@ impl Engine {
         phony: bool,
         before: Option<SystemTime>,
         parallel: bool,
-        debug_job: &mut Option<crate::debug::JobHandle>,
+        owner: &mut RecipeOwner,
     ) -> Execution {
         let RecipeState {
             branch,
@@ -7425,7 +8324,7 @@ impl Engine {
             mut ran,
             one_shell,
             mut environment,
-            permit,
+            permit: _,
             debug_job: _,
         } = state;
         let variables = &mut variables;
@@ -7480,6 +8379,7 @@ impl Engine {
                         ignore,
                         output.as_ref(),
                     );
+                    self.retain_configuration_abort(&mut owner.permit, &err);
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -7511,6 +8411,7 @@ impl Engine {
                         ignore,
                         output.as_ref(),
                     );
+                    self.retain_configuration_abort(&mut owner.permit, &err);
                     return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                 }
             };
@@ -7526,6 +8427,7 @@ impl Engine {
                             ignore,
                             output.as_ref(),
                         );
+                        self.retain_configuration_abort(&mut owner.permit, &err);
                         return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                     }
                 }
@@ -7787,7 +8689,7 @@ impl Engine {
                     order: emitted_order,
                 });
             }
-            let _ = io::stdout().flush();
+            let _ = rmake_linux::native::flush_stream(false);
             let stdin_owner = !parallel || !self.parallel_jobs.values().any(|job| job.stdin_owner);
             if let Some(buffer) = &output {
                 buffer.child_reaped(false);
@@ -7799,16 +8701,69 @@ impl Engine {
                 &environment.as_ref().expect("prepared environment").order,
                 self.database.variables.original_shell(),
                 |mut command, image, arg0| {
-                    if let Some(server) = &self.jobserver {
-                        server.configure_child(&mut command, force);
+                    let descriptor_limited_pool = self.jobserver.as_ref().filter(|server| {
+                        (server.uses_compact_pipe()
+                            || (server.auth().starts_with(b"fifo:")
+                                && rmake_linux::child::Child::wake_pipe_unavailable()))
+                            && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                    });
+                    if let Some(server) = descriptor_limited_pool {
+                        let stdin = if stdin_owner {
+                            None
+                        } else {
+                            match rmake_linux::process::closed_stdin_file() {
+                                Ok(stdin) => Some(stdin),
+                                // The reference inherits stdin when its
+                                // unused-input pipe cannot be allocated.
+                                Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => None,
+                                Err(error) => return Err(error),
+                            }
+                        };
+                        if crate::native::has_modules() {
+                            rmake_linux::native::flush_standard_streams()?;
+                        }
+                        if let Some(process) = rmake_linux::child::Child::try_spawn_ordered_pool(
+                            &command,
+                            image,
+                            os(arg0),
+                            stdin.as_ref(),
+                            server,
+                            force,
+                        ) {
+                            return process;
+                        }
+                        if let Some(stdin) = stdin {
+                            command.stdin(std::process::Stdio::from(stdin));
+                        }
                     }
-                    if !stdin_owner {
+                    if let Some(server) = &self.jobserver {
+                        server.configure_child(&mut command, force)?;
+                    }
+                    if !stdin_owner && descriptor_limited_pool.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
                     if let Some(buffer) = &output {
+                        // Descriptor pressure can leave room for the spool but
+                        // no room to clone it or open std's spawn error pipe.
+                        if buffer.enabled()
+                            && stdin_owner
+                            && self.jobserver.is_none()
+                            && rmake_linux::child::Child::wake_pipe_unavailable()
+                            && !crate::native::has_modules()
+                            && let Some(spool) = buffer.child_spool()
+                            && let Some(process) =
+                                rmake_linux::child::Child::try_spawn_ordered_spool(
+                                    &command,
+                                    image,
+                                    os(arg0),
+                                    &spool,
+                                )
+                        {
+                            return process;
+                        }
                         buffer.configure_child(&mut command)?;
                     }
-                    if crate::native::has_modules() {
+                    if descriptor_limited_pool.is_none() && crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
                     }
                     if stdin_owner
@@ -7829,10 +8784,10 @@ impl Engine {
             self.retain_database_context(target, branch, variables);
             self.output.select(None);
             if let Ok(child) = &process {
-                if debug_job.is_none() {
-                    *debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
+                if owner.debug_job.is_none() {
+                    owner.debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
                 }
-                if let Some(record) = debug_job.as_ref() {
+                if let Some(record) = owner.debug_job.as_ref() {
                     self.job_debug
                         .launched(self.output.debug_mask(), record, child.id());
                 }
@@ -7841,6 +8796,8 @@ impl Engine {
                 self.load.started();
             }
             let mut signal_cleaned = false;
+            #[cfg(feature = "guile")]
+            let mut interpreter_failed = false;
             let result = if parallel {
                 match process {
                     Ok(child) => {
@@ -7868,8 +8825,8 @@ impl Engine {
                                     ran,
                                     one_shell,
                                     environment,
-                                    permit,
-                                    debug_job: debug_job.clone(),
+                                    permit: owner.permit.take(),
+                                    debug_job: owner.debug_job.clone(),
                                 },
                             },
                         );
@@ -7881,10 +8838,20 @@ impl Engine {
             } else {
                 match process {
                     Ok(mut child) => self
-                        .wait_serial_child(&mut child, target, before, phony, debug_job.as_ref())
-                        .map(|(status, cleaned)| {
-                            signal_cleaned = cleaned;
-                            status
+                        .wait_serial_child(
+                            &mut child,
+                            target,
+                            before,
+                            phony,
+                            owner.debug_job.as_ref(),
+                        )
+                        .map(|wait| {
+                            signal_cleaned = wait.cleaned;
+                            #[cfg(feature = "guile")]
+                            {
+                                interpreter_failed = wait.interpreter_failed;
+                            }
+                            wait.status
                         }),
                     Err(error) => Err(error),
                 }
@@ -7907,6 +8874,11 @@ impl Engine {
                 launched,
                 parallel && self.parallel_jobs.values().any(|job| job.child.is_some()),
             );
+            #[cfg(feature = "guile")]
+            if interpreter_failed {
+                self.output.select(None);
+                return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
+            }
             let failure_cleanup = if !launched || signal_cleaned {
                 Cleanup::None
             } else if result

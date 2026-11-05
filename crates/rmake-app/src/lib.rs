@@ -9,12 +9,15 @@ use std::process::ExitCode;
 mod cli;
 mod command_variables;
 mod debug;
+#[allow(dead_code)] // Samples are used by the catalog build script.
+mod debug_messages;
 mod engine;
 mod file_aliases;
 mod intermediates;
 mod load;
 mod makefiles;
 mod messages;
+use rmake_core::messages as system_messages;
 mod native;
 mod oneshell;
 mod output;
@@ -23,6 +26,7 @@ mod recipe_flow;
 mod shell;
 mod shuffle;
 mod stdin_source;
+mod usage;
 
 /// Concrete semantic entry used by the reviewed process bootstrap.
 pub fn run() -> ExitCode {
@@ -63,32 +67,35 @@ pub fn run() -> ExitCode {
         Ok(launch) if print_requested_exit(&launch.options) => {
             (0, launch.into_native_exit(program.clone()))
         }
-        Ok(launch) => match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
-            Ok(mut engine) => {
-                let status = engine.run_retained();
-                let exit = if engine.requires_retained_exit() {
-                    Some(Box::new(engine::NativeExit::Engine(Box::new(engine))))
-                } else {
-                    None
-                };
-                (status, exit)
-            }
-            Err(failure) => {
-                let (message, exit) = failure.into_parts();
-                if rmake_linux::signals::pending().is_none() {
-                    output.write_parts(
-                        true,
-                        &[
-                            &message.prefix(&program),
-                            b"*** ",
-                            &messages::diagnostic(&message.message),
-                            &messages::stop_for(&message.message),
-                        ],
-                    );
+        Ok(launch) => {
+            rmake_linux::native::initialize_stdio();
+            match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
+                Ok(mut engine) => {
+                    let status = engine.run_retained();
+                    let exit = if engine.requires_retained_exit() {
+                        Some(Box::new(engine::NativeExit::Engine(Box::new(engine))))
+                    } else {
+                        None
+                    };
+                    (status, exit)
                 }
-                (2, exit)
+                Err(failure) => {
+                    let (message, exit) = failure.into_parts();
+                    if rmake_linux::signals::pending().is_none() {
+                        output.write_parts(
+                            true,
+                            &[
+                                &message.prefix(&program),
+                                b"*** ",
+                                &messages::diagnostic(&message.message),
+                                &messages::stop_for(&message.message),
+                            ],
+                        );
+                    }
+                    (2, exit)
+                }
             }
-        },
+        }
     };
     if let Some(exit) = &mut native_exit {
         exit.prepare();
@@ -127,31 +134,37 @@ pub(crate) fn print_requested_exit(options: &cli::Options) -> bool {
     if options.help {
         if options.version {
             print_version();
-            println!();
+            let _ = rmake_linux::output::write_standard(false, b"\n");
         }
-        println!("Usage: rmake [OPTIONS] [TARGETS]");
-        println!("  --help     Show this help");
-        println!("  --version  Show rmake version and compatibility target");
-        println!("  -f FILE    Read the specified Makefile (may be repeated)");
-        println!("  -E STRING  Evaluate Makefile text before reading files (--eval)");
-        println!("  --trace    Print rebuild reasons and recipe commands");
-        println!("  --warn-undefined-variables  Diagnose missing variable references");
-        println!("  -C DIR     Change directory before reading Makefiles");
-        println!("  -w / --no-print-directory  Enable / suppress directory reports");
-        println!("  -I DIR     Search for included Makefiles; -I- resets the search path");
-        println!("  -L         Include symlink timestamps (--check-symlink-times)");
-        println!("  -o FILE    Ignore this file and its rules (--old-file)");
-        println!("  -W FILE    Assume this file is newest (--what-if)");
-        println!("  -n / -s    Print commands without running / suppress command echo");
-        println!("  -B / -q    Always rebuild / query whether recipes are needed");
-        println!("  -i / -k    Ignore recipe errors / continue independent targets");
-        println!("  -t / -e    Touch targets / let environment override file variables");
-        println!("  -rR / -jN  Disable built-ins / set shared local job limit");
-        println!("  -O[TYPE]   Synchronize output: line, target (default), recurse, none");
-        println!("  -l[LOAD]   Limit parallel launches by Linux runnable load");
-        println!("  --jobserver-style=fifo|pipe  Select Linux jobserver transport");
-        println!("\nDevelopment build: GNU Make compatibility is incomplete.");
-        println!("Complete runtime compatibility remains unfinished.");
+        let _ = rmake_linux::output::write_standard(
+            false,
+            concat!(
+                "Usage: rmake [OPTIONS] [TARGETS]\n",
+                "  --help     Show this help\n",
+                "  --version  Show rmake version and compatibility target\n",
+                "  -f FILE    Read the specified Makefile (may be repeated)\n",
+                "  -E STRING  Evaluate Makefile text before reading files (--eval)\n",
+                "  --trace    Print rebuild reasons and recipe commands\n",
+                "  --warn-undefined-variables  Diagnose missing variable references\n",
+                "  -C DIR     Change directory before reading Makefiles\n",
+                "  -w / --no-print-directory  Enable / suppress directory reports\n",
+                "  -I DIR     Search for included Makefiles; -I- resets the search path\n",
+                "  -L         Include symlink timestamps (--check-symlink-times)\n",
+                "  -o FILE    Ignore this file and its rules (--old-file)\n",
+                "  -W FILE    Assume this file is newest (--what-if)\n",
+                "  -n / -s    Print commands without running / suppress command echo\n",
+                "  -B / -q    Always rebuild / query whether recipes are needed\n",
+                "  -i / -k    Ignore recipe errors / continue independent targets\n",
+                "  -t / -e    Touch targets / let environment override file variables\n",
+                "  -rR / -jN  Disable built-ins / set shared local job limit\n",
+                "  -O[TYPE]   Synchronize output: line, target (default), recurse, none\n",
+                "  -l[LOAD]   Limit parallel launches by Linux runnable load\n",
+                "  --jobserver-style=fifo|pipe  Select Linux jobserver transport\n",
+                "\nDevelopment build: GNU Make compatibility is incomplete.\n",
+                "Complete runtime compatibility remains unfinished.\n",
+            )
+            .as_bytes(),
+        );
         return true;
     }
     if options.version {
@@ -166,13 +179,17 @@ pub(crate) fn print_version() {
     if crate::native::has_modules() {
         let _ = rmake_linux::native::flush_stream(false);
     }
-    println!("rmake {}", env!("CARGO_PKG_VERSION"));
-    println!(
-        "GNU Make {} compatibility target (implementation incomplete)",
+    let text = format!(
+        concat!(
+            "rmake {}\n",
+            "GNU Make {} compatibility target (implementation incomplete)\n",
+            "License GPLv3+: GNU GPL version 3 or later.\n",
+            "This is free software; there is no warranty.\n",
+        ),
+        env!("CARGO_PKG_VERSION"),
         rmake_core::COMPATIBILITY_VERSION
     );
-    println!("License GPLv3+: GNU GPL version 3 or later.");
-    println!("This is free software; there is no warranty.");
+    let _ = rmake_linux::output::write_standard(false, text.as_bytes());
 }
 
 /// Internal leading-thread test entry; never used by the product CLI.

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
+#[path = "../src/debug_messages.rs"]
+mod debug_messages;
+
 // Exercise the actual build-time reader with independently constructed MO data.
 use rmake_core::messages as system_messages;
 #[allow(dead_code)]
@@ -47,4 +50,17 @@ fn build_reader_checks_the_catalog_schema_before_runtime() {
             .contains("ArgumentType")
     );
     assert!(catalog_validation::validate_bytes(&valid[..valid.len() - 1]).is_err());
+}
+
+#[test]
+fn build_reader_checks_debug_keys_with_reordered_byte_precision() {
+    let id = debug_messages::TRYING_RULE.msgid.to_bytes();
+    let valid = one_message(id, b"stem=%3$.*2$s rule=%1$s");
+    catalog_validation::validate_bytes(&valid).unwrap();
+    let invalid = one_message(id, b"stem=%3$.*1$s");
+    assert!(
+        catalog_validation::validate_bytes(&invalid)
+            .unwrap_err()
+            .contains("ArgumentType")
+    );
 }

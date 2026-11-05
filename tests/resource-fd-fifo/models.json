@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "owned-fifo-command-5",
+      "limit": 5,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))/usr/bin/touch goal\n"
+      },
+      "created": {
+        "goal": ""
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n"
+    },
+    {
+      "id": "owned-fifo-command-6",
+      "limit": 6,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))/usr/bin/touch goal\n"
+      },
+      "created": {
+        "goal": ""
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n"
+    },
+    {
+      "id": "owned-fifo-command-7",
+      "limit": 7,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))/usr/bin/touch goal\n"
+      },
+      "created": {
+        "goal": ""
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n"
+    },
+    {
+      "id": "owned-fifo-command-8",
+      "limit": 8,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))/usr/bin/touch goal\n"
+      },
+      "created": {
+        "goal": ""
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n"
+    },
+    {
+      "id": "owned-fifo-command-12",
+      "limit": 12,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))/usr/bin/touch goal\n"
+      },
+      "created": {
+        "goal": ""
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n"
+    },
+    {
+      "id": "owned-fifo-recursive-wire-5",
+      "limit": 5,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@./wire outer\n\t+@$(MAKE) -f child.mk all; result=$$?; /usr/bin/rm -f .pool-identity; exit $$result\n",
+        "child.mk": "all:\n\t@./wire inner\n"
+      },
+      "created": {},
+      "stdout": "outer level=1 fifo=0600 tokens=1 inherited=0\n",
+      "stderr": "make[1]: *** Too many open files.  Stop.\nmake: *** [Makefile:3: all] Error 2\n",
+      "status": 2,
+      "observer": "pool-path=absent\n",
+      "wire": true
+    },
+    {
+      "id": "owned-fifo-recursive-wire-6",
+      "limit": 6,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@./wire outer\n\t+@$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@./wire inner\n"
+      },
+      "created": {},
+      "stdout": "outer level=1 fifo=0600 tokens=1 inherited=0\ninner level=2 fifo=0600 tokens=1 inherited=0\n",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n",
+      "wire": true
+    },
+    {
+      "id": "owned-fifo-recursive-wire-8",
+      "limit": 8,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@./wire outer\n\t+@$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@./wire inner\n"
+      },
+      "created": {},
+      "stdout": "outer level=1 fifo=0600 tokens=1 inherited=0\ninner level=2 fifo=0600 tokens=1 inherited=0\n",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n",
+      "wire": true
+    },
+    {
+      "id": "borrowed-fifo-default-discovery-5",
+      "limit": 5,
+      "mode": "borrowed",
+      "seed": "51",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": ".PHONY: all a b\nall: a b\na:; @./wire a\nb:; @./wire b\n"
+      },
+      "created": {},
+      "stdout": "",
+      "stderr": "make: *** No targets specified and no makefile found.  Stop.\n",
+      "status": 2,
+      "wire": true,
+      "observer": "pool-path=fifo:0600\npool-identity=same\nfinal-count=1\nreturned=51\n"
+    },
+    {
+      "id": "borrowed-fifo-live-capacity-6",
+      "limit": 6,
+      "mode": "borrowed",
+      "seed": "2b",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": ".PHONY: all a b\nall: a b\na:; @./wire a\nb:; @./wire b\n"
+      },
+      "created": {
+        "a.ready": "",
+        "a.release": "",
+        "b.held": "",
+        "b.release": ""
+      },
+      "stdout": "a:start\nb:start\nb:done\na:done\n",
+      "stderr": "",
+      "status": 0,
+      "wire": true,
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\npool-path=fifo:0600\npool-identity=same\nfinal-count=1\nreturned=2b\n"
+    },
+    {
+      "id": "borrowed-fifo-live-capacity-12",
+      "limit": 12,
+      "mode": "borrowed",
+      "seed": "51",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": ".PHONY: all a b\nall: a b\na:; @./wire a\nb:; @./wire b\n"
+      },
+      "created": {
+        "a.ready": "",
+        "a.release": "",
+        "b.held": "",
+        "b.release": ""
+      },
+      "stdout": "a:start\nb:start\nb:done\na:done\n",
+      "stderr": "",
+      "status": 0,
+      "wire": true,
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\npool-path=fifo:0600\npool-identity=same\nfinal-count=1\nreturned=2b\n"
+    },
+    {
+      "id": "owned-fifo-inherited-user-descriptor-7",
+      "limit": 7,
+      "mode": "inherited-owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))./wire descriptor\n",
+        "inherited.txt": "inherited input\n"
+      },
+      "created": {},
+      "stdout": "inherited=3 same-file open offset=0\n",
+      "stderr": "",
+      "status": 0,
+      "observer": "pool-path=absent\n",
+      "wire": true
+    }
+  ]
+}

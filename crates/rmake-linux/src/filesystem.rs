@@ -166,6 +166,22 @@ fn read(path: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
     Ok(output)
 }
 
+/// Preserve libc's localized bytes for a real errno at the reporting boundary.
+pub fn source_error_detail(error: &io::Error) -> Vec<u8> {
+    if let Some(detail) = error.raw_os_error().and_then(posix::strerror) {
+        return detail;
+    }
+    let text = error.to_string();
+    let suffix = error
+        .raw_os_error()
+        .map(|code| format!(" (os error {code})"))
+        .unwrap_or_default();
+    text.strip_suffix(&suffix)
+        .unwrap_or(&text)
+        .as_bytes()
+        .to_vec()
+}
+
 fn diagnostic(stage: &[u8], path: &[u8], error: io::Error) -> Vec<u8> {
     let message = error.to_string();
     let suffix = error
@@ -211,18 +227,7 @@ impl rmake_core::reader::Source for SourceFile {
         self.scratch.capacity()
     }
     fn error(&self) -> Option<Vec<u8>> {
-        self.error.as_ref().map(|e| {
-            let message = e.to_string();
-            let suffix = e
-                .raw_os_error()
-                .map(|n| format!(" (os error {n})"))
-                .unwrap_or_default();
-            message
-                .strip_suffix(&suffix)
-                .unwrap_or(&message)
-                .as_bytes()
-                .to_vec()
-        })
+        self.error.as_ref().map(source_error_detail)
     }
 }
 

@@ -3,16 +3,24 @@
 
 .DEFAULT_GOAL := help
 
+.PHONY: test-developer-flows test-flag-terminator test-startup-usage test-runtime-option-values
+FLAG_TERMINATOR_CASE ?=
+STARTUP_USAGE_CASE ?=
+RUNTIME_OPTION_VALUE_CASE ?=
+DEVELOPER_FLOW_CASE ?=
+
 .PHONY: bootstrap-integration test-integration
-.PHONY: test-database-output test-database-search test-database-numeric
+.PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time test-database-branch-metadata test-database-double-dry-run test-database-grouped test-database-implicit-grouped test-database-grouped-double
 .PHONY: test-database-lifecycle
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv
 .PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release test-catalog-coverage
-.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask
+.PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
+.PHONY: test-resource-fd-parallel
 
 .PHONY: test-job-debug
+.PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose
 
 .PHONY: test-debug-output test-directory-reporting test-native-modules help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
 
@@ -22,12 +30,26 @@ DESTDIR ?=
 CATALOG_INSTALL_DIR ?= $(PREFIX)/share/rmake/locale
 INTEGRATION_CASE ?=
 STDIN_CASE ?=
+RESOURCE_FILE_SIZE_CASE ?=
+STDOUT_FILE_SIZE_CASE ?=
 PROCESS_RESTART_CASE ?=
 RESTART_ENVIRONMENT_CASE ?=
 RESOURCE_FD_CASE ?=
 RESOURCE_FD_RECIPE_CASE ?=
 SIGNAL_MASK_CASE ?=
+RESOURCE_FD_SPOOL_CASE ?=
+RESOURCE_FD_PIPE_CASE ?=
+RESOURCE_FD_FIFO_CASE ?=
+RESOURCE_FD_PARALLEL_CASE ?=
+RESOURCE_FD_PARALLEL_REPORT ?= artifacts/resource-fd-parallel/development.json
+JOBSERVER_RELEASE_CASE ?=
 DATABASE_NUMERIC_CASE ?=
+DATABASE_ORDER_ROLE_CASE ?=
+DATABASE_DRY_RUN_CASE ?=
+DATABASE_BRANCH_CASE ?=
+DATABASE_DOUBLE_DRY_RUN_CASE ?=
+DATABASE_GROUPED_CASE ?=
+DATABASE_IMPLICIT_GROUPED_CASE ?=
 DATABASE_SEARCH_CASE ?=
 DATABASE_CASE ?=
 DATABASE_LIFECYCLE_GROUP ?= all
@@ -65,6 +87,8 @@ PROGRESS_REPEAT ?= 40
 NATIVE_CASE ?=
 DIRECTORY_REPORT_CASE ?=
 DEBUG_CASE ?=
+DEBUG_TRAVERSAL_CASE ?=
+DEBUG_VERBOSE_CASE ?=
 JOB_DEBUG_CASE ?=
 SIGNAL_CASE ?=
 SIGNAL_REPEAT ?= 3
@@ -143,26 +167,45 @@ help:
 		'  test-database-lifecycle Compare restart environments and exact cleanup phases' \
 		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
 		'  test-database-numeric Compare native rounding and registration history' \
+		'  test-database-order-roles Compare prepared normal and order-only duplicates' \
+		'  test-database-dry-run-time Compare synthetic and physical timestamps' \
+		'  test-database-branch-metadata Compare per-branch double-colon records' \
+		'  test-database-double-dry-run Compare double-colon recipe timestamps' \
+		'  test-database-grouped / test-database-implicit-grouped Compare grouped file records' \
 		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
 		'  test-guile-frontend Compare the enabled application with the verified Guile reference' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-stdin-sources Compare named stdin lifetime, restarts and cleanup' \
+		'  test-resource-file-size Compare stdin copy and signals under a file-size limit' \
+		'  test-stdout-file-size Compare stdout writes and finalization under a file-size limit' \
 		'  test-process-restarts Compare new process entry and executable replacement' \
 		'  test-restart-environment Compare the complete live process environment vector' \
 		'  test-restart-pipe Check original inherited jobserver descriptors across exec' \
 		'  test-resource-fd Compare descriptor pressure and live cancellation' \
 		'  test-resource-fd-recipes Compare low-limit recipe launch and reaping' \
 		'  test-signal-mask Compare native, child and restart mask phases' \
+		'  test-resource-fd-spool Compare borrowed recipe output at low limits' \
+		'  test-resource-fd-pipe Compare compact pipe pools and child wire identity' \
+		'  test-resource-fd-fifo Compare constrained FIFO pools and borrowed descriptor identity' \
+		'  test-resource-fd-parallel Compare many live recipes under a small descriptor limit' \
+		'  test-jobserver-release Compare ordinary token return and abort drain' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
+		'  test-debug-traversal Compare implicit search and intermediate cleanup traces' \
+		'  test-debug-traversal-nls Compare debug events in the verified French locale' \
+		'  test-debug-verbose Compare timestamp and remake decisions in C and French' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
 		'  m5-acceptance  Run combined development and optimized runtime gates' \
 		'  m4-acceptance  Run development and optimized rule-resolution gates' \
 		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
 		'  test-selfhost   Run build and core checks through the serial candidate' \
+		'  test-developer-flows Compare warm bootstrap, clean and benchmark checks' \
+		'  test-flag-terminator Compare inherited option source boundaries' \
+		'  test-startup-usage Compare malformed argument effects and usage output' \
+		'  test-runtime-option-values Compare live notices and deferred pool style' \
 		'  bench           Record original GNU oracle workload baselines' \
 		'  profile-allocations  Sample allocation requests in an isolated profile build' \
 		'  profile-allocations-frozen Profile a frozen PROFILE_CANDIDATE with exact output checks' \
@@ -179,7 +222,8 @@ help:
 		'Directory search replay: DIRECTORY_CASE=<case ID>.' \
 		'Directory reporting replay: DIRECTORY_REPORT_CASE=<case ID>.' \
 		'Debug replay: DEBUG_CASE=<case ID>.' \
-		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2.' \
+		'Implicit search replay: DEBUG_TRAVERSAL_CASE=<case ID>.' \
+		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14.' \
 		'Database replay: DATABASE_CASE=<case ID>; DATABASE_SEARCH_CASE=<search case ID>.' \
 		'Locale replay: LOCALE_CASE=<case ID>.' \
 		'JOBS replay: JOB_DEBUG_CASE=<case ID>.' \
@@ -306,8 +350,27 @@ test-include-stat: build oracle-verify
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --self-test $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
 
+test-runtime-option-values: build oracle-verify
+	$(PYTHON) tools/runtime_option_values.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/runtime-option-values/development.json $(if $(RUNTIME_OPTION_VALUE_CASE),--case "$(RUNTIME_OPTION_VALUE_CASE)")
+
+test-startup-usage: build oracle-verify
+	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/development.json $(if $(STARTUP_USAGE_CASE),--case "$(STARTUP_USAGE_CASE)")
+ifeq ($(STARTUP_USAGE_CASE),)
+	$(PYTHON) tools/getopt_locale.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/getopt-development.json
+endif
+
+test-flag-terminator: build oracle-verify
+	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/flag-terminator/development.json $(if $(FLAG_TERMINATOR_CASE),--case "$(FLAG_TERMINATOR_CASE)")
+
+test-developer-flows: build oracle-verify
+	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/developer-flows/development.json $(if $(DEVELOPER_FLOW_CASE),--case "$(DEVELOPER_FLOW_CASE)")
+
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" CATALOG_COVERAGE_CASE=partial-language-fallback test-catalog-coverage
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RUNTIME_OPTION_VALUE_CASE=ordered-immediate test-runtime-option-values
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" STARTUP_USAGE_CASE=empty-directory-then-assignment test-startup-usage
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FLAG_TERMINATOR_CASE=inherited-short-goal test-flag-terminator
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe test-developer-flows
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_CASE=nls-private-messages-warning test-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_DIRECTORY_CASE=nls-directory-fr-inherited-depth test-nls-directory
@@ -317,21 +380,35 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_LIFECYCLE_CASE=database-native-restart-environment-vector-order test-database-lifecycle
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_SEARCH_CASE=database-search-repeated-aliased test-database-search
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_NUMERIC_CASE=database-native-numeric-minimal-upward test-database-numeric
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_ORDER_ROLE_CASE=late-recipe-eval test-database-order-roles
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_DRY_RUN_CASE=missing-dry-run test-database-dry-run-time
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_BRANCH_CASE=inactive-head-local test-database-branch-metadata
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_GROUPED_CASE=group-peer-exists test-database-grouped
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_FENV_CASE=native-fenv-successive-upward test-native-fenv
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" STDIN_CASE=stdin-owned-goal-unlinked test-stdin-sources
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FILE_SIZE_CASE=stdin-4096-limit-128 test-resource-file-size
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" STDOUT_FILE_SIZE_CASE=native-host-stdout-ferror test-stdout-file-size
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESTART_ENVIRONMENT_CASE=raw-ordered-vector test-restart-environment
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_CASE=low6-term-live-recipe test-resource-fd
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_RECIPE_CASE=recipe-fdlimit-4 test-resource-fd-recipes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SIGNAL_MASK_CASE=eager-to-read-signal-mask test-signal-mask
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_SPOOL_CASE=spool-fd6-separate-identity test-resource-fd-spool
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_PIPE_CASE=borrowed-wire-fd6 test-resource-fd-pipe
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_FIFO_CASE=owned-fifo-inherited-user-descriptor-7 test-resource-fd-fifo
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_PARALLEL_CASE=pipe-8-workers-10 RESOURCE_FD_PARALLEL_REPORT=artifacts/resource-fd-parallel/selfhost.json test-resource-fd-parallel
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOBSERVER_RELEASE_CASE=implicit-child-finishes-first test-jobserver-release
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_CASE=debug-bare-basic test-debug-output
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_CASE=debug-child-queued-parallel test-debug-output
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_TRAVERSAL_CASE=chain-secondary test-debug-traversal
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_TRAVERSAL_CASE=generated-include test-debug-traversal-nls
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_VERBOSE_CASE=vpath-no-update test-debug-verbose
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOB_DEBUG_CASE=jobs-serial-multiline test-job-debug
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIAGNOSTIC_CASE=message-204-child-output-order test-diagnostics
@@ -360,24 +437,47 @@ test-m5-release: test-m4-release
 
 test-m4-release: release oracle-verify test-nls-release test-nls-directory-release
 	$(PYTHON) tools/catalog_coverage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/catalog-coverage/optimized.json
+	$(PYTHON) tools/runtime_option_values.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/runtime-option-values/optimized.json
+	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/optimized.json
+	$(PYTHON) tools/getopt_locale.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/getopt-optimized.json
+	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/flag-terminator/optimized.json
+	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/developer-flows/optimized.json
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/stdin-sources/optimized.json
+	$(PYTHON) tools/resource_file_size.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-file-size/optimized.json
+	$(PYTHON) tools/stdout_file_size.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/stdout-file-size/optimized.json
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
 	$(PYTHON) tools/restart_environment.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-environment/optimized.json
 	$(PYTHON) tools/restart_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-pipe/optimized.json
 	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd/optimized.json
 	$(PYTHON) tools/resource_fd_recipes.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-recipes/optimized.json
 	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/signal-mask/optimized.json
+	$(PYTHON) tools/resource_fd_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-spool/optimized.json
+	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-pipe/optimized.json
+	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-fifo/optimized.json
+	$(PYTHON) tools/resource_fd_parallel.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-parallel/optimized.json
+	$(PYTHON) tools/jobserver_release.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report-dir artifacts/jobserver-release/optimized
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/optimized.json
 	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-lifecycle/optimized.json
 	$(PYTHON) tools/database_numeric.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/numeric-optimized.json
+	$(PYTHON) tools/database_order_roles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-order-roles/optimized.json
+	$(PYTHON) tools/database_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-dry-run/optimized.json
+	$(PYTHON) tools/database_branch_metadata.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-branch-metadata/optimized.json
+	$(PYTHON) tools/database_double_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-double-dry-run/optimized.json
+	$(PYTHON) tools/database_grouped_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-grouped/optimized.json
+	$(PYTHON) tools/database_implicit_grouped_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-implicit-grouped/optimized.json
+	$(PYTHON) tools/database_grouped_double_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-grouped-double/optimized.json
+	$(PYTHON) tools/database_grouped_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-grouped-failure/optimized.json
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native-fenv/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
 	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/optimized.json
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
 	$(PYTHON) tools/directory_reporting.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/directory-reporting/optimized.json
 	$(PYTHON) tools/debug_output.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/debug-output/optimized.json
+	$(PYTHON) tools/debug_traversal.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/debug-traversal/optimized.json
+	$(PYTHON) tools/debug_traversal.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/debug-traversal/french-optimized.json
+	$(PYTHON) tools/debug_verbose.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report-dir artifacts/debug-verbose/optimized
 	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/job-debug/optimized.json
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/nested_short_proposal.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/nested-short-proposal/release.json
@@ -405,6 +505,28 @@ test-database-numeric: build oracle-verify
 
 test-database-search: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite search --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/search-development.json $(if $(DATABASE_SEARCH_CASE),--case "$(DATABASE_SEARCH_CASE)")
+
+test-database-grouped-double: build oracle-verify
+	$(PYTHON) tools/database_grouped_double_output.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-grouped-double/development.json
+	$(PYTHON) tools/database_grouped_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-grouped-failure/development.json
+
+test-database-grouped: build oracle-verify
+	$(PYTHON) tools/database_grouped_output.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-grouped/development.json $(if $(DATABASE_GROUPED_CASE),--case "$(DATABASE_GROUPED_CASE)")
+
+test-database-implicit-grouped: build oracle-verify
+	$(PYTHON) tools/database_implicit_grouped_output.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-implicit-grouped/development.json $(if $(DATABASE_IMPLICIT_GROUPED_CASE),--case "$(DATABASE_IMPLICIT_GROUPED_CASE)")
+
+test-database-branch-metadata: build oracle-verify
+	$(PYTHON) tools/database_branch_metadata.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-branch-metadata/development.json $(if $(DATABASE_BRANCH_CASE),--case "$(DATABASE_BRANCH_CASE)")
+
+test-database-double-dry-run: build oracle-verify
+	$(PYTHON) tools/database_double_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-double-dry-run/development.json $(if $(DATABASE_DOUBLE_DRY_RUN_CASE),--case "$(DATABASE_DOUBLE_DRY_RUN_CASE)")
+
+test-database-dry-run-time: build oracle-verify
+	$(PYTHON) tools/database_dry_run_time.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-dry-run/development.json $(if $(DATABASE_DRY_RUN_CASE),--case "$(DATABASE_DRY_RUN_CASE)")
+
+test-database-order-roles: build oracle-verify
+	$(PYTHON) tools/database_order_roles.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-order-roles/development.json $(if $(DATABASE_ORDER_ROLE_CASE),--case "$(DATABASE_ORDER_ROLE_CASE)")
 
 test-database-lifecycle: build oracle-verify
 	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-lifecycle/development.json $(if $(DATABASE_LIFECYCLE_CASE),--case "$(DATABASE_LIFECYCLE_CASE)")
@@ -435,6 +557,12 @@ test-locale-collation: build oracle-verify
 test-stdin-sources: build oracle-verify
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/stdin-sources/development.json $(if $(STDIN_CASE),--case "$(STDIN_CASE)")
 
+test-resource-file-size: build oracle-verify
+	$(PYTHON) tools/resource_file_size.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-file-size/development.json $(if $(RESOURCE_FILE_SIZE_CASE),--case "$(RESOURCE_FILE_SIZE_CASE)")
+
+test-stdout-file-size: build oracle-verify
+	$(PYTHON) tools/stdout_file_size.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/stdout-file-size/development.json $(if $(STDOUT_FILE_SIZE_CASE),--case "$(STDOUT_FILE_SIZE_CASE)")
+
 test-process-restarts: build oracle-verify
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/process-restarts/development.json $(if $(PROCESS_RESTART_CASE),--case "$(PROCESS_RESTART_CASE)")
 
@@ -446,6 +574,21 @@ test-restart-pipe: build oracle-verify
 
 test-resource-fd: build oracle-verify
 	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd/development.json $(if $(RESOURCE_FD_CASE),--case "$(RESOURCE_FD_CASE)")
+
+test-jobserver-release: build oracle-verify
+	$(PYTHON) tools/jobserver_release.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report-dir artifacts/jobserver-release/development $(if $(JOBSERVER_RELEASE_CASE),--case "$(JOBSERVER_RELEASE_CASE)")
+
+test-resource-fd-pipe: build oracle-verify
+	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")
+
+test-resource-fd-fifo: build oracle-verify
+	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")
+
+test-resource-fd-parallel: build oracle-verify
+	$(PYTHON) tools/resource_fd_parallel.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(RESOURCE_FD_PARALLEL_REPORT)" $(if $(RESOURCE_FD_PARALLEL_CASE),--case "$(RESOURCE_FD_PARALLEL_CASE)")
+
+test-resource-fd-spool: build oracle-verify
+	$(PYTHON) tools/resource_fd_spool.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-spool/development.json $(if $(RESOURCE_FD_SPOOL_CASE),--case "$(RESOURCE_FD_SPOOL_CASE)")
 
 test-signal-mask: build oracle-verify
 	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/signal-mask/development.json $(if $(SIGNAL_MASK_CASE),--case "$(SIGNAL_MASK_CASE)")
@@ -467,6 +610,15 @@ test-directory-reporting: build oracle-verify
 
 test-debug-output: build oracle-verify
 	$(PYTHON) tools/debug_output.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/debug-output/development.json $(if $(DEBUG_CASE),--case "$(DEBUG_CASE)")
+
+test-debug-traversal: build oracle-verify
+	$(PYTHON) tools/debug_traversal.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/debug-traversal/development.json $(if $(DEBUG_TRAVERSAL_CASE),--case "$(DEBUG_TRAVERSAL_CASE)")
+
+test-debug-traversal-nls: build oracle-verify
+	$(PYTHON) tools/debug_traversal.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/debug-traversal/french-development.json $(if $(DEBUG_TRAVERSAL_CASE),--case "$(DEBUG_TRAVERSAL_CASE)")
+
+test-debug-verbose: build oracle-verify
+	$(PYTHON) tools/debug_verbose.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report-dir artifacts/debug-verbose/development $(if $(DEBUG_VERBOSE_CASE),--case "$(DEBUG_VERBOSE_CASE)")
 
 test-job-debug: build oracle-verify
 	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/job-debug/development.json $(if $(JOB_DEBUG_CASE),--case "$(JOB_DEBUG_CASE)")
@@ -543,13 +695,13 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-debug-verbose test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-debug-verbose test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-nls test-nls-directory
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-nls test-nls-directory
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory
 
 ci: check test-selfhost
 
@@ -571,3 +723,9 @@ clean:
 	+$(CARGO) clean
 
 test check: test-catalog-coverage
+
+test check: test-database-branch-metadata test-database-double-dry-run
+
+test check: test-database-grouped test-database-implicit-grouped test-database-grouped-double
+
+test check: test-developer-flows test-flag-terminator test-startup-usage test-runtime-option-values

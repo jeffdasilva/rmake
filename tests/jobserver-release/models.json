@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "ignored-real-error-retains-paid-lease",
+      "mode": "ignored",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:\n\t-@./witness ignored\n\t@./witness continuation\n",
+      "stdout": "a:start\nb:ignored-command\nb:continuation\nb:done\na:done\n",
+      "stderr": "make: [Makefile:6: b] Error 7 (ignored)\n",
+      "status": 0,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "ignored-real-error-retains-paid-lease-canonical",
+      "mode": "ignored",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:\n\t-@./witness ignored\n\t@./witness continuation\n",
+      "stdout": "a:start\nb:ignored-command\nb:continuation\nb:done\na:done\n",
+      "stderr": "make: [Makefile:6: b] Error 7 (ignored)\n",
+      "status": 0,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "failed-exec-ordinary-paid-release",
+      "mode": "launch",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:\n\t@./witness attempt\n\t@./missing\n",
+      "stdout": "a:start\nb:attempt\nb:done\na:done\n",
+      "stderr": "make: ./missing: No such file or directory\nmake: *** [Makefile:7: b] Error 127\nmake: Target 'all' not remade because of errors.\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "failed-exec-ordinary-paid-release-canonical",
+      "mode": "launch",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:\n\t@./witness attempt\n\t@./missing\n",
+      "stdout": "a:start\nb:attempt\nb:done\na:done\n",
+      "stderr": "make: ./missing: No such file or directory\nmake: *** [Makefile:7: b] Error 127\nmake: Target 'all' not remade because of errors.\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "signaled-child-ordinary-paid-release",
+      "mode": "child-signal",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:\n\t@./witness signal\n",
+      "stdout": "a:start\nb:signal\na:done\n",
+      "stderr": "make: *** [Makefile:6: b] Terminated\nmake: Target 'all' not remade because of errors.\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "signaled-child-ordinary-paid-release-canonical",
+      "mode": "child-signal",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:\n\t@./witness signal\n",
+      "stdout": "a:start\nb:signal\na:done\n",
+      "stderr": "make: *** [Makefile:6: b] Terminated\nmake: Target 'all' not remade because of errors.\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-b-release=0\none-byte-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "body-abort-before-gnu-acquisition",
+      "mode": "body-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @$(file >b.phase,body)$(error body-stop)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:5: *** body-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "body\n"
+      },
+      "observer": "bytes-at-abort-wait=1\nfinal-count=1\nreturned=51\n",
+      "seed": "51"
+    },
+    {
+      "id": "body-abort-before-gnu-acquisition-canonical",
+      "mode": "body-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @$(file >b.phase,body)$(error body-stop)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:5: *** body-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "body\n"
+      },
+      "observer": "bytes-at-abort-wait=1\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "configuration-abort-after-gnu-acquisition",
+      "mode": "config-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "configuration-abort-after-gnu-acquisition-canonical",
+      "mode": "config-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "implicit-child-finishes-first",
+      "mode": "implicit-first",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @./witness attempt\n",
+      "stdout": "a:start\nb:attempt\na:done\nb:done\n",
+      "stderr": "",
+      "status": 0,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-a-release=0\none-byte-before-b-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "implicit-child-finishes-first-canonical",
+      "mode": "implicit-first",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @./witness attempt\n",
+      "stdout": "a:start\nb:attempt\na:done\nb:done\n",
+      "stderr": "",
+      "status": 0,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release"
+      ],
+      "observer": "bytes-before-a-release=0\none-byte-before-b-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "completed-no-child-command-releases-paid-slot",
+      "mode": "no-child",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,noop)-c\nb:; @:\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "",
+      "status": 0,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "noop\n"
+      },
+      "observer": "one-byte-after-config-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "completed-no-child-command-releases-paid-slot-canonical",
+      "mode": "no-child",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,noop)-c\nb:; @:\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "",
+      "status": 0,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "noop\n"
+      },
+      "observer": "one-byte-after-config-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "configuration-abort-in-live-continuation",
+      "mode": "continuation-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(if $(wildcard b.finished),$(file >b.phase,config)$(error config-stop),-c)\nb:\n\t@./witness first\n\t@./witness attempt\n",
+      "stdout": "a:start\nb:first\nb:done\na:done\n",
+      "stderr": "Makefile:8: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\nmake: *** wait: No child processes.  Stop.\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release",
+        "b.finished"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-before-b-release=0\nbytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "configuration-abort-in-live-continuation-canonical",
+      "mode": "continuation-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(if $(wildcard b.finished),$(file >b.phase,config)$(error config-stop),-c)\nb:\n\t@./witness first\n\t@./witness attempt\n",
+      "stdout": "a:start\nb:first\nb:done\na:done\n",
+      "stderr": "Makefile:8: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\nmake: *** wait: No child processes.  Stop.\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "b.held",
+        "b.release",
+        "b.finished"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-before-b-release=0\nbytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "shell-expansion-abort-after-reservation",
+      "mode": "config-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: SHELL = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "shell-expansion-abort-after-reservation-canonical",
+      "mode": "config-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: SHELL = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    },
+    {
+      "id": "ifs-expansion-abort-after-reservation",
+      "mode": "config-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: IFS = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "ifs-expansion-abort-after-reservation-canonical",
+      "mode": "config-abort",
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: IFS = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "2b"
+    }
+  ]
+}

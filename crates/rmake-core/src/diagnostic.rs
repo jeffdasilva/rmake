@@ -195,7 +195,29 @@ pub struct IncludedFile {
     pub input: crate::reader::Input,
 }
 
-type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, Vec<u8>> + 'a;
+/// Retain the failed search candidate and OS error number until remake reports
+/// it. Host adapters can also supply arbitrary, untranslated detail bytes.
+pub struct IncludeFailure {
+    pub resolved_name: Option<Vec<u8>>,
+    pub detail: IncludeError,
+}
+
+#[derive(Clone, Debug)]
+pub enum IncludeError {
+    Errno(i32),
+    Bytes(Vec<u8>),
+}
+
+impl From<Vec<u8>> for IncludeFailure {
+    fn from(detail: Vec<u8>) -> Self {
+        Self {
+            resolved_name: None,
+            detail: IncludeError::Bytes(detail),
+        }
+    }
+}
+
+type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, IncludeFailure> + 'a;
 
 pub enum EnvironmentValue {
     Set(Vec<u8>),
@@ -234,6 +256,26 @@ pub struct FlagAssignment {
     pub position: usize,
 }
 
+/// A nonfatal Make-owned option value error, emitted at the decode cursor.
+#[derive(Clone, Copy, Debug)]
+pub enum FlagNotice {
+    EmptyOption(&'static [u8]),
+    InvalidJobs,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct FlagNoticeAt {
+    pub position: usize,
+    pub notice: FlagNotice,
+}
+
+#[derive(Default)]
+pub struct FlagReplay<'a> {
+    pub warning_positions: &'a [usize],
+    pub warning_entry: bool,
+    pub notices: &'a [FlagNoticeAt],
+}
+
 /// Canonical flags selected after include metadata effects have completed.
 pub struct MakeflagsMetadata {
     pub eval_reference: bool,
@@ -258,6 +300,7 @@ pub struct MakeflagsResult {
     /// Input positions of warning-enabling options, excluding serialized
     /// preexisting flags. They share the definition stream's owned cursor.
     pub warning_positions: Vec<usize>,
+    pub notices: Vec<FlagNoticeAt>,
     pub warning_entry: bool,
     pub next_argument: usize,
 }
@@ -296,6 +339,7 @@ pub struct FlagStep {
     pub environment_override: bool,
     pub following_definition: bool,
     pub action: FlagAction,
+    pub notice: Option<FlagNotice>,
 }
 
 pub enum FlagAction {
@@ -317,6 +361,7 @@ pub trait MakeflagsReceiver {
     /// Apply an ordered policy step without decoding or repeating I/O. Quiet
     /// frontends can retain the default; warning-aware hosts share their cell.
     fn set_warning_policy(&mut self, _enabled: bool) {}
+    fn report_flag_notice(&mut self, _notice: FlagNotice) {}
 }
 
 impl<F: FnMut(MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>>> MakeflagsReceiver for F {
@@ -484,18 +529,24 @@ impl<'a> ExpansionContext<'a> {
             database
                 .variables
                 .set_environment_override(result.environment_override);
-            if !result.assignments.is_empty() || !result.warning_positions.is_empty() {
+            if !result.assignments.is_empty()
+                || !result.warning_positions.is_empty()
+                || !result.notices.is_empty()
+            {
                 self.apply_flag_steps(
                     database,
                     &result.assignments,
                     origin,
                     result.next_argument,
-                    &result.warning_positions,
-                    result.warning_entry,
+                    FlagReplay {
+                        warning_positions: &result.warning_positions,
+                        warning_entry: result.warning_entry,
+                        notices: &result.notices,
+                    },
                 )?;
                 // Nested definitions can change switches, but refreshing does not
                 // repeat the outer assignment stream or reset its owned cursor.
-                if !result.assignments.is_empty() {
+                if !result.assignments.is_empty() || !result.notices.is_empty() {
                     result = self
                         .makeflags
                         .as_mut()
@@ -661,6 +712,12 @@ impl<'a> ExpansionContext<'a> {
                 database
                     .variables
                     .set_environment_override(step.environment_override);
+                if let Some(notice) = step.notice {
+                    self.makeflags
+                        .as_mut()
+                        .expect("configured receiver")
+                        .report_flag_notice(notice);
+                }
                 match step.action {
                     FlagAction::Policy => {}
                     FlagAction::Definition(argument) => {
@@ -767,7 +824,13 @@ impl<'a> ExpansionContext<'a> {
         origin: crate::variables::Origin,
         terminal: usize,
     ) -> Result<Vec<Vec<u8>>, crate::variables::ExpandError> {
-        self.apply_flag_steps(database, assignments, origin, terminal, &[], false)
+        self.apply_flag_steps(
+            database,
+            assignments,
+            origin,
+            terminal,
+            FlagReplay::default(),
+        )
     }
 
     /// Replay definitions and warning policies with the same owned cursor.
@@ -778,10 +841,14 @@ impl<'a> ExpansionContext<'a> {
         assignments: &[FlagAssignment],
         origin: crate::variables::Origin,
         terminal: usize,
-        warning_positions: &[usize],
-        warning_entry: bool,
+        replay: FlagReplay<'_>,
     ) -> Result<Vec<Vec<u8>>, crate::variables::ExpandError> {
         use crate::variables::{ExpandError, Origin};
+        let FlagReplay {
+            warning_positions,
+            warning_entry,
+            notices,
+        } = replay;
         if self.makeflags_depth >= 128 {
             return Err(ExpandError::ExpansionLimit);
         }
@@ -806,12 +873,28 @@ impl<'a> ExpansionContext<'a> {
                 assignments
                     .len()
                     .saturating_add(warning_positions.len())
+                    .saturating_add(notices.len())
                     .max(1),
             ) {
                 let index =
                     assignments.partition_point(|assignment| assignment.position < cursor.get());
                 let next_warning = warning_positions
                     .get(warning_positions.partition_point(|position| *position < cursor.get()));
+                let next_notice =
+                    notices.get(notices.partition_point(|entry| entry.position < cursor.get()));
+                if let Some(entry) = next_notice
+                    && next_warning.is_none_or(|position| entry.position < *position)
+                    && assignments
+                        .get(index)
+                        .is_none_or(|assignment| entry.position < assignment.position)
+                {
+                    cursor.set(entry.position + 1);
+                    self.makeflags
+                        .as_mut()
+                        .expect("configured receiver")
+                        .report_flag_notice(entry.notice);
+                    continue;
+                }
                 if let Some(position) = next_warning
                     && assignments
                         .get(index)
@@ -891,9 +974,9 @@ impl<'a> ExpansionContext<'a> {
         }
     }
 
-    pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, Vec<u8>>> {
+    pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, IncludeFailure>> {
         if self.is_cancelled() {
-            return Some(Err(b"interrupted".to_vec()));
+            return Some(Err(b"interrupted".to_vec().into()));
         }
         self.includes.as_mut().map(|receiver| receiver(name))
     }
@@ -1099,11 +1182,12 @@ pub struct FrozenDiagnostic {
 #[derive(Clone, Debug)]
 pub struct SystemDiagnostic {
     message: crate::messages::OwnedMessage,
+    unlocated: bool,
     english: std::sync::OnceLock<Vec<u8>>,
 }
 impl PartialEq for SystemDiagnostic {
     fn eq(&self, other: &Self) -> bool {
-        self.message == other.message
+        self.message == other.message && self.unlocated == other.unlocated
     }
 }
 impl Eq for SystemDiagnostic {}
@@ -1125,9 +1209,16 @@ impl Diagnostic {
     pub fn system(message: crate::messages::Message<'_>) -> Self {
         Self::system_owned(message.owned())
     }
+    pub(crate) fn unlocated_system(message: crate::messages::Message<'_>) -> Self {
+        Self::with_system_location(message.owned(), true)
+    }
     pub(crate) fn system_owned(message: crate::messages::OwnedMessage) -> Self {
+        Self::with_system_location(message, false)
+    }
+    fn with_system_location(message: crate::messages::OwnedMessage, unlocated: bool) -> Self {
         Self::System(Box::new(SystemDiagnostic {
             message,
+            unlocated,
             english: std::sync::OnceLock::new(),
         }))
     }
@@ -1140,6 +1231,7 @@ impl Diagnostic {
     pub fn is_unlocated(&self) -> bool {
         match self {
             Self::Frozen(value) => value.unlocated,
+            Self::System(value) => value.unlocated,
             _ => matches!(self, Self::Unlocated(_)),
         }
     }

@@ -42,3 +42,15 @@ The stdin profile requires both Makefile reads, cleanup of the owned source,
 and the final goal effect. The first image's Scheme port output is still
 buffered at exec and is discarded, so only the second image emits its line. Both GNU runs and both
 candidate builds are compared to that literal result.
+
+Six original [detached worker cases](../tests/guile-detached/README.md) now
+run in the enabled application gate for both builds. They use a live Linux
+child-wait observation to separate an idle worker from a callback made
+during the serial recipe wait. The waiting thread handles accepted callbacks
+before closing its admission window. A reference-variable fatal wait error
+and broader asynchronous/parallel lifecycle acceptance remain open.
+
+The enabled gate also runs three [late descriptor pressure cases](../tests/guile-eventfd-pressure/README.md)
+in each build. When the recipe has already started and no private wake descriptor
+fits, the main thread keeps accepting Scheme callbacks and checks the queue at
+bounded intervals. The regular descriptor wake path is unchanged.

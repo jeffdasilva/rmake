@@ -63,17 +63,77 @@ impl Child {
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
     ) -> Option<io::Result<Self>> {
-        if crate::signals::wake_descriptor() >= 0 {
+        Self::try_spawn_ordered_fds(command, image, arg0, [None; 3], None, true)
+    }
+
+    pub fn try_spawn_ordered_spool(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        spool: &crate::output::Spool,
+    ) -> Option<io::Result<Self>> {
+        let [out, err] = spool.child_output();
+        Self::try_spawn_ordered_fds(command, image, arg0, [None, out, err], None, true)
+    }
+
+    /// A compact pipe uses its original wire numbers for recursive children.
+    /// A FIFO is reopened by name and inherits no pool descriptors. Leave the
+    /// scarce spare descriptors available to the interpreter and its children.
+    pub fn try_spawn_ordered_pool(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        stdin: Option<&File>,
+        server: &crate::jobserver::Jobserver,
+        recursive: bool,
+    ) -> Option<io::Result<Self>> {
+        let wire = if recursive {
+            match server.compact_wire() {
+                Ok(wire) => wire,
+                Err(error) => return Some(Err(error)),
+            }
+        } else {
+            None
+        };
+        Self::try_spawn_ordered_fds(
+            command,
+            image,
+            arg0,
+            [stdin.map(AsFd::as_fd), None, None],
+            wire,
+            false,
+        )
+    }
+
+    pub fn wake_pipe_unavailable() -> bool {
+        crate::signals::wake_descriptor() < 0
+    }
+
+    fn try_spawn_ordered_fds(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        stdio: [Option<BorrowedFd<'_>>; 3],
+        wire: Option<[c_int; 2]>,
+        retain_pidfd: bool,
+    ) -> Option<io::Result<Self>> {
+        if !Self::wake_pipe_unavailable() {
             return None;
         }
-        image.spawn_inherited(command, arg0).map(|result| {
-            result.and_then(|pid| {
-                if pid <= 0 {
-                    return Err(io::Error::other("spawn did not return an owned child"));
-                }
-                Ok(Self::with_pid(Process::Spawned { pid, status: None }, pid))
+        image
+            .spawn_inherited(command, arg0, stdio, wire)
+            .map(|result| {
+                result.and_then(|pid| {
+                    if pid <= 0 {
+                        return Err(io::Error::other("spawn did not return an owned child"));
+                    }
+                    Ok(Self::with_pid(
+                        Process::Spawned { pid, status: None },
+                        pid,
+                        retain_pidfd,
+                    ))
+                })
             })
-        })
     }
 
     pub fn spawn_capture_ordered(
@@ -87,13 +147,17 @@ impl Child {
 
     fn from_std(child: std::process::Child) -> Self {
         let pid = child.id() as c_int;
-        Self::with_pid(Process::Standard(child), pid)
+        Self::with_pid(Process::Standard(child), pid, true)
     }
 
-    fn with_pid(child: Process, pid: c_int) -> Self {
+    fn with_pid(child: Process, pid: c_int, retain_pidfd: bool) -> Self {
         // pidfd_open and pidfd_send_signal use these numbers on Linux x86-64
         // and asm-generic architectures. pidfd_open creates a CLOEXEC handle.
-        let descriptor = unsafe { syscall(434, pid, 0_u32) };
+        let descriptor = if retain_pidfd {
+            unsafe { syscall(434, pid, 0_u32) }
+        } else {
+            -1
+        };
         let pidfd = if descriptor >= 0 {
             crate::process::private_descriptor(unsafe { File::from_raw_fd(descriptor as c_int) })
                 .ok()
@@ -202,24 +266,28 @@ pub fn wait(
     children: &[(u64, &Child)],
     block: bool,
     interruptible: bool,
-    additional: Option<BorrowedFd<'_>>,
+    additional: Option<c_int>,
     maximum_wait: Option<std::time::Duration>,
 ) -> io::Result<Vec<u64>> {
-    let mut descriptors: Vec<_> = children
-        .iter()
-        .map(|(_, child)| PollFd {
-            descriptor: child.pidfd.as_ref().map_or(-1, AsRawFd::as_raw_fd),
-            events: 1,
-            returned: 0,
-        })
-        .collect();
+    let mut descriptors = Vec::with_capacity(children.len());
+    for (_, child) in children {
+        if let Some(pidfd) = &child.pidfd {
+            descriptors.push(PollFd {
+                descriptor: pidfd.as_raw_fd(),
+                events: 1,
+                returned: 0,
+            });
+        }
+    }
+    let child_descriptors = descriptors.len();
     let wake = interruptible
         .then(crate::signals::wake_descriptor)
         .filter(|fd| *fd >= 0);
-    // With no pipe, EINTR still wakes an already waiting poll. A finite timeout
-    // also bounds the race between checking pending() and entering that poll.
-    let fallback =
-        descriptors.iter().any(|fd| fd.descriptor < 0) || (interruptible && wake.is_none());
+    // Linux counts even ignored poll slots against RLIMIT_NOFILE. Compact
+    // pools can have more children than descriptors; check their owned PIDs
+    // after a bounded wait without adding placeholder descriptors.
+    // With no wake pipe, this also bounds the pending-signal race.
+    let fallback = child_descriptors < children.len() || (interruptible && wake.is_none());
     if let Some(descriptor) = wake {
         descriptors.push(PollFd {
             descriptor,
@@ -229,7 +297,7 @@ pub fn wait(
     }
     if let Some(fd) = additional {
         descriptors.push(PollFd {
-            descriptor: fd.as_raw_fd(),
+            descriptor: fd,
             events: 1,
             returned: 0,
         });
@@ -257,10 +325,14 @@ pub fn wait(
             return Err(error);
         }
     }
+    let mut polled_children = descriptors[..child_descriptors].iter();
     let mut ready: Vec<_> = children
         .iter()
-        .zip(&descriptors)
-        .filter_map(|((id, child), fd)| (child.pidfd.is_none() || fd.returned != 0).then_some(*id))
+        .filter_map(|(id, child)| {
+            (child.pidfd.is_none()
+                || polled_children.next().expect("one slot per pidfd").returned != 0)
+                .then_some(*id)
+        })
         .collect();
     ready.sort_unstable();
     Ok(ready)
@@ -319,7 +391,7 @@ pub fn capture(
             if status.is_none() { &children } else { &[] },
             true,
             true,
-            (!eof).then(|| stdout.as_fd()),
+            (!eof).then(|| stdout.as_raw_fd()),
             None,
         )?;
     }
@@ -402,6 +474,39 @@ mod tests {
         let mut child = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
         child.pidfd = None;
         terminated(child);
+    }
+
+    #[test]
+    fn child_wait_keeps_mixed_descriptor_and_pid_readiness_aligned() {
+        let sleeping = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
+        let mut fallback = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
+        let mut exited = Child::spawn(&mut Command::new("/bin/true")).unwrap();
+        if sleeping.pidfd.is_none() || exited.pidfd.is_none() {
+            return;
+        }
+        fallback.pidfd = None;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while exited.try_wait().unwrap().is_none() {
+            assert!(Instant::now() < deadline, "owned child did not exit");
+            wait(
+                &[(0, &exited)],
+                true,
+                false,
+                None,
+                Some(Duration::from_millis(10)),
+            )
+            .unwrap();
+        }
+
+        let ready = wait(
+            &[(3, &sleeping), (2, &fallback), (1, &exited)],
+            false,
+            false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(ready, [1, 2]);
     }
 
     fn dropping_reaps(child: Child) {

@@ -1,0 +1,220 @@
+{
+  "models": [
+    {
+      "id": "pipe-8-workers-6",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--jobserver-style=pipe",
+        "-j12"
+      ],
+      "nofile": 8,
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "files": {
+        "Makefile": "all: task-0 task-1 task-2 task-3 task-4 task-5\n.PHONY: all task-0 task-1 task-2 task-3 task-4 task-5\ntask-0:\n\t@./barrier 0 6 8\ntask-1:\n\t@./barrier 1 6 8\ntask-2:\n\t@./barrier 2 6 8\ntask-3:\n\t@./barrier 3 6 8\ntask-4:\n\t@./barrier 4 6 8\ntask-5:\n\t@./barrier 5 6 8\n"
+      },
+      "created": {
+        "ready-0": "ready 0 nofile=8\n",
+        "ready-1": "ready 1 nofile=8\n",
+        "ready-2": "ready 2 nofile=8\n",
+        "ready-3": "ready 3 nofile=8\n",
+        "ready-4": "ready 4 nofile=8\n",
+        "ready-5": "ready 5 nofile=8\n",
+        "done-0": "done 0 nofile=8\n",
+        "done-1": "done 1 nofile=8\n",
+        "done-2": "done 2 nofile=8\n",
+        "done-3": "done 3 nofile=8\n",
+        "done-4": "done 4 nofile=8\n",
+        "done-5": "done 5 nofile=8\n"
+      }
+    },
+    {
+      "id": "pipe-8-workers-8",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--jobserver-style=pipe",
+        "-j12"
+      ],
+      "nofile": 8,
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "files": {
+        "Makefile": "all: task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7\n.PHONY: all task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7\ntask-0:\n\t@./barrier 0 8 8\ntask-1:\n\t@./barrier 1 8 8\ntask-2:\n\t@./barrier 2 8 8\ntask-3:\n\t@./barrier 3 8 8\ntask-4:\n\t@./barrier 4 8 8\ntask-5:\n\t@./barrier 5 8 8\ntask-6:\n\t@./barrier 6 8 8\ntask-7:\n\t@./barrier 7 8 8\n"
+      },
+      "created": {
+        "ready-0": "ready 0 nofile=8\n",
+        "ready-1": "ready 1 nofile=8\n",
+        "ready-2": "ready 2 nofile=8\n",
+        "ready-3": "ready 3 nofile=8\n",
+        "ready-4": "ready 4 nofile=8\n",
+        "ready-5": "ready 5 nofile=8\n",
+        "ready-6": "ready 6 nofile=8\n",
+        "ready-7": "ready 7 nofile=8\n",
+        "done-0": "done 0 nofile=8\n",
+        "done-1": "done 1 nofile=8\n",
+        "done-2": "done 2 nofile=8\n",
+        "done-3": "done 3 nofile=8\n",
+        "done-4": "done 4 nofile=8\n",
+        "done-5": "done 5 nofile=8\n",
+        "done-6": "done 6 nofile=8\n",
+        "done-7": "done 7 nofile=8\n"
+      }
+    },
+    {
+      "id": "pipe-8-workers-10",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--jobserver-style=pipe",
+        "-j12"
+      ],
+      "nofile": 8,
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "files": {
+        "Makefile": "all: task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\n.PHONY: all task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\ntask-0:\n\t@./barrier 0 10 8\ntask-1:\n\t@./barrier 1 10 8\ntask-2:\n\t@./barrier 2 10 8\ntask-3:\n\t@./barrier 3 10 8\ntask-4:\n\t@./barrier 4 10 8\ntask-5:\n\t@./barrier 5 10 8\ntask-6:\n\t@./barrier 6 10 8\ntask-7:\n\t@./barrier 7 10 8\ntask-8:\n\t@./barrier 8 10 8\ntask-9:\n\t@./barrier 9 10 8\n"
+      },
+      "created": {
+        "ready-0": "ready 0 nofile=8\n",
+        "ready-1": "ready 1 nofile=8\n",
+        "ready-2": "ready 2 nofile=8\n",
+        "ready-3": "ready 3 nofile=8\n",
+        "ready-4": "ready 4 nofile=8\n",
+        "ready-5": "ready 5 nofile=8\n",
+        "ready-6": "ready 6 nofile=8\n",
+        "ready-7": "ready 7 nofile=8\n",
+        "ready-8": "ready 8 nofile=8\n",
+        "ready-9": "ready 9 nofile=8\n",
+        "done-0": "done 0 nofile=8\n",
+        "done-1": "done 1 nofile=8\n",
+        "done-2": "done 2 nofile=8\n",
+        "done-3": "done 3 nofile=8\n",
+        "done-4": "done 4 nofile=8\n",
+        "done-5": "done 5 nofile=8\n",
+        "done-6": "done 6 nofile=8\n",
+        "done-7": "done 7 nofile=8\n",
+        "done-8": "done 8 nofile=8\n",
+        "done-9": "done 9 nofile=8\n"
+      }
+    },
+    {
+      "id": "fifo-8-workers-10",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--jobserver-style=fifo",
+        "-j12"
+      ],
+      "nofile": 8,
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "files": {
+        "Makefile": "all: task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\n.PHONY: all task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\ntask-0:\n\t@./barrier 0 10 8\ntask-1:\n\t@./barrier 1 10 8\ntask-2:\n\t@./barrier 2 10 8\ntask-3:\n\t@./barrier 3 10 8\ntask-4:\n\t@./barrier 4 10 8\ntask-5:\n\t@./barrier 5 10 8\ntask-6:\n\t@./barrier 6 10 8\ntask-7:\n\t@./barrier 7 10 8\ntask-8:\n\t@./barrier 8 10 8\ntask-9:\n\t@./barrier 9 10 8\n"
+      },
+      "created": {
+        "ready-0": "ready 0 nofile=8\n",
+        "ready-1": "ready 1 nofile=8\n",
+        "ready-2": "ready 2 nofile=8\n",
+        "ready-3": "ready 3 nofile=8\n",
+        "ready-4": "ready 4 nofile=8\n",
+        "ready-5": "ready 5 nofile=8\n",
+        "ready-6": "ready 6 nofile=8\n",
+        "ready-7": "ready 7 nofile=8\n",
+        "ready-8": "ready 8 nofile=8\n",
+        "ready-9": "ready 9 nofile=8\n",
+        "done-0": "done 0 nofile=8\n",
+        "done-1": "done 1 nofile=8\n",
+        "done-2": "done 2 nofile=8\n",
+        "done-3": "done 3 nofile=8\n",
+        "done-4": "done 4 nofile=8\n",
+        "done-5": "done 5 nofile=8\n",
+        "done-6": "done 6 nofile=8\n",
+        "done-7": "done 7 nofile=8\n",
+        "done-8": "done 8 nofile=8\n",
+        "done-9": "done 9 nofile=8\n"
+      }
+    },
+    {
+      "id": "pipe-64-workers-10",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--jobserver-style=pipe",
+        "-j12"
+      ],
+      "nofile": 64,
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "files": {
+        "Makefile": "all: task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\n.PHONY: all task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\ntask-0:\n\t@./barrier 0 10 64\ntask-1:\n\t@./barrier 1 10 64\ntask-2:\n\t@./barrier 2 10 64\ntask-3:\n\t@./barrier 3 10 64\ntask-4:\n\t@./barrier 4 10 64\ntask-5:\n\t@./barrier 5 10 64\ntask-6:\n\t@./barrier 6 10 64\ntask-7:\n\t@./barrier 7 10 64\ntask-8:\n\t@./barrier 8 10 64\ntask-9:\n\t@./barrier 9 10 64\n"
+      },
+      "created": {
+        "ready-0": "ready 0 nofile=64\n",
+        "ready-1": "ready 1 nofile=64\n",
+        "ready-2": "ready 2 nofile=64\n",
+        "ready-3": "ready 3 nofile=64\n",
+        "ready-4": "ready 4 nofile=64\n",
+        "ready-5": "ready 5 nofile=64\n",
+        "ready-6": "ready 6 nofile=64\n",
+        "ready-7": "ready 7 nofile=64\n",
+        "ready-8": "ready 8 nofile=64\n",
+        "ready-9": "ready 9 nofile=64\n",
+        "done-0": "done 0 nofile=64\n",
+        "done-1": "done 1 nofile=64\n",
+        "done-2": "done 2 nofile=64\n",
+        "done-3": "done 3 nofile=64\n",
+        "done-4": "done 4 nofile=64\n",
+        "done-5": "done 5 nofile=64\n",
+        "done-6": "done 6 nofile=64\n",
+        "done-7": "done 7 nofile=64\n",
+        "done-8": "done 8 nofile=64\n",
+        "done-9": "done 9 nofile=64\n"
+      }
+    },
+    {
+      "id": "fifo-64-workers-10",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--jobserver-style=fifo",
+        "-j12"
+      ],
+      "nofile": 64,
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "files": {
+        "Makefile": "all: task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\n.PHONY: all task-0 task-1 task-2 task-3 task-4 task-5 task-6 task-7 task-8 task-9\ntask-0:\n\t@./barrier 0 10 64\ntask-1:\n\t@./barrier 1 10 64\ntask-2:\n\t@./barrier 2 10 64\ntask-3:\n\t@./barrier 3 10 64\ntask-4:\n\t@./barrier 4 10 64\ntask-5:\n\t@./barrier 5 10 64\ntask-6:\n\t@./barrier 6 10 64\ntask-7:\n\t@./barrier 7 10 64\ntask-8:\n\t@./barrier 8 10 64\ntask-9:\n\t@./barrier 9 10 64\n"
+      },
+      "created": {
+        "ready-0": "ready 0 nofile=64\n",
+        "ready-1": "ready 1 nofile=64\n",
+        "ready-2": "ready 2 nofile=64\n",
+        "ready-3": "ready 3 nofile=64\n",
+        "ready-4": "ready 4 nofile=64\n",
+        "ready-5": "ready 5 nofile=64\n",
+        "ready-6": "ready 6 nofile=64\n",
+        "ready-7": "ready 7 nofile=64\n",
+        "ready-8": "ready 8 nofile=64\n",
+        "ready-9": "ready 9 nofile=64\n",
+        "done-0": "done 0 nofile=64\n",
+        "done-1": "done 1 nofile=64\n",
+        "done-2": "done 2 nofile=64\n",
+        "done-3": "done 3 nofile=64\n",
+        "done-4": "done 4 nofile=64\n",
+        "done-5": "done 5 nofile=64\n",
+        "done-6": "done 6 nofile=64\n",
+        "done-7": "done 7 nofile=64\n",
+        "done-8": "done 8 nofile=64\n",
+        "done-9": "done 9 nofile=64\n"
+      }
+    }
+  ]
+}
