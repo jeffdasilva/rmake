@@ -1,0 +1,7 @@
+{
+  "classification": "Serialized default selected-component runtime costs after locale integration; all slower samples retained, no general parity or native-callback throughput claim",
+  "sha256": "12915b2136f63d9900c0367e19b9fbe0085cfc98145bc9adf40da8b4fc4fc1cc",
+  "raw_sha256": "bbb604acb0339e63f2e1a79d484935cfce788381d15bf951c6b42643f218da40",
+  "raw_bytes": 4000751,
+  "gzip_bytes": 607876
+}

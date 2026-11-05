@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "classification": "Pinned Ubuntu24.04 x86_64 tool prerequisites; component/reference bootstrap only, zero rmake Guile compatibility credit",
+  "distribution": "Ubuntu noble amd64",
+  "release_url": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+  "release_sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+  "keyring": "/usr/share/keyrings/ubuntu-archive-keyring.gpg",
+  "signed_indices": [
+    {
+      "path": "main/binary-amd64/Packages",
+      "sha256": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+      "size": 7165069
+    },
+    {
+      "path": "universe/binary-amd64/Packages",
+      "sha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+      "size": 73379142
+    }
+  ],
+  "packages": [
+    {
+      "name": "guile-3.0",
+      "version": "3.0.9-1build2",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/g/guile-3.0/guile-3.0_3.0.9-1build2_amd64.deb",
+      "sha256": "6aa7c8ae9dcbf176d1b4aa2d3fb9ea0b5cec561588a57af1580b4bc0fa95aff3",
+      "size": 16416,
+      "signed_index": "universe/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/guile-3.0/copyright",
+      "license_sha256": "af1767197572e624ee448d4fec93b28dbca075889a344f4cd964119b38b76eec"
+    },
+    {
+      "name": "guile-3.0-dev",
+      "version": "3.0.9-1build2",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/g/guile-3.0/guile-3.0-dev_3.0.9-1build2_amd64.deb",
+      "sha256": "e739742da655c434931c7671aeea0a9b8c22a108d5f3a57081fa1f5ec93af124",
+      "size": 691544,
+      "signed_index": "universe/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/guile-3.0-dev/copyright",
+      "license_sha256": "af1767197572e624ee448d4fec93b28dbca075889a344f4cd964119b38b76eec"
+    },
+    {
+      "name": "guile-3.0-libs",
+      "version": "3.0.9-1build2",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/g/guile-3.0/guile-3.0-libs_3.0.9-1build2_amd64.deb",
+      "sha256": "5a2deeb07b128d527b8ec8a21200ffcc1403c405c9cd8c06fc58945594494b83",
+      "size": 7629720,
+      "signed_index": "universe/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/guile-3.0-libs/copyright",
+      "license_sha256": "af1767197572e624ee448d4fec93b28dbca075889a344f4cd964119b38b76eec"
+    },
+    {
+      "name": "libffi-dev",
+      "version": "3.4.6-1build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libf/libffi/libffi-dev_3.4.6-1build1_amd64.deb",
+      "sha256": "7009959b8a3b77206325026917fb45150ac81bf6139468abc0841d5a29c8619d",
+      "size": 62802,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libffi-dev/copyright",
+      "license_sha256": "737ff68f0eb104d3b0d96b291c3a8f40a775a3ec2b53f9b2e4bcfe3188bde118"
+    },
+    {
+      "name": "libffi8",
+      "version": "3.4.6-1build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libf/libffi/libffi8_3.4.6-1build1_amd64.deb",
+      "sha256": "637e6a7744de08cd331a41f4efd0d24e6ea9064843dea9d1c6ca87bdb5f038a2",
+      "size": 24718,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libffi8/copyright",
+      "license_sha256": "737ff68f0eb104d3b0d96b291c3a8f40a775a3ec2b53f9b2e4bcfe3188bde118"
+    },
+    {
+      "name": "libgc-dev",
+      "version": "1:8.2.6-1build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libg/libgc/libgc-dev_8.2.6-1build1_amd64.deb",
+      "sha256": "e5d9a3129688bcf6722c381561aeef1c938e7a70bcade830c04c04e55cfa0744",
+      "size": 260652,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libgc-dev/copyright",
+      "license_sha256": "b076c9d513a8fe345d003464684d1b502c348ff94ee8d109078a23aaaf25374d"
+    },
+    {
+      "name": "libgc1",
+      "version": "1:8.2.6-1build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libg/libgc/libgc1_8.2.6-1build1_amd64.deb",
+      "sha256": "67d4d83f1c7f3bc240d44f4d9133e08d0da3e5069e50e6dd15ea998af7bccd06",
+      "size": 90274,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libgc1/copyright",
+      "license_sha256": "b076c9d513a8fe345d003464684d1b502c348ff94ee8d109078a23aaaf25374d"
+    },
+    {
+      "name": "libgmp-dev",
+      "version": "2:6.3.0+dfsg-2ubuntu6",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gmp/libgmp-dev_6.3.0+dfsg-2ubuntu6_amd64.deb",
+      "sha256": "ffadf91b116cc2647ef213742ac1cbe80f450af14413c146df6e200f8c3c9a1a",
+      "size": 340104,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libgmp-dev/copyright",
+      "license_sha256": "7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601"
+    },
+    {
+      "name": "libgmp10",
+      "version": "2:6.3.0+dfsg-2ubuntu6",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gmp/libgmp10_6.3.0+dfsg-2ubuntu6_amd64.deb",
+      "sha256": "649a5ee5f74f0aa1e1b9c4f169eabbae56a79aa5aac51ef733eb9e18700bd8fc",
+      "size": 253448,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libgmp10/copyright",
+      "license_sha256": "7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601"
+    },
+    {
+      "name": "libgmpxx4ldbl",
+      "version": "2:6.3.0+dfsg-2ubuntu6",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gmp/libgmpxx4ldbl_6.3.0+dfsg-2ubuntu6_amd64.deb",
+      "sha256": "a50e3c79d72857077ec7602fb2b59dd3fa12ce15ae46c7a9409301311ae212b0",
+      "size": 9884,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libgmpxx4ldbl/copyright",
+      "license_sha256": "7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601"
+    },
+    {
+      "name": "libltdl-dev",
+      "version": "2.4.7-7build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libt/libtool/libltdl-dev_2.4.7-7build1_amd64.deb",
+      "sha256": "3a706efe1d9d8b493bd2335fabaa9ec28549c9134750fad6c0a5aa9868c6ee9c",
+      "size": 168468,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libltdl-dev/copyright",
+      "license_sha256": "89186d1b870fc70e23f3cac2ccfa657c1697a53c1386e85dbaaa2042d4b76048"
+    },
+    {
+      "name": "libltdl7",
+      "version": "2.4.7-7build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libt/libtool/libltdl7_2.4.7-7build1_amd64.deb",
+      "sha256": "02d0d2d7e1bf73f838a92f8df7a9b07b698c837e82bd89aee6a581cf793cd966",
+      "size": 40258,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libltdl7/copyright",
+      "license_sha256": "89186d1b870fc70e23f3cac2ccfa657c1697a53c1386e85dbaaa2042d4b76048"
+    },
+    {
+      "name": "libpkgconf3",
+      "version": "1.8.1-2build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/pkgconf/libpkgconf3_1.8.1-2build1_amd64.deb",
+      "sha256": "fc3a57e8f931ec06cb7c51acc56878f1fec247ff02a7adcab26905c2faeb2792",
+      "size": 30652,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libpkgconf3/copyright",
+      "license_sha256": "676c75e54ff7e3b9892940fbf1b31763cb6f2a6527a5607a3640ac59a2441fba"
+    },
+    {
+      "name": "libunistring-dev",
+      "version": "1.1-2build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libu/libunistring/libunistring-dev_1.1-2build1_amd64.deb",
+      "sha256": "849e90cb43e5dce20ccdcf285cf0948765927f77835ac1646518c5c01ac8c260",
+      "size": 712402,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libunistring-dev/copyright",
+      "license_sha256": "dbbfee567c5eb53ad1c75ce666779e596b5f794b52be7f5834685ddd633185ea"
+    },
+    {
+      "name": "libunistring5",
+      "version": "1.1-2build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libu/libunistring/libunistring5_1.1-2build1_amd64.deb",
+      "sha256": "78acc4c141a499e0c1e4cc47ca8e9082996f3972662c4d92337669ecc9b0a519",
+      "size": 535478,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/libunistring5/copyright",
+      "license_sha256": "dbbfee567c5eb53ad1c75ce666779e596b5f794b52be7f5834685ddd633185ea"
+    },
+    {
+      "name": "pkgconf",
+      "version": "1.8.1-2build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/pkgconf/pkgconf_1.8.1-2build1_amd64.deb",
+      "sha256": "834a58031069d97d7cfb8b2f5bfd5effc69cecf7f30cc362071875f1f8dc1828",
+      "size": 16790,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/pkgconf/copyright",
+      "license_sha256": "676c75e54ff7e3b9892940fbf1b31763cb6f2a6527a5607a3640ac59a2441fba"
+    },
+    {
+      "name": "pkgconf-bin",
+      "version": "1.8.1-2build1",
+      "architecture": "amd64",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/pkgconf/pkgconf-bin_1.8.1-2build1_amd64.deb",
+      "sha256": "7a812f05ee1610154b433e2ad54f6e4163fcbb306b9fb31afe959afb2e5e1545",
+      "size": 20730,
+      "signed_index": "main/binary-amd64/Packages",
+      "license_file": "prefix/usr/share/doc/pkgconf-bin/copyright",
+      "license_sha256": "676c75e54ff7e3b9892940fbf1b31763cb6f2a6527a5607a3640ac59a2441fba"
+    }
+  ],
+  "no_system_install": true,
+  "maintainer_scripts_run": false,
+  "installed_tree_sha256": "c15c8de64ffd1966e4fafc7edaa62b0e569a162682855afc297c5a10734442bf"
+}
