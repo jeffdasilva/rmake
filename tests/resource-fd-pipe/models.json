@@ -1,0 +1,314 @@
+{
+  "schema_version": 1,
+  "classification": "Original finite low-descriptor pipe creation, child wire, and token recovery models",
+  "models": [
+    {
+      "id": "created-pipe-4",
+      "nofile": 4,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >top-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "make: *** creating jobs pipe: Too many open files.  Stop.\n",
+      "status": 2,
+      "created": {}
+    },
+    {
+      "id": "created-pipe-5",
+      "nofile": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >top-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "Makefile:2: *** open: top-pool: Too many open files.  Stop.\n",
+      "status": 2,
+      "created": {}
+    },
+    {
+      "id": "created-pipe-6",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >top-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "top-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "created-pipe-7",
+      "nofile": 7,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >top-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "top-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "created-pipe-8",
+      "nofile": 8,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >top-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "top-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "created-pipe-12",
+      "nofile": 12,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >top-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "top-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "recursive-pipe-6",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t+@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >outer-pool,advertised),$(error expected active pipe))$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >inner-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "outer-pool": "advertised\n",
+        "inner-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "recursive-pipe-7",
+      "nofile": 7,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t+@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >outer-pool,advertised),$(error expected active pipe))$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >inner-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "outer-pool": "advertised\n",
+        "inner-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "recursive-pipe-8",
+      "nofile": 8,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t+@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >outer-pool,advertised),$(error expected active pipe))$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >inner-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "outer-pool": "advertised\n",
+        "inner-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "recursive-pipe-12",
+      "nofile": 12,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t+@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >outer-pool,advertised),$(error expected active pipe))$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),$(file >inner-pool,advertised),$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "outer-pool": "advertised\n",
+        "inner-pool": "advertised\n",
+        "goal": ""
+      }
+    },
+    {
+      "id": "created-pipe-fd5-no-parent-file-write",
+      "nofile": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@$(if $(findstring --jobserver-auth=,$(MAKEFLAGS)),,$(error expected active pipe))/usr/bin/touch goal\n"
+      },
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "goal": ""
+      }
+    },
+    {
+      "id": "borrowed-wire-fd6",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "borrowed": "wire",
+      "files": {
+        "Makefile": "all:; +@$(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t+@./wire recursive\n\t@./wire ordinary\n"
+      },
+      "stdout": "recursive|wire=3,4|shared-pipe|read=nonblocking|write=blocking\nordinary|wire-private\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "observer": "shared-reader-nonblocking=1\nshared-writer-nonblocking=0\nreturned=51\n"
+      }
+    },
+    {
+      "id": "borrowed-wire-fd8-self-exec",
+      "nofile": 8,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "borrowed": "wire",
+      "files": {
+        "Makefile": "$(info phase=$(or $(MAKE_RESTARTS),0))\ninclude generated.mk\nall:; +@$(MAKE) -f child.mk all\ngenerated.mk:; @/usr/bin/touch $@\n",
+        "child.mk": "all:\n\t+@./wire recursive\n\t@./wire ordinary\n"
+      },
+      "stdout": "phase=0\nphase=1\nrecursive|wire=3,4|shared-pipe|read=nonblocking|write=blocking\nordinary|wire-private\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "observer": "shared-reader-nonblocking=1\nshared-writer-nonblocking=0\nreturned=51\n",
+        "generated.mk": ""
+      }
+    },
+    {
+      "id": "borrowed-token-event-fd8-exit0",
+      "nofile": 8,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "borrowed": "tokens",
+      "files": {
+        "Makefile": ".PHONY: all a b\nall: a b\na:\n\t@./wire a 0\nb:\n\t@./wire b 0\n"
+      },
+      "stdout": "a:start:original\nb:start:fifo\na:done\nb:done\n",
+      "stderr": "",
+      "status": 0,
+      "created": {
+        "a.ready": "",
+        "a.release": "",
+        "a.done": "",
+        "b.ready": "",
+        "b.release": "",
+        "b.done": "",
+        "observer": "live-token-bytes=0\na-done-before-b-release\nshared-reader-nonblocking=1\nshared-writer-nonblocking=0\nreturned=2b\n"
+      }
+    },
+    {
+      "id": "borrowed-token-event-fd8-exit7",
+      "nofile": 8,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "borrowed": "tokens",
+      "files": {
+        "Makefile": ".PHONY: all a b\nall: a b\na:\n\t@./wire a 0\nb:\n\t@./wire b 7\n"
+      },
+      "stdout": "a:start:original\nb:start:fifo\na:done\nb:done\n",
+      "stderr": "make: *** [Makefile:6: b] Error 7\n",
+      "status": 2,
+      "created": {
+        "a.ready": "",
+        "a.release": "",
+        "a.done": "",
+        "b.ready": "",
+        "b.release": "",
+        "b.done": "",
+        "observer": "live-token-bytes=0\na-done-before-b-release\nshared-reader-nonblocking=1\nshared-writer-nonblocking=0\nreturned=2b\n"
+      }
+    }
+  ]
+}

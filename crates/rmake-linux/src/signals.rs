@@ -16,6 +16,7 @@ static PENDING: AtomicI32 = AtomicI32::new(0);
 static WAKE_READER: AtomicI32 = AtomicI32::new(-1);
 static WAKE_WRITER: AtomicI32 = AtomicI32::new(-1);
 static INITIAL_PIPE: AtomicI32 = AtomicI32::new(0);
+static COMPACT_PIPE: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "C" {
     fn signal(number: c_int, handler: usize) -> usize;
@@ -28,6 +29,7 @@ unsafe extern "C" {
     fn getpid() -> c_int;
     fn kill(pid: c_int, number: c_int) -> c_int;
     fn rmake_set_execution_mask(reader: c_int) -> c_int;
+    fn rmake_compact_pipe_budget(minimum: u32) -> c_int;
 }
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
@@ -94,8 +96,18 @@ impl Guard {
     /// Install once, before parsing or launching children. Preserve dispositions
     /// explicitly ignored by the caller, and restore ordinary SIGCHLD reaping.
     pub fn install() -> io::Result<Self> {
-        let (reader, writer) = match wake_pipe() {
-            Ok((reader, writer)) => (Some(reader), Some(writer)),
+        // The normal recursive path can retain three stdio descriptors,
+        // two incoming endpoints, three private endpoints, two wake ends,
+        // and std's two exec-error descriptors. Keep smaller budgets free.
+        let compact = unsafe { rmake_compact_pipe_budget(3 + 2 + 3 + 2 + 2) } != 0;
+        let wake = if compact {
+            Ok(None)
+        } else {
+            wake_pipe().map(Some)
+        };
+        let (reader, writer) = match wake {
+            Ok(Some((reader, writer))) => (Some(reader), Some(writer)),
+            Ok(None) => (None, None),
             // A low descriptor limit can reject the pipe itself or the minimum
             // private descriptor number. Do not occupy protocol slots 3/4.
             // Interruptible scheduler waits use a bounded poll in this mode.
@@ -107,6 +119,7 @@ impl Guard {
             _reader: reader,
             _writer: writer,
         };
+        COMPACT_PIPE.store(compact, Ordering::Relaxed);
         WAKE_READER.store(
             guard._reader.as_ref().map_or(-1, AsRawFd::as_raw_fd),
             Ordering::Relaxed,
@@ -154,6 +167,7 @@ impl Drop for Guard {
         }
         WAKE_READER.store(-1, Ordering::Relaxed);
         WAKE_WRITER.store(-1, Ordering::Relaxed);
+        COMPACT_PIPE.store(false, Ordering::Relaxed);
     }
 }
 
@@ -228,6 +242,10 @@ pub fn drain() {
 
 pub(crate) fn wake_descriptor() -> i32 {
     WAKE_READER.load(Ordering::Relaxed)
+}
+
+pub(crate) fn compact_pipe_budget() -> bool {
+    COMPACT_PIPE.load(Ordering::Relaxed)
 }
 
 pub fn deletes_targets(number: i32) -> bool {

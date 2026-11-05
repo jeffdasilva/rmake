@@ -456,3 +456,9 @@ native callbacks, actual self-exec, early exits and low descriptor limits.
 retain GNU's grouped bytes and physical child descriptor identity. The selected
 Linux launch can borrow existing spools for child-only descriptor actions
 without duplicating them or changing the parent's ownership.
+
+[Compact pipe pools](../tests/resource-fd-pipe/README.md) cover canonical
+startup, actual recursion and self-exec at low descriptor limits. Borrowed
+wire numbers retain their original ownership and are checked against the live
+pipe identity before process replacement. The separately observed noncanonical
+return byte and parent fatal-loss differences remain open.

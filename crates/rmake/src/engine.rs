@@ -3289,7 +3289,7 @@ impl Engine {
             }
             // Wait for this pool's reader, owned child exits, or a fatal signal.
             // No polling delay is added to tokens returned by another process.
-            self.child_events(true, Some(server.readiness()))?;
+            self.child_events(true, Some(server.readiness()?))?;
             self.observe_interrupt();
             if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
                 return Ok(None);
@@ -3365,7 +3365,7 @@ impl Engine {
     fn child_events(
         &mut self,
         block: bool,
-        additional: Option<std::os::fd::BorrowedFd<'_>>,
+        additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
         let children: Vec<_> = self
             .parallel_jobs
@@ -7701,10 +7701,43 @@ impl Engine {
                 &environment.as_ref().expect("prepared environment").order,
                 self.database.variables.original_shell(),
                 |mut command, image, arg0| {
-                    if let Some(server) = &self.jobserver {
-                        server.configure_child(&mut command, force);
+                    let compact = self.jobserver.as_ref().filter(|server| {
+                        server.uses_compact_pipe()
+                            && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                    });
+                    if let Some(server) = compact {
+                        let stdin = if stdin_owner {
+                            None
+                        } else {
+                            match rmake_linux::process::closed_stdin_file() {
+                                Ok(stdin) => Some(stdin),
+                                // The reference inherits stdin when its
+                                // unused-input pipe cannot be allocated.
+                                Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => None,
+                                Err(error) => return Err(error),
+                            }
+                        };
+                        if crate::native::has_modules() {
+                            rmake_linux::native::flush_standard_streams()?;
+                        }
+                        if let Some(process) = rmake_linux::child::Child::try_spawn_ordered_pool(
+                            &command,
+                            image,
+                            os(arg0),
+                            stdin.as_ref(),
+                            server,
+                            force,
+                        ) {
+                            return process;
+                        }
+                        if let Some(stdin) = stdin {
+                            command.stdin(std::process::Stdio::from(stdin));
+                        }
                     }
-                    if !stdin_owner {
+                    if let Some(server) = &self.jobserver {
+                        server.configure_child(&mut command, force)?;
+                    }
+                    if !stdin_owner && compact.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
                     if let Some(buffer) = &output {
@@ -7728,7 +7761,7 @@ impl Engine {
                         }
                         buffer.configure_child(&mut command)?;
                     }
-                    if crate::native::has_modules() {
+                    if compact.is_none() && crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
                     }
                     if stdin_owner

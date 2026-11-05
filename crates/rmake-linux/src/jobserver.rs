@@ -4,7 +4,7 @@
 //! Linux FIFO/pipe jobserver effects. The interpreter retains each acquired
 //! byte for one complete recipe. Dropping its permit returns that same byte.
 
-use std::ffi::{CString, c_char, c_int, c_uint};
+use std::ffi::{CString, c_char, c_int, c_uint, c_void};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
@@ -26,13 +26,113 @@ unsafe extern "C" {
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn rmake_restart_pipe_private(pipe: *const c_int);
+    fn rmake_pipe_identity(descriptor: c_int, reader: c_int, identity: *mut u64) -> c_int;
+    fn read(descriptor: c_int, bytes: *mut c_void, length: usize) -> isize;
+    fn write(descriptor: c_int, bytes: *const c_void, length: usize) -> isize;
+}
+
+fn descriptor_control(fd: c_int, operation: c_int, flags: c_int) -> io::Result<c_int> {
+    loop {
+        let value = unsafe { fcntl(fd, operation, flags) };
+        if value >= 0 {
+            return Ok(value);
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+}
+
+fn pipe_identity(fd: c_int, reader: bool) -> io::Result<[u64; 2]> {
+    let mut identity = [0; 2];
+    // SAFETY: the Linux helper initializes both words on success. Passing
+    // a numeric descriptor does not assert Rust ownership of that slot.
+    match unsafe { rmake_pipe_identity(fd, reader.into(), identity.as_mut_ptr()) } {
+        0 => Ok(identity),
+        error => Err(io::Error::from_raw_os_error(error)),
+    }
+}
+
+enum Endpoint {
+    Owned(File),
+    Inherited {
+        descriptor: c_int,
+        reader: bool,
+        identity: [u64; 2],
+    },
+}
+
+impl Endpoint {
+    fn checked_number(&self) -> io::Result<c_int> {
+        match self {
+            Self::Owned(file) => Ok(file.as_raw_fd()),
+            Self::Inherited {
+                descriptor,
+                reader,
+                identity,
+            } => {
+                // Incoming slots can be synchronously rebound by native code.
+                // Validate the retained object and direction before operating.
+                // Concurrent native descriptor rebinding is outside the same
+                // process-owner contract as ordinary native descriptor access.
+                if pipe_identity(*descriptor, *reader)? == *identity {
+                    Ok(*descriptor)
+                } else {
+                    Err(io::Error::from_raw_os_error(9))
+                }
+            }
+        }
+    }
+}
+
+impl Read for &Endpoint {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        if let Endpoint::Owned(file) = *self {
+            let mut file = file;
+            return file.read(bytes);
+        }
+        let fd = self.checked_number()?;
+        if descriptor_control(fd, 3, 0)? & NONBLOCK == 0 {
+            return Err(io::Error::from_raw_os_error(22));
+        }
+        // SAFETY: bytes is writable for the advertised length. No File or
+        // BorrowedFd is constructed for an unowned inherited slot.
+        let size = unsafe { read(fd, bytes.as_mut_ptr().cast(), bytes.len()) };
+        if size < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(size as usize)
+        }
+    }
+}
+
+impl Write for &Endpoint {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if let Endpoint::Owned(file) = *self {
+            let mut file = file;
+            return file.write(bytes);
+        }
+        let fd = self.checked_number()?;
+        // SAFETY: bytes remains live and readable for the syscall.
+        let size = unsafe { write(fd, bytes.as_ptr().cast(), bytes.len()) };
+        if size < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(size as usize)
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 struct Inner {
-    reader: File,
-    writer: File,
+    reader: Endpoint,
+    writer: Endpoint,
     protocol_reader: Option<File>,
     inherited_pipe: Option<[c_int; 2]>,
+    compact_pipe: bool,
     auth: Vec<u8>,
     owned_slots: Option<usize>,
     created: Option<(PathBuf, u64, u64)>,
@@ -55,6 +155,21 @@ impl Drop for Inner {
 
 #[derive(Clone)]
 pub struct Jobserver(Arc<Inner>);
+
+#[derive(Debug)]
+pub struct CreationError {
+    pub operation: &'static str,
+    pub error: io::Error,
+}
+
+impl From<io::Error> for CreationError {
+    fn from(error: io::Error) -> Self {
+        Self {
+            operation: "jobserver",
+            error,
+        }
+    }
+}
 
 /// The invocation's authentication names the incoming descriptors. The
 /// privately owned endpoints keep their pipe identity live during self-exec.
@@ -120,34 +235,74 @@ fn reopen(descriptor: c_int, read: bool, nonblocking: bool) -> io::Result<File> 
 }
 
 impl Jobserver {
-    pub fn create(jobs: usize, pipe: bool) -> io::Result<Self> {
+    pub fn create(jobs: usize, pipe: bool) -> Result<Self, CreationError> {
         if jobs < 2 {
-            return Err(io::Error::from(io::ErrorKind::InvalidInput));
+            return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
         let mut server = if pipe {
             let mut descriptors = [-1; 2];
             // A successful pipe2 returns two new, uniquely owned descriptors.
             if unsafe { pipe2(descriptors.as_mut_ptr(), CLOEXEC) } < 0 {
-                return Err(io::Error::last_os_error());
+                return Err(CreationError {
+                    operation: "creating jobs pipe",
+                    error: io::Error::last_os_error(),
+                });
             }
             let reader = unsafe { File::from_raw_fd(descriptors[0]) };
             let writer = unsafe { File::from_raw_fd(descriptors[1]) };
-            Self::from_pipe(reader, writer)?
+            if crate::signals::compact_pipe_budget() {
+                let read = reader.as_raw_fd();
+                let write = writer.as_raw_fd();
+                descriptor_control(read, 4, descriptor_control(read, 3, 0)? | NONBLOCK)?;
+                Self::compact(
+                    Endpoint::Owned(reader),
+                    Endpoint::Owned(writer),
+                    format!("{read},{write}").into_bytes(),
+                )
+            } else {
+                Self::from_pipe(reader, writer)?
+            }
         } else {
             Self::create_fifo()?
         };
         // A separate nonblocking description avoids changing flags shared with
         // recursive children, and cannot hang if the requested pool is too big.
-        let mut writer = reopen(server.0.writer.as_raw_fd(), false, true)?;
         let tokens = vec![b'+'; (jobs - 1).min(1_048_576)];
         if tokens.len() != jobs - 1 {
-            return Err(io::Error::from(io::ErrorKind::InvalidInput));
+            return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
-        writer.write_all(&tokens)?;
+        let writer = server.0.writer.checked_number()?;
+        if server.0.compact_pipe {
+            // This newly owned writer has not been published to any child.
+            // Seed with nonblocking writes and restore the wire status before
+            // publishing it. No transient descriptor is required.
+            let flags = descriptor_control(writer, 3, 0)?;
+            descriptor_control(writer, 4, flags | NONBLOCK)?;
+            let seeded = (&server.0.writer).write_all(&tokens);
+            let restored = descriptor_control(writer, 4, flags);
+            seeded?;
+            restored?;
+        } else {
+            reopen(writer, false, true)?.write_all(&tokens)?;
+        }
         Arc::get_mut(&mut server.0)
             .expect("unshared new jobserver")
             .owned_slots = Some(jobs);
         Ok(server)
+    }
+
+    fn compact(reader: Endpoint, writer: Endpoint, auth: Vec<u8>) -> Self {
+        Self(Arc::new(Inner {
+            reader,
+            writer,
+            auth,
+            protocol_reader: None,
+            inherited_pipe: None,
+            compact_pipe: true,
+            owned_slots: None,
+            created: None,
+            error: Mutex::new(None),
+        }))
     }
 
     fn create_fifo() -> io::Result<Self> {
@@ -207,10 +362,11 @@ impl Jobserver {
         let writer = reader.try_clone()?;
         let auth = [b"fifo:".as_slice(), path.as_os_str().as_bytes()].concat();
         Ok(Self(Arc::new(Inner {
-            reader,
-            writer,
+            reader: Endpoint::Owned(reader),
+            writer: Endpoint::Owned(writer),
             protocol_reader: None,
             inherited_pipe: None,
+            compact_pipe: false,
             auth,
             owned_slots: None,
             created: owned.then(|| (path.to_owned(), metadata.dev(), metadata.ino())),
@@ -234,10 +390,11 @@ impl Jobserver {
         let reader = reopen(protocol_reader.as_raw_fd(), true, true)?;
         let auth = format!("{},{}", protocol_reader.as_raw_fd(), writer.as_raw_fd()).into_bytes();
         Ok(Self(Arc::new(Inner {
-            reader,
-            writer,
+            reader: Endpoint::Owned(reader),
+            writer: Endpoint::Owned(writer),
             protocol_reader: Some(protocol_reader),
             inherited_pipe: None,
+            compact_pipe: false,
             auth,
             owned_slots: None,
             created: None,
@@ -266,6 +423,9 @@ impl Jobserver {
         if read < 3 || write < 3 || read == write {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
+        if crate::signals::compact_pipe_budget() {
+            return Self::join_compact(read, write);
+        }
         let reader = reopen(read, true, false)?;
         let writer = reopen(write, false, false)?;
         let mut server = Self::from_pipe(reader, writer)?;
@@ -282,8 +442,50 @@ impl Jobserver {
         Ok(server)
     }
 
-    pub fn readiness(&self) -> BorrowedFd<'_> {
-        self.0.reader.as_fd()
+    fn join_compact(read: c_int, write: c_int) -> io::Result<Self> {
+        let identity = pipe_identity(read, true)?;
+        if pipe_identity(write, false)? != identity {
+            return Err(io::Error::from_raw_os_error(9));
+        }
+        for descriptor in [read, write] {
+            let flags = descriptor_control(descriptor, 1, 0)?;
+            descriptor_control(descriptor, 2, flags | 1)?;
+        }
+        // F_SETFL affects the inherited open-file description, so the peer
+        // observes the same nonblocking read status as a GNU join.
+        descriptor_control(read, 4, descriptor_control(read, 3, 0)? | NONBLOCK)?;
+        Ok(Self::compact(
+            Endpoint::Inherited {
+                descriptor: read,
+                reader: true,
+                identity,
+            },
+            Endpoint::Inherited {
+                descriptor: write,
+                reader: false,
+                identity,
+            },
+            format!("{read},{write}").into_bytes(),
+        ))
+    }
+
+    pub fn readiness(&self) -> io::Result<c_int> {
+        self.0.reader.checked_number()
+    }
+
+    pub fn uses_compact_pipe(&self) -> bool {
+        self.0.compact_pipe
+    }
+
+    pub(crate) fn compact_wire(&self) -> io::Result<Option<[c_int; 2]>> {
+        if self.uses_compact_pipe() {
+            Ok(Some([
+                self.0.reader.checked_number()?,
+                self.0.writer.checked_number()?,
+            ]))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Release the owned pathname during fatal shutdown; open descriptors and
@@ -327,10 +529,18 @@ impl Jobserver {
         self.0.error.lock().expect("jobserver error lock").take()
     }
 
-    pub fn configure_child(&self, command: &mut Command, recursive: bool) {
-        if recursive && let Some(reader) = &self.0.protocol_reader {
-            let read = reader.as_raw_fd();
-            let write = self.0.writer.as_raw_fd();
+    pub fn configure_child(&self, command: &mut Command, recursive: bool) -> io::Result<()> {
+        if !recursive {
+            return Ok(());
+        }
+        let wire = if let Some(wire) = self.compact_wire()? {
+            Some(wire)
+        } else if let Some(reader) = &self.0.protocol_reader {
+            Some([reader.as_raw_fd(), self.0.writer.checked_number()?])
+        } else {
+            None
+        };
+        if let Some([read, write]) = wire {
             let owner = self.clone();
             // Only async-signal-safe fcntl calls run between fork and exec. Arc
             // owners in the caller keep both descriptors live through spawn.
@@ -346,25 +556,46 @@ impl Jobserver {
                 });
             }
         }
+        Ok(())
     }
 
     pub(crate) fn recursive_exec_pipe(&self) -> Option<RestartPipe<'_>> {
+        let Endpoint::Owned(writer) = &self.0.writer else {
+            return None;
+        };
         Some(RestartPipe {
             incoming: self.0.inherited_pipe?,
-            owned: [
-                self.0.protocol_reader.as_ref()?.as_fd(),
-                self.0.writer.as_fd(),
-            ],
+            owned: [self.0.protocol_reader.as_ref()?.as_fd(), writer.as_fd()],
         })
+    }
+
+    /// A compact join never owns the advertised numbers. Keep their captured
+    /// pipe identity for a final C check immediately before process replacement.
+    pub(crate) fn compact_restart_pipe(&self) -> io::Result<Option<([c_int; 4], [u64; 2])>> {
+        let Endpoint::Inherited { identity, .. } = &self.0.reader else {
+            return Ok(None);
+        };
+        Ok(self
+            .compact_wire()?
+            .map(|[read, write]| ([read, write, -1, -1], *identity)))
     }
 
     /// A failed recursive self-exec returns with its protocol pair exposed.
     /// Restore this process's private descriptor flags before source cleanup.
     pub fn finish_recursive_exec(&self) {
+        if self.uses_compact_pipe() {
+            for endpoint in [&self.0.reader, &self.0.writer] {
+                if let Ok(descriptor) = endpoint.checked_number()
+                    && let Ok(flags) = descriptor_control(descriptor, 1, 0)
+                {
+                    let _ = descriptor_control(descriptor, 2, flags | 1);
+                }
+            }
+            return;
+        }
         if let Some(pipe) = self.recursive_exec_pipe() {
-            // SAFETY: the four integers remain live for the call. The C
-            // adapter verifies each incoming identity against a live owned
-            // endpoint before restoring its close-on-exec flag.
+            // SAFETY: the owned endpoints remain live and C validates the
+            // incoming numbers before restoring their close-on-exec flags.
             unsafe { rmake_restart_pipe_private(pipe.descriptors().as_ptr()) };
         }
     }
@@ -373,6 +604,35 @@ impl Jobserver {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_join_preserves_the_owner_and_rejects_a_rebound_pipe() {
+        let owner = Jobserver::create(2, true).unwrap();
+        let read = owner.0.protocol_reader.as_ref().unwrap().as_raw_fd();
+        let write = owner.0.writer.checked_number().unwrap();
+        let joined = Jobserver::join_compact(read, write).unwrap();
+        assert_eq!(descriptor_control(read, 3, 0).unwrap() & NONBLOCK, NONBLOCK);
+        assert_eq!(descriptor_control(write, 3, 0).unwrap() & NONBLOCK, 0);
+        let permit = joined.try_acquire().unwrap().unwrap();
+        assert!(owner.try_acquire().unwrap().is_none());
+        drop((permit, joined));
+        assert_eq!(owner.try_acquire().unwrap().unwrap().byte, b'+');
+
+        let foreign = Jobserver::create(2, true).unwrap();
+        let foreign_read = foreign.0.protocol_reader.as_ref().unwrap().as_raw_fd();
+        let identity = pipe_identity(read, true).unwrap();
+        let replacement = Endpoint::Inherited {
+            descriptor: foreign_read,
+            reader: true,
+            identity,
+        };
+        assert_eq!(
+            (&replacement).read(&mut [0]).unwrap_err().raw_os_error(),
+            Some(9)
+        );
+        assert_eq!(foreign.try_acquire().unwrap().unwrap().byte, b'+');
+        assert_eq!(descriptor_control(foreign_read, 1, 0).unwrap(), 1);
+    }
 
     #[test]
     fn transferring_a_paid_lease_to_the_implicit_slot_returns_exactly_one_original_byte() {
@@ -500,12 +760,12 @@ mod tests {
             "import os,sys; assert os.read(int(sys.argv[1]),1)==b'+'",
             &read,
         ]);
-        server.configure_child(&mut recursive, true);
+        server.configure_child(&mut recursive, true).unwrap();
         assert!(recursive.status().unwrap().success());
         assert!(server.try_acquire().unwrap().is_none());
         let mut ordinary = Command::new("python3");
         ordinary.args(["-c", "import os,sys\ntry: os.fstat(int(sys.argv[1]))\nexcept OSError: sys.exit(0)\nsys.exit(1)", &read]);
-        server.configure_child(&mut ordinary, false);
+        server.configure_child(&mut ordinary, false).unwrap();
         assert!(ordinary.status().unwrap().success());
         let retained = Jobserver::create(2, true).unwrap();
         let descriptor = retained
@@ -521,7 +781,7 @@ mod tests {
             "import os,sys; assert os.read(int(sys.argv[1]),1)==b'+'",
             &descriptor,
         ]);
-        retained.configure_child(&mut child, true);
+        retained.configure_child(&mut child, true).unwrap();
         drop(retained);
         assert!(child.status().unwrap().success());
     }
@@ -543,7 +803,7 @@ mod tests {
         let mismatched = format!(
             "{},{}",
             first.0.protocol_reader.as_ref().unwrap().as_raw_fd(),
-            second.0.writer.as_raw_fd()
+            second.0.writer.checked_number().unwrap()
         );
         assert!(Jobserver::join(mismatched.as_bytes()).is_err());
         let first_token = first.try_acquire().unwrap().unwrap();
