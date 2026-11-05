@@ -115,3 +115,11 @@ build logs. `performance-exploratory.json` retains the first unoptimized cost
 campaign; its payload's source-reference spelling is corrected explicitly in
 the optimization archive. These are historical measurements, not final branch
 performance acceptance.
+
+`performance-compact1.json` retains the next separate serialized campaign with
+the exact first compact source/binary closure, every timing sample and all
+sixteen allocation reports/traces. This historical implementation still has
+large/expansion paired regressions of23.13%/27.48%; all negative data remain.
+Later optimizations and the native numeric fix require fresh selected-head
+measurements. No timing comparison is inferred while functional gates share
+the host.
