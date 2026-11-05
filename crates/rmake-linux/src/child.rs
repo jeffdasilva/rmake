@@ -77,8 +77,8 @@ impl Child {
     }
 
     /// A compact pipe uses its original wire numbers for recursive children.
-    /// The child alone makes those endpoints inheritable. Leave the scarce
-    /// spare descriptors available to the interpreter while the child runs.
+    /// A FIFO is reopened by name and inherits no pool descriptors. Leave the
+    /// scarce spare descriptors available to the interpreter and its children.
     pub fn try_spawn_ordered_pool(
         command: &Command,
         image: &crate::environment::Image,

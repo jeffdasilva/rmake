@@ -468,3 +468,9 @@ GNU Make's canonical byte at qualified completion and keeps a failed launch
 lease outstanding through the ordinary drain. Parent-fatal recovery and raw
 lease drop preserve bytes. The observed GNU parent-fatal token loss remains
 an open compatibility difference; no approved safety count changes.
+
+[Low descriptor FIFO pools](../tests/resource-fd-fifo/README.md) preserve the
+borrowed endpoint's identity and let an owned pool launch eligible recipes
+without carrying unnecessary descriptors across exec. Twelve original GNU2
+cases cover owned and borrowed pools, startup failures, recursion, and
+returned capacity. The GNU FD4 error and leftover FIFO remain open.

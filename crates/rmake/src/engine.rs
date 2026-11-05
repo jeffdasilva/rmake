@@ -2064,11 +2064,14 @@ impl Engine {
             if files.is_empty() {
                 let mut default_file = None;
                 for name in ["GNUmakefile", "makefile", "Makefile"] {
-                    if let Err(error) = self.directory_member(name.as_bytes()) {
-                        self.expansion_error(None, &error);
-                        return 2;
-                    }
-                    if Path::new(name).is_file() {
+                    let listed = match self.directory_member(name.as_bytes()) {
+                        Ok(listed) => listed,
+                        Err(error) => {
+                            self.expansion_error(None, &error);
+                            return 2;
+                        }
+                    };
+                    if listed && Path::new(name).is_file() {
                         default_file = Some(name);
                         break;
                     }
@@ -2119,6 +2122,10 @@ impl Engine {
                     Ok(input) => input,
                     Err(err) => {
                         if rmake_linux::signals::pending().is_some() {
+                            return 2;
+                        }
+                        if matches!(err.raw_os_error(), Some(12 | 23 | 24)) {
+                            self.fatal(None, os_error(&err).as_bytes());
                             return 2;
                         }
                         emit_output(
@@ -7770,11 +7777,13 @@ impl Engine {
                 &environment.as_ref().expect("prepared environment").order,
                 self.database.variables.original_shell(),
                 |mut command, image, arg0| {
-                    let compact = self.jobserver.as_ref().filter(|server| {
-                        server.uses_compact_pipe()
+                    let descriptor_limited_pool = self.jobserver.as_ref().filter(|server| {
+                        (server.uses_compact_pipe()
+                            || (server.auth().starts_with(b"fifo:")
+                                && rmake_linux::child::Child::wake_pipe_unavailable()))
                             && output.as_ref().is_none_or(|buffer| !buffer.enabled())
                     });
-                    if let Some(server) = compact {
+                    if let Some(server) = descriptor_limited_pool {
                         let stdin = if stdin_owner {
                             None
                         } else {
@@ -7806,7 +7815,7 @@ impl Engine {
                     if let Some(server) = &self.jobserver {
                         server.configure_child(&mut command, force)?;
                     }
-                    if !stdin_owner && compact.is_none() {
+                    if !stdin_owner && descriptor_limited_pool.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
                     if let Some(buffer) = &output {
@@ -7830,7 +7839,7 @@ impl Engine {
                         }
                         buffer.configure_child(&mut command)?;
                     }
-                    if compact.is_none() && crate::native::has_modules() {
+                    if descriptor_limited_pool.is_none() && crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
                     }
                     if stdin_owner

@@ -288,8 +288,12 @@ impl Jobserver {
             let restored = descriptor_control(writer, 4, flags);
             seeded?;
             restored?;
-        } else {
+        } else if pipe {
             reopen(writer, false, true)?.write_all(&tokens)?;
+        } else {
+            // FIFO endpoints already share a nonblocking description. Seed
+            // the unpublished FIFO without spending a third descriptor.
+            (&server.0.writer).write_all(&tokens)?;
         }
         Arc::get_mut(&mut server.0)
             .expect("unshared new jobserver")

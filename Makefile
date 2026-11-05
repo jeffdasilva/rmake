@@ -9,7 +9,7 @@
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
 .PHONY: test-native-fenv
-.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release
+.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 
 .PHONY: test-job-debug
 
@@ -25,6 +25,7 @@ RESOURCE_FD_RECIPE_CASE ?=
 SIGNAL_MASK_CASE ?=
 RESOURCE_FD_SPOOL_CASE ?=
 RESOURCE_FD_PIPE_CASE ?=
+RESOURCE_FD_FIFO_CASE ?=
 JOBSERVER_RELEASE_CASE ?=
 DATABASE_NUMERIC_CASE ?=
 DATABASE_SEARCH_CASE ?=
@@ -145,6 +146,7 @@ help:
 		'  test-signal-mask Compare native, child and restart mask phases' \
 		'  test-resource-fd-spool Compare borrowed recipe output at low limits' \
 		'  test-resource-fd-pipe Compare compact pipe pools and child wire identity' \
+		'  test-resource-fd-fifo Compare constrained FIFO pools and borrowed descriptor identity' \
 		'  test-jobserver-release Compare ordinary token return and abort drain' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
@@ -309,6 +311,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SIGNAL_MASK_CASE=eager-to-read-signal-mask test-signal-mask
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_SPOOL_CASE=spool-fd6-separate-identity test-resource-fd-spool
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_PIPE_CASE=borrowed-wire-fd6 test-resource-fd-pipe
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_FIFO_CASE=owned-fifo-inherited-user-descriptor-7 test-resource-fd-fifo
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOBSERVER_RELEASE_CASE=implicit-child-finishes-first test-jobserver-release
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
@@ -352,6 +355,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/signal-mask/optimized.json
 	$(PYTHON) tools/resource_fd_spool.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-spool/optimized.json
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-pipe/optimized.json
+	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-fifo/optimized.json
 	$(PYTHON) tools/jobserver_release.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report-dir artifacts/jobserver-release/optimized
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/optimized.json
@@ -422,6 +426,9 @@ test-jobserver-release: build oracle-verify
 
 test-resource-fd-pipe: build oracle-verify
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")
+
+test-resource-fd-fifo: build oracle-verify
+	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")
 
 test-resource-fd-spool: build oracle-verify
 	$(PYTHON) tools/resource_fd_spool.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-spool/development.json $(if $(RESOURCE_FD_SPOOL_CASE),--case "$(RESOURCE_FD_SPOOL_CASE)")
@@ -526,9 +533,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-jobserver-release
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-jobserver-release
 
 ci: check test-selfhost
 
