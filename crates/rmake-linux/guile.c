@@ -271,7 +271,7 @@ static SCM make_evaluate(SCM value) {
         struct rg_worker_request request={.kind=2,.text=text};
         (void)rg_workers_submit(&request);
     }else gmk_eval(text,NULL);
-    free(text);return scm_from_locale_string("");
+    free(text);return SCM_BOOL_F;
 }
 static void define_module(void *unused) {
     (void)unused;
@@ -279,7 +279,7 @@ static void define_module(void *unused) {
     scm_c_define_gsubr("gmk-eval",1,0,0,make_evaluate);
     scm_c_export("gmk-expand","gmk-eval",NULL);
 }
-struct rg_evaluation { const char *source; char *result; };
+struct rg_evaluation { const char *source; char *result; int utf8_source; };
 static SCM evaluate_body(void *data) {
     struct rg_evaluation *evaluation=data;
     if (!module_ready) {
@@ -289,7 +289,10 @@ static SCM evaluate_body(void *data) {
     rg_workers_initialize();
     /* GNU-qualified empty calls initialize the language but evaluate no code. */
     if (!evaluation->source[0]) return SCM_UNSPECIFIED;
-    SCM result=scm_c_eval_string(evaluation->source);
+    /* Make's public Scheme source uses UTF-8 even under a C locale. */
+    SCM result=evaluation->utf8_source
+        ?scm_eval_string(scm_from_utf8_string(evaluation->source))
+        :scm_c_eval_string(evaluation->source);
     evaluation->result=make_text(result);
     scm_remember_upto_here_1(result);
     return SCM_UNSPECIFIED;
@@ -314,7 +317,7 @@ static char *evaluate_argument(unsigned int argc,char **argv,int capture) {
         rm_native_set_language_error("unable to reserve Guile signal delivery");
         return NULL;
     }
-    struct rg_evaluation evaluation={argc?argv[0]:"",NULL};
+    struct rg_evaluation evaluation={.source=argc?argv[0]:"",.utf8_source=!capture};
     int leading=syscall(SYS_gettid)==getpid();
     if(leading)atomic_fetch_add_explicit(&leading_evaluations,1,memory_order_release);
     scm_with_guile(capture?evaluate_inside:evaluate_public,&evaluation);

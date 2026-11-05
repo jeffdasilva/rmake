@@ -335,13 +335,11 @@ fn child(case: &str) {
                 assert_eq!(host.events, [b"nested".to_vec(), b"value".to_vec()]);
                 assert_eq!(
                     runtime
-                        .evaluate(
-                            b"(string-append \"a\" (gmk-eval \"define\") \"b\")",
-                            &mut host
-                        )
+                        .evaluate(b"(if (gmk-eval \"define\") \"true\" \"false\")", &mut host)
                         .unwrap(),
-                    b"ab"
+                    b"false"
                 );
+                assert_eq!(host.events.last().unwrap(), b"define");
             }
             "exceptions" => {
                 assert!(matches!(

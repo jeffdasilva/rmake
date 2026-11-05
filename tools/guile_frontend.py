@@ -74,7 +74,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, required=True)
     parser.add_argument("--candidate", type=Path)
-    parser.add_argument("--suite", action="append", choices=("language", "phase", "home", "signal", "stdin"), default=[])
+    parser.add_argument("--suite", action="append", choices=("language", "phase", "home", "signal", "stdin", "valid-text"), default=[])
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
