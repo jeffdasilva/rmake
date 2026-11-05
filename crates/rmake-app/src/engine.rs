@@ -2782,6 +2782,10 @@ impl Engine {
                     return 2;
                 }
                 let before = self.modified(&makefile.name);
+                // The reader opens the literal filename, but the update graph
+                // uses archive-member freshness for the same spelling.
+                let missing = missing
+                    || (before.is_none() && rmake_core::filenames::archive_parts(name).is_some());
                 if !self.database.rules.contains_key(name)
                     && (!missing || (optional && !may_replay))
                 {

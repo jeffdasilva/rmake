@@ -176,6 +176,16 @@ fixture_count = 15
 cases = ["include-generated-restart", "dynamic-include-optional-generated", "dynamic-include-sinclude-generated", "dynamic-include-generated-query", "dynamic-include-generated-dry", "dynamic-include-generated-touch", "dynamic-include-generated-phantom", "dynamic-include-restart-chain", "dynamic-include-restart-command-binding", "dynamic-include-phony-no-restart", "chain-optional-generated-include", "chain-required-chained-include", "default-required-generated-include", "default-optional-generated-include", "default-empty-generated-include"]
 
 [[requirements]]
+id = "includes.archive-remake"
+title = "Makefile remake uses archive-member freshness after literal reads"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 7
+fixture_count = 7
+reference = "docs/dynamic-makefiles.md"
+cases = ["include-archive-remake-explicit-file", "include-archive-remake-missing-member", "include-archive-remake-optional-glob", "include-archive-remake-optional-then-required", "include-archive-remake-present-member", "include-archive-remake-required-glob", "include-archive-remake-required-literal"]
+
+[[requirements]]
 id = "parallel.execution"
 title = "Parallel updates and shared-target ownership"
 status = "fixture-ready"

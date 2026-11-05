@@ -1,0 +1,12 @@
+id = "include-archive-remake-explicit-file"
+requirement = "includes.archive-remake"
+candidate = "required"
+description = "Read a literal archive-shaped makefile and then use graph member freshness."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "-f", "settings(local.inc)"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'settings(local.inc)'.  Stop.\n"

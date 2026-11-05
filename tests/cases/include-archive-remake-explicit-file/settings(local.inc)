@@ -1,0 +1,3 @@
+OUT += ordinary
+MARK := $(file >>seen,ordinary)
+all:;$(info result=[$(OUT)])@:

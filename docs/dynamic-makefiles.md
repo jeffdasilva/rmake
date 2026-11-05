@@ -35,3 +35,9 @@ parentheses instead of grouping archive members. Ten original required
 cases cover multiple matches, nested `eval`, and a matched include enabling
 secondary expansion. Archive-looking names during makefile remake have a
 separate acceptance boundary after the reader has opened the literal path.
+
+A literal archive-shaped Makefile name can be read successfully, then be
+missing as an archive member during remake. Required files take the normal
+remake failure path; optional files and existing members retain their usual
+behavior. Seven original required cases preserve the earlier read effects
+and distinguish required, optional, repeated, and explicit `-f` paths.
