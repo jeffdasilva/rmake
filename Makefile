@@ -8,7 +8,7 @@
 .PHONY: test-database-lifecycle
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
-.PHONY: test-native-fenv
+.PHONY: test-native-fenv test-resource-nproc test-resource-nproc-release test-resource-nproc-selfhost
 .PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release
 .PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask
 
@@ -25,6 +25,8 @@ STDIN_CASE ?=
 PROCESS_RESTART_CASE ?=
 RESTART_ENVIRONMENT_CASE ?=
 RESOURCE_FD_CASE ?=
+RESOURCE_NPROC_CASE ?=
+RESOURCE_NPROC_REPORT ?= artifacts/resource-nproc/development.json
 RESOURCE_FD_RECIPE_CASE ?=
 SIGNAL_MASK_CASE ?=
 DATABASE_NUMERIC_CASE ?=
@@ -149,6 +151,7 @@ help:
 		'  test-restart-environment Compare the complete live process environment vector' \
 		'  test-restart-pipe Check original inherited jobserver descriptors across exec' \
 		'  test-resource-fd Compare descriptor pressure and live cancellation' \
+		'  test-resource-nproc Compare launches on an unprivileged Linux process limit' \
 		'  test-resource-fd-recipes Compare low-limit recipe launch and reaping' \
 		'  test-signal-mask Compare native, child and restart mask phases' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
@@ -441,6 +444,15 @@ test-restart-pipe: build oracle-verify
 
 test-resource-fd: build oracle-verify
 	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd/development.json $(if $(RESOURCE_FD_CASE),--case "$(RESOURCE_FD_CASE)")
+
+test-resource-nproc: build oracle-verify
+	$(PYTHON) tools/resource_nproc.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(RESOURCE_NPROC_REPORT)" $(if $(RESOURCE_NPROC_CASE),--case "$(RESOURCE_NPROC_CASE)")
+
+test-resource-nproc-release: release oracle-verify
+	$(PYTHON) tools/resource_nproc.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-nproc/optimized.json $(if $(RESOURCE_NPROC_CASE),--case "$(RESOURCE_NPROC_CASE)")
+
+test-resource-nproc-selfhost: release
+	+"$(M4_RELEASE)" -rR --no-print-directory "CANDIDATE=$(M4_RELEASE)" "ORACLE=$(ORACLE)" RESOURCE_NPROC_CASE=path-last-non-missing-error RESOURCE_NPROC_REPORT=artifacts/resource-nproc/selfhost.json test-resource-nproc
 
 test-signal-mask: build oracle-verify
 	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/signal-mask/development.json $(if $(SIGNAL_MASK_CASE),--case "$(SIGNAL_MASK_CASE)")

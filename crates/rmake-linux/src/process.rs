@@ -7,6 +7,8 @@ use std::ffi::{CStr, CString, c_char, c_int};
 use std::fs::File;
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::process::Stdio;
 
 unsafe extern "C" {
@@ -18,6 +20,21 @@ unsafe extern "C" {
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn _exit(status: c_int) -> !;
+    fn euidaccess(path: *const c_char, mode: c_int) -> c_int;
+}
+
+/// Probe an executable candidate using the caller's effective credentials.
+pub fn executable(path: &Path) -> io::Result<()> {
+    const X_OK: c_int = 1;
+    let name = CString::new(path.as_os_str().as_bytes())?;
+    // SAFETY: the C string lives through the read-only access check.
+    if unsafe { euidaccess(name.as_ptr(), X_OK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if path.metadata()?.is_dir() {
+        return Err(io::Error::from_raw_os_error(13));
+    }
+    Ok(())
 }
 
 /// Terminate after an unsuccessful self-exec, without running C/native
