@@ -447,3 +447,9 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 [Named stdin and process restart](stdin-sources.md) uses one real self-exec path for makefile remaking. Development and optimized candidates pass the 44 stdin and three new process-entry profiles. The strict lifecycle suite covers exact cleanup, live environment, and failed-exec effects. Wider raw environment, descriptor, native/Guile, and resource acceptance remains part of M3/M6.
 
 [Enabled Guile application](guile-frontend.md) adds an opt-in application gate with 83 independently specified GNU comparisons and 14 default signal controls. It retains the separate component safety gate and profile-specific self-host checks. Asynchronous and detached execution, full error traces, and broader M3/M6 acceptance remain open.
+
+The [developer entry point gate](../tests/developer-flows/README.md) runs the
+real Makefile and scripts in an owned offline Cargo workspace. It covers warm
+oracle bootstrap, six cleanup modes and three benchmark preconditions in both
+build profiles. Cold provisioning and positive timing runs remain separate
+campaigns.
