@@ -54,6 +54,8 @@ def main() -> int:
     compare = [python, 'tools/guile_frontend.py', '--profile', str(args.profile.resolve())]
     detached = [python, 'tools/guile_detached.py', '--profile', str(args.profile.resolve())]
     pressure = [python, 'tools/guile_eventfd_pressure.py', '--profile', str(args.profile.resolve())]
+    parallel = [python, 'tools/guile_detached_parallel.py', '--profile', str(args.profile.resolve())]
+    parallel_pressure = [python, 'tools/guile_parallel_pressure.py', '--profile', str(args.profile.resolve())]
     for label, default in (('debug', args.default_debug), ('release', args.default_release)):
         default_frozen = directory / f'default-{label}'
         enabled_frozen = directory / f'enabled-{label}'
@@ -66,6 +68,10 @@ def main() -> int:
              '--report', str(directory / f'enabled-{label}-detached.json')])
         run([*pressure, '--candidate', str(enabled_frozen),
              '--report', str(directory / f'enabled-{label}-eventfd-pressure.json')])
+        run([*parallel, '--candidate', str(enabled_frozen),
+             '--report', str(directory / f'enabled-{label}-detached-parallel.json')])
+        run([*parallel_pressure, '--candidate', str(enabled_frozen),
+             '--report', str(directory / f'enabled-{label}-parallel-pressure.json')])
         run([str(enabled_frozen), '-rR', '--no-print-directory', 'build', 'check-core'], enabled)
     print(f'Guile application reports: {directory}', flush=True)
     return 0

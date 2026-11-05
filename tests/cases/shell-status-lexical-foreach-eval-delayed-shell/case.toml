@@ -1,0 +1,12 @@
+id = "shell-status-lexical-foreach-eval-delayed-shell"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: foreach eval delayed shell"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[a:4:4] [b:4:4]\nsaved=[4]\nouter=[7] override simple\n"
+stderr = ""

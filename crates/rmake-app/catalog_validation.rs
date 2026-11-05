@@ -68,31 +68,37 @@ pub fn validate_bytes(bytes: &[u8]) -> Result<(), String> {
             return Err("duplicate catalog message".into());
         }
     }
-    let resolve = |msgid: &'static [u8]| -> Result<&[u8], String> {
-        for index in 0..count {
-            if entry(originals, index)? == msgid {
-                let translated = entry(translations, index)?;
-                if !translated.is_empty() {
-                    return Ok(translated);
-                }
-                break;
-            }
-        }
-        Ok(msgid)
+    let resolve = |msgid: &'static [u8]| {
+        entries
+            .get(msgid)
+            .copied()
+            .filter(|value| !value.is_empty())
+            .unwrap_or(msgid)
     };
     for id in MessageId::ALL {
         id.sample()
-            .render(resolve(id.msgid().to_bytes())?)
+            .render(resolve(id.msgid().to_bytes()))
             .map_err(|error| format!("invalid {:?} translation schema: {error:?}", id))?;
     }
     for key in crate::debug_messages::ALL {
-        crate::system_messages::checked_format(resolve(key.msgid.to_bytes())?, key.sample)
-            .map_err(|error| {
+        crate::system_messages::checked_format(resolve(key.msgid.to_bytes()), key.sample).map_err(
+            |error| {
                 format!(
                     "invalid {:?} debug translation schema: {error:?}",
                     key.msgid
                 )
-            })?;
+            },
+        )?;
+    }
+    for key in crate::database_messages::ALL {
+        crate::system_messages::checked_format(resolve(key.msgid.to_bytes()), key.sample).map_err(
+            |error| {
+                format!(
+                    "invalid {:?} database translation schema: {error:?}",
+                    key.msgid
+                )
+            },
+        )?;
     }
     Ok(())
 }

@@ -42,9 +42,8 @@ static _Thread_local struct worker *on_worker,*origin;
 static struct worker *terminal_origin;
 static SCM leading_thread,notification;
 static atomic_int ready;
-/* The Rust serial wait owns any descriptor. Queue admission can also
- * remain open with bounded polling when no private wake descriptor fits.
- * Publication, notification, and detachment share the same mutex. */
+/* The Rust scheduler owns any descriptor. A polling wait retains admission
+ * without a descriptor. Publication and detachment use the same queue lock. */
 enum { wait_inactive=-1, wait_polling=-3 };
 static atomic_int wait_descriptor=wait_inactive;
 static SCM service(void);

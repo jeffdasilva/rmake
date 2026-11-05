@@ -71,3 +71,22 @@ establish neither a statistical regression nor a speedup.
 
 Raw [core](benchmarks/trace-core.json) and
 [parallel](benchmarks/trace-parallel.json) reports accompany this slice.
+
+## Localized trace output
+
+`make test-trace-nls` and `make test-trace-nls-release` compare C and
+verified French streams, exit status, complete filesystem effects and
+fixed timestamp inputs. The profiles cover builtin and included source
+names, changed prerequisite names, VPATH, recursive builds, a real restart,
+nonexecuting modes and output synchronization. Two original byte-oriented
+fixtures cover non-UTF-8 source, target and prerequisite names and a user
+line that looks like a trace diagnostic.
+
+The renderer passes a typed reason and raw bytes to the active gettext
+domain at the existing trace publication boundary. The French catalog
+translates the generic prerequisite template and the builtin source label.
+Its fixed reason strings use gettext fallback. Recipe echoes and recipe
+output retain their original bytes. The message IDs come from GNU Make
+4.4.1's trace producer in `src/job.c`. Catalog provenance and translation
+notices are recorded in [catalogs/provenance.json](../catalogs/provenance.json)
+and [catalogs/COPYING](../catalogs/COPYING).

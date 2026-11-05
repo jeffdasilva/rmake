@@ -338,6 +338,8 @@ pub enum Argument<'a> {
     Signed(i64),
     Unsigned(u64),
     Character(u8),
+    FixedDecimal { bytes: &'a [u8], digits: u8 },
+    Pointer(usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -346,6 +348,8 @@ pub enum OwnedArgument {
     Signed(i64),
     Unsigned(u64),
     Character(u8),
+    FixedDecimal { bytes: Vec<u8>, digits: u8 },
+    Pointer(usize),
 }
 impl OwnedArgument {
     fn borrowed(&self) -> Argument<'_> {
@@ -354,6 +358,11 @@ impl OwnedArgument {
             Self::Signed(value) => Argument::Signed(*value),
             Self::Unsigned(value) => Argument::Unsigned(*value),
             Self::Character(value) => Argument::Character(*value),
+            Self::FixedDecimal { bytes, digits } => Argument::FixedDecimal {
+                bytes,
+                digits: *digits,
+            },
+            Self::Pointer(value) => Argument::Pointer(*value),
         }
     }
 }
@@ -364,6 +373,11 @@ impl From<Argument<'_>> for OwnedArgument {
             Argument::Signed(value) => Self::Signed(value),
             Argument::Unsigned(value) => Self::Unsigned(value),
             Argument::Character(value) => Self::Character(value),
+            Argument::FixedDecimal { bytes, digits } => Self::FixedDecimal {
+                bytes: bytes.to_vec(),
+                digits,
+            },
+            Argument::Pointer(value) => Self::Pointer(value),
         }
     }
 }
@@ -803,25 +817,40 @@ pub fn checked_format(template: &[u8], arguments: &[Argument<'_>]) -> Result<Vec
         }
         let value_position = position(template, &mut cursor)?;
         let mut precision = None;
+        let mut digits = None;
         if template.get(cursor) == Some(&b'.') {
             cursor += 1;
-            if template.get(cursor) != Some(&b'*') {
-                return Err(FormatError::InvalidSpecifier);
+            match template.get(cursor).copied() {
+                Some(b'*') => {
+                    cursor += 1;
+                    let precision_position = position(template, &mut cursor)?;
+                    let Argument::Unsigned(value) =
+                        take(arguments, &mut next, &mut positioned, precision_position)?
+                    else {
+                        return Err(FormatError::ArgumentType);
+                    };
+                    precision =
+                        Some(usize::try_from(value).map_err(|_| FormatError::InvalidSpecifier)?);
+                }
+                Some(digit @ (b'0' | b'1')) => {
+                    digits = Some(digit - b'0');
+                    cursor += 1;
+                }
+                _ => return Err(FormatError::InvalidSpecifier),
             }
+        }
+        let integer_length = matches!(template.get(cursor), Some(b'h' | b'l'));
+        if integer_length {
             cursor += 1;
-            let precision_position = position(template, &mut cursor)?;
-            let Argument::Unsigned(value) =
-                take(arguments, &mut next, &mut positioned, precision_position)?
-            else {
-                return Err(FormatError::ArgumentType);
-            };
-            precision = Some(usize::try_from(value).map_err(|_| FormatError::InvalidSpecifier)?);
         }
         let specifier = *template.get(cursor).ok_or(FormatError::InvalidSpecifier)?;
+        if integer_length && !matches!(specifier, b'd' | b'u') {
+            return Err(FormatError::InvalidSpecifier);
+        }
         cursor += 1;
         let value = take(arguments, &mut next, &mut positioned, value_position)?;
         match (specifier, value) {
-            (b's', Argument::Bytes(bytes)) => {
+            (b's', Argument::Bytes(bytes)) if digits.is_none() => {
                 let length = bytes
                     .iter()
                     .position(|byte| *byte == 0)
@@ -829,14 +858,30 @@ pub fn checked_format(template: &[u8], arguments: &[Argument<'_>]) -> Result<Vec
                 let length = precision.map_or(length, |limit| limit.min(length));
                 output.extend_from_slice(&bytes[..length]);
             }
-            (b'd', Argument::Signed(value)) if precision.is_none() => {
+            (b'd', Argument::Signed(value)) if precision.is_none() && digits.is_none() => {
                 output.extend_from_slice(value.to_string().as_bytes())
             }
-            (b'u', Argument::Unsigned(value)) if precision.is_none() => {
+            (b'u', Argument::Unsigned(value)) if precision.is_none() && digits.is_none() => {
                 output.extend_from_slice(value.to_string().as_bytes())
             }
-            (b'c', Argument::Character(value)) if precision.is_none() => output.push(value),
-            (b's' | b'd' | b'u' | b'c', _) => return Err(FormatError::ArgumentType),
+            (b'c', Argument::Character(value)) if precision.is_none() && digits.is_none() => {
+                output.push(value)
+            }
+            (
+                b'f',
+                Argument::FixedDecimal {
+                    bytes,
+                    digits: actual,
+                },
+            ) if precision.is_none() && digits == Some(actual) => output.extend_from_slice(bytes),
+            (b'p', Argument::Pointer(address)) if precision.is_none() && digits.is_none() => {
+                if address == 0 {
+                    output.extend_from_slice(b"(nil)");
+                } else {
+                    output.extend_from_slice(format!("{address:#x}").as_bytes());
+                }
+            }
+            (b's' | b'd' | b'u' | b'c' | b'f' | b'p', _) => return Err(FormatError::ArgumentType),
             _ => return Err(FormatError::InvalidSpecifier),
         }
     }
@@ -881,6 +926,51 @@ mod tests {
             b"fixed"
         );
     }
+    #[test]
+    fn database_numeric_arguments_keep_native_decimal_bytes_and_type_checks() {
+        let percent = Argument::FixedDecimal {
+            bytes: b"3,5",
+            digits: 1,
+        };
+        let args = [Argument::Signed(-5), Argument::Unsigned(8), percent];
+        assert_eq!(
+            checked_format(b"%3$.1f%% (%1$ld / %2$hu)", &args).unwrap(),
+            b"3,5% (-5 / 8)"
+        );
+        assert_eq!(
+            checked_format(b"%3$.0f", &args),
+            Err(FormatError::ArgumentType)
+        );
+        assert_eq!(
+            checked_format(b"%1$ls", &args),
+            Err(FormatError::InvalidSpecifier)
+        );
+        assert_eq!(
+            checked_format(b"%3$s", &args),
+            Err(FormatError::ArgumentType)
+        );
+    }
+    #[test]
+    fn job_identity_addresses_use_checked_glibc_pointer_text() {
+        let address = Argument::Pointer(0x10ab);
+        assert_eq!(
+            checked_format(b"%2$s: %1$p", &[address, Argument::Bytes(b"job\xff")]).unwrap(),
+            b"job\xff: 0x10ab"
+        );
+        assert_eq!(
+            checked_format(b"%p", &[Argument::Pointer(0)]).unwrap(),
+            b"(nil)"
+        );
+        assert_eq!(
+            checked_format(b"%p", &[Argument::Unsigned(1)]),
+            Err(FormatError::ArgumentType)
+        );
+        assert_eq!(
+            checked_format(b"%s", &[address]),
+            Err(FormatError::ArgumentType)
+        );
+    }
+
     #[test]
     fn malformed_catalog_schemas_never_reach_varargs() {
         for (template, args, error) in [

@@ -6,9 +6,12 @@
 //! Logical hash counters describe the compatibility protocol, not Rust storage.
 
 use std::collections::HashSet;
+use std::ffi::CStr;
 use std::io::{self, Write};
 
+use crate::database_messages as msg;
 use crate::diagnostic::Location;
+use crate::messages::{Argument, FormatError, checked_format};
 use crate::parser::{Database, Dependency, Recipe, Rule};
 use crate::variables::{Assignment, Flavor, Origin, Variable, VariableStore};
 
@@ -77,6 +80,78 @@ impl NumericFormatting for RustNumericFormatting {
     }
 }
 
+/// A dump observes the host's live message and numeric locales separately.
+type CatalogLookup = fn(&'static CStr) -> Result<Vec<u8>, FormatError>;
+
+#[derive(Clone, Copy)]
+pub struct Presentation<'a> {
+    numeric: &'a dyn NumericFormatting,
+    lookup: Option<CatalogLookup>,
+}
+
+impl<'a> Presentation<'a> {
+    pub const fn localized(numeric: &'a dyn NumericFormatting, lookup: CatalogLookup) -> Self {
+        Self {
+            numeric,
+            lookup: Some(lookup),
+        }
+    }
+
+    const fn english(numeric: &'a dyn NumericFormatting) -> Self {
+        Self {
+            numeric,
+            lookup: None,
+        }
+    }
+
+    fn text(self, output: &mut impl Write, key: &'static CStr) -> io::Result<()> {
+        match self.lookup.and_then(|lookup| lookup(key).ok()) {
+            Some(translated) => output.write_all(&translated),
+            None => output.write_all(key.to_bytes()),
+        }
+    }
+
+    fn line(self, output: &mut impl Write, key: &'static CStr) -> io::Result<()> {
+        self.text(output, key)?;
+        output.write_all(b"\n")
+    }
+
+    fn format(
+        self,
+        output: &mut impl Write,
+        key: msg::Key,
+        arguments: &[Argument<'_>],
+    ) -> io::Result<()> {
+        let rendered = self
+            .lookup
+            .and_then(|lookup| lookup(key.msgid).ok())
+            .and_then(|translation| checked_format(&translation, arguments).ok())
+            .unwrap_or_else(|| {
+                checked_format(key.msgid.to_bytes(), arguments)
+                    .expect("static database key and arguments have matching types")
+            });
+        output.write_all(&rendered)
+    }
+
+    pub fn open(self, output: &mut impl Write, ctime: &[u8]) -> io::Result<()> {
+        self.format(
+            output,
+            msg::OPEN,
+            &[Argument::Bytes(&[ctime, b"\n"].concat())],
+        )
+    }
+
+    pub fn close(self, output: &mut impl Write, ctime: &[u8]) -> io::Result<()> {
+        self.format(
+            output,
+            msg::CLOSE,
+            &[Argument::Bytes(&[ctime, b"\n"].concat())],
+        )
+    }
+}
+
+const ENGLISH: Presentation<'static> = Presentation::english(&RustNumericFormatting);
+
 pub fn write_hash_stats(output: &mut impl Write, stats: HashStats) -> io::Result<()> {
     write_hash_stats_with_numeric(output, stats, &RustNumericFormatting)
 }
@@ -86,15 +161,50 @@ pub fn write_hash_stats_with_numeric(
     stats: HashStats,
     numeric: &dyn NumericFormatting,
 ) -> io::Result<()> {
-    write!(output, "Load={}/{}=", stats.filled, stats.buckets)?;
-    numeric.write_percent(output, stats.filled as u64, stats.buckets as u64, 0)?;
-    write!(
-        output,
-        "%, Rehash={}, Collisions={}/{}=",
-        stats.rehashes, stats.collisions, stats.lookups
+    write_hash_stats_with_presentation(output, stats, Presentation::english(numeric))
+}
+
+fn write_hash_stats_with_presentation(
+    output: &mut impl Write,
+    stats: HashStats,
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
+    let mut percent = Vec::new();
+    presentation.numeric.write_percent(
+        &mut percent,
+        stats.filled as u64,
+        stats.buckets as u64,
+        0,
     )?;
-    numeric.write_percent(output, stats.collisions, stats.lookups, 0)?;
-    output.write_all(b"%")
+    presentation.format(
+        output,
+        msg::LOAD,
+        &[
+            Argument::Unsigned(stats.filled as u64),
+            Argument::Unsigned(stats.buckets as u64),
+            Argument::FixedDecimal {
+                bytes: &percent,
+                digits: 0,
+            },
+        ],
+    )?;
+    presentation.format(output, msg::REHASH, &[Argument::Unsigned(stats.rehashes)])?;
+    percent.clear();
+    presentation
+        .numeric
+        .write_percent(&mut percent, stats.collisions, stats.lookups, 0)?;
+    presentation.format(
+        output,
+        msg::COLLISIONS,
+        &[
+            Argument::Unsigned(stats.collisions),
+            Argument::Unsigned(stats.lookups),
+            Argument::FixedDecimal {
+                bytes: &percent,
+                digits: 0,
+            },
+        ],
+    )
 }
 
 fn c_bytes(value: &[u8]) -> &[u8] {
@@ -104,15 +214,15 @@ fn c_bytes(value: &[u8]) -> &[u8] {
         .unwrap_or(value.len())]
 }
 
-fn origin_label(origin: Origin) -> &'static [u8] {
+fn origin_label(origin: Origin) -> &'static CStr {
     match origin {
-        Origin::Default => b"default",
-        Origin::Environment => b"environment",
-        Origin::File => b"makefile",
-        Origin::EnvironmentOverride => b"environment under -e",
-        Origin::CommandLine => b"command line",
-        Origin::Override => b"'override' directive",
-        Origin::Automatic => b"automatic",
+        Origin::Default => c"default",
+        Origin::Environment => c"environment",
+        Origin::File => c"makefile",
+        Origin::EnvironmentOverride => c"environment under -e",
+        Origin::CommandLine => c"command line",
+        Origin::Override => c"'override' directive",
+        Origin::Automatic => c"automatic",
     }
 }
 
@@ -121,18 +231,24 @@ fn write_definition(
     origin: Origin,
     private: bool,
     definition: Option<&Location>,
+    presentation: Presentation<'_>,
 ) -> io::Result<()> {
     output.write_all(b"# ")?;
-    output.write_all(origin_label(origin))?;
+    presentation.text(output, origin_label(origin))?;
     if private {
         output.write_all(b" private")?;
     }
     if let Some(location) = definition
         && let Some(file) = location.file.as_option()
     {
-        output.write_all(b" (from '")?;
-        output.write_all(c_bytes(file))?;
-        write!(output, "', line {})", location.line)?;
+        presentation.format(
+            output,
+            msg::VARIABLE_DEFINITION,
+            &[
+                Argument::Bytes(file),
+                Argument::Unsigned(location.line as u64),
+            ],
+        )?;
     }
     output.write_all(b"\n")
 }
@@ -187,7 +303,14 @@ pub fn write_variable(
     name: &[u8],
     variable: &Variable,
 ) -> io::Result<()> {
-    write_variable_value(output, prefix, name, variable, variable.raw_value())
+    write_variable_value(
+        output,
+        prefix,
+        name,
+        variable,
+        variable.raw_value(),
+        ENGLISH,
+    )
 }
 
 fn write_variable_value(
@@ -196,12 +319,14 @@ fn write_variable_value(
     name: &[u8],
     variable: &Variable,
     value: &[u8],
+    presentation: Presentation<'_>,
 ) -> io::Result<()> {
     write_definition(
         output,
         variable.origin(),
         variable.is_private(),
         variable.definition(),
+        presentation,
     )?;
     write_value(
         output,
@@ -218,16 +343,16 @@ pub fn write_variables(
     store: &VariableStore,
     stats: HashStats,
 ) -> io::Result<()> {
-    write_variables_with_numeric(output, store, stats, &RustNumericFormatting)
+    write_variables_with_presentation(output, store, stats, ENGLISH)
 }
 
-fn write_variables_with_numeric(
+fn write_variables_with_presentation(
     output: &mut impl Write,
     store: &VariableStore,
     stats: HashStats,
-    numeric: &dyn NumericFormatting,
+    presentation: Presentation<'_>,
 ) -> io::Result<()> {
-    output.write_all(b"\n# Variables\n\n")?;
+    presentation.line(output, c"\n# Variables\n")?;
     for (name, variable) in store.database_definitions() {
         let cached = store.database_cached_value(variable);
         write_variable_value(
@@ -236,15 +361,33 @@ fn write_variables_with_numeric(
             name,
             variable,
             cached.as_deref().unwrap_or(variable.raw_value()),
+            presentation,
         )?;
     }
-    output.write_all(b"# variable set hash-table stats:\n# ")?;
-    write_hash_stats_with_numeric(output, stats, numeric)?;
+    write_variable_stats(output, stats, presentation)
+}
+
+fn write_variable_stats(
+    output: &mut impl Write,
+    stats: HashStats,
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
+    presentation.text(output, c"# variable set hash-table stats:\n")?;
+    output.write_all(b"# ")?;
+    write_hash_stats_with_presentation(output, stats, presentation)?;
     output.write_all(b"\n")
 }
 
 pub fn write_pattern_variables(output: &mut impl Write, database: &Database) -> io::Result<()> {
-    output.write_all(b"\n# Pattern-specific Variable Values\n")?;
+    write_pattern_variables_with_presentation(output, database, ENGLISH)
+}
+
+fn write_pattern_variables_with_presentation(
+    output: &mut impl Write,
+    database: &Database,
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
+    presentation.line(output, c"\n# Pattern-specific Variable Values")?;
     let mut count = 0;
     for (pattern, variable) in database.database_pattern_variables() {
         count += 1;
@@ -256,6 +399,7 @@ pub fn write_pattern_variables(output: &mut impl Write, database: &Database) -> 
             variable.origin,
             variable.private,
             variable.definition,
+            presentation,
         )?;
         // The declaration record has not become a target-local binding. Its
         // observable database representation is simple even for a deferred RHS.
@@ -269,9 +413,9 @@ pub fn write_pattern_variables(output: &mut impl Write, database: &Database) -> 
         )?;
     }
     if count == 0 {
-        output.write_all(b"\n# No pattern-specific variable values.\n")
+        presentation.line(output, c"\n# No pattern-specific variable values.")
     } else {
-        write!(output, "\n# {count} pattern-specific variable values")
+        presentation.format(output, msg::PATTERN_COUNT, &[Argument::Unsigned(count)])
     }
 }
 
@@ -320,16 +464,28 @@ pub fn write_recipes(
     recipes: &[Recipe],
     location: Option<&Location>,
 ) -> io::Result<()> {
-    if recipes.first().is_some_and(|recipe| recipe.builtin) {
-        output.write_all(b"#  recipe to execute (built-in):\n")?;
-    } else if let Some(location) = location
-        && let Some(file) = location.file.as_option()
+    write_recipes_with_presentation(output, recipes, location, ENGLISH)
+}
+
+fn write_recipes_with_presentation(
+    output: &mut impl Write,
+    recipes: &[Recipe],
+    location: Option<&Location>,
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
+    presentation.text(output, c"#  recipe to execute")?;
+    let definition =
+        location.and_then(|location| Some((location.file.as_option()?, location.line)));
+    if let Some((file, line)) = definition
+        && !recipes.first().is_some_and(|recipe| recipe.builtin)
     {
-        output.write_all(b"#  recipe to execute (from '")?;
-        output.write_all(c_bytes(file))?;
-        writeln!(output, "', line {}):", location.line)?;
+        presentation.format(
+            output,
+            msg::RECIPE_DEFINITION,
+            &[Argument::Bytes(file), Argument::Unsigned(line as u64)],
+        )?;
     } else {
-        output.write_all(b"#  recipe to execute (built-in):\n")?;
+        presentation.line(output, c" (built-in):")?;
     }
     if recipes.is_empty() {
         return output.write_all(b"\t\n");
@@ -343,13 +499,14 @@ pub fn write_recipes(
 }
 
 pub fn write_implicit_rule(output: &mut impl Write, pattern: &[u8], rule: &Rule) -> io::Result<()> {
-    write_implicit_rule_targets(output, std::iter::once(pattern), rule)
+    write_implicit_rule_targets(output, std::iter::once(pattern), rule, ENGLISH)
 }
 
 fn write_implicit_rule_targets<'a>(
     output: &mut impl Write,
     patterns: impl IntoIterator<Item = &'a [u8]>,
     rule: &Rule,
+    presentation: Presentation<'_>,
 ) -> io::Result<()> {
     for (index, pattern) in patterns.into_iter().enumerate() {
         if index != 0 {
@@ -360,21 +517,26 @@ fn write_implicit_rule_targets<'a>(
     output.write_all(if rule.terminal { b"::" } else { b":" })?;
     write_prerequisites(output, &rule.dependencies)?;
     if let Some(recipes) = &rule.recipes {
-        write_recipes(output, recipes, rule.recipe_location.as_ref())?;
+        write_recipes_with_presentation(
+            output,
+            recipes,
+            rule.recipe_location.as_ref(),
+            presentation,
+        )?;
     }
     Ok(())
 }
 
 pub fn write_implicit_rules(output: &mut impl Write, database: &Database) -> io::Result<()> {
-    write_implicit_rules_with_numeric(output, database, &RustNumericFormatting)
+    write_implicit_rules_with_presentation(output, database, ENGLISH)
 }
 
-fn write_implicit_rules_with_numeric(
+fn write_implicit_rules_with_presentation(
     output: &mut impl Write,
     database: &Database,
-    numeric: &dyn NumericFormatting,
+    presentation: Presentation<'_>,
 ) -> io::Result<()> {
-    output.write_all(b"\n# Implicit Rules\n")?;
+    presentation.line(output, c"\n# Implicit Rules")?;
     let rules = database.database_implicit_rules();
     let mut groups = HashSet::new();
     let mut count = 0;
@@ -387,20 +549,43 @@ fn write_implicit_rules_with_numeric(
                 continue;
             }
             output.write_all(b"\n")?;
-            write_implicit_rule_targets(output, group.targets.iter().map(Vec::as_slice), rule)?;
+            write_implicit_rule_targets(
+                output,
+                group.targets.iter().map(Vec::as_slice),
+                rule,
+                presentation,
+            )?;
         } else {
             output.write_all(b"\n")?;
-            write_implicit_rule(output, pattern.literal_bytes(), rule)?;
+            write_implicit_rule_targets(
+                output,
+                std::iter::once(pattern.literal_bytes()),
+                rule,
+                presentation,
+            )?;
         }
         count += 1;
         terminal += u64::from(rule.terminal);
     }
     if count == 0 {
-        return output.write_all(b"\n# No implicit rules.\n");
+        return presentation.line(output, c"\n# No implicit rules.");
     }
-    write!(output, "\n# {count} implicit rules, {terminal} (")?;
-    numeric.write_percent(output, terminal, count, 1)?;
-    output.write_all(b"%) terminal.")
+    let mut percent = Vec::new();
+    presentation
+        .numeric
+        .write_percent(&mut percent, terminal, count, 1)?;
+    presentation.format(
+        output,
+        msg::IMPLICIT_COUNT,
+        &[
+            Argument::Unsigned(count),
+            Argument::Unsigned(terminal),
+            Argument::FixedDecimal {
+                bytes: &percent,
+                digits: 1,
+            },
+        ],
+    )
 }
 
 pub fn write_vpaths(
@@ -408,7 +593,16 @@ pub fn write_vpaths(
     database: &Database,
     general: &[&[u8]],
 ) -> io::Result<()> {
-    output.write_all(b"\n# VPATH Search Paths\n\n")?;
+    write_vpaths_with_presentation(output, database, general, ENGLISH)
+}
+
+fn write_vpaths_with_presentation(
+    output: &mut impl Write,
+    database: &Database,
+    general: &[&[u8]],
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
+    presentation.line(output, c"\n# VPATH Search Paths\n")?;
     let mut count = 0;
     for path in database.database_vpaths() {
         count += 1;
@@ -429,14 +623,14 @@ pub fn write_vpaths(
         output.write_all(b"\n")?;
     }
     if count == 0 {
-        output.write_all(b"# No 'vpath' search paths.\n")?;
+        presentation.line(output, c"# No 'vpath' search paths.")?;
     } else {
-        writeln!(output, "\n# {count} 'vpath' search paths.")?;
+        presentation.format(output, msg::VPATH_COUNT, &[Argument::Unsigned(count)])?;
     }
     if general.is_empty() {
-        return output.write_all(b"\n# No general ('VPATH' variable) search path.\n");
+        return presentation.line(output, c"\n# No general ('VPATH' variable) search path.");
     }
-    output.write_all(b"\n# General ('VPATH' variable) search path:\n# ")?;
+    presentation.text(output, c"\n# General ('VPATH' variable) search path:\n# ")?;
     for (index, directory) in general.iter().enumerate() {
         if index != 0 {
             output.write_all(b":")?;
@@ -930,17 +1124,27 @@ pub fn write_directories(
     output: &mut impl Write,
     directories: &[DirectoryView<'_>],
 ) -> io::Result<()> {
-    output.write_all(b"\n# Directories\n\n")?;
+    write_directories_with_presentation(output, directories, ENGLISH)
+}
+
+fn write_directories_with_presentation(
+    output: &mut impl Write,
+    directories: &[DirectoryView<'_>],
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
+    presentation.line(output, c"\n# Directories\n")?;
     let mut files = 0;
     let mut impossible = 0;
     for directory in directories {
-        output.write_all(b"# ")?;
-        output.write_all(c_bytes(directory.name))?;
+        let name = Argument::Bytes(directory.name);
         match directory.state {
-            DirectoryState::Missing => output.write_all(b": could not be stat'd.\n")?,
-            DirectoryState::Unopened { device, inode } => writeln!(
+            DirectoryState::Missing => {
+                presentation.format(output, msg::DIRECTORY_MISSING, &[name])?
+            }
+            DirectoryState::Unopened { device, inode } => presentation.format(
                 output,
-                " (device {device}, inode {inode}): could not be opened."
+                msg::DIRECTORY_UNOPENED,
+                &[name, Argument::Signed(device), Argument::Signed(inode)],
             )?,
             DirectoryState::Enumerated {
                 device,
@@ -949,45 +1153,49 @@ pub fn write_directories(
                 impossible: rejected,
                 complete,
             } => {
-                write!(output, " (device {device}, inode {inode}): ")?;
-                if count == 0 {
-                    output.write_all(b"No")?;
+                presentation.format(
+                    output,
+                    msg::DIRECTORY_ENUMERATED,
+                    &[name, Argument::Signed(device), Argument::Signed(inode)],
+                )?;
+                write_directory_counts(output, count, rejected, presentation)?;
+                presentation.text(output, c" impossibilities")?;
+                if complete {
+                    output.write_all(b".\n")?;
                 } else {
-                    write!(output, "{count}")?;
+                    presentation.line(output, c" so far.")?;
                 }
-                output.write_all(b" files, ")?;
-                if rejected == 0 {
-                    output.write_all(b"no")?;
-                } else {
-                    write!(output, "{rejected}")?;
-                }
-                output.write_all(if complete {
-                    b" impossibilities.\n"
-                } else {
-                    b" impossibilities so far.\n"
-                })?;
                 files += count;
                 impossible += rejected;
             }
         }
     }
     output.write_all(b"\n# ")?;
+    write_directory_counts(output, files, impossible, presentation)?;
+    presentation.format(
+        output,
+        msg::DIRECTORY_TOTAL,
+        &[Argument::Unsigned(directories.len() as u64)],
+    )
+}
+
+fn write_directory_counts(
+    output: &mut impl Write,
+    files: usize,
+    impossible: usize,
+    presentation: Presentation<'_>,
+) -> io::Result<()> {
     if files == 0 {
-        output.write_all(b"No")?;
+        presentation.text(output, c"No")?;
     } else {
         write!(output, "{files}")?;
     }
-    output.write_all(b" files, ")?;
+    presentation.text(output, c" files, ")?;
     if impossible == 0 {
-        output.write_all(b"no")?;
+        presentation.text(output, c"no")
     } else {
-        write!(output, "{impossible}")?;
+        write!(output, "{impossible}")
     }
-    writeln!(
-        output,
-        " impossibilities in {} directories.",
-        directories.len()
-    )
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1074,7 +1282,7 @@ impl<'a> FileView<'a> {
 pub struct FilePrinter<'a, W> {
     output: &'a mut W,
     recipe_prefix: u8,
-    numeric: &'a dyn NumericFormatting,
+    presentation: Presentation<'a>,
     names: Option<&'a dyn FileNames>,
 }
 
@@ -1090,15 +1298,25 @@ impl<'a, W: Write> FilePrinter<'a, W> {
         numeric: &'a dyn NumericFormatting,
         names: Option<&'a dyn FileNames>,
     ) -> Self {
+        Self::with_presentation_and_names(output, Presentation::english(numeric), names)
+    }
+
+    fn with_presentation_and_names(
+        output: &'a mut W,
+        presentation: Presentation<'a>,
+        names: Option<&'a dyn FileNames>,
+    ) -> Self {
         Self {
             output,
             recipe_prefix: b'\t',
-            numeric,
+            presentation,
             names,
         }
     }
+
     pub fn write(&mut self, file: FileView<'_>) -> io::Result<()> {
         let names = self.names;
+        let presentation = self.presentation;
         let file_name = resolved_file_name(names, file.name);
         let output = &mut self.output;
         output.write_all(b"\n")?;
@@ -1124,6 +1342,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
                         variable.origin(),
                         variable.is_private(),
                         variable.definition(),
+                        presentation,
                     )?;
                     output.write_all(c_bytes(file_name))?;
                     write_value(
@@ -1138,7 +1357,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
             }
         }
         if !file.is_target {
-            output.write_all(b"# Not a target:\n")?;
+            presentation.line(output, c"# Not a target:")?;
         }
         output.write_all(c_bytes(file_name))?;
         output.write_all(if file.double_colon { b"::" } else { b":" })?;
@@ -1150,50 +1369,51 @@ impl<'a, W: Write> FilePrinter<'a, W> {
         for (selected, text) in [
             (
                 file.precious,
-                b"#  Precious file (prerequisite of .PRECIOUS).\n".as_slice(),
+                c"#  Precious file (prerequisite of .PRECIOUS).",
             ),
-            (file.phony, b"#  Phony target (prerequisite of .PHONY).\n"),
-            (file.command_line, b"#  Command line target.\n"),
+            (file.phony, c"#  Phony target (prerequisite of .PHONY)."),
+            (file.command_line, c"#  Command line target."),
             (
                 file.dont_care,
-                b"#  A default, MAKEFILES, or -include/sinclude makefile.\n",
+                c"#  A default, MAKEFILES, or -include/sinclude makefile.",
             ),
-            (file.builtin, b"#  Builtin rule\n"),
+            (file.builtin, c"#  Builtin rule"),
         ] {
             if selected {
-                output.write_all(text)?;
+                presentation.line(output, text)?;
             }
         }
-        output.write_all(if file.implicit_tried {
-            b"#  Implicit rule search has been done.\n"
-        } else {
-            b"#  Implicit rule search has not been done.\n"
-        })?;
+        presentation.line(
+            output,
+            if file.implicit_tried {
+                c"#  Implicit rule search has been done."
+            } else {
+                c"#  Implicit rule search has not been done."
+            },
+        )?;
         if let Some(stem) = file.stem {
-            output.write_all(b"#  Implicit/static pattern stem: '")?;
-            output.write_all(c_bytes(stem))?;
-            output.write_all(b"'\n")?;
+            presentation.format(output, msg::STEM, &[Argument::Bytes(stem)])?;
         }
         for (selected, text) in [
             (
                 file.intermediate,
-                b"#  File is an intermediate prerequisite.\n".as_slice(),
+                c"#  File is an intermediate prerequisite.",
             ),
             (
                 file.not_intermediate,
-                b"#  File is a prerequisite of .NOTINTERMEDIATE.\n",
+                c"#  File is a prerequisite of .NOTINTERMEDIATE.",
             ),
             (
                 file.secondary,
-                b"#  File is secondary (prerequisite of .SECONDARY).\n",
+                c"#  File is secondary (prerequisite of .SECONDARY).",
             ),
         ] {
             if selected {
-                output.write_all(text)?;
+                presentation.line(output, text)?;
             }
         }
         if !file.also_make.is_empty() {
-            output.write_all(b"#  Also makes:")?;
+            presentation.text(output, c"#  Also makes:")?;
             for name in file.also_make {
                 output.write_all(b" ")?;
                 output.write_all(c_bytes(name))?;
@@ -1201,42 +1421,60 @@ impl<'a, W: Write> FilePrinter<'a, W> {
             output.write_all(b"\n")?;
         }
         match file.time {
-            FileTime::Unchecked => output.write_all(b"#  Modification time never checked.\n")?,
-            FileTime::Missing => output.write_all(b"#  File does not exist.\n")?,
-            FileTime::Old => output.write_all(b"#  File is very old.\n")?,
+            FileTime::Unchecked => {
+                presentation.line(output, c"#  Modification time never checked.")?
+            }
+            FileTime::Missing => presentation.line(output, c"#  File does not exist.")?,
+            FileTime::Old => presentation.line(output, c"#  File is very old.")?,
             FileTime::Formatted(value) => {
-                output.write_all(b"#  Last modified ")?;
-                output.write_all(value)?;
-                output.write_all(b"\n")?;
+                presentation.format(output, msg::MTIME, &[Argument::Bytes(value)])?;
             }
         }
-        output.write_all(if file.updated {
-            b"#  File has been updated.\n"
-        } else {
-            b"#  File has not been updated.\n"
-        })?;
-        output.write_all(match file.status {
-            FileStatus::Unattempted => b"",
-            FileStatus::Success => b"#  Successfully updated.\n",
-            FileStatus::Question => b"#  Needs to be updated (-q is set).\n",
-            FileStatus::Failed => b"#  Failed to be updated.\n",
-            FileStatus::Running => b"#  Recipe currently running (THIS IS A BUG).\n",
-            FileStatus::DependenciesRunning => b"#  Dependencies recipe running (THIS IS A BUG).\n",
-        })?;
+        presentation.line(
+            output,
+            if file.updated {
+                c"#  File has been updated."
+            } else {
+                c"#  File has not been updated."
+            },
+        )?;
+        let status = match file.status {
+            FileStatus::Unattempted => None,
+            FileStatus::Success => Some(c"#  Successfully updated."),
+            FileStatus::Question => Some(c"#  Needs to be updated (-q is set)."),
+            FileStatus::Failed => Some(c"#  Failed to be updated."),
+            FileStatus::Running => Some(c"#  Recipe currently running (THIS IS A BUG)."),
+            FileStatus::DependenciesRunning => {
+                Some(c"#  Dependencies recipe running (THIS IS A BUG).")
+            }
+        };
+        if let Some(status) = status {
+            presentation.line(output, status)?;
+        }
         if let Some(variables) = file.automatic_variables {
             for (name, variable) in variables.definitions {
                 if variable.origin() == Origin::Automatic {
-                    write_variable(output, b"# ", name, variable)?;
+                    write_variable_value(
+                        output,
+                        b"# ",
+                        name,
+                        variable,
+                        variable.raw_value(),
+                        presentation,
+                    )?;
                 }
             }
-            output.write_all(b"# variable set hash-table stats:\n# ")?;
-            write_hash_stats_with_numeric(output, variables.stats, self.numeric)?;
-            output.write_all(b"\n")?;
+            write_variable_stats(output, variables.stats, presentation)?;
         }
         if let Some(rule) = file.rule
             && let Some(recipes) = &rule.recipes
         {
-            write_recipes(output, recipes, rule.recipe_location.as_ref())?;
+            write_recipes_with_presentation(
+                output,
+                recipes,
+                rule.recipe_location.as_ref(),
+                presentation,
+            )?;
         }
         Ok(())
     }
@@ -1249,24 +1487,24 @@ pub fn write_files(
     files: &[FileView<'_>],
     stats: HashStats,
 ) -> io::Result<()> {
-    write_files_with_numeric(output, files, stats, &RustNumericFormatting, None)
+    write_files_with_presentation(output, files, stats, ENGLISH, None)
 }
 
-fn write_files_with_numeric(
+fn write_files_with_presentation(
     output: &mut impl Write,
     files: &[FileView<'_>],
     stats: HashStats,
-    numeric: &dyn NumericFormatting,
+    presentation: Presentation<'_>,
     names: Option<&dyn FileNames>,
 ) -> io::Result<()> {
-    output.write_all(b"\n# Files\n")?;
-    let mut printer = FilePrinter::with_numeric_and_names(output, numeric, names);
+    presentation.line(output, c"\n# Files")?;
+    let mut printer = FilePrinter::with_presentation_and_names(output, presentation, names);
     for file in files {
         printer.write(*file)?;
     }
-    output.write_all(b"\n# files hash-table stats:\n# ")?;
+    presentation.text(output, c"\n# files hash-table stats:\n# ")?;
     // The following VPATH heading starts with its one protocol newline.
-    write_hash_stats_with_numeric(output, stats, numeric)
+    write_hash_stats_with_presentation(output, stats, presentation)
 }
 
 /// Immutable diagnostic inputs. The runtime owns observations and logical
@@ -1299,18 +1537,30 @@ pub fn write_database_contents_with_numeric_and_names(
     numeric: &dyn NumericFormatting,
     names: Option<&dyn FileNames>,
 ) -> io::Result<()> {
-    write_variables_with_numeric(
-        output,
-        &view.database.variables,
-        view.variable_stats,
-        numeric,
-    )?;
-    write_pattern_variables(output, view.database)?;
-    write_directories(output, view.directories)?;
-    write_implicit_rules_with_numeric(output, view.database, numeric)?;
-    write_files_with_numeric(output, view.files, view.file_stats, numeric, names)?;
-    write_vpaths(output, view.database, view.general_vpath)?;
-    view.string_cache.write_with_numeric(output, numeric)
+    Presentation::english(numeric).contents(output, view, names)?;
+    output.write_all(b"\n")
+}
+
+impl Presentation<'_> {
+    pub fn contents(
+        self,
+        output: &mut impl Write,
+        view: DatabaseView<'_>,
+        names: Option<&dyn FileNames>,
+    ) -> io::Result<()> {
+        write_variables_with_presentation(
+            output,
+            &view.database.variables,
+            view.variable_stats,
+            self,
+        )?;
+        write_pattern_variables_with_presentation(output, view.database, self)?;
+        write_directories_with_presentation(output, view.directories, self)?;
+        write_implicit_rules_with_presentation(output, view.database, self)?;
+        write_files_with_presentation(output, view.files, view.file_stats, self, names)?;
+        write_vpaths_with_presentation(output, view.database, view.general_vpath, self)?;
+        view.string_cache.write_with_presentation(output, self)
+    }
 }
 
 /// The host supplies the actual C-locale clock separately at each emission
@@ -1428,69 +1678,91 @@ impl StringCacheTelemetry {
         output: &mut impl Write,
         numeric: &dyn NumericFormatting,
     ) -> io::Result<()> {
+        self.write_with_presentation(output, Presentation::english(numeric))?;
+        output.write_all(b"\n")
+    }
+
+    fn write_with_presentation(
+        &self,
+        output: &mut impl Write,
+        presentation: Presentation<'_>,
+    ) -> io::Result<()> {
+        let prefix = Argument::Bytes(b"#");
         let Some(current) = self.available.first() else {
-            return output.write_all(b"\n# No strcache buffers\n\n");
+            return presentation.format(output, msg::CACHE_EMPTY, &[prefix]);
         };
         let buffers = self.available.len() + self.full.len();
-        writeln!(
+        presentation.format(
             output,
-            "\n# strcache buffers: {buffers} ({}) / strings = {} / storage = {} B / avg = {} B",
-            self.full.len(),
-            self.strings,
-            self.storage,
-            self.storage / self.strings
+            msg::CACHE_BUFFERS,
+            &[
+                prefix,
+                Argument::Unsigned(buffers as u64),
+                Argument::Unsigned(self.full.len() as u64),
+                Argument::Unsigned(self.strings),
+                Argument::Unsigned(self.storage),
+                Argument::Unsigned(self.storage / self.strings),
+            ],
         )?;
-        writeln!(
+        presentation.format(
             output,
-            "# current buf: size = {} B / used = {} B / count = {} / avg = {} B",
-            self.capacity,
-            current.used,
-            current.strings,
-            current.used / current.strings
+            msg::CACHE_CURRENT,
+            &[
+                prefix,
+                Argument::Unsigned(self.capacity as u64),
+                Argument::Unsigned(current.used as u64),
+                Argument::Unsigned(current.strings as u64),
+                Argument::Unsigned((current.used / current.strings) as u64),
+            ],
         )?;
         if buffers > 1 {
-            let others = self
-                .available
-                .iter()
-                .skip(1)
-                .chain(&self.full)
-                .collect::<Vec<_>>();
-            let free = others
-                .iter()
-                .map(|buffer| buffer.size - buffer.used)
-                .sum::<usize>();
+            let others = self.available.iter().skip(1).chain(&self.full);
+            let mut free = 0;
+            let mut min = usize::MAX;
+            let mut max = 0;
+            for buffer in others {
+                let unused = buffer.size - buffer.used;
+                free += unused;
+                min = min.min(unused);
+                max = max.max(unused);
+            }
             let used = self.storage - current.used as u64;
             let count = self.strings - current.strings as u64;
-            writeln!(
+            presentation.format(
                 output,
-                "# other used: total = {used} B / count = {count} / avg = {} B",
-                used / count
+                msg::CACHE_OTHER_USED,
+                &[
+                    prefix,
+                    Argument::Unsigned(used),
+                    Argument::Unsigned(count),
+                    Argument::Unsigned(used / count),
+                ],
             )?;
-            writeln!(
+            presentation.format(
                 output,
-                "# other free: total = {free} B / max = {} B / min = {} B / avg = {} B",
-                others
-                    .iter()
-                    .map(|buffer| buffer.size - buffer.used)
-                    .max()
-                    .unwrap(),
-                others
-                    .iter()
-                    .map(|buffer| buffer.size - buffer.used)
-                    .min()
-                    .unwrap(),
-                free / others.len()
+                msg::CACHE_OTHER_FREE,
+                &[
+                    prefix,
+                    Argument::Unsigned(free as u64),
+                    Argument::Unsigned(max as u64),
+                    Argument::Unsigned(min as u64),
+                    Argument::Unsigned((free / (buffers - 1)) as u64),
+                ],
             )?;
         }
-        writeln!(
+        presentation.format(
             output,
-            "\n# strcache performance: lookups = {} / hit rate = {}%",
-            self.adds,
-            (100.0 * (self.adds - self.strings) as f64 / self.adds as f64) as u64
+            msg::CACHE_PERFORMANCE,
+            &[
+                prefix,
+                Argument::Unsigned(self.adds),
+                Argument::Unsigned(
+                    (100.0 * (self.adds - self.strings) as f64 / self.adds as f64) as u64,
+                ),
+            ],
         )?;
-        output.write_all(b"# hash-table stats:\n# ")?;
-        write_hash_stats_with_numeric(output, self.names.stats(), numeric)?;
-        output.write_all(b"\n")
+        presentation.text(output, c"# hash-table stats:\n# ")?;
+        write_hash_stats_with_presentation(output, self.names.stats(), presentation)
     }
 }
 
@@ -2235,7 +2507,12 @@ mod tests {
             .read(b"%.a: %.b\n%.x:: %.y\n", b"rules.mk")
             .unwrap();
         output.clear();
-        write_implicit_rules_with_numeric(&mut output, &database, &numeric).unwrap();
+        write_implicit_rules_with_presentation(
+            &mut output,
+            &database,
+            Presentation::english(&numeric),
+        )
+        .unwrap();
         assert_eq!(*numeric.0.borrow(), [(1, 2, 1)]);
         assert!(output.ends_with(b"# 2 implicit rules, 1 (<numeric>%) terminal."));
     }

@@ -132,6 +132,7 @@ struct Inner {
     writer: Endpoint,
     protocol_reader: Option<File>,
     inherited_pipe: Option<[c_int; 2]>,
+    incoming_auth: Option<Box<[u8]>>,
     compact_pipe: bool,
     auth: Vec<u8>,
     owned_slots: Option<usize>,
@@ -308,6 +309,7 @@ impl Jobserver {
             auth,
             protocol_reader: None,
             inherited_pipe: None,
+            incoming_auth: None,
             compact_pipe: true,
             owned_slots: None,
             created: None,
@@ -376,6 +378,7 @@ impl Jobserver {
             writer: Endpoint::Owned(writer),
             protocol_reader: None,
             inherited_pipe: None,
+            incoming_auth: None,
             compact_pipe: false,
             auth,
             owned_slots: None,
@@ -404,6 +407,7 @@ impl Jobserver {
             writer: Endpoint::Owned(writer),
             protocol_reader: Some(protocol_reader),
             inherited_pipe: None,
+            incoming_auth: None,
             compact_pipe: false,
             auth,
             owned_slots: None,
@@ -434,7 +438,7 @@ impl Jobserver {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
         if crate::signals::compact_pipe_budget() {
-            return Self::join_compact(read, write);
+            return Self::join_compact(read, write).map(|server| server.with_diagnostic_auth(auth));
         }
         let reader = reopen(read, true, false)?;
         let writer = reopen(write, false, false)?;
@@ -449,7 +453,16 @@ impl Jobserver {
         Arc::get_mut(&mut server.0)
             .expect("unshared joined jobserver")
             .inherited_pipe = Some([read, write]);
-        Ok(server)
+        Ok(server.with_diagnostic_auth(auth))
+    }
+
+    fn with_diagnostic_auth(mut self, incoming: &[u8]) -> Self {
+        if self.auth() != incoming {
+            Arc::get_mut(&mut self.0)
+                .expect("unshared joined jobserver")
+                .incoming_auth = Some(incoming.into());
+        }
+        self
     }
 
     fn join_compact(read: c_int, write: c_int) -> io::Result<Self> {
@@ -514,6 +527,11 @@ impl Jobserver {
 
     pub fn auth(&self) -> &[u8] {
         &self.0.auth
+    }
+
+    /// GNU reports the incoming spelling even when protocol descriptors were reopened.
+    pub fn diagnostic_auth(&self) -> &[u8] {
+        self.0.incoming_auth.as_deref().unwrap_or(&self.0.auth)
     }
 
     pub fn try_acquire(&self) -> io::Result<Option<Permit>> {

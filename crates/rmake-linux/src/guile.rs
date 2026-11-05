@@ -40,7 +40,7 @@ impl WorkerWake {
     }
 }
 
-/// Admission and wake ownership for one blocking serial recipe child.
+/// Admission and wake ownership for one blocking scheduler wait.
 pub struct WorkerWait {
     wake: Option<WorkerWake>,
     _leading_thread: std::marker::PhantomData<Rc<()>>,
@@ -69,6 +69,10 @@ impl WorkerWait {
             wake,
             _leading_thread: std::marker::PhantomData,
         })
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.wake.is_some()
     }
 
     pub fn descriptor(&self) -> Option<BorrowedFd<'_>> {

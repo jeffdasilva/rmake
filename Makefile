@@ -11,15 +11,17 @@ DEVELOPER_FLOW_CASE ?=
 
 .PHONY: bootstrap-integration test-integration
 .PHONY: test-database-output test-database-search test-database-numeric test-database-order-roles test-database-dry-run-time test-database-branch-metadata test-database-double-dry-run test-database-grouped test-database-implicit-grouped test-database-grouped-double
-.PHONY: test-database-lifecycle
+.PHONY: test-database-lifecycle test-database-nls test-database-nls-release
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components test-guile-frontend
-.PHONY: test-native-fenv
+.PHONY: test-native-fenv test-resource-nproc test-resource-nproc-release test-resource-nproc-selfhost
 .PHONY: catalog-check catalog-install test-nls test-nls-release test-nls-directory test-nls-directory-release test-catalog-coverage
 .PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 .PHONY: test-resource-fd-parallel
 
-.PHONY: test-job-debug
+.PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
+.PHONY: test-trace-nls test-trace-nls-release
+.PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
 .PHONY: test-debug-traversal test-debug-traversal-nls test-debug-verbose
 
 .PHONY: test-debug-output test-directory-reporting test-native-modules help doctor bootstrap bootstrap-rust bootstrap-oracle build release fmt fmt-check lint test-unit test-tools check-core oracle-verify test-jobserver test-load test-runtime-signals test-output-sync test-startup-exits test-runtime-effects test-graph-progress test-builtins regenerate-builtins test-oracle test-diff test-safety test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-selfhost test-m4-release test-m5-release m4-acceptance m5-acceptance test check ci bench bench-compare profile-allocations profile-allocations-frozen clean
@@ -35,6 +37,8 @@ STDOUT_FILE_SIZE_CASE ?=
 PROCESS_RESTART_CASE ?=
 RESTART_ENVIRONMENT_CASE ?=
 RESOURCE_FD_CASE ?=
+RESOURCE_NPROC_CASE ?=
+RESOURCE_NPROC_REPORT ?= artifacts/resource-nproc/development.json
 RESOURCE_FD_RECIPE_CASE ?=
 SIGNAL_MASK_CASE ?=
 RESOURCE_FD_SPOOL_CASE ?=
@@ -164,6 +168,7 @@ help:
 		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
 		'  test-database-output Compare complete databases, histories and phase effects' \
+		'  test-database-nls / test-database-nls-release Compare exact localized databases' \
 		'  test-database-lifecycle Compare restart environments and exact cleanup phases' \
 		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
 		'  test-database-numeric Compare native rounding and registration history' \
@@ -182,6 +187,7 @@ help:
 		'  test-restart-environment Compare the complete live process environment vector' \
 		'  test-restart-pipe Check original inherited jobserver descriptors across exec' \
 		'  test-resource-fd Compare descriptor pressure and live cancellation' \
+		'  test-resource-nproc Compare launches on an unprivileged Linux process limit' \
 		'  test-resource-fd-recipes Compare low-limit recipe launch and reaping' \
 		'  test-signal-mask Compare native, child and restart mask phases' \
 		'  test-resource-fd-spool Compare borrowed recipe output at low limits' \
@@ -198,6 +204,8 @@ help:
 		'  test-debug-traversal-nls Compare debug events in the verified French locale' \
 		'  test-debug-verbose Compare timestamp and remake decisions in C and French' \
 		'  test-job-debug Compare live child identities, JOBS events and token return' \
+		'  test-job-debug-nls Compare C and French JOBS events' \
+		'  test-job-debug-load Compare controller phase and controlled load events' \
 		'  m5-acceptance  Run combined development and optimized runtime gates' \
 		'  m4-acceptance  Run development and optimized rule-resolution gates' \
 		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
@@ -308,6 +316,12 @@ test-runtime-signals: build oracle-verify
 test-startup-exits: build oracle-verify
 	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --self-test
 	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
+
+test-shell-capture-lifetime: build oracle-verify
+	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/shell-capture/development.json
+
+test-shell-capture-lifetime-release: release oracle-verify
+	$(PYTHON) tools/shell_capture_lifetime.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shell-capture/optimized.json
 
 test-runtime-effects: build oracle-verify
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --self-test
@@ -435,7 +449,7 @@ m5-acceptance:
 
 test-m5-release: test-m4-release
 
-test-m4-release: release oracle-verify test-nls-release test-nls-directory-release
+test-m4-release: release oracle-verify test-nls-release test-nls-directory-release test-database-nls-release test-job-debug-nls-release test-job-debug-load-release
 	$(PYTHON) tools/catalog_coverage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/catalog-coverage/optimized.json
 	$(PYTHON) tools/runtime_option_values.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/runtime-option-values/optimized.json
 	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/optimized.json
@@ -539,6 +553,12 @@ bootstrap-locale-data:
 test-catalog-coverage: build oracle-verify catalog-check
 	$(PYTHON) tools/catalog_coverage.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/catalog-coverage/development.json $(if $(CATALOG_COVERAGE_CASE),--case "$(CATALOG_COVERAGE_CASE)")
 
+test-database-nls: build oracle-verify catalog-check
+	$(PYTHON) tools/database_nls.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/database-output/nls-development.json
+
+test-database-nls-release: release oracle-verify catalog-check
+	$(PYTHON) tools/database_nls.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/database-output/nls-optimized.json
+
 test-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/nls_diagnostics.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/development.json $(if $(NLS_CASE),--case "$(NLS_CASE)")
 
@@ -590,6 +610,15 @@ test-resource-fd-parallel: build oracle-verify
 test-resource-fd-spool: build oracle-verify
 	$(PYTHON) tools/resource_fd_spool.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-spool/development.json $(if $(RESOURCE_FD_SPOOL_CASE),--case "$(RESOURCE_FD_SPOOL_CASE)")
 
+test-resource-nproc: build oracle-verify
+	$(PYTHON) tools/resource_nproc.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(RESOURCE_NPROC_REPORT)" $(if $(RESOURCE_NPROC_CASE),--case "$(RESOURCE_NPROC_CASE)")
+
+test-resource-nproc-release: release oracle-verify
+	$(PYTHON) tools/resource_nproc.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-nproc/optimized.json $(if $(RESOURCE_NPROC_CASE),--case "$(RESOURCE_NPROC_CASE)")
+
+test-resource-nproc-selfhost: release
+	+"$(M4_RELEASE)" -rR --no-print-directory "CANDIDATE=$(M4_RELEASE)" "ORACLE=$(ORACLE)" RESOURCE_NPROC_CASE=path-last-non-missing-error RESOURCE_NPROC_REPORT=artifacts/resource-nproc/selfhost.json test-resource-nproc
+
 test-signal-mask: build oracle-verify
 	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/signal-mask/development.json $(if $(SIGNAL_MASK_CASE),--case "$(SIGNAL_MASK_CASE)")
 
@@ -620,8 +649,26 @@ test-debug-traversal-nls: build oracle-verify
 test-debug-verbose: build oracle-verify
 	$(PYTHON) tools/debug_verbose.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report-dir artifacts/debug-verbose/development $(if $(DEBUG_VERBOSE_CASE),--case "$(DEBUG_VERBOSE_CASE)")
 
+test-trace-nls: build oracle-verify catalog-check
+	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-development.json
+
+test-trace-nls-release: release oracle-verify catalog-check
+	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-optimized.json
+
 test-job-debug: build oracle-verify
 	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/job-debug/development.json $(if $(JOB_DEBUG_CASE),--case "$(JOB_DEBUG_CASE)")
+
+test-job-debug-nls: build oracle-verify catalog-check
+	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/job-debug/nls-development.json $(if $(JOB_DEBUG_CASE),--case "$(JOB_DEBUG_CASE)")
+
+test-job-debug-nls-release: release oracle-verify catalog-check
+	$(PYTHON) tools/job_debug.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/job-debug/nls-optimized.json $(if $(JOB_DEBUG_CASE),--case "$(JOB_DEBUG_CASE)")
+
+test-job-debug-load: build oracle-verify catalog-check
+	$(PYTHON) tools/job_debug_load.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/job-debug/load-development.json
+
+test-job-debug-load-release: release oracle-verify catalog-check
+	$(PYTHON) tools/job_debug_load.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/job-debug/load-optimized.json
 
 test-generated: build oracle-verify
 	$(PYTHON) tools/generated.py --oracle "$(ORACLE)" --self-test --seed "$(SEED)" --cases "$(GENERATED_CASES)" --expressions "$(EXPRESSIONS)" --start-index "$(START_INDEX)"
@@ -695,13 +742,21 @@ test-wildcards: build oracle-verify
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --self-test --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 	$(PYTHON) tools/wildcard_generated.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --seed "$(WILDCARD_SEED)" --cases "$(WILDCARD_CASES)" --expressions "$(WILDCARD_EXPRESSIONS)" --start-index "$(START_INDEX)"
 
-test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-debug-verbose test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-debug-verbose test-job-debug test-job-debug-nls test-job-debug-load test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-debug-verbose test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
+check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-debug-traversal test-debug-traversal-nls test-debug-verbose test-job-debug test-job-debug-nls test-job-debug-load test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory test-database-nls
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory test-database-nls
+
+test: test-trace-nls
+check: test-trace-nls
+test-m4-release: test-trace-nls-release
+
+test: test-shell-capture-lifetime
+check: test-shell-capture-lifetime
+test-m4-release: test-shell-capture-lifetime-release
 
 ci: check test-selfhost
 

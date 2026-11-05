@@ -2,11 +2,15 @@
 // Copyright 2026 Jeff DaSilva
 
 mod catalog_validation;
+#[allow(dead_code)]
+#[path = "../rmake-core/src/database_messages.rs"]
+mod database_messages;
 #[path = "src/debug_messages.rs"]
 mod debug_messages;
 #[allow(dead_code)]
 #[path = "../rmake-core/src/messages.rs"]
 mod system_messages;
+use system_messages as messages;
 
 fn main() {
     let source = std::path::PathBuf::from(
@@ -16,6 +20,7 @@ fn main() {
     let inventory = source.join("languages.txt");
     println!("cargo:rerun-if-changed={}", inventory.display());
     println!("cargo:rerun-if-changed=../rmake-core/src/messages.rs");
+    println!("cargo:rerun-if-changed=../rmake-core/src/database_messages.rs");
     println!("cargo:rerun-if-changed=src/debug_messages.rs");
     println!("cargo:rerun-if-env-changed=RMAKE_LOCALEDIR");
     let languages = std::fs::read_to_string(&inventory).expect("read owned catalog inventory");

@@ -1,0 +1,12 @@
+id = "shell-status-lexical-call-builtin-in-caller"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: call builtin in caller"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "result=[] status=1\nouter=[1] override simple\n"
+stderr = ""

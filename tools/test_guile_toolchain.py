@@ -185,6 +185,14 @@ class GuileToolchainTests(unittest.TestCase):
                 self.assertIn('--locked', command)
                 feature = command.index('--features')
                 self.assertEqual(command[feature + 1], 'guile')
+                for script in ('guile_detached.py', 'guile_eventfd_pressure.py',
+                               'guile_detached_parallel.py', 'guile_parallel_pressure.py'):
+                    selected = [call.args[0] for call in commands
+                                if call.args[0][1:2] == ['tools/' + script]]
+                    with self.subTest(script=script):
+                        self.assertEqual([
+                            Path(argv[argv.index('--candidate') + 1]).name for argv in selected
+                        ], ['enabled-debug', 'enabled-release'])
                 for command in commands:
                     self.assertTrue(selectors.keys().isdisjoint(command.kwargs['env']), command.args)
                 self.assertEqual({key: os.environ[key] for key in selectors}, selectors)

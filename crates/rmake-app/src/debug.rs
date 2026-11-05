@@ -134,6 +134,42 @@ pub fn raw(parts: &[&[u8]]) {
     crate::output::stdout_parts(parts);
 }
 
+pub enum TraceReason<'a> {
+    Phony,
+    Missing,
+    Unknown,
+    Prerequisites(&'a [u8]),
+}
+
+pub fn trace_reason(
+    output: &crate::output::Controller,
+    location: Option<&rmake_core::diagnostic::Location>,
+    target: &[u8],
+    reason: TraceReason<'_>,
+) {
+    let source = location
+        .and_then(|location| {
+            let file = location.file.as_option()?;
+            Some([file, b":", location.line.to_string().as_bytes()].concat())
+        })
+        .unwrap_or_else(|| {
+            let label = c"<builtin>";
+            rmake_linux::messages::lookup_static(label)
+                .unwrap_or_else(|_| label.to_bytes().to_vec())
+        });
+    let basic = [bytes(&source), bytes(target)];
+    let line = match reason {
+        TraceReason::Phony => localized(msg::TRACE_PHONY, &basic),
+        TraceReason::Missing => localized(msg::TRACE_MISSING, &basic),
+        TraceReason::Unknown => localized(msg::TRACE_UNKNOWN, &basic),
+        TraceReason::Prerequisites(names) => localized(
+            msg::TRACE_PREREQUISITES,
+            &[basic[0], basic[1], bytes(names)],
+        ),
+    };
+    output.write_parts(false, &[&line, b"\n"]);
+}
+
 pub fn restart_prefix(count: u32) -> Vec<u8> {
     localized(msg::REEXECUTING, &[Argument::Unsigned(count.into())])
 }
@@ -480,12 +516,15 @@ impl Jobs {
             })
         })
     }
-    fn identity(job: &JobHandle) -> String {
-        format!("{:p}", std::rc::Rc::as_ptr(job))
+    fn identity(job: &JobHandle) -> Argument<'static> {
+        Argument::Pointer(std::rc::Rc::as_ptr(job).addr())
+    }
+    fn emit(key: msg::Key, arguments: &[Argument<'_>]) {
+        raw(&[&localized(key, arguments)]);
     }
     pub fn controller(mask: Mask, authentication: &[u8]) {
-        if mask.has(Mask::JOBS) {
-            raw(&[b"Using jobserver controller ", authentication, b"\n"]);
+        if mask.has(Mask::JOBS) || mask.has(Mask::VERBOSE) {
+            Self::emit(msg::JOB_CONTROLLER, &[bytes(authentication)]);
         }
     }
     pub fn need(&self, mask: Mask) {
@@ -501,13 +540,10 @@ impl Jobs {
         if mask.has(Mask::JOBS)
             && let Some(job) = job
         {
-            raw(&[
-                b"Obtained token for child ",
-                Self::identity(job).as_bytes(),
-                b" (",
-                &job.target,
-                b").\n",
-            ]);
+            Self::emit(
+                msg::JOB_OBTAINED,
+                &[Self::identity(job), bytes(&job.target)],
+            );
         }
     }
     pub fn launched(&mut self, mask: Mask, job: &JobHandle, pid: u32) {
@@ -515,15 +551,15 @@ impl Jobs {
         if !job.linked.replace(true) {
             self.chain.insert(0, job.clone());
             if mask.has(Mask::JOBS) {
-                raw(&[
-                    b"Putting child ",
-                    Self::identity(job).as_bytes(),
-                    b" (",
-                    &job.target,
-                    b") PID ",
-                    pid.to_string().as_bytes(),
-                    b" on the chain.\n",
-                ]);
+                Self::emit(
+                    msg::JOB_PUT,
+                    &[
+                        Self::identity(job),
+                        bytes(&job.target),
+                        bytes(pid.to_string().as_bytes()),
+                        bytes(b""),
+                    ],
+                );
             }
         }
     }
@@ -532,32 +568,29 @@ impl Jobs {
             return;
         }
         for job in &self.chain {
-            raw(&[
-                b"Live child ",
-                Self::identity(job).as_bytes(),
-                b" (",
-                &job.target,
-                b") PID ",
-                job.pid.get().to_string().as_bytes(),
-                b" \n",
-            ]);
+            Self::emit(
+                msg::JOB_LIVE,
+                &[
+                    Self::identity(job),
+                    bytes(&job.target),
+                    bytes(job.pid.get().to_string().as_bytes()),
+                    bytes(b""),
+                ],
+            );
         }
     }
     pub fn reaped(mask: Mask, job: Option<&JobHandle>, success: bool) {
         if mask.has(Mask::JOBS)
             && let Some(job) = job
         {
-            raw(&[
-                if success {
-                    b"Reaping winning child "
-                } else {
-                    b"Reaping losing child "
-                },
-                Self::identity(job).as_bytes(),
-                b" PID ",
-                job.pid.get().to_string().as_bytes(),
-                b" \n",
-            ]);
+            Self::emit(
+                if success { msg::JOB_WIN } else { msg::JOB_LOSE },
+                &[
+                    Self::identity(job),
+                    bytes(job.pid.get().to_string().as_bytes()),
+                    bytes(b""),
+                ],
+            );
         }
     }
     pub fn removed(&mut self, mask: Mask, job: &JobHandle, pooled: bool) {
@@ -565,25 +598,23 @@ impl Jobs {
             return;
         }
         if mask.has(Mask::JOBS) {
-            raw(&[
-                b"Removing child ",
-                Self::identity(job).as_bytes(),
-                b" PID ",
-                job.pid.get().to_string().as_bytes(),
-                b" from chain.\n",
-            ]);
+            Self::emit(
+                msg::JOB_REMOVE,
+                &[
+                    Self::identity(job),
+                    bytes(job.pid.get().to_string().as_bytes()),
+                    bytes(b""),
+                ],
+            );
         }
         self.chain.retain(|entry| !std::rc::Rc::ptr_eq(entry, job));
         // This describes the logical slot made available by completion, not
         // the particular recipe which happened to own an explicit permit.
         if pooled && !self.chain.is_empty() && mask.has(Mask::JOBS) {
-            raw(&[
-                b"Released token for child ",
-                Self::identity(job).as_bytes(),
-                b" (",
-                &job.target,
-                b").\n",
-            ]);
+            Self::emit(
+                msg::JOB_RELEASED,
+                &[Self::identity(job), bytes(&job.target)],
+            );
         }
     }
     pub fn drain(&mut self, mask: Mask, slots: Option<usize>) {
@@ -600,6 +631,48 @@ impl Jobs {
                 b" jobserver tokens.\n",
             ]);
         }
+    }
+}
+
+pub fn load(observation: crate::load::Observation<'_>, limit: f64, running: usize) {
+    use crate::load::Observation;
+    use rmake_linux::process::load_debug_spelling as number;
+
+    match observation {
+        Observation::Method { procfs: true } => {
+            raw(&[b"Using /proc/loadavg load detection method.\n"])
+        }
+        Observation::Method { procfs: false } => raw(&[b"Using system load detection method.\n"]),
+        Observation::Running(system) => raw(&[
+            b"Running: system = ",
+            system.to_string().as_bytes(),
+            b" / make = ",
+            running.to_string().as_bytes(),
+            b" (max requested = ",
+            &number(limit),
+            b")\n",
+        ]),
+        Observation::Malformed(bytes) => {
+            let end = bytes
+                .iter()
+                .position(|byte| *byte == 0)
+                .unwrap_or(bytes.len());
+            raw(&[b"Failed to parse /proc/loadavg: ", &bytes[..end], b"\n"]);
+        }
+        Observation::ReadFailure(error) => {
+            let reason = rmake_linux::filesystem::source_error_detail(error);
+            raw(&[b"Failed to read /proc/loadavg: ", &reason, b"\n"]);
+        }
+        Observation::Estimate { estimated, actual } => raw(&[
+            b"Estimated system load = ",
+            &number(estimated),
+            b" (actual = ",
+            &number(actual),
+            b") (max requested = ",
+            &number(limit),
+            b")\n",
+        ]),
+        Observation::AverageFailure(_) => {}
     }
 }
 

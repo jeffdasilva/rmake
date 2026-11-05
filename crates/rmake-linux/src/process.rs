@@ -7,6 +7,8 @@ use std::ffi::{CStr, CString, c_char, c_int};
 use std::fs::File;
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::process::Stdio;
 
 unsafe extern "C" {
@@ -18,6 +20,21 @@ unsafe extern "C" {
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn _exit(status: c_int) -> !;
+    fn euidaccess(path: *const c_char, mode: c_int) -> c_int;
+}
+
+/// Probe an executable candidate using the caller's effective credentials.
+pub fn executable(path: &Path) -> io::Result<()> {
+    const X_OK: c_int = 1;
+    let name = CString::new(path.as_os_str().as_bytes())?;
+    // SAFETY: the C string lives through the read-only access check.
+    if unsafe { euidaccess(name.as_ptr(), X_OK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if path.metadata()?.is_dir() {
+        return Err(io::Error::from_raw_os_error(13));
+    }
+    Ok(())
 }
 
 /// Terminate after an unsuccessful self-exec, without running C/native
@@ -62,6 +79,31 @@ pub fn load_spelling(value: f64) -> String {
     unsafe { CStr::from_ptr(bytes.as_ptr()) }
         .to_string_lossy()
         .into_owned()
+}
+
+/// Format the fixed GNU load-debug decimal in the active numeric locale.
+pub fn load_debug_spelling(value: f64) -> Vec<u8> {
+    let mut bytes = vec![0; 64];
+    loop {
+        // SAFETY: the buffer is initialized and uniquely writable. The
+        // compile-time format has exactly one matching double argument.
+        let written = unsafe {
+            snprintf(
+                bytes.as_mut_ptr().cast(),
+                bytes.len(),
+                c"%f".as_ptr(),
+                value,
+            )
+        };
+        let Ok(written) = usize::try_from(written) else {
+            return format!("{value:.6}").into_bytes();
+        };
+        if written < bytes.len() {
+            bytes.truncate(written);
+            return bytes;
+        }
+        bytes.resize(written + 1, 0);
+    }
 }
 
 pub fn average_load() -> io::Result<f64> {

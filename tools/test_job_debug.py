@@ -51,6 +51,22 @@ class JobDebugTests(unittest.TestCase):
                        self.stdout.replace(b'Live child 0x2000', b'Live child 0x4000')):
             self.assertTrue(self.assess(replace(self.good, stdout=stdout)))
 
+    def test_french_literals_keep_the_same_strict_identity_constraints(self):
+        stdout = (
+            "Ajout du processus fils 0x2000 (all) PID 2000 à la chaîne.\n"
+            "Processus fils actif 0x2000 (all) PID 2000 \n"
+            "Récolte du processus fils gagnant 0x2000 PID 2000 \n"
+            "Retrait du processus fils 0x2000 PID 2000 de la chaîne.\n"
+        ).encode()
+        protocol = d.FRENCH
+        good = replace(self.good, stdout=stdout)
+        self.assertEqual(d.assess(self.model, good, self.host, self.runtime, {}, protocol), [])
+        for wrong in (self.stdout, stdout.replace(b'2000 \n', b'2000\n'),
+                      stdout.replace(b'actif 0x2000', b'actif 0x4000'),
+                      stdout.replace(b'PID 2000', b'PID 2001')):
+            observation = replace(good, stdout=wrong)
+            self.assertTrue(d.assess(self.model, observation, self.host, self.runtime, {}, protocol))
+
     def test_shared_wrong_pid_in_stdout_and_worker_wire_cannot_override_host_proof(self):
         files = dict(self.good.filesystem)
         files['work/one.identity'] = entry(b'pid=3000 ppid=1000 start=45 target=one\n')

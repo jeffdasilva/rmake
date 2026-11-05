@@ -9,6 +9,11 @@ use rmake_core::database::{
 };
 use rmake_core::variables::Variable;
 
+const PRESENTATION: database::Presentation<'static> = database::Presentation::localized(
+    &rmake_linux::database_numeric::Formatting,
+    rmake_linux::messages::lookup_static,
+);
+
 struct FileSnapshot<'a> {
     view: FileView<'a>,
     timestamp: Option<Vec<u8>>,
@@ -143,9 +148,9 @@ impl Engine {
             })
             .collect();
         let general_vpath: Vec<_> = self.vpath_dirs.iter().map(Vec::as_slice).collect();
-        database::write_database_open(output, &rmake_linux::clock::current_ctime()?)?;
+        PRESENTATION.open(output, &rmake_linux::clock::current_ctime()?)?;
         history.with_string_cache(|string_cache| {
-            database::write_database_contents_with_numeric_and_names(
+            PRESENTATION.contents(
                 output,
                 DatabaseView {
                     database: &self.database,
@@ -156,11 +161,10 @@ impl Engine {
                     general_vpath: &general_vpath,
                     string_cache,
                 },
-                &rmake_linux::database_numeric::Formatting,
                 Some(self),
             )
         })?;
-        database::write_database_close(output, &rmake_linux::clock::current_ctime()?)?;
+        PRESENTATION.close(output, &rmake_linux::clock::current_ctime()?)?;
         output.flush()
     }
 
@@ -354,7 +358,7 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
     };
     let mut output = rmake_linux::output::Stdout::default();
     let result = (|| {
-        database::write_database_open(&mut output, &rmake_linux::clock::current_ctime()?)?;
+        PRESENTATION.open(&mut output, &rmake_linux::clock::current_ctime()?)?;
         let files: Vec<_> = host
             .database
             .file_records
@@ -362,7 +366,7 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
             .map(|name| FileView::unchecked(name, host.database.rules.get(name)))
             .collect();
         history.with_string_cache(|string_cache| {
-            database::write_database_contents_with_numeric(
+            PRESENTATION.contents(
                 &mut output,
                 DatabaseView {
                     database: &host.database,
@@ -373,10 +377,10 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
                     general_vpath: &[],
                     string_cache,
                 },
-                &rmake_linux::database_numeric::Formatting,
+                None,
             )
         })?;
-        database::write_database_close(&mut output, &rmake_linux::clock::current_ctime()?)?;
+        PRESENTATION.close(&mut output, &rmake_linux::clock::current_ctime()?)?;
         output.flush()
     })();
     if let Err(error) = result

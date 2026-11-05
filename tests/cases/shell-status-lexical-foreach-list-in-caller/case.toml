@@ -1,0 +1,12 @@
+id = "shell-status-lexical-foreach-list-in-caller"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell status ownership: foreach list in caller"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[a:0] [b:0]\nouter=[0] override simple\n"
+stderr = ""

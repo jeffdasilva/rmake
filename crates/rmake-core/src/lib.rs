@@ -10,6 +10,7 @@ pub const COMPATIBILITY_VERSION: &str = "4.4.1";
 
 mod builtins;
 pub mod database;
+mod database_messages;
 pub mod diagnostic;
 pub mod file_records;
 pub mod filenames;

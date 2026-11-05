@@ -532,3 +532,9 @@ truncation, early SIGXFSZ and ordinary file-function controls.
 check fourteen exact GNU2 profiles, including native inspection of the
 shared libc error indicator, synchronized replay, and final process status.
 Write, flush, and close failures retain their distinct publication points.
+
+Lexical shell status now follows the active foreach, let, or call frame,
+including shell assignments evaluated by a nested eval. Sixteen original
+ordinary controls close eleven previous mismatches and extend the ordinary
+required corpus to 27,782 cases. The separate process-limit descriptor
+leak observed in GNU remains open.

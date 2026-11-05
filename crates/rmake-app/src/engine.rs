@@ -1708,13 +1708,37 @@ impl Engine {
     }
 
     #[cfg(feature = "guile")]
-    fn service_serial_workers(&mut self) -> Result<(), ExpandError> {
+    fn service_waiting_workers(&mut self) -> Result<(), ExpandError> {
         let result =
             self.with_retained_native_context(Database::service_waiting_native_workers_with);
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
         result
+    }
+
+    #[cfg(feature = "guile")]
+    fn service_parallel_workers(&mut self) -> bool {
+        match self.service_waiting_workers() {
+            Ok(()) => {
+                self.observe_interrupt();
+                self.interrupt.is_none()
+            }
+            Err(ExpandError::Cancelled) => {
+                self.observe_interrupt();
+                false
+            }
+            Err(error) => {
+                self.expansion_error(None, &error);
+                self.parallel_failed = true;
+                self.record_graph_failure(Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..Outcome::default()
+                });
+                false
+            }
+        }
     }
 
     #[cfg(feature = "guile")]
@@ -2510,6 +2534,10 @@ impl Engine {
                         return 2;
                     }
                 }
+            }
+
+            if let Some(server) = &self.jobserver {
+                crate::debug::Jobs::controller(self.output.debug_mask(), server.diagnostic_auth());
             }
 
             if let Err(error) = self.database.variables.update_mflags(
@@ -3684,16 +3712,19 @@ impl Engine {
         }
     }
 
+    fn parallel_child_handles(&self) -> Vec<(u64, &rmake_linux::child::Child)> {
+        self.parallel_jobs
+            .values()
+            .filter_map(|job| job.child.as_ref().map(|child| (job.identity, child)))
+            .collect()
+    }
+
     fn child_events(
         &mut self,
         block: bool,
         additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
-        let children: Vec<_> = self
-            .parallel_jobs
-            .values()
-            .filter_map(|job| job.child.as_ref().map(|child| (job.identity, child)))
-            .collect();
+        let children = self.parallel_child_handles();
         if children.is_empty() && additional.is_none() {
             return Ok(false);
         }
@@ -3705,30 +3736,102 @@ impl Engine {
         // immediately instead of paying this retry interval.
         let load_retry = (additional.is_some() && !self.load_waiting.is_empty())
             .then_some(Duration::from_secs(1));
-        let ready = rmake_linux::child::wait(&children, block, true, additional, load_retry)?;
+        #[cfg(feature = "guile")]
+        let (ready, observed_completion) = {
+            let mut workers =
+                if block && !children.is_empty() && self.shutdown.get() == Shutdown::Running {
+                    // Optional readiness must not prevent reaping owned children.
+                    rmake_linux::guile::WorkerWait::begin()
+                        .ok()
+                        .filter(rmake_linux::guile::WorkerWait::is_active)
+                } else {
+                    None
+                };
+            let poll_interval = workers
+                .as_ref()
+                .and_then(rmake_linux::guile::WorkerWait::poll_interval);
+            let retry_deadline = workers
+                .as_ref()
+                .and(load_retry)
+                .map(|retry| std::time::Instant::now() + retry);
+            let mut maximum_wait = load_retry;
+            let mut children = children;
+            loop {
+                let events = rmake_linux::child::wait_with_notification(
+                    &children,
+                    block,
+                    true,
+                    additional,
+                    workers.as_ref().and_then(|wait| wait.descriptor()),
+                    maximum_wait.into_iter().chain(poll_interval).min(),
+                )?;
+                let Some(wait) = &mut workers else {
+                    break (events.children, None);
+                };
+                drop(children);
+                self.observe_interrupt();
+                if self.interrupt.is_some() {
+                    break (events.children, None);
+                }
+                let worker_tick = poll_interval.is_some()
+                    && events.timed_out
+                    && retry_deadline.is_none_or(|deadline| std::time::Instant::now() < deadline);
+                // PID-only children are candidates for reaping on every poll.
+                // Keep admission through a timer tick when none has exited.
+                let completion = worker_tick
+                    .then(|| self.ready_parallel_job(&events.children))
+                    .flatten();
+                if events.notification_only || (worker_tick && completion.is_none()) {
+                    // A callback did not finish the scheduler wait. Retain
+                    // admission across a worker's next synchronous request.
+                    if !wait.pending() || self.service_parallel_workers() {
+                        maximum_wait = retry_deadline.map(|deadline| {
+                            deadline.saturating_duration_since(std::time::Instant::now())
+                        });
+                        children = self.parallel_child_handles();
+                        continue;
+                    }
+                } else {
+                    // A child or token can wake the poll together with a
+                    // worker. Service accepted requests before closing it.
+                    while !wait.finish_if_idle() && self.service_parallel_workers() {}
+                }
+                break (events.children, completion);
+            }
+        };
+        #[cfg(not(feature = "guile"))]
+        let (ready, observed_completion) = (
+            rmake_linux::child::wait(&children, block, true, additional, load_retry)?,
+            None,
+        );
         // Idle nonblocking polls are an internal graph refresh, rather than a
         // visible reaping pass. A ready completion still reports its live scan.
         if !block && !ready.is_empty() {
             self.job_debug.live(self.output.debug_mask());
         }
         self.observe_interrupt();
-        for identity in ready {
+        if let Some(completion) = observed_completion.or_else(|| self.ready_parallel_job(&ready)) {
+            self.complete_job(completion);
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn ready_parallel_job(&mut self, ready: &[u64]) -> Option<JobResult> {
+        for &identity in ready {
             let (target, job) = self
                 .parallel_jobs
                 .entries_mut()
                 .find(|(_, job)| job.identity == identity)
                 .expect("live child identity");
-            let result = job.child.as_mut().expect("live child").try_wait();
-            let result = match result {
-                Ok(Some(status)) => Some(Ok(status)),
+            let result = match job.child.as_mut().expect("live child").try_wait() {
+                Ok(Some(status)) => Ok(status),
                 Ok(None) => continue,
-                Err(error) => Some(Err(error)),
+                Err(error) => Err(error),
             };
-            let target = target.to_vec();
-            self.complete_job((target, identity, result));
-            return Ok(true);
+            return Some((target.to_vec(), identity, Some(result)));
         }
-        Ok(false)
+        None
     }
 
     fn observe_interrupt(&mut self) {
@@ -3816,7 +3919,7 @@ impl Engine {
             };
             #[cfg(feature = "guile")]
             if worker_pending {
-                if let Err(error) = self.service_serial_workers() {
+                if let Err(error) = self.service_waiting_workers() {
                     workers.cancel();
                     if !matches!(error, ExpandError::Cancelled) {
                         self.expansion_error(None, &error);
@@ -3830,6 +3933,7 @@ impl Engine {
             }
             if let Some(status) = status {
                 crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
+                self.load.reaped();
                 return Ok(SerialWait {
                     status,
                     cleaned,
@@ -3855,21 +3959,29 @@ impl Engine {
         let Some(limit) = self.options.load_limit else {
             return false;
         };
-        let (high, error) = self.load.high(limit);
-        if let Some(error) = error {
-            if error.raw_os_error() == Some(0) {
-                self.stderr(b"cannot enforce load limits on this operating system");
-            } else {
-                self.stderr(
-                    format!(
-                        "cannot enforce load limit: getloadavg: {}",
-                        os_error(&error)
-                    )
-                    .as_bytes(),
-                );
+        let debug = self.output.debug_mask().has(crate::debug::Mask::JOBS);
+        let running = if debug {
+            self.parallel_jobs
+                .values()
+                .filter(|job| job.child.is_some())
+                .count()
+        } else {
+            0
+        };
+        let output = &self.output;
+        let program = &self.program;
+        self.load.high(limit, |event| {
+            if let crate::load::Observation::AverageFailure(error) = event {
+                let body = if error.raw_os_error() == Some(0) {
+                    "cannot enforce load limits on this operating system".to_owned()
+                } else {
+                    format!("cannot enforce load limit: getloadavg: {}", os_error(error))
+                };
+                output.write_parts(true, &[program, b": ", body.as_bytes(), b"\n"]);
+            } else if debug {
+                crate::debug::load(event, limit, running);
             }
-        }
-        high
+        })
     }
 
     fn start_load_waiting(&mut self) {
@@ -3991,10 +4103,11 @@ impl Engine {
                 result.as_ref().is_ok_and(|status| status.success()),
             );
         }
-        if result.as_ref().is_some_and(|status| status.is_ok())
-            && let Some(buffer) = &output
-        {
-            buffer.child_reaped(true);
+        if result.as_ref().is_some_and(|status| status.is_ok()) {
+            self.load.reaped();
+            if let Some(buffer) = &output {
+                buffer.child_reaped(true);
+            }
         }
         let report_error = result
             .as_ref()
@@ -8133,10 +8246,13 @@ impl Engine {
             return Execution::failure(false, Cleanup::None);
         }
         if self.output.debug_mask().has(crate::debug::Mask::WHY) {
+            use crate::debug::TraceReason;
+
+            let prerequisites;
             let reason = if phony {
-                b"target is .PHONY".to_vec()
+                TraceReason::Phony
             } else if before.is_none() {
-                b"target does not exist".to_vec()
+                TraceReason::Missing
             } else {
                 let newer = match self.expand(&mut variables, b"$?", None) {
                     Ok(newer) => newer,
@@ -8145,8 +8261,8 @@ impl Engine {
                         return Execution::fatal(false);
                     }
                 };
-                if newer.is_empty() {
-                    let missing = joined(
+                prerequisites = if newer.is_empty() {
+                    joined(
                         dependencies
                             .iter()
                             .filter(|dependency| {
@@ -8159,28 +8275,17 @@ impl Engine {
                                     })
                             })
                             .map(|dependency| dependency.name.as_slice()),
-                    );
-                    if missing.is_empty() {
-                        b"unknown reasons".to_vec()
-                    } else {
-                        missing
-                    }
+                    )
                 } else {
                     newer
+                };
+                if prerequisites.is_empty() {
+                    TraceReason::Unknown
+                } else {
+                    TraceReason::Prerequisites(&prerequisites)
                 }
             };
-            let prefix = location.map_or_else(|| b"<builtin>: ".to_vec(), location_prefix);
-            self.output.write_parts(
-                false,
-                &[
-                    &prefix,
-                    b"update target '",
-                    target,
-                    b"' due to: ",
-                    &reason,
-                    b"\n",
-                ],
-            );
+            crate::debug::trace_reason(&self.output, location, target, reason);
         }
         let state = RecipeState {
             branch,
@@ -8792,7 +8897,7 @@ impl Engine {
                         .launched(self.output.debug_mask(), record, child.id());
                 }
             }
-            if process.is_ok() && self.options.load_limit.is_some_and(|v| v >= 0.0) {
+            if process.is_ok() {
                 self.load.started();
             }
             let mut signal_cleaned = false;
@@ -9242,8 +9347,8 @@ pub(crate) fn launch_child<T>(
         rmake_linux::environment::Image::from_command(template, order, original_shell)?;
     let mut denied = None;
     let mut missing = io::Error::from_raw_os_error(2);
-    for path in paths {
-        let mut command = Command::new(&path);
+    for path in &paths {
+        let mut command = Command::new(path);
         command.arg0(os(program)).args(template.get_args());
         rmake_linux::signals::configure_child(&mut command);
         match run(command, &environment, program) {
@@ -9251,9 +9356,22 @@ pub(crate) fn launch_child<T>(
             // preserving args/environment but not the recipe's -e/-c flags.
             Err(error) if error.raw_os_error() == Some(8) => {
                 let mut shell = Command::new("/bin/sh");
-                shell.arg(&path).args(template.get_args());
+                shell.arg(path).args(template.get_args());
                 rmake_linux::signals::configure_child(&mut shell);
                 return run(shell, &environment, b"/bin/sh");
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                // A failed fork has not checked the executable yet. Recover
+                // the lookup diagnostic without retrying the child launch.
+                let mut lookup = io::Error::from_raw_os_error(2);
+                for candidate in &paths {
+                    match rmake_linux::process::executable(candidate) {
+                        Ok(()) => return Err(error),
+                        Err(error) if error.raw_os_error() != Some(2) => lookup = error,
+                        Err(_) => {}
+                    }
+                }
+                return Err(lookup);
             }
             Err(error)
                 if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>
@@ -9306,6 +9424,19 @@ mod tests {
 
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn process_pressure_lookup_does_not_retry_the_launch() {
+        let mut command = Command::new("unavailable");
+        command.env("PATH", "/dev/null:/dev/null");
+        let mut attempts = 0;
+        let result = launch_child(b"unavailable", &command, &[], None, |_, _, _| {
+            attempts += 1;
+            Err::<(), _>(io::Error::from_raw_os_error(11))
+        });
+        assert_eq!(attempts, 1);
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(20));
+    }
 
     #[test]
     fn child_signal_diagnostics_keep_libc_names_and_core_dump_status() {

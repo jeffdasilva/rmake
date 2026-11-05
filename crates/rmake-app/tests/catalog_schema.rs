@@ -6,9 +6,13 @@ mod debug_messages;
 
 // Exercise the actual build-time reader with independently constructed MO data.
 use rmake_core::messages as system_messages;
+use system_messages as messages;
 #[allow(dead_code)]
 #[path = "../catalog_validation.rs"]
 mod catalog_validation;
+#[allow(dead_code)]
+#[path = "../../rmake-core/src/database_messages.rs"]
+mod database_messages;
 
 fn one_message(original: &[u8], translated: &[u8]) -> Vec<u8> {
     let mut output = Vec::new();
@@ -62,5 +66,19 @@ fn build_reader_checks_debug_keys_with_reordered_byte_precision() {
         catalog_validation::validate_bytes(&invalid)
             .unwrap_err()
             .contains("ArgumentType")
+    );
+}
+
+#[test]
+fn build_reader_checks_formatted_database_keys() {
+    let key = database_messages::LOAD.msgid.to_bytes();
+    let valid = one_message(key, b"%3$.0f%% (%2$lu / %1$lu)");
+    catalog_validation::validate_bytes(&valid).unwrap();
+
+    let wrong_precision = one_message(key, b"%3$.1f");
+    assert!(
+        catalog_validation::validate_bytes(&wrong_precision)
+            .unwrap_err()
+            .contains("database translation schema: ArgumentType")
     );
 }
