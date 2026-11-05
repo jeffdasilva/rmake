@@ -73,6 +73,16 @@ impl NativeExit {
         }
     }
 
+    #[cfg(feature = "guile")]
+    pub fn finish_signal(&mut self, number: i32) -> u8 {
+        match self {
+            Self::Startup(host) => host.finish_signal(number),
+            Self::Engine(engine) => engine.native_signal_exit(number),
+            // A source-only exit never owns a live native phase.
+            Self::Source(_) => rmake_linux::guile::abort_host(),
+        }
+    }
+
     pub fn finish(&mut self, status: u8) -> u8 {
         match self {
             Self::Startup(host) => host.finish(status),
@@ -139,6 +149,30 @@ impl Host {
             buffer.dump();
         }
         database_output::print_startup(self);
+    }
+
+    #[cfg(feature = "guile")]
+    fn finish_signal(&mut self, number: i32) -> u8 {
+        self.output.process_lifetime().finish();
+        if let Some(directory) = self.restore_directory.take() {
+            let _ = std::env::set_current_dir(directory);
+        }
+        let result = self.evaluate(|database, mut context| {
+            database.terminate_native_signal_with(number, &mut context)
+        });
+        if let Err(error) = result {
+            let error = StartupError::expansion(error);
+            self.output.write_parts(
+                true,
+                &[
+                    &error.prefix(&self.program),
+                    b"*** ",
+                    error.message.as_bytes(),
+                    b".  Stop.\n",
+                ],
+            );
+        }
+        2
     }
 
     fn finish(&mut self, mut status: u8) -> u8 {

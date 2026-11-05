@@ -1,0 +1,21 @@
+[package]
+name = "rmake-app"
+description = "Safe semantic interpreter and application lifecycle for rmake"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+guile = ["rmake-linux/guile"]
+test-support = []
+
+[dependencies]
+rmake-core = { path = "../rmake-core" }
+rmake-linux = { path = "../rmake-linux" }
+
+[lints]
+workspace = true

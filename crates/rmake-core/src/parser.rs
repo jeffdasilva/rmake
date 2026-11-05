@@ -2990,6 +2990,24 @@ impl Database {
         )
     }
 
+    /// Preserve the same actual interpreter host during platform signal exit.
+    pub fn terminate_native_signal_with(
+        &mut self,
+        number: i32,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        let runtime = context
+            .native_runtime()
+            .ok_or_else(|| ExpandError::Unsupported(b"native signal termination".to_vec()))?;
+        runtime.terminate_signal(
+            number,
+            &mut LoadHost {
+                database: self,
+                context: context.reborrow(),
+            },
+        )
+    }
+
     /// Unload a module before rebuilding its file. Destructor effects use the
     /// same scoped interpreter host as loading and ordinary callbacks.
     pub fn unload_native_with(

@@ -54,11 +54,20 @@ unsafe extern "C" {
     fn rm_native_base(address: *mut c_void) -> *mut c_void;
     fn rm_native_flush() -> c_int;
     fn rm_native_stdio_initialize();
+    fn rm_native_stdout_line_buffered();
     fn rm_native_flush_stream(error: c_int) -> c_int;
     fn rm_native_stdout_closed() -> c_int;
     fn rm_native_thread_id() -> usize;
     #[cfg(feature = "guile")]
     fn rg_guile_callback(name: *const c_char, argc: c_uint, argv: *mut *mut c_char) -> *mut c_char;
+    #[cfg(feature = "guile")]
+    fn rg_guile_public_callback(
+        name: *const c_char,
+        argc: c_uint,
+        argv: *mut *mut c_char,
+    ) -> *mut c_char;
+    #[cfg(feature = "guile")]
+    fn rg_workers_function_base(function: *mut c_void, base: *mut usize) -> c_int;
     fn malloc(size: usize) -> *mut c_void;
     fn free(pointer: *mut c_void);
 }
@@ -211,6 +220,32 @@ impl Runtime {
     }
     pub fn unloaded(&self) -> Vec<Vec<u8>> {
         self.0.unloaded.borrow().clone()
+    }
+    /// Register the opt-in Guile function without initializing the language.
+    /// This trusted executable-resident callback needs no foreign image lookup
+    /// or interpreter-thread claim. Actual invocation still requires an active
+    /// dispatcher host. Frontends control their own feature publication.
+    #[cfg(feature = "guile")]
+    pub fn register_guile(&self) -> Result<(), ExpandError> {
+        if self.0.poisoned.get() && !self.0.exiting.get() {
+            return Err(error(
+                b"rmake: native invocation stopped after a fatal error".to_vec(),
+            ));
+        }
+        self.0.functions.borrow_mut().insert(
+            b"guile".to_vec(),
+            Rc::new(NativeFunction {
+                minimum: 0,
+                maximum: Some(1),
+                expand_arguments: true,
+                callback: Rc::new(Callback {
+                    state: Rc::downgrade(&self.0),
+                    function: rg_guile_public_callback as *const () as usize,
+                    owner: None,
+                }),
+            }),
+        );
+        Ok(())
     }
     #[cfg(feature = "guile")]
     pub(crate) fn evaluate_guile(
@@ -385,8 +420,20 @@ impl Runtime {
             }
         }
     }
+    fn function_base(&self, function: usize) -> usize {
+        #[cfg(feature = "guile")]
+        {
+            let mut base = 0;
+            // The worker resolves this while it owns any constructor loader
+            // lock; only an owned integer address crosses back to this thread.
+            if unsafe { rg_workers_function_base(function as *mut c_void, &mut base) } != 0 {
+                return base;
+            }
+        }
+        unsafe { rm_native_base(function as *mut c_void) as usize }
+    }
     fn image_for(&self, function: usize) -> Option<Rc<Image>> {
-        let base = unsafe { rm_native_base(function as *mut c_void) } as usize;
+        let base = self.function_base(function);
         KNOWN_IMAGES.with(|known| {
             let mut known = known.borrow_mut();
             known.retain(|image| image.strong_count() != 0);
@@ -469,7 +516,7 @@ impl Runtime {
         {
             image
                 .base
-                .set(unsafe { rm_native_base(request.function) } as usize);
+                .set(self.function_base(request.function as usize));
         }
         host.registered_function_name(&name);
         let callback = Rc::new(Callback {
@@ -872,6 +919,12 @@ pub fn flush_standard_streams() -> std::io::Result<()> {
 /// Sessions initialize this lazily before the first object constructor executes.
 pub fn initialize_stdio() {
     unsafe { rm_native_stdio_initialize() };
+}
+
+/// Publish the running application's C stdout policy after early CLI exits.
+/// Registering final stdout cleanup and loading a native module do not select it.
+pub fn line_buffer_stdout() {
+    unsafe { rm_native_stdout_line_buffered() };
 }
 
 /// Flush only the selected libc stream before a direct host write to that

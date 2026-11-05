@@ -57,6 +57,18 @@ pub trait NativeRuntime {
         ))
     }
 
+    /// Terminate after cooperative signal cleanup on the platform's ordinary
+    /// foreign stack. The retained host remains valid until termination.
+    fn terminate_signal(
+        &self,
+        _number: i32,
+        _host: &mut dyn NativeHost,
+    ) -> Result<(), ExpandError> {
+        Err(ExpandError::Unsupported(
+            b"native signal termination".to_vec(),
+        ))
+    }
+
     fn unload(&self, _name: &[u8], _host: &mut dyn NativeHost) -> Result<bool, ExpandError> {
         Ok(false)
     }
@@ -513,6 +525,52 @@ mod tests {
             self.active.set(depth);
             Some(result)
         }
+    }
+
+    #[test]
+    fn signal_exit_bridge_keeps_the_actual_database_and_caller_location() {
+        struct SignalRuntime;
+        impl NativeRuntime for SignalRuntime {
+            fn lookup(&self, _: &[u8]) -> Option<Rc<NativeFunction>> {
+                None
+            }
+            fn load(
+                &self,
+                _: &[u8],
+                _: bool,
+                _: &Location,
+                _: &mut dyn NativeHost,
+            ) -> Result<LoadOutcome, ExpandError> {
+                unreachable!("signal bridge does not load a module")
+            }
+            fn terminate_signal(
+                &self,
+                number: i32,
+                host: &mut dyn NativeHost,
+            ) -> Result<(), ExpandError> {
+                assert_eq!(number, 15);
+                assert_eq!(host.expand(b"$(RETAINED)")?, b"actual");
+                host.evaluate(b"SIGNAL_EFFECT += once\n", None)
+            }
+        }
+        let mut database = Database::default();
+        database
+            .variables
+            .define_literal(b"RETAINED", b"actual", Origin::File)
+            .unwrap();
+        let location = Location {
+            file: b"caller.mk".as_slice().into(),
+            line: 23,
+        };
+        let mut output = |_: Output<'_>| {};
+        let mut context = ExpansionContext::new(Some(&location), &mut output)
+            .with_native_runtime(Rc::new(SignalRuntime));
+        database
+            .terminate_native_signal_with(15, &mut context)
+            .unwrap();
+        let effect = database.variables.get(b"SIGNAL_EFFECT").unwrap();
+        assert_eq!(effect.raw_value(), b"once");
+        assert_eq!(effect.definition(), Some(&location));
     }
 
     #[test]

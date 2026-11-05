@@ -7,7 +7,7 @@
 .PHONY: test-database-output test-database-search test-database-numeric
 .PHONY: test-database-lifecycle
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
-.PHONY: bootstrap-guile test-guile-components
+.PHONY: bootstrap-guile test-guile-components test-guile-frontend
 .PHONY: test-native-fenv
 .PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe
 
@@ -27,6 +27,8 @@ DATABASE_LIFECYCLE_GROUP ?= all
 DATABASE_LIFECYCLE_CASE ?=
 COLLATION_CASE ?=
 LOCALE_DATA_ROOT ?= $(CURDIR)/.tools/locale-data
+GUILE_TOOLCHAIN_ROOT ?= $(CURDIR)/.tools/guile
+GUILE_FRONTEND_OUTPUT ?= $(CURDIR)/artifacts/guile-frontend
 NATIVE_FENV_CASE ?=
 LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
@@ -129,6 +131,7 @@ help:
 		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
 		'  test-database-numeric Compare native rounding and registration history' \
 		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
+		'  test-guile-frontend Compare the enabled application with the verified Guile reference' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-stdin-sources Compare named stdin lifetime, restarts and cleanup' \
 		'  test-process-restarts Compare new process entry and executable replacement' \
@@ -178,10 +181,14 @@ bootstrap-integration:
 	$(PYTHON) tools/integration.py --bootstrap-only
 
 bootstrap-guile: bootstrap-oracle
-	$(PYTHON) tools/guile_toolchain.py --reference
+	$(PYTHON) tools/guile_toolchain.py --root "$(GUILE_TOOLCHAIN_ROOT)" --reference
 
 test-guile-components: bootstrap-rust bootstrap-guile
-	$(PYTHON) tools/guile_toolchain.py --components
+	$(PYTHON) tools/guile_toolchain.py --root "$(GUILE_TOOLCHAIN_ROOT)" --components
+
+test-guile-frontend: bootstrap-rust bootstrap-guile
+	+$(MAKE) --no-print-directory build release
+	$(PYTHON) tools/guile_frontend_gate.py --profile "$(GUILE_TOOLCHAIN_ROOT)/reference-profile.json" --default-debug "$(CANDIDATE)" --default-release "$(M4_RELEASE)" --output "$(GUILE_FRONTEND_OUTPUT)"
 
 bootstrap-rust:
 	$(PYTHON) tools/rust.py bootstrap

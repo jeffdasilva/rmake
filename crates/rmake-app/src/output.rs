@@ -54,6 +54,7 @@ struct State {
     changed_directory: Cell<bool>,
     recursive: Cell<bool>,
     debug: Cell<crate::debug::Mask>,
+    debug_signal: Cell<Option<rmake_linux::signals::DebugHandle>>,
     print_database: Cell<bool>,
     compatibility_header: Cell<bool>,
 }
@@ -76,15 +77,32 @@ impl Controller {
             changed_directory: Cell::new(false),
             recursive: Cell::new(false),
             debug: Cell::new(crate::debug::Mask::NONE),
+            debug_signal: Cell::new(None),
             print_database: Cell::new(false),
             compatibility_header: Cell::new(false),
         }))
     }
+    pub fn bind_debug_signal(&self, handle: rmake_linux::signals::DebugHandle) {
+        self.0.debug_signal.set(Some(handle));
+    }
+    pub fn activate_debug_signal(&self) -> std::io::Result<()> {
+        if let Some(handle) = self.0.debug_signal.get() {
+            handle.activate(self.0.debug.get().bits())?;
+        }
+        Ok(())
+    }
     pub fn debug_mask(&self) -> crate::debug::Mask {
-        self.0.debug.get()
+        self.0
+            .debug_signal
+            .get()
+            .and_then(|handle| handle.current())
+            .map_or_else(|| self.0.debug.get(), crate::debug::Mask::from_bits)
     }
     pub fn set_debug_mask(&self, mask: crate::debug::Mask) {
         self.0.debug.set(mask);
+        if let Some(handle) = self.0.debug_signal.get() {
+            handle.publish(mask.bits());
+        }
     }
     pub fn database_requested(&self) -> bool {
         self.0.print_database.get()
