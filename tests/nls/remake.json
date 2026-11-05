@@ -1,0 +1,438 @@
+{
+  "classification": "Three expectation-only refinements. GNU omits ordinary blocked-goal warnings during makefile remake. Initial models and observations retained.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {
+    "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e"
+  },
+  "rows": [
+    {
+      "id": "nls-remake-first-default-is-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "GNUmakefile/keep": "",
+        "Makefile": "242866696c65203e3e7365656e2c726561642d6c6f776572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "C.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20474e556d616b6566696c653a20404f535f44455441494c402e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-second-default-is-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "makefile/keep": "",
+        "Makefile": "242866696c65203e3e7365656e2c726561642d6c6f776572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206d616b6566696c65203a20404f535f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-last-default-is-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile/keep": ""
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a204d616b6566696c65203a20404f535f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-explicit-ignores-default-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-f",
+        "Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "GNUmakefile/keep": "",
+        "Makefile": "242866696c65203e3e7365656e2c726561642d6c6f776572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561642d6c6f7765720a"
+      }
+    },
+    {
+      "id": "nls-remake-first-default-symlink-to-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "physical/keep": "",
+        "Makefile": "242866696c65203e3e7365656e2c726561642d6c6f776572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "symlinks": {
+        "GNUmakefile": "physical"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20474e556d616b6566696c65203a20404f535f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-first-default-dangling-symlink",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c726561642d6c6f776572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "symlinks": {
+        "GNUmakefile": "absent-physical"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a20474e556d616b6566696c65203a20404f535f44455441494c400a6d616b653a202a2a2a20417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0474e556d616b6566696c65c2a0c2bb2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-existing-include-recipe-fails",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "part.mk": "56203d2070726573656e740a",
+        "Makefile": "696e636c75646520706172742e6d6b0a2e50484f4e593a20666f7263650a706172742e6d6b3a20666f7263653b4066616c73650a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20706172742e6d6b5d204572726f7220310a4d616b6566696c653a313a20c389636865632064652072656661627269636174696f6e206475206d616b6566696c6520c2abc2a0706172742e6d6bc2a0c2bb2e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-existing-main-recipe-fails",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e50484f4e593a20666f7263650a4d616b6566696c653a20666f7263653b4066616c73650a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a323a204d616b6566696c655d204572726f7220310a6d616b653a20c389636865632064652072656661627269636174696f6e206475206d616b6566696c6520c2abc2a04d616b6566696c65c2a0c2bb2e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-existing-include-missing-prerequisite",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "part.mk": "56203d2070726573656e740a",
+        "Makefile": "696e636c75646520706172742e6d6b0a706172742e6d6b3a20616273656e742e6465703b406563686f20666f7262696464656e0a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a2020417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0616273656e742e646570c2a0c2bb2c206ec3a9636573736169726520706f757220c2abc2a0706172742e6d6bc2a0c2bb2e0a4d616b6566696c653a313a20c389636865632064652072656661627269636174696f6e206475206d616b6566696c6520c2abc2a0706172742e6d6bc2a0c2bb2e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-existing-include-failed-prerequisite",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "part.mk": "56203d2070726573656e740a",
+        "Makefile": "696e636c75646520706172742e6d6b0a706172742e6d6b3a206661696c696e672e6465703b406563686f20666f7262696464656e0a6661696c696e672e6465703a3b4066616c73650a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a206661696c696e672e6465705d204572726f7220310a4d616b6566696c653a313a20c389636865632064652072656661627269636174696f6e206475206d616b6566696c6520c2abc2a0706172742e6d6bc2a0c2bb2e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-absent-include-missing-prerequisite",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "696e636c75646520706172742e6d6b0a706172742e6d6b3a20616273656e742e6465703b406563686f20666f7262696464656e0a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a20706172742e6d6b3a20404f535f44455441494c400a6d616b653a202a2a2a2020417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0616273656e742e646570c2a0c2bb2c206ec3a9636573736169726520706f757220c2abc2a0706172742e6d6bc2a0c2bb2e0a4d616b6566696c653a313a20c389636865632064652072656661627269636174696f6e206475206d616b6566696c6520c2abc2a0706172742e6d6bc2a0c2bb2e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-absent-include-without-rule-keep",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "696e636c75646520706172742e6d6b0a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a20706172742e6d6b3a20404f535f44455441494c400a6d616b653a202a2a2a20417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0706172742e6d6bc2a0c2bb2e0a4d616b6566696c653a313a20c389636865632064652072656661627269636174696f6e206475206d616b6566696c6520c2abc2a0706172742e6d6bc2a0c2bb2e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-optional-existing-failed-prerequisite",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "part.mk": "56203d2070726573656e740a",
+        "Makefile": "2d696e636c75646520706172742e6d6b0a706172742e6d6b3a206661696c696e672e6465703b406563686f20666f7262696464656e0a6661696c696e672e6465703a3b4066616c73650a2e50484f4e593a20616c6c0a616c6c3a3b406563686f206e6f726d616c0a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6e6f726d616c0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-remake-existing-multiple-live-publication",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-k",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a696e636c7564652066697273742e6d6b207365636f6e642e6d6b0a2e50484f4e593a20666f7263650a66697273742e6d6b3a20666f7263653b40242866696c65203e3e7365656e2c66697273742966616c73650a7365636f6e642e6d6b3a20666f7263653b40242866696c65203e3e7365656e2c7365636f6e642924286e6c735f707269766174655f63202966616c73650a2e50484f4e593a20616c6c0a616c6c3a3b406563686f20666f7262696464656e0a",
+        "first.mk": "46495253543d310a",
+        "second.mk": "5345434f4e443d310a"
+      },
+      "symlinks": {},
+      "updates": {},
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "errno_fact": null,
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2066697273742e6d6b5d204572726f7220310a6d616b653a202a2a2a205b4d616b6566696c653a353a207365636f6e642e6d6b5d204572726f7220310a4d616b6566696c653a323a204661696c656420746f2072656d616b65206d616b6566696c65202766697273742e6d6b272e0a4d616b6566696c653a323a204661696c656420746f2072656d616b65206d616b6566696c6520277365636f6e642e6d6b272e0a",
+        "seen_hex": "616e63686f720a66697273740a7365636f6e640a"
+      }
+    }
+  ]
+}

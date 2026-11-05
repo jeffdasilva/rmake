@@ -1826,6 +1826,7 @@ impl Engine {
                         name: error.resolved_name.unwrap_or_else(|| name.to_vec()),
                         optional: true,
                         missing: true,
+                        location: None,
                         read_error: None,
                     });
                     continue;
@@ -1836,6 +1837,7 @@ impl Engine {
                 name: file.name.clone(),
                 optional: true,
                 missing: false,
+                location: None,
                 read_error: None,
             });
             if let Err(error) = self.database.variables.append_literal_at(
@@ -2162,13 +2164,16 @@ impl Engine {
             if files.is_empty() {
                 let mut default_file = None;
                 for name in ["GNUmakefile", "makefile", "Makefile"] {
-                    if let Err(error) = self.directory_member(name.as_bytes()) {
-                        self.expansion_error(None, &error);
-                        return 2;
-                    }
-                    if Path::new(name).is_file() {
-                        default_file = Some(name);
-                        break;
+                    match self.directory_member(name.as_bytes()) {
+                        Ok(true) => {
+                            default_file = Some(name);
+                            break;
+                        }
+                        Ok(false) => {}
+                        Err(error) => {
+                            self.expansion_error(None, &error);
+                            return 2;
+                        }
                     }
                 }
                 if let Some(file) = default_file {
@@ -2181,6 +2186,7 @@ impl Engine {
                             name: name.to_vec(),
                             optional: true,
                             missing: true,
+                            location: None,
                             read_error: None,
                         });
                     }
@@ -2236,6 +2242,7 @@ impl Engine {
                             name: file.as_os_str().as_bytes().to_vec(),
                             optional: false,
                             missing: true,
+                            location: None,
                             read_error: None,
                         });
                         continue;
@@ -2247,6 +2254,7 @@ impl Engine {
                         name: file.as_os_str().as_bytes().to_vec(),
                         optional: false,
                         missing: false,
+                        location: None,
                         read_error: None,
                     });
                 }
@@ -2611,10 +2619,10 @@ impl Engine {
                         })
                 {
                     if !makefile.optional
-                        && let Some((location, detail)) = makefile.read_error
+                        && let Some(detail) = makefile.read_error
                     {
                         skipped_errors.push(PendingIncludeError {
-                            location: Some(location),
+                            location: makefile.location,
                             name: makefile.name,
                             detail,
                         });
@@ -2669,8 +2677,8 @@ impl Engine {
                     makefile
                         .read_error
                         .as_ref()
-                        .map(|(location, detail)| PendingIncludeError {
-                            location: Some(location.clone()),
+                        .map(|detail| PendingIncludeError {
+                            location: makefile.location.clone(),
                             name: makefile.name.clone(),
                             detail: detail.clone(),
                         })
@@ -2680,14 +2688,8 @@ impl Engine {
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
                 failed |= result.failed && !makefile.optional;
-                if result.failed
-                    && !result.fatal
-                    && result.ran
-                    && self.options.keep_going
-                    && !makefile.optional
-                    && let Some((location, _)) = makefile.read_error
-                {
-                    failed_remakes.push((location, makefile.name.clone()));
+                if result.failed && !result.fatal && self.options.keep_going && !makefile.optional {
+                    failed_remakes.push((makefile.location, makefile.name.clone()));
                 }
                 if !result.failed {
                     self.database_unchecked_times
@@ -2734,7 +2736,7 @@ impl Engine {
                     &self.output,
                     &self.program,
                     Output::Warning {
-                        location: Some(&location),
+                        location: location.as_ref(),
                         message: &crate::messages::system(Message::FailedMakefileRemake(&name)),
                     },
                 );

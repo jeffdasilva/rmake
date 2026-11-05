@@ -466,3 +466,8 @@ notices. This does not claim that every diagnostic producer is covered.
 filename and saved Linux error to the actual GNU publication phase. Twenty
 new models include a remake recipe that changes the locale and proves the
 later libc error translation without changing which errno was captured.
+
+[Default makefile selection and keep-going remake summaries](nls-diagnostics.md)
+now retain the first matching directory entry and defer required-file
+summaries until after the remake phase. Fourteen original GNU2 cases cover
+source loci, failed prerequisites and locale selection.

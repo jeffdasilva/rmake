@@ -548,6 +548,7 @@ mod tests {
             name: b"missing.mk".to_vec(),
             optional: true,
             missing: true,
+            location: None,
             read_error: None,
         });
         assert!(

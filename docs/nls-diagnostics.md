@@ -149,3 +149,14 @@ A separate fixture binds a test-owned libc catalog during a failing remake
 recipe. It records different translations for the saved open error and a
 new, unrelated error, then checks that the deferred diagnostic uses the
 saved error number and the locale active at publication.
+
+Default makefile lookup selects the first matching directory entry in GNU's
+filename order. The ordinary reader then handles directories, symlinks and
+open errors. With `-k`, required makefiles that fail during remake report
+summaries after the remake chain. The summaries retain the include source
+when applicable and use the locale active at publication. Optional
+makefiles suppress these errors. The goal-phase blocked-target warning is
+reserved for ordinary goals.
+
+Fourteen cases for default source selection and failed remake summaries
+bring the diagnostic gate to 113 cases.

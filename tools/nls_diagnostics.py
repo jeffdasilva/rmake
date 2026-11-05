@@ -86,8 +86,9 @@ def cases(selection):
     producers = json.loads((DATA / "producers.json").read_bytes())
     loader = json.loads((DATA / "loader.json").read_bytes())
     include = json.loads((DATA / "include.json").read_bytes())
-    suites = (data, structure, producers, loader, include)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20):
+    remake = json.loads((DATA / "remake.json").read_bytes())
+    suites = (data, structure, producers, loader, include, remake)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20, 14):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -113,6 +114,8 @@ def cases(selection):
     if set(include_fixtures) != {"nls_control.c", "include_errno.c"} or include_fixtures["nls_control.c"] != fixtures["nls_control.c"]:
         raise h.HarnessError("include fixture inventory or shared source identity differs")
     fixtures["include_errno.c"] = include_fixtures["include_errno.c"]
+    if remake["fixture_sha256"] != {"nls_control.c": fixtures["nls_control.c"]}:
+        raise h.HarnessError("remake fixture inventory or shared source identity differs")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -132,7 +135,8 @@ def prepare(row, environment):
     return native.Model(row["id"], {name: bytes.fromhex(value) for name, value in row["files"].items()},
                         {"exit_code": expected["exit_code"], "stdout_hex": expected_bytes("stdout").hex(),
                          "stderr_hex": expected_bytes("stderr").hex()}, expected_bytes("seen"), modules,
-                        tuple(row["args"]), {**row["environment"], **environment})
+                        tuple(row["args"]), {**row["environment"], **environment},
+                        symlinks=row.get("symlinks", {}))
 
 
 def loader_witness(case, runtime, kind):
@@ -184,6 +188,7 @@ def main(argv=None):
               "producer_sha256": h.sha256_file(DATA / "producers.json"),
               "loader_sha256": h.sha256_file(DATA / "loader.json"),
               "include_sha256": h.sha256_file(DATA / "include.json"),
+              "remake_sha256": h.sha256_file(DATA / "remake.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
