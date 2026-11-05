@@ -2,6 +2,10 @@
 
 A Rust implementation of GNU Make, under active development.
 
+An [optional Guile architecture component](docs/guile-component.md) has a
+separate verified toolchain and required safety CI. It does not yet expose a
+Guile make function or close the Guile compatibility profile.
+
 [Startup locale selection](docs/startup-locale.md) adds 183 separate glibc
 C/C.UTF8 profiles for exact wildcard, argument, assignment and recursive behavior.
 Both builds pass; NLS and broader profile acceptance remain open.

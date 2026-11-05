@@ -45,9 +45,33 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  guile-components:
+    name: guile-component-safety
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify tools, separate enabled reference and component architecture
+        run: make test-guile-components
+      - name: Retain Guile profile provenance
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: guile-component-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            .tools/guile/profile.json
+            .tools/guile/reference-profile.json
+            .tools/guile/references/*.json
+            .tools/guile/references/*-build.log
+            .tools/guile/provenance/signature-status.txt
+            .tools/guile/provenance/*.package
+          if-no-files-found: ignore
+          retention-days: 14
+
   compatibility:
     name: compatibility
-    needs: validation
+    needs: [validation, guile-components]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -55,4 +79,7 @@ jobs:
       - name: Require every compatibility gate
         env:
           VALIDATION_RESULT: ${{ needs.validation.result }}
-        run: test "$VALIDATION_RESULT" = success
+          GUILE_COMPONENT_RESULT: ${{ needs['guile-components'].result }}
+        run: |
+          test "$VALIDATION_RESULT" = success
+          test "$GUILE_COMPONENT_RESULT" = success

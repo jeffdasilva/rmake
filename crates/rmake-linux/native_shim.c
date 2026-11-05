@@ -5,6 +5,7 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
+#include <fenv.h>
 #include <signal.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -42,6 +43,29 @@ struct rm_session {
 };
 static _Thread_local struct rm_session *active;
 static _Thread_local struct rm_session *abandoned;
+/* A native invocation changes stacks within one operating-system thread.
+ * ucontext restores the destination stack's old floating environment unless
+ * we explicitly carry the latest thread state across each boundary. */
+static _Thread_local fenv_t thread_environment;
+static void capture_environment(void) {
+    int saved=errno;
+    if (fegetenv(&thread_environment)) _Exit(2);
+    errno=saved;
+}
+static void restore_environment(void) {
+    int saved=errno;
+    if (fesetenv(&thread_environment)) _Exit(2);
+    errno=saved;
+}
+#ifdef RMAKE_GUILE_DISPATCH
+typedef const void *(*rg_operation)(void *);
+extern int rg_dispatch_active(void);
+extern int rg_dispatch_on_host(void);
+extern const void *rg_dispatch_call(void *,rg_operation,void *);
+extern void *rg_dispatch_yield(void *,const void *);
+extern void rg_dispatch_abandon(void *);
+extern int rg_guile_prepare_interrupts(void);
+#endif
 
 static struct rm_session *current(void) {
     if (!active) {
@@ -52,9 +76,17 @@ static struct rm_session *current(void) {
 }
 static void yield_request(struct rm_session *s, int kind) {
     s->request.kind = kind;
+#ifdef RMAKE_GUILE_DISPATCH
+    if (rg_dispatch_active()) {
+        s->reply=rg_dispatch_yield(s,&s->request);
+        return;
+    }
+#endif
     /* Signal masks describe the same operating-system thread across stacks. */
     sigprocmask(SIG_SETMASK, NULL, &s->host.uc_sigmask);
+    capture_environment();
     if (swapcontext(&s->foreign, &s->host) < 0) _Exit(2);
+    restore_environment();
 }
 char *gmk_alloc(unsigned int length) {
     char *value = malloc(length ? length : 1);
@@ -85,8 +117,7 @@ void gmk_add_function(const char *name, rm_callback function,
     s->request.flags = flags;
     yield_request(s, 3);
 }
-static void entry(void) {
-    struct rm_session *s = current();
+static void perform_operation(struct rm_session *s) {
     if (s->operation <= 1) dlerror();
     switch (s->operation) {
     case 0: s->result = dlopen(s->name, s->number); break;
@@ -95,6 +126,15 @@ static void entry(void) {
     case 3: s->result = ((rm_callback)s->function)(s->name, s->argc, s->argv); break;
     case 4: s->number = dlclose(s->function); break;
     case 5: exit(s->number);
+#ifdef RMAKE_GUILE_DISPATCH
+    case 6: {
+        sigset_t mask;
+        if (signal(s->number,SIG_DFL)==SIG_ERR || sigemptyset(&mask)
+            ||sigaddset(&mask,s->number)||sigprocmask(SIG_UNBLOCK,&mask,NULL)) _Exit(2);
+        if (kill(getpid(),s->number)) _Exit(2);
+        _Exit(128+s->number);
+    }
+#endif
     default: abort();
     }
     if (s->operation <= 1 && !s->result) {
@@ -102,9 +142,43 @@ static void entry(void) {
         s->error = error ? strdup(error) : NULL;
     }
     s->done = 1;
+}
+static void entry(void) {
+    /* A newly created context has no resumed swapcontext call of its own. */
+    restore_environment();
+    struct rm_session *s = current();
+    perform_operation(s);
     yield_request(s, 0);
     abort();
 }
+#ifdef RMAKE_GUILE_DISPATCH
+static const void *main_entry(void *data) {
+    struct rm_session *s=data;
+    struct rm_session *previous=active;
+    active=s;
+    if (s->operation!=5&&s->operation!=6&&rg_guile_prepare_interrupts()<0) {
+        s->request.kind=4;
+        active=previous;
+        return &s->request;
+    }
+    perform_operation(s);
+    s->request.kind=0;
+    active=previous;
+    return &s->request;
+}
+void rm_native_set_language_error(const char *message) {
+    struct rm_session *s=current();
+    char *copy=strdup(message);
+    if (!copy) { yield_request(s,4);abort(); }
+    free(s->error);s->error=copy;
+}
+void rm_native_interrupt_request(int number) {
+    struct rm_session *s=current();
+    s->request.minimum=(unsigned int)number;
+    yield_request(s,6);
+    abort();
+}
+#endif
 void rm_native_destroy(struct rm_session *s) {
     if (!s) return;
     if (s->mapping) munmap(s->mapping, s->mapping_size);
@@ -140,6 +214,9 @@ struct rm_session *rm_native_create(int operation, void *function,
         s->argv = calloc(1, sizeof *s->argv);
         if (!s->argv) goto failed;
     }
+#ifdef RMAKE_GUILE_DISPATCH
+    if (rg_dispatch_active()) return s;
+#endif
     long page = sysconf(_SC_PAGESIZE);
     if (page <= 0) goto failed;
     size_t stack = 8 * 1024 * 1024;
@@ -170,13 +247,21 @@ failed:
 }
 const struct rm_request *rm_native_drive(struct rm_session *s, void *reply) {
     if (s->done) return &s->request;
+#ifdef RMAKE_GUILE_DISPATCH
+    if (rg_dispatch_active()) {
+        if (!rg_dispatch_on_host()) _Exit(2);
+        return rg_dispatch_call(s,main_entry,reply);
+    }
+#endif
     s->reply = reply;
     struct rm_session *previous = active;
     active = s;
     sigprocmask(SIG_SETMASK, NULL, &s->foreign.uc_sigmask);
+    capture_environment();
     if (swapcontext(&s->host, &s->foreign) < 0) {
         s->request.kind = 4;
     }
+    restore_environment();
     active = previous;
     return &s->request;
 }
@@ -186,6 +271,9 @@ const char *rm_native_error(const struct rm_session *s) { return s->error; }
 /* On fatal interpretation, foreign automatic objects remain alive until process
  * exit. This retained stack is deliberately never resumed or unmapped. */
 void rm_native_abandon(struct rm_session *s) {
+#ifdef RMAKE_GUILE_DISPATCH
+    rg_dispatch_abandon(s);
+#endif
     s->abandoned_next = abandoned;
     abandoned = s;
 }

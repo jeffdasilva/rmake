@@ -8,6 +8,16 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+guile = []
+
+[[test]]
+name = "guile_dispatcher"
+path = "tests/guile_dispatcher.rs"
+harness = false
+required-features = ["guile"]
+
 [build-dependencies]
 cc = "=1.10.0"
 

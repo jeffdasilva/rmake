@@ -5,6 +5,8 @@
 
 .PHONY: bootstrap-integration test-integration
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
+.PHONY: bootstrap-guile test-guile-components
+.PHONY: test-native-fenv
 
 .PHONY: test-job-debug
 
@@ -14,6 +16,7 @@ PYTHON ?= python3
 INTEGRATION_CASE ?=
 COLLATION_CASE ?=
 LOCALE_DATA_ROOT ?= $(CURDIR)/.tools/locale-data
+NATIVE_FENV_CASE ?=
 LOCALE_CASE ?=
 ORACLE ?= $(CURDIR)/.tools/oracle/bin/make
 CANDIDATE ?= $(CURDIR)/target/debug/rmake
@@ -65,6 +68,7 @@ help:
 		'Available targets:' \
 		'  bootstrap       Install local Rust and build the pinned GNU Make oracle' \
 		'  bootstrap-integration Verify pinned external project source archives' \
+		'  bootstrap-guile  Verify the optional Ubuntu Guile tools and separate oracle' \
 		'  doctor          Check the toolchain and oracle' \
 		'  build / release Build debug / optimized rmake' \
 		'  fmt / fmt-check Format Rust / check formatting' \
@@ -106,6 +110,8 @@ help:
 		'  test-jobserver  Compare mixed GNU/rmake FIFO and pipe jobserver trees' \
 		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
+		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
+		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
@@ -147,6 +153,12 @@ bootstrap: bootstrap-rust bootstrap-oracle bootstrap-integration
 
 bootstrap-integration:
 	$(PYTHON) tools/integration.py --bootstrap-only
+
+bootstrap-guile: bootstrap-oracle
+	$(PYTHON) tools/guile_toolchain.py --reference
+
+test-guile-components: bootstrap-rust bootstrap-guile
+	$(PYTHON) tools/guile_toolchain.py --components
 
 bootstrap-rust:
 	$(PYTHON) tools/rust.py bootstrap
@@ -245,6 +257,7 @@ test-include-stat: build oracle-verify
 test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_FENV_CASE=native-fenv-successive-upward test-native-fenv
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
@@ -281,6 +294,7 @@ test-m5-release: test-m4-release
 test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
+	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native-fenv/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
 	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/optimized.json
 	$(PYTHON) tools/native_modules.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native/optimized.json
@@ -313,6 +327,9 @@ bootstrap-locale-data:
 
 test-locale-collation: build oracle-verify
 	$(PYTHON) tools/locale_collation.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/locale-collation/development.json $(if $(COLLATION_CASE),--case "$(COLLATION_CASE)")
+
+test-native-fenv: build oracle-verify
+	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native-fenv/development.json $(if $(NATIVE_FENV_CASE),--case "$(NATIVE_FENV_CASE)")
 
 test-locales: build oracle-verify
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/locales/development.json $(if $(LOCALE_CASE),--case "$(LOCALE_CASE)")
@@ -405,9 +422,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-locales test-locale-collation
+test: test-integration test-native-fenv test-locales test-locale-collation
 
-check: test-integration test-locales test-locale-collation
+check: test-integration test-native-fenv test-locales test-locale-collation
 
 ci: check test-selfhost
 
