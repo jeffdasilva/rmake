@@ -556,7 +556,6 @@ impl Clone for NamesCache {
 
 #[derive(Clone, Debug)]
 struct Bindings {
-    target: Option<Arc<[u8]>>,
     database_history: Option<crate::database::TableHistory>,
     values: std::collections::HashMap<Arc<[u8]>, Variable>,
     order: crate::variable_order::NameOrder,
@@ -572,7 +571,6 @@ impl Default for Bindings {
 impl Bindings {
     fn new(size: usize) -> Self {
         Self {
-            target: None,
             database_history: None,
             values: std::collections::HashMap::new(),
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
@@ -684,6 +682,7 @@ fn empty_bindings(size: usize) -> Arc<Bindings> {
 struct VariableLayer {
     file_locals: bool,
     variables: Arc<Bindings>,
+    target: Option<Arc<[u8]>>,
     inherited: bool,
     global: bool,
     pattern: bool,
@@ -1186,10 +1185,13 @@ impl VariableStore {
     pub fn with_target_scopes(&self, scopes: &[&TargetScope]) -> Self {
         let mut layers = Vec::with_capacity(scopes.len() + self.layers.len() + 1);
         for scope in scopes.iter().rev() {
-            if !scope.variables.is_empty() {
+            // An explicit owner can receive its first declaration during eval.
+            // Keep its slot without allocating an empty binding table.
+            if scope.target.is_some() || !scope.variables.is_empty() {
                 layers.push(VariableLayer {
                     file_locals: false,
                     variables: Arc::clone(&scope.variables),
+                    target: scope.target.clone(),
                     inherited: false,
                     global: false,
                     pattern: scope.pattern,
@@ -1200,6 +1202,7 @@ impl VariableStore {
             layers.push(VariableLayer {
                 file_locals: self.file_locals,
                 variables: Arc::clone(&self.variables),
+                target: None,
                 inherited: true,
                 global: !self.scoped,
                 pattern: false,
@@ -1208,6 +1211,7 @@ impl VariableStore {
         layers.extend(self.layers.iter().map(|layer| VariableLayer {
             file_locals: layer.file_locals,
             variables: Arc::clone(&layer.variables),
+            target: layer.target.clone(),
             inherited: true,
             global: layer.global,
             pattern: layer.pattern,
@@ -1257,6 +1261,7 @@ impl VariableStore {
         layers.push(VariableLayer {
             file_locals: self.file_locals,
             variables: Arc::clone(&self.variables),
+            target: None,
             inherited: false,
             global: false,
             pattern: false,
@@ -1280,15 +1285,17 @@ impl VariableStore {
         if let Some(layer) = self
             .layers
             .iter_mut()
-            .find(|layer| !layer.inherited && !layer.global && !layer.pattern)
+            .find(|layer| !layer.inherited && layer.target.is_some())
         {
             layer.variables = Arc::clone(&scope.variables);
+            layer.target.clone_from(&scope.target);
         } else if !scope.variables.is_empty() {
             self.layers.insert(
                 0,
                 VariableLayer {
                     file_locals: false,
                     variables: Arc::clone(&scope.variables),
+                    target: scope.target.clone(),
                     inherited: false,
                     global: false,
                     pattern: false,
@@ -1312,6 +1319,7 @@ impl VariableStore {
                 VariableLayer {
                     file_locals: false,
                     variables: Arc::new(bindings),
+                    target: None,
                     inherited: true,
                     global: false,
                     pattern: false,
@@ -1338,6 +1346,7 @@ impl VariableStore {
             self.layers.push(VariableLayer {
                 file_locals: false,
                 variables: Arc::clone(&globals.variables),
+                target: None,
                 inherited: true,
                 global: true,
                 pattern: false,
@@ -1356,12 +1365,7 @@ impl VariableStore {
             return;
         }
         for layer in &mut self.layers {
-            if let Some(scope) = layer
-                .variables
-                .target
-                .as_deref()
-                .and_then(|name| scopes.get(name))
-            {
+            if let Some(scope) = layer.target.as_deref().and_then(|name| scopes.get(name)) {
                 layer.variables = Arc::clone(&scope.variables);
             }
         }
@@ -1370,8 +1374,28 @@ impl VariableStore {
 
     fn declared_binding_at(&self, name: &[u8], layer: usize) -> Option<&Variable> {
         let layer = self.layers.get(layer.checked_sub(1)?)?;
-        layer.variables.target.as_ref()?;
+        layer.target.as_ref()?;
         layer.variables.get(name)
+    }
+
+    pub(crate) fn file_scope_history(
+        &self,
+        target: &[u8],
+    ) -> Option<crate::database::TableHistory> {
+        let index = self
+            .layers
+            .iter()
+            .position(|layer| layer.target.as_deref() == Some(target))?;
+        let locals = if index == 0 {
+            &self.variables
+        } else {
+            let layer = &self.layers[index - 1];
+            if !layer.file_locals {
+                return None;
+            }
+            &layer.variables
+        };
+        locals.database_history.clone()
     }
 
     /// Environment binding selection treats pattern layers as inherited even
@@ -1419,7 +1443,9 @@ impl VariableStore {
             let paired = locals
                 && sources
                     .get(index + 1)
-                    .is_some_and(|(_, global, locals, pattern)| !global && !locals && !pattern);
+                    .is_some_and(|(explicit, global, locals, pattern)| {
+                        !explicit.is_empty() && !global && !locals && !pattern
+                    });
             let merged = paired.then(|| {
                 let mut order = sources[index + 1].0.order.clone();
                 bindings.order.replay_into(&mut order);
@@ -2159,6 +2185,10 @@ impl TargetScope {
         }
     }
 
+    pub(crate) fn set_file_history(&mut self, history: crate::database::TableHistory) {
+        Arc::make_mut(&mut self.variables).database_history = Some(history);
+    }
+
     pub fn database_definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
         self.variables
             .order
@@ -2184,7 +2214,6 @@ impl TargetScope {
     /// File-record merging retains bindings already present on the destination.
     pub fn merge_missing(&mut self, other: &Self) {
         let variables = Arc::make_mut(&mut self.variables);
-        variables.target.clone_from(&self.target);
         for name in other.variables.order.names() {
             if !variables.contains_key(name) {
                 variables.insert(name, other.variables.get(name).unwrap().clone());
@@ -2421,9 +2450,7 @@ impl TargetScope {
             None,
             |store, bytes, shell, context| expand(globals, store, bytes, shell, context),
         )?;
-        let bindings = Arc::make_mut(&mut scope.variables);
-        bindings.target.clone_from(&self.target);
-        let variable = bindings.get_mut(name).unwrap();
+        let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
         if origin != Origin::Override {

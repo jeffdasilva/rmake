@@ -637,11 +637,17 @@ impl Database {
     ) -> VariableStore {
         let mut parent = parent.clone();
         self.refresh_scoped_variables(&mut parent);
-        match (pattern, self.target_scopes.get(target)) {
-            (Some(pattern), Some(scope)) => parent.with_target_scopes(&[pattern, scope]),
-            (Some(pattern), None) => parent.with_target_scopes(&[pattern]),
-            (None, Some(scope)) => parent.with_target_scopes(&[scope]),
-            (None, None) => parent.with_target_scopes(&[]),
+        let empty;
+        let scope = if let Some(scope) = self.target_scopes.get(target) {
+            scope
+        } else {
+            empty = TargetScope::for_target(target);
+            &empty
+        };
+        if let Some(pattern) = pattern {
+            parent.with_target_scopes(&[pattern, scope])
+        } else {
+            parent.with_target_scopes(&[scope])
         }
     }
 
@@ -2627,12 +2633,22 @@ impl Database {
             }
             self.file_records.enter_prerequisite(target);
             let raw_name = assignment.spec.name;
+            let scope = self
+                .target_scopes
+                .entry(target.to_vec())
+                .or_insert_with(|| {
+                    let mut scope = TargetScope::for_target(target);
+                    if let Some(history) = self
+                        .evaluation_scope
+                        .as_ref()
+                        .and_then(|active| active.file_scope_history(target))
+                    {
+                        scope.set_file_history(history);
+                    }
+                    scope
+                });
             let (scope, name) = if raw_name.contains(&b'$') {
-                let mut parse_variables = self
-                    .target_scopes
-                    .entry(target.to_vec())
-                    .or_insert_with(|| TargetScope::for_target(target))
-                    .context(&self.variables);
+                let mut parse_variables = scope.context(&self.variables);
                 let name = self.expand_target_read(
                     target,
                     &mut parse_variables,
@@ -2649,10 +2665,6 @@ impl Database {
                 scope.retain_read_bindings(&parse_variables);
                 (scope, name)
             } else {
-                let scope = self
-                    .target_scopes
-                    .entry(target.to_vec())
-                    .or_insert_with(|| TargetScope::for_target(target));
                 let name = scope
                     .context(&self.variables)
                     .expand_with(raw_name, context.at(Some(location)));
