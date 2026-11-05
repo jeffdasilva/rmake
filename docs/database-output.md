@@ -120,3 +120,17 @@ Pure dry-run simulation also retains branch-local synthetic times, while
 mixed forced and simulated executions can publish their observed physical
 time. Six further original GNU2 comparisons cover this distinction. Explicit
 and implicit grouped rule records have separate remaining requirements.
+
+Grouped database cases separate the owner, peer records and the one logical
+rule declaration. Explicit groups retain each peer's observed filesystem
+mtime and GNU's reported peer order. Implicit multi-output rules also retain
+owner simulation timestamps and the peer's independently observed directory
+identity. The fixtures compare full output and separately check physical
+filesystem times and effects. Explicit grouped double-colon is tracked
+separately.
+
+Explicit grouped double-colon records also track peer completion independently
+of the rule owner. The selected failure and cancellation models cover recipe
+exit, actual signal, `.DELETE_ON_ERROR`, and aliases. The database keeps the
+declared peer spelling and reports its observed physical timestamp after
+cleanup; an interrupted ordinary run does not publish a misleading dump.

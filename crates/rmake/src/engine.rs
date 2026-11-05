@@ -23,6 +23,7 @@ use rmake_core::variables::{
 };
 use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -292,6 +293,16 @@ impl CompletionTime {
     }
 }
 
+/// Diagnostic result provenance is separate from the graph's completion policy.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum DatabaseResult {
+    #[default]
+    Outcome,
+    Simulated,
+    ObservedGroup,
+    RecipeUnstarted,
+}
+
 #[derive(Clone, Copy, Default)]
 struct Outcome {
     time: Option<SystemTime>,
@@ -303,9 +314,7 @@ struct Outcome {
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
-    // A successful simulated recipe has a diagnostic mtime distinct from its
-    // physical observation. The scheduler continues to use `completion`.
-    database_dry_run_mtime: bool,
+    database_result: DatabaseResult,
 }
 
 /// Freshness is a per-parent decision, independent of the intermediate's final
@@ -571,6 +580,7 @@ impl ParallelJobs {
 /// nothing and does not add state to suspended continuations.
 struct TraceInputs<'a> {
     branch: Option<usize>,
+    implicit_group: bool,
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
@@ -1818,7 +1828,9 @@ impl Engine {
             self.output.debug_mask(),
             self.jobserver.as_ref().and_then(Jobserver::owned_slots),
         );
-        if self.native_exit_override.is_none() {
+        if self.native_exit_override.is_none()
+            && (self.interrupt.is_none() || self.shutdown.get() == Shutdown::Reentered)
+        {
             self.print_database();
         }
         status
@@ -4748,6 +4760,7 @@ impl Engine {
                 .map(|selection| (selection.name.as_slice(), &selection.rule))
                 .collect();
             for selection in &plan {
+                let group = selection.rule.group.as_ref();
                 for dependency in selection.rule.dependencies.iter().rev() {
                     if let Some(child) = inferred.get(dependency.name.as_slice()) {
                         self.database.file_records.insert(&dependency.name);
@@ -4755,13 +4768,36 @@ impl Engine {
                             self.database.file_records.insert(&input.name);
                         }
                     } else if selection.name == target && dependency.name != b".WAIT" {
-                        self.database.file_records.insert(&dependency.name);
+                        if group.is_some() {
+                            if let Some(history) = self.database.database_history() {
+                                history.intern(&dependency.name);
+                            }
+                            self.database
+                                .file_records
+                                .enter_prerequisite(&dependency.name);
+                        } else {
+                            self.database.file_records.insert(&dependency.name);
+                        }
                     }
                 }
-                if let Some(group) = &selection.rule.group {
-                    for peer in &group.targets {
+                if let Some(group) = group {
+                    if let Some(history) = self.database.database_history() {
+                        if let Some(stem) = &selection.rule.stem {
+                            history.intern(stem);
+                        }
+                        if let Some(pattern) = &selection.rule.implicit_pattern {
+                            history.record_file_lookup(pattern);
+                        }
+                    }
+                    for (peer, pattern) in &group.implicit_peer_patterns {
                         if peer != &selection.name {
+                            if let Some(history) = self.database.database_history() {
+                                history.intern(peer);
+                            }
                             self.database.file_records.insert(peer);
+                            if let Some(history) = self.database.database_history() {
+                                history.record_file_lookup(pattern);
+                            }
                         }
                     }
                 }
@@ -4989,6 +5025,30 @@ impl Engine {
                                 dependency.name = identity.to_vec();
                             }
                             let name = &dependency.name;
+                            if candidate.rule.group.is_some() && name != b".WAIT" {
+                                let directory = match name.iter().rposition(|&byte| byte == b'/') {
+                                    None => b".".as_slice(),
+                                    Some(0) => b"/",
+                                    Some(index) => &name[..index],
+                                };
+                                // Checking the impossible-name cache first
+                                // registers the directory without reading it.
+                                self.filesystem
+                                    .borrow_mut()
+                                    .execute(
+                                        rmake_core::diagnostic::FilesystemEffect::DirectoryName(
+                                            directory,
+                                        ),
+                                    )
+                                    .map_err(|error| match error {
+                                        rmake_core::diagnostic::FilesystemError::Caller(
+                                            message,
+                                        ) => ExpandError::FileError(message),
+                                        rmake_core::diagnostic::FilesystemError::Unlocated(
+                                            message,
+                                        ) => ExpandError::UnlocatedError(message),
+                                    })?;
+                            }
                             self.refresh_impossible_prerequisites();
                             if name != b".WAIT" && self.impossible_prerequisites.contains(name) {
                                 cancelled.insert(ordinal);
@@ -5788,8 +5848,13 @@ impl Engine {
                     .done
                     .remove(target)
                     .expect("finished double-colon branch");
-                self.database_branch_outcomes
-                    .insert((target.to_vec(), ordinal), result);
+                if result.database_result != DatabaseResult::RecipeUnstarted {
+                    // Group completion can already have observed the owner's
+                    // timestamp after a failed child was reaped.
+                    self.database_branch_outcomes
+                        .entry((target.to_vec(), ordinal))
+                        .or_insert(result);
+                }
                 state.combined.time = result.time;
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
@@ -5798,7 +5863,9 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
-                state.combined.database_dry_run_mtime |= result.database_dry_run_mtime;
+                if result.database_result == DatabaseResult::Simulated {
+                    state.combined.database_result = DatabaseResult::Simulated;
+                }
                 self.record_graph_failure(result);
                 state.active = None;
                 if result.fatal
@@ -5814,8 +5881,9 @@ impl Engine {
             let Some((ordinal, entry)) = state.branches.pop_front() else {
                 // A real recipe refreshes the shared time even if another
                 // branch simulated its recipe during the same update.
-                state.combined.database_dry_run_mtime &=
-                    state.combined.completion == CompletionTime::AssumeNew;
+                if state.combined.completion != CompletionTime::AssumeNew {
+                    state.combined.database_result = DatabaseResult::Outcome;
+                }
                 state.combined.time = if state.phony {
                     None
                 } else if state.combined.completion.preserves() || state.combined.failed {
@@ -5984,32 +6052,35 @@ impl Engine {
     ) -> Outcome {
         let double_colon = branch.is_some();
         let mut members = Vec::new();
+        let mut peer_targets = std::collections::VecDeque::new();
         let grouped = rule.grouped_targets().is_some();
-        if grouped {
+        if let Some(group) = &rule.group {
             let implicit = rule.implicit_pattern.is_some();
             if !implicit {
                 comparison = comparison.min(before);
             }
             let double = rule.grouped_double_id().is_some();
-            let group = rule.group.as_mut().expect("grouped targets have metadata");
-            let mut times = vec![None; group.targets.len()];
-            let mut observed = vec![false; group.targets.len()];
+            let mut peers: Vec<_> = group
+                .targets
+                .iter()
+                .map(|name| (Cow::Borrowed(name.as_slice()), None, false))
+                .collect();
             let mut compare_peers = before.is_some() && !implicit;
-            for (index, peer) in group.targets.iter_mut().enumerate().rev() {
+            for (peer, time, observed) in peers.iter_mut().rev() {
                 let name = self.aliases.resolve(peer);
-                if name != peer {
-                    *peer = name.to_vec();
+                if name != peer.as_ref() {
+                    *peer = Cow::Owned(name.to_vec());
                 }
-                if peer.as_slice() == target {
-                    times[index] = before;
-                    observed[index] = true;
+                if peer.as_ref() == target {
+                    *time = before;
+                    *observed = true;
                     continue;
                 }
                 if !compare_peers {
                     continue;
                 }
                 match self.prepare_search_name(peer) {
-                    Ok(Some(name)) => *peer = name,
+                    Ok(Some(name)) => *peer = Cow::Owned(name),
                     Ok(None) => {}
                     Err(()) => {
                         return Outcome {
@@ -6019,12 +6090,12 @@ impl Engine {
                         };
                     }
                 }
-                let time = if self.special(b".PHONY", peer, false) {
+                *time = if self.special(b".PHONY", peer, false) {
                     None
                 } else {
                     match self
                         .path_observations
-                        .get(peer)
+                        .get(peer.as_ref())
                         .cloned()
                         .map(Ok)
                         .unwrap_or_else(|| self.find_vpath(peer))
@@ -6040,21 +6111,30 @@ impl Engine {
                         }
                     }
                 };
-                times[index] = time;
-                observed[index] = true;
-                comparison = comparison.min(time);
+                *observed = true;
+                comparison = comparison.min(*time);
                 compare_peers = time.is_some();
             }
-            let mut seen = HashSet::new();
-            for (index, peer) in group.targets.iter().enumerate() {
-                if !seen.insert(peer.clone()) {
-                    continue;
+            // Resolve scheduler peer identities without rewriting declaration
+            // names, which the database exposes even after a GPATH rename.
+            let mut seen = HashMap::<&[u8], usize>::new();
+            for (peer, time, observed) in &peers {
+                let peer = peer.as_ref();
+                let ordinal = seen.entry(peer).or_default();
+                if *ordinal == 0 {
+                    let mut before = *time;
+                    if double && *observed {
+                        before = *self
+                            .double_colon_before
+                            .entry(peer.to_vec())
+                            .or_insert(before);
+                    }
+                    members.push((peer.to_vec(), before, self.special(b".PHONY", peer, false)));
                 }
-                let mut time = times[index];
-                if double && observed[index] {
-                    time = *self.double_colon_before.entry(peer.clone()).or_insert(time);
+                if !implicit || peer != target {
+                    peer_targets.push_front((peer.to_vec(), if double { *ordinal } else { 0 }));
                 }
-                members.push((peer.clone(), time, self.special(b".PHONY", peer, false)));
+                *ordinal += 1;
             }
         }
         let had_secondary = rule.secondary.is_some();
@@ -6068,27 +6148,6 @@ impl Engine {
             self.done.insert(target.to_vec(), result);
             return result;
         }
-        let peer_targets =
-            rule.grouped_targets()
-                .map_or_else(std::collections::VecDeque::new, |targets| {
-                    let mut seen = HashMap::<&[u8], usize>::new();
-                    let mut peers = Vec::new();
-                    for peer in targets {
-                        let ordinal = seen.entry(peer).or_default();
-                        if rule.implicit_pattern.is_none() || peer.as_slice() != target {
-                            peers.push((
-                                peer.clone(),
-                                if rule.grouped_double_id().is_some() {
-                                    *ordinal
-                                } else {
-                                    0
-                                },
-                            ));
-                        }
-                        *ordinal += 1;
-                    }
-                    peers.into_iter().rev().collect()
-                });
         if grouped {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
@@ -6761,6 +6820,8 @@ impl Engine {
                     self.running_groups.insert(target.to_vec(), group);
                 }
                 self.archive_completion_times.remove(target);
+                let implicit_group =
+                    rule.grouped_targets().is_some() && rule.implicit_pattern.is_some();
                 let execution = self.execute(
                     target,
                     recipes,
@@ -6772,6 +6833,7 @@ impl Engine {
                     before,
                     TraceInputs {
                         branch,
+                        implicit_group,
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
@@ -6795,12 +6857,24 @@ impl Engine {
                     } else {
                         CompletionTime::Refresh
                     };
-                outcome.database_dry_run_mtime = self.options.dry_run
+                if self.options.dry_run
                     && !self.options.question
                     && !self.options.touch
-                    && rule.grouped_targets().is_none()
-                    && outcome.completion == CompletionTime::AssumeNew
-                    && execution.status == Status::Success;
+                    && (rule.grouped_targets().is_none() || implicit_group)
+                    && (outcome.completion == CompletionTime::AssumeNew
+                        || (implicit_group
+                            && !phony
+                            && outcome.completion == CompletionTime::Preserve))
+                    && execution.status == Status::Success
+                {
+                    outcome.database_result = DatabaseResult::Simulated;
+                }
+                if rule.grouped_double_id().is_some()
+                    && execution.status == Status::Fatal
+                    && !execution.ran
+                {
+                    outcome.database_result = DatabaseResult::RecipeUnstarted;
+                }
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
@@ -6896,6 +6970,36 @@ impl Engine {
         if let Some(id) = group.branch {
             self.active_group_branches.remove(&id);
             self.completed_group_branches.insert(id, outcome);
+            if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
+                for (peer, _, phony) in group.members {
+                    if peer == target && !outcome.failed {
+                        continue;
+                    }
+                    let Some(branches) = self
+                        .database
+                        .rules
+                        .get(&peer)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                    else {
+                        continue;
+                    };
+                    // A recipe completes these declared peer branches even
+                    // if the graph never visits the peer as its own goal.
+                    let mut completed = outcome;
+                    completed.database_result = DatabaseResult::ObservedGroup;
+                    completed.time = if phony {
+                        None
+                    } else {
+                        self.observed_modified(&peer)
+                    };
+                    for (ordinal, branch) in branches.iter().enumerate() {
+                        if branch.grouped_double_id() == Some(id) {
+                            self.database_branch_outcomes
+                                .insert((peer.clone(), ordinal), completed);
+                        }
+                    }
+                }
+            }
             return;
         }
         let warn_missing = group.implicit
@@ -6903,13 +7007,34 @@ impl Engine {
             && self
                 .modified(target)
                 .is_some_and(|time| Some(time) > group.before);
+        let observe_dry_group = self.options.dry_run
+            && !self.options.question
+            && !self.options.touch
+            && !outcome.failed
+            && outcome.completion.preserves();
         for (peer, before, phony) in group.members.into_iter().rev() {
+            let database_result =
+                if observe_dry_group && !phony && (!group.implicit || peer != target) {
+                    // Only explicit groups include the owner in the physical
+                    // refresh. Implicit owners keep their simulated timestamp.
+                    self.modified(&peer);
+                    self.database_unchecked_times.borrow_mut().remove(&peer);
+                    DatabaseResult::ObservedGroup
+                } else {
+                    DatabaseResult::Outcome
+                };
             if peer == target {
+                if database_result == DatabaseResult::ObservedGroup
+                    && let Some(owner) = self.done.get_mut(target)
+                {
+                    owner.database_result = database_result;
+                }
                 continue;
             }
             self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
+            completed.database_result = database_result;
             completed.search_after_update = false;
             completed.time = if phony {
                 None
@@ -7133,10 +7258,12 @@ impl Engine {
             }
         };
         variables.refresh_globals(&self.database.variables);
-        if let Some(history) = self.database.database_history() {
-            history.intern(b".SUFFIXES");
+        if !trace.implicit_group {
+            if let Some(history) = self.database.database_history() {
+                history.intern(b".SUFFIXES");
+            }
+            self.database.file_records.insert(b".SUFFIXES");
         }
-        self.database.file_records.insert(b".SUFFIXES");
         for (name, value) in automatic {
             if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
                 self.expansion_error(None, &error);

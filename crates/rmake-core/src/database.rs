@@ -5,6 +5,7 @@
 //! Formatting never expands Make syntax, searches files, or changes bindings.
 //! Logical hash counters describe the compatibility protocol, not Rust storage.
 
+use std::collections::HashSet;
 use std::io::{self, Write};
 
 use crate::diagnostic::Location;
@@ -342,7 +343,20 @@ pub fn write_recipes(
 }
 
 pub fn write_implicit_rule(output: &mut impl Write, pattern: &[u8], rule: &Rule) -> io::Result<()> {
-    output.write_all(c_bytes(pattern))?;
+    write_implicit_rule_targets(output, std::iter::once(pattern), rule)
+}
+
+fn write_implicit_rule_targets<'a>(
+    output: &mut impl Write,
+    patterns: impl IntoIterator<Item = &'a [u8]>,
+    rule: &Rule,
+) -> io::Result<()> {
+    for (index, pattern) in patterns.into_iter().enumerate() {
+        if index != 0 {
+            output.write_all(b" ")?;
+        }
+        output.write_all(c_bytes(pattern))?;
+    }
     output.write_all(if rule.terminal { b"::" } else { b":" })?;
     write_prerequisites(output, &rule.dependencies)?;
     if let Some(recipes) = &rule.recipes {
@@ -362,16 +376,30 @@ fn write_implicit_rules_with_numeric(
 ) -> io::Result<()> {
     output.write_all(b"\n# Implicit Rules\n")?;
     let rules = database.database_implicit_rules();
+    let mut groups = HashSet::new();
+    let mut count = 0;
+    let mut terminal = 0;
     for (pattern, rule) in rules {
-        output.write_all(b"\n")?;
-        write_implicit_rule(output, pattern.literal_bytes(), rule)?;
+        if let Some(group) = &rule.group
+            && let Some(identity) = group.implicit_identity
+        {
+            if !groups.insert(identity) {
+                continue;
+            }
+            output.write_all(b"\n")?;
+            write_implicit_rule_targets(output, group.targets.iter().map(Vec::as_slice), rule)?;
+        } else {
+            output.write_all(b"\n")?;
+            write_implicit_rule(output, pattern.literal_bytes(), rule)?;
+        }
+        count += 1;
+        terminal += u64::from(rule.terminal);
     }
-    if rules.is_empty() {
+    if count == 0 {
         return output.write_all(b"\n# No implicit rules.\n");
     }
-    let terminal = rules.iter().filter(|(_, rule)| rule.terminal).count();
-    write!(output, "\n# {} implicit rules, {terminal} (", rules.len())?;
-    numeric.write_percent(output, terminal as u64, rules.len() as u64, 1)?;
+    write!(output, "\n# {count} implicit rules, {terminal} (")?;
+    numeric.write_percent(output, terminal, count, 1)?;
     output.write_all(b"%) terminal.")
 }
 
@@ -1002,7 +1030,7 @@ pub struct FileView<'a> {
     pub intermediate: bool,
     pub not_intermediate: bool,
     pub secondary: bool,
-    pub also_make: &'a [Vec<u8>],
+    pub also_make: &'a [&'a [u8]],
     pub time: FileTime<'a>,
     pub updated: bool,
     pub status: FileStatus,
@@ -1168,7 +1196,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
             output.write_all(b"#  Also makes:")?;
             for name in file.also_make {
                 output.write_all(b" ")?;
-                output.write_all(c_bytes(resolved_file_name(names, name)))?;
+                output.write_all(c_bytes(name))?;
             }
             output.write_all(b"\n")?;
         }
@@ -1499,7 +1527,7 @@ mod tests {
         let mut database = Database::default();
         database.read(b"all: input | order\n", b"Makefile").unwrap();
         let rule = &database.rules[b"all".as_slice()];
-        let peers = [b"peer".to_vec()];
+        let peers = [b"peer".as_slice()];
         let mut view = FileView::unchecked(b"all", Some(rule));
         view.also_make = &peers;
         let mut output = Vec::new();
@@ -1509,8 +1537,8 @@ mod tests {
         assert!(output.starts_with(b"\nremote/all: remote/input | remote/order\n"));
         assert!(
             output
-                .windows(b"#  Also makes: remote/peer\n".len())
-                .any(|text| text == b"#  Also makes: remote/peer\n")
+                .windows(b"#  Also makes: peer\n".len())
+                .any(|text| text == b"#  Also makes: peer\n")
         );
         assert_eq!(rule.dependencies[0].name, b"input");
         assert_eq!(rule.dependencies[1].name, b"order");
