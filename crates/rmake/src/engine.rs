@@ -142,6 +142,29 @@ fn target_variable_names(name: &[u8]) -> (&[u8], &[u8]) {
     rmake_core::filenames::archive_parts(name).unwrap_or((name, b""))
 }
 
+/// A normal occurrence upgrades the first occurrence and later order-only
+/// duplicates. Order-only duplicates already passed before the first normal
+/// occurrence retain their roles in the recorded chain.
+fn promote_order_only_duplicates(dependencies: &mut [Dependency], ready: impl Fn(usize) -> bool) {
+    let mut first = HashMap::new();
+    let mut promotions = Vec::new();
+    for (index, dependency) in dependencies.iter().enumerate() {
+        if !ready(index) || dependency.hidden || dependency.name == b".WAIT" {
+            continue;
+        }
+        let (first_index, order_only) = first
+            .entry(dependency.name.as_slice())
+            .or_insert((index, dependency.order_only));
+        if *order_only != dependency.order_only {
+            promotions.extend([*first_index, index]);
+            *order_only = false;
+        }
+    }
+    for index in promotions {
+        dependencies[index].order_only = false;
+    }
+}
+
 fn secondary_automatic(
     target: &[u8],
     dependencies: &mut [Dependency],
@@ -158,23 +181,9 @@ fn secondary_automatic(
     let plus = joined(normal.map(prerequisite_variable_name));
     // GNU computes < and + before promoting duplicate order-only
     // occurrences. Promotion survives into later clause expansions.
-    let mut first = HashMap::new();
-    let mut promotions = Vec::new();
-    for (index, (dependency, ready)) in dependencies.iter().zip(ready).enumerate() {
-        if !ready || dependency.hidden || dependency.name == b".WAIT" {
-            continue;
-        }
-        let (first_index, order_only) = first
-            .entry(dependency.name.as_slice())
-            .or_insert((index, dependency.order_only));
-        if *order_only != dependency.order_only {
-            promotions.extend([*first_index, index]);
-            *order_only = false;
-        }
-    }
-    for index in promotions {
-        dependencies[index].order_only = false;
-    }
+    promote_order_only_duplicates(dependencies, |index| {
+        ready.get(index).copied().unwrap_or(false)
+    });
     let mut seen = HashSet::new();
     let canonical: Vec<_> = dependencies
         .iter()
@@ -562,6 +571,7 @@ struct TraceInputs<'a> {
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
+    normal_names: &'a HashSet<&'a [u8]>,
 }
 
 /// Interpreter-owned continuation. Workers receive only one prepared Command;
@@ -6745,6 +6755,7 @@ impl Engine {
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
+                        normal_names: &normal_names,
                     },
                 );
                 outcome.ran |= execution.ran;
@@ -7093,6 +7104,7 @@ impl Engine {
                 return Execution::fatal(false);
             }
         }
+        self.remember_prepared_prerequisite_roles(target, &trace);
         self.retain_database_context(target, trace.branch, &variables);
         let output = Some(self.output.recipe_buffer());
         if let Some(buffer) = &output
@@ -7237,6 +7249,40 @@ impl Engine {
             return Execution::success(true);
         }
         self.continue_recipe(target, state, phony, before, parallel)
+    }
+
+    fn remember_prepared_prerequisite_roles(&mut self, target: &[u8], trace: &TraceInputs<'_>) {
+        if !trace.dropped.is_empty()
+            || !trace.dependencies.iter().any(|dependency| {
+                dependency.order_only
+                    && !dependency.hidden
+                    && trace.normal_names.contains(dependency.name.as_slice())
+            })
+        {
+            return;
+        }
+        let Some(head) = self.database.rules.get_mut(target) else {
+            return;
+        };
+        let rule = match trace.branch {
+            Some(ordinal) => head
+                .double_colon
+                .as_mut()
+                .and_then(|branches| branches.get_mut(ordinal)),
+            None => Some(head),
+        };
+        // Only a direct retained rule with the same occurrence chain can
+        // receive the promotions. A prepared group or transformed chain
+        // has a different owner or occurrence mapping.
+        if let Some(rule) = rule
+            && rule.group.is_none()
+            && rule.secondary.is_none()
+            && rule.dependencies.as_slice() == trace.dependencies
+        {
+            // $< and $+ have already captured the original normal
+            // occurrences. The role changes survive for the database dump.
+            promote_order_only_duplicates(&mut rule.dependencies, |_| true);
+        }
     }
 
     fn retain_database_context(

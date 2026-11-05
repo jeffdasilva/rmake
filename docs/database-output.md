@@ -98,3 +98,7 @@ restart environment witnesses, and one failed-exec lifecycle. It checks that
 regular stderr, exit 127 and finalizer absence agree with the reference. Owned
 stdin and the advertised private descriptor observer have separate profiles
 when the stdin runtime is enabled.
+
+[Prerequisite role observations](../tests/database-order-roles/README.md)
+require the active recipe to record GNU’s ordered duplicate-role promotion
+after `$<` and `$+` are prepared. Untouched rules keep their original roles.
