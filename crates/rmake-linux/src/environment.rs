@@ -235,6 +235,9 @@ struct ExecFrame {
 }
 impl ExecFrame {
     fn execute(&self) -> io::Error {
+        if let Err(error) = crate::signals::clear_exec_mask() {
+            return error;
+        }
         // The whole frame stays captured, including every CString owner, until
         // exec succeeds or std reports this errno through its child-error pipe.
         unsafe {

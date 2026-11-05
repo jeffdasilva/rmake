@@ -445,3 +445,9 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 [Database history and retained search names](database-output.md) now have 41 exact profiles plus six native numeric/registration controls. Formatting borrows recorded state without replaying effects; logical GNU statistics and order remain separate from physical Rust storage. The selected combined build passes its finite development/optimized gates, with full selected-head acceptance and final cost qualification required before merge. Broader lifecycle, Guile/NLS/profile/resource interactions and complete M3/M6 remain open.
 
 [Named stdin and process restart](stdin-sources.md) uses one real self-exec path for makefile remaking. Development and optimized candidates pass the 44 stdin and three new process-entry profiles. The strict lifecycle suite covers exact cleanup, live environment, and failed-exec effects. Wider raw environment, descriptor, native/Guile, and resource acceptance remains part of M3/M6.
+
+[Inherited signal masks](../tests/signal-mask/README.md) now retain the launch
+mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
+verified boundary, and pass an empty mask to command children without mutating
+the parent's live mask around spawn. Ten original GNU2 comparisons cover
+native callbacks, actual self-exec, early exits and low descriptor limits.

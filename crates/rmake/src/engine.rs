@@ -2002,6 +2002,15 @@ impl Engine {
         if self.prepare_stdin().is_err() {
             return 2;
         }
+        if let Err(error) = rmake_linux::signals::enter_reader_mask() {
+            let message = format!("sigprocmask(SIG_SETMASK, SIGCHLD): {}", os_error(&error));
+            self.fatal(None, message.as_bytes());
+            return 2;
+        }
+        self.observe_interrupt();
+        if self.interrupt.is_some() {
+            return 2;
+        }
         let mut found_makefile;
         self.database.activate_runtime_metadata();
         // Empty command eval initializes this binding before ordinary reading;

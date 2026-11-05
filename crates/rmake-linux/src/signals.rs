@@ -27,6 +27,7 @@ unsafe extern "C" {
     fn __errno_location() -> *mut c_int;
     fn getpid() -> c_int;
     fn kill(pid: c_int, number: c_int) -> c_int;
+    fn rmake_set_execution_mask(reader: c_int) -> c_int;
 }
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
@@ -153,6 +154,26 @@ impl Drop for Guard {
         }
         WAKE_READER.store(-1, Ordering::Relaxed);
         WAKE_WRITER.store(-1, Ordering::Relaxed);
+    }
+}
+
+/// Enter normal reader startup on the interpreter's thread. Eager option
+/// evaluation and stdin preparation run with the incoming mask.
+pub fn enter_reader_mask() -> io::Result<()> {
+    set_execution_mask(true)
+}
+
+/// Apply only in an exec child. Self-exec keeps the live interpreter mask.
+pub(crate) fn clear_exec_mask() -> io::Result<()> {
+    set_execution_mask(false)
+}
+
+fn set_execution_mask(reader: bool) -> io::Result<()> {
+    // SAFETY: the C adapter initializes its local sigset_t and changes the
+    // calling thread's mask using async-signal-safe libc operations.
+    match unsafe { rmake_set_execution_mask(reader.into()) } {
+        0 => Ok(()),
+        error => Err(io::Error::from_raw_os_error(error)),
     }
 }
 

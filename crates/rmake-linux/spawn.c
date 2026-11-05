@@ -7,6 +7,17 @@
 #include <spawn.h>
 #include <stdio.h>
 
+/* The make reader has only SIGCHLD blocked. An exec child starts unblocked.
+   All operations here are async-signal-safe for use after fork. */
+int rmake_set_execution_mask(int reader)
+{
+    sigset_t mask;
+    if (sigemptyset(&mask) < 0 || (reader && sigaddset(&mask, SIGCHLD) < 0)
+        || sigprocmask(SIG_SETMASK, &mask, NULL) < 0)
+        return errno;
+    return 0;
+}
+
 #ifdef __GLIBC__
 #include <gnu/libc-version.h>
 
@@ -28,8 +39,6 @@ int rmake_spawn_inherited(const char *path, char *const argv[],
 #ifdef __GLIBC__
     if (!spawn_returns_exec_errno())
         return -1;
-    pid_t child;
-    int error;
     if (preserve_pipe_ignore) {
         struct sigaction current;
         if (sigaction(SIGPIPE, NULL, &current) < 0)
@@ -38,23 +47,28 @@ int rmake_spawn_inherited(const char *path, char *const argv[],
            native module replaced the inherited ignore, use the normal hook. */
         if (current.sa_handler != SIG_IGN)
             return -1;
-        error = posix_spawn(&child, path, NULL, NULL, argv, envp);
-    } else {
-        posix_spawnattr_t attributes;
-        error = posix_spawnattr_init(&attributes);
-        if (error)
-            return error;
+    }
+    pid_t child;
+    posix_spawnattr_t attributes;
+    int error = posix_spawnattr_init(&attributes);
+    if (error)
+        return error;
+    sigset_t empty;
+    error = sigemptyset(&empty) < 0 ? errno : posix_spawnattr_setsigmask(&attributes, &empty);
+    short flags = POSIX_SPAWN_SETSIGMASK;
+    if (!error && !preserve_pipe_ignore) {
         sigset_t defaults;
         if (sigemptyset(&defaults) < 0 || sigaddset(&defaults, SIGPIPE) < 0)
             error = errno;
         if (!error)
             error = posix_spawnattr_setsigdefault(&attributes, &defaults);
-        if (!error)
-            error = posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETSIGDEF);
-        if (!error)
-            error = posix_spawn(&child, path, NULL, &attributes, argv, envp);
-        posix_spawnattr_destroy(&attributes);
+        flags |= POSIX_SPAWN_SETSIGDEF;
     }
+    if (!error)
+        error = posix_spawnattr_setflags(&attributes, flags);
+    if (!error)
+        error = posix_spawn(&child, path, NULL, &attributes, argv, envp);
+    posix_spawnattr_destroy(&attributes);
     if (!error)
         *pid = child;
     return error;

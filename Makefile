@@ -9,7 +9,7 @@
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
 .PHONY: test-native-fenv
-.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes
+.PHONY: test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask
 
 .PHONY: test-job-debug
 
@@ -22,6 +22,7 @@ PROCESS_RESTART_CASE ?=
 RESTART_ENVIRONMENT_CASE ?=
 RESOURCE_FD_CASE ?=
 RESOURCE_FD_RECIPE_CASE ?=
+SIGNAL_MASK_CASE ?=
 DATABASE_NUMERIC_CASE ?=
 DATABASE_SEARCH_CASE ?=
 DATABASE_CASE ?=
@@ -138,6 +139,7 @@ help:
 		'  test-restart-pipe Check original inherited jobserver descriptors across exec' \
 		'  test-resource-fd Compare descriptor pressure and live cancellation' \
 		'  test-resource-fd-recipes Compare low-limit recipe launch and reaping' \
+		'  test-signal-mask Compare native, child and restart mask phases' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
@@ -298,6 +300,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-restart-pipe
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_CASE=low6-term-live-recipe test-resource-fd
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" RESOURCE_FD_RECIPE_CASE=recipe-fdlimit-4 test-resource-fd-recipes
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" SIGNAL_MASK_CASE=eager-to-read-signal-mask test-signal-mask
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -337,6 +340,7 @@ test-m4-release: release oracle-verify
 	$(PYTHON) tools/restart_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-pipe/optimized.json
 	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd/optimized.json
 	$(PYTHON) tools/resource_fd_recipes.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-recipes/optimized.json
+	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/signal-mask/optimized.json
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/optimized.json
 	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-lifecycle/optimized.json
@@ -400,6 +404,9 @@ test-restart-pipe: build oracle-verify
 
 test-resource-fd: build oracle-verify
 	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd/development.json $(if $(RESOURCE_FD_CASE),--case "$(RESOURCE_FD_CASE)")
+
+test-signal-mask: build oracle-verify
+	$(PYTHON) tools/signal_mask.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/signal-mask/development.json $(if $(SIGNAL_MASK_CASE),--case "$(SIGNAL_MASK_CASE)")
 
 test-resource-fd-recipes: build oracle-verify
 	$(PYTHON) tools/resource_fd_recipes.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-recipes/development.json $(if $(RESOURCE_FD_RECIPE_CASE),--case "$(RESOURCE_FD_RECIPE_CASE)")
@@ -498,9 +505,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask
 
-check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask
 
 ci: check test-selfhost
 
