@@ -422,6 +422,76 @@ mod tests {
         assert!(database.makefiles.is_empty());
     }
 
+    #[test]
+    fn load_history_observes_resolved_identity_before_setup_and_conditional_entry_after() {
+        struct Observer {
+            history: crate::database::History,
+            status: NativeLoadStatus,
+            before_files: u64,
+        }
+        impl NativeRuntime for Observer {
+            fn lookup(&self, _: &[u8]) -> Option<Rc<NativeFunction>> {
+                None
+            }
+            fn load(
+                &self,
+                name: &[u8],
+                _: bool,
+                _: &Location,
+                _: &mut dyn NativeHost,
+            ) -> Result<LoadOutcome, ExpandError> {
+                assert_eq!(name, b"module.so(custom_setup)");
+                assert_eq!(self.history.file_stats().lookups, self.before_files + 1);
+                self.history.with_string_cache(|cache| {
+                    assert_eq!(cache.hash_stats().filled, 1);
+                    assert_eq!(cache.hash_stats().lookups, 1);
+                });
+                Ok(LoadOutcome {
+                    name: b"module.so".to_vec(),
+                    status: self.status,
+                })
+            }
+        }
+        for (status, optional, existing, expected_reads) in [
+            (NativeLoadStatus::Loaded, false, false, 3),
+            (NativeLoadStatus::Failed, true, false, 3),
+            (NativeLoadStatus::Failed, false, false, 1),
+            (NativeLoadStatus::Skipped, false, true, 2),
+        ] {
+            let mut database = Database::default();
+            database.enable_database_history().unwrap();
+            if existing {
+                database.file_records.insert(b"module.so");
+            }
+            let history = database.database_history().unwrap().clone();
+            let before_files = history.file_stats().lookups;
+            let runtime = Rc::new(Observer {
+                history: history.clone(),
+                status,
+                before_files,
+            });
+            let location = Location {
+                file: b"caller.mk".as_slice().into(),
+                line: 7,
+            };
+            let result = database.load_native_with(
+                b"module.so(custom_setup)",
+                optional,
+                &location,
+                &mut ExpansionContext::pure().with_native_runtime(runtime),
+            );
+            assert_eq!(
+                result.is_err(),
+                status == NativeLoadStatus::Failed && !optional
+            );
+            assert_eq!(history.file_stats().lookups, before_files + expected_reads);
+            assert_eq!(
+                database.file_records.contains(b"module.so"),
+                expected_reads != 1
+            );
+        }
+    }
+
     struct TestStack {
         active: std::cell::Cell<usize>,
         limit: usize,

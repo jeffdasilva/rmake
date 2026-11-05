@@ -54,6 +54,8 @@ struct State {
     changed_directory: Cell<bool>,
     recursive: Cell<bool>,
     debug: Cell<crate::debug::Mask>,
+    print_database: Cell<bool>,
+    compatibility_header: Cell<bool>,
 }
 
 #[derive(Clone)]
@@ -74,6 +76,8 @@ impl Controller {
             changed_directory: Cell::new(false),
             recursive: Cell::new(false),
             debug: Cell::new(crate::debug::Mask::NONE),
+            print_database: Cell::new(false),
+            compatibility_header: Cell::new(false),
         }))
     }
     pub fn debug_mask(&self) -> crate::debug::Mask {
@@ -81,6 +85,20 @@ impl Controller {
     }
     pub fn set_debug_mask(&self, mask: crate::debug::Mask) {
         self.0.debug.set(mask);
+    }
+    pub fn database_requested(&self) -> bool {
+        self.0.print_database.get()
+    }
+    pub fn set_database_requested(&self, enabled: bool) {
+        self.0.print_database.set(enabled);
+    }
+    pub fn reset_compatibility_header(&self) {
+        self.0.compatibility_header.set(false);
+    }
+    pub fn print_compatibility_header(&self, commented: bool) {
+        if !self.0.compatibility_header.replace(true) {
+            crate::debug::print_compatibility_header(commented);
+        }
     }
     pub fn process_lifetime(&self) -> ProcessOutput {
         ProcessOutput(self.clone())
@@ -142,6 +160,11 @@ impl Controller {
         }
         let program = self.0.program.borrow();
         let directory = self.0.directory.borrow();
+        let prefix = if self.database_requested() {
+            b"# ".as_slice()
+        } else {
+            b""
+        };
         let verb = if entering {
             b": Entering".as_slice()
         } else {
@@ -150,12 +173,19 @@ impl Controller {
         if let Some(directory) = directory.as_deref() {
             plain_parts(
                 false,
-                &[program.as_slice(), verb, b" directory '", directory, b"'\n"],
+                &[
+                    prefix,
+                    program.as_slice(),
+                    verb,
+                    b" directory '",
+                    directory,
+                    b"'\n",
+                ],
             );
         } else {
             plain_parts(
                 false,
-                &[program.as_slice(), verb, b" an unknown directory\n"],
+                &[prefix, program.as_slice(), verb, b" an unknown directory\n"],
             );
         }
     }

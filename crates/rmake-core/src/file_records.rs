@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct FileRecords {
+    database_history: Option<crate::database::History>,
     // None is unused; an empty owned name is a deletion marker. Make filenames
     // are nonempty. Keeping tombstones preserves collision chains on renaming.
     slots: Vec<Option<Box<[u8]>>>,
@@ -21,6 +22,7 @@ pub struct FileRecords {
 impl Default for FileRecords {
     fn default() -> Self {
         Self {
+            database_history: None,
             slots: vec![None; 1024],
             live: 0,
             empty: 1024,
@@ -30,6 +32,10 @@ impl Default for FileRecords {
 }
 
 impl FileRecords {
+    pub(crate) fn enable_database_history(&mut self, history: crate::database::History) {
+        self.database_history = Some(history);
+    }
+
     fn position(&self, name: &[u8]) -> (usize, bool) {
         let mask = self.slots.len() - 1;
         let mut position = fingerprint(name) as usize & mask;
@@ -51,9 +57,40 @@ impl FileRecords {
         !name.is_empty() && self.position(name).1
     }
 
+    /// GNU prerequisite binding observes the existing file first and enters
+    /// a new record only when absent. A found builtin retains its origin.
+    pub fn enter_prerequisite(&mut self, name: &[u8]) {
+        if name.is_empty() {
+            return;
+        }
+        if let Some(history) = &self.database_history {
+            history.record_file_lookup(name);
+        }
+        if !self.contains(name) {
+            self.insert(name);
+        }
+    }
+
+    /// Install a declarative default without turning an existing explicit
+    /// user's record back into a builtin. Ordinary enters clear that origin.
+    pub fn insert_builtin(&mut self, name: &[u8]) {
+        let explicit = self.contains(name)
+            && self
+                .database_history
+                .as_ref()
+                .is_some_and(|history| !history.is_builtin_file(name));
+        self.insert(name);
+        if !explicit && let Some(history) = &self.database_history {
+            history.mark_file_builtin(name);
+        }
+    }
+
     pub fn insert(&mut self, name: &[u8]) {
         if name.is_empty() {
             return;
+        }
+        if let Some(history) = &self.database_history {
+            history.record_file_enter(name);
         }
         let (position, found) = self.position(name);
         if found {
@@ -73,6 +110,7 @@ impl FileRecords {
             let previous = std::mem::replace(&mut self.slots, vec![None; size]);
             self.empty = size;
             self.live = 0;
+            let history = self.database_history.take();
             for name in previous
                 .into_iter()
                 .flatten()
@@ -80,6 +118,7 @@ impl FileRecords {
             {
                 self.insert(&name);
             }
+            self.database_history = history;
         }
     }
 
@@ -159,7 +198,7 @@ impl FileRecords {
     }
 }
 
-fn fingerprint(name: &[u8]) -> u32 {
+pub(crate) fn fingerprint(name: &[u8]) -> u32 {
     let mut lanes = [0xdead_beef_u32; 3];
     let mut offset = 0;
     loop {

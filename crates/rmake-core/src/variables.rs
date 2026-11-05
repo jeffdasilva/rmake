@@ -218,6 +218,11 @@ impl PartialEq for ExportPolicy {
 impl Eq for ExportPolicy {}
 
 impl Variable {
+    /// Stored append metadata for diagnostics; this never resolves outer layers.
+    pub fn is_outer_append(&self) -> bool {
+        self.scope.append_outer
+    }
+
     pub fn raw_value(&self) -> &[u8] {
         &self.value
     }
@@ -473,6 +478,7 @@ impl Clone for NamesCache {
 
 #[derive(Clone, Debug)]
 struct Bindings {
+    database_history: Option<crate::database::TableHistory>,
     values: BTreeMap<Arc<[u8]>, Variable>,
     order: crate::variable_order::NameOrder,
     reserved_exports: Vec<Vec<u8>>,
@@ -487,6 +493,7 @@ impl Default for Bindings {
 impl Bindings {
     fn new(size: usize) -> Self {
         Self {
+            database_history: None,
             values: BTreeMap::new(),
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
             reserved_exports: Vec::new(),
@@ -495,6 +502,9 @@ impl Bindings {
         }
     }
     fn insert(&mut self, name: &[u8], variable: Variable) {
+        if let Some(history) = &self.database_history {
+            history.enter_after_lookup(name);
+        }
         match self.values.entry(name.into()) {
             std::collections::btree_map::Entry::Occupied(mut entry) => {
                 if entry.get().scope.variable_names
@@ -519,6 +529,9 @@ impl Bindings {
         }
     }
     fn remove(&mut self, name: &[u8]) -> Option<Variable> {
+        if let Some(history) = &self.database_history {
+            history.remove_after_lookup(name);
+        }
         let value = self.values.remove(name);
         if value.is_some() {
             if let Some(cache) = self.names_cache.get_mut() {
@@ -629,6 +642,103 @@ impl VariableStore {
         Self::default()
     }
 
+    pub(crate) fn enable_database_history(&mut self, history: crate::database::TableHistory) {
+        Arc::make_mut(&mut self.variables).database_history = Some(history);
+    }
+
+    /// A real Make metadata lookup, recorded across the selected visible
+    /// scopes. Plain `get` remains neutral for storage/diagnostic inspection.
+    pub fn database_lookup(&self, name: &[u8]) -> Option<&Variable> {
+        self.database_lookup_from(name).map(|(_, value)| value)
+    }
+
+    pub fn database_stats(&self) -> Option<crate::database::HashStats> {
+        self.variables
+            .database_history
+            .as_ref()
+            .map(crate::database::TableHistory::stats)
+    }
+
+    fn database_definition_lookup(&self, name: &[u8]) {
+        if let Some(history) = &self.variables.database_history {
+            history.lookup(name);
+        }
+    }
+
+    /// Prepare a logical lookup for an effect-free plan without publishing
+    /// counters. The caller commits only if it selects the complete plan.
+    fn plan_database_lookup(
+        &self,
+        name: &[u8],
+        batch: &mut crate::database::LookupBatch,
+    ) -> Option<()> {
+        if self.variables.database_history.is_none()
+            && self
+                .layers
+                .iter()
+                .all(|layer| layer.variables.database_history.is_none())
+        {
+            return Some(());
+        }
+        let mut previous: Option<&crate::database::TableHistory> = None;
+        for (index, values) in std::iter::once(&self.variables)
+            .chain(self.layers.iter().map(|layer| &layer.variables))
+            .enumerate()
+        {
+            if let Some(history) = &values.database_history {
+                if previous.is_none_or(|old| !old.same_table(history)) {
+                    batch.add(history, name, 1)?;
+                }
+                previous = Some(history);
+            } else {
+                previous = None;
+            }
+            let inherited = index != 0 && self.layers[index - 1].inherited;
+            if values
+                .values
+                .get(name)
+                .is_some_and(|value| !inherited || !value.scope.private)
+            {
+                break;
+            }
+        }
+        Some(())
+    }
+
+    /// Count a logical Make lookup across the actual visible scope chain,
+    /// including failed/private inherited matches. Internal Rust map probes are
+    /// deliberately not observed here.
+    pub fn record_database_lookup(&self, name: &[u8]) {
+        self.database_lookup_from(name);
+    }
+
+    fn database_lookup_from(&self, name: &[u8]) -> Option<(usize, &Variable)> {
+        let mut inherited = false;
+        let mut previous: Option<&crate::database::TableHistory> = None;
+        for (index, variables) in std::iter::once(&self.variables)
+            .chain(self.layers.iter().map(|layer| &layer.variables))
+            .enumerate()
+        {
+            if index != 0 {
+                inherited = self.layers[index - 1].inherited;
+            }
+            if let Some(history) = &variables.database_history {
+                if previous.is_none_or(|old| !old.same_table(history)) {
+                    history.lookup(name);
+                }
+                previous = Some(history);
+            } else {
+                previous = None;
+            }
+            if let Some(value) = variables.values.get(name)
+                && (!inherited || !value.scope.private)
+            {
+                return Some((index, value));
+            }
+        }
+        None
+    }
+
     /// Invocation data, independent of the visible SHELL binding and eval.
     pub fn set_original_shell(&mut self, value: &[u8]) {
         self.original_shell = Some(value.into());
@@ -719,6 +829,10 @@ impl VariableStore {
                 .find_map(|layer| layer.variables.get(name))
         {
             if old.origin > origin {
+                // The logical file table already owns this declaration even
+                // though its value lives in a separate immutable Rust layer.
+                // Priority rejection follows the attempted definition query.
+                self.database_definition_lookup(name);
                 return Ok(());
             }
             let old = old.clone();
@@ -814,6 +928,7 @@ impl VariableStore {
     /// Unlike internal removal, an undefine directive observes origin priority
     /// and promotes an environment binding when -e makes it prevail.
     pub fn undefine(&mut self, name: &[u8], origin: Origin) -> bool {
+        self.database_definition_lookup(name);
         if !self.can_undefine(name, origin) {
             return false;
         }
@@ -825,6 +940,62 @@ impl VariableStore {
         self.get(name)
             .is_none_or(|variable| variable.origin <= origin)
             && self.variables.contains_key(name)
+    }
+
+    /// The root binding table in observable slot order, without evaluating any
+    /// value, promoting origins, or mixing active lexical/target layers.
+    pub fn database_definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
+        self.variables
+            .order
+            .names()
+            .filter_map(|name| self.variables.get(name).map(|value| (name, value)))
+    }
+
+    /// Finished file-local bindings in their actual logical table order.
+    /// Automatic storage and an explicit declaration can be separate immutable
+    /// Rust maps while sharing one GNU file table. Pattern and parent scopes
+    /// remain distinct and are never flattened into this diagnostic view.
+    pub fn database_file_definitions(&self) -> Vec<(&[u8], &Variable)> {
+        let Some(history) = &self.variables.database_history else {
+            return self.database_definitions().collect();
+        };
+        history.ordered_items(|name| {
+            std::iter::once(&self.variables)
+                .chain(self.layers.iter().filter_map(|layer| {
+                    (!layer.inherited
+                        && !layer.global
+                        && !layer.pattern
+                        && layer
+                            .variables
+                            .database_history
+                            .as_ref()
+                            .is_some_and(|other| history.same_table(other)))
+                    .then_some(&layer.variables)
+                }))
+                .find_map(|values| {
+                    values
+                        .values
+                        .get_key_value(name)
+                        .map(|(key, variable)| (key.as_ref(), variable))
+                })
+        })
+    }
+
+    /// The already-materialized backing value of the special root metadata
+    /// binding. Reading a diagnostic must not refresh its membership generation
+    /// or initialize a cache that no Make expansion has observed yet.
+    pub(crate) fn database_cached_value(&self, variable: &Variable) -> Option<Vec<u8>> {
+        if !variable.scope.variable_names {
+            return None;
+        }
+        self.variables.names_cache.get().map(|cache| {
+            cache
+                .0
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .value
+                .clone()
+        })
     }
 
     pub fn definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
@@ -925,7 +1096,7 @@ impl VariableStore {
                 });
             }
         }
-        if !self.variables.is_empty() {
+        if !self.variables.is_empty() || self.variables.database_history.is_some() {
             layers.push(VariableLayer {
                 file_locals: self.file_locals,
                 variables: Arc::clone(&self.variables),
@@ -941,18 +1112,61 @@ impl VariableStore {
             global: layer.global,
             pattern: layer.pattern,
         }));
+        let mut local_variables = if self.file_locals
+            && self.variables.is_empty()
+            && self.variables.database_history.is_none()
+        {
+            Arc::clone(&self.variables)
+        } else {
+            empty_bindings(32)
+        };
+        if self.variables.database_history.is_some() && local_variables.database_history.is_none() {
+            let explicit = scopes
+                .last()
+                .filter(|scope| !scope.pattern)
+                .and_then(|scope| scope.variables.database_history.clone());
+            Arc::make_mut(&mut local_variables).database_history =
+                Some(explicit.unwrap_or_else(|| {
+                    crate::database::TableHistory::new(crate::database::HashKind::Variable, 32)
+                }));
+        }
         Self {
             // Empty local maps can share storage. Definitions use Arc::make_mut
             // so writes in one target still leave parents and siblings intact.
-            variables: if self.file_locals && self.variables.is_empty() {
-                Arc::clone(&self.variables)
-            } else {
-                empty_bindings(32)
-            },
+            variables: local_variables,
             layers,
             working_directory: self.working_directory.clone(),
             original_shell: self.original_shell.clone(),
             environment_override: false,
+            scoped: true,
+            file_locals: true,
+        }
+    }
+
+    /// Enter a later double-colon branch. Its automatic locals are independent,
+    /// while the first branch remains a visible sibling scope, not an ancestor.
+    pub fn fresh_double_colon_scope(&self) -> Self {
+        let mut variables = empty_bindings(32);
+        if self.variables.database_history.is_some() {
+            Arc::make_mut(&mut variables).database_history = Some(
+                crate::database::TableHistory::new(crate::database::HashKind::Variable, 32),
+            );
+        }
+        let mut layers = Vec::with_capacity(self.layers.len() + 1);
+        layers.push(VariableLayer {
+            file_locals: self.file_locals,
+            variables: Arc::clone(&self.variables),
+            inherited: false,
+            global: false,
+            pattern: false,
+        });
+        layers.extend(self.layers.iter().cloned());
+        Self {
+            variables,
+            layers,
+            working_directory: self.working_directory.clone(),
+            original_shell: self.original_shell.clone(),
+            environment_override: self.environment_override,
             scoped: true,
             file_locals: true,
         }
@@ -1173,6 +1387,7 @@ impl VariableStore {
             definition,
             context,
             None,
+            None,
             |store, bytes, shell, context| {
                 if shell {
                     store.shell_with(bytes, context)
@@ -1207,13 +1422,15 @@ impl VariableStore {
 
     /// Select a visible per-file append base independently of the global
     /// destination's origin. Its encoded command suffix is reconstructed later.
-    pub(crate) fn scoped_makeflags_append(&self) -> Option<Variable> {
-        let (index, value) = self.lookup_from(b"MAKEFLAGS", 0)?;
+    pub(crate) fn scoped_append(&self, name: &[u8], strip_flags: bool) -> Option<Variable> {
+        let (index, value) = self.lookup_from(name, 0)?;
         if !self.file_locals || (index > 0 && self.layers[index - 1].global) {
             return None;
         }
         let mut value = value.clone();
-        if let Some(boundary) = value.value.windows(4).position(|part| part == b" -- ") {
+        if strip_flags
+            && let Some(boundary) = value.value.windows(4).position(|part| part == b" -- ")
+        {
             value.value.truncate(boundary);
         }
         Some(value)
@@ -1229,6 +1446,7 @@ impl VariableStore {
         definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
         append_base: Option<&std::cell::RefCell<Variable>>,
+        lookup_scope: Option<&VariableStore>,
         mut expand: impl FnMut(
             &mut VariableStore,
             &[u8],
@@ -1238,6 +1456,9 @@ impl VariableStore {
     ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
+        }
+        if matches!(assignment, Assignment::Append | Assignment::Conditional) {
+            lookup_scope.unwrap_or(self).record_database_lookup(name);
         }
         if matches!(assignment, Assignment::Append | Assignment::Conditional)
             && self
@@ -1251,12 +1472,18 @@ impl VariableStore {
                 .expect("special binding")
                 .value = value;
         }
-        if assignment == Assignment::Conditional && self.get(name).is_some() {
+        if assignment == Assignment::Conditional && lookup_scope.unwrap_or(self).get(name).is_some()
+        {
             return Ok(());
         }
         // An empty append does not reach GNU's definition replacement path, so
         // it neither changes the value nor promotes an environment origin.
-        if assignment == Assignment::Append && value.is_empty() && self.variables.contains_key(name)
+        if assignment == Assignment::Append
+            && value.is_empty()
+            && lookup_scope.map_or_else(
+                || self.variables.contains_key(name),
+                |scope| scope.get(name).is_some(),
+            )
         {
             return Ok(());
         }
@@ -1290,6 +1517,7 @@ impl VariableStore {
                         context.reborrow(),
                     )?;
                 }
+                self.database_definition_lookup(name);
                 if promote_environment {
                     Arc::make_mut(&mut self.variables)
                         .get_mut(name)
@@ -1403,6 +1631,7 @@ impl VariableStore {
         if variable.value.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);
         }
+        self.database_definition_lookup(name);
         // RHS evaluation can install a stronger binding or change -e. GNU's
         // final definition still applies current priority after those effects.
         self.promote_environment(name, origin);
@@ -1431,6 +1660,7 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
+        self.database_definition_lookup(name);
         self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());
@@ -1467,6 +1697,7 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
+        self.record_database_lookup(name);
         self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());
@@ -1483,6 +1714,7 @@ impl VariableStore {
             .variables
             .get(name)
             .map_or_else(ScopeMetadata::default, |old| old.scope.clone());
+        self.database_definition_lookup(name);
         Arc::make_mut(&mut self.variables).insert(
             name,
             Variable {
@@ -1687,6 +1919,9 @@ impl PatternVariable {
         } else {
             value.to_vec()
         };
+        if origin != Origin::Override {
+            globals.record_database_lookup(name);
+        }
         if globals
             .get(name)
             .is_some_and(|variable| variable.scope.variable_names)
@@ -1717,9 +1952,43 @@ impl PatternVariable {
     pub fn name(&self) -> &[u8] {
         &self.name
     }
+
+    pub fn database_view(&self) -> crate::database::PatternVariableView<'_> {
+        crate::database::PatternVariableView {
+            name: &self.name,
+            value: &self.value,
+            assignment: self.assignment,
+            origin: self.origin,
+            private: self.private,
+            export: self.export,
+            definition: self.definition.as_deref(),
+        }
+    }
 }
 
 impl TargetScope {
+    pub fn database_definitions(&self) -> impl Iterator<Item = (&[u8], &Variable)> {
+        self.variables
+            .order
+            .names()
+            .filter_map(|name| self.variables.get(name).map(|value| (name, value)))
+    }
+
+    /// Lookup within this declaration's own table, without inherited globals.
+    pub fn database_lookup(&self, name: &[u8]) -> Option<&Variable> {
+        if let Some(history) = &self.variables.database_history {
+            history.lookup(name);
+        }
+        self.get(name)
+    }
+
+    pub fn database_stats(&self) -> Option<crate::database::HashStats> {
+        self.variables
+            .database_history
+            .as_ref()
+            .map(crate::database::TableHistory::stats)
+    }
+
     /// File-record merging retains bindings already present on the destination.
     pub fn merge_missing(&mut self, other: &Self) {
         let variables = Arc::make_mut(&mut self.variables);
@@ -1735,6 +2004,15 @@ impl TargetScope {
     pub fn context(&self, globals: &VariableStore) -> VariableStore {
         let mut context = globals.with_target_scopes(&[]);
         context.variables = Arc::clone(&self.variables);
+        if globals.variables.database_history.is_some()
+            && context.variables.database_history.is_none()
+        {
+            let size = if self.pattern { 16 } else { 32 };
+            context.enable_database_history(crate::database::TableHistory::new(
+                crate::database::HashKind::Variable,
+                size,
+            ));
+        }
         context.file_locals = false;
         context
     }
@@ -1769,6 +2047,7 @@ impl TargetScope {
             && !self.variables.contains_key(name)
             && globals.get(name).is_some();
         if prepared.assignment == Assignment::Simple {
+            scope.database_definition_lookup(name);
             // This value was expanded when read. Install literal bytes without
             // evaluating them again or comparing against outer-scope origins.
             if scope
@@ -1872,6 +2151,9 @@ impl TargetScope {
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
+        if origin != Origin::Override {
+            globals.record_database_lookup(name);
+        }
         if globals
             .get(name)
             .is_some_and(|variable| variable.scope.variable_names)
@@ -2197,11 +2479,8 @@ impl Expansion<'_, '_> {
     }
 
     fn lookup(&self, name: &[u8]) -> Option<&Variable> {
-        self.bindings
-            .iter()
-            .rev()
-            .find_map(|scope| scope.get(name))
-            .or_else(|| self.store.get(name))
+        let binding = self.bindings.iter().rev().find_map(|scope| scope.get(name));
+        binding.or_else(|| self.store.database_lookup(name))
     }
 
     fn active_keys(&self) -> impl Iterator<Item = &(Vec<u8>, Option<usize>)> {
@@ -2336,7 +2615,7 @@ impl Expansion<'_, '_> {
         let binding = self.bindings.iter().rev().find_map(|scope| scope.get(name));
         let (variable, layer) = if let Some(variable) = binding {
             (variable, None)
-        } else if let Some((layer, variable)) = self.store.lookup_from(name, 0) {
+        } else if let Some((layer, variable)) = self.store.database_lookup_from(name) {
             (variable, Some(layer))
         } else {
             if WARN && self.context.warns_undefined() {
@@ -2367,9 +2646,32 @@ impl Expansion<'_, '_> {
     /// body, append layer or dynamic binding leaves the full evaluator in charge.
     fn literal_chain<'c>(
         &'c self,
+        name: &'c [u8],
+        variable: &'c Variable,
+        layer: Option<usize>,
+    ) -> Option<LiteralChain> {
+        let (result, lookups) = self.literal_chain_deferred(name, variable, layer)?;
+        lookups.commit();
+        Some(result)
+    }
+
+    fn literal_chain_deferred<'c>(
+        &'c self,
+        name: &'c [u8],
+        variable: &'c Variable,
+        layer: Option<usize>,
+    ) -> Option<(LiteralChain, crate::database::LookupBatch)> {
+        let mut lookups = crate::database::LookupBatch::default();
+        let result = self.literal_chain_planned(name, variable, layer, &mut lookups)?;
+        Some((result, lookups))
+    }
+
+    fn literal_chain_planned<'c>(
+        &'c self,
         mut name: &'c [u8],
         mut variable: &'c Variable,
         mut layer: Option<usize>,
+        lookups: &mut crate::database::LookupBatch,
     ) -> Option<LiteralChain> {
         let mut seen: std::collections::HashSet<_> = self
             .active_keys()
@@ -2408,14 +2710,17 @@ impl Expansion<'_, '_> {
             if let Some(binding) = self.bindings.iter().rev().find_map(|scope| scope.get(next)) {
                 variable = binding;
                 layer = None;
-            } else if let Some((next_layer, binding)) = self.store.lookup_from(next, 0) {
-                variable = binding;
-                layer = Some(next_layer);
             } else {
-                return Some(LiteralChain::Missing {
-                    name: next.to_vec(),
-                    definition: nearest_definition,
-                });
+                self.store.plan_database_lookup(next, lookups)?;
+                if let Some((next_layer, binding)) = self.store.lookup_from(next, 0) {
+                    variable = binding;
+                    layer = Some(next_layer);
+                } else {
+                    return Some(LiteralChain::Missing {
+                        name: next.to_vec(),
+                        definition: nearest_definition,
+                    });
+                }
             }
             name = next;
         }
@@ -5590,8 +5895,9 @@ mod tests {
                 FilesystemEffect::Wildcard(_)
                 | FilesystemEffect::ArchiveGlob(_)
                 | FilesystemEffect::RuleGlob(_)
-                | FilesystemEffect::Tilde(_) => {
-                    panic!("unexpected wildcard")
+                | FilesystemEffect::Tilde(_)
+                | FilesystemEffect::DirectoryName(_) => {
+                    panic!("unexpected filesystem operation")
                 }
             }
             Ok(Vec::new())
@@ -7259,6 +7565,161 @@ mod variable_names_tests {
 #[cfg(test)]
 mod runtime_metadata_scope_tests {
     use super::*;
+
+    #[test]
+    fn rejected_weak_metadata_definition_still_queries_its_file_table() {
+        for (name, retained_origin, attempted_origin) in [
+            (b"MFLAGS".as_slice(), Origin::File, Origin::Environment),
+            (b"MAKEFLAGS".as_slice(), Origin::Override, Origin::File),
+        ] {
+            let mut globals = VariableStore::new();
+            globals.enable_database_history(crate::database::TableHistory::new(
+                crate::database::HashKind::Variable,
+                1024,
+            ));
+            let mut target = TargetScope::default();
+            target
+                .define_with(
+                    &mut globals,
+                    name,
+                    b"retained",
+                    Assignment::Recursive,
+                    retained_origin,
+                    false,
+                    None,
+                    None,
+                    ExpansionContext::pure(),
+                )
+                .unwrap();
+            let mut context = globals.with_target_scopes(&[&target]);
+            let before_file = context.database_stats().unwrap();
+            let before_global = globals.database_stats().unwrap();
+            context
+                .define_runtime_metadata(name, b"discarded", attempted_origin)
+                .unwrap();
+            let retained = context.get(name).unwrap();
+            assert_eq!(retained.raw_value(), b"retained");
+            assert_eq!(retained.origin(), retained_origin);
+            let after_file = context.database_stats().unwrap();
+            assert_eq!(after_file.lookups, before_file.lookups + 1);
+            assert_eq!(after_file.filled, before_file.filled);
+            assert_eq!(globals.database_stats().unwrap(), before_global);
+        }
+    }
+
+    #[test]
+    fn explicit_file_and_automatic_storage_share_one_history_without_flattening_patterns() {
+        let mut globals = VariableStore::new();
+        globals.enable_database_history(crate::database::TableHistory::new(
+            crate::database::HashKind::Variable,
+            1024,
+        ));
+        globals
+            .define_literal(b"GLOBAL", b"root", Origin::File)
+            .unwrap();
+        let mut target = TargetScope::default();
+        target
+            .define_with(
+                &mut globals,
+                b"DB_TARGET",
+                b"scope",
+                Assignment::Recursive,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut pattern = TargetScope {
+            pattern: true,
+            ..TargetScope::default()
+        };
+        pattern
+            .define_with(
+                &mut globals,
+                b"PATTERN",
+                b"pattern",
+                Assignment::Recursive,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut context = globals.with_target_scopes(&[&pattern, &target]);
+        context
+            .define_literal(b"@", b"all", Origin::Automatic)
+            .unwrap();
+        assert_eq!(context.database_stats().unwrap().filled, 2);
+        assert_eq!(target.database_stats().unwrap().filled, 2);
+        let before_file = context.database_stats().unwrap();
+        let before_pattern = pattern.database_stats().unwrap();
+        let before_global = globals.database_stats().unwrap();
+        assert_eq!(
+            context
+                .expand(b"$(DB_TARGET)|$@|$(PATTERN)|$(GLOBAL)")
+                .unwrap(),
+            b"scope|all|pattern|root"
+        );
+        assert_eq!(
+            context.database_stats().unwrap().lookups - before_file.lookups,
+            4
+        );
+        assert_eq!(
+            pattern.database_stats().unwrap().lookups - before_pattern.lookups,
+            2
+        );
+        assert_eq!(
+            globals.database_stats().unwrap().lookups - before_global.lookups,
+            1
+        );
+        let before_view = context.database_stats();
+        let definitions = context.database_file_definitions();
+        assert_eq!(definitions.len(), 2);
+        assert!(
+            definitions
+                .iter()
+                .any(|(name, value)| *name == b"DB_TARGET" && value.raw_value() == b"scope")
+        );
+        assert!(
+            definitions
+                .iter()
+                .any(|(name, value)| *name == b"@" && value.raw_value() == b"all")
+        );
+        assert_eq!(context.database_stats(), before_view);
+    }
+
+    #[test]
+    fn double_colon_branch_locals_are_independent_and_head_is_not_an_ancestor() {
+        let mut globals = VariableStore::new();
+        globals.enable_database_history(crate::database::TableHistory::new(
+            crate::database::HashKind::Variable,
+            1024,
+        ));
+        globals
+            .define_literal(b"GLOBAL", b"root", Origin::File)
+            .unwrap();
+        let mut head = globals.with_target_scopes(&[]);
+        head.define_literal(b"@", b"first", Origin::Automatic)
+            .unwrap();
+        head.define_literal(b"PRIVATE", b"visible", Origin::File)
+            .unwrap();
+        head.set_private(b"PRIVATE", true);
+        let mut branch = head.fresh_double_colon_scope();
+        branch
+            .define_literal(b"@", b"second", Origin::Automatic)
+            .unwrap();
+        assert_eq!(
+            branch.expand(b"$@|$(PRIVATE)|$(GLOBAL)").unwrap(),
+            b"second|visible|root"
+        );
+        assert_eq!(head.expand(b"$@").unwrap(), b"first");
+        assert_eq!(head.database_stats().unwrap().filled, 2);
+        assert_eq!(branch.database_stats().unwrap().filled, 1);
+        assert!(branch.with_target_scopes(&[]).get(b"PRIVATE").is_none());
+    }
 
     #[test]
     fn retained_flags_do_not_leak_secondary_automatic_variables() {

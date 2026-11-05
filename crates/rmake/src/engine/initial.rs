@@ -134,12 +134,17 @@ impl Plan {
         } else {
             crate::output::Controller::new(crate::output::Mode::None, &self.program)
         };
+        output.reset_compatibility_header();
+        output.set_database_requested(false);
         output.set_debug_mask(crate::debug::Mask::NONE);
         output.set_directory_policy(crate::cli::DirectoryChoice::Automatic, false);
         output.set_changed_directory(false);
         output.set_recursive(false);
         self.output = Some(output.clone());
         let mut database = Database::default();
+        database
+            .enable_database_history()
+            .expect("fresh invocation database");
         database.variables.reserve_environment_layout(
             &[
                 b".VARIABLES",
@@ -219,6 +224,12 @@ impl Plan {
         let initial_directory = std::env::current_dir().ok();
         database.variables.set_startup_directory_pending();
         let filesystem = RefCell::new(FilesystemRuntime::default());
+        filesystem.borrow_mut().set_database_history(
+            database
+                .database_history()
+                .expect("enabled before defaults")
+                .clone(),
+        );
         let mut state = State {
             database,
             filesystem,
@@ -235,7 +246,9 @@ impl Plan {
             let mut prefix_count = 0;
             let mut parsed_prefix = Options::default();
             for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-                if name == b"GNUMAKEFLAGS" && state.database.variables.get(name).is_none() {
+                if name == b"GNUMAKEFLAGS"
+                    && state.database.variables.database_lookup(name).is_none()
+                {
                     continue;
                 }
                 let expression = [b"$(".as_slice(), name, b")"].concat();
@@ -260,6 +273,7 @@ impl Plan {
                                 (options.warn_undefined, options.environment_override);
                             policy_output
                                 .set_directory_policy(options.directory_choice, options.silent);
+                            policy_output.set_database_requested(options.print_database);
                             policy_output.set_changed_directory(!options.directories.is_empty());
                         },
                     );
@@ -316,6 +330,7 @@ impl Plan {
                 &mut |options| {
                     selected_policy = (options.warn_undefined, options.environment_override);
                     policy_output.set_directory_policy(options.directory_choice, options.silent);
+                    policy_output.set_database_requested(options.print_database);
                     policy_output.set_changed_directory(!options.directories.is_empty());
                 },
             );
@@ -371,20 +386,22 @@ impl Plan {
         let (options, reader_output, construction, shuffle) = match decoded {
             Ok(decoded) => decoded,
             Err(error) => {
-                let exit = crate::native::has_modules().then(|| {
-                    Box::new(NativeExit::Startup(Box::new(startup_exit::Host {
-                        database: state.database,
-                        filesystem: state.filesystem,
-                        output: state.output,
-                        warnings: state.warnings,
-                        program: self.program.clone(),
-                        level: 0,
-                        include_search: None,
-                        reader_output: None,
-                        construction: None,
-                        restore_directory: None,
-                    })))
-                });
+                let exit = (crate::native::has_modules() || state.output.database_requested())
+                    .then(|| {
+                        Box::new(NativeExit::Startup(Box::new(startup_exit::Host {
+                            database: state.database,
+                            filesystem: state.filesystem,
+                            output: state.output,
+                            warnings: state.warnings,
+                            program: self.program.clone(),
+                            level: 0,
+                            include_search: None,
+                            reader_output: None,
+                            construction: None,
+                            restore_directory: None,
+                            database_dumped: Cell::new(false),
+                        })))
+                    });
                 return Err(Failure { error, exit });
             }
         };
@@ -473,6 +490,7 @@ impl State {
         self.warnings.set(options.warn_undefined);
         self.output
             .set_directory_policy(options.directory_choice, options.silent);
+        self.output.set_database_requested(options.print_database);
         self.output
             .set_changed_directory(!options.directories.is_empty());
         self.database
@@ -523,14 +541,23 @@ impl State {
                 crate::cli::Argument::File(index) => {
                     let raw = options.files[index].as_os_str().as_bytes();
                     options.files[index] = self.path(program, raw)?;
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.files[index].as_os_str().as_bytes());
+                    }
                 }
                 crate::cli::Argument::OldFile(index) => {
                     let raw = options.old_files[index].as_os_str().as_bytes();
                     options.old_files[index] = self.path(program, raw)?;
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.old_files[index].as_os_str().as_bytes());
+                    }
                 }
                 crate::cli::Argument::NewFile(index) => {
                     let raw = options.new_files[index].as_os_str().as_bytes();
                     options.new_files[index] = self.path(program, raw)?;
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.new_files[index].as_os_str().as_bytes());
+                    }
                 }
                 crate::cli::Argument::Goal(index) => {
                     let path = self.path(program, &options.goals[index])?;
@@ -539,10 +566,15 @@ impl State {
                     let mut value = self
                         .database
                         .variables
-                        .get(b"MAKECMDGOALS")
+                        .database_lookup(b"MAKECMDGOALS")
                         .map(|v| v.raw_value().to_vec())
                         .unwrap_or_default();
-                    if self.database.variables.get(b"MAKECMDGOALS").is_some() {
+                    if self
+                        .database
+                        .variables
+                        .database_lookup(b"MAKECMDGOALS")
+                        .is_some()
+                    {
                         value.push(b' ');
                     }
                     value.extend_from_slice(name);

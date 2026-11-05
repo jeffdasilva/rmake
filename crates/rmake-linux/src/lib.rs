@@ -45,3 +45,7 @@ pub mod environment;
 // Native C ABI and Linux ucontext ownership stay behind this adapter.
 #[allow(unsafe_code)]
 pub mod native;
+
+// The application supplies cached file times and owns emission-point clocks.
+#[allow(unsafe_code)]
+pub mod clock;

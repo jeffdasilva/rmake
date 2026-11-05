@@ -33,6 +33,7 @@ struct Node<'a> {
     name: &'a [u8],
     body: Body<'a>,
     externally_active: bool,
+    record_store_lookup: bool,
 }
 struct Program<'a> {
     nodes: Vec<Node<'a>>,
@@ -172,11 +173,13 @@ struct Frame {
     nearest: Option<Arc<Location>>,
 }
 struct Warning {
+    lookups: crate::database::LookupBatch,
     node: usize,
     range: Range<usize>,
     nearest: Option<Arc<Location>>,
 }
 struct Prepared {
+    lookups: crate::database::LookupBatch,
     arena: Arena,
     warnings: Vec<Warning>,
     result: Result<Value, ExpandError>,
@@ -283,9 +286,10 @@ impl Expansion<'_, '_> {
                 Body::Text { bytes, ops }
             };
             nodes[index] = Some(Node {
-                name: if simple { b"" } else { name },
+                name,
                 body,
                 externally_active: !simple && external.contains(&(name, layer)),
+                record_store_lookup: layer.is_some(),
             });
             index += 1;
         }
@@ -302,6 +306,7 @@ impl Expansion<'_, '_> {
     ) -> Option<Prepared> {
         let mut arena = Arena::default();
         let mut warnings = Vec::new();
+        let mut lookups = crate::database::LookupBatch::default();
         let result = (|| {
             if program.nodes[0].externally_active {
                 return Err(TrialError::Evaluation(
@@ -359,9 +364,16 @@ impl Expansion<'_, '_> {
                             .map_err(|error| error.at(frame.nearest.as_ref()))?;
                     }
                     Op::Missing(range) => {
+                        self.store
+                            .plan_database_lookup(
+                                &program.nodes[frame.node].body.bytes()[range.clone()],
+                                &mut lookups,
+                            )
+                            .ok_or(TrialError::Budget)?;
                         bounded_push(
                             &mut warnings,
                             Warning {
+                                lookups: std::mem::take(&mut lookups),
                                 node: frame.node,
                                 range,
                                 nearest: frame.nearest.clone(),
@@ -370,39 +382,46 @@ impl Expansion<'_, '_> {
                         )
                         .ok_or(TrialError::Budget)?;
                     }
-                    Op::Reference { node, definition } => match &program.nodes[node].body {
-                        Body::Simple { bytes, nul } => {
-                            let value = arena.add(
-                                PieceKind::Bytes {
-                                    node,
-                                    range: 0..bytes.len(),
-                                },
-                                bytes.len(),
-                                *nul,
-                            )?;
-                            frame.value = arena
-                                .join(frame.value, value)
-                                .map_err(|error| error.at(frame.nearest.as_ref()))?;
+                    Op::Reference { node, definition } => {
+                        if program.nodes[node].record_store_lookup {
+                            self.store
+                                .plan_database_lookup(program.nodes[node].name, &mut lookups)
+                                .ok_or(TrialError::Budget)?;
                         }
-                        Body::Text { .. } => {
-                            let nearest = definition.or_else(|| frame.nearest.clone());
-                            if active[node] || program.nodes[node].externally_active {
-                                return Err(TrialError::Evaluation(
-                                    ExpandError::RecursiveVariable(
-                                        program.nodes[node].name.to_vec(),
-                                    )
-                                    .at(nearest.as_ref()),
-                                ));
+                        match &program.nodes[node].body {
+                            Body::Simple { bytes, nul } => {
+                                let value = arena.add(
+                                    PieceKind::Bytes {
+                                        node,
+                                        range: 0..bytes.len(),
+                                    },
+                                    bytes.len(),
+                                    *nul,
+                                )?;
+                                frame.value = arena
+                                    .join(frame.value, value)
+                                    .map_err(|error| error.at(frame.nearest.as_ref()))?;
                             }
-                            active[node] = true;
-                            frames.push(Frame {
-                                node,
-                                cursor: 0,
-                                value: None,
-                                nearest,
-                            });
+                            Body::Text { .. } => {
+                                let nearest = definition.or_else(|| frame.nearest.clone());
+                                if active[node] || program.nodes[node].externally_active {
+                                    return Err(TrialError::Evaluation(
+                                        ExpandError::RecursiveVariable(
+                                            program.nodes[node].name.to_vec(),
+                                        )
+                                        .at(nearest.as_ref()),
+                                    ));
+                                }
+                                active[node] = true;
+                                frames.push(Frame {
+                                    node,
+                                    cursor: 0,
+                                    value: None,
+                                    nearest,
+                                });
+                            }
                         }
-                    },
+                    }
                     Op::Name(_) => unreachable!("references are bound before evaluation"),
                 }
             }
@@ -413,6 +432,7 @@ impl Expansion<'_, '_> {
             Ok(value) => Ok(value),
         };
         Some(Prepared {
+            lookups,
             arena,
             warnings,
             result,
@@ -443,6 +463,9 @@ impl Expansion<'_, '_> {
         }
         let result = (|| {
             for warning in prepared.warnings {
+                // A diagnostic can expose state or abort evaluation. Publish
+                // only the actual prefix before each warning, never later reads.
+                warning.lookups.commit();
                 if self.context.is_cancelled() {
                     return Err(ExpandError::Cancelled);
                 }
@@ -455,6 +478,7 @@ impl Expansion<'_, '_> {
                     .map_err(|error| error.at(warning.nearest.as_ref()))?;
                 }
             }
+            prepared.lookups.commit();
             let value = prepared.result?;
             let mut output = Vec::with_capacity(value.map_or(0, |span| span.len));
             let mut pending: Vec<_> = value.into_iter().collect();
@@ -713,5 +737,78 @@ mod tests {
                 .unwrap(),
             b"[new$]"
         );
+    }
+    #[test]
+    fn text_plan_aggregates_repeated_reads_and_stops_at_the_first_cycle() {
+        let mut store = VariableStore::new();
+        let table = crate::database::TableHistory::new(crate::database::HashKind::Variable, 1024);
+        store.enable_database_history(table.clone());
+        store.define_literal(b"A", b"one", Origin::File).unwrap();
+        store
+            .define(b"B", b"$(A)$(A)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        store
+            .define(b"C", b"$(B)$(B)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        let before = table.stats().lookups;
+        assert_eq!(store.expand(b"$(C)").unwrap(), b"oneoneoneone");
+        assert_eq!(table.stats().lookups, before + 7);
+        store
+            .define(
+                b"LOOP",
+                b"x$(LOOP)$(AFTER)",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        let before = table.stats().lookups;
+        assert!(store.expand(b"$(LOOP)").is_err());
+        assert_eq!(table.stats().lookups, before + 2);
+    }
+
+    #[test]
+    fn text_plan_warnings_observe_only_their_completed_lookup_prefixes() {
+        struct Receiver {
+            table: crate::database::TableHistory,
+            seen: Vec<u64>,
+        }
+        impl crate::diagnostic::OutputReceiver for Receiver {
+            fn warns_undefined(&self) -> bool {
+                true
+            }
+            fn emit(&mut self, event: Output<'_>) {
+                if matches!(event, Output::Warning { .. }) {
+                    self.seen.push(self.table.stats().lookups);
+                }
+            }
+        }
+        let mut store = VariableStore::new();
+        let table = crate::database::TableHistory::new(crate::database::HashKind::Variable, 1024);
+        store.enable_database_history(table.clone());
+        store.define_literal(b"A", b"value", Origin::File).unwrap();
+        store
+            .define(
+                b"C",
+                b"$(MISSING)$(A)$(MISSING)",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        let before = table.stats().lookups;
+        let mut receiver = Receiver {
+            table: table.clone(),
+            seen: Vec::new(),
+        };
+        assert_eq!(
+            store
+                .expand_with(
+                    b"$(C)",
+                    ExpansionContext::with_receiver(None, &mut receiver)
+                )
+                .unwrap(),
+            b"value"
+        );
+        assert_eq!(receiver.seen, [before + 2, before + 4]);
+        assert_eq!(table.stats().lookups, before + 4);
     }
 }

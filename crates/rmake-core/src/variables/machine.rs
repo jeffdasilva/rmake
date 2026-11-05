@@ -478,7 +478,7 @@ impl Expansion<'_, '_> {
                     .map(|v| (v.clone(), None))
                     .or_else(|| {
                         self.store
-                            .lookup_from(&name, 0)
+                            .database_lookup_from(&name)
                             .map(|(layer, v)| (v.clone(), Some(layer)))
                     });
                 if let Some((variable, layer)) = binding {
@@ -526,6 +526,7 @@ impl Expansion<'_, '_> {
                     return Ok(());
                 }
                 if let Some(mut plan) = self.linear_plan(&name, &variable, layer) {
+                    std::mem::take(&mut plan.lookups).commit();
                     let tail = std::mem::replace(&mut plan.tail, Tail::Value(Vec::new()));
                     let active = self.active.len();
                     let active_bytes = plan.active.iter().map(|(n, _)| n.capacity() + 64).sum();

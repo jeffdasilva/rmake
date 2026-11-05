@@ -9,6 +9,7 @@ The clean environment excludes user makefiles, flags and toolchain overrides.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -21,9 +22,10 @@ HEADER = ("# SPDX-License-Identifier: GPL-3.0-or-later\n"
           "# Observed and organized for rmake in 2026 by Jeff DaSilva.\n"
           "# Linux GNU Make 4.4.1 compatibility data observed with the pinned oracle.\n"
           "# Recipe and variable bytes are declarative compatibility data, not C source.\n")
+DEFINITION_ORDER_HEADER = '# Definition order is observed from the qualified private GNU event trace.\n'
 
 
-def extract(text: str) -> dict[str, str]:
+def extract(text: str, variable_order: list[str] | None = None) -> dict[str, str]:
     if len(text) > 512 * 1024 or "\0" in text:
         raise ValueError("invalid oracle database size or NUL")
     lines = text.splitlines()
@@ -36,6 +38,16 @@ def extract(text: str) -> dict[str, str]:
             name = value.split("=", 1)[0].strip().removesuffix(":").strip()
             if (not name.startswith(".") or name == ".LIBPATTERNS") and name not in excluded:
                 variables.append(value)
+    if variable_order is None:
+        variable_lines = sorted(variables)
+        variable_header = HEADER
+    else:
+        by_name = {line.split('=', 1)[0].strip().removesuffix(':').strip(): line for line in variables}
+        if (len(by_name) != len(variables) or len(set(variable_order)) != len(variable_order)
+                or set(by_name) != set(variable_order)):
+            raise ValueError('observed default-variable definition order differs from oracle names')
+        variable_lines = [by_name[name] for name in variable_order]
+        variable_header = HEADER + DEFINITION_ORDER_HEADER
     implicit, files = text.split("# Implicit Rules\n", 1)[1].split("# Files\n", 1)
     suffixes = []
     target = ""
@@ -50,7 +62,7 @@ def extract(text: str) -> dict[str, str]:
     patterns = implicit[implicit.index("(%):"):]
     patterns = "\n".join(line for line in patterns.splitlines() if not line.startswith("#"))
     return {
-        "default-variables.mk": HEADER + "\n".join(sorted(variables)) + "\n",
+        "default-variables.mk": variable_header + "\n".join(variable_lines) + "\n",
         "default-suffix-rules.mk": HEADER + "\n".join(
             name + ":\n" + "\n".join(recipe) + "\n" for name, recipe in sorted(suffixes)),
         "default-pattern-rules.mk": HEADER + patterns,
@@ -71,7 +83,10 @@ def main() -> int:
                                 capture_output=True, timeout=15, check=False)
     if result.returncode != 2 or result.stderr != b"make: *** No targets.  Stop.\n":
         raise ValueError("unexpected oracle database invocation result")
-    data = extract(result.stdout.decode("utf-8"))
+    order = json.loads((ROOT / 'oracle/builtin-variable-order.json').read_text())
+    if order.get('schema_version') != 1:
+        raise ValueError('unknown builtin definition order schema')
+    data = extract(result.stdout.decode("utf-8"), order['names'])
     for name, expected in data.items():
         path = ROOT / "crates/rmake-core/data" / name
         if args.write:

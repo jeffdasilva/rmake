@@ -1,0 +1,7 @@
+{
+  "classification": "Fully serialized exploratory database default-cost campaign; all mixed/negative observations retained; predates locale integration and database compaction; no final performance or M3/M6 acceptance",
+  "sha256": "4d2c90ca1fd27b0f085f019e061f4da19fb28f4911f9c1168028dac69449f7aa",
+  "raw_sha256": "8b3e91ed8640906463671ccec0587bd90054fe7d194b2257d7e2aa3a803c9732",
+  "raw_bytes": 2370851,
+  "gzip_bytes": 263683
+}
