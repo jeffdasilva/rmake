@@ -25,6 +25,12 @@ tests/cases/conditional-space-*/Makefile -text whitespace=-blank-at-eol,-blank-a
 # Definition fixtures retain control bytes and header/body stream boundaries.
 tests/cases/qualified-define-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 
+# Expanded undefine operands consume the exact control bytes in these files.
+tests/cases/undefine-name-*/bytes -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+tests/cases/undefine-name-mixed-blanks-and-suffix/prefix -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/undefine-name-mixed-blanks-and-suffix/suffix -text whitespace=-blank-at-eol,-blank-at-eof
+tests/cases/undefine-name-mixed-blanks-and-suffix/tail -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+
 # Built-in command data preserves observable spaces before recipe newlines.
 crates/rmake-core/data/*.mk -text whitespace=-blank-at-eol,-blank-at-eof
 

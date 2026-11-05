@@ -1,0 +1,12 @@
+id = "undefine-name-mixed-blanks-and-suffix"
+requirement = "variables.assignment-whitespace"
+candidate = "required"
+description = "undefine name mixed blanks and suffix"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "after=[plain/undefined]\n"
+stderr = ""
