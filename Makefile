@@ -25,6 +25,7 @@ DEVELOPER_FLOW_REPORT ?= artifacts/developer-flows/development.json
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-roomy-wake-slots test-roomy-wake-slots-release
 .PHONY: test-output-lock-completion test-output-lock-completion-release
+.PHONY: test-startup-output-mutex test-startup-output-mutex-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
@@ -447,6 +448,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_TRAVERSAL_CASE=chain-secondary test-debug-traversal
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_TRAVERSAL_CASE=generated-include test-debug-traversal-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" test-output-lock-completion
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-startup-output-mutex
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_VERBOSE_CASE=vpath-no-update test-debug-verbose
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOB_DEBUG_CASE=jobs-serial-multiline test-job-debug
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
@@ -702,6 +704,13 @@ test-output-lock-completion: build oracle-verify catalog-check
 test-output-lock-completion-release: release oracle-verify catalog-check
 	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/optimized.json
 
+test-startup-output-mutex: build oracle-verify
+	$(PYTHON) tools/startup_output_mutex.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/startup-output-mutex/development.json
+
+test-startup-output-mutex-release: release oracle-verify
+	$(PYTHON) tools/startup_output_mutex.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/startup-output-mutex/optimized.json
+
+
 test-trace-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-development.json
 
@@ -811,6 +820,9 @@ check: test-integration test-database-output test-database-lifecycle test-databa
 
 test check: test-output-lock-completion
 test-m4-release: test-output-lock-completion-release
+
+test check: test-startup-output-mutex
+test-m4-release: test-startup-output-mutex-release
 
 test: test-trace-nls
 check: test-trace-nls

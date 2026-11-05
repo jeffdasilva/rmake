@@ -1356,11 +1356,6 @@ impl Engine {
                 .define_literal(b".DEFAULT_GOAL", b"", Origin::File)
                 .map_err(StartupError::expansion)
         );
-        if let Some(authentication) = &options.sync_mutex {
-            retain!(output.decode_mutex(authentication).map_err(|error| {
-                Diagnostic::from(crate::usage::sync_mutex_open(authentication, &error))
-            }));
-        }
         let flag_state =
             runtime_options::State::new(&options, output.clone(), include_search.clone());
         let flag_entry_jobs = options.jobs;
