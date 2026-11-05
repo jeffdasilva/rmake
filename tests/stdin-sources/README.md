@@ -1,0 +1,5 @@
+The selected44 original profiles are in `models.json`, with original public-ABI fixtures `probe.c` and `legacy_probe.c` and the bounded pipe/identity launcher `launch.py`. They use exact streams, status and ordered `seen` witnesses, independently fixed complete filesystems, GNU2 repeats and process bounds. Two declared random source identities are sampled independently before exit and must retain the exact final device/inode/mode/full bytes; no output is normalized and no wildcard file is dropped.
+
+Run `python3 -B tools/stdin_sources.py --oracle ORACLE --candidate CANDIDATE --report REPORT`. Use `--oracle-only` only for model qualification. A candidate failure exits nonzero. Case selectors are exact and repeatable. Native modules compile once before each case; ordinary controls compile no module.
+
+The [implementation and scope notes](../../docs/stdin-sources.md) describe the isolated development checkpoints and remaining boundaries. Discovery/qualification archives will retain all initial wrong hypotheses, raw reports and immutable source snapshots; no overall M3/M6 completion or performance claim is made.

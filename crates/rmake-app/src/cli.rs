@@ -101,9 +101,18 @@ pub enum DirectoryChoice {
     Off,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StdinArgument {
+    pub(crate) argument: usize,
+    pub(crate) consumed: usize,
+    pub(crate) prefix: usize,
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
+    pub(crate) temp_stdin_file: Option<usize>,
+    pub(crate) stdin_argument: Option<StdinArgument>,
     pub old_files: Vec<PathBuf>,
     pub new_files: Vec<PathBuf>,
     pub evals: Vec<Vec<u8>>,
@@ -140,6 +149,7 @@ pub struct Options {
     pub no_rules: bool,
     pub no_variables: bool,
     pub trace: bool,
+    pub print_database: bool,
     pub debug: crate::debug::Requests,
     pub debug_mask: crate::debug::Mask,
     pub warn_undefined: bool,
@@ -214,6 +224,7 @@ impl Decoder {
         let mut end_options = self.end_options;
         let offset = self.offset;
         let track_jobs = self.track_jobs;
+        let mut expanded_long = None;
         macro_rules! pause {
             ($event:expr) => {{
                 let step = DecodedArgument {
@@ -228,6 +239,7 @@ impl Decoder {
             }};
         }
         while i < args.len() {
+            let argument_index = i;
             let arg = &args[i];
             if !end_options && arg == b"--" {
                 end_options = true;
@@ -248,6 +260,7 @@ impl Decoder {
                         name,
                         b"--file"
                             | b"--makefile"
+                            | b"--temp-stdin"
                             | b"--directory"
                             | b"--include-dir"
                             | b"--old-file"
@@ -277,6 +290,7 @@ impl Decoder {
                     b"--question" => Some(&mut result.question),
                     b"--touch" => Some(&mut result.touch),
                     b"--trace" => Some(&mut result.trace),
+                    b"--print-data-base" => Some(&mut result.print_database),
                     b"--warn-undefined-variables" => Some(&mut result.warn_undefined),
                     b"--environment-overrides" => Some(&mut result.environment_override),
                     b"--no-builtin-rules" => Some(&mut result.no_rules),
@@ -376,9 +390,9 @@ impl Decoder {
                                 _ => return Err("unknown jobserver style".into()),
                             };
                         }
-                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir"
-                        | b"--old-file" | b"--assume-old" | b"--new-file" | b"--assume-new"
-                        | b"--what-if" => {
+                        b"--file" | b"--makefile" | b"--temp-stdin" | b"--directory"
+                        | b"--include-dir" | b"--old-file" | b"--assume-old" | b"--new-file"
+                        | b"--assume-new" | b"--what-if" => {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
@@ -424,6 +438,19 @@ impl Decoder {
                                 let index = result.directories.len() - 1;
                                 pause!(Some(Argument::Directory(index)));
                             } else {
+                                if name == b"--temp-stdin" {
+                                    result.temp_stdin_file = Some(result.files.len());
+                                } else if track_jobs
+                                    && path == std::path::Path::new("-")
+                                    && result.stdin_argument.is_none()
+                                    && expanded_long != Some(argument_index)
+                                {
+                                    result.stdin_argument = Some(StdinArgument {
+                                        argument: argument_index,
+                                        consumed: i - argument_index + 1,
+                                        prefix: 0,
+                                    });
+                                }
                                 result.files.push(path);
                                 let index = result.files.len() - 1;
                                 pause!(Some(Argument::File(index)));
@@ -494,6 +521,7 @@ impl Decoder {
                             if let Some(expanded) = expand_unique_long_option(arg) {
                                 // Retry the same argument before any operand
                                 // receiver or definition can observe it.
+                                expanded_long = Some(i);
                                 args[i] = expanded;
                                 continue;
                             }
@@ -519,6 +547,7 @@ impl Decoder {
                         b'v' => result.version = true,
                         b'd' => result.debug.all = true,
                         b'n' => result.dry_run = true,
+                        b'p' => result.print_database = true,
                         b's' => {
                             result.silent = true;
                             result.silent_origin = Some(Origin::CommandLine);
@@ -629,6 +658,13 @@ impl Decoder {
                                     result.command_jobs = result.jobs;
                                 }
                             } else if option == b'f' {
+                                if track_jobs && value == b"-" && result.stdin_argument.is_none() {
+                                    result.stdin_argument = Some(StdinArgument {
+                                        argument: argument_index,
+                                        consumed: i - argument_index + 1,
+                                        prefix: j,
+                                    });
+                                }
                                 result.files.push(OsString::from_vec(value).into());
                                 let index = result.files.len() - 1;
                                 pause!(Some(Argument::File(index)));
@@ -640,7 +676,7 @@ impl Decoder {
                             break;
                         }
                         option => {
-                            if STARTUP || matches!(option, b'p') {
+                            if STARTUP {
                                 return Err(format!("unsupported option '-{}'", option as char));
                             }
                         }
@@ -1209,7 +1245,11 @@ impl Options {
     }
 
     pub fn makeflags(&self) -> Vec<u8> {
-        let mut flags = self.recursive_flags();
+        self.makeflags_for_phase(false)
+    }
+
+    pub fn makeflags_for_phase(&self, remaking: bool) -> Vec<u8> {
+        let mut flags = self.recursive_flags_for_phase(true, remaking);
         if !self.evals.is_empty() {
             flags.extend_from_slice(b" $(-*-eval-flags-*-)");
         }
@@ -1221,7 +1261,13 @@ impl Options {
     }
 
     fn recursive_flags_with_includes(&self, includes: bool) -> Vec<u8> {
-        let flags = if includes {
+        self.recursive_flags_for_phase(includes, false)
+    }
+
+    pub fn recursive_flags_for_phase(&self, includes: bool, remaking: bool) -> Vec<u8> {
+        let flags = if remaking {
+            self.flags_for_phase(includes, true)
+        } else if includes {
             self.flags()
         } else {
             self.flags_with_includes(false)
@@ -1245,6 +1291,10 @@ impl Options {
     }
 
     fn flags_with_includes(&self, includes: bool) -> Vec<u8> {
+        self.flags_for_phase(includes, false)
+    }
+
+    fn flags_for_phase(&self, includes: bool, remaking: bool) -> Vec<u8> {
         let mut flags = Vec::new();
         for (set, flag) in [
             (self.always, b'B'),
@@ -1253,13 +1303,14 @@ impl Options {
             (self.ignore_errors, b'i'),
             (self.keep_going, b'k'),
             (self.check_symlink_times, b'L'),
-            (self.dry_run, b'n'),
-            (self.question, b'q'),
+            (self.dry_run && !remaking, b'n'),
+            (self.print_database, b'p'),
+            (self.question && !remaking, b'q'),
             (self.no_rules, b'r'),
             (self.no_variables, b'R'),
             (self.silent, b's'),
             (!self.keep_going && self.keep_going_origin.is_some(), b'S'),
-            (self.touch, b't'),
+            (self.touch && !remaking, b't'),
             (self.directory_choice == DirectoryChoice::On, b'w'),
         ] {
             if set {
@@ -1365,6 +1416,41 @@ pub fn invocation_name(arg: &std::ffi::OsStr) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn makefile_phase_omits_execution_modes_without_changing_the_invocation() {
+        let options =
+            Options::parse([OsString::from("-nqtp"), OsString::from("-Ipath$$value")]).unwrap();
+        let normal = options.makeflags();
+        let remake = options.makeflags_for_phase(true);
+        assert!(normal.starts_with(b"npqt "));
+        assert!(remake.starts_with(b"p "));
+        assert!(normal.ends_with(b"-Ipath$$$$value"));
+        assert!(remake.ends_with(b"-Ipath$$$$value"));
+        assert!(options.dry_run && options.question && options.touch);
+        assert_eq!(options.makeflags(), normal);
+    }
+
+    #[test]
+    fn database_switch_is_serialized_and_retained_in_live_flag_decoding() {
+        for argument in ["-prR", "--print-data-base", "--print-data-b"] {
+            let options = Options::parse([OsString::from(argument)]).unwrap();
+            assert!(options.print_database);
+            assert!(
+                options
+                    .flags()
+                    .split(|byte| byte.is_ascii_whitespace())
+                    .next()
+                    .unwrap()
+                    .contains(&b'p')
+            );
+            let (updated, _, _) = options
+                .assigned_flags_with_positions(&[b"-s".to_vec()], Origin::File)
+                .unwrap();
+            assert!(updated.print_database);
+        }
+        assert!(Options::parse([OsString::from("--print-data-base=yes")]).is_err());
+    }
 
     #[test]
     fn warning_option_serializes_and_tracks_the_initial_gnu_flag_boundary() {
@@ -1601,7 +1687,7 @@ mod tests {
     }
 
     #[test]
-    fn startup_validation_and_registered_unimplemented_features_remain_errors() {
+    fn startup_validation_remains_strict_for_unknown_options() {
         for value in ["--w", "--not-an-option", "-Qsk"] {
             assert!(parse(&[value]).is_err());
             assert!(Options::with_environment([], Some(value.into()), None).is_err());
@@ -1609,7 +1695,9 @@ mod tests {
         assert!(
             Options::default()
                 .assigned_flags(&[b"-p".to_vec()], Origin::File)
-                .is_err()
+                .unwrap()
+                .0
+                .print_database
         );
     }
 

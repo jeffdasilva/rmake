@@ -37,6 +37,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0
             .output
             .set_directory_policy(options.directory_choice, options.silent);
+        self.0.output.set_database_requested(options.print_database);
         self.0.dirty.set(true);
     }
 
@@ -67,12 +68,21 @@ impl State {
     pub(super) fn refresh(&self, options: &Options) {
         self.output
             .set_directory_policy(options.directory_choice, options.silent);
+        self.output.set_database_requested(options.print_database);
         // This is a passive policy snapshot. A signal-only effective debug
         // level is not a serialized request and must survive this copy.
         self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
         self.dirty.set(false);
     }
+    pub(super) fn publish_stdin(&self, options: &Options, index: usize) {
+        // Publication changes an invocation input, not the live switch policy.
+        // A later --eval/MAKEFLAGS reset must retain the copied source path.
+        let mut retained = self.options.borrow_mut();
+        retained.files[index].clone_from(&options.files[index]);
+        retained.temp_stdin_file = options.temp_stdin_file;
+    }
+
     pub(super) fn take(&self) -> Option<Options> {
         if !self.dirty.get() {
             return None;
@@ -204,11 +214,14 @@ impl State {
         self.warn_undefined.set(updated.warn_undefined);
         self.output
             .set_directory_policy(updated.directory_choice, updated.silent);
+        self.output.set_database_requested(updated.print_database);
         // These invocation inputs survive a live reset unchanged. Move them
         // only after fallible decoding and search preparation have succeeded.
         // No evaluator callback runs while this exclusive borrow is held.
         let mut previous = self.options.borrow_mut();
         updated.files = std::mem::take(&mut previous.files);
+        updated.temp_stdin_file = previous.temp_stdin_file;
+        updated.stdin_argument = previous.stdin_argument;
         updated.directories = std::mem::take(&mut previous.directories);
         updated.goals = std::mem::take(&mut previous.goals);
         updated.assignments = std::mem::take(&mut previous.assignments);
@@ -223,6 +236,8 @@ impl State {
 /// Invocation operands live outside the suspended stream and are restored once.
 #[derive(Default)]
 struct InvocationInputs {
+    temp_stdin_file: Option<usize>,
+    stdin_argument: Option<crate::cli::StdinArgument>,
     files: Vec<std::path::PathBuf>,
     directories: Vec<std::path::PathBuf>,
     old_files: Vec<std::path::PathBuf>,
@@ -235,6 +250,8 @@ struct InvocationInputs {
 impl InvocationInputs {
     fn take(options: &mut Options) -> Self {
         Self {
+            temp_stdin_file: options.temp_stdin_file,
+            stdin_argument: options.stdin_argument,
             files: std::mem::take(&mut options.files),
             directories: std::mem::take(&mut options.directories),
             old_files: std::mem::take(&mut options.old_files),
@@ -247,6 +264,8 @@ impl InvocationInputs {
     }
     fn restore(self, options: &mut Options) {
         options.files = self.files;
+        options.temp_stdin_file = self.temp_stdin_file;
+        options.stdin_argument = self.stdin_argument;
         options.directories = self.directories;
         options.old_files = self.old_files;
         options.new_files = self.new_files;
@@ -614,6 +633,35 @@ impl Engine {
         Ok(())
     }
 
+    pub(super) fn publish_phase_makeflags(&mut self, remaking: bool) -> Result<(), ExpandError> {
+        self.database.variables.update_mflags(
+            &self.options.recursive_flags_for_phase(true, remaking),
+            self.options.environment_override,
+        )?;
+        let mut flags = self.options.makeflags_for_phase(remaking);
+        if self
+            .database
+            .variables
+            .database_lookup(self.database.command_overrides_name())
+            .is_some_and(|variable| !variable.raw_value().is_empty())
+        {
+            flags.extend_from_slice(self.database.command_overrides_reference());
+        }
+        self.database.variables.define(
+            b"MAKEFLAGS",
+            &flags,
+            Assignment::Recursive,
+            origin(self.options.environment_override),
+        )?;
+        self.initial_flags = flags;
+        let active_debug = self.output.debug_mask();
+        self.flag_state.refresh(&self.options);
+        // Remake traversal owns the temporary active mask while stored flags
+        // retain the complete request history for subsequent decoding.
+        self.output.set_debug_mask(active_debug);
+        Ok(())
+    }
+
     pub(super) fn read_runtime_flags(&mut self, restarts: u32) -> Result<(), ()> {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
@@ -622,7 +670,9 @@ impl Engine {
         let mut changed = false;
         let mut file_jobs = None;
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-            if self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none() {
+            if self.flag_state.warn_undefined.get()
+                && self.database.variables.database_lookup(name).is_none()
+            {
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 if let Err(error) = self.expand_global(&expression, None) {
                     self.expansion_error(None, &error);
@@ -634,11 +684,17 @@ impl Engine {
             } else {
                 &self.initial_flags
             };
+            // Selecting the unchanged-value shortcut is an implementation
+            // probe. The selected shortcut or real expansion below owns the
+            // one semantic reference, never both.
             let unchanged = self
                 .database
                 .variables
                 .get(name)
                 .is_none_or(|value| value.raw_value() == *initial);
+            if unchanged {
+                self.database.variables.database_lookup(name);
+            }
             let value = if unchanged && name == b"MAKEFLAGS" && changed {
                 let prefix = self
                     .initial_flags
@@ -727,13 +783,8 @@ impl Engine {
         if self.options.jobserver_auth != entry_auth {
             self.jobserver.take();
         }
-        if let Err(error) = self.database.variables.update_mflags(
-            &self.options.recursive_flags(),
-            self.options.environment_override,
-        ) {
-            self.expansion_error(None, &error);
-            return Err(());
-        }
+        // Passive decoding selects policy; the enclosing post-read phase
+        // publishes MFLAGS and MAKEFLAGS together after jobserver setup.
         // Passive operands accumulate without rebuilding include search.
         // Live MAKEFLAGS resets retain their separate publication boundary.
         self.output.set_mode(mode);
@@ -803,12 +854,17 @@ impl Engine {
                     }
                 };
                 for name in names {
-                    if self.database.variables.get(&name).is_some_and(|v| {
-                        matches!(
-                            v.origin(),
-                            Origin::Environment | Origin::EnvironmentOverride
-                        )
-                    }) {
+                    if self
+                        .database
+                        .variables
+                        .database_lookup(&name)
+                        .is_some_and(|v| {
+                            matches!(
+                                v.origin(),
+                                Origin::Environment | Origin::EnvironmentOverride
+                            )
+                        })
+                    {
                         self.inherited_exports.insert(name);
                     }
                 }
@@ -880,12 +936,17 @@ impl Engine {
             match names {
                 Ok(names) => {
                     for name in names {
-                        if self.database.variables.get(&name).is_some_and(|variable| {
-                            matches!(
-                                variable.origin(),
-                                Origin::Environment | Origin::EnvironmentOverride
-                            )
-                        }) {
+                        if self
+                            .database
+                            .variables
+                            .database_lookup(&name)
+                            .is_some_and(|variable| {
+                                matches!(
+                                    variable.origin(),
+                                    Origin::Environment | Origin::EnvironmentOverride
+                                )
+                            })
+                        {
                             self.inherited_exports.insert(name);
                         }
                     }
@@ -912,6 +973,8 @@ impl Engine {
             return Err(());
         }
         updated.files = std::mem::take(&mut self.options.files);
+        updated.temp_stdin_file = self.options.temp_stdin_file;
+        updated.stdin_argument = self.options.stdin_argument;
         updated.directories = std::mem::take(&mut self.options.directories);
         updated.goals = std::mem::take(&mut self.options.goals);
         updated.assignments = std::mem::take(&mut self.options.assignments);

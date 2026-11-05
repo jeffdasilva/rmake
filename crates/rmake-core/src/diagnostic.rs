@@ -139,6 +139,9 @@ pub enum FilesystemEffect<'a> {
     RuleGlob(&'a [u8]),
     /// Account/environment fallback; make's nonempty HOME is expanded in core.
     Tilde(&'a [u8]),
+    /// Register a directory's cached identity/open state without enumerating
+    /// its entries. VPATH construction performs this during actual reading.
+    DirectoryName(&'a [u8]),
     Realpath(&'a [u8]),
     ReadFile(&'a [u8]),
     WriteFile {
@@ -536,6 +539,11 @@ impl<'a> ExpansionContext<'a> {
             result.include_dirs = prepared.directories;
             result.publish_includes = Some(prepared.publish);
         }
+        if let Some(history) = database.database_history() {
+            for directory in &result.include_dirs {
+                history.intern(directory);
+            }
+        }
         database.variables.define_literal(
             b".INCLUDE_DIRS",
             b"",
@@ -574,7 +582,7 @@ impl<'a> ExpansionContext<'a> {
             .as_mut()
             .unwrap_or(&mut database.variables);
         if variables
-            .get(overrides_name)
+            .database_lookup(overrides_name)
             .is_some_and(|variable| !variable.raw_value().is_empty())
         {
             result.value.extend_from_slice(overrides_reference);

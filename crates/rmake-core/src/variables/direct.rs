@@ -39,6 +39,17 @@ pub(super) fn references_only(input: &[u8]) -> bool {
 
 impl Expansion<'_, '_> {
     pub(super) fn pure_bytes(&self, input: &[u8]) -> Option<Result<Vec<u8>, ExpandError>> {
+        let mut lookups = crate::database::LookupBatch::default();
+        let result = self.pure_bytes_planned(input, &mut lookups)?;
+        lookups.commit();
+        Some(result)
+    }
+
+    fn pure_bytes_planned(
+        &self,
+        input: &[u8],
+        lookups: &mut crate::database::LookupBatch,
+    ) -> Option<Result<Vec<u8>, ExpandError>> {
         use std::borrow::Cow;
         let input = c_string_prefix(input);
         if input.len() > MAX_OUTPUT {
@@ -79,6 +90,14 @@ impl Expansion<'_, '_> {
             if name.contains(&b':') {
                 return None;
             }
+            if !self
+                .bindings
+                .iter()
+                .rev()
+                .any(|scope| scope.contains_key(name))
+            {
+                self.store.plan_database_lookup(name, lookups)?;
+            }
             let (variable, layer) = self
                 .bindings
                 .iter()
@@ -101,14 +120,17 @@ impl Expansion<'_, '_> {
                 }
                 Cow::Borrowed(c_string_prefix(&variable.value))
             } else if literal_alias(&variable.value).is_some()
-                && let Some(LiteralChain::Value(value)) = self.literal_chain(name, variable, layer)
+                && let Some((LiteralChain::Value(value), nested)) =
+                    self.literal_chain_deferred(name, variable, layer)
             {
+                lookups.extend(nested)?;
                 Cow::Owned(value)
             } else if let Some(mut plan) = self.linear_plan(name, variable, layer) {
                 let Tail::Value(value) = std::mem::replace(&mut plan.tail, Tail::Value(Vec::new()))
                 else {
                     return None;
                 };
+                lookups.extend(std::mem::take(&mut plan.lookups))?;
                 Cow::Owned(plan.finish(value).ok()?)
             } else {
                 return None;
@@ -131,6 +153,17 @@ impl Expansion<'_, '_> {
         &mut self,
         input: &[u8],
     ) -> Option<Result<Vec<u8>, ExpandError>> {
+        let mut lookups = crate::database::LookupBatch::default();
+        let result = self.direct_expression_planned(input, &mut lookups)?;
+        lookups.commit();
+        Some(result)
+    }
+
+    fn direct_expression_planned(
+        &mut self,
+        input: &[u8],
+        lookups: &mut crate::database::LookupBatch,
+    ) -> Option<Result<Vec<u8>, ExpandError>> {
         // A recognized eager function cannot be a pure literal reference.
         // Reject that preparation with a short name scan, before walking its
         // balanced argument syntax. This selects dispatch, never a value.
@@ -144,7 +177,7 @@ impl Expansion<'_, '_> {
                 && arity(name).is_some()
                 && !super::machine::lazy(name)
         };
-        if !eager_prefix && let Some(result) = self.pure_bytes(input) {
+        if !eager_prefix && let Some(result) = self.pure_bytes_planned(input, lookups) {
             return Some(result);
         }
         if !matches!(input.get(..2), Some(b"$(" | b"${")) {
@@ -174,12 +207,15 @@ impl Expansion<'_, '_> {
         // Capture the dispatch decision before any argument effects. Once native
         // preparation starts this invocation must not fall back and replay them.
         let native = self.depth < DIRECT_DEPTH && self.machine_nesting < DIRECT_MACHINES;
+        if native {
+            *lookups = crate::database::LookupBatch::default();
+        }
         let mut values = Vec::with_capacity(ranges.len());
         for range in ranges {
             let argument = &argument[range];
             let prepared = if native {
                 self.expand(argument)
-            } else if let Some(result) = self.pure_bytes(argument) {
+            } else if let Some(result) = self.pure_bytes_planned(argument, lookups) {
                 result
             } else {
                 return None;
@@ -192,6 +228,9 @@ impl Expansion<'_, '_> {
         if self.context.is_cancelled() {
             return Some(Err(ExpandError::Cancelled));
         }
+        // Argument preparation is now selected. Publish its logical reads
+        // before the builtin can emit output, mutate bindings, or fail.
+        std::mem::take(lookups).commit();
         Some(self.eager_function(name, &values))
     }
 }
@@ -291,5 +330,108 @@ mod tests {
             Err(ExpandError::UnterminatedFunction { .. })
         ));
         assert_eq!(writes, 1);
+    }
+    #[test]
+    fn failed_pure_preparation_discards_all_planned_lookup_counters() {
+        let mut store = VariableStore::new();
+        let table = crate::database::TableHistory::new(crate::database::HashKind::Variable, 1024);
+        store.enable_database_history(table.clone());
+        store.define_literal(b"A", b"value", Origin::File).unwrap();
+        store
+            .define(b"B", b"$(A)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        let before = table.stats();
+        let mut expansion = store.expansion(ExpansionContext::pure());
+        assert!(expansion.pure_bytes(b"$(B)$(shell forbidden)").is_none());
+        assert_eq!(table.stats(), before);
+        expansion.depth = DIRECT_DEPTH;
+        assert!(
+            expansion
+                .direct_expression(b"$(subst $(B),x,$(shell forbidden))")
+                .is_none()
+        );
+        assert_eq!(table.stats(), before);
+        assert_eq!(expansion.pure_bytes(b"$(B)"), Some(Ok(b"value".to_vec())));
+        assert_eq!(table.stats().lookups, before.lookups + 2);
+    }
+
+    #[test]
+    fn accepted_eager_arguments_publish_reads_before_output_receiver() {
+        let mut store = VariableStore::new();
+        let table = crate::database::TableHistory::new(crate::database::HashKind::Variable, 1024);
+        store.enable_database_history(table.clone());
+        store.define_literal(b"A", b"value", Origin::File).unwrap();
+        let before = table.stats().lookups;
+        let mut seen = Vec::new();
+        let mut receiver = |event: Output<'_>| {
+            if let Output::Info(bytes) = event {
+                seen.push((bytes.to_vec(), table.stats().lookups));
+            }
+        };
+        let mut expansion = store.expansion(ExpansionContext::new(None, &mut receiver));
+        expansion.depth = DIRECT_DEPTH;
+        assert_eq!(
+            expansion.direct_expression(b"$(info $(A))"),
+            Some(Ok(Vec::new()))
+        );
+        assert_eq!(seen, [(b"value".to_vec(), before + 1)]);
+    }
+    #[test]
+    fn declined_alias_preflight_does_not_duplicate_accepted_linear_reads() {
+        let mut store = VariableStore::new();
+        let table = crate::database::TableHistory::new(crate::database::HashKind::Variable, 1024);
+        store.enable_database_history(table.clone());
+        store.define_literal(b"A", b"value", Origin::File).unwrap();
+        store
+            .define(b"C", b"pre$(A)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        store
+            .define(b"B", b"$(C)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        let before = table.stats();
+        let expansion = store.expansion(ExpansionContext::pure());
+        assert!(expansion.pure_bytes(b"$(B)$(shell forbidden)").is_none());
+        assert_eq!(table.stats(), before);
+        assert_eq!(
+            expansion.pure_bytes(b"$(B)"),
+            Some(Ok(b"prevalue".to_vec()))
+        );
+        assert_eq!(table.stats().lookups, before.lookups + 3);
+    }
+
+    #[test]
+    fn selected_linear_prefix_publishes_reads_before_its_effectful_leaf() {
+        let mut store = VariableStore::new();
+        let table = crate::database::TableHistory::new(crate::database::HashKind::Variable, 1024);
+        store.enable_database_history(table.clone());
+        store
+            .define(
+                b"D",
+                b"$(info LEAF)end",
+                Assignment::Recursive,
+                Origin::File,
+            )
+            .unwrap();
+        store
+            .define(b"C", b"pre$(D)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        store
+            .define(b"B", b"$(C)", Assignment::Recursive, Origin::File)
+            .unwrap();
+        let before = table.stats().lookups;
+        let mut seen = Vec::new();
+        let mut receiver = |event: Output<'_>| {
+            if let Output::Info(bytes) = event {
+                seen.push((bytes.to_vec(), table.stats().lookups));
+            }
+        };
+        assert_eq!(
+            store
+                .expand_with(b"$(B)", ExpansionContext::new(None, &mut receiver))
+                .unwrap(),
+            b"preend"
+        );
+        assert_eq!(seen, [(b"LEAF".to_vec(), before + 3)]);
+        assert_eq!(table.stats().lookups, before + 3);
     }
 }

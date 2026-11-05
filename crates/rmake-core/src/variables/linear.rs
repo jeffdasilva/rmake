@@ -68,6 +68,7 @@ pub(super) enum Tail {
     },
 }
 pub(super) struct Plan {
+    pub(super) lookups: crate::database::LookupBatch,
     pub(super) bytes: Vec<u8>,
     pub(super) frames: Vec<Frame>,
     pub(super) active: Vec<(Vec<u8>, Option<usize>)>,
@@ -116,6 +117,7 @@ impl Expansion<'_, '_> {
         mut variable: &'c Variable,
         mut layer: Option<usize>,
     ) -> Option<Plan> {
+        let mut lookups = crate::database::LookupBatch::default();
         if variable.scope.append_outer || variable.scope.variable_names {
             return None;
         }
@@ -182,6 +184,14 @@ impl Expansion<'_, '_> {
             text_len = text_len.checked_add(prefix.len() + suffix.len())?;
             pending.push((name, layer, &bytes[prefix], &bytes[suffix], nearest.clone()));
             let next = &bytes[next];
+            if !self
+                .bindings
+                .iter()
+                .rev()
+                .any(|scope| scope.contains_key(next))
+            {
+                self.store.plan_database_lookup(next, &mut lookups)?;
+            }
             let binding = self
                 .bindings
                 .iter()
@@ -219,6 +229,7 @@ impl Expansion<'_, '_> {
             });
         }
         Some(Plan {
+            lookups,
             bytes,
             frames,
             active,
@@ -233,6 +244,7 @@ impl Expansion<'_, '_> {
         layer: Option<usize>,
     ) -> Option<Result<Vec<u8>, ExpandError>> {
         let mut plan = self.linear_plan(name, variable, layer)?;
+        std::mem::take(&mut plan.lookups).commit();
         let entered = self.binding_context.is_none();
         if entered {
             self.binding_context = Some(variable.definition.clone());

@@ -404,7 +404,7 @@ impl Runtime {
                     };
                     host.evaluate(&input, location.as_ref())?;
                 }
-                3 => self.register(request, owner.clone())?,
+                3 => self.register(request, owner.clone(), host)?,
                 5 => {
                     let message = bytes(request.text);
                     if !host.emit(Output::Warning {
@@ -451,7 +451,12 @@ impl Runtime {
             .and_then(|images| images.iter().rev().find(|image| image.open.get()).cloned())
     }
 
-    fn register(&self, request: Request, owner: Option<Rc<Image>>) -> Result<(), ExpandError> {
+    fn register(
+        &self,
+        request: Request,
+        owner: Option<Rc<Image>>,
+        host: &mut dyn NativeHost,
+    ) -> Result<(), ExpandError> {
         let name = bytes(request.text);
         let prefix = name
             .iter()
@@ -513,6 +518,7 @@ impl Runtime {
                 .base
                 .set(self.function_base(request.function as usize));
         }
+        host.registered_function_name(&name);
         let callback = Rc::new(Callback {
             state: Rc::downgrade(&self.0),
             function: request.function as usize,

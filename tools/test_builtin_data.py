@@ -7,6 +7,15 @@ import builtin_data
 
 
 class ExtractionTests(unittest.TestCase):
+    def test_observed_definition_order_preserves_values_and_rejects_missing_or_duplicate_names(self):
+        text = ('# default\nFIRST = first\n# default\nLAST = last\n'
+                '# Implicit Rules\n(%): %\n\tarchive\n# Files\n')
+        data = builtin_data.extract(text, ['LAST', 'FIRST'])
+        self.assertEqual(data['default-variables.mk'], builtin_data.HEADER + builtin_data.DEFINITION_ORDER_HEADER
+                         + 'LAST = last\nFIRST = first\n')
+        for order in (['FIRST'], ['FIRST', 'LAST', 'EXTRA'], ['FIRST', 'FIRST']):
+            with self.assertRaises(ValueError): builtin_data.extract(text, order)
+
     def test_defaults_exclude_automatic_environment_and_runtime_metadata(self):
         text = ("# default\nCC = cc\n# environment\nCFLAGS = injected\n"
                 "# automatic\n@D = formula\n# default\nMAKE_HOST := host\n"

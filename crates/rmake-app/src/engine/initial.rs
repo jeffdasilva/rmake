@@ -7,9 +7,14 @@ use super::*;
 
 pub(super) struct Plan {
     args: Vec<OsString>,
+    pub(super) stdin_source: Option<rmake_linux::stdin_source::Source>,
+    stdin_argument: Option<crate::cli::StdinArgument>,
+    stdin_index: Option<usize>,
     environment: Vec<(OsString, OsString)>,
+    pub(super) startup_restarts: u32,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
+    restart_invocation: Option<OsString>,
     output: Option<crate::output::Controller>,
 }
 
@@ -65,19 +70,41 @@ impl Plan {
                 environment.push((name.into(), value));
             }
         }
+        let restart_invocation =
+            if !invocation.as_bytes().starts_with(b"/") && invocation.as_bytes().contains(&b'/') {
+                std::env::current_dir()
+                    .ok()
+                    .map(|directory| directory.join(invocation).into_os_string())
+            } else {
+                None
+            };
         Self {
             args,
+            stdin_source: None,
+            stdin_argument: None,
+            stdin_index: None,
             environment,
+            startup_restarts: 0,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
+            restart_invocation,
             output,
         }
     }
 
+    /// Retain the process-entry path before any -C changes. Bare names keep
+    /// their PATH search; relative paths containing '/' keep their spelling.
+    pub(super) fn restart_program(&self) -> &OsStr {
+        self.restart_invocation
+            .as_deref()
+            .unwrap_or(&self.invocation)
+    }
+
     pub(super) fn debug_restart(&self, count: u32) {
         let mut line = format!("Re-executing[{count}]: ").into_bytes();
-        line.extend_from_slice(self.invocation.as_bytes());
-        for argument in &self.args {
+        line.extend_from_slice(self.restart_program().as_bytes());
+        let rewritten = self.restart_arguments();
+        for argument in rewritten.as_deref().unwrap_or(&self.args) {
             line.push(b' ');
             line.extend_from_slice(argument.as_bytes());
         }
@@ -85,46 +112,69 @@ impl Plan {
         crate::debug::raw(&[&line]);
     }
 
-    /// Native module images must restart with a fresh dynamic-loader namespace.
-    /// Preserve argv and the invocation environment rather than replaying a
-    /// loaded library's constructors or keeping its old static state in process.
+    /// Restart in a fresh program image using retained argv and the live
+    /// process environment. Dynamic-loader and startup hooks run again.
     pub(super) fn exec_restart(
         &self,
         count: u32,
         level: u32,
         jobserver: Option<&Jobserver>,
     ) -> io::Error {
-        let mut command = Command::new(&self.invocation);
-        command.arg0(&self.invocation).args(&self.args).env_clear();
-        for (name, value) in &self.environment {
-            if name != "MAKE_RESTARTS" && name != "MAKELEVEL" {
-                command.env(name, value);
-            }
-        }
-        let restart = if self
+        let rewritten = self.restart_arguments();
+        let traced = self
             .output
             .as_ref()
-            .is_some_and(|output| output.has_directory_trace())
-        {
-            format!("-{count}")
-        } else {
-            count.to_string()
-        };
-        command.env("MAKE_RESTARTS", restart);
-        command.env("MAKELEVEL", level.to_string());
-        if let Some(server) = jobserver {
-            server.configure_child(&mut command, true);
-        }
+            .is_some_and(|output| output.has_directory_trace());
         if let Err(error) = rmake_linux::native::flush_standard_streams() {
             return error;
         }
-        command.exec()
+        rmake_linux::environment::exec_live_restart(
+            self.restart_program(),
+            rewritten.as_deref().unwrap_or(&self.args),
+            count,
+            level,
+            traced,
+            jobserver,
+        )
     }
 
-    pub(super) fn decode(
-        mut self: Box<Self>,
-        restart: Option<(u32, u32)>,
-    ) -> Result<Invocation, Failure<InvocationError>> {
+    fn restart_arguments(&self) -> Option<Vec<OsString>> {
+        Some(crate::stdin_source::restart_arguments(
+            &self.args,
+            self.stdin_argument?,
+            self.stdin_source.as_ref()?.path(),
+        ))
+    }
+
+    fn argument(
+        &mut self,
+        state: &mut State,
+        options: &mut Options,
+        argument: crate::cli::Argument,
+    ) -> Result<(), InvocationError> {
+        if let crate::cli::Argument::File(index) = argument
+            && options.temp_stdin_file == Some(index)
+        {
+            if self.stdin_index.is_some_and(|index| index > 0) {
+                return Err(StartupError::from(Diagnostic::from(
+                    "INTERNAL: multiple --temp-stdin options provided!",
+                ))
+                .into());
+            }
+            self.stdin_index = Some(index);
+            if let Some(previous) =
+                self.stdin_source
+                    .replace(rmake_linux::stdin_source::Source::adopt(
+                        options.files[index].clone(),
+                    ))
+            {
+                previous.disarm();
+            }
+        }
+        state.argument(&self.program, options, argument)
+    }
+
+    pub(super) fn decode(mut self: Box<Self>) -> Result<Invocation, Failure<InvocationError>> {
         crate::native::reset();
         #[cfg(feature = "guile")]
         crate::native::register_guile().map_err(StartupError::expansion)?;
@@ -136,12 +186,17 @@ impl Plan {
         } else {
             crate::output::Controller::new(crate::output::Mode::None, &self.program)
         };
+        output.reset_compatibility_header();
+        output.set_database_requested(false);
         output.set_debug_mask(crate::debug::Mask::NONE);
         output.set_directory_policy(crate::cli::DirectoryChoice::Automatic, false);
         output.set_changed_directory(false);
         output.set_recursive(false);
         self.output = Some(output.clone());
         let mut database = Database::default();
+        database
+            .enable_database_history()
+            .expect("fresh invocation database");
         database.variables.reserve_environment_layout(
             &[
                 b".VARIABLES",
@@ -168,23 +223,18 @@ impl Plan {
                 .map_err(StartupError::expansion)?;
         }
         let mut exports = HashSet::new();
-        for (name, value) in &self.environment {
+        for (name, value) in std::mem::take(&mut self.environment) {
             let name = name.as_bytes();
             if name == b"MAKE_RESTARTS" && value.as_bytes().starts_with(b"-") {
                 output.import_directory_trace();
             }
-            let updated_level = restart
-                .filter(|_| name == b"MAKELEVEL")
-                .map(|(_, level)| level.to_string());
-            let updated_restart = restart
-                .filter(|_| name == b"MAKE_RESTARTS")
-                .map(|(count, _)| count.to_string());
-            let value = updated_level
-                .as_ref()
-                .or(updated_restart.as_ref())
-                .map_or(value.as_bytes(), |value| value.as_bytes());
+            let value = value.as_bytes();
             let value = if name == b"MAKE_RESTARTS" {
-                startup_restart_value(value)
+                let value = startup_restart_value(value);
+                // Import in vector order: the last binding controls startup.
+                // Later native edits affect the live exec image, not this seed.
+                self.startup_restarts = startup_unsigned(value);
+                value
             } else {
                 value
             };
@@ -202,25 +252,15 @@ impl Plan {
                 exports.insert(name.to_vec());
             }
         }
-        if let Some((count, _)) = restart
-            && database.variables.get(b"MAKE_RESTARTS").is_none()
-        {
-            database
-                .variables
-                .define(
-                    b"MAKE_RESTARTS",
-                    count.to_string().as_bytes(),
-                    Assignment::Recursive,
-                    Origin::Environment,
-                )
-                .map_err(StartupError::expansion)?;
-            database
-                .variables
-                .set_export_policy(b"MAKE_RESTARTS", Some(false));
-        }
         let initial_directory = std::env::current_dir().ok();
         database.variables.set_startup_directory_pending();
         let filesystem = RefCell::new(FilesystemRuntime::default());
+        filesystem.borrow_mut().set_database_history(
+            database
+                .database_history()
+                .expect("enabled before defaults")
+                .clone(),
+        );
         let mut state = State {
             database,
             filesystem,
@@ -237,7 +277,9 @@ impl Plan {
             let mut prefix_count = 0;
             let mut parsed_prefix = Options::default();
             for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-                if name == b"GNUMAKEFLAGS" && state.database.variables.get(name).is_none() {
+                if name == b"GNUMAKEFLAGS"
+                    && state.database.variables.database_lookup(name).is_none()
+                {
                     continue;
                 }
                 let expression = [b"$(".as_slice(), name, b")"].concat();
@@ -256,12 +298,13 @@ impl Plan {
                         incoming,
                         parsed_prefix,
                         prefix_count,
-                        &mut |options, argument| state.argument(&self.program, options, argument),
+                        &mut |options, argument| self.argument(&mut state, options, argument),
                         &mut |options| {
                             selected_policy =
                                 (options.warn_undefined, options.environment_override);
                             policy_output
                                 .set_directory_policy(options.directory_choice, options.silent);
+                            policy_output.set_database_requested(options.print_database);
                             policy_output.set_changed_directory(!options.directories.is_empty());
                         },
                     );
@@ -314,10 +357,11 @@ impl Plan {
                 parsed_prefix,
                 prefix_count,
                 false,
-                &mut |options, argument| state.argument(&self.program, options, argument),
+                &mut |options, argument| self.argument(&mut state, options, argument),
                 &mut |options| {
                     selected_policy = (options.warn_undefined, options.environment_override);
                     policy_output.set_directory_policy(options.directory_choice, options.silent);
+                    policy_output.set_database_requested(options.print_database);
                     policy_output.set_changed_directory(!options.directories.is_empty());
                 },
             );
@@ -373,23 +417,33 @@ impl Plan {
         let (options, reader_output, construction, shuffle) = match decoded {
             Ok(decoded) => decoded,
             Err(error) => {
-                let exit = crate::native::has_modules().then(|| {
-                    Box::new(NativeExit::Startup(Box::new(startup_exit::Host {
-                        database: state.database,
-                        filesystem: state.filesystem,
-                        output: state.output,
-                        warnings: state.warnings,
-                        program: self.program.clone(),
-                        level: 0,
-                        include_search: None,
-                        reader_output: None,
-                        construction: None,
-                        restore_directory: None,
-                    })))
-                });
+                let stdin_source = self.stdin_source.take();
+                let exit = if crate::native::has_modules() || state.output.database_requested() {
+                    Some(Box::new(NativeExit::Startup(Box::new(
+                        startup_exit::Host {
+                            stdin_source,
+                            database: state.database,
+                            filesystem: state.filesystem,
+                            output: state.output,
+                            warnings: state.warnings,
+                            program: self.program.clone(),
+                            level: 0,
+                            include_search: None,
+                            reader_output: None,
+                            construction: None,
+                            restore_directory: None,
+                            database_dumped: Cell::new(false),
+                        },
+                    ))))
+                } else {
+                    stdin_source.map(|source| {
+                        NativeExit::source(source, state.output.clone(), self.program.clone())
+                    })
+                };
                 return Err(Failure { error, exit });
             }
         };
+        self.stdin_argument = options.stdin_argument;
         Ok(Invocation {
             options,
             initial: Box::new(Prepared {
@@ -475,6 +529,7 @@ impl State {
         self.warnings.set(options.warn_undefined);
         self.output
             .set_directory_policy(options.directory_choice, options.silent);
+        self.output.set_database_requested(options.print_database);
         self.output
             .set_changed_directory(!options.directories.is_empty());
         self.database
@@ -522,29 +577,48 @@ impl State {
                         options.directories.pop();
                     }
                 }
+                crate::cli::Argument::File(index) if options.temp_stdin_file == Some(index) => {
+                    // The internal source operand is already a prepared raw
+                    // filename. Retain its selection without tilde expansion.
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.files[index].as_os_str().as_bytes());
+                    }
+                }
                 crate::cli::Argument::File(index) => {
                     let raw = options.files[index].as_os_str().as_bytes();
                     options.files[index] = self.path(program, raw)?;
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.files[index].as_os_str().as_bytes());
+                    }
                 }
                 crate::cli::Argument::OldFile(index) => {
                     let raw = options.old_files[index].as_os_str().as_bytes();
                     options.old_files[index] = self.path(program, raw)?;
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.old_files[index].as_os_str().as_bytes());
+                    }
                 }
                 crate::cli::Argument::NewFile(index) => {
                     let raw = options.new_files[index].as_os_str().as_bytes();
                     options.new_files[index] = self.path(program, raw)?;
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.new_files[index].as_os_str().as_bytes());
+                    }
                 }
                 crate::cli::Argument::Goal(index) => {
                     let path = self.path(program, &options.goals[index])?;
                     let name = path.as_os_str().as_bytes();
+                    if let Some(history) = self.database.database_history() {
+                        // Filename preparation and goal entry each retain the
+                        // prepared name, including repeated argv goals.
+                        history.intern(name);
+                        history.intern(name);
+                    }
                     self.database.file_records.insert(name);
-                    let mut value = self
-                        .database
-                        .variables
-                        .get(b"MAKECMDGOALS")
-                        .map(|v| v.raw_value().to_vec())
-                        .unwrap_or_default();
-                    if self.database.variables.get(b"MAKECMDGOALS").is_some() {
+                    let previous = self.database.variables.database_lookup(b"MAKECMDGOALS");
+                    let had_previous = previous.is_some();
+                    let mut value = previous.map(|v| v.raw_value().to_vec()).unwrap_or_default();
+                    if had_previous {
                         value.push(b' ');
                     }
                     value.extend_from_slice(name);
@@ -735,7 +809,9 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
     fn startup(exit: Option<Box<NativeExit>>) -> startup_exit::Host {
         match *exit.expect("native phase must remain owned") {
             NativeExit::Startup(host) => *host,
-            NativeExit::Engine(_) => panic!("constructor was not completed"),
+            NativeExit::Engine(_) | NativeExit::Source(_) => {
+                panic!("constructor was not completed")
+            }
         }
     }
     fn value(database: &Database, name: &[u8]) -> Option<Vec<u8>> {
@@ -766,7 +842,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                     "-e",
                     "--not-an-option",
                 ])
-                .decode(None)
+                .decode()
             {
                 Ok(_) => panic!("invalid option accepted"),
                 Err(error) => error,
@@ -805,7 +881,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let fixture = Fixture::new();
             let launch = fixture
                 .plan(&["USER_VALUE=command", "--help"])
-                .decode(None)
+                .decode()
                 .unwrap();
             assert!(launch.options.help);
             let host = startup(launch.into_native_exit(b"rmake".to_vec()));
@@ -831,7 +907,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                     "-I~/inc",
                     "USER_VALUE=command",
                 ])
-                .decode(None)
+                .decode()
                 .unwrap();
             let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
                 .err()
@@ -857,7 +933,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let fixture = Fixture::new();
             let missing = fixture.0.join("missing");
             let missing = missing.to_str().unwrap();
-            let launch = fixture.plan(&["-C", missing]).decode(None).unwrap();
+            let launch = fixture.plan(&["-C", missing]).decode().unwrap();
             let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
                 .err()
                 .expect("missing directory accepted");
@@ -880,7 +956,9 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                 fixture.0.join("startup_owner_unit.so").display()
             )
             .into();
-            let launch = plan.decode(Some((1, 3))).unwrap();
+            plan.environment.push(("MAKELEVEL".into(), "3".into()));
+            plan.environment.push(("MAKE_RESTARTS".into(), "1".into()));
+            let launch = plan.decode().unwrap();
             assert!(launch.options.help);
             let host = startup(launch.into_native_exit(b"rmake".to_vec()));
             check_setup(&host.database);

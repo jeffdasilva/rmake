@@ -1,0 +1,6 @@
+{
+  "classification": "Final isolated development/optimized core14+phases19+search8, numeric6 and nativefenv18 all pass under unchanged strict comparators;637 Rust units/strictClippy/16tools and GNU/candidate focused Makefile flows pass. BTree848 source is separate from parent HashMap storage; full mainline/PR acceptance remains parent-owned; no performance claim.",
+  "sha256": "793f79497287683b68ebed2b28ad9775a356c496bc67a4497139c692be51ce67",
+  "raw_sha256": "b6fb4265578845f4ceab4c9d9b55e0f077944f293b1b36df5736eceb5bf71fd4",
+  "raw_bytes": 31152888
+}

@@ -98,8 +98,15 @@ impl Requests {
 }
 
 /// Protocol header for debug mode. Explicit --version retains rmake branding.
-pub fn print_header() {
-    raw(&[b"GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n"]);
+pub fn print_compatibility_header(commented: bool) {
+    let header = b"GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n";
+    if commented {
+        for line in header.split_inclusive(|byte| *byte == b'\n') {
+            raw(&[b"# ", line]);
+        }
+    } else {
+        raw(&[header]);
+    }
 }
 
 pub fn raw(parts: &[&[u8]]) {

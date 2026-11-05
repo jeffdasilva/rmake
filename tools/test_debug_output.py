@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
+import ast
 import base64
+import errno
 from dataclasses import replace
 import gzip
 import hashlib
@@ -133,6 +135,21 @@ class DebugOutputTests(unittest.TestCase):
             root=Path(tmp);(root/'models.toml').write_text(text)
             with patch.object(d,'SOURCES',root):
                 with self.assertRaisesRegex(h.HarnessError,'one declared boundary'):d.models()
+
+    def test_proc_reader_handles_exit_after_open_without_hiding_other_errors(self):
+        model = next(row for row in d.models() if row.id == 'debug-child-queued-parallel')
+        function, = [node for node in ast.parse(model.files['worker.py']).body
+                     if isinstance(node, ast.FunctionDef) and node.name == 'identity']
+        namespace = {'Path': Path}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), 'worker.py', 'exec'), namespace)
+        identity = namespace['identity']
+        for error in (FileNotFoundError(errno.ENOENT, 'exited before open'),
+                      ProcessLookupError(errno.ESRCH, 'exited after open')):
+            with patch.object(Path, 'read_bytes', side_effect=error):
+                self.assertIsNone(identity(1234))
+        with patch.object(Path, 'read_bytes', side_effect=PermissionError(errno.EACCES, 'denied')):
+            with self.assertRaises(PermissionError):
+                identity(1234)
 
     def test_static_inventory_and_retained_history_hashes(self):
         models=d.models();self.assertEqual(len(models),64);self.assertEqual(len({model.id for model in models}),64)

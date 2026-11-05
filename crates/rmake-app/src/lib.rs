@@ -21,6 +21,7 @@ mod process;
 mod recipe_flow;
 mod shell;
 mod shuffle;
+mod stdin_source;
 
 /// Concrete semantic entry used by the reviewed process bootstrap.
 pub fn run() -> ExitCode {
@@ -38,6 +39,7 @@ pub fn run() -> ExitCode {
     let output = output::Controller::new(output::Mode::None, &program);
     output.bind_debug_signal(signals.debug_handle());
     let process_output = output.process_lifetime();
+    stdin_source::initialize(&output, &program);
     let (status, mut native_exit) = match engine::Engine::invocation_with_output(
         args,
         &program,
@@ -57,7 +59,7 @@ pub fn run() -> ExitCode {
         Ok(launch) => match engine::Engine::from_invocation(launch, program.clone(), &invocation) {
             Ok(mut engine) => {
                 let status = engine.run_retained();
-                let exit = if crate::native::has_modules() {
+                let exit = if engine.requires_retained_exit() {
                     Some(Box::new(engine::NativeExit::Engine(Box::new(engine))))
                 } else {
                     None

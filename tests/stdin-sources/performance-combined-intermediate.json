@@ -1,0 +1,7 @@
+{
+  "classification": "Intermediate combined DB/stdin default-cost history; all regressions retained; new cross6 failures require runtime fixes and fresh selected-source measurement before acceptance",
+  "sha256": "1be8ff8855d3c210f01cfea668683d20edfc9496fc421d5a4fbf13dc3401e14d",
+  "raw_sha256": "2d742e53cf5b0d66c3c535d5243b15e5840e91effde8cf720895e5ba3d2f29f8",
+  "raw_bytes": 23165944,
+  "gzip_bytes": 2309419
+}
