@@ -820,12 +820,17 @@ pub struct Invocation {
 }
 impl Invocation {
     pub fn into_native_exit(self, program: Vec<u8>) -> Option<Box<NativeExit>> {
+        let mut prepared = *self.initial;
         if !crate::native::has_modules() {
-            return None;
+            return prepared
+                .plan
+                .stdin_source
+                .take()
+                .map(|source| NativeExit::source(source, prepared.output.clone(), program));
         }
-        let prepared = *self.initial;
         Some(Box::new(NativeExit::Startup(Box::new(
             startup_exit::Host {
+                stdin_source: prepared.plan.stdin_source.take(),
                 database: prepared.database,
                 filesystem: prepared.filesystem,
                 output: prepared.output,
@@ -887,7 +892,7 @@ impl Engine {
             mut construction,
             exports: mut inherited_exports,
             seed,
-            plan,
+            mut plan,
             initial_directory,
             shuffle,
             warnings: startup_warnings,
@@ -905,6 +910,7 @@ impl Engine {
                             drop(construction);
                             Some(Box::new(NativeExit::Startup(Box::new(
                                 startup_exit::Host {
+                                    stdin_source: plan.stdin_source.take(),
                                     database,
                                     filesystem,
                                     output,
@@ -918,7 +924,9 @@ impl Engine {
                                 },
                             ))))
                         } else {
-                            None
+                            plan.stdin_source.take().map(|source| {
+                                NativeExit::source(source, output.clone(), program.clone())
+                            })
                         };
                         return Err(Failure { error, exit });
                     }
@@ -1544,6 +1552,7 @@ impl Engine {
         } else {
             self.stderr(&[b"*** ".as_slice(), message, b".  Stop."].concat());
         }
+        self.unlink_stdin();
         if wait {
             self.notice_waiting_for_jobs();
         }
@@ -1714,6 +1723,7 @@ impl Engine {
 
     pub fn run_retained(&mut self) -> u8 {
         let mut status = self.run_inner();
+        self.unlink_stdin();
         if self.interrupt.is_none() && rmake_linux::signals::pending().is_some() {
             self.observe_interrupt();
             self.wait_all_jobs();
@@ -1831,7 +1841,63 @@ impl Engine {
         Ok(())
     }
 
+    fn unlink_stdin(&self) {
+        crate::stdin_source::unlink(
+            self.initial_plan
+                .as_ref()
+                .and_then(|plan| plan.stdin_source.as_ref()),
+            &self.output,
+            &self.program,
+        );
+    }
+
+    fn prepare_stdin(&mut self) -> Result<(), ()> {
+        for index in 0..self.options.files.len() {
+            if self.options.files[index] != Path::new("-") {
+                continue;
+            }
+            if self.options.temp_stdin_file.is_some() {
+                self.fatal(None, b"Makefile from standard input specified twice");
+                return Err(());
+            }
+            let source = match rmake_linux::stdin_source::Source::copy_stdin() {
+                Ok(source) => source,
+                Err(_) if rmake_linux::signals::pending().is_some() => return Err(()),
+                Err(_) => {
+                    self.fatal(
+                        None,
+                        b"cannot store makefile from stdin to a temporary file",
+                    );
+                    return Err(());
+                }
+            };
+            self.options.files[index] = source.path().to_owned();
+            self.options.temp_stdin_file = Some(index);
+            self.flag_state.publish_stdin(&self.options, index);
+            self.initial_plan
+                .as_mut()
+                .expect("initial invocation")
+                .stdin_source = Some(source);
+        }
+        if let Some(index) = self.options.temp_stdin_file {
+            let name = self.options.files[index].as_os_str().as_bytes();
+            self.database.file_records.insert(name);
+            self.done.insert(
+                name.to_vec(),
+                Outcome {
+                    time: modified(name),
+                    completion: CompletionTime::Preserve,
+                    ..Outcome::default()
+                },
+            );
+        }
+        Ok(())
+    }
+
     fn run_inner(&mut self) -> u8 {
+        if self.prepare_stdin().is_err() {
+            return 2;
+        }
         let mut found_makefile;
         self.database.activate_runtime_metadata();
         // Empty command eval initializes this binding before ordinary reading;
@@ -1845,7 +1911,6 @@ impl Engine {
                 .as_deref()
                 .map_or(b"".as_slice(), OsStrExt::as_bytes),
         ));
-        let mut stdin_bytes = None;
         loop {
             if iterations > 0 {
                 let plan = self.initial_plan.take().expect("initial invocation");
@@ -1885,7 +1950,7 @@ impl Engine {
                 if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
                     plan.debug_restart(restarts);
                 }
-                if crate::native::has_modules() {
+                if crate::native::has_modules() || plan.stdin_source.is_some() {
                     let error =
                         plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
                     self.fatal(
@@ -2002,7 +2067,11 @@ impl Engine {
                     }
                 }
             }
-            found_makefile = startup_found || !files.is_empty();
+            found_makefile = startup_found
+                || files
+                    .iter()
+                    .enumerate()
+                    .any(|(index, _)| self.options.temp_stdin_file != Some(index));
             for file in &files {
                 self.database
                     .file_records
@@ -2017,18 +2086,7 @@ impl Engine {
                         no_tilde: false,
                     },
                 );
-                let input = if file == Path::new("-") {
-                    if let Some(saved) = &stdin_bytes {
-                        Ok(rmake_core::reader::Input::Bytes(Vec::clone(saved)))
-                    } else {
-                        rmake_linux::child::read_stdin().map(|bytes| {
-                            stdin_bytes = Some(bytes.clone());
-                            rmake_core::reader::Input::Bytes(bytes)
-                        })
-                    }
-                } else {
-                    rmake_linux::filesystem::open_source(file.as_os_str().as_bytes())
-                };
+                let input = rmake_linux::filesystem::open_source(file.as_os_str().as_bytes());
                 let input = match input {
                     Ok(input) => input,
                     Err(err) => {
@@ -2053,6 +2111,7 @@ impl Engine {
                         continue;
                     }
                 };
+                found_makefile = true;
                 if file != Path::new("-") {
                     self.database.makefiles.push(Makefile {
                         name: file.as_os_str().as_bytes().to_vec(),
@@ -2515,6 +2574,7 @@ impl Engine {
             }
             break;
         }
+        self.unlink_stdin();
         crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
@@ -3325,6 +3385,7 @@ impl Engine {
             return;
         }
         self.interrupt = Some(number);
+        self.unlink_stdin();
         self.graph_abort = Some(Status::Fatal);
         self.shutdown.set(Shutdown::Draining);
         self.parallel_failed = true;

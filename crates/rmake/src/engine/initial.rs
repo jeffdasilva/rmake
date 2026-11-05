@@ -7,6 +7,9 @@ use super::*;
 
 pub(super) struct Plan {
     args: Vec<OsString>,
+    pub(super) stdin_source: Option<rmake_linux::stdin_source::Source>,
+    stdin_argument: Option<crate::cli::StdinArgument>,
+    stdin_index: Option<usize>,
     environment: Vec<(OsString, OsString)>,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
@@ -67,6 +70,9 @@ impl Plan {
         }
         Self {
             args,
+            stdin_source: None,
+            stdin_argument: None,
+            stdin_index: None,
             environment,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
@@ -77,7 +83,8 @@ impl Plan {
     pub(super) fn debug_restart(&self, count: u32) {
         let mut line = format!("Re-executing[{count}]: ").into_bytes();
         line.extend_from_slice(self.invocation.as_bytes());
-        for argument in &self.args {
+        let rewritten = self.restart_arguments();
+        for argument in rewritten.as_deref().unwrap_or(&self.args) {
             line.push(b' ');
             line.extend_from_slice(argument.as_bytes());
         }
@@ -95,12 +102,13 @@ impl Plan {
         jobserver: Option<&Jobserver>,
     ) -> io::Error {
         let mut command = Command::new(&self.invocation);
-        command.arg0(&self.invocation).args(&self.args).env_clear();
-        for (name, value) in &self.environment {
-            if name != "MAKE_RESTARTS" && name != "MAKELEVEL" {
-                command.env(name, value);
-            }
-        }
+        let rewritten = self.restart_arguments();
+        // Native setup can deliberately update the process environment. A
+        // real exec inherits that live state, with only the restart counters
+        // overridden below; the startup snapshot is for in-process decoding.
+        command
+            .arg0(&self.invocation)
+            .args(rewritten.as_deref().unwrap_or(&self.args));
         let restart = if self
             .output
             .as_ref()
@@ -119,6 +127,42 @@ impl Plan {
             return error;
         }
         command.exec()
+    }
+
+    fn restart_arguments(&self) -> Option<Vec<OsString>> {
+        Some(crate::stdin_source::restart_arguments(
+            &self.args,
+            self.stdin_argument?,
+            self.stdin_source.as_ref()?.path(),
+        ))
+    }
+
+    fn argument(
+        &mut self,
+        state: &mut State,
+        options: &mut Options,
+        argument: crate::cli::Argument,
+    ) -> Result<(), InvocationError> {
+        if let crate::cli::Argument::File(index) = argument
+            && options.temp_stdin_file == Some(index)
+        {
+            if self.stdin_index.is_some_and(|index| index > 0) {
+                return Err(StartupError::from(Diagnostic::from(
+                    "INTERNAL: multiple --temp-stdin options provided!",
+                ))
+                .into());
+            }
+            self.stdin_index = Some(index);
+            if let Some(previous) =
+                self.stdin_source
+                    .replace(rmake_linux::stdin_source::Source::adopt(
+                        options.files[index].clone(),
+                    ))
+            {
+                previous.disarm();
+            }
+        }
+        state.argument(&self.program, options, argument)
     }
 
     pub(super) fn decode(
@@ -254,7 +298,7 @@ impl Plan {
                         incoming,
                         parsed_prefix,
                         prefix_count,
-                        &mut |options, argument| state.argument(&self.program, options, argument),
+                        &mut |options, argument| self.argument(&mut state, options, argument),
                         &mut |options| {
                             selected_policy =
                                 (options.warn_undefined, options.environment_override);
@@ -312,7 +356,7 @@ impl Plan {
                 parsed_prefix,
                 prefix_count,
                 false,
-                &mut |options, argument| state.argument(&self.program, options, argument),
+                &mut |options, argument| self.argument(&mut state, options, argument),
                 &mut |options| {
                     selected_policy = (options.warn_undefined, options.environment_override);
                     policy_output.set_directory_policy(options.directory_choice, options.silent);
@@ -371,23 +415,32 @@ impl Plan {
         let (options, reader_output, construction, shuffle) = match decoded {
             Ok(decoded) => decoded,
             Err(error) => {
-                let exit = crate::native::has_modules().then(|| {
-                    Box::new(NativeExit::Startup(Box::new(startup_exit::Host {
-                        database: state.database,
-                        filesystem: state.filesystem,
-                        output: state.output,
-                        warnings: state.warnings,
-                        program: self.program.clone(),
-                        level: 0,
-                        include_search: None,
-                        reader_output: None,
-                        construction: None,
-                        restore_directory: None,
-                    })))
-                });
+                let stdin_source = self.stdin_source.take();
+                let exit = if crate::native::has_modules() {
+                    Some(Box::new(NativeExit::Startup(Box::new(
+                        startup_exit::Host {
+                            stdin_source,
+                            database: state.database,
+                            filesystem: state.filesystem,
+                            output: state.output,
+                            warnings: state.warnings,
+                            program: self.program.clone(),
+                            level: 0,
+                            include_search: None,
+                            reader_output: None,
+                            construction: None,
+                            restore_directory: None,
+                        },
+                    ))))
+                } else {
+                    stdin_source.map(|source| {
+                        NativeExit::source(source, state.output.clone(), self.program.clone())
+                    })
+                };
                 return Err(Failure { error, exit });
             }
         };
+        self.stdin_argument = options.stdin_argument;
         Ok(Invocation {
             options,
             initial: Box::new(Prepared {
@@ -520,6 +573,7 @@ impl State {
                         options.directories.pop();
                     }
                 }
+                crate::cli::Argument::File(index) if options.temp_stdin_file == Some(index) => {}
                 crate::cli::Argument::File(index) => {
                     let raw = options.files[index].as_os_str().as_bytes();
                     options.files[index] = self.path(program, raw)?;
@@ -702,7 +756,9 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
     fn startup(exit: Option<Box<NativeExit>>) -> startup_exit::Host {
         match *exit.expect("native phase must remain owned") {
             NativeExit::Startup(host) => *host,
-            NativeExit::Engine(_) => panic!("constructor was not completed"),
+            NativeExit::Engine(_) | NativeExit::Source(_) => {
+                panic!("constructor was not completed")
+            }
         }
     }
     fn value(database: &Database, name: &[u8]) -> Option<Vec<u8>> {

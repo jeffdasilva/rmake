@@ -41,11 +41,31 @@ impl From<InvocationError> for Failure<InvocationError> {
 pub enum NativeExit {
     Startup(Box<Host>),
     Engine(Box<Engine>),
+    Source(Box<SourceExit>),
+}
+pub struct SourceExit {
+    source: rmake_linux::stdin_source::Source,
+    output: crate::output::Controller,
+    program: Vec<u8>,
 }
 impl NativeExit {
+    pub(super) fn source(
+        source: rmake_linux::stdin_source::Source,
+        output: crate::output::Controller,
+        program: Vec<u8>,
+    ) -> Box<Self> {
+        Box::new(Self::Source(Box::new(SourceExit {
+            source,
+            output,
+            program,
+        })))
+    }
     pub fn prepare(&mut self) {
         match self {
             Self::Startup(host) => host.prepare(),
+            Self::Source(exit) => {
+                crate::stdin_source::unlink(Some(&exit.source), &exit.output, &exit.program)
+            }
             Self::Engine(engine) => {
                 engine.prepare_native_exit();
                 if let Some(exit) = &mut engine.native_exit_override {
@@ -58,6 +78,7 @@ impl NativeExit {
     pub fn finish(&mut self, status: u8) -> u8 {
         match self {
             Self::Startup(host) => host.finish(status),
+            Self::Source(_) => status,
             Self::Engine(engine) => engine.native_exit(status),
         }
     }
@@ -66,6 +87,7 @@ impl NativeExit {
 /// These fields are moved from the phase that actually ran. No defaults or
 /// option receivers are installed merely to make a finalization host.
 pub struct Host {
+    pub(super) stdin_source: Option<rmake_linux::stdin_source::Source>,
     pub(super) database: Database,
     pub(super) filesystem: RefCell<FilesystemRuntime>,
     pub(super) output: crate::output::Controller,
@@ -107,6 +129,7 @@ impl Host {
     }
 
     fn prepare(&mut self) {
+        crate::stdin_source::unlink(self.stdin_source.as_ref(), &self.output, &self.program);
         // A successful prepared help/version pass keeps this guard until after
         // its banner. Error paths already let construction unwinding flush it.
         self.construction.take();

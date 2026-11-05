@@ -48,3 +48,7 @@ pub mod environment;
 // Native C ABI and Linux ucontext ownership stay behind this adapter.
 #[allow(unsafe_code)]
 pub mod native;
+
+#[allow(unsafe_code)]
+pub mod stdin_source;
+pub mod temporary;

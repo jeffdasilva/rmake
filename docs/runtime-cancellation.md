@@ -44,6 +44,9 @@ normal-capture cases anchor large reads, EOF-before-exit status and descriptor
 ownership. Six Rust tests and six tooling tests protect cancellation propagation,
 no later effects, capture lifetime and independent campaign anchors.
 
+The following paragraph records the earlier memory-backed M5 checkpoint; its
+stdin ownership rule is historical.
+
 Two safety differences are explicit. GNU can orphan an unregistered shell
 function child when interrupted; the controller records that live child and
 terminates its exact pidfd. rmake must reap its owned capture before exit. GNU
@@ -51,6 +54,15 @@ can also leave a randomly named stdin-Makefile temporary on early interruption;
 the campaign records those observer temporaries separately, while rmake keeps
 its existing memory-backed input and must leave no owned temporary. Neither
 exception normalizes target files, streams or status.
+
+The [real stdin-source checkpoint](stdin-sources.md) replaces that memory-backed
+input. The21 early-copy stdin cells now require an independent live pre-signal
+open/fstat/full-byte observation of exactly one empty0600 source, followed by
+that same final device/inode/mode and the entire observer-directory filesystem.
+Every work/home/tmp file is independently fixed. Original observations and the
+old documented scope remain retained as history; no new safety exception or
+arbitrary candidate temporary allowance is added. Owned shell captures must
+still be reaped before exit.
 
 Development and optimized CI run these campaigns alongside the existing corpus,
 stateful, syscall-fault, signal, load, mixed-jobserver and graph-progress gates.
