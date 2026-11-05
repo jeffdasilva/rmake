@@ -1,5 +1,5 @@
 id = "passive-mutex-active-setup-reopens"
-requirement = "options.passive-source-order"
+requirement = "options.passive-output-mutex"
 candidate = "required"
 description = "passive mutex active setup reopens"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."

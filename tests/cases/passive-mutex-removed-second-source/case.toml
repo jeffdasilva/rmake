@@ -1,5 +1,5 @@
 id = "passive-mutex-removed-second-source"
-requirement = "options.passive-source-order"
+requirement = "options.passive-output-mutex"
 candidate = "required"
 description = "passive mutex removed second source"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."

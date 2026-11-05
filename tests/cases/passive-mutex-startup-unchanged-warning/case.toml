@@ -1,5 +1,5 @@
 id = "passive-mutex-startup-unchanged-warning"
-requirement = "options.passive-source-order"
+requirement = "options.passive-output-mutex"
 candidate = "required"
 description = "passive mutex startup unchanged warning"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."

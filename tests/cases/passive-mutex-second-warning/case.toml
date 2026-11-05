@@ -1,5 +1,5 @@
 id = "passive-mutex-second-warning"
-requirement = "options.passive-source-order"
+requirement = "options.passive-output-mutex"
 candidate = "required"
 description = "passive mutex second warning"
 provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
