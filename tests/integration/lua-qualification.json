@@ -1,0 +1,8 @@
+{
+  "classification": "Original pinned Lua 5.4.9 GNU2 and rmake development/optimized real-build, no-op, header rebuild, and smoke qualification; complete lossless integration records and observed file bytes",
+  "sha256": "c7e0f0c976e5a09032bc2816a9f656daf870ccb6a5fa08229707b9fc2fecc7a5",
+  "raw_sha256": "31c12febc1469c11639d95d4d0ed0dc2931ab2402f9833ebf8fa7777156e7944",
+  "raw_bytes": 8989857,
+  "files": 792,
+  "unique_payloads": 513
+}

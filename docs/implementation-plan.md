@@ -439,3 +439,5 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 
 
 [Wildcard locale collation](locale-collation.md) adds 74 required original models, with both profiles matching GNU2 across live global/thread-local choices, raw-byte equal keys and directory-table growth. The private French locale is generated from authenticated pinned packages. The earlier 183 C/CUTF8 controls remain required. Wider locale/cache-history acceptance and complete M3/M6 criteria are unchanged.
+
+[Lua real-project coverage](project-integration.md) adds a pinned recursive Linux build with two pipe job slots and recursive output synchronization. The standard integration and self-host targets compare complete fresh, no-op, rebuild and smoke results. Broader project and compiler coverage remain part of M6.
