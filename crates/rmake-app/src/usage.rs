@@ -74,6 +74,13 @@ pub(crate) fn jobs() -> Vec<u8> {
     )
 }
 
+pub(crate) fn jobserver_style(style: &[u8]) -> Vec<u8> {
+    format(
+        c"unknown jobserver auth style '%s'",
+        &[Argument::Bytes(style)],
+    )
+}
+
 pub(crate) fn text(program: &[u8]) -> Vec<u8> {
     let mut output = format(
         c"Usage: %s [options] [target] ...\n",

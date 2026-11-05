@@ -94,6 +94,15 @@ pub(crate) enum UsageIssue {
 }
 
 impl UsageIssue {
+    pub(crate) fn notice(&self) -> Option<rmake_core::diagnostic::FlagNotice> {
+        use rmake_core::diagnostic::FlagNotice;
+        match self {
+            Self::Empty(name) => Some(FlagNotice::EmptyOption(name)),
+            Self::Jobs => Some(FlagNotice::InvalidJobs),
+            _ => None,
+        }
+    }
+
     pub(crate) fn message(&self) -> (bool, Vec<u8>) {
         let quoted = |prefix: &[u8], value: &[u8], suffix: &[u8]| {
             [prefix, b"'", value, b"'", suffix].concat()
@@ -141,7 +150,7 @@ pub(crate) enum Argument {
     Include(usize),
     Goal(usize),
     Warning(usize),
-    Usage(UsageIssue),
+    Usage(usize, UsageIssue),
 }
 
 /// Explicit selectors retain their source; automatic reporting is evaluated
@@ -179,6 +188,7 @@ pub struct Options {
     pub inherited_jobs: bool,
     pub jobserver_auth: Option<Vec<u8>>,
     pub jobserver_pipe: bool,
+    pub(crate) unknown_jobserver_style: Option<Vec<u8>>,
     pub reset_jobserver: bool,
     pub directories: Vec<PathBuf>,
     pub include_directories: Vec<PathBuf>,
@@ -212,6 +222,7 @@ pub struct Options {
     pub help: bool,
     pub version: bool,
     pub(crate) invalid_usage: bool,
+    pub(crate) flag_notices: Vec<rmake_core::diagnostic::FlagNoticeAt>,
 }
 
 /// An owned argument cursor. A yielded operand leaves no borrowed argv,
@@ -238,7 +249,7 @@ struct IncomingSwitches {
 pub(crate) struct DecodedArgument {
     pub(crate) argument: Option<Argument>,
     pub(crate) position: usize,
-    usage: Vec<UsageIssue>,
+    pub(crate) usage: Vec<UsageIssue>,
 }
 
 impl Decoder {
@@ -352,6 +363,22 @@ impl Decoder {
                     i += 1;
                     continue;
                 }
+                if value.as_deref() == Some(b"".as_slice()) {
+                    let option = match name {
+                        b"--output-sync" => Some(b"-O".as_slice()),
+                        b"--debug" => Some(b"--debug".as_slice()),
+                        b"--shuffle" => Some(b"--shuffle".as_slice()),
+                        b"--jobserver-auth" => Some(b"--jobserver-auth".as_slice()),
+                        b"--jobserver-fds" => Some(b"--jobserver-fds".as_slice()),
+                        b"--jobserver-style" => Some(b"--jobserver-style".as_slice()),
+                        b"--sync-mutex" => Some(b"--sync-mutex".as_slice()),
+                        _ => None,
+                    };
+                    if let Some(option) = option {
+                        usage.push(UsageIssue::Empty(option));
+                        pause!(None);
+                    }
+                }
                 let flag = match name {
                     b"--help" => Some(&mut result.help),
                     b"--version" => Some(&mut result.version),
@@ -436,14 +463,21 @@ impl Decoder {
                             result.shuffle = Some(value.unwrap_or_else(|| b"random".to_vec()));
                         }
                         b"--jobserver-auth" | b"--jobserver-fds" => {
-                            result.jobserver_auth = Some(
-                                value
-                                    .or_else(|| {
-                                        i += 1;
-                                        source_args.get(i).cloned()
-                                    })
-                                    .ok_or("jobserver authentication requires an argument")?,
-                            );
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    source_args.get(i).cloned()
+                                })
+                                .ok_or("jobserver authentication requires an argument")?;
+                            if value.is_empty() {
+                                usage.push(UsageIssue::Empty(if name == b"--jobserver-auth" {
+                                    b"--jobserver-auth"
+                                } else {
+                                    b"--jobserver-fds"
+                                }));
+                                pause!(None);
+                            }
+                            result.jobserver_auth = Some(value);
                         }
                         b"--jobserver-style" => {
                             let value = value
@@ -452,11 +486,13 @@ impl Decoder {
                                     source_args.get(i).cloned()
                                 })
                                 .ok_or("jobserver style requires an argument")?;
-                            result.jobserver_pipe = match value.as_slice() {
-                                b"fifo" => false,
-                                b"pipe" => true,
-                                _ => return Err("unknown jobserver style".into()),
-                            };
+                            if value.is_empty() {
+                                usage.push(UsageIssue::Empty(b"--jobserver-style"));
+                                pause!(None);
+                            }
+                            result.jobserver_pipe = value == b"pipe";
+                            result.unknown_jobserver_style =
+                                (!matches!(value.as_slice(), b"fifo" | b"pipe")).then_some(value);
                         }
                         b"--file" | b"--makefile" | b"--temp-stdin" | b"--directory"
                         | b"--include-dir" | b"--old-file" | b"--assume-old" | b"--new-file"
@@ -481,16 +517,10 @@ impl Decoder {
                                     b"--new-file" | b"--assume-new" | b"--what-if" => b"-W",
                                     _ => b"--temp-stdin",
                                 };
-                                if STARTUP {
+                                if STARTUP || canonical == b"-I" {
                                     usage.push(UsageIssue::Empty(canonical));
-                                    pause!(None);
                                 }
-                                if matches!(canonical, b"-I" | b"-o" | b"-W") {
-                                    return Err(String::from_utf8_lossy(
-                                        &UsageIssue::Empty(canonical).message().1,
-                                    )
-                                    .into_owned());
-                                }
+                                pause!(None);
                             }
                             let path = PathBuf::from(OsString::from_vec(value));
                             if matches!(name, b"--old-file" | b"--assume-old") {
@@ -537,14 +567,8 @@ impl Decoder {
                                 })
                                 .ok_or("option '--eval' requires an argument")?;
                             if value.is_empty() {
-                                if STARTUP {
-                                    usage.push(UsageIssue::Empty(b"-E"));
-                                    pause!(None);
-                                }
-                                return Err(
-                                    "the '--eval' option requires a non-empty string argument"
-                                        .into(),
-                                );
+                                usage.push(UsageIssue::Empty(b"-E"));
+                                pause!(None);
                             }
                             if evals_seen.insert(value.clone()) {
                                 result.evals.push(value);
@@ -554,14 +578,17 @@ impl Decoder {
                             result.output_sync = Some(value.unwrap_or_else(|| b"target".to_vec()))
                         }
                         b"--sync-mutex" => {
-                            result.sync_mutex = Some(
-                                value
-                                    .or_else(|| {
-                                        i += 1;
-                                        source_args.get(i).cloned()
-                                    })
-                                    .ok_or("option '--sync-mutex' requires an argument")?,
-                            );
+                            let value = value
+                                .or_else(|| {
+                                    i += 1;
+                                    source_args.get(i).cloned()
+                                })
+                                .ok_or("option '--sync-mutex' requires an argument")?;
+                            if value.is_empty() {
+                                usage.push(UsageIssue::Empty(b"--sync-mutex"));
+                                pause!(None);
+                            }
+                            result.sync_mutex = Some(value);
                         }
                         b"--load-average" | b"--max-load" => {
                             let value = value.or_else(|| {
@@ -591,11 +618,10 @@ impl Decoder {
                             });
                             result.jobs = Some(match job_count(value.as_deref()) {
                                 Ok(jobs) => jobs,
-                                Err(_) if STARTUP => {
+                                Err(_) => {
                                     usage.push(UsageIssue::Jobs);
                                     pause!(None);
                                 }
-                                Err(error) => return Err(error),
                             });
                             if track_jobs {
                                 result.command_jobs = result.jobs;
@@ -710,25 +736,21 @@ impl Decoder {
                                 }
                                 source_args[i].clone()
                             };
-                            if STARTUP && value.is_empty() && option != b'j' {
-                                usage.push(UsageIssue::Empty(match option {
-                                    b'C' => b"-C",
-                                    b'E' => b"-E",
-                                    b'I' => b"-I",
-                                    b'f' => b"-f",
-                                    b'o' => b"-o",
-                                    b'W' => b"-W",
-                                    _ => unreachable!("validated short operand option"),
-                                }));
+                            if value.is_empty() && option != b'j' {
+                                if STARTUP || matches!(option, b'E' | b'I') {
+                                    usage.push(UsageIssue::Empty(match option {
+                                        b'C' => b"-C",
+                                        b'E' => b"-E",
+                                        b'I' => b"-I",
+                                        b'f' => b"-f",
+                                        b'o' => b"-o",
+                                        b'W' => b"-W",
+                                        _ => unreachable!("validated short operand option"),
+                                    }));
+                                }
                                 break;
                             }
                             if matches!(option, b'o' | b'W') {
-                                if value.is_empty() {
-                                    return Err(format!(
-                                        "the '-{}' option requires a non-empty string argument",
-                                        option as char
-                                    ));
-                                }
                                 let path = OsString::from_vec(value).into();
                                 if option == b'o' {
                                     result.old_files.push(path);
@@ -740,12 +762,6 @@ impl Decoder {
                                     pause!(Some(Argument::NewFile(index)));
                                 }
                             } else if option == b'E' {
-                                if value.is_empty() {
-                                    return Err(
-                                        "the '-E' option requires a non-empty string argument"
-                                            .into(),
-                                    );
-                                }
                                 if evals_seen.insert(value.clone()) {
                                     result.evals.push(value);
                                 }
@@ -757,11 +773,10 @@ impl Decoder {
                                 result.jobs = Some(
                                     match job_count(numeric_operand.then_some(value.as_slice())) {
                                         Ok(jobs) => jobs,
-                                        Err(_) if STARTUP => {
+                                        Err(_) => {
                                             usage.push(UsageIssue::Jobs);
                                             break;
                                         }
-                                        Err(error) => return Err(error),
                                     },
                                 );
                                 if track_jobs {
@@ -820,7 +835,7 @@ impl Decoder {
 
 impl Options {
     fn reject_usage(argument: Argument) -> Result<(), String> {
-        if let Argument::Usage(issue) = argument {
+        if let Argument::Usage(_, issue) = argument {
             return Err(String::from_utf8_lossy(&issue.message().1).into_owned());
         }
         Ok(())
@@ -1011,6 +1026,16 @@ impl Options {
     ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
         self.decode_file_flags(flags, false, origin)
     }
+    fn append_internal_jobserver_style(&self, arguments: &mut Vec<OsString>) {
+        if let Some(style) = &self.unknown_jobserver_style {
+            arguments.push(OsString::from_vec(
+                [b"--jobserver-style=".as_slice(), style].concat(),
+            ));
+        } else if self.jobserver_pipe {
+            arguments.push("--jobserver-style=pipe".into());
+        }
+    }
+
     /// Select only effectful include operands. The ordinary decoder remains
     /// the allocation baseline for streams with no tilde operand.
     pub(crate) fn include_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
@@ -1034,9 +1059,7 @@ impl Options {
         }
         let mut prefix = Vec::new();
         Self::append_flags(&mut prefix, &self.recursive_flags_with_includes(false));
-        if self.jobserver_pipe {
-            prefix.push("--jobserver-style=pipe".into());
-        }
+        self.append_internal_jobserver_style(&mut prefix);
         let mut seeded = Self::parse_mode::<false>(prefix)?;
         seeded.include_directories = self.include_directories.clone();
         seeded.include_assignment_positions = self.include_assignment_positions.clone();
@@ -1059,9 +1082,7 @@ impl Options {
     ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
         let mut arguments = Vec::new();
         Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false));
-        if self.jobserver_pipe {
-            arguments.push("--jobserver-style=pipe".into());
-        }
+        self.append_internal_jobserver_style(&mut arguments);
         let prefix_count = arguments.len();
         let prefix_end = [prefix_count];
         let mut other_ends = Vec::new();
@@ -1094,11 +1115,21 @@ impl Options {
         // Capture incoming switch selections during the merged decode. Prefix
         // reconstruction must not manufacture new source-origin selections.
         let mut warning_positions = Vec::new();
+        let mut notices = Vec::new();
         let (mut parsed, incoming_options) = Self::run_decoder::<false, true, String>(
             Decoder::new(arguments, seeded, 0, false),
             source_ends,
             prefix_count,
             &mut |options, argument| {
+                if let Argument::Usage(position, issue) = &argument
+                    && *position >= prefix_count
+                    && let Some(notice) = issue.notice()
+                {
+                    notices.push(rmake_core::diagnostic::FlagNoticeAt {
+                        position: *position - prefix_count + 1,
+                        notice,
+                    });
+                }
                 if let Argument::Warning(position) = argument
                     && position >= prefix_count
                 {
@@ -1144,6 +1175,7 @@ impl Options {
         parsed.old_files = self.old_files.clone();
         parsed.new_files = self.new_files.clone();
         parsed.flag_word_count = flag_word_count;
+        parsed.flag_notices = notices;
         // GNU only tracks origins for selected switches. Reconstructing the
         // spelling must not turn an inherited/file setting into a CLI setting.
         if incoming_options.silent.is_some()
@@ -1223,7 +1255,11 @@ impl Options {
         track_jobs: bool,
     ) -> Result<Self, String> {
         Self::parse_with::<STARTUP, String>(args, result, offset, track_jobs, &mut |_, argument| {
-            Self::reject_usage(argument)
+            if STARTUP {
+                Self::reject_usage(argument)
+            } else {
+                Ok(())
+            }
         })
     }
 
@@ -1333,8 +1369,8 @@ impl Options {
                     break;
                 };
                 for issue in step.usage {
-                    decoder.options.invalid_usage = true;
-                    receiver(&mut decoder.options, Argument::Usage(issue))?;
+                    decoder.options.invalid_usage |= STARTUP;
+                    receiver(&mut decoder.options, Argument::Usage(step.position, issue))?;
                 }
                 if let Some(argument) = step.argument {
                     receiver(&mut decoder.options, argument)?;
@@ -1519,10 +1555,11 @@ fn job_count(value: Option<&[u8]>) -> Result<usize, String> {
     let Some(value) = value else {
         return Ok(usize::MAX);
     };
-    std::str::from_utf8(value)
+    std::str::from_utf8(value.trim_ascii_start())
         .ok()
-        .and_then(|value| value.parse::<usize>().ok())
+        .and_then(|value| value.parse::<u32>().ok())
         .filter(|value| *value > 0)
+        .map(|value| value as usize)
         .ok_or_else(|| "the '-j' option requires a positive integer argument".into())
 }
 
@@ -1788,7 +1825,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_live_operands_do_not_call_receivers_or_accept_empty_values() {
+    fn live_missing_operands_and_empty_values_preserve_their_distinct_effects() {
         for raw in ["-C", "-f", "-I", "-o", "-W", "--eval", "--jobserver-auth"] {
             let mut received = Vec::new();
             let live = Options::parse_with::<false, String>(
@@ -1812,13 +1849,19 @@ mod tests {
             assert!(parse(&[raw]).is_err(), "{raw}");
             assert!(Options::with_environment([], Some(raw.into()), None).is_err());
         }
-        for raw in ["--old-file=", "--new-file=", "--eval=", "--jobs=zero"] {
-            assert!(
-                Options::default()
-                    .assigned_flags(&[raw.as_bytes().to_vec()], Origin::File)
-                    .is_err(),
-                "{raw}"
-            );
+        for raw in ["--old-file=", "--new-file="] {
+            let (options, _) = Options::default()
+                .assigned_flags(&[raw.as_bytes().to_vec()], Origin::File)
+                .unwrap();
+            assert!(options.old_files.is_empty() && options.new_files.is_empty());
+            assert!(options.flag_notices.is_empty(), "{raw}");
+        }
+        for raw in ["--eval=", "--jobs=zero"] {
+            let (options, _) = Options::default()
+                .assigned_flags(&[raw.as_bytes().to_vec()], Origin::File)
+                .unwrap();
+            assert!(options.evals.is_empty() && options.jobs.is_none());
+            assert_eq!(options.flag_notices.len(), 1, "{raw}");
         }
     }
 
@@ -1970,7 +2013,13 @@ mod tests {
         let pipe = parse(&["--jobserver-style=pipe", "--jobs=3"]).unwrap();
         assert!(pipe.jobserver_pipe);
         assert_eq!(pipe.jobs, Some(3));
-        assert!(parse(&["--jobserver-style=invalid"]).is_err());
+        assert_eq!(
+            parse(&["--jobserver-style=invalid"])
+                .unwrap()
+                .unknown_jobserver_style
+                .as_deref(),
+            Some(b"invalid".as_slice())
+        );
     }
 
     #[test]
@@ -2359,21 +2408,24 @@ mod runtime_marker_tests {
     }
 
     #[test]
-    fn incoming_error_wins_over_an_invalid_reconstructed_prefix() {
-        let invalid_prefix = Options {
-            jobs: Some(0),
+    fn incoming_notice_does_not_replace_the_selected_prefix_or_following_flags() {
+        use rmake_core::diagnostic::FlagNotice;
+        let previous = Options {
+            jobs: Some(2),
             ..Options::default()
         };
-        let error = invalid_prefix
-            .assigned_flags(&[b"--include-dir=".to_vec()], Origin::File)
-            .err()
+        let (updated, _) = previous
+            .assigned_flags(&[b"--include-dir= -s".to_vec()], Origin::File)
             .unwrap();
-        assert!(error.contains("'-I'"), "{error}");
-        let prefix_error = invalid_prefix
-            .assigned_flags(&[b"-s".to_vec()], Origin::File)
-            .err()
-            .unwrap();
-        assert!(prefix_error.contains("'-j'"), "{prefix_error}");
+        assert_eq!(updated.jobs, Some(2));
+        assert!(updated.silent && updated.include_directories.is_empty());
+        assert!(matches!(
+            updated.flag_notices.as_slice(),
+            [rmake_core::diagnostic::FlagNoticeAt {
+                position: 1,
+                notice: FlagNotice::EmptyOption(b"-I"),
+            }]
+        ));
     }
 }
 

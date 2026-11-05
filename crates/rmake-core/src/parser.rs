@@ -1129,6 +1129,7 @@ mod include_tests {
                         Vec::new()
                     },
                     warning_positions: if first { vec![2] } else { Vec::new() },
+                    notices: Vec::new(),
                     warning_entry: false,
                     next_argument: 4,
                 })
@@ -1210,6 +1211,7 @@ mod include_tests {
                 })),
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
+                notices: Vec::new(),
                 warning_entry: false,
                 next_argument: 1,
             })
@@ -1273,6 +1275,7 @@ mod include_tests {
                 publish_includes: None,
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
+                notices: Vec::new(),
                 warning_entry: false,
                 next_argument: 1,
             })
@@ -1332,6 +1335,7 @@ mod include_tests {
                 })),
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
+                notices: Vec::new(),
                 warning_entry: false,
                 next_argument: 1,
             })
@@ -1388,6 +1392,7 @@ mod include_tests {
                 })),
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
+                notices: Vec::new(),
                 warning_entry: false,
                 next_argument: 1,
             })
@@ -1435,6 +1440,7 @@ mod include_tests {
                 publish_includes: None,
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
+                notices: Vec::new(),
                 warning_entry: false,
                 next_argument: 1,
             })
@@ -1482,6 +1488,7 @@ mod include_tests {
                 publish_includes: None,
                 assignments: Vec::new(),
                 warning_positions: Vec::new(),
+                notices: Vec::new(),
                 warning_entry: false,
                 next_argument: 1,
             })

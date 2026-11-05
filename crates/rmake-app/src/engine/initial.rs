@@ -153,7 +153,7 @@ impl Plan {
         argument: crate::cli::Argument,
         explicit: bool,
     ) -> Result<(), InvocationError> {
-        if let crate::cli::Argument::Usage(issue) = argument {
+        if let crate::cli::Argument::Usage(_, issue) = argument {
             let (getopt, message) = issue.message();
             if getopt {
                 let name = if explicit {
@@ -576,7 +576,7 @@ impl State {
         let result: Result<(), ExpandError> = (|| {
             match argument {
                 // The startup decoder does not emit live policy events.
-                crate::cli::Argument::Warning(_) | crate::cli::Argument::Usage(_) => {}
+                crate::cli::Argument::Warning(_) | crate::cli::Argument::Usage(..) => {}
                 crate::cli::Argument::Definition(index) => {
                     let name = self
                         .evaluate(program, |database, context| {

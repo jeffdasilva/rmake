@@ -29,3 +29,11 @@ catalogs. The implementation and test fixtures are original and never execute
 GNU at runtime. Localized Make messages use the active catalog and checked
 formatting. Localized libc getopt catalogs beyond the tested host remain an
 independent profile requirement.
+
+`make test-runtime-option-values` separately compares 35 exact cases for
+empty string and invalid job count notices, ordered immediate and passive
+assignments, contextual HOME includes, raw style names, and actual pool
+creation. Live value errors preserve the earlier selection and continue,
+while the same argv errors print usage. An unknown jobserver style is
+reported only when make attempts to create a pool. Numeric job operands use
+the observed unsigned 32-bit bound, including leading blank handling.
