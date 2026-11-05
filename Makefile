@@ -604,10 +604,10 @@ test-resource-fd-pipe: build oracle-verify
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")
 
 test-resource-fd-fifo-failure: build oracle-verify
-	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/failure-development.json
+	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-fd-fifo/failure-development.json
 
 test-resource-fd-fifo-failure-release: release oracle-verify
-	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-fifo/failure-optimized.json
+	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-fd-fifo/failure-optimized.json
 
 test-resource-fd-fifo: build oracle-verify
 	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")

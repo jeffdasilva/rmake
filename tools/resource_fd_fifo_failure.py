@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""One historical FD4 FIFO cell, with exact byte and physical evidence."""
+"""FD4 FIFO failure in two locales, with exact byte and physical evidence."""
 import argparse
 import base64
 import errno
@@ -12,9 +12,11 @@ from pathlib import Path
 import tempfile
 
 import conformance as h
+import locale_data
 import oracle
 
-LAUNCHER = Path(__file__).resolve().parents[1] / 'tests/resource-fd-fifo/failure_launch.py'
+ROOT = Path(__file__).resolve().parents[1]
+LAUNCHER = ROOT / 'tests/resource-fd-fifo/failure_launch.py'
 ARGS = ('-rR', '--no-print-directory', '-j2', '--jobserver-style=fifo')
 MAKEFILE = b'all:\n\t@$(if $(findstring --jobserver-auth=fifo:,$(MAKEFLAGS)),,$(error missing FIFO))/usr/bin/touch goal\n'
 EXPECTED_STDERR = b'make: *** init jobserver pipe: Bad file descriptor.  Stop.\n'
@@ -67,12 +69,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--oracle', type=Path, default=oracle.PREFIX / 'bin/make')
     parser.add_argument('--candidate', type=Path, required=True)
+    parser.add_argument('--locale-root', type=Path, default=ROOT / '.tools/locale-data')
     parser.add_argument('--report', type=Path, required=True)
     args = parser.parse_args()
     reference = args.oracle.resolve(strict=True)
     candidate = args.candidate.resolve(strict=True)
     profile = oracle.verify(reference)
     identity = [h.executable_identity(reference, oracle=True), h.executable_identity(candidate)]
+    locale = locale_data.provision(args.locale_root)
+    french = locale['environment'] | {'LC_ALL': 'fr_FR.UTF-8', 'LANG': 'fr_FR.UTF-8'}
     records = []
     with tempfile.TemporaryDirectory(prefix='rmake-v5-fd4-fifo-') as directory:
         root = Path(directory)
@@ -82,27 +87,31 @@ def main():
         (inputs / 'Makefile').write_bytes(MAKEFILE)
         (inputs / 'launch.py').write_bytes(LAUNCHER.read_bytes())
         case = h.Case(inputs, 'owned-fifo-command-4', 'resource.fifo.failure', 'required', ARGS, 5, {}, {})
-        for label, binary in [('gnu', reference), ('gnu', reference), ('candidate', candidate)]:
-            h.reset_workspace(case, runtime, binary)
-            (runtime/'tmp').chmod(0o700)
-            roots = {part: runtime / part for part in ('work', 'home', 'tmp')}
-            initial = h.snapshot(roots)
-            command = ['/usr/bin/python3', 'launch.py', str(runtime/'bin/make'), *ARGS]
-            stdout, stderr, status, bound, leftover = h.capture(command, runtime/'work',
-                                                                 h.clean_environment(runtime), 5)
-            witness_path = runtime/'work/observer.json'
-            witness = json.loads(witness_path.read_bytes()) if witness_path.is_file() else {}
-            record = {'engine': label, 'argv': command, 'stdout_hex': stdout.hex(), 'stderr_hex': stderr.hex(),
-                      'status': status, 'bound': bound, 'leftovers': leftover, 'initial_filesystem': initial,
-                      'filesystem': h.snapshot(roots), 'witness': witness,
-                      'private_tmp_gid': (runtime/'tmp').stat().st_gid}
-            record['errors'] = inspect(record)
-            records.append(record)
-            print(label, status, repr(stderr), witness.get('path'), record['errors'], flush=True)
+        for profile_name, environment in [('C', {}), ('fr_FR.UTF-8', french)]:
+            for label, binary in [('gnu', reference), ('gnu', reference), ('candidate', candidate)]:
+                h.reset_workspace(case, runtime, binary)
+                (runtime/'tmp').chmod(0o700)
+                roots = {part: runtime / part for part in ('work', 'home', 'tmp')}
+                initial = h.snapshot(roots)
+                command = ['/usr/bin/python3', 'launch.py', str(runtime/'bin/make'), *ARGS]
+                stdout, stderr, status, bound, leftover = h.capture(command, runtime/'work',
+                                                                     h.clean_environment(runtime, environment), 5)
+                witness_path = runtime/'work/observer.json'
+                witness = json.loads(witness_path.read_bytes()) if witness_path.is_file() else {}
+                record = {'engine': label, 'locale': profile_name, 'argv': command, 'stdout_hex': stdout.hex(), 'stderr_hex': stderr.hex(),
+                          'status': status, 'bound': bound, 'leftovers': leftover, 'initial_filesystem': initial,
+                          'filesystem': h.snapshot(roots), 'witness': witness,
+                          'private_tmp_gid': (runtime/'tmp').stat().st_gid}
+                record['errors'] = inspect(record)
+                records.append(record)
+                print(profile_name, label, status, repr(stderr), witness.get('path'), record['errors'], flush=True)
+                if bound or leftover or status < 0:
+                    break
             if bound or leftover or status < 0:
                 break
-    passed = len(records) == 3 and not any(r['errors'] for r in records)
-    report = {'oracle_profile': profile['profile_id'], 'identities': identity, 'records': records,
+    passed = len(records) == 6 and not any(r['errors'] for r in records)
+    report = {'oracle_profile': profile['profile_id'], 'locale_profile': locale,
+              'identities': identity, 'records': records,
               'source_hashes': {path.name: h.sha256_file(path) for path in (Path(__file__), LAUNCHER)},
               'functional_affinity': sorted(os.sched_getaffinity(0)), 'passed': passed}
     args.report.parent.mkdir(parents=True, exist_ok=True)
