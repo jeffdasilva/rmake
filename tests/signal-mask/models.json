@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "classification": "Original exact signal mask phase and controlled early-exit witnesses",
+  "models": [
+    {
+      "id": "eager-to-read-signal-mask",
+      "initial": "blocked",
+      "args": [
+        "SHELL=/bin/sh",
+        "EARLY:=$(eval load ./mask.so)$(mask_probe eager-native)$(shell ./entry eager-child)",
+        "--eval=$(mask_probe eval)\n$(info $(shell ./entry eval-child))"
+      ],
+      "makefile": "$(mask_probe read)\n$(info $(EARLY))\nall:;@$(mask_probe recipe-expansion)./entry recipe-child\n",
+      "stdout": "eval-child|000\neager-child|000\nrecipe-child|000\n",
+      "seen": "anchor\nentry|101\nload-ctor|101\nsetup|101\neager-native|101\neval|010\nread|010\nrecipe-expansion|010\nexit-dtor|010\n",
+      "status": 0,
+      "stderr": ""
+    },
+    {
+      "id": "native-live-block-and-child-reset",
+      "initial": "blocked",
+      "args": [],
+      "makefile": "load ./mask.so\n$(mask_probe before)\n$(mask_probe block-usr2)\n$(info $(shell ./entry shell-child))\n$(mask_probe after-shell)\nall:;@$(mask_probe recipe-expansion)./entry recipe-child\n",
+      "stdout": "shell-child|000\nrecipe-child|000\n",
+      "seen": "anchor\nentry|101\nload-ctor|010\nsetup|010\nbefore|010\nblock-usr2|110\nafter-shell|110\nrecipe-expansion|110\nexit-dtor|110\n",
+      "status": 0,
+      "stderr": ""
+    },
+    {
+      "id": "self-exec-live-signal-mask",
+      "initial": "blocked",
+      "args": [],
+      "makefile": "load ./mask.so\n$(mask_probe reading)\n$(if $(MAKE_RESTARTS),,$(mask_probe block-usr2))\ninclude generated.mk\nall:;@./entry final-child\ngenerated.mk:\n\t@./entry remake-child\n\t@printf 'READY:=yes\\n' > generated.mk\n",
+      "stdout": "remake-child|000\nfinal-child|000\n",
+      "seen": "anchor\nentry|101\nload-ctor|010\nsetup|010\nreading|010\nblock-usr2|110\nentry|110\nload-ctor|010\nsetup|010\nreading|010\nexit-dtor|010\n",
+      "created": {
+        "generated.mk": "READY:=yes\n"
+      },
+      "status": 0,
+      "stderr": ""
+    },
+    {
+      "id": "clear-launch-native-mask-control",
+      "initial": "clear",
+      "args": [],
+      "makefile": "load ./mask.so\n$(mask_probe read)\nall:;@./entry recipe-child\n",
+      "stdout": "recipe-child|000\n",
+      "seen": "anchor\nentry|000\nload-ctor|010\nsetup|010\nread|010\nexit-dtor|010\n",
+      "status": 0,
+      "stderr": ""
+    },
+    {
+      "id": "early-native-help-keeps-mask",
+      "initial": "blocked",
+      "args": [
+        "EARLY:=$(eval load ./mask.so)$(mask_probe early-help)$(mask_probe discard-stdout)",
+        "--help"
+      ],
+      "makefile": "$(error unexpected makefile read)\n",
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "seen": "anchor\nentry|101\nload-ctor|101\nsetup|101\nearly-help|101\ndiscard-stdout|101\nexit-dtor|101\n"
+    },
+    {
+      "id": "early-native-version-keeps-mask",
+      "initial": "blocked",
+      "args": [
+        "EARLY:=$(eval load ./mask.so)$(mask_probe early-version)$(mask_probe discard-stdout)",
+        "--version"
+      ],
+      "makefile": "$(error unexpected makefile read)\n",
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "seen": "anchor\nentry|101\nload-ctor|101\nsetup|101\nearly-version|101\ndiscard-stdout|101\nexit-dtor|101\n"
+    },
+    {
+      "id": "early-native-fatal-keeps-mask",
+      "initial": "blocked",
+      "args": [
+        "EARLY:=$(eval load ./mask.so)$(mask_probe early-fatal)$(error early-mask-stop)"
+      ],
+      "makefile": "$(error unexpected makefile read)\n",
+      "stdout": "",
+      "stderr": "make: *** early-mask-stop.  Stop.\n",
+      "status": 2,
+      "seen": "anchor\nentry|101\nload-ctor|101\nsetup|101\nearly-fatal|101\nexit-dtor|101\n"
+    },
+    {
+      "id": "late-native-fatal-keeps-reader-mask",
+      "initial": "blocked",
+      "args": [],
+      "makefile": "load ./mask.so\n$(mask_probe late-fatal)\n$(error late-mask-stop)\n",
+      "stdout": "",
+      "stderr": "Makefile:3: *** late-mask-stop.  Stop.\n",
+      "status": 2,
+      "seen": "anchor\nentry|101\nload-ctor|010\nsetup|010\nlate-fatal|010\nexit-dtor|010\n"
+    },
+    {
+      "id": "fd4-child-empty-mask-pipe-default",
+      "initial": "blocked",
+      "nofile": 4,
+      "sigpipe": "default",
+      "args": [],
+      "makefile": "all:;@./entry fd4-child\n",
+      "stdout": "fd4-child|000\n",
+      "stderr": "",
+      "seen": "anchor\nentry|101\n",
+      "status": 0
+    },
+    {
+      "id": "fd4-child-empty-mask-pipe-ignore",
+      "initial": "blocked",
+      "nofile": 4,
+      "sigpipe": "ignore",
+      "args": [],
+      "makefile": "all:;@./entry fd4-child\n",
+      "stdout": "fd4-child|000\n",
+      "stderr": "",
+      "seen": "anchor\nentry|101\n",
+      "status": 0
+    }
+  ]
+}

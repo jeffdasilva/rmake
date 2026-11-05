@@ -25,12 +25,14 @@ unsafe extern "C" {
     fn mkfifo(path: *const c_char, mode: c_uint) -> c_int;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
+    fn rmake_restart_pipe_private(pipe: *const c_int);
 }
 
 struct Inner {
     reader: File,
     writer: File,
     protocol_reader: Option<File>,
+    inherited_pipe: Option<[c_int; 2]>,
     auth: Vec<u8>,
     owned_slots: Option<usize>,
     created: Option<(PathBuf, u64, u64)>,
@@ -53,6 +55,24 @@ impl Drop for Inner {
 
 #[derive(Clone)]
 pub struct Jobserver(Arc<Inner>);
+
+/// The invocation's authentication names the incoming descriptors. The
+/// privately owned endpoints keep their pipe identity live during self-exec.
+pub(crate) struct RestartPipe<'a> {
+    incoming: [c_int; 2],
+    owned: [BorrowedFd<'a>; 2],
+}
+
+impl RestartPipe<'_> {
+    pub(crate) fn descriptors(&self) -> [c_int; 4] {
+        [
+            self.incoming[0],
+            self.incoming[1],
+            self.owned[0].as_raw_fd(),
+            self.owned[1].as_raw_fd(),
+        ]
+    }
+}
 
 /// The implicit permit is the slot inherited from the parent command. External
 /// permits own exactly one token and cannot be cloned.
@@ -190,6 +210,7 @@ impl Jobserver {
             reader,
             writer,
             protocol_reader: None,
+            inherited_pipe: None,
             auth,
             owned_slots: None,
             created: owned.then(|| (path.to_owned(), metadata.dev(), metadata.ino())),
@@ -216,6 +237,7 @@ impl Jobserver {
             reader,
             writer,
             protocol_reader: Some(protocol_reader),
+            inherited_pipe: None,
             auth,
             owned_slots: None,
             created: None,
@@ -246,7 +268,7 @@ impl Jobserver {
         }
         let reader = reopen(read, true, false)?;
         let writer = reopen(write, false, false)?;
-        let server = Self::from_pipe(reader, writer)?;
+        let mut server = Self::from_pipe(reader, writer)?;
         // FD flags belong to this process's descriptors, not the parent's open
         // descriptions. Ordinary commands must not inherit the incoming pair.
         for descriptor in [read, write] {
@@ -254,6 +276,9 @@ impl Jobserver {
                 return Err(io::Error::last_os_error());
             }
         }
+        Arc::get_mut(&mut server.0)
+            .expect("unshared joined jobserver")
+            .inherited_pipe = Some([read, write]);
         Ok(server)
     }
 
@@ -322,31 +347,25 @@ impl Jobserver {
             }
         }
     }
+
+    pub(crate) fn recursive_exec_pipe(&self) -> Option<RestartPipe<'_>> {
+        Some(RestartPipe {
+            incoming: self.0.inherited_pipe?,
+            owned: [
+                self.0.protocol_reader.as_ref()?.as_fd(),
+                self.0.writer.as_fd(),
+            ],
+        })
+    }
+
     /// A failed recursive self-exec returns with its protocol pair exposed.
     /// Restore this process's private descriptor flags before source cleanup.
     pub fn finish_recursive_exec(&self) {
-        let Some(reader) = &self.0.protocol_reader else {
-            return;
-        };
-        for descriptor in [reader.as_raw_fd(), self.0.writer.as_raw_fd()] {
-            let flags = loop {
-                // F_GETFD/F_SETFD affect this descriptor, never the parent's
-                // shared pipe description or another process's descriptor.
-                let value = unsafe { fcntl(descriptor, 1) };
-                if value >= 0 || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted {
-                    break value;
-                }
-            };
-            if flags < 0 {
-                continue;
-            }
-            loop {
-                if unsafe { fcntl(descriptor, 2, flags | 1) } >= 0
-                    || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted
-                {
-                    break;
-                }
-            }
+        if let Some(pipe) = self.recursive_exec_pipe() {
+            // SAFETY: the four integers remain live for the call. The C
+            // adapter verifies each incoming identity against a live owned
+            // endpoint before restoring its close-on-exec flag.
+            unsafe { rmake_restart_pipe_private(pipe.descriptors().as_ptr()) };
         }
     }
 }

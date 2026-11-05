@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "classification": "Original independently checked low-descriptor recipe launch and live cancellation models",
+  "models": [
+    {
+      "id": "fd4-path-enoexec",
+      "makefile": "export PATH := early:late\nall:\n\t@run-test payload\n",
+      "files": {
+        "early/run-test": {
+          "text": "echo invalid\n",
+          "mode": 420
+        },
+        "late/run-test": {
+          "text": "printf '%s|%s\\n' \"$0\" \"$1\"\n",
+          "mode": 493
+        }
+      },
+      "shell_control": [
+        "/bin/sh",
+        "late/run-test",
+        "payload"
+      ],
+      "recipe_line": 3
+    },
+    {
+      "id": "fd4-missing-exec",
+      "makefile": "all:\n\t@./absent\n",
+      "stdout": "",
+      "stderr": "make: ./absent: No such file or directory\nmake: *** [Makefile:2: all] Error 127\n",
+      "status": 2
+    },
+    {
+      "id": "fd4-permission-denied",
+      "makefile": "all:\n\t@./denied\n",
+      "files": {
+        "denied": {
+          "text": "echo forbidden\n",
+          "mode": 420
+        }
+      },
+      "stdout": "",
+      "stderr": "make: ./denied: Permission denied\nmake: *** [Makefile:2: all] Error 127\n",
+      "status": 2
+    },
+    {
+      "id": "fd4-executed-exit-127",
+      "makefile": "all:\n\t@./entry exit127\n\t@/usr/bin/touch forbidden\n",
+      "stdout": "entered\n",
+      "stderr": "make: *** [Makefile:2: all] Error 127\n",
+      "status": 2,
+      "compile": true
+    },
+    {
+      "id": "fd4-ordered-image-default-pipe",
+      "makefile": "export PATH := .\nexport RM_IMAGE_A := one\nexport RM_IMAGE_B := two\nall:\n\t@entry payload\n",
+      "compile": true,
+      "signal": "default",
+      "environment": {
+        "MAKELEVEL": "7"
+      },
+      "stdout": "entry|payload|default|0|1\nRM_IMAGE_A=one\nRM_IMAGE_B=two\nMAKELEVEL=8\n",
+      "stderr": "",
+      "status": 0
+    },
+    {
+      "id": "fd4-ordered-image-ignored-pipe",
+      "makefile": "export PATH := .\nexport RM_IMAGE_A := one\nexport RM_IMAGE_B := two\nall:\n\t@entry payload\n",
+      "compile": true,
+      "signal": "ignore",
+      "environment": {
+        "MAKELEVEL": "7"
+      },
+      "stdout": "entry|payload|ignored|0|1\nRM_IMAGE_A=one\nRM_IMAGE_B=two\nMAKELEVEL=8\n",
+      "stderr": "",
+      "status": 0
+    },
+    {
+      "id": "recipe-fdlimit-4",
+      "nofile": 4,
+      "makefile": "all:\n\t@/usr/bin/touch goal\n",
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "touch": true
+    },
+    {
+      "id": "recipe-fdlimit-5",
+      "nofile": 5,
+      "makefile": "all:\n\t@/usr/bin/touch goal\n",
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "touch": true
+    },
+    {
+      "id": "recipe-fdlimit-6",
+      "nofile": 6,
+      "makefile": "all:\n\t@/usr/bin/touch goal\n",
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "touch": true
+    },
+    {
+      "id": "recipe-fdlimit-7",
+      "nofile": 7,
+      "makefile": "all:\n\t@/usr/bin/touch goal\n",
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "touch": true
+    }
+  ],
+  "cancellation": {
+    "stable_inputs": {
+      "runtime_signals_cell": "changed, parent-only, serial",
+      "make_args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--jobserver-style=pipe"
+      ],
+      "live_target": "changed\n",
+      "expected_final_markers": {
+        "ready": "ready\n",
+        "release": "release\n"
+      },
+      "expected_events": [
+        "live-owned-target",
+        "signal-to-make",
+        "target-removed-before-release",
+        "release-child"
+      ]
+    },
+    "models": [
+      {
+        "id": "low4-term-live-recipe",
+        "nofile": 4,
+        "signal": 15,
+        "status": -15,
+        "stdout": "",
+        "stderr": "make: *** Deleting file 'out'\nmake: *** [Makefile:5: out] Terminated\n",
+        "forwarded_signal": "15",
+        "candidate_private_pipe": []
+      },
+      {
+        "id": "low4-int-live-recipe",
+        "nofile": 4,
+        "signal": 2,
+        "status": -2,
+        "stdout": "",
+        "stderr": "make: *** Deleting file 'out'\n",
+        "forwarded_signal": null,
+        "candidate_private_pipe": []
+      }
+    ]
+  }
+}

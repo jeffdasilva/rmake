@@ -443,3 +443,22 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 [Lua real-project coverage](project-integration.md) adds a pinned recursive Linux build with two pipe job slots and recursive output synchronization. The standard integration and self-host targets compare complete fresh, no-op, rebuild and smoke results. Broader project and compiler coverage remain part of M6.
 
 [Database history and retained search names](database-output.md) now have 41 exact profiles plus six native numeric/registration controls. Formatting borrows recorded state without replaying effects; logical GNU statistics and order remain separate from physical Rust storage. The selected combined build passes its finite development/optimized gates, with full selected-head acceptance and final cost qualification required before merge. Broader lifecycle, Guile/NLS/profile/resource interactions and complete M3/M6 remain open.
+
+[Named stdin and process restart](stdin-sources.md) uses one real self-exec path for makefile remaking. Development and optimized candidates pass the 44 stdin and three new process-entry profiles. The strict lifecycle suite covers exact cleanup, live environment, and failed-exec effects. Wider raw environment, descriptor, native/Guile, and resource acceptance remains part of M3/M6.
+
+[Enabled Guile application](guile-frontend.md) adds an opt-in application gate with 83 independently specified GNU comparisons and 14 default signal controls. It retains the separate component safety gate and profile-specific self-host checks. Asynchronous and detached execution, full error traces, and broader M3/M6 acceptance remain open.
+
+The next [localization tranche](nls-diagnostics.md) adds 18 original model-bound
+comparisons for translated scheduler, parser and built-in `file` diagnostics.
+Only the owned syntax diagnostics are translated; message text from users and
+native extensions still passes through unchanged.
+
+The [native loader localization tranche](nls-diagnostics.md) adds 15 original
+GNU2 cases. The loader carries typed system wrappers to the correct diagnostic
+boundary while preserving the raw `dlerror` argument and foreign/user messages.
+
+[Inherited signal masks](../tests/signal-mask/README.md) now retain the launch
+mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
+verified boundary, and pass an empty mask to command children without mutating
+the parent's live mask around spawn. Ten original GNU2 comparisons cover
+native callbacks, actual self-exec, early exits and low descriptor limits.

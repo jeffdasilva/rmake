@@ -76,6 +76,11 @@ pub enum Output<'a> {
         location: Option<&'a Location>,
         message: &'a [u8],
     },
+    /// Typed system data remains distinct from user and foreign warning bytes.
+    SystemWarning {
+        location: Option<&'a Location>,
+        message: crate::messages::WarningMessage<'a>,
+    },
 }
 
 /// Borrowed reader observations; hosts choose whether and how to display them.
@@ -96,6 +101,15 @@ pub enum ReaderEvent<'a> {
 pub trait OutputReceiver {
     fn emit(&mut self, event: Output<'_>);
     fn reader_event(&mut self, _event: ReaderEvent<'_>) {}
+    /// An application may freeze a system message under the active locale/domain.
+    /// None keeps the pure core's English identity behavior.
+    fn format_system_message(
+        &mut self,
+        _message: crate::messages::MessageRef<'_>,
+    ) -> Option<Result<Vec<u8>, Vec<u8>>> {
+        None
+    }
+
     fn warns_undefined(&self) -> bool {
         false
     }
@@ -915,10 +929,114 @@ impl<'a> ExpansionContext<'a> {
             return false;
         }
         if let Some(receiver) = &mut self.output {
-            receiver.emit(output);
+            if let Output::SystemWarning { location, message } = output {
+                let message = message.message();
+                let rendered = match receiver
+                    .format_system_message(crate::messages::MessageRef::Borrowed(message))
+                {
+                    Some(Ok(bytes)) => bytes,
+                    Some(Err(bytes)) => {
+                        receiver.emit(Output::Warning {
+                            location,
+                            message: &bytes,
+                        });
+                        return false;
+                    }
+                    None => message.english(),
+                };
+                receiver.emit(Output::Warning {
+                    location,
+                    message: &rendered,
+                });
+            } else {
+                receiver.emit(output);
+            }
             true
         } else {
             false
+        }
+    }
+
+    pub fn emit_diagnostic_warning(&mut self, location: &Location, message: &Diagnostic) {
+        // Reader warnings can wait in a declaration until publication. Resolve
+        // typed templates at that point, using the active locale and domain.
+        let formatted = if let Some(message) = message.system_message() {
+            if self.is_cancelled() {
+                return;
+            }
+            self.output.as_mut().and_then(|receiver| {
+                receiver.format_system_message(crate::messages::MessageRef::Owned(message))
+            })
+        } else {
+            None
+        };
+        let bytes = match &formatted {
+            Some(Ok(bytes) | Err(bytes)) => bytes.as_slice(),
+            None => message.as_bytes(),
+        };
+        self.emit(Output::Warning {
+            location: Some(location),
+            message: bytes,
+        });
+    }
+
+    pub fn freeze_diagnostic(&mut self, message: Diagnostic) -> Diagnostic {
+        if message.frozen_stop().is_some() {
+            return message;
+        }
+        let body = message.system_message().and_then(|message| {
+            self.output.as_mut().and_then(|receiver| {
+                receiver.format_system_message(crate::messages::MessageRef::Owned(message))
+            })
+        });
+        let stop = self.output.as_mut().and_then(|receiver| {
+            receiver.format_system_message(crate::messages::MessageRef::Borrowed(
+                crate::messages::Message::Stop,
+            ))
+        });
+        match stop {
+            Some(Ok(stop) | Err(stop)) => Diagnostic::frozen(
+                match body {
+                    Some(Ok(bytes) | Err(bytes)) => bytes,
+                    None => message.as_bytes().to_vec(),
+                },
+                stop,
+                message.is_unlocated(),
+            ),
+            None => message,
+        }
+    }
+
+    pub fn freeze_error(
+        &mut self,
+        error: crate::variables::ExpandError,
+    ) -> crate::variables::ExpandError {
+        if error.is_rendered() {
+            return error;
+        }
+        let body = error.system_message().and_then(|message| {
+            self.output
+                .as_mut()
+                .and_then(|receiver| receiver.format_system_message(message))
+        });
+        let stop = self.output.as_mut().and_then(|receiver| {
+            receiver.format_system_message(crate::messages::MessageRef::Borrowed(
+                crate::messages::Message::Stop,
+            ))
+        });
+        match stop {
+            Some(Ok(stop) | Err(stop)) => {
+                let message = match body {
+                    Some(Ok(bytes) | Err(bytes)) => bytes,
+                    None => error.diagnostic().as_bytes().to_vec(),
+                };
+                let diagnostic = Diagnostic::frozen(message, stop, error.is_unlocated());
+                crate::variables::ExpandError::RenderedSystem {
+                    error: Box::new(error),
+                    diagnostic,
+                }
+            }
+            None => error,
         }
     }
 
@@ -962,6 +1080,8 @@ impl<'a> ExpansionContext<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Diagnostic {
+    Frozen(Box<FrozenDiagnostic>),
+    System(Box<SystemDiagnostic>),
     Text(String),
     Bytes(Vec<u8>),
     /// The selected error has no source/caller location; later eval transport
@@ -969,12 +1089,64 @@ pub enum Diagnostic {
     Unlocated(Vec<u8>),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FrozenDiagnostic {
+    body: Vec<u8>,
+    stop: Vec<u8>,
+    unlocated: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct SystemDiagnostic {
+    message: crate::messages::OwnedMessage,
+    english: std::sync::OnceLock<Vec<u8>>,
+}
+impl PartialEq for SystemDiagnostic {
+    fn eq(&self, other: &Self) -> bool {
+        self.message == other.message
+    }
+}
+impl Eq for SystemDiagnostic {}
+
 impl Diagnostic {
+    pub fn frozen(body: Vec<u8>, stop: Vec<u8>, unlocated: bool) -> Self {
+        Self::Frozen(Box::new(FrozenDiagnostic {
+            body,
+            stop,
+            unlocated,
+        }))
+    }
+    pub fn frozen_stop(&self) -> Option<&[u8]> {
+        match self {
+            Self::Frozen(value) => Some(&value.stop),
+            _ => None,
+        }
+    }
+    pub fn system(message: crate::messages::Message<'_>) -> Self {
+        Self::system_owned(message.owned())
+    }
+    pub(crate) fn system_owned(message: crate::messages::OwnedMessage) -> Self {
+        Self::System(Box::new(SystemDiagnostic {
+            message,
+            english: std::sync::OnceLock::new(),
+        }))
+    }
+    pub fn system_message(&self) -> Option<&crate::messages::OwnedMessage> {
+        match self {
+            Self::System(value) => Some(&value.message),
+            _ => None,
+        }
+    }
     pub fn is_unlocated(&self) -> bool {
-        matches!(self, Self::Unlocated(_))
+        match self {
+            Self::Frozen(value) => value.unlocated,
+            _ => matches!(self, Self::Unlocated(_)),
+        }
     }
     pub fn as_bytes(&self) -> &[u8] {
         match self {
+            Self::Frozen(value) => &value.body,
+            Self::System(value) => value.english.get_or_init(|| value.message.english()),
             Self::Text(text) => text.as_bytes(),
             Self::Bytes(bytes) | Self::Unlocated(bytes) => bytes,
         }
