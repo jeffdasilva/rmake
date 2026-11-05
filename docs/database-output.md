@@ -63,8 +63,9 @@ expansion/large-argv time but increased requested allocation bytes. Inline-only
 and combined alternatives were rejected. All slower samples and allocation
 traces remain in the
 [storage screen](../tests/database-output/performance-storage-collation-screen.json).
-Final overall history cost must be measured against the selected compatible
-parent; an isolated storage improvement is not total performance parity.
+The [selected total-cost measurements](benchmarks/database-history.md) retain
+the default-path regressions, the owned key move, and the two rejected sharing
+experiments. They provide a baseline for reducing the large no-op cost.
 
 ## Evidence boundaries
 
