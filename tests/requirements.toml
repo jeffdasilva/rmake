@@ -1912,3 +1912,13 @@ candidate_required = 8
 fixture_count = 8
 reference = "docs/stdin-sources.md"
 cases = ["restart-named-argv-literal-control", "restart-named-argv-long-abbreviation-control", "restart-named-argv-long-attached-alias", "restart-named-argv-long-separated", "restart-named-argv-multiple-files", "restart-named-argv-no-restart-control", "restart-named-argv-short-attached-cluster", "restart-named-argv-short-separated"]
+
+[[requirements]]
+id = "rules.implicit-final-slash"
+title = "Final slash in implicit pattern stems"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 10
+fixture_count = 10
+reference = "docs/rule-resolution.md"
+cases = ["implicit-trailing-slash-bare", "implicit-trailing-slash-debug-stem", "implicit-trailing-slash-deferred-prerequisite", "implicit-trailing-slash-directory", "implicit-trailing-slash-immediate-prerequisite", "implicit-trailing-slash-nested-directory", "implicit-trailing-slash-no-final-slash-control", "implicit-trailing-slash-secondary-expansion", "implicit-trailing-slash-slash-pattern-control", "implicit-trailing-slash-two-final-slashes-control"]

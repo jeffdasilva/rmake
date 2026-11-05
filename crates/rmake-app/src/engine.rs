@@ -5679,19 +5679,20 @@ impl Engine {
                 // GNU's stem buffer holds PATH_MAX bytes plus the terminator.
                 let stem_too_long = stem.len() > rmake_linux::filesystem::PATH_MAX;
                 if let Some(label) = &debug_label {
-                    let (directory, printed_stem) = if !archive_search
+                    let directory = if !archive_search
                         && candidate
                             .rule
                             .implicit_pattern
                             .as_ref()
                             .is_some_and(|pattern| !pattern.contains(&b'/'))
-                        && let Some(slash) = target.iter().rposition(|byte| *byte == b'/')
-                        && let Some(printed) = stem.strip_prefix(&target[..=slash])
                     {
-                        (&target[..=slash], printed)
+                        rmake_core::implicit::directory_prefix(target)
                     } else {
-                        (b"".as_slice(), stem)
+                        b""
                     };
+                    let (directory, printed_stem) = stem
+                        .strip_prefix(directory)
+                        .map_or((b"".as_slice(), stem), |printed| (directory, printed));
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::TryingRule(

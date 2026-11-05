@@ -773,10 +773,7 @@ impl Database {
         let directory = if archive {
             b"".as_slice()
         } else {
-            target
-                .iter()
-                .rposition(|byte| *byte == b'/')
-                .map_or(b"".as_slice(), |slash| &target[..=slash])
+            crate::implicit::directory_prefix(target)
         };
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
             let identity = rule
