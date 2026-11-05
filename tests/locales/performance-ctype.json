@@ -1,0 +1,18 @@
+{
+  "classification": "Serialized C-locale startup-selection measurement; complete mixed/negative results; no general speedup/parity or fullM3/M6 credit",
+  "binaries": {
+    "/tmp/rmake-jobs-qualified-release": "46448db1f1a00ba24dd53f63fb3178d1c9c044fe5dbaeb7af34690b7b7865363",
+    "/tmp/rmake-locale-first-release": "aef90bcd2a27f920578b0ce8301e9362b6df1ddf6cda084c9a063a5804cd0234"
+  },
+  "notes": [
+    "Allthree independent agent campaigns explicitly acknowledged quiet before measurement; all source/build/test/probe/archive activity stopped",
+    "All commands inheritedsharedCPU23; noexclusiveCPU/frequency control, CPU/RSS/IO counters,confidence intervals or acceptance thresholds",
+    "Core/startup101 samples perengine;runtime301; identical paths/args/env andexactoutput;two allocationrepeats perbinary/control",
+    "Allocation counts cover interposedcalls afterhelperinit, excludealigned/hiddenentrypoints;freescounters are not live/peakmemory",
+    "C.UTF8 startup/rendering costs not measured; necessarylocale initialization andbuildlayout costs are not isolated"
+  ],
+  "sha256": "d471204705662680d039244f0106159266c0da3a9485abad79c47d29fe8cc089",
+  "raw_sha256": "b0d57c8bded0dbc347bb86ad7197dccb2cbc8dfb628c26897f10de4142fc9dde",
+  "raw_bytes": 2235974,
+  "gzip_bytes": 264757
+}

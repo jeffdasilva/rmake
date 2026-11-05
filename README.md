@@ -2,6 +2,10 @@
 
 A Rust implementation of GNU Make, under active development.
 
+[Startup locale selection](docs/startup-locale.md) adds 183 separate glibc
+C/C.UTF8 profiles for exact wildcard, argument, assignment and recursive behavior.
+Both builds pass; NLS and broader profile acceptance remain open.
+
 [Pinned xxHash and zlib integration](docs/project-integration.md) compares
 complete builds, no-ops, header rebuilds and executable smoke checks in the
 development, optimized and selected self-host flows. Full M3/M6 acceptance
