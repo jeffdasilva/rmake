@@ -19,10 +19,13 @@ use std::sync::{Arc, Mutex};
 const NONBLOCK: c_int = 0x800;
 const CLOEXEC: c_int = 0x80000;
 const NOFOLLOW: c_int = 0x20000;
+const EBADF: c_int = 9;
+const EMFILE: c_int = 24;
 static NEXT_FIFO: AtomicU64 = AtomicU64::new(0);
 
 unsafe extern "C" {
     fn mkfifo(path: *const c_char, mode: c_uint) -> c_int;
+    fn geteuid() -> c_uint;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn rmake_restart_pipe_private(pipe: *const c_int);
@@ -171,6 +174,57 @@ impl From<io::Error> for CreationError {
     }
 }
 
+enum FifoOpenError {
+    BeforeWriter(io::Error),
+    Writer {
+        error: io::Error,
+        reader: File,
+        opened: [u64; 2],
+    },
+}
+
+impl From<io::Error> for FifoOpenError {
+    fn from(error: io::Error) -> Self {
+        Self::BeforeWriter(error)
+    }
+}
+
+impl FifoOpenError {
+    fn into_io_error(self) -> io::Error {
+        match self {
+            Self::BeforeWriter(error) | Self::Writer { error, .. } => error,
+        }
+    }
+}
+
+fn unpublished_fifo_is_owned(
+    directory: &Path,
+    path: &Path,
+    created: &fs::Metadata,
+    opened: [u64; 2],
+) -> bool {
+    // SAFETY: geteuid reads the current process identity and has no pointers.
+    let owner = unsafe { geteuid() };
+    let protected = fs::symlink_metadata(directory).is_ok_and(|metadata| {
+        let mode = metadata.mode();
+        metadata.is_dir()
+            && ((metadata.uid() == owner && mode & 0o022 == 0)
+                || ((metadata.uid() == 0 || metadata.uid() == owner) && mode & 0o1000 != 0))
+    });
+    let same_owned_fifo = |metadata: &fs::Metadata| {
+        metadata.file_type().is_fifo()
+            && metadata.uid() == owner
+            && metadata.mode() & 0o7777 == 0o600
+            && metadata.nlink() == 1
+            && metadata.dev() == created.dev()
+            && metadata.ino() == created.ino()
+    };
+    protected
+        && same_owned_fifo(created)
+        && opened == [created.dev(), created.ino()]
+        && fs::symlink_metadata(path).is_ok_and(|metadata| same_owned_fifo(&metadata))
+}
+
 /// The invocation's authentication names the incoming descriptors. The
 /// privately owned endpoints keep their pipe identity live during self-exec.
 pub(crate) struct RestartPipe<'a> {
@@ -315,7 +369,7 @@ impl Jobserver {
         }))
     }
 
-    fn create_fifo() -> io::Result<Self> {
+    fn create_fifo() -> Result<Self, CreationError> {
         let directory = std::env::temp_dir();
         let directory = if directory.is_absolute() {
             directory
@@ -338,25 +392,44 @@ impl Jobserver {
                 if error.kind() == io::ErrorKind::AlreadyExists {
                     continue;
                 }
-                return Err(error);
+                return Err(error.into());
             }
             let identity = fs::symlink_metadata(&path)?;
-            let result = Self::open_fifo(&path, true);
-            if result.is_err()
-                && fs::symlink_metadata(&path).is_ok_and(|metadata| {
-                    metadata.file_type().is_fifo()
-                        && metadata.dev() == identity.dev()
-                        && metadata.ino() == identity.ino()
-                })
-            {
-                let _ = fs::remove_file(&path);
+            match Self::open_fifo(&path, true) {
+                Ok(server) => return Ok(server),
+                Err(FifoOpenError::Writer {
+                    error,
+                    reader,
+                    opened,
+                }) if generation == 0
+                    && error.raw_os_error() == Some(EMFILE)
+                    && unpublished_fifo_is_owned(&directory, &path, &identity, opened) =>
+                {
+                    // Keep the inode pinned through validation. Closing this
+                    // reader leaves no endpoint of the unpublished pool.
+                    drop(reader);
+                    return Err(CreationError {
+                        operation: "init jobserver pipe",
+                        error: io::Error::from_raw_os_error(EBADF),
+                    });
+                }
+                Err(error) => {
+                    let error = error.into_io_error();
+                    if fs::symlink_metadata(&path).is_ok_and(|metadata| {
+                        metadata.file_type().is_fifo()
+                            && metadata.dev() == identity.dev()
+                            && metadata.ino() == identity.ino()
+                    }) {
+                        let _ = fs::remove_file(&path);
+                    }
+                    return Err(error.into());
+                }
             }
-            return result;
         }
-        Err(io::Error::from(io::ErrorKind::AlreadyExists))
+        Err(io::Error::from(io::ErrorKind::AlreadyExists).into())
     }
 
-    fn open_fifo(path: &Path, owned: bool) -> io::Result<Self> {
+    fn open_fifo(path: &Path, owned: bool) -> Result<Self, FifoOpenError> {
         let reader = OpenOptions::new()
             .read(true)
             .write(true)
@@ -364,12 +437,20 @@ impl Jobserver {
             .open(path)?;
         let metadata = reader.metadata()?;
         if !metadata.file_type().is_fifo() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "jobserver is not a FIFO",
-            ));
+            return Err(
+                io::Error::new(io::ErrorKind::InvalidInput, "jobserver is not a FIFO").into(),
+            );
         }
-        let writer = reader.try_clone()?;
+        let writer = match reader.try_clone() {
+            Ok(writer) => writer,
+            Err(error) => {
+                return Err(FifoOpenError::Writer {
+                    error,
+                    reader,
+                    opened: [metadata.dev(), metadata.ino()],
+                });
+            }
+        };
         let auth = [b"fifo:".as_slice(), path.as_os_str().as_bytes()].concat();
         Ok(Self(Arc::new(Inner {
             reader: Endpoint::Owned(reader),
@@ -419,7 +500,8 @@ impl Jobserver {
 
     pub fn join(auth: &[u8]) -> io::Result<Self> {
         if let Some(path) = auth.strip_prefix(b"fifo:") {
-            return Self::open_fifo(Path::new(std::ffi::OsStr::from_bytes(path)), false);
+            return Self::open_fifo(Path::new(std::ffi::OsStr::from_bytes(path)), false)
+                .map_err(FifoOpenError::into_io_error);
         }
         let text =
             std::str::from_utf8(auth).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
