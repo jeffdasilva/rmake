@@ -33,6 +33,7 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::Command;
+use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 #[cfg(not(feature = "guile"))]
@@ -298,6 +299,17 @@ struct Outcome {
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
+}
+
+struct OptionalMakefileFailure {
+    open_error: Option<PendingIncludeError>,
+    before: Option<SystemTime>,
+    refresh_timestamp: bool,
+}
+
+struct FailedPrerequisite {
+    target: Vec<u8>,
+    parent: Vec<u8>,
 }
 
 struct PendingIncludeError {
@@ -804,7 +816,9 @@ pub struct Engine {
     shutdown_launch_failure: RefCell<Option<FailedOwner>>,
     remaking: bool,
     optional_remake: bool,
-    optional_remake_failures: HashSet<Vec<u8>>,
+    retain_remake_failure: bool,
+    // A missing cause here marks a direct, suppressed failure.
+    optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
     vpath_dirs: Vec<Vec<u8>>,
     gpath_dirs: HashSet<Vec<u8>>,
     makefile_names: HashSet<Vec<u8>>,
@@ -1376,7 +1390,8 @@ impl Engine {
             shutdown_launch_failure: RefCell::new(None),
             remaking: false,
             optional_remake: false,
-            optional_remake_failures: HashSet::new(),
+            retain_remake_failure: false,
+            optional_remake_failures: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
             makefile_names: HashSet::new(),
@@ -1832,7 +1847,8 @@ impl Engine {
                         name: error.resolved_name.unwrap_or_else(|| name.to_vec()),
                         optional: true,
                         missing: true,
-                        read_error: None,
+                        location: None,
+                        read_error: Some(error.detail),
                     });
                     continue;
                 }
@@ -1842,6 +1858,7 @@ impl Engine {
                 name: file.name.clone(),
                 optional: true,
                 missing: false,
+                location: None,
                 read_error: None,
             });
             if let Err(error) = self.database.variables.append_literal_at(
@@ -2125,6 +2142,15 @@ impl Engine {
         if self.prepare_stdin().is_err() {
             return 2;
         }
+        if let Err(error) = rmake_linux::signals::enter_reader_mask() {
+            let message = format!("sigprocmask(SIG_SETMASK, SIGCHLD): {}", os_error(&error));
+            self.fatal(None, message.as_bytes());
+            return 2;
+        }
+        self.observe_interrupt();
+        if self.interrupt.is_some() {
+            return 2;
+        }
         let mut found_makefile;
         self.database.activate_runtime_metadata();
         // Empty command eval initializes this binding before ordinary reading;
@@ -2168,13 +2194,16 @@ impl Engine {
             if files.is_empty() {
                 let mut default_file = None;
                 for name in ["GNUmakefile", "makefile", "Makefile"] {
-                    if let Err(error) = self.directory_member(name.as_bytes()) {
-                        self.expansion_error(None, &error);
-                        return 2;
-                    }
-                    if Path::new(name).is_file() {
-                        default_file = Some(name);
-                        break;
+                    match self.directory_member(name.as_bytes()) {
+                        Ok(true) => {
+                            default_file = Some(name);
+                            break;
+                        }
+                        Ok(false) => {}
+                        Err(error) => {
+                            self.expansion_error(None, &error);
+                            return 2;
+                        }
                     }
                 }
                 if let Some(file) = default_file {
@@ -2187,6 +2216,7 @@ impl Engine {
                             name: name.to_vec(),
                             optional: true,
                             missing: true,
+                            location: None,
                             read_error: None,
                         });
                     }
@@ -2242,6 +2272,7 @@ impl Engine {
                             name: file.as_os_str().as_bytes().to_vec(),
                             optional: false,
                             missing: true,
+                            location: None,
                             read_error: None,
                         });
                         continue;
@@ -2253,6 +2284,7 @@ impl Engine {
                         name: file.as_os_str().as_bytes().to_vec(),
                         optional: false,
                         missing: false,
+                        location: None,
                         read_error: None,
                     });
                 }
@@ -2585,15 +2617,16 @@ impl Engine {
             let mut changed = false;
             let mut failed = false;
             let mut skipped_errors = Vec::new();
-            let mut failed_remakes = Vec::new();
+            let mut failed_remakes = HashMap::new();
+            let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut seen = HashSet::new();
             let read_files = self.database.makefiles.clone();
             let required_names: HashSet<_> = read_files
                 .iter()
                 .filter(|file| !file.optional)
-                .map(|file| file.name.clone())
+                .map(|file| file.name.as_slice())
                 .collect();
-            for mut makefile in read_files {
+            for makefile in &read_files {
                 // The published stdin source is already a completed input,
                 // retained across restarts. It is never a makefile remake goal.
                 if self.options.temp_stdin_file.is_some_and(|index| {
@@ -2617,29 +2650,45 @@ impl Engine {
                         })
                 {
                     if !makefile.optional
-                        && let Some((location, detail)) = makefile.read_error
+                        && let Some(detail) = &makefile.read_error
                     {
                         skipped_errors.push(PendingIncludeError {
-                            location: Some(location),
-                            name: makefile.name,
-                            detail,
+                            location: makefile.location.clone(),
+                            name: makefile.name.clone(),
+                            detail: detail.clone(),
                         });
                     }
                     continue;
                 }
-                if !seen.insert(makefile.name.clone()) {
+                let name = makefile.name.as_slice();
+                if !seen.insert(name) {
+                    if !makefile.optional
+                        && let Some(failure) = optional_failures.get_mut(name)
+                    {
+                        if self.replay_makefile_failure(name, &mut failure.open_error)
+                            && !self.options.keep_going
+                        {
+                            self.remove_intermediates();
+                            return 2;
+                        }
+                        failed = true;
+                        if self.options.keep_going {
+                            failed_remakes
+                                .entry(name)
+                                .or_insert((failure.before, failure.refresh_timestamp));
+                        }
+                    }
                     continue;
                 }
                 // Global symbol lookup can load a logical module name whose
                 // file is absent. Loader success does not make that file exist.
-                if self.database.loaded_modules.contains_key(&makefile.name) {
-                    makefile.missing = self.modified(&makefile.name).is_none();
-                }
-                let promoted_required =
-                    makefile.optional && required_names.contains(&makefile.name);
-                if promoted_required {
-                    makefile.optional = false;
-                }
+                let missing = if self.database.loaded_modules.contains_key(&makefile.name) {
+                    self.modified(&makefile.name).is_none()
+                } else {
+                    makefile.missing
+                };
+                let optional = makefile.optional;
+                let may_replay = optional && required_names.contains(name);
                 if !self.ignores_file_rules(&makefile.name)
                     && !self.resolve_implicit(&makefile.name)
                 {
@@ -2647,8 +2696,8 @@ impl Engine {
                     return 2;
                 }
                 let before = self.modified(&makefile.name);
-                if !self.database.rules.contains_key(&makefile.name)
-                    && (!makefile.missing || makefile.optional)
+                if !self.database.rules.contains_key(name)
+                    && (!missing || (optional && !may_replay))
                 {
                     if before.is_some() {
                         self.database_secondary.insert(makefile.name.clone());
@@ -2663,44 +2712,46 @@ impl Engine {
                     );
                     continue;
                 }
-                *self.makefile_error.borrow_mut() = if makefile.optional {
-                    None
-                } else if promoted_required && makefile.missing && makefile.read_error.is_none() {
-                    Some(PendingIncludeError {
-                        location: None,
-                        name: makefile.name.clone(),
-                        detail: IncludeError::Bytes(b"No such file or directory".to_vec()),
-                    })
-                } else {
+                let pending_open_error = || {
                     makefile
                         .read_error
                         .as_ref()
-                        .map(|(location, detail)| PendingIncludeError {
-                            location: Some(location.clone()),
+                        .map(|detail| PendingIncludeError {
+                            location: makefile.location.clone(),
                             name: makefile.name.clone(),
                             detail: detail.clone(),
                         })
                 };
-                self.optional_remake = makefile.optional;
+                *self.makefile_error.borrow_mut() =
+                    if optional { None } else { pending_open_error() };
+                self.optional_remake = optional;
+                self.retain_remake_failure = may_replay;
                 let result = self.build(&makefile.name, None, 0);
+                self.retain_remake_failure = false;
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
-                failed |= result.failed && !makefile.optional;
-                if result.failed
-                    && !result.fatal
-                    && result.ran
-                    && self.options.keep_going
-                    && !makefile.optional
-                    && let Some((location, _)) = makefile.read_error
-                {
-                    failed_remakes.push((location, makefile.name.clone()));
-                }
-                if !result.failed {
+                failed |= result.failed && !optional;
+                if result.failed && !result.fatal {
+                    // Without its own recipe run, the makefile keeps its cached time.
+                    let refresh_timestamp = result.ran && !result.blocked;
+                    if may_replay {
+                        optional_failures.insert(
+                            name,
+                            OptionalMakefileFailure {
+                                open_error: pending_open_error(),
+                                before,
+                                refresh_timestamp,
+                            },
+                        );
+                    } else if !optional && self.options.keep_going {
+                        failed_remakes.insert(name, (before, refresh_timestamp));
+                    }
+                } else if !result.failed {
                     self.database_unchecked_times
                         .borrow_mut()
                         .remove(&makefile.name);
+                    changed |= self.modified(&makefile.name) != before;
                 }
-                changed |= !result.failed && self.modified(&makefile.name) != before;
                 if result.fatal {
                     failed = true;
                     break;
@@ -2735,15 +2786,31 @@ impl Engine {
                     },
                 );
             }
-            for (location, name) in failed_remakes {
-                emit_output(
-                    &self.output,
-                    &self.program,
-                    Output::Warning {
-                        location: Some(&location),
-                        message: &crate::messages::system(Message::FailedMakefileRemake(&name)),
-                    },
-                );
+            // Build each name once, then report at every required read locus.
+            if !failed_remakes.is_empty() {
+                for makefile in read_files.iter().filter(|file| !file.optional) {
+                    let Some((before, refresh_timestamp)) =
+                        failed_remakes.get_mut(makefile.name.as_slice())
+                    else {
+                        continue;
+                    };
+                    emit_output(
+                        &self.output,
+                        &self.program,
+                        Output::Warning {
+                            location: makefile.location.as_ref(),
+                            message: &crate::messages::system(Message::FailedMakefileRemake(
+                                &makefile.name,
+                            )),
+                        },
+                    );
+                    // Later remake recipes can still change this file.
+                    if *refresh_timestamp {
+                        let after = self.modified(&makefile.name);
+                        changed |= after.is_some() && after != *before;
+                        *refresh_timestamp = false;
+                    }
+                }
             }
             if changed {
                 self.remove_intermediates();
@@ -3355,11 +3422,21 @@ impl Engine {
                 continue;
             }
             next += 1;
+            // Inspection of a missing intermediate does not carry the
+            // enclosing makefile's optional policy into its prerequisites.
+            let optional = std::mem::take(&mut self.optional_remake);
             let Inspection {
-                outcome: child,
+                outcome: mut child,
                 pending,
                 needs_rebuild,
             } = self.check_intermediate(&dep.name, target, time, depth + 1);
+            self.optional_remake = optional;
+            if optional && child.failed && !self.options.keep_going {
+                let mut shutdown = self.shutdown.get();
+                shutdown.drain();
+                self.shutdown.set(shutdown);
+                child.fatal = true;
+            }
             merge_child(&mut result, child);
             waiting |= pending;
             // A running child has no final timestamp yet. Never materialize an
@@ -3370,6 +3447,9 @@ impl Engine {
             if child.fatal || (child.failed && !self.options.keep_going) || (serial && pending) {
                 break;
             }
+        }
+        if self.retain_remake_failure && result.blocked && !result.fatal && !waiting {
+            self.remember_optional_prerequisite(target, &rule, None);
         }
         if dropped {
             self.store_inspected_rule(target, double_colon, rule);
@@ -5769,6 +5849,61 @@ impl Engine {
         }
     }
 
+    fn remember_optional_prerequisite(
+        &mut self,
+        target: &[u8],
+        rule: &Rule,
+        dropped: Option<&HashSet<Vec<u8>>>,
+    ) {
+        let Some(dependency) = rule.dependencies.iter().find(|dependency| {
+            dependency.name != b".WAIT"
+                && dropped.is_none_or(|dropped| !dropped.contains(&dependency.name))
+                && self.done.get(&dependency.name).map_or_else(
+                    || self.optional_remake_failures.contains_key(&dependency.name),
+                    |child| child.failed,
+                )
+        }) else {
+            return;
+        };
+        let cause = self
+            .optional_remake_failures
+            .get(&dependency.name)
+            .and_then(Clone::clone)
+            .unwrap_or_else(|| {
+                Rc::new(FailedPrerequisite {
+                    target: dependency.name.clone(),
+                    parent: self
+                        .scope_parents
+                        .get(&dependency.name)
+                        .and_then(Clone::clone)
+                        .unwrap_or_else(|| target.to_vec()),
+                })
+            });
+        self.optional_remake_failures
+            .entry(target.to_vec())
+            .or_insert(Some(cause));
+    }
+
+    fn replay_makefile_failure(
+        &mut self,
+        name: &[u8],
+        open_error: &mut Option<PendingIncludeError>,
+    ) -> bool {
+        let Some(cause) = self.optional_remake_failures.get(name).cloned() else {
+            return false;
+        };
+        *self.makefile_error.borrow_mut() = open_error.take();
+        self.show_makefile_error();
+        let (target, parent) = cause.as_ref().map_or((name, None), |cause| {
+            (cause.target.as_slice(), Some(cause.parent.as_slice()))
+        });
+        self.report_missing_rule(target, parent);
+        // A direct complaint is emitted once. Blocked goals retain their cause
+        // and can be revisited by another required read of the same makefile.
+        self.optional_remake_failures.remove(target);
+        true
+    }
+
     fn report_missing_rule(&self, target: &[u8], parent: Option<&[u8]>) {
         let keep = self.options.keep_going;
         let body = crate::messages::system(rmake_core::messages::Message::NoRule {
@@ -5891,14 +6026,16 @@ impl Engine {
             outcome.fatal = true;
         }
         if self.optional_remake && outcome.failed && !outcome.fatal {
-            self.optional_remake_failures.insert(target.to_vec());
+            self.optional_remake_failures
+                .entry(target.to_vec())
+                .or_default();
         }
         self.record_graph_failure(outcome);
         outcome
     }
 
     fn build_inner(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
-        if !self.remaking && self.optional_remake_failures.remove(target) {
+        if !self.remaking && self.optional_remake_failures.remove(target).is_some() {
             self.report_missing_rule(target, parent);
         }
         if let Some(owner) = self.active_peers.get(target)
@@ -6994,6 +7131,9 @@ impl Engine {
                     }
                 }
             }
+        }
+        if self.retain_remake_failure && outcome.blocked && !outcome.fatal {
+            self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
         crate::debug::emit(
@@ -8094,6 +8234,18 @@ impl Engine {
                     }
                     if crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
+                    }
+                    if stdin_owner
+                        && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                        && self.jobserver.is_none()
+                        && let Some(process) =
+                            rmake_linux::child::Child::try_spawn_inherited_ordered(
+                                &command,
+                                image,
+                                os(arg0),
+                            )
+                    {
+                        return process;
                     }
                     rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
                 },

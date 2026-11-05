@@ -457,6 +457,12 @@ The [native loader localization tranche](nls-diagnostics.md) adds 15 original
 GNU2 cases. The loader carries typed system wrappers to the correct diagnostic
 boundary while preserving the raw `dlerror` argument and foreign/user messages.
 
+[Inherited signal masks](../tests/signal-mask/README.md) now retain the launch
+mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
+verified boundary, and pass an empty mask to command children without mutating
+the parent's live mask around spawn. Ten original GNU2 comparisons cover
+native callbacks, actual self-exec, early exits and low descriptor limits.
+
 The [catalog coverage gate](../tests/catalog-coverage/README.md) checks all 30
 attributed GNU release languages plus three fallback/C controls in both build
 profiles. The complete catalog data are installed with their original source
@@ -467,8 +473,23 @@ filename and saved Linux error to the actual GNU publication phase. Twenty
 new models include a remake recipe that changes the locale and proves the
 later libc error translation without changing which errno was captured.
 
+[Default makefile selection and keep-going remake summaries](nls-diagnostics.md)
+now retain the first matching directory entry and defer required-file
+summaries until after the remake phase. Fourteen original GNU2 cases cover
+source loci, failed prerequisites and locale selection.
+
+[Repeated required includes and failed timestamp changes](nls-diagnostics.md)
+retain each required source locus and permit real restart only after a failed
+recipe actually changes the final tracked timestamp. Thirteen GNU2 models
+cover one-recipe ownership, later changes, and prerequisites that never ran
+an own recipe. The optional-first follow-up preserves cached errors and
+prerequisite causes without rerunning evaluation, adding 18 exact cases.
+
 [Implicit search debug output](../tests/debug-traversal/README.md) checks the
 candidate order, intermediate search and removal, prerequisite spellings,
 VPATH hits, grouped targets, and archive-member search against two GNU 4.4.1
 runs. The focused cases run in both build profiles and a selected recursive
-self-host recipe. Wider localized and dynamic debug output remains open.
+self-host recipe. [Localized debug events](../tests/debug-traversal/README.md)
+extend this gate to 40 original cases in both C and verified French,
+including prerequisite freshness and the real restart transcript. Broader
+dynamic debug output and locale coverage remain open.

@@ -414,7 +414,8 @@ pub struct Makefile {
     pub name: Vec<u8>,
     pub optional: bool,
     pub missing: bool,
-    pub read_error: Option<(Location, IncludeError)>,
+    pub location: Option<Location>,
+    pub read_error: Option<IncludeError>,
 }
 
 #[derive(Clone, Default)]
@@ -1575,7 +1576,8 @@ mod include_tests {
         assert_eq!(events, 0);
         let file = &db.makefiles[0];
         assert!(file.missing && !file.optional);
-        assert_eq!(file.read_error.as_ref().unwrap().0.line, 1);
+        assert!(file.read_error.is_some());
+        assert_eq!(file.location.as_ref().unwrap().line, 1);
         assert!(db.rules.contains_key(b"generated.mk".as_slice()));
     }
 }
@@ -2985,6 +2987,7 @@ impl Database {
                 name: loaded.name.clone(),
                 optional: false,
                 missing: loaded.status == NativeLoadStatus::Failed,
+                location: Some(location.clone()),
                 read_error: None,
             });
         }
@@ -3290,6 +3293,7 @@ impl Database {
                                 name: included.name.clone(),
                                 optional,
                                 missing: false,
+                                location: Some(location.clone()),
                                 read_error: None,
                             });
                             self.variables
@@ -3320,7 +3324,8 @@ impl Database {
                                 name: error.resolved_name.unwrap_or(path),
                                 optional,
                                 missing: true,
-                                read_error: Some((location, error.detail)),
+                                location: Some(location),
+                                read_error: Some(error.detail),
                             });
                         }
                     }
