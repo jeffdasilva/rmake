@@ -70,3 +70,8 @@ Public Scheme source is read as UTF-8 under both the C and C.UTF-8 locales.
 `gmk-eval` returns Scheme false after publishing its make effect. The three
 valid-source comparisons distinguish source decoding from result conversion
 and verify the resulting variable and file effects.
+
+The module exposes `gmk-var` through the same expansion callback and
+retains the observable converter bindings. Eight valid Scheme cases cover
+module exports, lookup, escaped symbols, module variables, and printing
+rules for strings and characters.

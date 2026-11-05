@@ -211,20 +211,32 @@ int rg_guile_leading_evaluator_active(void) {
     return atomic_load_explicit(&leading_evaluations,memory_order_acquire)!=0;
 }
 static SCM scalar_text(SCM value) {
-    if(scm_is_false(value)||scm_is_null(value)||scm_is_eq(value,SCM_UNSPECIFIED))
-        return scm_from_locale_string("");
-    if(scm_is_eq(value,SCM_BOOL_T))return scm_from_locale_string("#t");
-    if(scm_is_string(value))return value;
-    if(scm_is_symbol(value))return scm_symbol_to_string(value);
-    if(scm_is_number(value))return scm_number_to_string(value,scm_from_int(10));
-    if(scm_is_true(scm_char_p(value)))return scm_make_string(scm_from_int(1),value);
+    if (scm_is_false(value) || scm_is_null(value) || scm_is_eq(value, SCM_UNSPECIFIED))
+        return SCM_BOOL_F;
+    if (scm_is_eq(value, SCM_BOOL_T))
+        return scm_from_utf8_string("#t");
+    if (scm_is_symbol(value) || scm_is_number(value))
+        return scm_object_to_string(value, SCM_UNDEFINED);
+    if (scm_is_true(scm_char_p(value)))
+        return scm_make_string(scm_from_int(1), value);
+    if (scm_is_string(value)) {
+        if (!scm_c_string_length(value))
+            return SCM_BOOL_F;
+        if (scm_is_true(scm_string_every(scm_char_set_printing, value, SCM_UNDEFINED, SCM_UNDEFINED)))
+            return value;
+    } else if (scm_is_true(scm_variable_p(value))) {
+        return SCM_BOOL_F;
+    }
     /* Use Guile's ordinary exception machinery; the public and component
      * entry points deliberately choose different outer error consumers. */
     return scm_call_2(scm_c_public_ref("guile","error"),
                       scm_from_locale_string("Unknown object:"),value);
 }
-static char *make_text(SCM value) {
-    if(!scm_is_pair(value))return scm_to_locale_string(scalar_text(value));
+static SCM object_text(SCM value) {
+    if (!scm_is_pair(value)) {
+        SCM text = scalar_text(value);
+        return scm_is_false(text) ? scm_from_utf8_string("") : text;
+    }
     SCM work=scm_list_1(scm_cons(SCM_BOOL_F,value));
     SCM active_pairs=scm_make_hash_table(scm_from_int(31));
     SCM parts=SCM_EOL;
@@ -246,14 +258,17 @@ static char *make_text(SCM value) {
             work=scm_cons(scm_cons(SCM_BOOL_F,scm_car(current)),work);
         }else {
             SCM text=scalar_text(current);
-            if(scm_c_string_length(text))parts=scm_cons(text,parts);
+            if (scm_is_true(text))
+                parts = scm_cons(text, parts);
         }
     }
     SCM text=scm_string_join(scm_reverse_x(parts,SCM_EOL),
                              scm_from_locale_string(" "),SCM_UNDEFINED);
-    char *result=scm_to_locale_string(text);
     scm_remember_upto_here_2(work,active_pairs);
-    return result;
+    return text;
+}
+static char *make_text(SCM value) {
+    return scm_to_locale_string(object_text(value));
 }
 static SCM make_expand(SCM value) {
     char *text=make_text(value);
@@ -273,11 +288,22 @@ static SCM make_evaluate(SCM value) {
     }else gmk_eval(text,NULL);
     free(text);return SCM_BOOL_F;
 }
+static SCM make_variable(SCM value) {
+    SCM module = scm_c_resolve_module("gnu make");
+    SCM converter = scm_variable_ref(scm_c_module_lookup(module, "obj-to-str"));
+    SCM name = scm_call_1(converter, value);
+    SCM reference = scm_simple_format(SCM_BOOL_F, scm_from_utf8_string("$(~a)"), scm_list_1(name));
+    SCM expand = scm_variable_ref(scm_c_module_lookup(module, "gmk-expand"));
+    return scm_call_1(expand, reference);
+}
 static void define_module(void *unused) {
     (void)unused;
     scm_c_define_gsubr("gmk-expand",1,0,0,make_expand);
     scm_c_define_gsubr("gmk-eval",1,0,0,make_evaluate);
-    scm_c_export("gmk-expand","gmk-eval",NULL);
+    scm_c_define_gsubr("obj-to-str", 1, 0, 0, object_text);
+    scm_c_define_gsubr("to-string-maybe", 1, 0, 0, scalar_text);
+    scm_c_define_gsubr("gmk-var", 1, 0, 0, make_variable);
+    scm_c_export("gmk-expand", "gmk-eval", "gmk-var", NULL);
 }
 struct rg_evaluation { const char *source; char *result; int utf8_source; };
 static SCM evaluate_body(void *data) {

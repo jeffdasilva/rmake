@@ -48,6 +48,13 @@
       "plan_sha256": "536693a4d22748e168aa46e08995a345dd983fea32b1468dca7c2bf9beb86a88",
       "schema": "files",
       "count": 3
+    },
+    {
+      "name": "module",
+      "plan": "module-interface.json",
+      "plan_sha256": "ddd645f4a8543c6f08b97478ad53b5a2f0370c68379bae99114b94e958ca79d9",
+      "schema": "files",
+      "count": 8
     }
   ]
 }
