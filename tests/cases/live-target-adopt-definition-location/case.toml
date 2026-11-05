@@ -1,0 +1,12 @@
+id = "live-target-adopt-definition-location"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Adopt a caller command value while retaining destination target metadata."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "LIVE=$(LIVE)", "all", "other"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** Recursive variable 'LIVE' references itself (eventually).  Stop.\n"
