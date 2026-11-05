@@ -126,9 +126,10 @@ impl Plan {
             .output
             .as_ref()
             .is_some_and(|output| output.has_directory_trace());
-        if let Err(error) = rmake_linux::native::flush_standard_streams() {
-            return error;
-        }
+        // Only flush the public streams here. Exec discards plugin-owned
+        // buffers, and a standard-stream write failure does not cancel it.
+        let _ = rmake_linux::native::flush_stream(false);
+        let _ = rmake_linux::native::flush_stream(true);
         rmake_linux::environment::exec_live_restart(
             self.restart_program(),
             rewritten.as_deref().unwrap_or(&self.args),

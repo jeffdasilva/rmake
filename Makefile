@@ -486,6 +486,7 @@ test-m4-release: release oracle-verify test-nls-release test-nls-directory-relea
 	$(PYTHON) tools/resource_file_size.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-file-size/optimized.json
 	$(PYTHON) tools/stdout_file_size.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/stdout-file-size/optimized.json
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
+	$(PYTHON) tools/native_restart_stdio.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/native-stdio-optimized.json
 	$(PYTHON) tools/restart_environment.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-environment/optimized.json
 	$(PYTHON) tools/restart_pipe.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/restart-pipe/optimized.json
 	$(PYTHON) tools/resource_fd.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd/optimized.json
@@ -610,6 +611,12 @@ test-stdout-file-size: build oracle-verify
 
 test-process-restarts: build oracle-verify
 	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/process-restarts/development.json $(if $(PROCESS_RESTART_CASE),--case "$(PROCESS_RESTART_CASE)")
+
+.PHONY: test-native-restart-stdio
+test-native-restart-stdio: build oracle-verify
+	$(PYTHON) tools/native_restart_stdio.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/process-restarts/native-stdio-development.json
+
+test check: test-native-restart-stdio
 
 test-restart-environment: build oracle-verify
 	$(PYTHON) tools/restart_environment.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/restart-environment/development.json $(if $(RESTART_ENVIRONMENT_CASE),--case "$(RESTART_ENVIRONMENT_CASE)")
