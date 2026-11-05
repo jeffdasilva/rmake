@@ -729,6 +729,7 @@ struct RuleState {
     intermediate_stale: Option<Box<HashSet<usize>>>,
     #[allow(clippy::box_collection)]
     debug_changed_edges: Option<Box<HashSet<usize>>>,
+    waited_for_prerequisites: bool,
     stopped: bool,
     stale: bool,
     outcome: Outcome,
@@ -7100,6 +7101,7 @@ impl Engine {
             inspections: HashMap::new(),
             intermediate_stale: None,
             debug_changed_edges: None,
+            waited_for_prerequisites: false,
             stopped: false,
             stale,
             outcome: Outcome {
@@ -7346,6 +7348,16 @@ impl Engine {
             }
         }
         if waiting {
+            if !state.waited_for_prerequisites {
+                state.waited_for_prerequisites = true;
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::PrerequisitesRunning(
+                        target,
+                        state.depth + usize::from(self.remaking),
+                    ),
+                );
+            }
             self.visiting.remove(target);
             let outcome = state.outcome;
             self.pending_rules.insert(target.to_vec(), state);
@@ -7515,6 +7527,7 @@ impl Engine {
             presentation_drops,
             intermediate_stale,
             debug_changed_edges,
+            waited_for_prerequisites,
             depth,
             ..
         } = state;
@@ -7621,9 +7634,13 @@ impl Engine {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
+        // A stopped graph still settles its suspended frames internally.
+        let aborted_wait = waited_for_prerequisites && self.graph_abort.is_some();
         let stopping_dependency = outcome.blocked
             && (outcome.fatal
-                || (!self.options.keep_going && !self.optional_remake && !self.parallel_graph()));
+                || (!self.options.keep_going
+                    && !self.optional_remake
+                    && (aborted_wait || !self.parallel_graph())));
         if !stopping_dependency {
             crate::debug::emit(
                 &self.output,

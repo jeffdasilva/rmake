@@ -31,6 +31,7 @@ keys! {
     UPDATING_GOALS: c"Updating goal targets....\n", [];
     CONSIDERING: c"Considering target file '%s'.\n", [B];
     MISSING: c"File '%s' does not exist.\n", [B];
+    PREREQUISITES_RUNNING: c"The prerequisites of '%s' are being made.\n", [B];
     FINISHED: c"Finished prerequisites of target file '%s'.\n", [B];
     MUST_REMAKE: c"Must remake target '%s'.\n", [B];
     IGNORING_VPATH: c"  Ignoring VPATH name '%s'.\n", [B];
