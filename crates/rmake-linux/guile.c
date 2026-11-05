@@ -197,8 +197,8 @@ int rg_dispatch_run(void (*entry)(void *),void *data) {
 
 /* Scheme objects stay in collector-visible C locals/Guile pairs throughout
  * conversion. The explicit work stack avoids recursion on the native C stack. */
-extern char *gmk_expand(const char *);
-extern void gmk_eval(const char *,const void *);
+extern char *rm_guile_expand(const char *);
+extern void rm_guile_evaluate(const char *);
 extern void gmk_free(char *);
 extern void rm_native_set_language_error(const char *);
 extern int rg_guile_prepare_interrupts(void);
@@ -259,18 +259,18 @@ static SCM make_expand(SCM value) {
     char *text=make_text(value);
     char *expanded;
     if(rg_workers_can_submit()) {
-        struct rg_worker_request request={.kind=1,.text=text};
+        struct rg_worker_request request={.kind=RG_GUILE_EXPAND,.text=text};
         expanded=rg_workers_submit(&request);
-    }else expanded=gmk_expand(text);
+    }else expanded=rm_guile_expand(text);
     free(text);
     SCM result=scm_from_locale_string(expanded);gmk_free(expanded);return result;
 }
 static SCM make_evaluate(SCM value) {
     char *text=make_text(value);
     if(rg_workers_can_submit()) {
-        struct rg_worker_request request={.kind=2,.text=text};
+        struct rg_worker_request request={.kind=RG_GUILE_EVALUATE,.text=text};
         (void)rg_workers_submit(&request);
-    }else gmk_eval(text,NULL);
+    }else rm_guile_evaluate(text);
     free(text);return SCM_BOOL_F;
 }
 static void define_module(void *unused) {

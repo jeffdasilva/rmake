@@ -70,3 +70,9 @@ Public Scheme source is read as UTF-8 under both the C and C.UTF-8 locales.
 `gmk-eval` returns Scheme false after publishing its make effect. The three
 valid-source comparisons distinguish source decoding from result conversion
 and verify the resulting variable and file effects.
+
+With BASIC debugging enabled, Guile's make callbacks publish their
+expansion or evaluation line before applying the effect. The scoped host
+formats the line for both direct and worker calls. Six cases cover the
+C and French streams, disabled debugging, output spooling, and native
+callbacks that do not request a Scheme diagnostic.

@@ -256,7 +256,7 @@ test-guile-components: bootstrap-rust bootstrap-guile
 
 test-guile-frontend: bootstrap-rust bootstrap-guile
 	+$(MAKE) --no-print-directory build release
-	$(PYTHON) tools/guile_frontend_gate.py --profile "$(GUILE_TOOLCHAIN_ROOT)/reference-profile.json" --default-debug "$(CANDIDATE)" --default-release "$(M4_RELEASE)" --output "$(GUILE_FRONTEND_OUTPUT)"
+	$(PYTHON) tools/guile_frontend_gate.py --profile "$(GUILE_TOOLCHAIN_ROOT)/reference-profile.json" --default-debug "$(CANDIDATE)" --default-release "$(M4_RELEASE)" --output "$(GUILE_FRONTEND_OUTPUT)" --locale-root "$(LOCALE_DATA_ROOT)"
 
 bootstrap-rust:
 	$(PYTHON) tools/rust.py bootstrap

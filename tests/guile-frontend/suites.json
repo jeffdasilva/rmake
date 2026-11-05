@@ -48,6 +48,15 @@
       "plan_sha256": "536693a4d22748e168aa46e08995a345dd983fea32b1468dca7c2bf9beb86a88",
       "schema": "files",
       "count": 3
+    },
+    {
+      "name": "callback-debug",
+      "plan": "callback-debug.json",
+      "plan_sha256": "b2a3945c18ed24b57bf829649e6b61a04c9f5cb021e483707c34ece1291a3585",
+      "schema": "files",
+      "count": 6,
+      "source": "callback.c",
+      "source_sha256": "829837173a4d2e0ac59295495b2b1a704069f31eadc2d8e3c0a9ae37a31f5638"
     }
   ]
 }

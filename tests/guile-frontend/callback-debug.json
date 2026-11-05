@@ -1,0 +1,121 @@
+{
+  "rows": [
+    {
+      "id": "guile-debug-basic-direct",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b"
+      ],
+      "files": {
+        "Makefile": "58203a3d206265666f72650a2428696e666f20726573756c743d5b24286775696c652028626567696e2028676d6b2d657870616e642022242428582922292028676d6b2d6576616c202258203a3d20616674657222292028676d6b2d657870616e6420222424285829222929295d290a616c6c3a3b403a0a",
+        "seen": ""
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nguile: Expanding '$(X)'\nguile: Evaluating 'X := after'\nguile: Expanding '$(X)'\nresult=[after]\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+        "stderr": "",
+        "seen": ""
+      }
+    },
+    {
+      "id": "guile-debug-basic-worker",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b"
+      ],
+      "files": {
+        "Makefile": "58203a3d206265666f72650a2428696e666f20726573756c743d5b24286775696c652028626567696e20287573652d6d6f64756c657320286963652d392074687265616473292920286a6f696e2d746872656164202863616c6c2d776974682d6e65772d74687265616420286c616d6264612028292028676d6b2d6576616c202258203a3d20776f726b657222292028676d6b2d657870616e6420222424285829222929292929295d290a616c6c3a3b403a0a",
+        "seen": ""
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nguile: Evaluating 'X := worker'\nguile: Expanding '$(X)'\nresult=[worker]\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+        "stderr": "",
+        "seen": ""
+      }
+    },
+    {
+      "id": "guile-debug-basic-french",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b"
+      ],
+      "files": {
+        "Makefile": "58203a3d206265666f72650a2428696e666f20726573756c743d5b24286775696c652028626567696e2028676d6b2d657870616e642022242428582922292028676d6b2d6576616c202258203a3d20616674657222292028676d6b2d657870616e6420222424285829222929295d290a616c6c3a3b403a0a",
+        "seen": ""
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nguile : expansion de « $(X) »\nguile : évaluation de « X := after »\nguile : expansion de « $(X) »\nresult=[after]\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\n Le fichier « all » n'existe pas.\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+        "stderr": "",
+        "seen": ""
+      },
+      "locale": "fr_FR.UTF-8"
+    },
+    {
+      "id": "guile-debug-disabled",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "58203a3d206265666f72650a2428696e666f20726573756c743d5b24286775696c652028626567696e2028676d6b2d657870616e642022242428582922292028676d6b2d6576616c202258203a3d20616674657222292028676d6b2d657870616e6420222424285829222929295d290a616c6c3a3b403a0a",
+        "seen": ""
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "result=[after]\n",
+        "stderr": "",
+        "seen": ""
+      }
+    },
+    {
+      "id": "guile-debug-before-target-spool",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a0a092428696e666f2062756666657265642d6265666f72652924286775696c652028626567696e2028676d6b2d657870616e642022242428696e666f2063616c6c6261636b2d626f64792922292028676d6b2d6576616c202258203a3d206166746572222920222229292428696e666f2062756666657265642d61667465723d5b242858295d29403a0a",
+        "seen": ""
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\nMust remake target 'all'.\nguile: Expanding '$(info callback-body)'\nguile: Evaluating 'X := after'\nbuffered-before\ncallback-body\nbuffered-after=[after]\nSuccessfully remade target file 'all'.\n",
+        "stderr": "",
+        "seen": ""
+      }
+    },
+    {
+      "id": "guile-debug-ordinary-native",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b"
+      ],
+      "files": {
+        "Makefile": "6c6f6164202e2f63616c6c6261636b2e736f0a58203a3d206265666f72650a2428696e666f206f7264696e6172793d5b24286f7264696e6172792061295d290a2428696e666f206775696c653d5b24286775696c652028676d6b2d657870616e64202224242858292229295d290a616c6c3a3b403a0a",
+        "seen": "",
+        "callback.c": "2f2a20535044582d4c6963656e73652d4964656e7469666965723a2047504c2d332e302d6f722d6c617465720a202a20436f707972696768742032303236204a65666620446153696c76610a202a204f726967696e616c207075626c6963206e61746976652041504920666978747572652e202a2f0a23696e636c756465203c7374646465662e683e0a0a747970656465662063686172202a282a63616c6c6261636b2928636f6e73742063686172202a2c20756e7369676e656420696e742c2063686172202a2a293b0a65787465726e2063686172202a676d6b5f657870616e6428636f6e73742063686172202a293b0a65787465726e20766f696420676d6b5f6576616c28636f6e73742063686172202a2c20636f6e737420766f6964202a293b0a65787465726e20766f696420676d6b5f6164645f66756e6374696f6e28636f6e73742063686172202a2c2063616c6c6261636b2c20756e7369676e656420696e742c20756e7369676e656420696e742c20756e7369676e656420696e74293b0a696e7420706c7567696e5f69735f47504c5f636f6d70617469626c653b0a0a7374617469632063686172202a6f7264696e61727928636f6e73742063686172202a6e616d652c20756e7369676e656420696e7420617267632c2063686172202a2a6172677629207b0a2020202028766f6964296e616d653b2028766f696429617267633b2028766f696429617267763b0a20202020676d6b5f6576616c282258203a3d206e6174697665222c204e554c4c293b0a2020202072657475726e20676d6b5f657870616e6428222428582922293b0a7d0a0a696e742063616c6c6261636b5f676d6b5f736574757028636f6e737420766f6964202a6c6f636174696f6e29207b0a2020202028766f6964296c6f636174696f6e3b0a20202020676d6b5f6164645f66756e6374696f6e28226f7264696e617279222c206f7264696e6172792c20302c20312c2030293b0a2020202072657475726e20313b0a7d0a"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nordinary=[native]\nguile: Expanding '$(X)'\nguile=[native]\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+        "stderr": "",
+        "seen": ""
+      },
+      "compile_shared": [
+        [
+          "callback.c",
+          "callback.so"
+        ]
+      ]
+    }
+  ]
+}
