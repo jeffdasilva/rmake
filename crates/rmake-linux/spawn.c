@@ -35,14 +35,18 @@ static int glibc_at_least(unsigned required_minor)
 }
 #endif
 
-int rmake_compact_pipe_budget(unsigned minimum)
+int rmake_compact_pipe_budget(unsigned minimum, unsigned roomy, int *roomy_budget)
 {
+    *roomy_budget = 0;
 #ifdef __GLIBC__
     struct rlimit limit;
-    return getrlimit(RLIMIT_NOFILE, &limit) == 0
-        && limit.rlim_cur < minimum && glibc_at_least(29);
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0)
+        return 0;
+    *roomy_budget = limit.rlim_cur >= roomy;
+    return limit.rlim_cur < minimum && glibc_at_least(29);
 #else
     (void)minimum;
+    (void)roomy;
     return 0;
 #endif
 }

@@ -1,0 +1,32 @@
+{
+  "args": [
+    "-rR",
+    "--no-print-directory"
+  ],
+  "models": [
+    {
+      "id": "closed-high-slots",
+      "auth": "16,17",
+      "inherited": false
+    },
+    {
+      "id": "closed-high-reversed",
+      "auth": "17,16",
+      "inherited": false
+    },
+    {
+      "id": "valid-high-aliases",
+      "auth": "18,19",
+      "inherited": true
+    }
+  ],
+  "expected": {
+    "exit_code": 0,
+    "closed_stdout": "auth=[no]\n",
+    "closed_stderr": "make: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n",
+    "inherited_stdout": "auth=[yes]\n",
+    "inherited_stderr": "",
+    "preseeded_bytes": 1
+  },
+  "profile": "Only stdio enters closed cases. The valid case duplicates one pipe to two high pairs, advertises the second pair, and seeds one byte before exec. An implicit serial recipe never waits for or acquires a parallel token."
+}

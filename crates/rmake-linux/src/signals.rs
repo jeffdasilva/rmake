@@ -12,6 +12,9 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 mod debug;
 pub use debug::Handle as DebugHandle;
 
+const LOW_WAKE_FLOOR: c_int = 5;
+const ROOMY_WAKE_FLOOR: c_int = 16;
+const ROOMY_FD_BUDGET: u32 = 64;
 const CAUGHT: [c_int; 7] = [1, 2, 3, 13, 15, 24, 25];
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 static TERMINAL_STATUS: AtomicI32 = AtomicI32::new(-1);
@@ -32,7 +35,7 @@ unsafe extern "C" {
     fn getpid() -> c_int;
     fn kill(pid: c_int, number: c_int) -> c_int;
     fn rmake_set_execution_mask(reader: c_int) -> c_int;
-    fn rmake_compact_pipe_budget(minimum: u32) -> c_int;
+    fn rmake_compact_pipe_budget(minimum: u32, roomy: u32, roomy_budget: *mut c_int) -> c_int;
 }
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
@@ -74,24 +77,38 @@ extern "C" fn caught(number: c_int) {
 
 // Reserve the conventional first protocol pair before handlers or user code
 // can retain a wake descriptor. A live wake pipe is never relocated.
-fn private_wake_end(file: File) -> io::Result<File> {
-    if file.as_raw_fd() >= 5 {
-        return Ok(file);
+fn duplicate_wake_end(file: &File, floor: c_int) -> io::Result<Option<File>> {
+    if file.as_raw_fd() >= floor {
+        return Ok(None);
     }
-    let descriptor = unsafe { fcntl(file.as_raw_fd(), 1030, 5) };
+    let descriptor = unsafe { fcntl(file.as_raw_fd(), 1030, floor) };
     if descriptor < 0 {
         return Err(io::Error::last_os_error());
     }
-    Ok(unsafe { File::from_raw_fd(descriptor) })
+    Ok(Some(unsafe { File::from_raw_fd(descriptor) }))
 }
 
-fn wake_pipe() -> io::Result<(File, File)> {
+fn private_wake_end(file: File) -> io::Result<File> {
+    Ok(duplicate_wake_end(&file, LOW_WAKE_FLOOR)?.unwrap_or(file))
+}
+
+fn wake_pipe(roomy: bool) -> io::Result<(File, File)> {
     let mut descriptors = [-1; 2];
     if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
         return Err(io::Error::last_os_error());
     }
     let reader = unsafe { File::from_raw_fd(descriptors[0]) };
     let writer = unsafe { File::from_raw_fd(descriptors[1]) };
+    if roomy {
+        // Reserve ordinary low slots while there is descriptor headroom.
+        // Both originals remain owned until the higher placement succeeds.
+        // A partial duplicate drops before the unchanged fallback path.
+        let high = duplicate_wake_end(&reader, ROOMY_WAKE_FLOOR)
+            .and_then(|read| Ok((read, duplicate_wake_end(&writer, ROOMY_WAKE_FLOOR)?)));
+        if let Ok((read, write)) = high {
+            return Ok((read.unwrap_or(reader), write.unwrap_or(writer)));
+        }
+    }
     Ok((private_wake_end(reader)?, private_wake_end(writer)?))
 }
 
@@ -114,11 +131,15 @@ impl Guard {
         // The normal recursive path can retain three stdio descriptors,
         // two incoming endpoints, three private endpoints, two wake ends,
         // and std's two exec-error descriptors. Keep smaller budgets free.
-        let compact = unsafe { rmake_compact_pipe_budget(3 + 2 + 3 + 2 + 2) } != 0;
+        let mut roomy = 0;
+        // SAFETY: C writes one descriptor budget result into this local.
+        let compact =
+            unsafe { rmake_compact_pipe_budget(3 + 2 + 3 + 2 + 2, ROOMY_FD_BUDGET, &mut roomy) }
+                != 0;
         let wake = if compact {
             Ok(None)
         } else {
-            wake_pipe().map(Some)
+            wake_pipe(roomy != 0).map(Some)
         };
         let (reader, writer) = match wake {
             Ok(Some((reader, writer))) => (Some(reader), Some(writer)),
