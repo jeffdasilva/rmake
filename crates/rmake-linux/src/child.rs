@@ -83,6 +83,24 @@ impl CapturePipe {
     }
 }
 
+fn set_capture_stream(source: c_int, target: c_int) -> io::Result<()> {
+    if source == target {
+        // An identity action leaves the original close-on-exec flag intact.
+        return Ok(());
+    }
+    loop {
+        // SAFETY: the ordered spawn retains the source through fork. The child
+        // changes only its own standard descriptor table here.
+        if unsafe { dup2(source, target) } >= 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+}
+
 fn prepare_capture_reader(stdout: File) -> io::Result<File> {
     let stdout = crate::process::private_descriptor(stdout)?;
     let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
@@ -192,28 +210,25 @@ impl Child {
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
         capture: &mut Option<CapturePipe>,
+        stderr: Option<BorrowedFd<'_>>,
     ) -> Result<(Self, File), CaptureSpawnError> {
         let pipe = match capture.as_ref() {
             Some(pipe) => pipe,
             None => capture.insert(CapturePipe::new().map_err(CaptureSpawnError::Prepare)?),
         };
         let writer = pipe.writer.as_raw_fd();
-        // When the writer already occupies stdout, the reference leaves its
-        // close-on-exec flag in place.
-        if writer != 1 {
-            // SAFETY: the command spawns synchronously while capture owns the
-            // writer. In the child, dup2 leaves both parent descriptors intact.
+        let stderr = stderr.map(|file| file.as_raw_fd());
+        if writer != 1 || stderr.is_some() {
+            // SAFETY: capture and the borrowed spool own both sources while
+            // this command spawns synchronously. Copy stdout first: when the
+            // capture writer occupies fd 2, installing stderr would replace it.
             unsafe {
                 command.pre_exec(move || {
-                    loop {
-                        if dup2(writer, 1) >= 0 {
-                            return Ok(());
-                        }
-                        let error = io::Error::last_os_error();
-                        if error.kind() != io::ErrorKind::Interrupted {
-                            return Err(error);
-                        }
+                    set_capture_stream(writer, 1)?;
+                    if let Some(file) = stderr {
+                        set_capture_stream(file, 2)?;
                     }
+                    Ok(())
                 });
             }
         }

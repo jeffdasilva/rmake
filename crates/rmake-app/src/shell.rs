@@ -57,15 +57,22 @@ pub fn run(
         &command,
         &order,
         request.original_shell,
-        |mut command, image, arg0| {
+        |command, image, arg0| {
             retain_failed_pipe = false;
-            if let Some(buffer) = &buffer {
-                buffer.configure_stderr(&mut command)?;
-            }
             if crate::native::has_modules() {
                 rmake_linux::native::flush_standard_streams()?;
             }
-            match Child::spawn_capture_ordered(command, image, OsStr::from_bytes(arg0), &mut pipe) {
+            let spool = buffer.as_ref().and_then(|buffer| buffer.child_spool());
+            let stderr = spool
+                .as_deref()
+                .and_then(rmake_linux::output::Spool::child_stderr);
+            match Child::spawn_capture_ordered(
+                command,
+                image,
+                OsStr::from_bytes(arg0),
+                &mut pipe,
+                stderr,
+            ) {
                 Ok(capture) => Ok(capture),
                 Err(CaptureSpawnError::Prepare(error)) => Err(error),
                 Err(CaptureSpawnError::Launch(error)) => {
