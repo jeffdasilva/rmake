@@ -17,9 +17,16 @@ A recursive explicit makefile fails during open. A borrowed pool has
 already taken its two descriptors at default discovery, so make cannot
 read the directory and reports that no makefile was found.
 
-An additional research case at limit four recorded GNU's
-`init jobserver pipe: Bad file descriptor` failure and its remaining
-PID-named FIFO. That difference remains open. rmake currently reports
-descriptor exhaustion and cleans its own partially created FIFO. This
-gate adds no safety exception and leaves the existing fatal token
-recovery checks separate.
+At limit four, GNU reports `init jobserver pipe: Bad file descriptor`
+after creating its FIFO and failing to acquire the writer. Both engines
+retain the owned empty mode-0600 artifact on this prepublication failure.
+The observer identifies the exact child PID, verifies the FIFO owner and
+physical identity, confirms the child was reaped, and probes for surviving
+endpoints without blocking.
+
+`make test-resource-fd-fifo-failure` and
+`make test-resource-fd-fifo-failure-release` run this separate exact case.
+The retention branch requires a freshly created canonical name, process
+descriptor exhaustion at writer acquisition, matching FIFO metadata,
+and a directory protected against unrelated replacement. The reader
+closes before the error returns. No authentication or token was published.

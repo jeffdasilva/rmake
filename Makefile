@@ -19,6 +19,7 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-jobserver-release test-resource-fd-fifo
 .PHONY: test-resource-fd-parallel
 
+.PHONY: test-resource-fd-fifo-failure test-resource-fd-fifo-failure-release
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
@@ -602,6 +603,12 @@ test-jobserver-release: build oracle-verify
 test-resource-fd-pipe: build oracle-verify
 	$(PYTHON) tools/resource_fd_pipe.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-pipe/development.json $(if $(RESOURCE_FD_PIPE_CASE),--case "$(RESOURCE_FD_PIPE_CASE)")
 
+test-resource-fd-fifo-failure: build oracle-verify
+	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/failure-development.json
+
+test-resource-fd-fifo-failure-release: release oracle-verify
+	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/resource-fd-fifo/failure-optimized.json
+
 test-resource-fd-fifo: build oracle-verify
 	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")
 
@@ -758,6 +765,9 @@ test-m4-release: test-trace-nls-release
 test: test-shell-capture-lifetime
 check: test-shell-capture-lifetime
 test-m4-release: test-shell-capture-lifetime-release
+
+test check: test-resource-fd-fifo-failure
+test-m4-release: test-resource-fd-fifo-failure-release
 
 ci: check test-selfhost
 
