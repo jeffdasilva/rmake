@@ -983,6 +983,17 @@ impl Options {
         Self::append_expanded_flags(combined, &decoded);
     }
 
+    pub(crate) fn replay_published_load_limit(&mut self, flags: &[u8]) {
+        let mut arguments = Vec::new();
+        Self::append_flags(&mut arguments, flags);
+        if let Some(value) = arguments
+            .iter()
+            .find_map(|argument| argument.as_bytes().strip_prefix(b"-l"))
+        {
+            self.load_limit = Some(rmake_linux::process::load_number(value));
+        }
+    }
+
     // Expanded file flags have already consumed their make-dollar quoting.
     // GNU skips C whitespace once at the start, then separates only SP/TAB.
     pub(crate) fn append_expanded_flags(combined: &mut Vec<OsString>, mut bytes: &[u8]) {
@@ -1061,6 +1072,13 @@ impl Options {
         }
     }
 
+    fn append_decoder_seed_flags(&self, arguments: &mut Vec<OsString>) {
+        // A load limit stays numeric until an actual MAKEFLAGS operand
+        // replaces it. The public %g spelling can round a value to -1.
+        Self::append_expanded_flags(arguments, &self.flags_for_phase(false, false, None));
+        self.append_internal_jobserver_style(arguments);
+    }
+
     /// Select only effectful include operands. The ordinary decoder remains
     /// the allocation baseline for streams with no tilde operand.
     pub(crate) fn include_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
@@ -1083,9 +1101,9 @@ impl Options {
             return Ok(None);
         }
         let mut prefix = Vec::new();
-        Self::append_flags(&mut prefix, &self.recursive_flags_with_includes(false));
-        self.append_internal_jobserver_style(&mut prefix);
+        self.append_decoder_seed_flags(&mut prefix);
         let mut seeded = Self::parse_mode::<false>(prefix)?;
+        seeded.load_limit = self.load_limit;
         seeded.include_directories = self.include_directories.clone();
         seeded.include_assignment_positions = self.include_assignment_positions.clone();
         seeded.evals = self.evals.clone();
@@ -1106,8 +1124,7 @@ impl Options {
         origin: Origin,
     ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
         let mut arguments = Vec::new();
-        Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false));
-        self.append_internal_jobserver_style(&mut arguments);
+        self.append_decoder_seed_flags(&mut arguments);
         let prefix_count = arguments.len();
         let prefix_end = [prefix_count];
         let mut other_ends = Vec::new();
@@ -1130,6 +1147,7 @@ impl Options {
             include_directories: self.include_directories.clone(),
             include_assignment_positions: self.include_assignment_positions.clone(),
             debug_mask: self.debug_mask,
+            load_limit: self.load_limit,
             ..Self::default()
         };
         let mut seen: std::collections::HashSet<_> = seeded
@@ -1439,21 +1457,11 @@ impl Options {
     }
 
     pub fn recursive_flags(&self) -> Vec<u8> {
-        self.recursive_flags_with_includes(true)
-    }
-
-    fn recursive_flags_with_includes(&self, includes: bool) -> Vec<u8> {
-        self.recursive_flags_for_phase(includes, false)
+        self.recursive_flags_for_phase(true, false)
     }
 
     pub fn recursive_flags_for_phase(&self, includes: bool, remaking: bool) -> Vec<u8> {
-        let flags = if remaking {
-            self.flags_for_phase(includes, true)
-        } else if includes {
-            self.flags()
-        } else {
-            self.flags_with_includes(false)
-        };
+        let flags = self.flags_for_phase(includes, remaking, self.load_limit);
         if !flags.contains(&b'$') {
             return flags;
         }
@@ -1468,15 +1476,12 @@ impl Options {
         value
     }
 
+    #[cfg(test)]
     pub fn flags(&self) -> Vec<u8> {
-        self.flags_with_includes(true)
+        self.flags_for_phase(true, false, self.load_limit)
     }
 
-    fn flags_with_includes(&self, includes: bool) -> Vec<u8> {
-        self.flags_for_phase(includes, false)
-    }
-
-    fn flags_for_phase(&self, includes: bool, remaking: bool) -> Vec<u8> {
+    fn flags_for_phase(&self, includes: bool, remaking: bool, load_limit: Option<f64>) -> Vec<u8> {
         let mut flags = Vec::new();
         for (set, flag) in [
             (self.always, b'B'),
@@ -1516,7 +1521,7 @@ impl Options {
                 flags.extend_from_slice(jobs.to_string().as_bytes());
             }
         }
-        if let Some(limit) = self.load_limit.filter(|v| *v != -1.0) {
+        if let Some(limit) = load_limit.filter(|v| *v != -1.0) {
             flags.extend_from_slice(b" -l");
             flags.extend_from_slice(rmake_linux::process::load_spelling(limit).as_bytes());
         }

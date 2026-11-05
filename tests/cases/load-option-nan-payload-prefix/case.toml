@@ -1,0 +1,12 @@
+id = "load-option-nan-payload-prefix"
+requirement = "runtime.load-option-metadata"
+candidate = "required"
+description = "Original serial load-option metadata control."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "--max-load=-nan(0x2)junk"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read: flags=[rRs -l-nan] mflags=[-rRs -l-nan] origins=file/environment goals=[]\nfinal: flags=[rRs -l-nan] mflags=[-rRs -l-nan] origins=file/environment goals=[]\n"
+stderr = ""

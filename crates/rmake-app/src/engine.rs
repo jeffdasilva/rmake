@@ -2256,6 +2256,7 @@ impl Engine {
             .initial_plan
             .as_ref()
             .map_or(0, |plan| plan.startup_restarts);
+        let published_load_limit = self.options.load_limit.is_some_and(|limit| limit != -1.0);
         let restart_pending = 'makefiles: {
             if !self.options.evals.is_empty() {
                 let eval_entry_no_rules = self.options.no_rules;
@@ -2428,7 +2429,10 @@ impl Engine {
                     return 2;
                 }
             }
-            if self.read_runtime_flags(restarts).is_err() {
+            if self
+                .read_runtime_flags(restarts, published_load_limit)
+                .is_err()
+            {
                 return 2;
             }
             // GNU applies -R's implied -r after the post-read option decode,

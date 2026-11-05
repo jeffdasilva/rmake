@@ -1,0 +1,16 @@
+id = "load-option-bare-resets-all-sources"
+requirement = "runtime.load-option-metadata"
+candidate = "required"
+description = "Original serial load-option metadata control."
+provenance = "Independently authored original fixture; no GNU implementation or tests copied."
+args = ["-rRs", "--max-load"]
+timeout_seconds = 4
+
+[environment]
+MAKEFLAGS = "-l2.25"
+GNUMAKEFLAGS = "-l7"
+
+[expected]
+exit_code = 0
+stdout = "read: flags=[rRs] mflags=[-rRs] origins=file/environment goals=[]\nfinal: flags=[rRs] mflags=[-rRs] origins=file/environment goals=[]\n"
+stderr = ""

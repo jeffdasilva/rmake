@@ -1842,3 +1842,13 @@ candidate_required = 7
 fixture_count = 7
 reference = "docs/startup-shell-environment.md"
 cases = ["shell-initial-env-environment-makeflags-before-argv-shell", "shell-initial-env-ordinary-inherited-environment-remains-literal", "shell-initial-env-command-line-makeflags-before-argv-shell", "shell-initial-env-inherited-gnumakeflags-cleared-before-argv-shell", "shell-initial-env-nested-inherited-flag-expansion", "shell-initial-env-active-makeflags-recursion-keeps-original-environment", "shell-initial-env-environment-override-makeflags-before-argv-shell"]
+
+[[requirements]]
+id = "runtime.load-option-metadata"
+title = "Linux load option decoding and metadata publication"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 10
+reference = "https://www.gnu.org/software/make/manual/html_node/Parallel-Disable.html"
+fixture_count = 10
+cases = ["load-option-negative-underflow", "load-option-nan-payload-prefix", "load-option-option-after-goal", "load-option-bare-resets-all-sources", "load-option-literal-default-sentinel", "load-option-rounded-default-sentinel", "load-option-live-preserves-unmentioned-limit", "load-option-live-explicitly-replays-rounded-limit", "load-option-contextual-live-preserves-unmentioned-limit", "load-option-published-load-with-quoted-include"]
