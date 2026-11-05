@@ -30,6 +30,7 @@ unsafe extern "C" {
     fn __errno_location() -> *mut c_int;
     fn getpid() -> c_int;
     fn kill(pid: c_int, number: c_int) -> c_int;
+    fn rmake_set_execution_mask(reader: c_int) -> c_int;
 }
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
@@ -61,11 +62,10 @@ extern "C" fn caught(number: c_int) {
     }
     let byte = number as u8;
     unsafe {
-        write(
-            WAKE_WRITER.load(Ordering::Relaxed),
-            (&byte as *const u8).cast(),
-            1,
-        );
+        let descriptor = WAKE_WRITER.load(Ordering::Relaxed);
+        if descriptor >= 0 {
+            write(descriptor, (&byte as *const u8).cast(), 1);
+        }
     }
     unsafe { *__errno_location() = saved };
 }
@@ -83,11 +83,21 @@ fn private_wake_end(file: File) -> io::Result<File> {
     Ok(unsafe { File::from_raw_fd(descriptor) })
 }
 
+fn wake_pipe() -> io::Result<(File, File)> {
+    let mut descriptors = [-1; 2];
+    if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let reader = unsafe { File::from_raw_fd(descriptors[0]) };
+    let writer = unsafe { File::from_raw_fd(descriptors[1]) };
+    Ok((private_wake_end(reader)?, private_wake_end(writer)?))
+}
+
 pub struct Guard {
     debug: debug::Owner,
     saved: Vec<(c_int, usize)>,
-    _reader: File,
-    _writer: File,
+    _reader: Option<File>,
+    _writer: Option<File>,
 }
 
 impl Guard {
@@ -99,22 +109,28 @@ impl Guard {
     /// Install once, before parsing or launching children. Preserve dispositions
     /// explicitly ignored by the caller, and restore ordinary SIGCHLD reaping.
     pub fn install() -> io::Result<Self> {
-        let mut descriptors = [-1; 2];
-        if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let reader = unsafe { File::from_raw_fd(descriptors[0]) };
-        let writer = unsafe { File::from_raw_fd(descriptors[1]) };
-        let reader = private_wake_end(reader)?;
-        let writer = private_wake_end(writer)?;
+        let (reader, writer) = match wake_pipe() {
+            Ok((reader, writer)) => (Some(reader), Some(writer)),
+            // A low descriptor limit can reject the pipe itself or the minimum
+            // private descriptor number. Do not occupy protocol slots 3/4.
+            // Interruptible scheduler waits use a bounded poll in this mode.
+            Err(error) if matches!(error.raw_os_error(), Some(22..=24)) => (None, None),
+            Err(error) => return Err(error),
+        };
         let mut guard = Self {
             debug: debug::Owner::reserve()?,
             saved: Vec::new(),
             _reader: reader,
             _writer: writer,
         };
-        WAKE_READER.store(guard._reader.as_raw_fd(), Ordering::Relaxed);
-        WAKE_WRITER.store(guard._writer.as_raw_fd(), Ordering::Relaxed);
+        WAKE_READER.store(
+            guard._reader.as_ref().map_or(-1, AsRawFd::as_raw_fd),
+            Ordering::Relaxed,
+        );
+        WAKE_WRITER.store(
+            guard._writer.as_ref().map_or(-1, AsRawFd::as_raw_fd),
+            Ordering::Relaxed,
+        );
         PENDING.store(0, Ordering::SeqCst);
         TERMINAL_STATUS.store(-1, Ordering::Relaxed);
         CANCELLED.store(false, Ordering::Relaxed);
@@ -157,12 +173,32 @@ impl Drop for Guard {
     }
 }
 
+/// Enter normal reader startup on the interpreter's thread. Eager option
+/// evaluation and stdin preparation run with the incoming mask.
+pub fn enter_reader_mask() -> io::Result<()> {
+    set_execution_mask(true)
+}
+
+/// Apply only in an exec child. Self-exec keeps the live interpreter mask.
+pub(crate) fn clear_exec_mask() -> io::Result<()> {
+    set_execution_mask(false)
+}
+
+fn set_execution_mask(reader: bool) -> io::Result<()> {
+    // SAFETY: the C adapter initializes its local sigset_t and changes the
+    // calling thread's mask using async-signal-safe libc operations.
+    match unsafe { rmake_set_execution_mask(reader.into()) } {
+        0 => Ok(()),
+        error => Err(io::Error::from_raw_os_error(error)),
+    }
+}
+
 /// Rust resets SIGPIPE in spawned children. GNU preserves an explicitly
 /// inherited ignore disposition; restore it after std's child setup. Only the
 /// async-signal-safe disposition operation runs between fork and exec.
 pub fn configure_child(command: &mut std::process::Command) {
     use std::os::unix::process::CommandExt;
-    if INITIAL_PIPE.load(Ordering::Relaxed) == 0 {
+    if !preserve_child_pipe_ignore() {
         return;
     }
     unsafe {
@@ -174,6 +210,10 @@ pub fn configure_child(command: &mut std::process::Command) {
             }
         });
     }
+}
+
+pub(crate) fn preserve_child_pipe_ignore() -> bool {
+    INITIAL_PIPE.load(Ordering::Relaxed) != 0
 }
 
 pub fn pending() -> Option<i32> {

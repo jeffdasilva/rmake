@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io;
 use std::io::Read;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
+use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, ExitStatus};
 
 unsafe extern "C" {
@@ -17,6 +18,7 @@ unsafe extern "C" {
     fn read(descriptor: c_int, bytes: *mut std::ffi::c_void, size: usize) -> isize;
     fn kill(pid: c_int, signal: c_int) -> c_int;
     fn poll(descriptors: *mut PollFd, count: usize, timeout: c_int) -> c_int;
+    fn waitpid(pid: c_int, status: *mut c_int, options: c_int) -> c_int;
 }
 
 #[repr(C)]
@@ -27,8 +29,16 @@ struct PollFd {
 }
 
 pub struct Child {
-    child: std::process::Child,
+    child: Process,
     pidfd: Option<File>,
+}
+
+enum Process {
+    Standard(std::process::Child),
+    Spawned {
+        pid: c_int,
+        status: Option<ExitStatus>,
+    },
 }
 
 impl Child {
@@ -45,6 +55,27 @@ impl Child {
         Self::spawn(command)
     }
 
+    /// A recipe with inherited stdin, stdout and stderr, and no jobserver
+    /// child hook, can avoid the std exec-error pipe under descriptor pressure.
+    /// This path consumes only the command's program and arguments.
+    pub fn try_spawn_inherited_ordered(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+    ) -> Option<io::Result<Self>> {
+        if crate::signals::wake_descriptor() >= 0 {
+            return None;
+        }
+        image.spawn_inherited(command, arg0).map(|result| {
+            result.and_then(|pid| {
+                if pid <= 0 {
+                    return Err(io::Error::other("spawn did not return an owned child"));
+                }
+                Ok(Self::with_pid(Process::Spawned { pid, status: None }, pid))
+            })
+        })
+    }
+
     pub fn spawn_capture_ordered(
         command: &mut Command,
         image: &crate::environment::Image,
@@ -55,9 +86,14 @@ impl Child {
     }
 
     fn from_std(child: std::process::Child) -> Self {
+        let pid = child.id() as c_int;
+        Self::with_pid(Process::Standard(child), pid)
+    }
+
+    fn with_pid(child: Process, pid: c_int) -> Self {
         // pidfd_open and pidfd_send_signal use these numbers on Linux x86-64
         // and asm-generic architectures. pidfd_open creates a CLOEXEC handle.
-        let descriptor = unsafe { syscall(434, child.id() as c_int, 0_u32) };
+        let descriptor = unsafe { syscall(434, pid, 0_u32) };
         let pidfd = if descriptor >= 0 {
             crate::process::private_descriptor(unsafe { File::from_raw_fd(descriptor as c_int) })
                 .ok()
@@ -69,8 +105,9 @@ impl Child {
 
     pub fn spawn_capture(command: &mut Command) -> io::Result<(Self, File)> {
         command.stdout(std::process::Stdio::piped());
-        let mut child = Self::from_std(command.spawn()?);
-        let descriptor: OwnedFd = child.child.stdout.take().expect("piped stdout").into();
+        let mut child = command.spawn()?;
+        let descriptor: OwnedFd = child.stdout.take().expect("piped stdout").into();
+        let child = Self::from_std(child);
         let stdout = crate::process::private_descriptor(File::from(descriptor))?;
         let flags = unsafe { fcntl(stdout.as_raw_fd(), 3) };
         if flags < 0 || unsafe { fcntl(stdout.as_raw_fd(), 4, flags | 0x800) } < 0 {
@@ -80,23 +117,38 @@ impl Child {
     }
 
     pub fn id(&self) -> u32 {
-        self.child.id()
+        match &self.child {
+            Process::Standard(child) => child.id(),
+            Process::Spawned { pid, .. } => *pid as u32,
+        }
     }
 
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        self.child.try_wait()
+        match &mut self.child {
+            Process::Standard(child) => child.try_wait(),
+            Process::Spawned { pid, status } => {
+                if status.is_none() {
+                    *status = wait_owned_pid(*pid, false)?;
+                }
+                Ok(*status)
+            }
+        }
     }
 
     pub fn send_signal(&mut self, number: i32) -> io::Result<()> {
         if self.try_wait()?.is_some() {
             return Ok(());
         }
+        self.signal_owned(number)
+    }
+
+    fn signal_owned(&self, number: i32) -> io::Result<()> {
         // A pidfd cannot address a reused PID. Without one, this uniquely
         // owned, unreaped Child reserves its PID until this interpreter reaps.
         let result = if let Some(fd) = &self.pidfd {
             unsafe { syscall(424, fd.as_raw_fd(), number, std::ptr::null::<u8>(), 0_u32) as c_int }
         } else {
-            unsafe { kill(self.child.id() as c_int, number) }
+            unsafe { kill(self.id() as c_int, number) }
         };
         if result < 0 {
             let error = io::Error::last_os_error();
@@ -113,8 +165,33 @@ impl Drop for Child {
         // Normal completion has already been reaped. On error/unwinding,
         // terminate only this still-owned child and reap before releasing it.
         if matches!(self.try_wait(), Ok(None)) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
+            match &mut self.child {
+                Process::Standard(child) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                Process::Spawned { pid, .. } => {
+                    let pid = *pid;
+                    let _ = self.signal_owned(9);
+                    let _ = wait_owned_pid(pid, true);
+                }
+            }
+        }
+    }
+}
+
+fn wait_owned_pid(pid: c_int, block: bool) -> io::Result<Option<ExitStatus>> {
+    let mut status = 0;
+    loop {
+        // SAFETY: this owner passes one positive child PID and one writable
+        // status word; WNOHANG returns zero without writing a status.
+        let result = unsafe { waitpid(pid, &mut status, i32::from(!block)) };
+        if result >= 0 {
+            return Ok((result != 0).then(|| ExitStatus::from_raw(status)));
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
         }
     }
 }
@@ -136,10 +213,16 @@ pub fn wait(
             returned: 0,
         })
         .collect();
-    let fallback = descriptors.iter().any(|fd| fd.descriptor < 0);
-    if interruptible {
+    let wake = interruptible
+        .then(crate::signals::wake_descriptor)
+        .filter(|fd| *fd >= 0);
+    // With no pipe, EINTR still wakes an already waiting poll. A finite timeout
+    // also bounds the race between checking pending() and entering that poll.
+    let fallback =
+        descriptors.iter().any(|fd| fd.descriptor < 0) || (interruptible && wake.is_none());
+    if let Some(descriptor) = wake {
         descriptors.push(PollFd {
-            descriptor: crate::signals::wake_descriptor(),
+            descriptor,
             events: 1,
             returned: 0,
         });
@@ -321,18 +404,35 @@ mod tests {
         terminated(child);
     }
 
-    #[test]
-    fn dropping_a_live_child_reaps_it_before_releasing_ownership() {
-        unsafe extern "C" {
-            fn waitpid(pid: c_int, status: *mut c_int, flags: c_int) -> c_int;
-        }
-        let child = Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap();
-        let pid = child.child.id() as c_int;
+    fn dropping_reaps(child: Child) {
+        let pid = child.id() as c_int;
         drop(child);
         let mut status = 0;
         // A PID-specific wait cannot reap another test's child. ECHILD proves
         // that Drop already consumed this child's status rather than leaking it.
         assert_eq!(unsafe { waitpid(pid, &mut status, 1) }, -1);
         assert_eq!(io::Error::last_os_error().raw_os_error(), Some(10));
+    }
+
+    #[test]
+    fn dropping_a_live_child_reaps_it_before_releasing_ownership() {
+        dropping_reaps(Child::spawn(Command::new("/bin/sleep").arg("30")).unwrap());
+    }
+
+    #[test]
+    fn dropping_a_spawned_child_reaps_it_even_without_a_pidfd() {
+        use crate::environment::Image;
+        use std::ffi::OsStr;
+        let mut command = Command::new("/bin/sleep");
+        command.arg("30");
+        let image = Image::from_command(&command, &[], None).unwrap();
+        let Some(child) = Child::try_spawn_inherited_ordered(&command, &image, OsStr::new("sleep"))
+        else {
+            return;
+        };
+        let mut child = child.unwrap();
+        assert!(matches!(child.child, Process::Spawned { .. }));
+        child.pidfd = None;
+        dropping_reaps(child);
     }
 }
