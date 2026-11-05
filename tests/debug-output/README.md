@@ -61,3 +61,12 @@ as such. Fixed-candidate and full developer acceptance remain separate gates.
 | [qualification-v2.json](qualification-v2.json) | Complete final development/release reports passing debug 54, native 215 and directory 40, plus preceding-main debug 1-pass/53-fail control. Includes coherent source/input/module hashes; ordinary and full developer acceptance remain separate. |
 | [history.json](history.json) | Original forty-profile raw/refined discovery and retained incorrect hypotheses, unchanged. |
 | [extension-history.json](extension-history.json) | Fourteen independently qualified review boundaries, exact first/final predictions, immutable v1 negative controls and original-model/report fingerprints. |
+
+A child can exit after the observer opens `/proc/<pid>/stat` and before it
+reads the entry. The observed GNU run failed inside the test worker with
+`ESRCH`; the second GNU run and rmake matched the expected result. Both
+`ENOENT` and `ESRCH` now mean that the observed process is gone. Other read
+errors still fail, as the injected permission-error control checks. All ten
+child profiles use the same observer, and their expected output, status,
+ordering, and file effects stay unchanged. Both 64-case runs and 24 repeats
+of the affected case passed after the correction.
