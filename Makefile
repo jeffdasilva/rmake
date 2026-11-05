@@ -5,10 +5,11 @@
 
 .PHONY: bootstrap-integration test-integration
 .PHONY: test-database-output test-database-search test-database-numeric
+.PHONY: test-database-lifecycle
 .PHONY: test-locales bootstrap-locale-data test-locale-collation
 .PHONY: bootstrap-guile test-guile-components
 .PHONY: test-native-fenv
-.PHONY: test-stdin-sources
+.PHONY: test-stdin-sources test-process-restarts
 
 .PHONY: test-job-debug
 
@@ -17,9 +18,12 @@
 PYTHON ?= python3
 INTEGRATION_CASE ?=
 STDIN_CASE ?=
+PROCESS_RESTART_CASE ?=
 DATABASE_NUMERIC_CASE ?=
 DATABASE_SEARCH_CASE ?=
 DATABASE_CASE ?=
+DATABASE_LIFECYCLE_GROUP ?= all
+DATABASE_LIFECYCLE_CASE ?=
 COLLATION_CASE ?=
 LOCALE_DATA_ROOT ?= $(CURDIR)/.tools/locale-data
 NATIVE_FENV_CASE ?=
@@ -120,11 +124,13 @@ help:
 		'  test-native-modules Compare original C modules and native ABI lifecycles' \
 		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
 		'  test-database-output Compare complete databases, histories and phase effects' \
+		'  test-database-lifecycle Compare restart environments and exact cleanup phases' \
 		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
 		'  test-database-numeric Compare native rounding and registration history' \
 		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
 		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-stdin-sources Compare named stdin lifetime, restarts and cleanup' \
+		'  test-process-restarts Compare new process entry and executable replacement' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
 		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
@@ -272,12 +278,14 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" INTEGRATION_CASE=xxhash-0.8.3 test-integration
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_CASE=database-minimal test-database-output
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_LIFECYCLE_CASE=database-native-restart-environment-vector-order test-database-lifecycle
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_SEARCH_CASE=database-search-repeated-aliased test-database-search
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DATABASE_NUMERIC_CASE=database-native-numeric-minimal-upward test-database-numeric
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_FENV_CASE=native-fenv-successive-upward test-native-fenv
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" LOCALE_CASE=all-utf8-one-flags test-locales
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" COLLATION_CASE=live-thread-fr-fr-utf-8 test-locale-collation
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" STDIN_CASE=stdin-owned-goal-unlinked test-stdin-sources
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" PROCESS_RESTART_CASE=process-restart-replaced-image test-process-restarts
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" test-safety
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" NATIVE_CASE=native-arguments test-native-modules
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DIRECTORY_REPORT_CASE=directory-explicit-w test-directory-reporting
@@ -312,8 +320,10 @@ test-m5-release: test-m4-release
 test-m4-release: release oracle-verify
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/stdin-sources/optimized.json
+	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/process-restarts/optimized.json
 	$(PYTHON) tools/integration.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/integration/optimized.json
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/optimized.json
+	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-lifecycle/optimized.json
 	$(PYTHON) tools/database_numeric.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/database-output/numeric-optimized.json
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/native-fenv/optimized.json
 	$(PYTHON) tools/locale_profiles.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/locales/optimized.json
@@ -349,6 +359,9 @@ test-database-numeric: build oracle-verify
 test-database-search: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite search --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/search-development.json $(if $(DATABASE_SEARCH_CASE),--case "$(DATABASE_SEARCH_CASE)")
 
+test-database-lifecycle: build oracle-verify
+	$(PYTHON) tools/database_lifecycle.py --group "$(DATABASE_LIFECYCLE_GROUP)" --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-lifecycle/development.json $(if $(DATABASE_LIFECYCLE_CASE),--case "$(DATABASE_LIFECYCLE_CASE)")
+
 test-database-output: build oracle-verify
 	$(PYTHON) tools/database_output.py --suite all --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/database-output/development.json $(if $(DATABASE_CASE),--case "$(DATABASE_CASE)")
 bootstrap-locale-data:
@@ -359,6 +372,9 @@ test-locale-collation: build oracle-verify
 
 test-stdin-sources: build oracle-verify
 	$(PYTHON) tools/stdin_sources.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/stdin-sources/development.json $(if $(STDIN_CASE),--case "$(STDIN_CASE)")
+
+test-process-restarts: build oracle-verify
+	$(PYTHON) tools/process_restarts.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/process-restarts/development.json $(if $(PROCESS_RESTART_CASE),--case "$(PROCESS_RESTART_CASE)")
 
 test-native-fenv: build oracle-verify
 	$(PYTHON) tools/native_fenv.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/native-fenv/development.json $(if $(NATIVE_FENV_CASE),--case "$(NATIVE_FENV_CASE)")
@@ -454,9 +470,9 @@ test: test-unit test-tools test-oracle test-builtins test-diff test-safety test-
 
 check: check-core test-oracle test-builtins test-diff test-safety test-native-modules test-directory-reporting test-debug-output test-job-debug test-shuffle test-nested-short-proposal test-generated test-graphs test-scopes test-pattern-scopes test-secondary test-filesystem test-include-stat test-source-streams test-imported-trace test-symlink-times test-archive-times test-directory-search test-whitespace test-word-index test-wildcards test-modes test-intcmp test-diagnostics test-stateful test-jobserver test-load test-runtime-signals test-output-sync test-runtime-effects test-startup-exits test-graph-progress
 
-test: test-integration test-database-output test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources
+test: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts
 
-check: test-integration test-database-output test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources
+check: test-integration test-database-output test-database-lifecycle test-database-numeric test-native-fenv test-locales test-locale-collation test-stdin-sources test-process-restarts
 
 ci: check test-selfhost
 

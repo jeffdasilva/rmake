@@ -2004,63 +2004,28 @@ impl Engine {
                 if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
                     plan.debug_restart(restarts);
                 }
-                if crate::native::has_modules() || plan.stdin_source.is_some() {
-                    let error =
-                        plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
-                    self.fatal(
-                        None,
-                        [
-                            b"re-executing make: ".as_slice(),
-                            os_error(&error).as_bytes(),
-                        ]
-                        .concat()
-                        .as_slice(),
-                    );
-                    return 2;
+                // A makefile restart is a new program image. Replaying only
+                // Rust construction misses process-entry hooks, temporary
+                // cache validation and replacement of the invoked program.
+                let error =
+                    plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
+                self.stderr(
+                    &[
+                        plan.restart_program().as_bytes(),
+                        b": ",
+                        os_error(&error).as_bytes(),
+                    ]
+                    .concat(),
+                );
+                if let Some(server) = &inherited_jobserver {
+                    server.finish_recursive_exec();
                 }
-                let restart_program = plan.program.clone();
-                let restart_invocation = plan.invocation.clone();
-                let launch = match plan.decode(Some((restarts, self.makelevel))) {
-                    Ok(launch) => launch,
-                    Err(failure) => {
-                        let (error, exit) = failure.into_parts();
-                        self.native_exit_override = exit;
-                        initial::emit_error(&self.output, &restart_program, error);
-                        return 2;
-                    }
-                };
-                if crate::print_requested_exit(&launch.options) {
-                    self.native_exit_override = launch.into_native_exit(restart_program);
-                    return 0;
-                }
-                let mut next = match Self::from_invocation(
-                    launch,
-                    restart_program.clone(),
-                    &restart_invocation,
-                ) {
-                    Ok(next) => next,
-                    Err(failure) => {
-                        let (error, exit) = failure.into_parts();
-                        self.native_exit_override = exit;
-                        initial::emit_error(
-                            &self.output,
-                            &restart_program,
-                            InvocationError::Expansion(error),
-                        );
-                        return 2;
-                    }
-                };
-                next.database.activate_runtime_metadata();
-                if next.options.evals.is_empty() && next.initialize_makefile_list().is_err() {
-                    // A completed new constructor owns all current interpreter
-                    // state, including when its first reader boundary fails.
-                    if crate::native::has_modules() || next.output.database_requested() {
-                        self.native_exit_override =
-                            Some(Box::new(NativeExit::Engine(Box::new(next))));
-                    }
-                    return 2;
-                }
-                *self = next;
+                crate::stdin_source::unlink(
+                    plan.stdin_source.as_ref(),
+                    &self.output,
+                    &self.program,
+                );
+                rmake_linux::process::exit_immediately(127);
             }
 
             if !self.options.evals.is_empty() {
@@ -2515,6 +2480,15 @@ impl Engine {
                 .map(|file| file.name.clone())
                 .collect();
             for mut makefile in read_files {
+                // The published stdin source is already a completed input,
+                // retained across restarts. It is never a makefile remake goal.
+                if self.options.temp_stdin_file.is_some_and(|index| {
+                    rmake_core::filenames::without_dot_prefix(
+                        self.options.files[index].as_os_str().as_bytes(),
+                    ) == makefile.name
+                }) {
+                    continue;
+                }
                 self.database_remake_started.insert(makefile.name.clone());
                 if !seen.insert(makefile.name.clone())
                     || self.special(b".PHONY", &makefile.name, false)

@@ -13,6 +13,7 @@ pub(super) struct Plan {
     environment: Vec<(OsString, OsString)>,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
+    restart_invocation: Option<OsString>,
     output: Option<crate::output::Controller>,
 }
 
@@ -68,6 +69,14 @@ impl Plan {
                 environment.push((name.into(), value));
             }
         }
+        let restart_invocation =
+            if !invocation.as_bytes().starts_with(b"/") && invocation.as_bytes().contains(&b'/') {
+                std::env::current_dir()
+                    .ok()
+                    .map(|directory| directory.join(invocation).into_os_string())
+            } else {
+                None
+            };
         Self {
             args,
             stdin_source: None,
@@ -76,13 +85,22 @@ impl Plan {
             environment,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
+            restart_invocation,
             output,
         }
     }
 
+    /// Retain the process-entry path before any -C changes. Bare names keep
+    /// their PATH search; relative paths containing '/' keep their spelling.
+    pub(super) fn restart_program(&self) -> &OsStr {
+        self.restart_invocation
+            .as_deref()
+            .unwrap_or(&self.invocation)
+    }
+
     pub(super) fn debug_restart(&self, count: u32) {
         let mut line = format!("Re-executing[{count}]: ").into_bytes();
-        line.extend_from_slice(self.invocation.as_bytes());
+        line.extend_from_slice(self.restart_program().as_bytes());
         let rewritten = self.restart_arguments();
         for argument in rewritten.as_deref().unwrap_or(&self.args) {
             line.push(b' ');
@@ -92,22 +110,21 @@ impl Plan {
         crate::debug::raw(&[&line]);
     }
 
-    /// Native module images must restart with a fresh dynamic-loader namespace.
-    /// Preserve argv and the invocation environment rather than replaying a
-    /// loaded library's constructors or keeping its old static state in process.
+    /// Restart in a fresh program image using retained argv and the live
+    /// process environment. Dynamic-loader and startup hooks run again.
     pub(super) fn exec_restart(
         &self,
         count: u32,
         level: u32,
         jobserver: Option<&Jobserver>,
     ) -> io::Error {
-        let mut command = Command::new(&self.invocation);
+        let mut command = Command::new(self.restart_program());
         let rewritten = self.restart_arguments();
         // Native setup can deliberately update the process environment. A
         // real exec inherits that live state, with only the restart counters
-        // overridden below; the startup snapshot is for in-process decoding.
+        // overridden below.
         command
-            .arg0(&self.invocation)
+            .arg0(self.restart_program())
             .args(rewritten.as_deref().unwrap_or(&self.args));
         let restart = if self
             .output
@@ -118,15 +135,46 @@ impl Plan {
         } else {
             count.to_string()
         };
-        command.env("MAKE_RESTARTS", restart);
-        command.env("MAKELEVEL", level.to_string());
-        if let Some(server) = jobserver {
-            server.configure_child(&mut command, true);
+        let mut environment: Vec<_> = std::env::vars_os().collect();
+        let mut has_restart = false;
+        for (name, value) in &mut environment {
+            if name == "MAKELEVEL" {
+                *value = level.to_string().into();
+            } else if name == "MAKE_RESTARTS" {
+                *value = restart.clone().into();
+                has_restart = true;
+            }
         }
+        if !has_restart {
+            environment.push(("MAKE_RESTARTS".into(), restart.into()));
+        }
+        let order: Vec<_> = environment
+            .iter()
+            .map(|(name, _)| name.as_os_str().as_bytes().to_vec())
+            .collect();
+        command.env_clear().envs(environment);
         if let Err(error) = rmake_linux::native::flush_standard_streams() {
             return error;
         }
-        command.exec()
+        // The owned image preserves the live vector through exec; Command's
+        // ordinary environment rebuild would alphabetize its entries. Reuse
+        // the existing PATH search and ENOEXEC handling for a bare argv[0].
+        match launch_child::<()>(
+            self.restart_program().as_bytes(),
+            &command,
+            &order,
+            None,
+            |mut command, environment, arg0| {
+                if let Some(server) = jobserver {
+                    server.configure_child(&mut command, true);
+                }
+                environment.configure_exec(&mut command, os(arg0))?;
+                Err(command.exec())
+            },
+        ) {
+            Err(error) => error,
+            Ok(()) => unreachable!("a successful restart replaces this process"),
+        }
     }
 
     fn restart_arguments(&self) -> Option<Vec<OsString>> {
@@ -590,7 +638,13 @@ impl State {
                         options.directories.pop();
                     }
                 }
-                crate::cli::Argument::File(index) if options.temp_stdin_file == Some(index) => {}
+                crate::cli::Argument::File(index) if options.temp_stdin_file == Some(index) => {
+                    // The internal source operand is already a prepared raw
+                    // filename. Retain its selection without tilde expansion.
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.files[index].as_os_str().as_bytes());
+                    }
+                }
                 crate::cli::Argument::File(index) => {
                     let raw = options.files[index].as_os_str().as_bytes();
                     options.files[index] = self.path(program, raw)?;

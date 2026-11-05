@@ -34,7 +34,7 @@ accepted spelling alone does not establish all interactions or output behavior.
 | `-W`/`--what-if`/`--new-file`/`--assume-new` | [Logical newest file records](assumed-files.md) add prerequisite traversal, virtual completion comparisons, phony and ordered double-colon behavior, physical-time witnesses and initial/non-exported flag phases. Complete decoder/profile interactions remain open. |
 | `--warn-undefined-variables` | [Reader/runtime warning emission](undefined-warnings.md) now covers scopes, automatic variables, option sources/phases and raw diagnostics. [CLI assignment defaults](cli-assignment-effects.md) close the two recorded startup warning probes; broader inherited expansion and complete startup/option/profile acceptance remain open. |
 | `--shuffle[=...]` | [Owned shuffle traversal](shuffle.md) has 1,995 required models for modes/seeds, goals/edges, barriers, scope/phase policy, recursion, restarts and failures, plus a separate random/zero-seed permutation/replay gate. Malformed usage, cycle freshness/trace and broader lifecycle/profile cross-products remain open. |
-| `--temp-stdin` | Unsupported internal restart option: stdin currently survives an in-process restart; real self-exec needs owned temporary-source lifetime and exact argument replacement. |
+| `--temp-stdin` | Internal restart operand with owned named-source lifetime and exact argument rewriting in [44 stdin profiles](stdin-sources.md). General internal-option and resource interactions remain open. |
 
 Decoder acceptance must also cover abbreviations/ambiguity, option clusters,
 standalone `-`, end markers, optional arguments, repeated directories and

@@ -213,7 +213,7 @@ def main(argv=None):
         with tempfile.TemporaryDirectory(prefix='rmake-stdin-sources-') as temporary:
             report = run_campaign(selected, Path(identities['oracle']['path']), Path(identities['candidate']['path']) if args.candidate is not None else None, compiler, Path(temporary))
         report.update(identities=identities, compiler=compiler)
-        report['source_hashes'] = {str(path.relative_to(ROOT)): h.sha256_file(path) for path in [Path(__file__), MODELS, ROOT / 'tools/conformance.py', FIXTURES / 'probe.c', FIXTURES / 'legacy_probe.c', FIXTURES / 'launch.py']}
+        report['source_hashes'] = {str(path.resolve().relative_to(ROOT)): h.sha256_file(path) for path in [Path(__file__), MODELS, ROOT / 'tools/conformance.py', FIXTURES / 'probe.c', FIXTURES / 'legacy_probe.c', FIXTURES / 'launch.py']}
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
         report.update(error=str(error), passed=False); print('ERROR ' + str(error), flush=True); status = 2

@@ -439,3 +439,5 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 
 
 [Wildcard locale collation](locale-collation.md) adds 74 required original models, with both profiles matching GNU2 across live global/thread-local choices, raw-byte equal keys and directory-table growth. The private French locale is generated from authenticated pinned packages. The earlier 183 C/CUTF8 controls remain required. Wider locale/cache-history acceptance and complete M3/M6 criteria are unchanged.
+
+[Named stdin and process restart](stdin-sources.md) uses one real self-exec path for makefile remaking. Development and optimized candidates pass the 44 stdin and three new process-entry profiles. The strict lifecycle suite covers exact cleanup, live environment, and failed-exec effects. Wider raw environment, descriptor, native/Guile, and resource acceptance remains part of M3/M6.

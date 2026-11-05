@@ -110,15 +110,20 @@ impl FileRecords {
             let previous = std::mem::replace(&mut self.slots, vec![None; size]);
             self.empty = size;
             self.live = 0;
-            let history = self.database_history.take();
+            // Existing owned keys can move without allocating new names.
+            // This is physical placement only: the logical history already
+            // recorded its own growth at the original insertion boundary.
             for name in previous
                 .into_iter()
                 .flatten()
                 .filter(|name| !name.is_empty())
             {
-                self.insert(&name);
+                let (position, found) = self.position(&name);
+                debug_assert!(!found);
+                self.slots[position] = Some(name);
+                self.empty -= 1;
+                self.live += 1;
             }
-            self.database_history = history;
         }
     }
 

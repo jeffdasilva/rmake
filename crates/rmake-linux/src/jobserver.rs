@@ -322,6 +322,34 @@ impl Jobserver {
             }
         }
     }
+
+    /// A failed recursive self-exec returns with its protocol pair exposed.
+    /// Restore this process's private descriptor flags before source cleanup.
+    pub fn finish_recursive_exec(&self) {
+        let Some(reader) = &self.0.protocol_reader else {
+            return;
+        };
+        for descriptor in [reader.as_raw_fd(), self.0.writer.as_raw_fd()] {
+            let flags = loop {
+                // F_GETFD/F_SETFD affect this descriptor, never the parent's
+                // shared pipe description or another process's descriptor.
+                let value = unsafe { fcntl(descriptor, 1) };
+                if value >= 0 || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted {
+                    break value;
+                }
+            };
+            if flags < 0 {
+                continue;
+            }
+            loop {
+                if unsafe { fcntl(descriptor, 2, flags | 1) } >= 0
+                    || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted
+                {
+                    break;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
