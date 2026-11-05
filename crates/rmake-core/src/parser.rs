@@ -8,7 +8,9 @@
 
 pub use crate::diagnostic::Location;
 use crate::diagnostic::SourceName;
-use crate::diagnostic::{Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Output};
+use crate::diagnostic::{
+    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, IncludeError, Output,
+};
 use crate::messages::Message;
 use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
@@ -18,12 +20,16 @@ use crate::variables::{
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
-fn source_read_error(file: &[u8], message: Vec<u8>) -> ParseError {
-    source_read_error_at(file.into(), message)
-}
-
-fn source_read_error_at(file: SourceName, message: Vec<u8>) -> ParseError {
-    let diagnostic = Diagnostic::Unlocated([file.as_ref(), b": ", &message].concat());
+fn source_read_error_at(
+    file: SourceName,
+    detail: Vec<u8>,
+    context: &mut ExpansionContext<'_>,
+) -> ParseError {
+    let diagnostic =
+        context.freeze_diagnostic(Diagnostic::unlocated_system(Message::SourceError {
+            path: file.as_ref(),
+            detail: &detail,
+        }));
     ParseError {
         location: Location { file, line: 1 },
         unlocated: true,
@@ -408,7 +414,7 @@ pub struct Makefile {
     pub name: Vec<u8>,
     pub optional: bool,
     pub missing: bool,
-    pub read_error: Option<(Location, Vec<u8>)>,
+    pub read_error: Option<(Location, IncludeError)>,
 }
 
 #[derive(Clone, Default)]
@@ -1533,7 +1539,7 @@ mod include_tests {
                 name: name.to_vec(),
                 input: crate::reader::Input::Bytes(b"V=child\n-include absent.mk\n".to_vec()),
             }),
-            _ => Err(b"No such file or directory".to_vec()),
+            _ => Err(b"No such file or directory".to_vec().into()),
         };
         db.read_with(
             b"include child.mk\n$(info $(V):$(MAKEFILE_LIST))\nall:;\n",
@@ -1559,7 +1565,7 @@ mod include_tests {
         let mut db = Database::default();
         let mut events = 0;
         let mut emit = |_: Output<'_>| events += 1;
-        let mut read = |_: &[u8]| Err(b"No such file or directory".to_vec());
+        let mut read = |_: &[u8]| Err(b"No such file or directory".to_vec().into());
         db.read_with(
             b"include generated.mk\ngenerated.mk:;\n",
             b"Makefile",
@@ -3272,7 +3278,7 @@ impl Database {
                     })?;
                     let file_identity = match &result {
                         Ok(included) => included.name.as_slice(),
-                        Err(_) => path.as_slice(),
+                        Err(error) => error.resolved_name.as_deref().unwrap_or(&path),
                     };
                     if let Some(history) = &self.database_history {
                         history.intern(file_identity);
@@ -3310,14 +3316,11 @@ impl Database {
                             ));
                         }
                         Err(error) => {
-                            if error == b"Is a directory" {
-                                return Err(source_read_error(&path, error));
-                            }
                             self.makefiles.push(Makefile {
-                                name: path,
+                                name: error.resolved_name.unwrap_or(path),
                                 optional,
                                 missing: true,
-                                read_error: Some((location, error)),
+                                read_error: Some((location, error.detail)),
                             });
                         }
                     }
@@ -3346,7 +3349,7 @@ impl Database {
             }
             let Some(mut line) = reader
                 .next_line(prefix, !declaration.targets.is_empty())
-                .map_err(|message| source_read_error_at(source_name.clone(), message))?
+                .map_err(|message| source_read_error_at(source_name.clone(), message, context))?
             else {
                 if !conditions.is_empty() {
                     return Err(ParseError::system(
@@ -3572,9 +3575,9 @@ impl Database {
                             message: "interrupted".into(),
                         });
                     }
-                    let Some(part) = reader
-                        .next_line(prefix, false)
-                        .map_err(|message| source_read_error_at(source_name.clone(), message))?
+                    let Some(part) = reader.next_line(prefix, false).map_err(|message| {
+                        source_read_error_at(source_name.clone(), message, context)
+                    })?
                     else {
                         if !active {
                             // Ignored definitions are skipped by the outer
@@ -6672,7 +6675,7 @@ mod reader_event_tests {
                 ExpansionContext::with_receiver(None, &mut events).with_includes(&mut |name| {
                     reads += 1;
                     if name == b"absent.mk" {
-                        return Err(b"No such file or directory".to_vec());
+                        return Err(b"No such file or directory".to_vec().into());
                     }
                     Ok(IncludedFile {
                         name: name.to_vec(),

@@ -461,3 +461,8 @@ The [catalog coverage gate](../tests/catalog-coverage/README.md) checks all 30
 attributed GNU release languages plus three fallback/C controls in both build
 profiles. The complete catalog data are installed with their original source
 notices. This does not claim that every diagnostic producer is covered.
+
+[Include and remake diagnostics](nls-diagnostics.md) carry the original raw
+filename and saved Linux error to the actual GNU publication phase. Twenty
+new models include a remake recipe that changes the locale and proves the
+later libc error translation without changing which errno was captured.

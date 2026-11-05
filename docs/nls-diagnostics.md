@@ -129,3 +129,23 @@ arguments. For the raw loader argument, the gate queries the same public
 `dlopen` and `dlsym` interfaces in a separate process before running either
 engine. The remaining diagnostic bytes, exit statuses, and file effects
 come from the literal expectations.
+
+## Include and source I/O diagnostics
+
+Makefile open failures retain their resolved search names and error numbers.
+Ordinary failed include remakes keep GNU's fixed colon separator. Skipped
+required makefiles report after the remake recipes, with the active locale
+and domain. Explicit `-f` open failures and fatal stream read failures use
+their respective catalog templates. A stream read error keeps the original
+include operand even if `-I` found the source under another path.
+
+Twenty additional cases check these boundaries in the diagnostic gate,
+bringing it to 99 profiles. The gate obtains the raw error detail from an
+independent libc call. The paths, translated templates, output, exit status
+and filesystem effects are exact. One remake recipe selects a custom domain
+before a deferred diagnostic. Its template reorders the error and filename
+arguments, and the filename retains its non-UTF-8 byte.
+A separate fixture binds a test-owned libc catalog during a failing remake
+recipe. It records different translations for the saved open error and a
+new, unrelated error, then checks that the deferred diagnostic uses the
+saved error number and the locale active at publication.

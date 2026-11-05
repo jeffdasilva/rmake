@@ -30,6 +30,25 @@ unsafe extern "C" {
         result: *mut *mut Passwd,
     ) -> c_int;
     fn getlogin_r(buffer: *mut c_char, length: usize) -> c_int;
+    fn rm_source_strerror(code: c_int, buffer: *mut c_char, capacity: usize) -> c_int;
+}
+
+pub fn strerror(code: c_int) -> Option<Vec<u8>> {
+    let mut buffer = vec![0; 128];
+    loop {
+        // This initialized slice is uniquely owned and writable for the call.
+        match unsafe { rm_source_strerror(code, buffer.as_mut_ptr().cast(), buffer.len()) } {
+            0 => {
+                let end = buffer.iter().position(|&byte| byte == 0)?;
+                buffer.truncate(end);
+                return Some(buffer);
+            }
+            1 if buffer.len() < rmake_core::variables::MAX_OUTPUT => {
+                buffer.resize(buffer.len() * 2, 0);
+            }
+            _ => return None,
+        }
+    }
 }
 
 /// GNU's archive scanner makes one open attempt. Rust's standard File::open

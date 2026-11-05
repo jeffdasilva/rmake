@@ -195,7 +195,29 @@ pub struct IncludedFile {
     pub input: crate::reader::Input,
 }
 
-type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, Vec<u8>> + 'a;
+/// Retain the failed search candidate and OS error number until remake reports
+/// it. Host adapters can also supply arbitrary, untranslated detail bytes.
+pub struct IncludeFailure {
+    pub resolved_name: Option<Vec<u8>>,
+    pub detail: IncludeError,
+}
+
+#[derive(Clone, Debug)]
+pub enum IncludeError {
+    Errno(i32),
+    Bytes(Vec<u8>),
+}
+
+impl From<Vec<u8>> for IncludeFailure {
+    fn from(detail: Vec<u8>) -> Self {
+        Self {
+            resolved_name: None,
+            detail: IncludeError::Bytes(detail),
+        }
+    }
+}
+
+type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, IncludeFailure> + 'a;
 
 pub enum EnvironmentValue {
     Set(Vec<u8>),
@@ -891,9 +913,9 @@ impl<'a> ExpansionContext<'a> {
         }
     }
 
-    pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, Vec<u8>>> {
+    pub fn read_include(&mut self, name: &[u8]) -> Option<Result<IncludedFile, IncludeFailure>> {
         if self.is_cancelled() {
-            return Some(Err(b"interrupted".to_vec()));
+            return Some(Err(b"interrupted".to_vec().into()));
         }
         self.includes.as_mut().map(|receiver| receiver(name))
     }
@@ -1099,11 +1121,12 @@ pub struct FrozenDiagnostic {
 #[derive(Clone, Debug)]
 pub struct SystemDiagnostic {
     message: crate::messages::OwnedMessage,
+    unlocated: bool,
     english: std::sync::OnceLock<Vec<u8>>,
 }
 impl PartialEq for SystemDiagnostic {
     fn eq(&self, other: &Self) -> bool {
-        self.message == other.message
+        self.message == other.message && self.unlocated == other.unlocated
     }
 }
 impl Eq for SystemDiagnostic {}
@@ -1125,9 +1148,16 @@ impl Diagnostic {
     pub fn system(message: crate::messages::Message<'_>) -> Self {
         Self::system_owned(message.owned())
     }
+    pub(crate) fn unlocated_system(message: crate::messages::Message<'_>) -> Self {
+        Self::with_system_location(message.owned(), true)
+    }
     pub(crate) fn system_owned(message: crate::messages::OwnedMessage) -> Self {
+        Self::with_system_location(message, false)
+    }
+    fn with_system_location(message: crate::messages::OwnedMessage, unlocated: bool) -> Self {
         Self::System(Box::new(SystemDiagnostic {
             message,
+            unlocated,
             english: std::sync::OnceLock::new(),
         }))
     }
@@ -1140,6 +1170,7 @@ impl Diagnostic {
     pub fn is_unlocated(&self) -> bool {
         match self {
             Self::Frozen(value) => value.unlocated,
+            Self::System(value) => value.unlocated,
             _ => matches!(self, Self::Unlocated(_)),
         }
     }

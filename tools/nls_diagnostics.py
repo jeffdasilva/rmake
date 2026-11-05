@@ -48,13 +48,46 @@ os.write(1, message)
 """
 
 
+OS_WITNESS = """
+import ctypes
+import errno
+import locale
+import os
+import sys
+locale.setlocale(locale.LC_ALL, "")
+function = ctypes.CDLL(None).strerror
+function.argtypes = [ctypes.c_int]
+function.restype = ctypes.c_char_p
+os.write(1, function(getattr(errno, sys.argv[1])))
+"""
+
+
+def errno_witness(case, runtime, fact):
+    name, locale = fact
+    assert name in {"ENOENT", "ENOTDIR", "EISDIR"}
+    assert locale in {"fr_FR.UTF-8", "C.UTF-8"}
+    environment = h.clean_environment(runtime, {**case.environment, "LC_ALL": locale, "LANG": locale})
+    out, err, status, limit, leftovers = h.capture(
+        [sys.executable, "-c", OS_WITNESS, name], runtime / "work", environment, 5,
+    )
+    if status or err or limit or leftovers or not out or b"\n" in out:
+        raise h.HarnessError("could not witness public libc errno text")
+    expected = dict(case.expected)
+    stderr = bytes.fromhex(expected["stderr_hex"])
+    if stderr.count(b"@OS_DETAIL@") != 1:
+        raise h.HarnessError("expected one exact independent errno slot")
+    expected["stderr_hex"] = stderr.replace(b"@OS_DETAIL@", out).hex()
+    return replace(case, expected=expected), out
+
+
 def cases(selection):
     data = json.loads((DATA / "models.json").read_bytes())
     structure = json.loads((DATA / "structure.json").read_bytes())
     producers = json.loads((DATA / "producers.json").read_bytes())
     loader = json.loads((DATA / "loader.json").read_bytes())
-    suites = (data, structure, producers, loader)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15):
+    include = json.loads((DATA / "include.json").read_bytes())
+    suites = (data, structure, producers, loader, include)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -76,6 +109,10 @@ def cases(selection):
     if set(loader_fixtures) != {"nls_control.c", "loader_probe.c"} or loader_fixtures["nls_control.c"] != fixtures["nls_control.c"]:
         raise h.HarnessError("loader fixture inventory or shared source identity differs")
     fixtures["loader_probe.c"] = loader_fixtures["loader_probe.c"]
+    include_fixtures = include["fixture_sha256"]
+    if set(include_fixtures) != {"nls_control.c", "include_errno.c"} or include_fixtures["nls_control.c"] != fixtures["nls_control.c"]:
+        raise h.HarnessError("include fixture inventory or shared source identity differs")
+    fixtures["include_errno.c"] = include_fixtures["include_errno.c"]
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -146,6 +183,7 @@ def main(argv=None):
               "structure_sha256": h.sha256_file(DATA / "structure.json"),
               "producer_sha256": h.sha256_file(DATA / "producers.json"),
               "loader_sha256": h.sha256_file(DATA / "loader.json"),
+              "include_sha256": h.sha256_file(DATA / "include.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
@@ -172,9 +210,20 @@ def main(argv=None):
             if (kind := row.get("loader_fact")) is not None:
                 case, detail = loader_witness(case, reset, kind)
                 record["raw_loader_detail_hex"] = detail.hex()
+            if (fact := row.get("errno_fact")) is not None:
+                case, detail = errno_witness(case, reset, fact)
+                record["raw_errno_detail_hex"] = detail.hex()
             expected_files = h.snapshot({name: reset / name for name in ("work", "home", "tmp")})
             expected_files["work/seen"].update(content=base64.b64encode(model.seen).decode(), size=len(model.seen),
                                                sha256=hashlib.sha256(model.seen).hexdigest())
+            for name, contents in row.get("updates", {}).items():
+                path = "work/" + str(native.safe_relative(name))
+                value = bytes.fromhex(contents)
+                expected_files[path] = dict(
+                    expected_files.get(path, {"type": "file", "mode": 0o644}),
+                    content=base64.b64encode(value).decode(), size=len(value),
+                    sha256=hashlib.sha256(value).hexdigest(),
+                )
             record.update(compilation=compilation, expected_filesystem=expected_files, environment=case.environment)
             observed = []
             for executable in [oracle, oracle, *([args.candidate] if args.candidate else [])]:

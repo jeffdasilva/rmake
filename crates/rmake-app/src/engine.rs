@@ -16,7 +16,8 @@ use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, Output, OutputReceiver};
+use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver};
+use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
@@ -299,6 +300,23 @@ struct Outcome {
     completion: CompletionTime,
 }
 
+struct PendingIncludeError {
+    location: Option<Location>,
+    name: Vec<u8>,
+    detail: IncludeError,
+}
+
+impl PendingIncludeError {
+    fn bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        match &self.detail {
+            IncludeError::Errno(code) => std::borrow::Cow::Owned(
+                rmake_linux::filesystem::source_error_detail(&io::Error::from_raw_os_error(*code)),
+            ),
+            IncludeError::Bytes(detail) => std::borrow::Cow::Borrowed(detail),
+        }
+    }
+}
+
 /// Freshness is a per-parent decision, independent of the intermediate's final
 /// timestamp: a later branch can deliberately restore an older date.
 struct Inspection {
@@ -469,9 +487,11 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
 
 fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: &io::Error) {
     let detail = os_error(error);
-    let message = crate::messages::system(rmake_core::messages::Message::GetcwdError(
-        detail.as_bytes(),
-    ));
+    let message = crate::messages::system(Message::OsError {
+        action: b"getcwd",
+        path: b"",
+        detail: detail.as_bytes(),
+    });
     emit_output(
         output,
         program,
@@ -787,7 +807,7 @@ pub struct Engine {
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     archive_completion_times: HashMap<Vec<u8>, ArchiveCompletion>,
-    makefile_error: RefCell<Option<(Option<Location>, Vec<u8>)>>,
+    makefile_error: RefCell<Option<PendingIncludeError>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
     intermediate_policy: crate::intermediates::Policy,
@@ -1629,13 +1649,16 @@ impl Engine {
     }
 
     fn show_makefile_error(&self) {
-        if let Some((location, message)) = self.makefile_error.borrow_mut().take() {
+        if let Some(error) = self.makefile_error.borrow_mut().take() {
+            // The ordinary remake complaint has fixed punctuation. Only the
+            // errno detail comes from the active libc messages locale.
+            let detail = error.bytes();
             emit_output(
                 &self.output,
                 &self.program,
                 Output::Warning {
-                    location: location.as_ref(),
-                    message: &message,
+                    location: error.location.as_ref(),
+                    message: &[error.name.as_slice(), b": ", &detail].concat(),
                 },
             );
         }
@@ -1799,12 +1822,8 @@ impl Engine {
             let file = match self.include_search.borrow().read(name) {
                 Ok(file) => file,
                 Err(error) => {
-                    if error == b"Is a directory" {
-                        self.fatal(None, &[name, b": ", &error].concat());
-                        return Err(());
-                    }
                     self.database.makefiles.push(Makefile {
-                        name: name.to_vec(),
+                        name: error.resolved_name.unwrap_or_else(|| name.to_vec()),
                         optional: true,
                         missing: true,
                         read_error: None,
@@ -2200,13 +2219,17 @@ impl Engine {
                         if rmake_linux::signals::pending().is_some() {
                             return 2;
                         }
+                        let detail = rmake_linux::filesystem::source_error_detail(&err);
                         emit_output(
                             &self.output,
                             &self.program,
                             Output::Warning {
                                 location: None,
-                                message: format!("{}: {}", file.display(), os_error(&err))
-                                    .as_bytes(),
+                                message: &crate::messages::system(Message::OsError {
+                                    action: b"",
+                                    path: file.as_os_str().as_bytes(),
+                                    detail: &detail,
+                                }),
                             },
                         );
                         self.database.makefiles.push(Makefile {
@@ -2555,6 +2578,8 @@ impl Engine {
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
+            let mut skipped_errors = Vec::new();
+            let mut failed_remakes = Vec::new();
             let mut seen = HashSet::new();
             let read_files = self.database.makefiles.clone();
             let required_names: HashSet<_> = read_files
@@ -2573,8 +2598,7 @@ impl Engine {
                     continue;
                 }
                 self.database_remake_started.insert(makefile.name.clone());
-                if !seen.insert(makefile.name.clone())
-                    || self.special(b".PHONY", &makefile.name, false)
+                if self.special(b".PHONY", &makefile.name, false)
                     || self
                         .database
                         .rules
@@ -2586,6 +2610,18 @@ impl Engine {
                                 .any(|rule| rule.dependencies.is_empty() && rule.recipes.is_some())
                         })
                 {
+                    if !makefile.optional
+                        && let Some((location, detail)) = makefile.read_error
+                    {
+                        skipped_errors.push(PendingIncludeError {
+                            location: Some(location),
+                            name: makefile.name,
+                            detail,
+                        });
+                    }
+                    continue;
+                }
+                if !seen.insert(makefile.name.clone()) {
                     continue;
                 }
                 // Global symbol lookup can load a logical module name whose
@@ -2624,23 +2660,35 @@ impl Engine {
                 *self.makefile_error.borrow_mut() = if makefile.optional {
                     None
                 } else if promoted_required && makefile.missing && makefile.read_error.is_none() {
-                    Some((
-                        None,
-                        [makefile.name.as_slice(), b": No such file or directory"].concat(),
-                    ))
-                } else {
-                    makefile.read_error.map(|(location, error)| {
-                        (
-                            Some(location),
-                            [makefile.name.as_slice(), b": ", &error].concat(),
-                        )
+                    Some(PendingIncludeError {
+                        location: None,
+                        name: makefile.name.clone(),
+                        detail: IncludeError::Bytes(b"No such file or directory".to_vec()),
                     })
+                } else {
+                    makefile
+                        .read_error
+                        .as_ref()
+                        .map(|(location, detail)| PendingIncludeError {
+                            location: Some(location.clone()),
+                            name: makefile.name.clone(),
+                            detail: detail.clone(),
+                        })
                 };
                 self.optional_remake = makefile.optional;
                 let result = self.build(&makefile.name, None, 0);
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
                 failed |= result.failed && !makefile.optional;
+                if result.failed
+                    && !result.fatal
+                    && result.ran
+                    && self.options.keep_going
+                    && !makefile.optional
+                    && let Some((location, _)) = makefile.read_error
+                {
+                    failed_remakes.push((location, makefile.name.clone()));
+                }
                 if !result.failed {
                     self.database_unchecked_times
                         .borrow_mut()
@@ -2663,6 +2711,33 @@ impl Engine {
             if self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
                 return 2;
+            }
+            // These are reported after the remake chain, using the locale
+            // and gettext domain that its recipes left in effect.
+            failed |= !skipped_errors.is_empty();
+            for error in skipped_errors.iter().rev() {
+                let detail = error.bytes();
+                emit_output(
+                    &self.output,
+                    &self.program,
+                    Output::Warning {
+                        location: error.location.as_ref(),
+                        message: &crate::messages::system(Message::SourceError {
+                            path: &error.name,
+                            detail: &detail,
+                        }),
+                    },
+                );
+            }
+            for (location, name) in failed_remakes {
+                emit_output(
+                    &self.output,
+                    &self.program,
+                    Output::Warning {
+                        location: Some(&location),
+                        message: &crate::messages::system(Message::FailedMakefileRemake(&name)),
+                    },
+                );
             }
             if changed {
                 self.remove_intermediates();

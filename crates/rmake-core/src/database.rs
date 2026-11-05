@@ -2023,7 +2023,7 @@ mod tests {
         database.enable_database_history().unwrap();
         let mut include = |name: &[u8]| {
             assert_eq!(name, b"child.mk");
-            Ok::<_, Vec<u8>>(crate::diagnostic::IncludedFile {
+            Ok::<_, crate::diagnostic::IncludeFailure>(crate::diagnostic::IncludedFile {
                 name: b"search/child.mk".to_vec(),
                 input: crate::reader::Input::Bytes(Vec::new()),
             })

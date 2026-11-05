@@ -4,7 +4,9 @@
 //! Linux include search policy. Only the directory list is retained; each read
 //! opens the file afresh, including reads after eval, recipes and restarts.
 
-use rmake_core::diagnostic::{ExpansionContext, FilesystemEffect, IncludedFile};
+use rmake_core::diagnostic::{
+    ExpansionContext, FilesystemEffect, IncludeError, IncludeFailure, IncludedFile,
+};
 use rmake_core::variables::{ExpandError, VariableStore};
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -96,12 +98,14 @@ impl IncludeSearch {
         self.directories.iter().map(Vec::as_slice)
     }
 
-    pub fn read(&self, name: &[u8]) -> Result<IncludedFile, Vec<u8>> {
-        match Self::read_path(name) {
+    pub fn read(&self, name: &[u8]) -> Result<IncludedFile, IncludeFailure> {
+        let original = match Self::read_path(name) {
             Ok(file) => return Ok(file),
-            Err(error) if error.kind() == io::ErrorKind::NotFound && !name.starts_with(b"/") => {}
-            Err(error) => return Err(crate::engine::os_error(&error).into_bytes()),
-        }
+            Err(error) if error.kind() == io::ErrorKind::NotFound && !name.starts_with(b"/") => {
+                error
+            }
+            Err(error) => return Err(open_failure(None, error)),
+        };
         // Joining bytes preserves ./, repeated slashes, escapes and non-UTF-8.
         // A non-ENOENT error stops search; a later directory must not mask it.
         for directory in &self.directories {
@@ -109,10 +113,10 @@ impl IncludeSearch {
             match Self::read_path(&path) {
                 Ok(file) => return Ok(file),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(crate::engine::os_error(&error).into_bytes()),
+                Err(error) => return Err(open_failure(Some(path), error)),
             }
         }
-        Err(b"No such file or directory".to_vec())
+        Err(open_failure(None, original))
     }
 
     fn read_path(name: &[u8]) -> io::Result<IncludedFile> {
@@ -120,6 +124,17 @@ impl IncludeSearch {
             name: name.to_vec(),
             input,
         })
+    }
+}
+
+fn open_failure(resolved_name: Option<Vec<u8>>, error: io::Error) -> IncludeFailure {
+    let detail = match error.raw_os_error() {
+        Some(code) => IncludeError::Errno(code),
+        None => IncludeError::Bytes(rmake_linux::filesystem::source_error_detail(&error)),
+    };
+    IncludeFailure {
+        resolved_name,
+        detail,
     }
 }
 
