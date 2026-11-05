@@ -6,52 +6,54 @@ use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
+// The compatibility spelling order is also observable in an ambiguous-option
+// diagnostic. Aliases follow the primary switch names.
 const GNU_LONG_OPTIONS: &[&[u8]] = &[
     b"--always-make",
-    b"--assume-new",
-    b"--assume-old",
-    b"--check-symlink-times",
-    b"--debug",
-    b"--directory",
-    b"--dry-run",
     b"--environment-overrides",
     b"--eval",
-    b"--file",
     b"--help",
     b"--ignore-errors",
-    b"--include-dir",
-    b"--jobs",
-    b"--jobserver-auth",
-    b"--jobserver-fds",
-    b"--jobserver-style",
-    b"--just-print",
     b"--keep-going",
-    b"--load-average",
-    b"--makefile",
-    b"--max-load",
-    b"--new-file",
+    b"--check-symlink-times",
+    b"--just-print",
+    b"--print-data-base",
+    b"--question",
     b"--no-builtin-rules",
     b"--no-builtin-variables",
+    b"--silent",
     b"--no-keep-going",
-    b"--no-print-directory",
-    b"--no-silent",
+    b"--touch",
+    b"--version",
+    b"--print-directory",
+    b"--directory",
+    b"--file",
+    b"--include-dir",
+    b"--jobs",
+    b"--load-average",
     b"--old-file",
     b"--output-sync",
-    b"--print-data-base",
-    b"--print-directory",
-    b"--question",
-    b"--quiet",
-    b"--recon",
-    b"--shuffle",
-    b"--silent",
-    b"--stop",
-    b"--sync-mutex",
-    b"--temp-stdin",
-    b"--touch",
-    b"--trace",
-    b"--version",
-    b"--warn-undefined-variables",
     b"--what-if",
+    b"--debug",
+    b"--jobserver-auth",
+    b"--trace",
+    b"--no-print-directory",
+    b"--warn-undefined-variables",
+    b"--sync-mutex",
+    b"--no-silent",
+    b"--jobserver-fds",
+    b"--temp-stdin",
+    b"--shuffle",
+    b"--jobserver-style",
+    b"--quiet",
+    b"--stop",
+    b"--new-file",
+    b"--assume-new",
+    b"--assume-old",
+    b"--max-load",
+    b"--dry-run",
+    b"--recon",
+    b"--makefile",
 ];
 
 // Resolve only the fallback path: exact options retain their existing fast
@@ -78,8 +80,58 @@ fn expand_unique_long_option(argument: &[u8]) -> Option<Vec<u8>> {
     Some(expanded)
 }
 
-/// A decoded operand or live warning-policy event, at its argument position.
-#[derive(Clone, Copy)]
+/// Recoverable startup syntax failures are emitted at their argument, while
+/// the surrounding source still runs its later definitions and flags.
+#[derive(Clone)]
+pub(crate) enum UsageIssue {
+    Empty(&'static [u8]),
+    Jobs,
+    MissingShort(u8),
+    UnknownShort(u8),
+    MissingLong(Vec<u8>),
+    UnexpectedLong(Vec<u8>),
+    UnknownLong(Vec<u8>),
+}
+
+impl UsageIssue {
+    pub(crate) fn message(&self) -> (bool, Vec<u8>) {
+        let quoted = |prefix: &[u8], value: &[u8], suffix: &[u8]| {
+            [prefix, b"'", value, b"'", suffix].concat()
+        };
+        match self {
+            Self::Empty(option) => (false, crate::usage::empty(option)),
+            Self::Jobs => (false, crate::usage::jobs()),
+            Self::MissingShort(letter) => (
+                true,
+                quoted(b"option requires an argument -- ", &[*letter], b""),
+            ),
+            Self::UnknownShort(letter) => (true, quoted(b"invalid option -- ", &[*letter], b"")),
+            Self::MissingLong(name) => (true, quoted(b"option ", name, b" requires an argument")),
+            Self::UnexpectedLong(name) => (
+                true,
+                quoted(b"option ", name, b" doesn't allow an argument"),
+            ),
+            Self::UnknownLong(arg) => {
+                let name = arg.split(|byte| *byte == b'=').next().unwrap_or_default();
+                let mut names = GNU_LONG_OPTIONS
+                    .iter()
+                    .filter(|candidate| candidate.starts_with(name));
+                if let (Some(first), Some(second)) = (names.next(), names.next()) {
+                    let mut result = quoted(b"option ", arg, b" is ambiguous; possibilities:");
+                    for candidate in [first, second].into_iter().chain(names) {
+                        result.extend_from_slice(&quoted(b" ", candidate, b""));
+                    }
+                    (true, result)
+                } else {
+                    (true, quoted(b"unrecognized option ", arg, b""))
+                }
+            }
+        }
+    }
+}
+
+/// A decoded operand or policy event, at its argument position.
+#[derive(Clone)]
 pub(crate) enum Argument {
     Definition(usize),
     File(usize),
@@ -89,6 +141,7 @@ pub(crate) enum Argument {
     Include(usize),
     Goal(usize),
     Warning(usize),
+    Usage(UsageIssue),
 }
 
 /// Explicit selectors retain their source; automatic reporting is evaluated
@@ -158,6 +211,7 @@ pub struct Options {
     pub directory_origin: Option<Origin>,
     pub help: bool,
     pub version: bool,
+    pub(crate) invalid_usage: bool,
 }
 
 /// An owned argument cursor. A yielded operand leaves no borrowed argv,
@@ -184,6 +238,7 @@ struct IncomingSwitches {
 pub(crate) struct DecodedArgument {
     pub(crate) argument: Option<Argument>,
     pub(crate) position: usize,
+    usage: Vec<UsageIssue>,
 }
 
 impl Decoder {
@@ -232,6 +287,7 @@ impl Decoder {
         let offset = self.offset;
         let track_jobs = self.track_jobs;
         let mut expanded_long = None;
+        let mut usage = Vec::new();
         let mut ends = source_ends[source_ends.partition_point(|end| *end < i)..].iter();
         let mut source_end = ends.next().copied().unwrap_or(args.len());
         macro_rules! pause {
@@ -239,6 +295,7 @@ impl Decoder {
                 let step = DecodedArgument {
                     argument: $event,
                     position: i + offset,
+                    usage,
                 };
                 self.args = args;
                 self.evals_seen = evals_seen;
@@ -267,8 +324,7 @@ impl Decoder {
                 // A missing required operand is an invalid getopt result.
                 // Live decoding skips it without applying a switch or calling
                 // an operand receiver. Startup still reports the usage error.
-                if !STARTUP
-                    && value.is_none()
+                if value.is_none()
                     && i + 1 == source_end
                     && matches!(
                         name,
@@ -289,6 +345,10 @@ impl Decoder {
                             | b"--sync-mutex"
                     )
                 {
+                    if STARTUP {
+                        usage.push(UsageIssue::MissingLong(name.to_vec()));
+                        pause!(None);
+                    }
                     i += 1;
                     continue;
                 }
@@ -317,10 +377,8 @@ impl Decoder {
                             i += 1;
                             continue;
                         }
-                        return Err(format!(
-                            "option '{}' doesn't allow an argument",
-                            String::from_utf8_lossy(name)
-                        ));
+                        usage.push(UsageIssue::UnexpectedLong(name.to_vec()));
+                        pause!(None);
                     }
                     *flag = true;
                     if STARTUP && name == b"--no-builtin-variables" {
@@ -347,10 +405,8 @@ impl Decoder {
                                     i += 1;
                                     continue;
                                 }
-                                return Err(format!(
-                                    "option '{}' doesn't allow an argument",
-                                    String::from_utf8_lossy(name)
-                                ));
+                                usage.push(UsageIssue::UnexpectedLong(name.to_vec()));
+                                pause!(None);
                             }
                             result.directory_choice = if name == b"--print-directory" {
                                 DirectoryChoice::On
@@ -365,10 +421,8 @@ impl Decoder {
                                     i += 1;
                                     continue;
                                 }
-                                return Err(format!(
-                                    "option '{}' doesn't allow an argument",
-                                    String::from_utf8_lossy(name)
-                                ));
+                                usage.push(UsageIssue::UnexpectedLong(name.to_vec()));
+                                pause!(None);
                             }
                             if name == b"--no-silent" {
                                 result.silent = false;
@@ -418,20 +472,25 @@ impl Decoder {
                                         String::from_utf8_lossy(name)
                                     )
                                 })?;
-                            if value.is_empty()
-                                && matches!(
-                                    name,
-                                    b"--old-file"
-                                        | b"--assume-old"
-                                        | b"--new-file"
-                                        | b"--assume-new"
-                                        | b"--what-if"
-                                )
-                            {
-                                return Err(format!(
-                                    "the '{}' option requires a non-empty string argument",
-                                    String::from_utf8_lossy(name)
-                                ));
+                            if value.is_empty() {
+                                let canonical: &'static [u8] = match name {
+                                    b"--file" | b"--makefile" => b"-f",
+                                    b"--directory" => b"-C",
+                                    b"--include-dir" => b"-I",
+                                    b"--old-file" | b"--assume-old" => b"-o",
+                                    b"--new-file" | b"--assume-new" | b"--what-if" => b"-W",
+                                    _ => b"--temp-stdin",
+                                };
+                                if STARTUP {
+                                    usage.push(UsageIssue::Empty(canonical));
+                                    pause!(None);
+                                }
+                                if matches!(canonical, b"-I" | b"-o" | b"-W") {
+                                    return Err(String::from_utf8_lossy(
+                                        &UsageIssue::Empty(canonical).message().1,
+                                    )
+                                    .into_owned());
+                                }
                             }
                             let path = PathBuf::from(OsString::from_vec(value));
                             if matches!(name, b"--old-file" | b"--assume-old") {
@@ -478,6 +537,10 @@ impl Decoder {
                                 })
                                 .ok_or("option '--eval' requires an argument")?;
                             if value.is_empty() {
+                                if STARTUP {
+                                    usage.push(UsageIssue::Empty(b"-E"));
+                                    pause!(None);
+                                }
                                 return Err(
                                     "the '--eval' option requires a non-empty string argument"
                                         .into(),
@@ -526,7 +589,14 @@ impl Decoder {
                                     None
                                 }
                             });
-                            result.jobs = Some(job_count(value.as_deref().unwrap_or_default())?);
+                            result.jobs = Some(match job_count(value.as_deref()) {
+                                Ok(jobs) => jobs,
+                                Err(_) if STARTUP => {
+                                    usage.push(UsageIssue::Jobs);
+                                    pause!(None);
+                                }
+                                Err(error) => return Err(error),
+                            });
                             if track_jobs {
                                 result.command_jobs = result.jobs;
                             }
@@ -545,6 +615,10 @@ impl Decoder {
                                 // Registered, unimplemented features still fail.
                                 i += 1;
                                 continue;
+                            }
+                            if STARTUP {
+                                usage.push(UsageIssue::UnknownLong(arg.clone()));
+                                pause!(None);
                             }
                             return Err(format!(
                                 "unsupported option '{}'",
@@ -616,25 +690,38 @@ impl Decoder {
                             break;
                         }
                         option @ (b'f' | b'C' | b'j' | b'I' | b'E' | b'o' | b'W') => {
+                            let numeric_operand = j + 1 < arg.len()
+                                || source_args
+                                    .get(i + 1)
+                                    .is_some_and(|next| next.iter().all(u8::is_ascii_digit));
                             let value = if j + 1 < arg.len() {
                                 arg[j + 1..].to_vec()
-                            } else if option == b'j'
-                                && !source_args.get(i + 1).is_some_and(|v| {
-                                    !v.is_empty() && v.iter().all(u8::is_ascii_digit)
-                                })
-                            {
+                            } else if option == b'j' && !numeric_operand {
                                 Vec::new()
                             } else {
                                 i += 1;
-                                if !STARTUP && i == source_end {
+                                if i == source_end {
                                     // The missing operand does not consume an argv slot.
                                     i -= 1;
+                                    if STARTUP {
+                                        usage.push(UsageIssue::MissingShort(option));
+                                    }
                                     break;
                                 }
-                                source_args.get(i).cloned().ok_or_else(|| {
-                                    format!("option requires an argument -- '{}'", option as char)
-                                })?
+                                source_args[i].clone()
                             };
+                            if STARTUP && value.is_empty() && option != b'j' {
+                                usage.push(UsageIssue::Empty(match option {
+                                    b'C' => b"-C",
+                                    b'E' => b"-E",
+                                    b'I' => b"-I",
+                                    b'f' => b"-f",
+                                    b'o' => b"-o",
+                                    b'W' => b"-W",
+                                    _ => unreachable!("validated short operand option"),
+                                }));
+                                break;
+                            }
                             if matches!(option, b'o' | b'W') {
                                 if value.is_empty() {
                                     return Err(format!(
@@ -667,7 +754,16 @@ impl Decoder {
                                 let index = result.include_directories.len() - 1;
                                 pause!(Some(Argument::Include(index)));
                             } else if option == b'j' {
-                                result.jobs = Some(job_count(&value)?);
+                                result.jobs = Some(
+                                    match job_count(numeric_operand.then_some(value.as_slice())) {
+                                        Ok(jobs) => jobs,
+                                        Err(_) if STARTUP => {
+                                            usage.push(UsageIssue::Jobs);
+                                            break;
+                                        }
+                                        Err(error) => return Err(error),
+                                    },
+                                );
                                 if track_jobs {
                                     result.command_jobs = result.jobs;
                                 }
@@ -691,7 +787,7 @@ impl Decoder {
                         }
                         option => {
                             if STARTUP {
-                                return Err(format!("unsupported option '-{}'", option as char));
+                                usage.push(UsageIssue::UnknownShort(option));
                             }
                         }
                     }
@@ -723,6 +819,13 @@ impl Decoder {
 }
 
 impl Options {
+    fn reject_usage(argument: Argument) -> Result<(), String> {
+        if let Argument::Usage(issue) = argument {
+            return Err(String::from_utf8_lossy(&issue.message().1).into_owned());
+        }
+        Ok(())
+    }
+
     /// MAKEFLAGS uses make's backslash-separated words, not shell quoting.
     /// Only the CLI subset implemented here is accepted; unsupported inherited
     /// scheduling flags must not silently change a recursive invocation.
@@ -743,7 +846,7 @@ impl Options {
                 tokens,
                 inherited_options,
                 prefix_count,
-                &mut |_, _| Ok(()),
+                &mut |_, argument| Self::reject_usage(argument),
                 &mut |_| {},
             )?;
             prefix_count += count;
@@ -763,7 +866,7 @@ impl Options {
             inherited_options,
             prefix_count,
             missing_makeflags,
-            &mut |_, _| Ok(()),
+            &mut |_, argument| Self::reject_usage(argument),
             &mut |_| {},
         )
     }
@@ -1119,7 +1222,9 @@ impl Options {
         offset: usize,
         track_jobs: bool,
     ) -> Result<Self, String> {
-        Self::parse_with::<STARTUP, String>(args, result, offset, track_jobs, &mut |_, _| Ok(()))
+        Self::parse_with::<STARTUP, String>(args, result, offset, track_jobs, &mut |_, argument| {
+            Self::reject_usage(argument)
+        })
     }
 
     // The same owned decoder drives synchronous startup callbacks and runtime
@@ -1227,6 +1332,10 @@ impl Options {
                 let Some(step) = step else {
                     break;
                 };
+                for issue in step.usage {
+                    decoder.options.invalid_usage = true;
+                    receiver(&mut decoder.options, Argument::Usage(issue))?;
+                }
                 if let Some(argument) = step.argument {
                     receiver(&mut decoder.options, argument)?;
                 }
@@ -1406,10 +1515,10 @@ impl Options {
     }
 }
 
-fn job_count(value: &[u8]) -> Result<usize, String> {
-    if value.is_empty() {
+fn job_count(value: Option<&[u8]>) -> Result<usize, String> {
+    let Some(value) = value else {
         return Ok(usize::MAX);
-    }
+    };
     std::str::from_utf8(value)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())

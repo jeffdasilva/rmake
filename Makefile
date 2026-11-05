@@ -3,8 +3,9 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: test-developer-flows test-flag-terminator
+.PHONY: test-developer-flows test-flag-terminator test-startup-usage
 FLAG_TERMINATOR_CASE ?=
+STARTUP_USAGE_CASE ?=
 DEVELOPER_FLOW_CASE ?=
 
 .PHONY: bootstrap-integration test-integration
@@ -161,6 +162,7 @@ help:
 		'  test-selfhost   Run build and core checks through the serial candidate' \
 		'  test-developer-flows Compare warm bootstrap, clean and benchmark checks' \
 		'  test-flag-terminator Compare inherited option source boundaries' \
+		'  test-startup-usage Compare malformed argument effects and usage output' \
 		'  bench           Record original GNU oracle workload baselines' \
 		'  profile-allocations  Sample allocation requests in an isolated profile build' \
 		'  profile-allocations-frozen Profile a frozen PROFILE_CANDIDATE with exact output checks' \
@@ -306,6 +308,9 @@ test-include-stat: build oracle-verify
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --self-test $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
 	$(PYTHON) tools/include_stat_faults.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(INCLUDE_STAT_CASE),--case "$(INCLUDE_STAT_CASE)")
 
+test-startup-usage: build oracle-verify
+	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/development.json $(if $(STARTUP_USAGE_CASE),--case "$(STARTUP_USAGE_CASE)")
+
 test-flag-terminator: build oracle-verify
 	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/flag-terminator/development.json $(if $(FLAG_TERMINATOR_CASE),--case "$(FLAG_TERMINATOR_CASE)")
 
@@ -313,6 +318,7 @@ test-developer-flows: build oracle-verify
 	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/developer-flows/development.json $(if $(DEVELOPER_FLOW_CASE),--case "$(DEVELOPER_FLOW_CASE)")
 
 test-selfhost: build
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" STARTUP_USAGE_CASE=empty-directory-then-assignment test-startup-usage
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FLAG_TERMINATOR_CASE=inherited-short-goal test-flag-terminator
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe test-developer-flows
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
@@ -363,6 +369,7 @@ m5-acceptance:
 test-m5-release: test-m4-release
 
 test-m4-release: release oracle-verify test-nls-release test-nls-directory-release
+	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/optimized.json
 	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/flag-terminator/optimized.json
 	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/developer-flows/optimized.json
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"
@@ -560,4 +567,4 @@ bench-compare: release oracle-verify
 clean:
 	+$(CARGO) clean
 
-test check: test-developer-flows test-flag-terminator
+test check: test-developer-flows test-flag-terminator test-startup-usage

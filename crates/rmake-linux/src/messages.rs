@@ -2,7 +2,7 @@
 // Copyright 2026 Jeff DaSilva
 //! Public gettext adapter. The initial domain owns its assets; explicit native
 //! textdomain/bindtextdomain changes retain their public libc behavior.
-use rmake_core::messages::{FormatError, MessageId, MessageRef};
+use rmake_core::messages::{FormatError, MessageRef};
 use std::ffi::{CStr, CString, c_char};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
@@ -23,11 +23,11 @@ pub fn initialize(directory: &Path) -> Result<(), &'static str> {
     }
     Ok(())
 }
-fn template(id: MessageId) -> Result<Vec<u8>, FormatError> {
+pub fn lookup_static(key: &'static CStr) -> Result<Vec<u8>, FormatError> {
     // SAFETY: the msgid is a static C string and gettext returns immutable
     // library-owned text. Copy immediately; no pointer enters core or survives
     // later domain/locale operations. gettext leaves errno unchanged.
-    let value = unsafe { gettext(id.msgid().as_ptr()) };
+    let value = unsafe { gettext(key.as_ptr()) };
     if value.is_null() {
         return Err(FormatError::CatalogLookup);
     }
@@ -35,5 +35,5 @@ fn template(id: MessageId) -> Result<Vec<u8>, FormatError> {
 }
 
 pub fn render_ref(message: MessageRef<'_>) -> Result<Vec<u8>, FormatError> {
-    message.render(&template(message.id())?)
+    message.render(&lookup_static(message.id().msgid())?)
 }

@@ -27,8 +27,18 @@ pub fn prepare_argument_with(
     home: impl FnOnce() -> Result<Vec<u8>, ExpandError>,
 ) -> Result<PathBuf, ExpandError> {
     let mut expanded = expand_tilde_with(name, home)?;
-    let prefix = expanded.len() - rmake_core::filenames::without_dot_prefix(&expanded).len();
-    expanded.drain(..prefix);
+    let normalized = rmake_core::filenames::without_dot_prefix(&expanded);
+    if let Some(prefix) = expanded.len().checked_sub(normalized.len())
+        && std::ptr::eq(normalized.as_ptr(), expanded[prefix..].as_ptr())
+    {
+        expanded.drain(..prefix);
+    } else {
+        // Only the exhausted path uses the helper's static fallback rather
+        // than a suffix of the original buffer.
+        debug_assert_eq!(normalized, b"./");
+        expanded.clear();
+        expanded.extend_from_slice(b"./");
+    }
     Ok(OsString::from_vec(expanded).into())
 }
 

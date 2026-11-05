@@ -375,7 +375,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         let jobs = options.jobs.take();
         let directory = (options.directory_choice, options.directory_origin.take());
         self.decoder.cursor = cursor.saturating_sub(1);
-        let next = self
+        let mut next = self
             .decoder
             .advance::<false>()
             .map_err(String::into_bytes)?;
@@ -410,7 +410,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         } else {
             options.jobs = jobs;
         }
-        let action = match next.as_ref().and_then(|step| step.argument) {
+        let action = match next.as_mut().and_then(|step| step.argument.take()) {
             Some(Argument::Definition(index)) => {
                 FlagAction::Definition(options.assignments[index].clone())
             }
