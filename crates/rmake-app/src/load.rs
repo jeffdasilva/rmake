@@ -3,30 +3,35 @@
 
 //! Linux load observations are scheduling effects, never persisted observations.
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::io::{self, Read, Seek, SeekFrom};
+use std::os::raw::c_long;
+
+pub enum Observation<'a> {
+    Method { procfs: bool },
+    Running(u32),
+    Malformed(&'a [u8]),
+    ReadFailure(&'a io::Error),
+    AverageFailure(&'a io::Error),
+    Estimate { estimated: f64, actual: f64 },
+}
 
 #[derive(Default)]
 pub struct Monitor {
     proc_tried: bool,
     proc: Option<File>,
-    second: u64,
+    second: c_long,
     starts: u64,
-    previous: u64,
+    previous: f64,
     last_error: Option<i32>,
 }
 
 impl Monitor {
-    fn tick(&mut self) {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+    fn tick(&mut self, now: c_long) {
         if now > self.second {
             self.previous = if now - self.second == 1 {
-                self.starts
+                self.starts as f64 * 0.25
             } else {
-                0
+                0.0
             };
             self.starts = 0;
             self.second = now;
@@ -34,51 +39,60 @@ impl Monitor {
     }
 
     pub fn started(&mut self) {
-        self.tick();
         self.starts = self.starts.saturating_add(1);
     }
 
-    /// Linux uses the instantaneous runnable count in /proc/loadavg, strictly
-    /// greater than the limit. If unavailable, use libc's average plus recent
-    /// launch pressure. A successful first job is never gated by this monitor.
-    pub fn high(&mut self, limit: f64) -> (bool, Option<std::io::Error>) {
+    pub fn reaped(&mut self) {
+        self.starts = self.starts.saturating_sub(1);
+    }
+
+    /// Use the instantaneous runnable count when available. The fallback
+    /// advances its pressure epoch at a sample, independently of job launches.
+    pub fn high(&mut self, limit: f64, mut observe: impl FnMut(Observation<'_>)) -> bool {
         if limit < 0.0 || limit.is_nan() {
-            return (false, None);
+            return false;
         }
         if !self.proc_tried {
             self.proc_tried = true;
             self.proc = File::open("/proc/loadavg").ok();
+            observe(Observation::Method {
+                procfs: self.proc.is_some(),
+            });
         }
         if let Some(file) = &mut self.proc {
             let mut bytes = [0; 64];
-            if retry(|| file.seek(SeekFrom::Start(0))).is_ok()
-                && let Ok(count) = retry(|| file.read(&mut bytes))
-                && let Some(running) = running_count(&bytes[..count])
+            match retry(|| file.seek(SeekFrom::Start(0)))
+                .and_then(|_| retry(|| file.read(&mut bytes)))
             {
-                return (f64::from(running) > limit, None);
+                Ok(count) => {
+                    let sample = &bytes[..count];
+                    if let Some(running) = running_count(sample) {
+                        observe(Observation::Running(running));
+                        return f64::from(running) > limit;
+                    }
+                    observe(Observation::Malformed(sample));
+                }
+                Err(error) => observe(Observation::ReadFailure(&error)),
             }
-            // A bad proc observation permanently selects the fallback for this
-            // invocation; it never freezes a stale runnable count.
             self.proc = None;
         }
-        self.tick();
-        match rmake_linux::process::average_load() {
-            Ok(load) => (
-                load + (self.starts as f64 + self.previous as f64 * 0.25) * 0.25 >= limit,
-                None,
-            ),
+        let actual = match rmake_linux::process::average_load() {
+            Ok(load) => load,
             Err(error) => {
                 let code = error.raw_os_error().unwrap_or(0);
-                let report = self.last_error != Some(code);
-                self.last_error = Some(code);
-                // Failed sampling does not deadlock the build. Recent local
-                // launch pressure still applies with an unavailable average.
-                (
-                    (self.starts as f64 + self.previous as f64 * 0.25) * 0.25 >= limit,
-                    report.then_some(error),
-                )
+                if self.last_error != Some(code) {
+                    observe(Observation::AverageFailure(&error));
+                    self.last_error = Some(code);
+                }
+                0.0
             }
+        };
+        if let Ok(now) = rmake_linux::clock::current_seconds() {
+            self.tick(now);
         }
+        let estimated = actual + (self.starts as f64 + self.previous) * 0.25;
+        observe(Observation::Estimate { estimated, actual });
+        estimated >= limit
     }
 }
 
@@ -117,7 +131,28 @@ fn running_count(bytes: &[u8]) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::running_count;
+    use super::{Monitor, running_count};
+
+    #[test]
+    fn fallback_pressure_epochs_change_on_sampling_and_count_live_reaps() {
+        let mut monitor = Monitor::default();
+        monitor.started();
+        monitor.tick(100);
+        assert_eq!((monitor.starts, monitor.previous), (0, 0.0));
+
+        monitor.started();
+        monitor.started();
+        monitor.reaped();
+        monitor.tick(100);
+        assert_eq!((monitor.starts, monitor.previous), (1, 0.0));
+        monitor.tick(101);
+        assert_eq!((monitor.starts, monitor.previous), (0, 0.25));
+
+        monitor.reaped();
+        monitor.started();
+        monitor.tick(104);
+        assert_eq!((monitor.starts, monitor.previous), (0, 0.0));
+    }
     #[test]
     fn proc_count_uses_instantaneous_running_jobs_and_c_unsigned_boundaries() {
         assert_eq!(running_count(b"100.0 90.0 80.0 2/450 12\n"), Some(2));

@@ -52,15 +52,20 @@ fn timestamp(time: SystemTime) -> io::Result<(c_long, u32)> {
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "timestamp outside libc range"))
 }
 
-/// Observe the real opening or closing clock at this call, excluding ctime's newline.
-pub fn current_ctime() -> io::Result<Vec<u8>> {
-    // GNU's wall-clock protocol observes libc time(), whose Linux VDSO
-    // clock can differ at a second boundary from clock_gettime/SystemTime.
+/// Observe the libc wall-clock second used by the Linux reference.
+pub fn current_seconds() -> io::Result<c_long> {
     // SAFETY: a NULL output pointer requests only the returned time_t.
     let seconds = unsafe { time(std::ptr::null_mut()) };
     if seconds == -1 {
-        return Err(io::Error::last_os_error());
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(seconds)
     }
+}
+
+/// Observe the real opening or closing clock at this call, excluding ctime's newline.
+pub fn current_ctime() -> io::Result<Vec<u8>> {
+    let seconds = current_seconds()?;
     let mut buffer = [0_u8; 64];
     // SAFETY: libc receives one initialized time_t and a buffer larger than its
     // documented 26-byte result. A NULL return leaves no result to inspect.

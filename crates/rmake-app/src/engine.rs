@@ -2512,6 +2512,10 @@ impl Engine {
                 }
             }
 
+            if let Some(server) = &self.jobserver {
+                crate::debug::Jobs::controller(self.output.debug_mask(), server.diagnostic_auth());
+            }
+
             if let Err(error) = self.database.variables.update_mflags(
                 &self.options.recursive_flags(),
                 self.options.environment_override,
@@ -3830,6 +3834,7 @@ impl Engine {
             }
             if let Some(status) = status {
                 crate::debug::Jobs::reaped(self.output.debug_mask(), debug_job, status.success());
+                self.load.reaped();
                 return Ok(SerialWait {
                     status,
                     cleaned,
@@ -3849,21 +3854,29 @@ impl Engine {
         let Some(limit) = self.options.load_limit else {
             return false;
         };
-        let (high, error) = self.load.high(limit);
-        if let Some(error) = error {
-            if error.raw_os_error() == Some(0) {
-                self.stderr(b"cannot enforce load limits on this operating system");
-            } else {
-                self.stderr(
-                    format!(
-                        "cannot enforce load limit: getloadavg: {}",
-                        os_error(&error)
-                    )
-                    .as_bytes(),
-                );
+        let debug = self.output.debug_mask().has(crate::debug::Mask::JOBS);
+        let running = if debug {
+            self.parallel_jobs
+                .values()
+                .filter(|job| job.child.is_some())
+                .count()
+        } else {
+            0
+        };
+        let output = &self.output;
+        let program = &self.program;
+        self.load.high(limit, |event| {
+            if let crate::load::Observation::AverageFailure(error) = event {
+                let body = if error.raw_os_error() == Some(0) {
+                    "cannot enforce load limits on this operating system".to_owned()
+                } else {
+                    format!("cannot enforce load limit: getloadavg: {}", os_error(error))
+                };
+                output.write_parts(true, &[program, b": ", body.as_bytes(), b"\n"]);
+            } else if debug {
+                crate::debug::load(event, limit, running);
             }
-        }
-        high
+        })
     }
 
     fn start_load_waiting(&mut self) {
@@ -3985,10 +3998,11 @@ impl Engine {
                 result.as_ref().is_ok_and(|status| status.success()),
             );
         }
-        if result.as_ref().is_some_and(|status| status.is_ok())
-            && let Some(buffer) = &output
-        {
-            buffer.child_reaped(true);
+        if result.as_ref().is_some_and(|status| status.is_ok()) {
+            self.load.reaped();
+            if let Some(buffer) = &output {
+                buffer.child_reaped(true);
+            }
         }
         let report_error = result
             .as_ref()
@@ -8786,7 +8800,7 @@ impl Engine {
                         .launched(self.output.debug_mask(), record, child.id());
                 }
             }
-            if process.is_ok() && self.options.load_limit.is_some_and(|v| v >= 0.0) {
+            if process.is_ok() {
                 self.load.started();
             }
             let mut signal_cleaned = false;

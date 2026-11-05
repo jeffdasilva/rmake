@@ -64,6 +64,31 @@ pub fn load_spelling(value: f64) -> String {
         .into_owned()
 }
 
+/// Format the fixed GNU load-debug decimal in the active numeric locale.
+pub fn load_debug_spelling(value: f64) -> Vec<u8> {
+    let mut bytes = vec![0; 64];
+    loop {
+        // SAFETY: the buffer is initialized and uniquely writable. The
+        // compile-time format has exactly one matching double argument.
+        let written = unsafe {
+            snprintf(
+                bytes.as_mut_ptr().cast(),
+                bytes.len(),
+                c"%f".as_ptr(),
+                value,
+            )
+        };
+        let Ok(written) = usize::try_from(written) else {
+            return format!("{value:.6}").into_bytes();
+        };
+        if written < bytes.len() {
+            bytes.truncate(written);
+            return bytes;
+        }
+        bytes.resize(written + 1, 0);
+    }
+}
+
 pub fn average_load() -> io::Result<f64> {
     let mut value = 0.0;
     // libc writes one initialized f64 and returns the number of values written.
