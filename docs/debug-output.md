@@ -49,6 +49,14 @@ Makefiles check startup eval, inclusion, secondary expansion, live mask
 activation, recipes, output synchronization and control paths. Two additional
 models check C and French output and unchanged timestamps.
 
+
+The remake preflight reports phony makefiles and unconditional double-colon
+recipes before traversal enters its temporary debug mask. This follows GNU
+Make 4.4.1's preflight in `src/main.c`. Present makefiles without a rule emit
+the normal verbose no-remake records using the freshness already observed.
+Eight ordinary cases and one C/French model cover skip decisions, ordering,
+required and optional includes, and retained recipes.
+
 `make test-debug-output` runs the separate strict gate; `DEBUG_CASE` selects an
 exact ID, including `debug-bare-basic` for the focused self-host flow. Paths come
 only from the predetermined reset workspace and executable alias. All stream

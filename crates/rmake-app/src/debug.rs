@@ -196,6 +196,7 @@ pub enum Prerequisite {
 pub enum Event<'a> {
     Reading,
     UpdatingMakefiles,
+    SkippingMakefileLoop(&'a [u8]),
     UpdatingGoals,
     Considering(&'a [u8], usize),
     Missing(&'a [u8], usize),
@@ -234,6 +235,7 @@ pub enum Event<'a> {
 
 pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     let (category, depth) = match event {
+        Event::SkippingMakefileLoop(_) => (Mask::VERBOSE, 0),
         Event::Prerequisite(state, _, _, depth) => (
             match state {
                 Prerequisite::Older | Prerequisite::OrderOnly => Mask::VERBOSE,
@@ -283,6 +285,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     match event {
         Event::Reading => print(msg::READING, &[]),
         Event::UpdatingMakefiles => print(msg::UPDATING_MAKEFILES, &[]),
+        Event::SkippingMakefileLoop(name) => print(msg::SKIP_MAKEFILE_LOOP, &[bytes(name)]),
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
         Event::Considering(name, _) => print(msg::CONSIDERING, &[bytes(name)]),
         Event::Missing(name, _) => print(msg::MISSING, &[bytes(name)]),

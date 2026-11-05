@@ -26,6 +26,7 @@ macro_rules! keys {
 keys! {
     READING: c"Reading makefiles...\n", [];
     UPDATING_MAKEFILES: c"Updating makefiles....\n", [];
+    SKIP_MAKEFILE_LOOP: c"Makefile '%s' might loop; not remaking it.\n", [B];
     UPDATING_GOALS: c"Updating goal targets....\n", [];
     CONSIDERING: c"Considering target file '%s'.\n", [B];
     MISSING: c"File '%s' does not exist.\n", [B];

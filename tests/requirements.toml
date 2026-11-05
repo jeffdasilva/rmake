@@ -1862,3 +1862,13 @@ candidate_required = 12
 reference = "https://www.gnu.org/software/make/manual/html_node/Options-Summary.html"
 fixture_count = 12
 cases = ["job-debug-serial-pool-dry-run-with-pool", "job-debug-serial-pool-no-debug-control", "job-debug-serial-pool-parallel-noop", "job-debug-serial-pool-question-with-pool", "job-debug-serial-pool-scoped-noop", "job-debug-serial-pool-serial-without-pool", "job-debug-serial-pool-serialized-dry-run", "job-debug-serial-pool-serialized-empty-expanded", "job-debug-serial-pool-serialized-noop", "job-debug-serial-pool-serialized-question", "job-debug-serial-pool-serialized-two", "job-debug-serial-pool-touch-phony-skips-recipe"]
+
+[[requirements]]
+id = "debug.makefile-loop"
+title = "Makefile remake preflight and verbose loop guards"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 8
+reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
+fixture_count = 8
+cases = ["debug-makefile-loop-basic-control", "debug-makefile-loop-optional-missing", "debug-makefile-loop-preflight-order", "debug-makefile-loop-present-double-colon", "debug-makefile-loop-required-missing", "debug-makefile-loop-rule-control", "debug-makefile-loop-spaced-name", "debug-makefile-loop-top-phony"]

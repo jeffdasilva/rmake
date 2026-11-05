@@ -698,6 +698,30 @@
         "Makefile": 1600000000,
         "entrée": 1600000000
       }
+    },
+    {
+      "id": "makefile-loop-phony-localized",
+      "makefile": ".PHONY: Makefile\nall: ; @:\n",
+      "initial_file_offsets": {},
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nMakefile 'Makefile' might loop; not remaking it.\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nLe makefile « Makefile » pourrait boucler ; on ne recommence pas.\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000
+      }
     }
   ]
 }
