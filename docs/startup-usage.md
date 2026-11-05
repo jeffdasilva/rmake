@@ -58,7 +58,10 @@ constructor and a test-owned libc catalog. The cases cover C, French
 `LC_MESSAGES` on a private UTF-8 locale, inherited option sources, raw
 option bytes, and reordered catalog fields. They check the complete
 usage transcript, both output streams, status and file effects. The
-optimized acceptance flow runs the same comparisons.
+optimized acceptance flow runs the same comparisons. Each run verifies
+its locally bootstrapped GNU executable against that build's profile and
+records the original observation's executable separately. The catalog,
+locale data, fixture and complete expected usage remain fixed.
 
 Independent verification used the French `libc.mo` from Ubuntu Noble
 `language-pack-fr-base` version `1:24.04+20240419`. The archive's signed
