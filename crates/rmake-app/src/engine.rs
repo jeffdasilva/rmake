@@ -556,6 +556,10 @@ impl<'a> RuntimeOutput<'a> {
     }
 }
 impl OutputReceiver for RuntimeOutput<'_> {
+    fn loader_event(&mut self, event: rmake_core::native::LoaderEvent<'_>) {
+        crate::debug::loader_event(self.controller, event);
+    }
+
     fn guile_callback(&mut self, callback: rmake_core::native::GuileCallback<'_>) {
         crate::debug::guile_callback(self.controller, callback);
     }

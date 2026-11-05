@@ -75,6 +75,9 @@ keys! {
     PREREQ_NEWER: c"Prerequisite '%s' is newer than target '%s'.\n", [B, B];
     PREREQ_MISSING: c"Prerequisite '%s' of target '%s' does not exist.\n", [B, B];
     PREREQ_ORDER_ONLY: c"Prerequisite '%s' is order-only for target '%s'.\n", [B, B];
+    NATIVE_LOADING_SYMBOL: c"Loading symbol %s from %s\n", [B, B];
+    NATIVE_OPENED: c"Loaded shared object %s\n", [B];
+    NATIVE_UNLOADING: c"Unloading shared object %s\n", [B];
     GUILE_EXPANDING: c"guile: Expanding '%s'\n", [B];
     GUILE_EVALUATING: c"guile: Evaluating '%s'\n", [B];
     SKIPPING_BOM: c"Skipping UTF-8 BOM in makefile '%s'\n", [B];

@@ -2,7 +2,7 @@
 // Copyright 2026 Jeff DaSilva
 //! Safe Rust hosts must not unload code underneath a suspended native call.
 use rmake_core::diagnostic::{Location, Output};
-use rmake_core::native::{NativeHost, NativeLoadStatus, NativeRuntime};
+use rmake_core::native::{LoaderEvent, NativeHost, NativeLoadStatus, NativeRuntime};
 use rmake_core::variables::ExpandError;
 use rmake_linux::native::Runtime;
 use std::io::Write;
@@ -38,8 +38,18 @@ struct Host {
     target: Runtime,
     name: Vec<u8>,
     rejections: usize,
+    reentrant_closes: usize,
 }
 impl NativeHost for Host {
+    fn loader_event(&mut self, event: LoaderEvent<'_>) {
+        if let LoaderEvent::Unloading(name) = event
+            && name == self.name
+        {
+            assert!(self.target.unload(name).unwrap());
+            self.reentrant_closes += 1;
+        }
+    }
+
     fn expand(&mut self, _: &[u8]) -> Result<Vec<u8>, ExpandError> {
         Ok(b"alive".to_vec())
     }
@@ -87,6 +97,7 @@ int rmake_reentry_unit_gmk_setup(const struct Place *location){(void)location;gm
         target: first.clone(),
         name: name.clone(),
         rejections: 0,
+        reentrant_closes: 0,
     };
     let location = Location {
         file: b"unit.mk".as_slice().into(),
@@ -113,7 +124,11 @@ int rmake_reentry_unit_gmk_setup(const struct Place *location){(void)location;gm
         b"alive"
     );
     assert_eq!(host.rejections, 2);
-    assert!(first.unload_with_host(&name, &mut host).unwrap());
+    // The observer can finish the same unload through a separate host. The
+    // outer call must stop before attempting a second close of that handle.
+    assert!(!first.unload_with_host(&name, &mut host).unwrap());
+    assert_eq!(host.reentrant_closes, 1);
+    assert_eq!(first.unloaded().as_slice(), std::slice::from_ref(&name));
     let error = function
         .callback
         .invoke(b"reentry_probe", &[], &mut host)
@@ -186,6 +201,7 @@ int rmake_retry_unit_gmk_setup(const struct Place *location){(void)location;if(a
                 target: runtime.clone(),
                 name: name.clone(),
                 rejections: 0,
+                reentrant_closes: 0,
             };
             let location = Location {
                 file: b"other.mk".as_slice().into(),

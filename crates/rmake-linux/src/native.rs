@@ -15,7 +15,8 @@ use std::sync::OnceLock;
 use rmake_core::diagnostic::{Location, Output};
 use rmake_core::messages::Message;
 use rmake_core::native::{
-    LoadOutcome, NativeCallback, NativeFunction, NativeHost, NativeLoadStatus, NativeRuntime,
+    LoadOutcome, LoaderEvent, NativeCallback, NativeFunction, NativeHost, NativeLoadStatus,
+    NativeRuntime,
 };
 use rmake_core::variables::{ExpandError, MAX_OUTPUT};
 
@@ -121,6 +122,14 @@ thread_local! {
     // image records without a TLS destructor so late gmk_eval/load stays valid.
     static KNOWN_IMAGES:RefCell<ManuallyDrop<Vec<Weak<Image>>>>=const {RefCell::new(ManuallyDrop::new(Vec::new()))};
     static FOREIGN_DEPTH:Cell<usize>=const {Cell::new(0)};
+}
+fn require_no_foreign_execution() -> Result<(), ExpandError> {
+    if FOREIGN_DEPTH.with(|depth| depth.get() != 0) {
+        return Err(error(
+            b"rmake: cannot unload a native object during foreign execution".to_vec(),
+        ));
+    }
+    Ok(())
 }
 fn claim_interpreter_thread() -> Result<(), ExpandError> {
     // pthread identity does not access Rust's already-destroyed thread object
@@ -606,11 +615,7 @@ impl Runtime {
         // An arbitrary safe NativeHost can re-enter this public method while
         // setup/callback/loader/finalizer code is suspended. An Rc alone does
         // not prevent explicit dlclose; reject before changing any state.
-        if FOREIGN_DEPTH.with(|depth| depth.get() != 0) {
-            return Err(error(
-                b"rmake: cannot unload a native object during foreign execution".to_vec(),
-            ));
-        }
+        require_no_foreign_execution()?;
         let Some(image) = self.0.loaded.borrow().get(name).cloned() else {
             return Ok(false);
         };
@@ -626,6 +631,13 @@ impl Runtime {
             && image.open.get()
             && image.handle.get() != 0
         {
+            host.loader_event(LoaderEvent::Unloading(name));
+            // A safe host can reenter while receiving this observation. A
+            // completed nested unload owns the close and any replacement record.
+            if !image.open.get() {
+                return Ok(false);
+            }
+            require_no_foreign_execution()?;
             let result = self.run(
                 4,
                 image.handle.get(),
@@ -739,6 +751,10 @@ impl NativeRuntime for Runtime {
                 status: NativeLoadStatus::Skipped,
             });
         }
+        host.loader_event(LoaderEvent::LoadingSymbol {
+            symbol: &symbol,
+            object: &name,
+        });
         let global = if self.0.global.get() != 0 {
             self.0.global.get()
         } else {
@@ -806,6 +822,7 @@ impl NativeRuntime for Runtime {
                     return Err(error(opened.message));
                 }
                 if optional {
+                    host.loader_event(LoaderEvent::OptionalOpenFailed(&opened.message));
                     self.0
                         .loaded
                         .borrow_mut()
@@ -817,6 +834,7 @@ impl NativeRuntime for Runtime {
                 });
             }
             image.handle.set(opened.pointer as usize);
+            host.loader_event(LoaderEvent::Opened(&name));
             let marker = self.run(
                 1,
                 image.handle.get(),

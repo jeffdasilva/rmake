@@ -16,7 +16,17 @@ pub enum GuileCallback<'a> {
     Evaluate(&'a [u8]),
 }
 
+/// Borrowed diagnostics emitted at the actual dynamic-loader boundary.
+#[derive(Clone, Copy, Debug)]
+pub enum LoaderEvent<'a> {
+    LoadingSymbol { symbol: &'a [u8], object: &'a [u8] },
+    Opened(&'a [u8]),
+    Unloading(&'a [u8]),
+    OptionalOpenFailed(&'a [u8]),
+}
+
 pub trait NativeHost {
+    fn loader_event(&mut self, _event: LoaderEvent<'_>) {}
     fn guile_callback(&mut self, _callback: GuileCallback<'_>) {}
     /// Observe one validated public registration before registry insertion.
     /// Interpreter hosts retain its string-cache event without expansion or I/O.

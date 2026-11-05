@@ -113,6 +113,10 @@ struct LoadHost<'a, 'b> {
 }
 
 impl crate::native::NativeHost for LoadHost<'_, '_> {
+    fn loader_event(&mut self, event: crate::native::LoaderEvent<'_>) {
+        self.context.loader_event(event);
+    }
+
     fn guile_callback(&mut self, callback: crate::native::GuileCallback<'_>) {
         self.context.guile_callback(callback);
     }

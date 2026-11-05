@@ -368,6 +368,31 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     }
 }
 
+pub fn loader_event(
+    output: &crate::output::Controller,
+    event: rmake_core::native::LoaderEvent<'_>,
+) {
+    use rmake_core::native::LoaderEvent;
+    let category = match event {
+        LoaderEvent::OptionalOpenFailed(_) => Mask::BASIC,
+        _ => Mask::VERBOSE,
+    };
+    if !output.debug_mask().has(category) || rmake_linux::native::stdout_closed() {
+        return;
+    }
+    match event {
+        LoaderEvent::LoadingSymbol { symbol, object } => raw(&[&localized(
+            msg::NATIVE_LOADING_SYMBOL,
+            &[bytes(symbol), bytes(object)],
+        )]),
+        LoaderEvent::Opened(object) => raw(&[&localized(msg::NATIVE_OPENED, &[bytes(object)])]),
+        LoaderEvent::Unloading(object) => {
+            raw(&[&localized(msg::NATIVE_UNLOADING, &[bytes(object)])])
+        }
+        LoaderEvent::OptionalOpenFailed(error) => raw(&[error, b"\n"]),
+    }
+}
+
 pub fn guile_callback(
     output: &crate::output::Controller,
     event: rmake_core::native::GuileCallback<'_>,
