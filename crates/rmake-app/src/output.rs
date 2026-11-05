@@ -46,6 +46,7 @@ struct State {
     current: RefCell<Option<Weak<Buffer>>>,
     coordination: RefCell<Option<Coordination>>,
     program: RefCell<Vec<u8>>,
+    directory_program: Cell<(usize, u32)>,
     interrupted_owner: RefCell<Option<Owner>>,
     directory: RefCell<Option<Vec<u8>>>,
     directory_trace: Cell<ProcessTrace>,
@@ -54,6 +55,7 @@ struct State {
     changed_directory: Cell<bool>,
     recursive: Cell<bool>,
     debug: Cell<crate::debug::Mask>,
+    debug_signal: Cell<Option<rmake_linux::signals::DebugHandle>>,
     print_database: Cell<bool>,
     compatibility_header: Cell<bool>,
 }
@@ -68,6 +70,7 @@ impl Controller {
             current: RefCell::new(None),
             coordination: RefCell::new(None),
             program: RefCell::new(program.to_vec()),
+            directory_program: Cell::new((program.len(), 0)),
             interrupted_owner: RefCell::new(None),
             directory: RefCell::new(None),
             directory_trace: Cell::new(ProcessTrace::NotEntered),
@@ -76,15 +79,32 @@ impl Controller {
             changed_directory: Cell::new(false),
             recursive: Cell::new(false),
             debug: Cell::new(crate::debug::Mask::NONE),
+            debug_signal: Cell::new(None),
             print_database: Cell::new(false),
             compatibility_header: Cell::new(false),
         }))
     }
+    pub fn bind_debug_signal(&self, handle: rmake_linux::signals::DebugHandle) {
+        self.0.debug_signal.set(Some(handle));
+    }
+    pub fn activate_debug_signal(&self) -> std::io::Result<()> {
+        if let Some(handle) = self.0.debug_signal.get() {
+            handle.activate(self.0.debug.get().bits())?;
+        }
+        Ok(())
+    }
     pub fn debug_mask(&self) -> crate::debug::Mask {
-        self.0.debug.get()
+        self.0
+            .debug_signal
+            .get()
+            .and_then(|handle| handle.current())
+            .map_or_else(|| self.0.debug.get(), crate::debug::Mask::from_bits)
     }
     pub fn set_debug_mask(&self, mask: crate::debug::Mask) {
         self.0.debug.set(mask);
+        if let Some(handle) = self.0.debug_signal.get() {
+            handle.publish(mask.bits());
+        }
     }
     pub fn database_requested(&self) -> bool {
         self.0.print_database.get()
@@ -165,29 +185,16 @@ impl Controller {
         } else {
             b""
         };
-        let verb = if entering {
-            b": Entering".as_slice()
-        } else {
-            b": Leaving".as_slice()
-        };
-        if let Some(directory) = directory.as_deref() {
-            plain_parts(
-                false,
-                &[
-                    prefix,
-                    program.as_slice(),
-                    verb,
-                    b" directory '",
-                    directory,
-                    b"'\n",
-                ],
-            );
-        } else {
-            plain_parts(
-                false,
-                &[prefix, program.as_slice(), verb, b" an unknown directory\n"],
-            );
-        }
+        // Startup publishes the base boundary and depth along with the
+        // display name. A translated template can reorder those arguments.
+        let (base_length, depth) = self.0.directory_program.get();
+        let line = crate::messages::system(rmake_core::messages::Message::Directory {
+            entering,
+            program: &program[..base_length],
+            depth,
+            path: directory.as_deref(),
+        });
+        plain_parts(false, &[prefix, &line]);
     }
     fn dump_frame(&self, entering: bool, active: &mut bool) {
         if entering {
@@ -215,10 +222,12 @@ impl Controller {
     pub fn set_mode(&self, mode: Mode) {
         self.0.mode.set(mode);
     }
-    pub fn set_program(&self, program: &[u8]) {
+    pub fn set_program(&self, program: &[u8], base_length: usize, depth: u32) {
+        debug_assert!(base_length <= program.len());
         let mut stored = self.0.program.borrow_mut();
         stored.clear();
         stored.extend_from_slice(program);
+        self.0.directory_program.set((base_length, depth));
     }
     fn allocate_buffer(&self, enabled: bool) -> Rc<Buffer> {
         Rc::new(Buffer {

@@ -259,7 +259,31 @@ impl Variable {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FileArgumentError {
+    MissingName,
+    ExtraValue,
+    InvalidOperation(Vec<u8>),
+}
+
+impl FileArgumentError {
+    fn message(&self) -> crate::messages::Message<'_> {
+        use crate::messages::Message;
+        match self {
+            Self::MissingName => Message::MissingFileName,
+            Self::ExtraValue => Message::ExtraFileArgument,
+            Self::InvalidOperation(operation) => Message::InvalidFileOperation(operation),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpandError {
+    /// System text is frozen before a foreign callback can restore ambient state.
+    RenderedSystem {
+        error: Box<ExpandError>,
+        diagnostic: Diagnostic,
+    },
+    System(crate::messages::OwnedMessage),
     Cancelled,
     Safety(crate::safety::SafetyError),
     Located {
@@ -268,6 +292,7 @@ pub enum ExpandError {
     },
     Unsupported(Vec<u8>),
     FileError(Vec<u8>),
+    FileArgument(FileArgumentError),
     UnlocatedError(Vec<u8>),
     UserError(Vec<u8>),
     /// A user error inside a recursive binding keeps the first entered binding
@@ -302,11 +327,61 @@ pub enum ExpandError {
 }
 
 impl ExpandError {
+    pub fn is_rendered(&self) -> bool {
+        match self {
+            Self::RenderedSystem { .. } => true,
+            Self::Located { error, .. } => error.is_rendered(),
+            _ => false,
+        }
+    }
+    pub fn preserve_frozen(self, diagnostic: Diagnostic) -> Self {
+        if diagnostic.frozen_stop().is_some() {
+            Self::RenderedSystem {
+                error: Box::new(self),
+                diagnostic,
+            }
+        } else {
+            self
+        }
+    }
+    pub fn system(message: crate::messages::Message<'_>) -> Self {
+        Self::System(message.owned())
+    }
+    pub fn system_message(&self) -> Option<crate::messages::MessageRef<'_>> {
+        use crate::messages::{Message, MessageRef};
+        let message = match self {
+            Self::Located { error, .. } => return error.system_message(),
+            Self::System(message) => return Some(MessageRef::Owned(message)),
+            Self::FileArgument(error) => error.message(),
+            Self::UnterminatedReference => Message::UnterminatedReference,
+            Self::RecursiveVariable(name) => Message::RecursiveVariable(name),
+            Self::EmptyVariableName => Message::EmptyVariableName,
+            Self::UnterminatedFunction { function, close } => Message::UnterminatedFunction {
+                name: function,
+                close: *close,
+            },
+            Self::InvalidInteger {
+                second,
+                value,
+                empty,
+            } => Message::InvalidIntcmp {
+                second: *second,
+                empty: *empty,
+                value,
+            },
+            _ => return None,
+        };
+        Some(MessageRef::Borrowed(message))
+    }
     pub fn is_unlocated(&self) -> bool {
-        matches!(self, Self::UnlocatedError(_))
+        match self {
+            Self::RenderedSystem { error, .. } => error.is_unlocated(),
+            _ => matches!(self, Self::UnlocatedError(_)),
+        }
     }
     pub fn location(&self) -> Option<&Location> {
         match self {
+            Self::RenderedSystem { error, .. } => error.location(),
             Self::Located { location, .. } => Some(location),
             Self::ContextualUserError { location, .. } => location.as_deref(),
             _ => None,
@@ -321,7 +396,7 @@ impl ExpandError {
         &'a self,
         context: Option<&'a Location>,
     ) -> Option<&'a Location> {
-        if matches!(self, Self::UnlocatedError(_)) {
+        if self.is_unlocated() {
             return None;
         }
         if self.is_user_error() {
@@ -334,16 +409,21 @@ impl ExpandError {
     fn is_user_error(&self) -> bool {
         match self {
             Self::UserError(_) | Self::ContextualUserError { .. } => true,
-            Self::Located { error, .. } => error.is_user_error(),
+            Self::Located { error, .. } | Self::RenderedSystem { error, .. } => {
+                error.is_user_error()
+            }
             _ => false,
         }
     }
 
     fn at(self, location: Option<&Arc<Location>>) -> Self {
-        if matches!(
-            self,
-            Self::ContextualUserError { .. } | Self::UnlocatedError(_)
-        ) {
+        if let Self::RenderedSystem { error, diagnostic } = self {
+            return Self::RenderedSystem {
+                error: Box::new(error.at(location)),
+                diagnostic,
+            };
+        }
+        if self.is_unlocated() || matches!(self, Self::ContextualUserError { .. }) {
             return self;
         }
         match location {
@@ -357,45 +437,39 @@ impl ExpandError {
 
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
+            Self::RenderedSystem { diagnostic, .. } => diagnostic.clone(),
             Self::Located { error, .. } => error.diagnostic(),
+            Self::System(message) => Diagnostic::system_owned(message.clone()),
             Self::UnlocatedError(message) => Diagnostic::Unlocated(message.clone()),
+            Self::FileArgument(error) => Diagnostic::system(error.message()),
             Self::FileError(message)
             | Self::WordIndexError(message)
             | Self::UserError(message)
             | Self::ContextualUserError { message, .. } => message.clone().into(),
-            Self::UnterminatedFunction { function, close } => [
-                b"unterminated call to function '".as_slice(),
-                function,
-                b"': missing '",
-                &[*close],
-                b"'",
-            ]
-            .concat()
-            .into(),
-            Self::RecursiveVariable(name) => [
-                b"Recursive variable '".as_slice(),
-                name,
-                b"' references itself (eventually)",
-            ]
-            .concat()
-            .into(),
+            Self::UnterminatedFunction { function, close } => {
+                Diagnostic::system(crate::messages::Message::UnterminatedFunction {
+                    name: function,
+                    close: *close,
+                })
+            }
+            Self::RecursiveVariable(name) => {
+                Diagnostic::system(crate::messages::Message::RecursiveVariable(name))
+            }
+            Self::UnterminatedReference => {
+                Diagnostic::system(crate::messages::Message::UnterminatedReference)
+            }
+            Self::EmptyVariableName => {
+                Diagnostic::system(crate::messages::Message::EmptyVariableName)
+            }
             Self::InvalidInteger {
                 second,
                 value,
                 empty,
-            } => {
-                let mut message = b"non-numeric ".to_vec();
-                message.extend_from_slice(if *second { b"second" } else { b"first" });
-                message.extend_from_slice(b" argument to 'intcmp' function: ");
-                if *empty {
-                    message.extend_from_slice(b"empty value");
-                } else {
-                    message.push(b'\'');
-                    message.extend_from_slice(value);
-                    message.push(b'\'');
-                }
-                message.into()
-            }
+            } => Diagnostic::system(crate::messages::Message::InvalidIntcmp {
+                second: *second,
+                empty: *empty,
+                value,
+            }),
             Self::InsufficientArguments { function, count } => {
                 let mut message =
                     format!("insufficient number of arguments ({count}) to function '")
@@ -413,6 +487,9 @@ impl fmt::Display for ExpandError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Located { error, .. } => error.fmt(output),
+            Self::RenderedSystem { diagnostic, .. } => diagnostic.fmt(output),
+            Self::System(message) => output.write_str(&String::from_utf8_lossy(&message.english())),
+            Self::FileArgument(error) => Diagnostic::system(error.message()).fmt(output),
             Self::FileError(message)
             | Self::UnlocatedError(message)
             | Self::WordIndexError(message)
@@ -2568,7 +2645,7 @@ impl Expansion<'_, '_> {
         if self.context.is_cancelled() {
             Err(ExpandError::Cancelled)
         } else {
-            result
+            result.map_err(|error| self.context.freeze_error(error))
         }
     }
 
@@ -3290,17 +3367,17 @@ impl Expansion<'_, '_> {
                     [b'>', ..] => (1, false, false),
                     [b'<', ..] => (1, true, false),
                     _ => {
-                        return Err(ExpandError::FileError(
-                            [b"file: invalid file operation: ".as_slice(), first].concat(),
+                        return Err(ExpandError::FileArgument(
+                            FileArgumentError::InvalidOperation(first.to_vec()),
                         ));
                     }
                 };
                 let path = words(&first[offset..])
                     .next()
-                    .ok_or_else(|| ExpandError::FileError(b"file: missing filename".to_vec()))?;
+                    .ok_or(ExpandError::FileArgument(FileArgumentError::MissingName))?;
                 if read {
                     if args.len() > 1 {
-                        return Err(ExpandError::FileError(b"file: too many arguments".to_vec()));
+                        return Err(ExpandError::FileArgument(FileArgumentError::ExtraValue));
                     }
                     self.filesystem(name, FilesystemEffect::ReadFile(path))
                 } else {
@@ -3568,16 +3645,18 @@ impl crate::native::NativeHost for Expansion<'_, '_> {
 }
 
 pub(crate) fn evaluation_error(error: crate::parser::ParseError) -> ExpandError {
-    if error.message.is_unlocated() {
-        ExpandError::UnlocatedError(error.message.as_bytes().to_vec())
+    let diagnostic = error.message;
+    let original = if diagnostic.is_unlocated() {
+        ExpandError::UnlocatedError(diagnostic.as_bytes().to_vec())
     } else if error.unlocated {
-        ExpandError::FileError(error.message.as_bytes().to_vec())
+        ExpandError::FileError(diagnostic.as_bytes().to_vec())
     } else {
         ExpandError::Located {
             location: Arc::new(error.location),
-            error: Box::new(ExpandError::FileError(error.message.as_bytes().to_vec())),
+            error: Box::new(ExpandError::FileError(diagnostic.as_bytes().to_vec())),
         }
-    }
+    };
+    original.preserve_frozen(diagnostic)
 }
 
 fn invalid(function: &[u8], message: &'static str) -> ExpandError {
@@ -5147,6 +5226,7 @@ mod tests {
                 enabled.set(true);
             }
             Output::Warning { message, .. } => events.push(message.to_vec()),
+            Output::SystemWarning { message, .. } => events.push(message.english()),
         };
         let store = VariableStore::new();
         assert_eq!(
@@ -5635,6 +5715,9 @@ mod tests {
             Output::Info(message) => captured.push((false, None, message.to_vec())),
             Output::Warning { location, message } => {
                 captured.push((true, location.cloned(), message.to_vec()))
+            }
+            Output::SystemWarning { location, message } => {
+                captured.push((true, location.cloned(), message.english()))
             }
         }
     }
@@ -7822,12 +7905,11 @@ fn warn_missing(
     ) {
         return Ok(());
     }
-    let message = [b"warning: undefined variable '".as_slice(), name, b"'"].concat();
-    if !context.emit(Output::Warning {
+    if !context.emit(Output::SystemWarning {
         location: context.location.or(binding_context
             .as_ref()
             .and_then(|location| location.as_deref())),
-        message: &message,
+        message: crate::messages::WarningMessage::UndefinedVariable(name),
     }) {
         return Err(ExpandError::Unsupported(
             b"--warn-undefined-variables".to_vec(),

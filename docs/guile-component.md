@@ -64,3 +64,5 @@ conversion, real CLI registration, signals/finalizers, native resource/fork/exec
 interactions, wider floating-point/locale formatting and full Guile compatibility remain additional
 work. Neither these controls nor their separate GNU2 observations close M3/M6.
 The selected default [cost measurements](benchmarks/guile-component.md) retain all slower timings and unchanged allocation summaries. Native-context throughput and enabled-profile performance remain separate measurement requirements.
+
+The [optional application frontend](guile-frontend.md) integrates this boundary with the interpreter and adds separate GNU comparison and self-host gates. The earlier component observations remain scoped to the component.
