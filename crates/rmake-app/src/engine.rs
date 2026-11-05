@@ -7673,7 +7673,12 @@ impl Engine {
                     .filter(|name| automatic_drops.is_none_or(|set| !set.contains(*name)))
                     .map(Vec::from)
                     .collect();
-                self.resolved_names.remove(target);
+                if let Some(discarded) = self.resolved_names.remove(target) {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::IgnoringVpath(&discarded),
+                    );
+                }
                 let normal: Vec<_> = normal.iter().map(|name| self.resolved_name(name)).collect();
                 let order: Vec<_> = order.iter().map(|name| self.resolved_name(name)).collect();
                 let repeated: Vec<_> = repeated

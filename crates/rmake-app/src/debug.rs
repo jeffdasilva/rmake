@@ -209,6 +209,7 @@ pub enum Event<'a> {
     Finished(&'a [u8], usize),
     Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
     MustRemake(&'a [u8], usize),
+    IgnoringVpath(&'a [u8]),
     Remade(&'a [u8], usize),
     Failed(&'a [u8], usize),
     NoNeed(&'a [u8], Option<&'a [u8]>, usize),
@@ -306,6 +307,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
             &[bytes(dependency), bytes(target)],
         ),
         Event::MustRemake(name, _) => print(msg::MUST_REMAKE, &[bytes(name)]),
+        Event::IgnoringVpath(name) => print(msg::IGNORING_VPATH, &[bytes(name)]),
         Event::Remade(name, _) => print(msg::REMADE, &[bytes(name)]),
         Event::Failed(name, _) => print(msg::FAILED, &[bytes(name)]),
         Event::NoNeed(name, path, _) => {
