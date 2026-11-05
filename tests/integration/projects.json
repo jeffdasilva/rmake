@@ -78,20 +78,26 @@
         "-e",
         "local t = {3, 1, 2}; table.sort(t); io.write(_VERSION, '|', table.concat(t, ','), '\\n')"
       ],
-      "smoke_stdout_hex": "4c756120352e347c312c322c330a",
+      "smoke_stdout_hex": "4c756120352e342d726d616b657c312c322c330a",
       "source_url": "https://www.lua.org/ftp/lua-5.4.9.tar.gz",
       "archive_sha256": "2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6",
       "topdir": "lua-5.4.9",
       "license_file": "doc/readme.html",
       "license_sha256": "760d00c8b494ec2f170bcdd969e36b038027b0288232c60e15ffa6b0d784e9c7",
       "source_ref": "lua-5.4.9",
-      "license_note": "MIT license reproduced in upstream doc/readme.html"
+      "license_note": "MIT license reproduced in upstream doc/readme.html",
+      "header_rebuild": {
+        "before_hex": "23646566696e65204c55415f56455253494f4e5f4d494e4f52092234220a",
+        "after_hex": "23646566696e65204c55415f56455253494f4e5f4d494e4f520922342d726d616b65220a",
+        "fresh_smoke_stdout_hex": "4c756120352e347c312c322c330a"
+      }
     }
   ],
   "phases": [
     "fresh-build",
+    "optional-fresh-binary-smoke",
     "noop-build",
-    "header-comment-and-newer-mtime",
+    "header-mutation-and-newer-mtime",
     "rebuild",
     "binary-smoke"
   ],

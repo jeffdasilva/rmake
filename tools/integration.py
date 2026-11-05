@@ -111,6 +111,17 @@ def freshness_errors(fresh, noop, rebuilt):
     return errors
 
 
+def rebuilt_header(project, original):
+    change = project.get('header_rebuild')
+    if change is None:
+        return original + b'\n/* rmake independent integration freshness control */\n'
+    before = bytes.fromhex(change['before_hex'])
+    after = bytes.fromhex(change['after_hex'])
+    if not before or before == after or original.count(before) != 1:
+        raise h.HarnessError('declared header rebuild needs exactly one changed source fragment')
+    return original.replace(before, after, 1)
+
+
 def persist_part(directory, label, value):
     return integration_records.persist(directory, label, value)
 
@@ -119,6 +130,8 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     case = h.Case(fixture, project['id'], 'integration.real-projects', 'required', (), 120, plan['environment'], {})
     row = {'id': project['id'], 'runs': [], 'input': persist_part(parts, project['id'] + '-input', h.snapshot({'work': fixture}))}
     comparisons = []
+    change = project.get('header_rebuild')
+    expected_steps = 5 if change is not None else 4
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, plan['environment'])
@@ -140,10 +153,14 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                 data = (runtime / 'work' / name).read_bytes()
                 if not data.startswith(b'!<arch>\n' if name.endswith('.a') else b'\x7fELF'):
                     raise h.HarnessError('missing archive/ELF output')
+            if change is not None:
+                smoke = step('fresh-smoke', project['smoke'], 10)
+                if not validate_smoke(smoke, bytes.fromhex(change['fresh_smoke_stdout_hex'])):
+                    run['errors'].append('independent fresh executable smoke bytes')
             step('noop', command)
             noop = {name: (runtime / 'work' / name).stat().st_mtime_ns for name in project['watched']}
             header = runtime / 'work' / str(safe_name(project['header']))
-            header.write_bytes(header.read_bytes() + b'\n/* rmake independent integration freshness control */\n')
+            header.write_bytes(rebuilt_header(project, header.read_bytes()))
             stamp = max(fresh.values()) + 1
             os.utime(header, ns=(stamp, stamp))
             step('rebuild', command)
@@ -159,7 +176,7 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     row['differences'] = []
     for index in range(1, len(comparisons)):
         pair = comparisons[index]
-        differences = (['incomplete build sequence'] if len(pair) != 4 or len(comparisons[0]) != 4
+        differences = (['incomplete build sequence'] if len(pair) != expected_steps or len(comparisons[0]) != expected_steps
                        else [h.differences(a, b) for a, b in zip(comparisons[0], pair)])
         row['differences'].append(differences)
     row['passed'] = not any(run['errors'] for run in row['runs']) and not any(

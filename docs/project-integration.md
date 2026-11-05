@@ -37,8 +37,9 @@ records.
 The Lua profile runs the original top-level `linux` target with two job slots,
 pipe jobserver and recursive output synchronization. It builds through three
 make processes and checks one object, the deterministic static library and
-both executables. The dependency witness changes `src/lua.h`; the Lua program
-sorts and prints an independently expected value. Silent mode avoids presenting
+both executables. The dependency witness replaces one exact version fragment
+in `src/lua.h`. The fresh and rebuilt Lua executables must sort and print
+independently expected results containing their different version strings. Silent mode avoids presenting
 parallel recipe completion order as a deterministic stream, and all observed
 stream bytes remain required. The upstream source and its MIT notice are
 pinned by digest. No patched source or system installation is required.

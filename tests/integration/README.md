@@ -27,8 +27,9 @@ The xxHash and zlib profiles use `-j1`. The Lua profile uses `-j2`, a pipe
 jobserver, recursive output synchronization and silent mode across the upstream
 `linux` target and both recursive make calls. All profiles retain exact streams
 and use GCC, the C locale, deterministic archives and no linker build IDs.
-Lua watches an object, the archive and both executable outputs after touching
-its public header. A real executable sorts and prints the expected value.
+Lua watches an object, the archive and both executable outputs after changing
+one exact version fragment in its public header. Fresh and rebuilt executions
+require independently expected and different version strings.
 Broader installation and compiler profiles remain open. These functional
 checks provide no performance evidence.
 
@@ -55,3 +56,7 @@ compiler/binutils/shell identities and both GNU runs before each candidate.
 Its raw observations supplement the initial history without replacing it.
 
 [`lua-qualification.json`](lua-qualification.json) describes the lossless Lua build and self-host evidence archive. File payloads are deduplicated by digest, and every reconstructed observation was checked against its original hash before packaging. Earlier xxHash and zlib history is unchanged.
+
+The [semantic rebuild archive](lua-semantic-rebuild.json) retains complete
+GNU2 and both candidate runs, including separate fresh and rebuilt smoke
+results. The original comment-only qualification stays unchanged.
