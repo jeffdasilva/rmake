@@ -243,9 +243,7 @@ impl Engine {
         let outcome = if let Some(key) = &branch_key {
             self.database_branch_outcomes.get(key)
         } else {
-            self.done
-                .get(name)
-                .or_else(|| self.database_makefiles.get(name))
+            self.done.get(name)
         };
         let observed = self.path_observations.get(name);
         let times = self.database_times.borrow();
@@ -613,7 +611,7 @@ mod tests {
         engine
             .database_remake_started
             .insert(b"missing.mk".to_vec());
-        engine.database_makefiles.insert(
+        engine.done.insert(
             b"missing.mk".to_vec(),
             Outcome {
                 failed: true,

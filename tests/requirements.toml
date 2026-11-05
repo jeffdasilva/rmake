@@ -1892,3 +1892,13 @@ candidate_required = 7
 reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
 fixture_count = 7
 cases = ["remake-secondary-once-explicit-resolved", "remake-secondary-once-explicit-unresolved", "remake-secondary-once-phony-control", "remake-secondary-once-recipe-control", "remake-secondary-once-unruled-unresolved", "remake-timing-control-existing-with-write", "remake-timing-control-optional-with-rule"]
+
+[[requirements]]
+id = "debug.remake-implicit-order"
+title = "Implicit lookup and cached outcomes of unruled makefiles"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 9
+reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
+fixture_count = 9
+cases = ["remake-implicit-order-existing-no-rule", "remake-implicit-order-existing-ordinary-goal", "remake-implicit-order-existing-written", "remake-implicit-order-optional-created", "remake-implicit-order-optional-no-rule", "remake-implicit-order-optional-ordinary-goal", "remake-implicit-order-reject-implicit", "remake-implicit-order-resolve-implicit", "remake-implicit-order-select-unrecorded"]

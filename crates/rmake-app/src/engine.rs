@@ -839,7 +839,6 @@ pub struct Engine {
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
-    database_makefiles: HashMap<Vec<u8>, Outcome>,
     database_secondary: HashSet<Vec<u8>>,
     database_remake_started: HashSet<Vec<u8>>,
     program: Vec<u8>,
@@ -1403,7 +1402,6 @@ impl Engine {
             database_unchecked_times: RefCell::new(HashSet::new()),
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
-            database_makefiles: HashMap::new(),
             database_secondary: HashSet::new(),
             database_remake_started: HashSet::new(),
             program,
@@ -2801,51 +2799,15 @@ impl Engine {
                     }
                     continue;
                 }
-                // Global symbol lookup can load a logical module name whose
-                // file is absent. Loader success does not make that file exist.
-                let missing = if self.database.loaded_modules.contains_key(&makefile.name) {
-                    self.modified(&makefile.name).is_none()
-                } else {
-                    makefile.missing
-                };
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
-                // A recorded rule goes through normal traversal. Its implicit
-                // search can expand prerequisites with observable side effects.
-                if !self.database.rules.contains_key(name)
-                    && !self.ignores_file_rules(name)
-                    && !self.resolve_implicit(name)
-                {
-                    self.remove_intermediates();
-                    return 2;
-                }
-                let before = self.modified(&makefile.name);
-                // The reader opens the literal filename, but the update graph
-                // uses archive-member freshness for the same spelling.
-                let missing = missing
-                    || (before.is_none() && rmake_core::filenames::archive_parts(name).is_some());
-                if !self.database.rules.contains_key(name)
-                    && (!missing || (optional && !may_replay))
-                {
-                    if before.is_some() {
-                        // Preserve the visible no-rule visit without building a graph node.
-                        use crate::debug::{Event, emit};
-
-                        emit(&self.output, Event::Considering(name, 1));
-                        emit(&self.output, Event::Finished(name, 1));
-                        self.debug_no_remake(name, 1);
-                        self.database_secondary.insert(makefile.name.clone());
-                    }
-                    self.database_makefiles.insert(
-                        makefile.name.clone(),
-                        Outcome {
-                            time: before,
-                            failed: before.is_none(),
-                            ..Outcome::default()
-                        },
-                    );
-                    continue;
-                }
+                // Keep the existing snapshot for recorded rules. A makefile
+                // without a rule uses the timestamp of its first graph visit.
+                let mut before = self
+                    .database
+                    .rules
+                    .contains_key(name)
+                    .then(|| self.modified(name));
                 let pending_open_error = || {
                     makefile
                         .read_error
@@ -2860,7 +2822,9 @@ impl Engine {
                     if optional { None } else { pending_open_error() };
                 self.optional_remake = optional;
                 self.retain_remake_failure = may_replay;
-                let result = self.build(&makefile.name, None, 0);
+                let initial_time = before.is_none().then_some(&mut before);
+                let result = self.build_recording_initial_time(name, None, 0, initial_time);
+                let before = before.unwrap_or(result.time);
                 self.retain_remake_failure = false;
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
@@ -4674,11 +4638,6 @@ impl Engine {
             unchecked_times.insert(to.to_vec());
         }
         drop(unchecked_times);
-        if let Some(outcome) = self.database_makefiles.remove(from) {
-            self.database_makefiles
-                .entry(to.to_vec())
-                .or_insert(outcome);
-        }
         {
             let times = self.database_times.get_mut();
             if let Some(time) = times.remove(from) {
@@ -6420,6 +6379,16 @@ impl Engine {
     }
 
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+        self.build_recording_initial_time(target, parent, depth, None)
+    }
+
+    fn build_recording_initial_time(
+        &mut self,
+        target: &[u8],
+        parent: Option<&[u8]>,
+        depth: usize,
+        initial_time: Option<&mut Option<Option<SystemTime>>>,
+    ) -> Outcome {
         let known_alias = self.aliases.contains(target);
         let renamed = match self.prepare_search_name(target) {
             Ok(name) => name,
@@ -6457,7 +6426,13 @@ impl Engine {
                 ..Outcome::default()
             }
         } else {
-            self.build_inner(target, original_goal.unwrap_or(target), parent, depth)
+            self.build_inner(
+                target,
+                original_goal.unwrap_or(target),
+                parent,
+                depth,
+                initial_time,
+            )
         };
         if archive_target
             && !previously_done
@@ -6487,8 +6462,17 @@ impl Engine {
         considering_name: &[u8],
         parent: Option<&[u8]>,
         depth: usize,
+        initial_time: Option<&mut Option<Option<SystemTime>>>,
     ) -> Outcome {
+        let mut traced_optional_failure = false;
         if !self.remaking && self.optional_remake_failures.remove(target).is_some() {
+            // A missing optional makefile was silent during remake. If it
+            // becomes a goal, announce the cached failure before diagnosing it.
+            if self.done.get(target).is_some_and(|outcome| outcome.failed)
+                && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
+            {
+                traced_optional_failure = true;
+            }
             self.report_missing_rule(target, parent);
         }
         if let Some(owner) = self.active_peers.get(target)
@@ -6510,14 +6494,24 @@ impl Engine {
                 .debug_serial_considered
                 .as_ref()
                 .is_some_and(|files| files.contains(target));
-            crate::debug::emit(
-                &self.output,
+            if !traced_optional_failure {
                 if pruned {
-                    crate::debug::Event::Pruning(target, debug_depth)
-                } else {
-                    crate::debug::Event::Already(target, debug_depth)
-                },
-            );
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::Pruning(target, debug_depth),
+                    );
+                } else if !self.trace_cached_unruled_makefile(
+                    considering_name,
+                    target,
+                    debug_depth,
+                    outcome.failed,
+                ) {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::Already(target, debug_depth),
+                    );
+                }
+            }
             if outcome.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(target).is_some()
             {
@@ -6604,6 +6598,9 @@ impl Engine {
             }
         };
         let mut before = resolved.as_ref().and_then(|(_, time)| *time);
+        if let Some(initial_time) = initial_time {
+            *initial_time = Some(before);
+        }
         if before.is_none() {
             crate::debug::emit(
                 &self.output,
@@ -6671,6 +6668,11 @@ impl Engine {
             if !self.optional_remake {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent);
+            } else if depth == 0 {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Failed(target, debug_depth),
+                );
             }
             let result = Outcome {
                 failed: true,
@@ -6708,6 +6710,34 @@ impl Engine {
             return outcome;
         }
         self.build_rule(target, depth, before, comparison, phony, rule, None)
+    }
+
+    fn trace_cached_unruled_makefile(
+        &self,
+        considering_name: &[u8],
+        target: &[u8],
+        depth: usize,
+        failed: bool,
+    ) -> bool {
+        use crate::debug::{Event, Mask, emit};
+
+        if self.remaking
+            || !self.output.debug_mask().has(Mask::VERBOSE)
+            || !self.makefile_names.contains(target)
+            || self.database.rules.contains_key(target)
+        {
+            return false;
+        }
+        emit(&self.output, Event::Considering(considering_name, depth));
+        emit(
+            &self.output,
+            if failed {
+                Event::RecentlyFailed(target, depth)
+            } else {
+                Event::Already(target, depth)
+            },
+        );
+        true
     }
 
     fn resume_double_colon(&mut self, target: &[u8]) -> Outcome {

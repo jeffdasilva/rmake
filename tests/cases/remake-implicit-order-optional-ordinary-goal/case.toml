@@ -1,0 +1,14 @@
+id = "remake-implicit-order-optional-ordinary-goal"
+requirement = "debug.remake-implicit-order"
+candidate = "required"
+description = "Observe one ordinary makefile remake visit and its implicit lookup or preserved effects."
+provenance = "Original finite fixture, independently qualified against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "--debug=v,i,m", "missing.mk"]
+timeout_seconds = 5
+
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nReading makefile 'missing.mk' (search path) (don't care) (no ~ expansion)...\nUpdating makefiles....\n Considering target file 'Makefile'.\n  Looking for an implicit rule for 'Makefile'.\n  No implicit rule found for 'Makefile'.\n Finished prerequisites of target file 'Makefile'.\n No need to remake target 'Makefile'.\n Considering target file 'missing.mk'.\n  File 'missing.mk' does not exist.\n  Looking for an implicit rule for 'missing.mk'.\n  No implicit rule found for 'missing.mk'.\n Finished prerequisites of target file 'missing.mk'.\n Must remake target 'missing.mk'.\n Failed to remake target file 'missing.mk'.\nUpdating goal targets....\nConsidering target file 'missing.mk'.\nRecently tried and failed to update file 'missing.mk'.\nmake: *** No rule to make target 'missing.mk'.  Stop.\n"
+stderr = ""

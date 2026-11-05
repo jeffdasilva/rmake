@@ -52,10 +52,13 @@ models check C and French output and unchanged timestamps.
 
 The remake preflight reports phony makefiles and unconditional double-colon
 recipes before traversal enters its temporary debug mask. This follows GNU
-Make 4.4.1's preflight in `src/main.c`. Present makefiles without a rule emit
-the normal verbose no-remake records using the freshness already observed.
-Eight ordinary cases and one C/French model cover skip decisions, ordering,
-required and optional includes, and retained recipes.
+Make 4.4.1's preflight in `src/main.c`. When a makefile has no recorded rule,
+its graph visit observes freshness and reports consideration before the implicit
+search. It retains the outcome for a later ordinary goal and reports an optional
+missing file's cached failure before the error. Nine ordinary cases cover search
+order, retained secondary-expansion effects, and reuse across the two phases.
+Eight separate ordinary cases and one C/French model cover preflight skip
+decisions, ordering, required and optional includes, and retained recipes.
 
 `make test-debug-output` runs the separate strict gate; `DEBUG_CASE` selects an
 exact ID, including `debug-bare-basic` for the focused self-host flow. Paths come

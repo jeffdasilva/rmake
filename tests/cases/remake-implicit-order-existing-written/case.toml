@@ -1,0 +1,12 @@
+id = "remake-implicit-order-existing-written"
+requirement = "debug.remake-implicit-order"
+candidate = "required"
+description = "Observe one ordinary makefile remake visit and its implicit lookup or preserved effects."
+provenance = "Original finite fixture, independently qualified against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "restart=,value=original\n"
+stderr = ""
