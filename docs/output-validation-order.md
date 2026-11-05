@@ -72,3 +72,10 @@ Portuguese. They compare two pinned GNU runs
 and rmake against independently specified status, byte streams, and complete
 filesystem effects, including repeated options, an included reader, raw path
 bytes, and reopening a lock removed between live assignments.
+
+Each nonempty post-read flag source completes the selected mutex before the
+next source can expand. Empty sources and an absent `MAKEFLAGS` binding do
+not create a lock-open attempt. When output buffering is activated, setup
+reopens the selected path independently. Nineteen required cases cover
+fatal and warning order, retained authentication, pathname removal, and
+suspended include option decoding.

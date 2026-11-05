@@ -586,11 +586,13 @@ impl<'a> ExpansionContext<'a> {
             }
             result
         };
-        self.makeflags
-            .as_mut()
-            .expect("configured receiver")
-            .complete_live_flags()
-            .map_err(ExpandError::UnlocatedError)?;
+        if has_input {
+            self.makeflags
+                .as_mut()
+                .expect("configured receiver")
+                .complete_live_flags()
+                .map_err(ExpandError::UnlocatedError)?;
+        }
         if let Some(mut preparation) = result.prepare_includes.take() {
             // Argument-driving depth, terminal and following-definition state
             // have been restored. Search effects retain any enclosing frame,

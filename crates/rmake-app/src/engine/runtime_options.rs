@@ -561,6 +561,12 @@ impl Drop for IncludeDecoder {
     }
 }
 
+fn nonempty_flag_source(value: &[u8]) -> bool {
+    value
+        .iter()
+        .any(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
+}
+
 pub(super) fn origin(environment_override: bool) -> Origin {
     if environment_override {
         Origin::EnvironmentOverride
@@ -732,15 +738,15 @@ impl Engine {
             // Selecting the unchanged-value shortcut is an implementation
             // probe. The selected shortcut or real expansion below owns the
             // one semantic reference, never both.
-            let unchanged = self
-                .database
-                .variables
-                .get(name)
-                .is_none_or(|value| value.raw_value() == *initial);
+            let binding = self.database.variables.get(name);
+            let unchanged = binding.is_none_or(|value| value.raw_value() == *initial);
+            let reopen_unchanged = unchanged
+                && self.options.sync_mutex.is_some()
+                && binding.is_some_and(|value| nonempty_flag_source(value.raw_value()));
             if unchanged {
                 self.database.variables.database_lookup(name);
             }
-            let value = if unchanged && name == b"MAKEFLAGS" && changed {
+            let value = if unchanged && name == b"MAKEFLAGS" && changed && binding.is_some() {
                 let prefix = self
                     .initial_flags
                     .strip_suffix(b" -- $(MAKEOVERRIDES)")
@@ -781,6 +787,10 @@ impl Engine {
                 if let Some(jobs) = self.apply_runtime_flag_source(value)? {
                     file_jobs = Some(jobs);
                 }
+            } else if reopen_unchanged {
+                // The serialized source needs no switch replay, but its
+                // output lock is still reopened by a nonempty decode.
+                self.complete_passive_mutex()?;
             }
             if name == b"GNUMAKEFLAGS"
                 && let Err(error) =
@@ -842,7 +852,17 @@ impl Engine {
         Ok(())
     }
 
+    fn complete_passive_mutex(&self) -> Result<(), ()> {
+        if let Some(authentication) = &self.options.sync_mutex {
+            self.output.decode_mutex(authentication).map_err(|error| {
+                self.fatal(None, &crate::usage::sync_mutex_open(authentication, &error));
+            })?;
+        }
+        Ok(())
+    }
+
     fn apply_runtime_flag_source(&mut self, value: Vec<u8>) -> Result<Option<usize>, ()> {
+        let has_input = nonempty_flag_source(&value);
         // Source expansion can itself change policy; capture its completed state.
         self.options.debug_mask = self.output.debug_mask();
         let warning_entry = self.flag_state.warn_undefined.get();
@@ -916,6 +936,9 @@ impl Engine {
                 self.database
                     .variables
                     .set_environment_override(self.options.environment_override);
+                if has_input {
+                    self.complete_passive_mutex()?;
+                }
                 return Ok(jobs);
             }
         }
@@ -1033,6 +1056,9 @@ impl Engine {
         self.output.set_debug_mask(self.options.debug_mask);
         // The following source may re-enter the live receiver or take its state.
         self.flag_state.refresh(&self.options);
+        if has_input {
+            self.complete_passive_mutex()?;
+        }
         Ok(file_jobs)
     }
 }

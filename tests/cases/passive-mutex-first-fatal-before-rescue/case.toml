@@ -1,0 +1,13 @@
+id = "passive-mutex-first-fatal-before-rescue"
+requirement = "options.passive-source-order"
+candidate = "required"
+description = "passive mutex first fatal before rescue"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "gnu-source\nmake: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n"
+stderr = ""

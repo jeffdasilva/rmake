@@ -307,16 +307,14 @@ impl Controller {
         if !self.mode().root_buffered() {
             return Ok(authentication.map(<[u8]>::to_vec));
         }
-        if let Some(provider) = self.0.coordination.borrow().as_ref()
-            && authentication == Some(provider.authentication())
-        {
-            return Ok(authentication.map(<[u8]>::to_vec));
-        }
+        // Active setup opens the pathname again, even if a completed
+        // source already selected the same authentication.
         let provider = if let Some(auth) = authentication {
             match Coordination::join(auth)? {
                 Some(provider) => provider,
                 None => {
                     self.decode_mutex(auth)?;
+                    self.clear();
                     return Ok(None);
                 }
             }

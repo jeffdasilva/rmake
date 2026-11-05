@@ -2452,12 +2452,6 @@ impl Engine {
             if self.options.no_variables && !entry_no_variables {
                 self.database.disable_builtin_variables();
             }
-            if let Some(authentication) = &self.options.sync_mutex
-                && let Err(error) = self.output.decode_mutex(authentication)
-            {
-                self.fatal(None, &crate::usage::sync_mutex_open(authentication, &error));
-                return 2;
-            }
             match crate::command_variables::replay(
                 &mut self.database.variables,
                 self.command_replay,
@@ -2508,11 +2502,12 @@ impl Engine {
                 match self.output.setup(self.options.sync_mutex.as_deref()) {
                     Ok(authentication) => self.options.sync_mutex = authentication,
                     Err(error) => {
-                        self.fatal(
-                            None,
-                            format!("cannot open output sync mutex: {}", os_error(&error))
-                                .as_bytes(),
-                        );
+                        let message = match self.options.sync_mutex.as_deref() {
+                            Some(auth) => crate::usage::sync_mutex_open(auth, &error),
+                            None => format!("cannot open output sync mutex: {}", os_error(&error))
+                                .into_bytes(),
+                        };
+                        self.fatal(None, &message);
                         return 2;
                     }
                 }
