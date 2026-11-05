@@ -48,17 +48,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0
             .output
             .decode_mutex(&authentication)
-            .map_err(|error| {
-                [
-                    b"cannot open output sync mutex ".as_slice(),
-                    authentication
-                        .strip_prefix(b"fnm:")
-                        .unwrap_or(&authentication),
-                    b": ",
-                    os_error(&error).as_bytes(),
-                ]
-                .concat()
-            })
+            .map_err(|error| crate::usage::sync_mutex_open(&authentication, &error))
     }
 
     fn report_flag_notice(&mut self, notice: rmake_core::diagnostic::FlagNotice) {

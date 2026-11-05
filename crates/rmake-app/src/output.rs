@@ -293,15 +293,13 @@ impl Controller {
             Some(provider) => {
                 self.0.coordination.replace(Some(provider));
             }
-            None => self.write_parts(
-                true,
-                &[
-                    self.0.program.borrow().as_slice(),
-                    b": invalid --sync-mutex string '",
-                    authentication,
-                    b"'\n",
-                ],
-            ),
+            None => {
+                let message = crate::usage::invalid_sync_mutex(authentication);
+                self.write_parts(
+                    true,
+                    &[self.0.program.borrow().as_slice(), b": ", &message, b"\n"],
+                );
+            }
         }
         Ok(())
     }

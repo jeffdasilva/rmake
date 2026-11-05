@@ -24,6 +24,9 @@ pub fn initialize(directory: &Path) -> Result<(), &'static str> {
     }
     Ok(())
 }
+/// Copy the operating system's live errno detail without decoding its bytes.
+pub use crate::posix::strerror as errno_detail;
+
 pub fn lookup_static(key: &'static CStr) -> Result<Vec<u8>, FormatError> {
     lookup(key, None)
 }
