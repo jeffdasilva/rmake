@@ -1346,24 +1346,19 @@ impl VariableStore {
 
     /// A target declared inside a global call or loop sees those lexical
     /// bindings behind its own table, before the permanent global table.
-    pub(crate) fn add_declaration_lexical(&mut self, frames: &[LocalFrame]) {
-        let layers = frames
+    pub(crate) fn add_declaration_lexical(&mut self, lexical: &DeclarationLexical) {
+        let layers = lexical
+            .0
             .iter()
             .rev()
-            .filter(|frame| !frame.is_empty())
-            .map(|frame| {
-                let mut bindings = Bindings::new(16);
-                for (name, variable) in frame.iter() {
-                    bindings.insert(name, variable.clone());
-                }
-                VariableLayer {
-                    file_locals: false,
-                    variables: Arc::new(bindings),
-                    target: None,
-                    inherited: true,
-                    global: false,
-                    pattern: false,
-                }
+            .filter(|bindings| !bindings.is_empty())
+            .map(|bindings| VariableLayer {
+                file_locals: false,
+                variables: Arc::clone(bindings),
+                target: None,
+                inherited: true,
+                global: false,
+                pattern: false,
             });
         self.layers.splice(0..0, layers);
     }
@@ -2651,6 +2646,20 @@ impl LocalFrame {
             .map(|(name, binding)| (name, &binding.variable))
     }
 
+    fn for_each_in_definition_order(&self, mut visit: impl FnMut(&[u8], &Variable)) {
+        if self.values.len() <= 1 {
+            for (name, variable) in self.iter() {
+                visit(name, variable);
+            }
+            return;
+        }
+        let mut bindings: Vec<_> = self.values.iter().collect();
+        bindings.sort_unstable_by_key(|(_, binding)| binding.position);
+        for (name, binding) in bindings {
+            visit(name, &binding.variable);
+        }
+    }
+
     fn for_each_environment_name(&self, mut visit: impl FnMut(&[u8])) {
         if self.values.len() <= 1 {
             for name in self.values.keys() {
@@ -2659,14 +2668,48 @@ impl LocalFrame {
             return;
         }
         // Recreate this small table's slot order only for a shell consumer.
-        let mut bindings: Vec<_> = self.values.iter().collect();
-        bindings.sort_unstable_by_key(|(_, binding)| binding.position);
         let mut order = crate::variable_order::NameOrder::new(16, false);
-        for (name, _) in bindings {
-            order.insert(name);
-        }
+        self.for_each_in_definition_order(|name, _| order.insert(name));
         for name in order.names() {
             visit(name);
+        }
+    }
+}
+
+/// A suspended reader's lexical layers, shared by its nested target reads.
+#[derive(Clone, Default)]
+pub(crate) struct DeclarationLexical(Vec<Arc<Bindings>>);
+
+impl DeclarationLexical {
+    pub(crate) fn capture(frames: &[LocalFrame]) -> Self {
+        Self(
+            frames
+                .iter()
+                .map(|frame| {
+                    if frame.is_empty() {
+                        return empty_bindings(16);
+                    }
+                    let mut bindings = Bindings::new(16);
+                    frame.for_each_in_definition_order(|name, variable| {
+                        bindings.insert(name, variable.clone());
+                    });
+                    Arc::new(bindings)
+                })
+                .collect(),
+        )
+    }
+
+    pub(crate) fn restore_export_policies(&self, frames: &[LocalFrame]) {
+        debug_assert_eq!(self.0.len(), frames.len());
+        // The reader retains its live values and frame order. Only export
+        // metadata can change on these inherited bindings during the read.
+        for (bindings, frame) in self.0.iter().zip(frames) {
+            for (name, variable) in frame.iter() {
+                let captured = bindings
+                    .get(name.as_slice())
+                    .expect("captured lexical binding");
+                variable.scope.export.set(captured.scope.export.get());
+            }
         }
     }
 }

@@ -476,7 +476,7 @@ pub struct Database {
 #[derive(Clone)]
 struct TargetRead {
     target: Vec<u8>,
-    global_lexical: Vec<crate::variables::LocalFrame>,
+    global_lexical: crate::variables::DeclarationLexical,
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -2788,12 +2788,13 @@ impl Database {
         shell: bool,
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
+        let owns_reader_lexical = self.target_read.is_none() && self.evaluation_scope.is_none();
         let global_lexical = if let Some(read) = &self.target_read {
             read.global_lexical.clone()
-        } else if self.evaluation_scope.is_none() {
-            self.evaluation_bindings.clone()
+        } else if owns_reader_lexical {
+            crate::variables::DeclarationLexical::capture(&self.evaluation_bindings)
         } else {
-            Vec::new()
+            crate::variables::DeclarationLexical::default()
         };
         scope.add_declaration_lexical(&global_lexical);
         let parent = self.target_read.replace(TargetRead {
@@ -2807,6 +2808,13 @@ impl Database {
         } else {
             crate::variables::expand_scoped_database::<false>(self, scope, bytes, context)
         };
+        if owns_reader_lexical {
+            self.target_read
+                .as_ref()
+                .expect("active target declaration")
+                .global_lexical
+                .restore_export_policies(&previous_bindings);
+        }
         self.evaluation_bindings = previous_bindings;
         self.evaluation_scope = previous_scope;
         self.target_read = parent;
