@@ -49,6 +49,9 @@ pub mod environment;
 #[allow(unsafe_code)]
 pub mod native;
 
+#[allow(unsafe_code)]
+pub mod stdin_source;
+pub mod temporary;
 // The application supplies cached file times and owns emission-point clocks.
 #[allow(unsafe_code)]
 pub mod clock;

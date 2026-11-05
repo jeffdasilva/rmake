@@ -687,7 +687,6 @@ pub struct Engine {
     options: Options,
     assumptions: Option<Box<assumptions::Files>>,
     initial_plan: Option<Box<initial::Plan>>,
-    native_exit_override: Option<Box<NativeExit>>,
     startup_directory: Option<std::path::PathBuf>,
     output: crate::output::Controller,
     reader_output: Option<std::rc::Rc<crate::output::Buffer>>,
@@ -835,12 +834,17 @@ pub struct Invocation {
 }
 impl Invocation {
     pub fn into_native_exit(self, program: Vec<u8>) -> Option<Box<NativeExit>> {
-        if !crate::native::has_modules() && !self.initial.output.database_requested() {
-            return None;
+        let mut prepared = *self.initial;
+        if !crate::native::has_modules() && !prepared.output.database_requested() {
+            return prepared
+                .plan
+                .stdin_source
+                .take()
+                .map(|source| NativeExit::source(source, prepared.output.clone(), program));
         }
-        let prepared = *self.initial;
         Some(Box::new(NativeExit::Startup(Box::new(
             startup_exit::Host {
+                stdin_source: prepared.plan.stdin_source.take(),
                 database: prepared.database,
                 filesystem: prepared.filesystem,
                 output: prepared.output,
@@ -884,7 +888,7 @@ impl Engine {
     ) -> Result<Invocation, Failure<InvocationError>> {
         let args: Vec<_> = args.into_iter().collect();
         let plan = initial::Plan::new(args, program, invocation, makeflags, gnumakeflags, output);
-        Box::new(plan).decode(None)
+        Box::new(plan).decode()
     }
 }
 
@@ -903,7 +907,7 @@ impl Engine {
             mut construction,
             exports: mut inherited_exports,
             seed,
-            plan,
+            mut plan,
             initial_directory,
             shuffle,
             warnings: startup_warnings,
@@ -921,6 +925,7 @@ impl Engine {
                             drop(construction);
                             Some(Box::new(NativeExit::Startup(Box::new(
                                 startup_exit::Host {
+                                    stdin_source: plan.stdin_source.take(),
                                     database,
                                     filesystem,
                                     output,
@@ -935,7 +940,9 @@ impl Engine {
                                 },
                             ))))
                         } else {
-                            None
+                            plan.stdin_source.take().map(|source| {
+                                NativeExit::source(source, output.clone(), program.clone())
+                            })
                         };
                         return Err(Failure { error, exit });
                     }
@@ -1240,7 +1247,6 @@ impl Engine {
         let initial_plan = Some(plan);
         let mut engine = Self {
             initial_plan,
-            native_exit_override: None,
             assumptions,
             startup_directory,
             output,
@@ -1485,7 +1491,7 @@ impl Engine {
     }
 
     pub fn requires_retained_exit(&self) -> bool {
-        crate::native::has_modules() || self.native_exit_override.is_some()
+        crate::native::has_modules()
     }
 
     pub fn prepare_native_exit(&mut self) {
@@ -1498,9 +1504,6 @@ impl Engine {
     }
 
     pub fn native_exit(&mut self, mut status: u8) -> u8 {
-        if let Some(mut exit) = self.native_exit_override.take() {
-            return exit.finish(status);
-        }
         self.output.process_lifetime().finish();
         if !self.options.directories.is_empty()
             && let Some(directory) = &self.startup_directory
@@ -1594,6 +1597,7 @@ impl Engine {
         } else {
             self.stderr(&[b"*** ".as_slice(), message, b".  Stop."].concat());
         }
+        self.unlink_stdin();
         if wait {
             self.notice_waiting_for_jobs();
         }
@@ -1764,6 +1768,7 @@ impl Engine {
 
     pub fn run_retained(&mut self) -> u8 {
         let mut status = self.run_inner();
+        self.unlink_stdin();
         if self.interrupt.is_none() && rmake_linux::signals::pending().is_some() {
             self.observe_interrupt();
             self.wait_all_jobs();
@@ -1803,9 +1808,7 @@ impl Engine {
             self.output.debug_mask(),
             self.jobserver.as_ref().and_then(Jobserver::owned_slots),
         );
-        if self.native_exit_override.is_none() {
-            self.print_database();
-        }
+        self.print_database();
         status
     }
 
@@ -1884,7 +1887,121 @@ impl Engine {
         Ok(())
     }
 
+    fn unlink_stdin(&self) {
+        crate::stdin_source::unlink(
+            self.initial_plan
+                .as_ref()
+                .and_then(|plan| plan.stdin_source.as_ref()),
+            &self.output,
+            &self.program,
+        );
+    }
+
+    fn prepare_stdin(&mut self) -> Result<(), ()> {
+        for index in 0..self.options.files.len() {
+            if self.options.files[index] != Path::new("-") {
+                continue;
+            }
+            if self.options.temp_stdin_file.is_some() {
+                self.fatal(None, b"Makefile from standard input specified twice");
+                return Err(());
+            }
+            let source = match rmake_linux::stdin_source::Source::copy_stdin() {
+                Ok(source) => source,
+                Err(_) if rmake_linux::signals::pending().is_some() => return Err(()),
+                Err(_) => {
+                    self.fatal(
+                        None,
+                        b"cannot store makefile from stdin to a temporary file",
+                    );
+                    return Err(());
+                }
+            };
+            self.options.files[index] = source.path().to_owned();
+            self.options.temp_stdin_file = Some(index);
+            self.flag_state.publish_stdin(&self.options, index);
+            self.initial_plan
+                .as_mut()
+                .expect("initial invocation")
+                .stdin_source = Some(source);
+        }
+        if let Some(index) = self.options.temp_stdin_file {
+            let name = self.options.files[index].as_os_str().as_bytes();
+            self.database.file_records.insert(name);
+            self.done.insert(
+                name.to_vec(),
+                Outcome {
+                    time: modified(name),
+                    completion: CompletionTime::Preserve,
+                    ..Outcome::default()
+                },
+            );
+        }
+        Ok(())
+    }
+
+    fn restart_after_makefiles(&mut self, restarts: u32) -> u8 {
+        self.print_database();
+        let plan = self.initial_plan.take().expect("initial invocation");
+        let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
+        let inherited_jobserver = self
+            .jobserver
+            .as_ref()
+            .filter(|server| server.owned_slots().is_none())
+            .cloned();
+        self.jobserver.take();
+        self.output.select(None);
+        self.output.clear();
+        if !self.options.directories.is_empty() {
+            let restored = if let Some(directory) = &self.startup_directory {
+                match std::env::set_current_dir(directory) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        self.stderr(
+                            [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
+                                .concat()
+                                .as_slice(),
+                        );
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+            if !restored {
+                self.fatal(None, b"Couldn't change back to original directory");
+                if let Some(slots) = retired_slots {
+                    self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
+                }
+                return 2;
+            }
+        }
+        if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
+            plan.debug_restart(restarts);
+        }
+        // A makefile restart is a new program image. Replaying only
+        // Rust construction misses process-entry hooks, temporary
+        // cache validation and replacement of the invoked program.
+        let error = plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
+        self.stderr(
+            &[
+                plan.restart_program().as_bytes(),
+                b": ",
+                os_error(&error).as_bytes(),
+            ]
+            .concat(),
+        );
+        if let Some(server) = &inherited_jobserver {
+            server.finish_recursive_exec();
+        }
+        crate::stdin_source::unlink(plan.stdin_source.as_ref(), &self.output, &self.program);
+        rmake_linux::process::exit_immediately(127);
+    }
+
     fn run_inner(&mut self) -> u8 {
+        if self.prepare_stdin().is_err() {
+            return 2;
+        }
         let mut found_makefile;
         self.database.activate_runtime_metadata();
         // Empty command eval initializes this binding before ordinary reading;
@@ -1892,114 +2009,11 @@ impl Engine {
         if self.options.evals.is_empty() && self.initialize_makefile_list().is_err() {
             return 2;
         }
-        let mut iterations = 0_u32;
-        let mut restarts = startup_unsigned(startup_restart_value(
-            std::env::var_os("MAKE_RESTARTS")
-                .as_deref()
-                .map_or(b"".as_slice(), OsStrExt::as_bytes),
-        ));
-        let mut stdin_bytes = None;
-        loop {
-            if iterations > 0 {
-                self.print_database();
-                let plan = self.initial_plan.take().expect("initial invocation");
-                let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
-                let inherited_jobserver = self
-                    .jobserver
-                    .as_ref()
-                    .filter(|server| server.owned_slots().is_none())
-                    .cloned();
-                self.jobserver.take();
-                self.output.select(None);
-                self.output.clear();
-                if !self.options.directories.is_empty() {
-                    let restored = if let Some(directory) = &self.startup_directory {
-                        match std::env::set_current_dir(directory) {
-                            Ok(()) => true,
-                            Err(error) => {
-                                self.stderr(
-                                    [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
-                                        .concat()
-                                        .as_slice(),
-                                );
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    };
-                    if !restored {
-                        self.fatal(None, b"Couldn't change back to original directory");
-                        if let Some(slots) = retired_slots {
-                            self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
-                        }
-                        return 2;
-                    }
-                }
-                if self.output.debug_mask().has(crate::debug::Mask::BASIC) {
-                    plan.debug_restart(restarts);
-                }
-                if crate::native::has_modules() {
-                    let error =
-                        plan.exec_restart(restarts, self.makelevel, inherited_jobserver.as_ref());
-                    self.stderr(
-                        &[
-                            plan.restart_program().as_bytes(),
-                            b": ",
-                            os_error(&error).as_bytes(),
-                        ]
-                        .concat(),
-                    );
-                    if let Some(server) = &inherited_jobserver {
-                        server.finish_recursive_exec();
-                    }
-                    rmake_linux::process::exit_immediately(127);
-                }
-                let restart_program = plan.program.clone();
-                let restart_invocation = plan.invocation.clone();
-                let launch = match plan.decode(Some((restarts, self.makelevel))) {
-                    Ok(launch) => launch,
-                    Err(failure) => {
-                        let (error, exit) = failure.into_parts();
-                        self.native_exit_override = exit;
-                        initial::emit_error(&self.output, &restart_program, error);
-                        return 2;
-                    }
-                };
-                if crate::print_requested_exit(&launch.options) {
-                    self.native_exit_override = launch.into_native_exit(restart_program);
-                    return 0;
-                }
-                let mut next = match Self::from_invocation(
-                    launch,
-                    restart_program.clone(),
-                    &restart_invocation,
-                ) {
-                    Ok(next) => next,
-                    Err(failure) => {
-                        let (error, exit) = failure.into_parts();
-                        self.native_exit_override = exit;
-                        initial::emit_error(
-                            &self.output,
-                            &restart_program,
-                            InvocationError::Expansion(error),
-                        );
-                        return 2;
-                    }
-                };
-                next.database.activate_runtime_metadata();
-                if next.options.evals.is_empty() && next.initialize_makefile_list().is_err() {
-                    // A completed new constructor owns all current interpreter
-                    // state, including when its first reader boundary fails.
-                    if crate::native::has_modules() || next.output.database_requested() {
-                        self.native_exit_override =
-                            Some(Box::new(NativeExit::Engine(Box::new(next))));
-                    }
-                    return 2;
-                }
-                *self = next;
-            }
-
+        let restarts = self
+            .initial_plan
+            .as_ref()
+            .map_or(0, |plan| plan.startup_restarts);
+        let restart_pending = 'makefiles: {
             if !self.options.evals.is_empty() {
                 let eval_entry_no_rules = self.options.no_rules;
                 if self.read_command_evals().is_err() {
@@ -2055,7 +2069,11 @@ impl Engine {
                     }
                 }
             }
-            found_makefile = startup_found || !files.is_empty();
+            found_makefile = startup_found
+                || files
+                    .iter()
+                    .enumerate()
+                    .any(|(index, _)| self.options.temp_stdin_file != Some(index));
             for file in &files {
                 if let Some(history) = self.database.database_history() {
                     history.intern(file.as_os_str().as_bytes());
@@ -2077,18 +2095,7 @@ impl Engine {
                         no_tilde: false,
                     },
                 );
-                let input = if file == Path::new("-") {
-                    if let Some(saved) = &stdin_bytes {
-                        Ok(rmake_core::reader::Input::Bytes(Vec::clone(saved)))
-                    } else {
-                        rmake_linux::child::read_stdin().map(|bytes| {
-                            stdin_bytes = Some(bytes.clone());
-                            rmake_core::reader::Input::Bytes(bytes)
-                        })
-                    }
-                } else {
-                    rmake_linux::filesystem::open_source(file.as_os_str().as_bytes())
-                };
+                let input = rmake_linux::filesystem::open_source(file.as_os_str().as_bytes());
                 let input = match input {
                     Ok(input) => input,
                     Err(err) => {
@@ -2113,6 +2120,7 @@ impl Engine {
                         continue;
                     }
                 };
+                found_makefile = true;
                 if file != Path::new("-") {
                     self.database.makefiles.push(Makefile {
                         name: file.as_os_str().as_bytes().to_vec(),
@@ -2182,8 +2190,7 @@ impl Engine {
             if self.options.no_variables && !entry_no_variables {
                 self.database.disable_builtin_variables();
             }
-            if iterations == 0
-                && let Some(authentication) = &self.options.sync_mutex
+            if let Some(authentication) = &self.options.sync_mutex
                 && let Err(error) = self.output.decode_mutex(authentication)
             {
                 self.fatal(
@@ -2458,6 +2465,15 @@ impl Engine {
                 .map(|file| file.name.clone())
                 .collect();
             for mut makefile in read_files {
+                // The published stdin source is already a completed input,
+                // retained across restarts. It is never a makefile remake goal.
+                if self.options.temp_stdin_file.is_some_and(|index| {
+                    rmake_core::filenames::without_dot_prefix(
+                        self.options.files[index].as_os_str().as_bytes(),
+                    ) == makefile.name
+                }) {
+                    continue;
+                }
                 self.database_remake_started.insert(makefile.name.clone());
                 if !seen.insert(makefile.name.clone())
                     || self.special(b".PHONY", &makefile.name, false)
@@ -2552,13 +2568,7 @@ impl Engine {
             }
             if changed {
                 self.remove_intermediates();
-                restarts = restarts.wrapping_add(1);
-                iterations += 1;
-                if iterations > 128 {
-                    self.fatal(None, b"rmake: makefile restart limit exceeded");
-                    return 2;
-                }
-                continue;
+                break 'makefiles true;
             }
             if failed {
                 self.remove_intermediates();
@@ -2571,12 +2581,16 @@ impl Engine {
                     return 2;
                 }
             }
-            break;
+            false
+        };
+        if restart_pending {
+            return self.restart_after_makefiles(restarts.wrapping_add(1));
         }
         if let Err(error) = self.publish_phase_makeflags(false) {
             self.expansion_error(None, &error);
             return 2;
         }
+        self.unlink_stdin();
         crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
@@ -3396,6 +3410,7 @@ impl Engine {
             return;
         }
         self.interrupt = Some(number);
+        self.unlink_stdin();
         self.graph_abort = Some(Status::Fatal);
         self.shutdown.set(Shutdown::Draining);
         self.parallel_failed = true;

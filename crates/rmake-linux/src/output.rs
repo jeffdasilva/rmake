@@ -15,26 +15,12 @@ use std::process::{Command, Stdio};
 unsafe extern "C" {
     fn mkostemp(template: *mut c_char, flags: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
-    fn access(path: *const c_char, mode: c_int) -> c_int;
     fn ttyname(descriptor: c_int) -> *mut c_char;
     fn isatty(descriptor: c_int) -> c_int;
 }
 
 fn directory() -> PathBuf {
-    let mut choices = Vec::new();
-    if let Some(value) = std::env::var_os("TMPDIR") {
-        choices.push(PathBuf::from(value));
-    }
-    choices.push(PathBuf::from("/tmp"));
-    choices
-        .into_iter()
-        .find(|path| {
-            let Ok(name) = CString::new(path.as_os_str().as_bytes()) else {
-                return false;
-            };
-            path.is_dir() && unsafe { access(name.as_ptr(), 3) } == 0
-        })
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
+    crate::temporary::initialize().directory().to_owned()
 }
 
 struct Temporary {

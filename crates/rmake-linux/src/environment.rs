@@ -5,7 +5,7 @@
 //! allocation in the parent; the final post-fork hook only calls execve.
 
 use std::collections::BTreeMap;
-use std::ffi::{CString, OsStr, OsString, c_char};
+use std::ffi::{CString, OsStr, OsString, c_char, c_int};
 use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
@@ -18,6 +18,58 @@ unsafe extern "C" {
         argv: *const *const c_char,
         envp: *const *mut c_char,
     ) -> std::ffi::c_int;
+    fn rmake_exec_live_restart(
+        arguments: *const *mut c_char,
+        count: u32,
+        level: u32,
+        traced: c_int,
+        pipe: *const c_int,
+    ) -> c_int;
+}
+
+/// Replace the interpreter using the raw live process environment. A real
+/// exec preserves ignores and the signal mask while resetting caught handlers.
+/// The serialized process owner calls this after flushing streams and finishing
+/// makefile jobs. Native callbacks must respect POSIX's existing restriction on
+/// concurrent environment mutation. No borrowed environment storage enters Rust.
+pub fn exec_live_restart(
+    program: &OsStr,
+    arguments: &[OsString],
+    count: u32,
+    level: u32,
+    traced: bool,
+    jobserver: Option<&crate::jobserver::Jobserver>,
+) -> io::Error {
+    let arguments: Result<Vec<_>, _> = std::iter::once(program)
+        .chain(arguments.iter().map(OsString::as_os_str))
+        .map(|argument| CString::new(argument.as_bytes()))
+        .collect();
+    let Ok(arguments) = arguments else {
+        return io::ErrorKind::InvalidInput.into();
+    };
+    let mut pointers: Vec<_> = arguments
+        .iter()
+        .map(|argument| argument.as_ptr().cast_mut())
+        .collect();
+    pointers.push(std::ptr::null_mut());
+    let pair = jobserver.and_then(crate::jobserver::Jobserver::recursive_exec_pipe);
+    let descriptors = pair.as_ref().map(|pipe| pipe.descriptors());
+    // SAFETY: the terminated vector and every CString remain live for the
+    // call. The optional descriptor array contains two incoming numbers and
+    // two references kept live by the borrowed jobserver. C checks identity
+    // before adjusting incoming flags, owns the environment and returns errno.
+    let failure = unsafe {
+        rmake_exec_live_restart(
+            pointers.as_ptr(),
+            count,
+            level,
+            traced.into(),
+            descriptors
+                .as_ref()
+                .map_or(std::ptr::null(), |fds| fds.as_ptr()),
+        )
+    };
+    io::Error::from_raw_os_error(failure)
 }
 
 struct Storage {

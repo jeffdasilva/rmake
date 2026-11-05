@@ -101,9 +101,18 @@ pub enum DirectoryChoice {
     Off,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StdinArgument {
+    pub(crate) argument: usize,
+    pub(crate) consumed: usize,
+    pub(crate) prefix: usize,
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct Options {
     pub files: Vec<PathBuf>,
+    pub(crate) temp_stdin_file: Option<usize>,
+    pub(crate) stdin_argument: Option<StdinArgument>,
     pub old_files: Vec<PathBuf>,
     pub new_files: Vec<PathBuf>,
     pub evals: Vec<Vec<u8>>,
@@ -215,6 +224,7 @@ impl Decoder {
         let mut end_options = self.end_options;
         let offset = self.offset;
         let track_jobs = self.track_jobs;
+        let mut expanded_long = None;
         macro_rules! pause {
             ($event:expr) => {{
                 let step = DecodedArgument {
@@ -229,6 +239,7 @@ impl Decoder {
             }};
         }
         while i < args.len() {
+            let argument_index = i;
             let arg = &args[i];
             if !end_options && arg == b"--" {
                 end_options = true;
@@ -249,6 +260,7 @@ impl Decoder {
                         name,
                         b"--file"
                             | b"--makefile"
+                            | b"--temp-stdin"
                             | b"--directory"
                             | b"--include-dir"
                             | b"--old-file"
@@ -378,9 +390,9 @@ impl Decoder {
                                 _ => return Err("unknown jobserver style".into()),
                             };
                         }
-                        b"--file" | b"--makefile" | b"--directory" | b"--include-dir"
-                        | b"--old-file" | b"--assume-old" | b"--new-file" | b"--assume-new"
-                        | b"--what-if" => {
+                        b"--file" | b"--makefile" | b"--temp-stdin" | b"--directory"
+                        | b"--include-dir" | b"--old-file" | b"--assume-old" | b"--new-file"
+                        | b"--assume-new" | b"--what-if" => {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
@@ -426,6 +438,19 @@ impl Decoder {
                                 let index = result.directories.len() - 1;
                                 pause!(Some(Argument::Directory(index)));
                             } else {
+                                if name == b"--temp-stdin" {
+                                    result.temp_stdin_file = Some(result.files.len());
+                                } else if track_jobs
+                                    && path == std::path::Path::new("-")
+                                    && result.stdin_argument.is_none()
+                                    && expanded_long != Some(argument_index)
+                                {
+                                    result.stdin_argument = Some(StdinArgument {
+                                        argument: argument_index,
+                                        consumed: i - argument_index + 1,
+                                        prefix: 0,
+                                    });
+                                }
                                 result.files.push(path);
                                 let index = result.files.len() - 1;
                                 pause!(Some(Argument::File(index)));
@@ -496,6 +521,7 @@ impl Decoder {
                             if let Some(expanded) = expand_unique_long_option(arg) {
                                 // Retry the same argument before any operand
                                 // receiver or definition can observe it.
+                                expanded_long = Some(i);
                                 args[i] = expanded;
                                 continue;
                             }
@@ -632,6 +658,13 @@ impl Decoder {
                                     result.command_jobs = result.jobs;
                                 }
                             } else if option == b'f' {
+                                if track_jobs && value == b"-" && result.stdin_argument.is_none() {
+                                    result.stdin_argument = Some(StdinArgument {
+                                        argument: argument_index,
+                                        consumed: i - argument_index + 1,
+                                        prefix: j,
+                                    });
+                                }
                                 result.files.push(OsString::from_vec(value).into());
                                 let index = result.files.len() - 1;
                                 pause!(Some(Argument::File(index)));

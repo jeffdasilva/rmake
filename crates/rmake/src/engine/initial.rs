@@ -7,7 +7,11 @@ use super::*;
 
 pub(super) struct Plan {
     args: Vec<OsString>,
+    pub(super) stdin_source: Option<rmake_linux::stdin_source::Source>,
+    stdin_argument: Option<crate::cli::StdinArgument>,
+    stdin_index: Option<usize>,
     environment: Vec<(OsString, OsString)>,
+    pub(super) startup_restarts: u32,
     pub(super) program: Vec<u8>,
     pub(super) invocation: OsString,
     restart_invocation: Option<OsString>,
@@ -76,7 +80,11 @@ impl Plan {
             };
         Self {
             args,
+            stdin_source: None,
+            stdin_argument: None,
+            stdin_index: None,
             environment,
+            startup_restarts: 0,
             program: program.to_vec(),
             invocation: invocation.to_owned(),
             restart_invocation,
@@ -95,7 +103,8 @@ impl Plan {
     pub(super) fn debug_restart(&self, count: u32) {
         let mut line = format!("Re-executing[{count}]: ").into_bytes();
         line.extend_from_slice(self.restart_program().as_bytes());
-        for argument in &self.args {
+        let rewritten = self.restart_arguments();
+        for argument in rewritten.as_deref().unwrap_or(&self.args) {
             line.push(b' ');
             line.extend_from_slice(argument.as_bytes());
         }
@@ -103,75 +112,69 @@ impl Plan {
         crate::debug::raw(&[&line]);
     }
 
-    /// Native module images must restart with a fresh dynamic-loader namespace.
-    /// Preserve argv and the invocation environment rather than replaying a
-    /// loaded library's constructors or keeping its old static state in process.
+    /// Restart in a fresh program image using retained argv and the live
+    /// process environment. Dynamic-loader and startup hooks run again.
     pub(super) fn exec_restart(
         &self,
         count: u32,
         level: u32,
         jobserver: Option<&Jobserver>,
     ) -> io::Error {
-        let mut command = Command::new(self.restart_program());
-        // Native setup can deliberately update the process environment. A
-        // real exec inherits that live state, with only the restart counters
-        // overridden below; the startup snapshot is for in-process decoding.
-        command.arg0(self.restart_program()).args(&self.args);
-        let restart = if self
+        let rewritten = self.restart_arguments();
+        let traced = self
             .output
             .as_ref()
-            .is_some_and(|output| output.has_directory_trace())
-        {
-            format!("-{count}")
-        } else {
-            count.to_string()
-        };
-        let mut environment: Vec<_> = std::env::vars_os().collect();
-        let mut has_restart = false;
-        for (name, value) in &mut environment {
-            if name == "MAKELEVEL" {
-                *value = level.to_string().into();
-            } else if name == "MAKE_RESTARTS" {
-                *value = restart.clone().into();
-                has_restart = true;
-            }
-        }
-        if !has_restart {
-            environment.push(("MAKE_RESTARTS".into(), restart.into()));
-        }
-        let order: Vec<_> = environment
-            .iter()
-            .map(|(name, _)| name.as_os_str().as_bytes().to_vec())
-            .collect();
-        command.env_clear().envs(environment);
+            .is_some_and(|output| output.has_directory_trace());
         if let Err(error) = rmake_linux::native::flush_standard_streams() {
             return error;
         }
-        // The owned image preserves the live vector through exec; Command's
-        // ordinary environment rebuild would alphabetize its entries. Reuse
-        // the existing PATH search and ENOEXEC handling for a bare argv[0].
-        match launch_child::<()>(
-            self.restart_program().as_bytes(),
-            &command,
-            &order,
-            None,
-            |mut command, environment, arg0| {
-                if let Some(server) = jobserver {
-                    server.configure_child(&mut command, true);
-                }
-                environment.configure_exec(&mut command, os(arg0))?;
-                Err(command.exec())
-            },
-        ) {
-            Err(error) => error,
-            Ok(()) => unreachable!("a successful restart replaces this process"),
-        }
+        rmake_linux::environment::exec_live_restart(
+            self.restart_program(),
+            rewritten.as_deref().unwrap_or(&self.args),
+            count,
+            level,
+            traced,
+            jobserver,
+        )
     }
 
-    pub(super) fn decode(
-        mut self: Box<Self>,
-        restart: Option<(u32, u32)>,
-    ) -> Result<Invocation, Failure<InvocationError>> {
+    fn restart_arguments(&self) -> Option<Vec<OsString>> {
+        Some(crate::stdin_source::restart_arguments(
+            &self.args,
+            self.stdin_argument?,
+            self.stdin_source.as_ref()?.path(),
+        ))
+    }
+
+    fn argument(
+        &mut self,
+        state: &mut State,
+        options: &mut Options,
+        argument: crate::cli::Argument,
+    ) -> Result<(), InvocationError> {
+        if let crate::cli::Argument::File(index) = argument
+            && options.temp_stdin_file == Some(index)
+        {
+            if self.stdin_index.is_some_and(|index| index > 0) {
+                return Err(StartupError::from(Diagnostic::from(
+                    "INTERNAL: multiple --temp-stdin options provided!",
+                ))
+                .into());
+            }
+            self.stdin_index = Some(index);
+            if let Some(previous) =
+                self.stdin_source
+                    .replace(rmake_linux::stdin_source::Source::adopt(
+                        options.files[index].clone(),
+                    ))
+            {
+                previous.disarm();
+            }
+        }
+        state.argument(&self.program, options, argument)
+    }
+
+    pub(super) fn decode(mut self: Box<Self>) -> Result<Invocation, Failure<InvocationError>> {
         crate::native::reset();
         let output = if let Some(output) = &self.output {
             output.set_mode(crate::output::Mode::None);
@@ -218,23 +221,18 @@ impl Plan {
                 .map_err(StartupError::expansion)?;
         }
         let mut exports = HashSet::new();
-        for (name, value) in &self.environment {
+        for (name, value) in std::mem::take(&mut self.environment) {
             let name = name.as_bytes();
             if name == b"MAKE_RESTARTS" && value.as_bytes().starts_with(b"-") {
                 output.import_directory_trace();
             }
-            let updated_level = restart
-                .filter(|_| name == b"MAKELEVEL")
-                .map(|(_, level)| level.to_string());
-            let updated_restart = restart
-                .filter(|_| name == b"MAKE_RESTARTS")
-                .map(|(count, _)| count.to_string());
-            let value = updated_level
-                .as_ref()
-                .or(updated_restart.as_ref())
-                .map_or(value.as_bytes(), |value| value.as_bytes());
+            let value = value.as_bytes();
             let value = if name == b"MAKE_RESTARTS" {
-                startup_restart_value(value)
+                let value = startup_restart_value(value);
+                // Import in vector order: the last binding controls startup.
+                // Later native edits affect the live exec image, not this seed.
+                self.startup_restarts = startup_unsigned(value);
+                value
             } else {
                 value
             };
@@ -251,22 +249,6 @@ impl Plan {
                 database.variables.set_export_policy(name, Some(true));
                 exports.insert(name.to_vec());
             }
-        }
-        if let Some((count, _)) = restart
-            && database.variables.get(b"MAKE_RESTARTS").is_none()
-        {
-            database
-                .variables
-                .define(
-                    b"MAKE_RESTARTS",
-                    count.to_string().as_bytes(),
-                    Assignment::Recursive,
-                    Origin::Environment,
-                )
-                .map_err(StartupError::expansion)?;
-            database
-                .variables
-                .set_export_policy(b"MAKE_RESTARTS", Some(false));
         }
         let initial_directory = std::env::current_dir().ok();
         database.variables.set_startup_directory_pending();
@@ -314,7 +296,7 @@ impl Plan {
                         incoming,
                         parsed_prefix,
                         prefix_count,
-                        &mut |options, argument| state.argument(&self.program, options, argument),
+                        &mut |options, argument| self.argument(&mut state, options, argument),
                         &mut |options| {
                             selected_policy =
                                 (options.warn_undefined, options.environment_override);
@@ -373,7 +355,7 @@ impl Plan {
                 parsed_prefix,
                 prefix_count,
                 false,
-                &mut |options, argument| state.argument(&self.program, options, argument),
+                &mut |options, argument| self.argument(&mut state, options, argument),
                 &mut |options| {
                     selected_policy = (options.warn_undefined, options.environment_override);
                     policy_output.set_directory_policy(options.directory_choice, options.silent);
@@ -433,9 +415,11 @@ impl Plan {
         let (options, reader_output, construction, shuffle) = match decoded {
             Ok(decoded) => decoded,
             Err(error) => {
-                let exit = (crate::native::has_modules() || state.output.database_requested())
-                    .then(|| {
-                        Box::new(NativeExit::Startup(Box::new(startup_exit::Host {
+                let stdin_source = self.stdin_source.take();
+                let exit = if crate::native::has_modules() || state.output.database_requested() {
+                    Some(Box::new(NativeExit::Startup(Box::new(
+                        startup_exit::Host {
+                            stdin_source,
                             database: state.database,
                             filesystem: state.filesystem,
                             output: state.output,
@@ -447,11 +431,17 @@ impl Plan {
                             construction: None,
                             restore_directory: None,
                             database_dumped: Cell::new(false),
-                        })))
-                    });
+                        },
+                    ))))
+                } else {
+                    stdin_source.map(|source| {
+                        NativeExit::source(source, state.output.clone(), self.program.clone())
+                    })
+                };
                 return Err(Failure { error, exit });
             }
         };
+        self.stdin_argument = options.stdin_argument;
         Ok(Invocation {
             options,
             initial: Box::new(Prepared {
@@ -583,6 +573,13 @@ impl State {
                         options.directories[index] = stored;
                     } else {
                         options.directories.pop();
+                    }
+                }
+                crate::cli::Argument::File(index) if options.temp_stdin_file == Some(index) => {
+                    // The internal source operand is already a prepared raw
+                    // filename. Retain its selection without tilde expansion.
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(options.files[index].as_os_str().as_bytes());
                     }
                 }
                 crate::cli::Argument::File(index) => {
@@ -779,7 +776,9 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
     fn startup(exit: Option<Box<NativeExit>>) -> startup_exit::Host {
         match *exit.expect("native phase must remain owned") {
             NativeExit::Startup(host) => *host,
-            NativeExit::Engine(_) => panic!("constructor was not completed"),
+            NativeExit::Engine(_) | NativeExit::Source(_) => {
+                panic!("constructor was not completed")
+            }
         }
     }
     fn value(database: &Database, name: &[u8]) -> Option<Vec<u8>> {
@@ -810,7 +809,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                     "-e",
                     "--not-an-option",
                 ])
-                .decode(None)
+                .decode()
             {
                 Ok(_) => panic!("invalid option accepted"),
                 Err(error) => error,
@@ -848,7 +847,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let fixture = Fixture::new();
             let launch = fixture
                 .plan(&["USER_VALUE=command", "--help"])
-                .decode(None)
+                .decode()
                 .unwrap();
             assert!(launch.options.help);
             let host = startup(launch.into_native_exit(b"rmake".to_vec()));
@@ -873,7 +872,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                     "-I~/inc",
                     "USER_VALUE=command",
                 ])
-                .decode(None)
+                .decode()
                 .unwrap();
             let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
                 .err()
@@ -898,7 +897,7 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
             let fixture = Fixture::new();
             let missing = fixture.0.join("missing");
             let missing = missing.to_str().unwrap();
-            let launch = fixture.plan(&["-C", missing]).decode(None).unwrap();
+            let launch = fixture.plan(&["-C", missing]).decode().unwrap();
             let failure = Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake"))
                 .err()
                 .expect("missing directory accepted");
@@ -920,7 +919,9 @@ int startup_owner_unit_gmk_setup(const struct Place *place) {
                 fixture.0.join("startup_owner_unit.so").display()
             )
             .into();
-            let launch = plan.decode(Some((1, 3))).unwrap();
+            plan.environment.push(("MAKELEVEL".into(), "3".into()));
+            plan.environment.push(("MAKE_RESTARTS".into(), "1".into()));
+            let launch = plan.decode().unwrap();
             assert!(launch.options.help);
             let host = startup(launch.into_native_exit(b"rmake".to_vec()));
             check_setup(&host.database);

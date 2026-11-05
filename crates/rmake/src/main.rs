@@ -21,6 +21,7 @@ mod process;
 mod recipe_flow;
 mod shell;
 mod shuffle;
+mod stdin_source;
 
 fn main() -> ExitCode {
     rmake_linux::locale::initialize();
@@ -37,6 +38,7 @@ fn main() -> ExitCode {
     let program = cli::invocation_name(&invocation);
     let output = output::Controller::new(output::Mode::None, &program);
     let process_output = output.process_lifetime();
+    stdin_source::initialize(&output, &program);
     let (status, mut native_exit) = match engine::Engine::invocation_with_output(
         args,
         &program,
