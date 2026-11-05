@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "classification": "Additive phase discovery history v1, before final fixes/qualification. Original semantic/effect plans precede GNU; full transcript templates explicitly derived afterward. All failing expectations/candidate reports retained. Twelve initial profiles, native2 input refinement avoiding randomized absolute-path statistics, one later target-scope/recipe profile. No candidate acceptance, exception, or performance credit. First candidate binary retained separately; no complete coherent source closure was captured for it, so it is discovery evidence only. Final selected source closure still required. Private reference traces are discovery-only with GNU2 normal-observable proof; GNU implementation/header/test source excluded.",
+  "sha256": "c922421b8425dbc5004b2483a5bbfaaab84b354c855436cba2a2c53ae328d9e2",
+  "raw_sha256": "ac5a42209cc3263ff1da994bfc2c7cb614fe01b9c558bd4f4e4ce9e0fa97aa6d",
+  "raw_bytes": 10294599,
+  "file_count": 33
+}

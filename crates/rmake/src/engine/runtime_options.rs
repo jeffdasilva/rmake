@@ -37,6 +37,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0
             .output
             .set_directory_policy(options.directory_choice, options.silent);
+        self.0.output.set_database_requested(options.print_database);
         self.0.dirty.set(true);
     }
 
@@ -67,6 +68,7 @@ impl State {
     pub(super) fn refresh(&self, options: &Options) {
         self.output
             .set_directory_policy(options.directory_choice, options.silent);
+        self.output.set_database_requested(options.print_database);
         self.output.set_debug_mask(options.debug_mask);
         self.warn_undefined.set(options.warn_undefined);
         self.options.replace(options.clone());
@@ -208,6 +210,7 @@ impl State {
         self.warn_undefined.set(updated.warn_undefined);
         self.output
             .set_directory_policy(updated.directory_choice, updated.silent);
+        self.output.set_database_requested(updated.print_database);
         // These invocation inputs survive a live reset unchanged. Move them
         // only after fallible decoding and search preparation have succeeded.
         // No evaluator callback runs while this exclusive borrow is held.
@@ -625,6 +628,35 @@ impl Engine {
         Ok(())
     }
 
+    pub(super) fn publish_phase_makeflags(&mut self, remaking: bool) -> Result<(), ExpandError> {
+        self.database.variables.update_mflags(
+            &self.options.recursive_flags_for_phase(true, remaking),
+            self.options.environment_override,
+        )?;
+        let mut flags = self.options.makeflags_for_phase(remaking);
+        if self
+            .database
+            .variables
+            .database_lookup(self.database.command_overrides_name())
+            .is_some_and(|variable| !variable.raw_value().is_empty())
+        {
+            flags.extend_from_slice(self.database.command_overrides_reference());
+        }
+        self.database.variables.define(
+            b"MAKEFLAGS",
+            &flags,
+            Assignment::Recursive,
+            origin(self.options.environment_override),
+        )?;
+        self.initial_flags = flags;
+        let active_debug = self.output.debug_mask();
+        self.flag_state.refresh(&self.options);
+        // Remake traversal owns the temporary active mask while stored flags
+        // retain the complete request history for subsequent decoding.
+        self.output.set_debug_mask(active_debug);
+        Ok(())
+    }
+
     pub(super) fn read_runtime_flags(&mut self, restarts: u32) -> Result<(), ()> {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
@@ -633,7 +665,9 @@ impl Engine {
         let mut changed = false;
         let mut file_jobs = None;
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-            if self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none() {
+            if self.flag_state.warn_undefined.get()
+                && self.database.variables.database_lookup(name).is_none()
+            {
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 if let Err(error) = self.expand_global(&expression, None) {
                     self.expansion_error(None, &error);
@@ -645,11 +679,17 @@ impl Engine {
             } else {
                 &self.initial_flags
             };
+            // Selecting the unchanged-value shortcut is an implementation
+            // probe. The selected shortcut or real expansion below owns the
+            // one semantic reference, never both.
             let unchanged = self
                 .database
                 .variables
                 .get(name)
                 .is_none_or(|value| value.raw_value() == *initial);
+            if unchanged {
+                self.database.variables.database_lookup(name);
+            }
             let value = if unchanged && name == b"MAKEFLAGS" && changed {
                 let prefix = self
                     .initial_flags
@@ -738,13 +778,8 @@ impl Engine {
         if self.options.jobserver_auth != entry_auth {
             self.jobserver.take();
         }
-        if let Err(error) = self.database.variables.update_mflags(
-            &self.options.recursive_flags(),
-            self.options.environment_override,
-        ) {
-            self.expansion_error(None, &error);
-            return Err(());
-        }
+        // Passive decoding selects policy; the enclosing post-read phase
+        // publishes MFLAGS and MAKEFLAGS together after jobserver setup.
         // Passive operands accumulate without rebuilding include search.
         // Live MAKEFLAGS resets retain their separate publication boundary.
         self.output.set_mode(mode);
@@ -813,12 +848,17 @@ impl Engine {
                     }
                 };
                 for name in names {
-                    if self.database.variables.get(&name).is_some_and(|v| {
-                        matches!(
-                            v.origin(),
-                            Origin::Environment | Origin::EnvironmentOverride
-                        )
-                    }) {
+                    if self
+                        .database
+                        .variables
+                        .database_lookup(&name)
+                        .is_some_and(|v| {
+                            matches!(
+                                v.origin(),
+                                Origin::Environment | Origin::EnvironmentOverride
+                            )
+                        })
+                    {
                         self.inherited_exports.insert(name);
                     }
                 }
@@ -889,12 +929,17 @@ impl Engine {
             match names {
                 Ok(names) => {
                     for name in names {
-                        if self.database.variables.get(&name).is_some_and(|variable| {
-                            matches!(
-                                variable.origin(),
-                                Origin::Environment | Origin::EnvironmentOverride
-                            )
-                        }) {
+                        if self
+                            .database
+                            .variables
+                            .database_lookup(&name)
+                            .is_some_and(|variable| {
+                                matches!(
+                                    variable.origin(),
+                                    Origin::Environment | Origin::EnvironmentOverride
+                                )
+                            })
+                        {
                             self.inherited_exports.insert(name);
                         }
                     }

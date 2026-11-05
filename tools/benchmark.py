@@ -225,6 +225,8 @@ def selected_workloads(suite):
         yield from span_workloads()
     if suite in ("wildcard", "all"):
         yield from wildcard_workloads()
+    if suite in ("wildcard-locale", "all"):
+        yield from locale_wildcard_workloads()
     if suite in ("bindings", "all"):
         yield from binding_workloads()
     if suite in ("implicit-search", "all"):
@@ -524,15 +526,21 @@ def binding_workloads():
             yield f"simple-{'local' if local else 'global'}-{size}", source
 
 
-def wildcard_workloads():
+def wildcard_workloads(repeated_queries=200):
     for name, pattern, repeats in (
         ('wildcard-cold', 'inputs/*.c', 1),
-        ('wildcard-warm', 'inputs/*.c', 200),
-        ('wildcard-complex', 'inputs/file[0-9][0-9][0-9][0-9].c', 200),
+        ('wildcard-warm', 'inputs/*.c', repeated_queries),
+        ('wildcard-complex', 'inputs/file[0-9][0-9][0-9][0-9].c', repeated_queries),
         ('wildcard-literal', ' '.join(f'inputs/file{i:04d}.c' for i in range(1000)), 1),
     ):
         source = ''.join(f'V{i} := $(words $(wildcard {pattern}))\n' for i in range(repeats))
         yield name, (source + f'$(info $(V{repeats-1}))\nall: ;\n').encode()
+
+
+def locale_wildcard_workloads():
+    """Separate bounded locale controls; historical 200-query inputs unchanged."""
+    for name, source in wildcard_workloads(20):
+        yield name.replace('wildcard-', 'wildcard-locale-', 1), source
 
 
 def prepare_archive(path, count, payload):
@@ -794,14 +802,27 @@ def summary(samples):
             "min_ns": min(samples), "max_ns": max(samples)}
 
 
+def qualify_locale(environment):
+    """Validate the requested libc profile before collecting timing samples."""
+    result = subprocess.run(
+        [sys.executable, '-c', 'import locale; print(locale.setlocale(locale.LC_ALL, ""))'],
+        env=environment, capture_output=True, timeout=30, check=True)
+    if result.stderr or not result.stdout.strip():
+        raise RuntimeError('benchmark locale preflight produced an invalid observation')
+    return result.stdout.decode().strip()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "runtime-arguments", "builtin-transitions", "word-spans", "wildcard", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "runtime-arguments", "builtin-transitions", "word-spans", "wildcard", "wildcard-locale", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--locale", default="C", help="libc locale for every measured engine")
+    parser.add_argument("--locale-path", type=Path, help="private LOCPATH, verified before timing")
+    parser.add_argument("--silent", action="store_true", help="suppress goal summaries on every engine")
     args = parser.parse_args()
     if args.repeat < 3 or args.repeat > 1000:
         parser.error("--repeat must be between 3 and 1000")
@@ -832,12 +853,18 @@ def main():
     }
     with tempfile.TemporaryDirectory(prefix="rmake-bench-") as directory:
         path = Path(directory)
-        env = {"PATH": "/usr/bin:/bin", "LC_ALL": "C", "TZ": "UTC", "HOME": directory}
+        env = {"PATH": "/usr/bin:/bin", "LC_ALL": args.locale, "TZ": "UTC", "HOME": directory}
+        if args.locale_path:
+            env["LOCPATH"] = str(args.locale_path.resolve())
+        report["locale"] = {"requested": args.locale, "observed": qualify_locale(env),
+                            "locpath": env.get("LOCPATH"), "silent": args.silent}
         alias = path / "make"
         for name, source in selected_workloads(args.suite):
             fixture = prepare_files(path, name)
             (path / "Makefile").write_bytes(source)
             arguments = workload_arguments(name)
+            if args.silent:
+                arguments = ["-s", *arguments]
             overrides = workload_environment(name)
             run_environment = env | overrides
             samples = {label: [] for label in executables}

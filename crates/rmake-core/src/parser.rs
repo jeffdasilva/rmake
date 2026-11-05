@@ -105,6 +105,11 @@ struct LoadHost<'a, 'b> {
 }
 
 impl crate::native::NativeHost for LoadHost<'_, '_> {
+    fn registered_function_name(&mut self, name: &[u8]) {
+        if let Some(history) = self.database.database_history() {
+            history.intern(name);
+        }
+    }
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
         self.database.expand_with(input, self.context.reborrow())
     }
@@ -395,6 +400,7 @@ pub struct Makefile {
 
 #[derive(Clone, Default)]
 pub struct Database {
+    database_history: Option<crate::database::History>,
     pub file_records: crate::file_records::FileRecords,
     pub variables: VariableStore,
     /// Target-only variable declarations never create rules or select a goal.
@@ -446,6 +452,29 @@ struct Vpath {
 }
 
 impl Database {
+    /// Start before imports/defaults; enabling after observation would lose
+    /// history and cannot produce a compatible database dump.
+    pub fn enable_database_history(&mut self) -> Result<(), &'static str> {
+        if self.database_history.is_some() {
+            return Ok(());
+        }
+        if self.variables.definitions().next().is_some()
+            || self.file_records.names().next().is_some()
+        {
+            return Err("database history must start before definitions and file records");
+        }
+        let history = crate::database::History::default();
+        self.variables
+            .enable_database_history(history.variable_table());
+        self.file_records.enable_database_history(history.clone());
+        self.database_history = Some(history);
+        Ok(())
+    }
+
+    pub fn database_history(&self) -> Option<&crate::database::History> {
+        self.database_history.as_ref()
+    }
+
     pub fn activate_runtime_metadata(&mut self) {
         self.runtime_metadata_live = true;
     }
@@ -565,6 +594,26 @@ impl Database {
                     .enumerate()
                     .map(move |(index, directory)| ((group, index), directory.as_slice()))
             })
+    }
+
+    /// Borrow declaration data for diagnostics without searching or expanding.
+    pub fn database_pattern_variables(
+        &self,
+    ) -> impl Iterator<Item = (&Pattern, crate::database::PatternVariableView<'_>)> {
+        self.pattern_assignments
+            .iter()
+            .map(|declaration| (&declaration.pattern, declaration.variable.database_view()))
+    }
+
+    pub fn database_implicit_rules(&self) -> &[(Pattern, Rule)] {
+        &self.implicit_rules
+    }
+
+    pub fn database_vpaths(&self) -> impl Iterator<Item = crate::database::VpathView<'_>> {
+        self.vpaths.iter().map(|path| crate::database::VpathView {
+            pattern: &path.key,
+            directories: &path.directories,
+        })
     }
 
     pub fn vpath_group_count(&self) -> usize {
@@ -761,10 +810,21 @@ impl Database {
     /// independent default variable, defined even when builtin rules are off.
     /// Existing higher-priority variables and explicit rules are preserved.
     pub fn initialize_suffixes(&mut self, builtin_rules: bool) -> Result<(), ExpandError> {
-        self.file_records.insert(b".SUFFIXES");
+        if let Some(history) = &self.database_history {
+            history.intern(b".SUFFIXES");
+        }
+        self.file_records.insert_builtin(b".SUFFIXES");
         let suffixes = if builtin_rules { DEFAULT_SUFFIXES } else { b"" };
         for name in words(suffixes) {
-            self.file_records.insert(name);
+            if let Some(history) = &self.database_history {
+                history.intern(name);
+            }
+            if let Some(history) = &self.database_history {
+                history.record_file_lookup(name);
+            }
+            if !self.file_records.contains(name) {
+                self.file_records.insert_builtin(name);
+            }
         }
         self.variables
             .define_literal(b"SUFFIXES", suffixes, Origin::Default)?;
@@ -894,6 +954,77 @@ fn static_secondary_prerequisites(bytes: &[u8]) -> Vec<u8> {
 mod include_tests {
     use super::*;
     use crate::diagnostic::IncludedFile;
+
+    #[test]
+    fn evaluated_append_reads_selected_file_scope_then_defines_globally() {
+        let mut database = Database::default();
+        database.enable_database_history().unwrap();
+        database
+            .read(
+                b"X := global\nall: X = scope\nall: ONLY = present\n",
+                b"Makefile",
+            )
+            .unwrap();
+        let context = database
+            .variables
+            .with_target_scopes(&[&database.target_scopes[b"all".as_slice()]]);
+        let file_before = context.database_stats().unwrap();
+        let global_before = database.variables.database_stats().unwrap();
+        database.evaluation_scope = Some(context);
+        database
+            .define_variable_with(
+                AssignmentSpec {
+                    name: b"X",
+                    value: b"suffix",
+                    kind: Assignment::Append,
+                },
+                Origin::File,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        assert_eq!(
+            database.variables.get(b"X").unwrap().raw_value(),
+            b"scope suffix"
+        );
+        let scope = database.evaluation_scope.as_ref().unwrap();
+        assert_eq!(scope.get(b"X").unwrap().raw_value(), b"scope");
+        assert_eq!(
+            scope.database_stats().unwrap().lookups - file_before.lookups,
+            1
+        );
+        assert_eq!(
+            database.variables.database_stats().unwrap().lookups - global_before.lookups,
+            1
+        );
+        let file_before = scope.database_stats().unwrap();
+        let global_before = database.variables.database_stats().unwrap();
+        database
+            .define_variable_with(
+                AssignmentSpec {
+                    name: b"ONLY",
+                    value: b"replacement",
+                    kind: Assignment::Conditional,
+                },
+                Origin::File,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        assert!(database.variables.get(b"ONLY").is_none());
+        assert_eq!(
+            database
+                .evaluation_scope
+                .as_ref()
+                .unwrap()
+                .database_stats()
+                .unwrap()
+                .lookups
+                - file_before.lookups,
+            1
+        );
+        assert_eq!(database.variables.database_stats().unwrap(), global_before);
+    }
 
     #[test]
     fn argument_rhs_has_database_effects_without_makefile_comment_parsing() {
@@ -1398,6 +1529,13 @@ mod include_tests {
         )
         .unwrap();
         assert_eq!(output, [b"child:child.mk".to_vec()]);
+        assert_eq!(
+            db.variables.get(b"MAKEFILE_LIST").unwrap().definition(),
+            Some(&Location {
+                file: b"child.mk".as_slice().into(),
+                line: 1
+            }),
+        );
         assert_eq!(db.makefiles.len(), 2);
         assert!(db.makefiles[1].optional && db.makefiles[1].missing);
         assert!(db.rules.contains_key(b"all".as_slice()));
@@ -1630,6 +1768,7 @@ impl Database {
         let scan = bytes
             .iter()
             .any(|byte| matches!(byte, b'*' | b'?' | b'[' | b'~') || (ARCHIVES && *byte == b'('));
+        let database_history = self.database_history.clone();
         let session = self.begin_filename_session(scan && bytes.contains(&b'~'));
         let result = (|| {
             if !scan && self.filename_scratch.is_some() {
@@ -1688,6 +1827,17 @@ impl Database {
             } else {
                 None
             };
+            if let Some(history) = &database_history {
+                if let Some(names) = &names {
+                    for name in names {
+                        history.intern(name);
+                    }
+                } else {
+                    for name in crate::filenames::words(bytes) {
+                        history.intern(crate::filenames::without_dot_prefix(&name));
+                    }
+                }
+            }
             Ok(names
                 .into_iter()
                 .flatten()
@@ -2154,13 +2304,20 @@ impl Database {
         definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
-        let append_base = if spec.name == b"MAKEFLAGS"
-            && spec.kind == Assignment::Append
-            && context.has_makeflags()
-        {
-            self.evaluation_scope.as_mut().and_then(|scope| {
+        let lookup_scope = if matches!(spec.kind, Assignment::Append | Assignment::Conditional) {
+            self.evaluation_scope.as_mut().map(|scope| {
                 scope.refresh_globals(&self.variables);
-                scope.scoped_makeflags_append().map(std::cell::RefCell::new)
+                scope.clone()
+            })
+        } else {
+            None
+        };
+        let strip_flags = spec.name == b"MAKEFLAGS" && context.has_makeflags();
+        let append_base = if spec.kind == Assignment::Append {
+            lookup_scope.as_ref().and_then(|scope| {
+                scope
+                    .scoped_append(spec.name, strip_flags)
+                    .map(std::cell::RefCell::new)
             })
         } else {
             None
@@ -2176,6 +2333,7 @@ impl Database {
         // their assignment in the store, but still run special setters below.
         // Shell definitions retain the full database for environment effects.
         let result = if append_base.is_none()
+            && lookup_scope.is_none()
             && spec.kind != Assignment::Shell
             && !spec.value.contains(&b'$')
         {
@@ -2197,6 +2355,7 @@ impl Database {
                 definition,
                 context.reborrow(),
                 append_base.as_ref(),
+                lookup_scope.as_ref(),
                 |variables, bytes, shell, context| {
                     std::mem::swap(variables, &mut self.variables);
                     let result = if shell {
@@ -2208,7 +2367,7 @@ impl Database {
                         && let Some(value) = self
                             .evaluation_scope
                             .as_ref()
-                            .and_then(VariableStore::scoped_makeflags_append)
+                            .and_then(|scope| scope.scoped_append(spec.name, strip_flags))
                     {
                         *base.borrow_mut() = value;
                     }
@@ -2330,7 +2489,10 @@ impl Database {
                 continue;
             }
             let target = pattern.literal_bytes();
-            self.file_records.insert(target);
+            if let Some(history) = &self.database_history {
+                history.intern(target);
+            }
+            self.file_records.enter_prerequisite(target);
             let scope = self.target_scopes.entry(target.to_vec()).or_default();
             let parse_variables = scope.context(&self.variables);
             let name = parse_variables
@@ -2589,7 +2751,7 @@ impl Database {
         }
         for dependency in &dependencies {
             if dependency.name != b".WAIT" {
-                self.file_records.insert(&dependency.name);
+                self.file_records.enter_prerequisite(&dependency.name);
             }
         }
         Ok(dependencies)
@@ -2602,8 +2764,11 @@ impl Database {
     ) -> Result<Vec<Vec<u8>>, ExpandError> {
         let raw = self
             .variables
-            .get(b".EXTRA_PREREQS")
+            .database_lookup(b".EXTRA_PREREQS")
             .map(|variable| variable.raw_value().to_vec());
+        for scope in self.target_scopes.values() {
+            let _ = scope.database_lookup(b".EXTRA_PREREQS");
+        }
         if raw.is_none()
             && !self
                 .target_scopes
@@ -2673,7 +2838,7 @@ impl Database {
     ) -> Result<(), ExpandError> {
         let raw = self
             .variables
-            .get(b".EXTRA_PREREQS")
+            .database_lookup(b".EXTRA_PREREQS")
             .map(|variable| variable.raw_value().to_vec());
         let global = self.extra_prerequisites(raw.as_deref(), context)?;
         for (_, rule) in &mut self.implicit_rules {
@@ -2754,6 +2919,25 @@ impl Database {
                 .concat(),
             )
         })?;
+        // The requested setup suffix is not part of the physical module's
+        // file identity. Observe the cache and prior-file query before setup:
+        // constructors and setup callbacks can themselves request a dump.
+        let physical_name = if let Some(open) = name.iter().position(|byte| *byte == b'(')
+            && let Some(close) = name[open + 1..]
+                .iter()
+                .position(|byte| *byte == b')')
+                .map(|offset| open + 1 + offset)
+            && close + 1 == name.len()
+            && close != open + 1
+        {
+            &name[..open]
+        } else {
+            name
+        };
+        if let Some(history) = &self.database_history {
+            history.intern(physical_name);
+            history.record_file_lookup(physical_name);
+        }
         let loaded = runtime.load(
             name,
             optional,
@@ -2773,8 +2957,11 @@ impl Database {
             self.variables
                 .append_literal_at(b".LOADED", &loaded.name, Origin::File, location)?;
         }
+        // A successful or optional attempt retains its file identity even
+        // when the runtime has already loaded the module. Only a genuinely
+        // absent record performs a logical enter.
+        self.file_records.enter_prerequisite(&loaded.name);
         if loaded.status != NativeLoadStatus::Skipped {
-            self.file_records.insert(&loaded.name);
             self.makefiles.push(Makefile {
                 name: loaded.name.clone(),
                 optional: false,
@@ -3040,7 +3227,6 @@ impl Database {
                 let location = pending.location.clone();
                 let optional = pending.optional;
                 if let Some(path) = pending.paths.next() {
-                    self.file_records.insert(&path);
                     context.reader_event(crate::diagnostic::ReaderEvent::Reading {
                         name: &path,
                         search: true,
@@ -3053,6 +3239,14 @@ impl Database {
                         location: location.clone(),
                         message: "rmake: include requires a makefile reader".into(),
                     })?;
+                    let file_identity = match &result {
+                        Ok(included) => included.name.as_slice(),
+                        Err(_) => path.as_slice(),
+                    };
+                    if let Some(history) = &self.database_history {
+                        history.intern(file_identity);
+                    }
+                    self.file_records.enter_prerequisite(file_identity);
                     match result {
                         Ok(included) => {
                             self.makefiles.push(Makefile {
@@ -3066,7 +3260,10 @@ impl Database {
                                     b"MAKEFILE_LIST",
                                     &included.name,
                                     Origin::File,
-                                    &location,
+                                    &Location {
+                                        file: path.as_slice().into(),
+                                        line: 1,
+                                    },
                                 )
                                 .map_err(|e| ParseError {
                                     unlocated: false,
@@ -3555,6 +3752,11 @@ impl Database {
                         paths.extend(words(&matches).map(Vec::from));
                     }
                 }
+                if let Some(history) = &self.database_history {
+                    for path in &paths {
+                        history.intern(path);
+                    }
+                }
                 let retained = paths.iter().map(Vec::capacity).sum::<usize>()
                     + paths.capacity() * std::mem::size_of::<Vec<u8>>();
                 frame.pending = Some(IncludeWork {
@@ -3570,19 +3772,49 @@ impl Database {
                 let value = self.expand(directive(text, b"vpath").unwrap(), &location, context)?;
                 let mut names = words(&value);
                 if let Some(pattern) = names.next() {
-                    let directories: Vec<_> = names
-                        .flat_map(|name| name.split(|byte| *byte == b':'))
-                        .filter(|path| !path.is_empty())
-                        .map(Vec::from)
-                        .collect();
-                    if directories.is_empty() {
+                    let operands = names.collect::<Vec<_>>();
+                    if operands.is_empty() {
                         self.vpaths.retain(|path| path.key != pattern);
                     } else {
-                        self.vpaths.push(Vpath {
-                            key: pattern.to_vec(),
-                            pattern: Pattern::new(pattern),
-                            directories,
-                        });
+                        let mut directories = Vec::new();
+                        for directory in operands
+                            .iter()
+                            .flat_map(|name| name.split(|byte| *byte == b':'))
+                            .filter(|path| !path.is_empty())
+                        {
+                            let original_directory = directory;
+                            let directory = if directory.len() > 1 && directory.ends_with(b"/") {
+                                &directory[..directory.len() - 1]
+                            } else {
+                                directory
+                            };
+                            if directory == b"." {
+                                continue;
+                            }
+                            if let Some(history) = &self.database_history {
+                                history.intern(directory);
+                            }
+                            if let Some(result) = context
+                                .perform_filesystem(FilesystemEffect::DirectoryName(directory))
+                            {
+                                result.map_err(|error| ParseError {
+                                    unlocated: matches!(&error, FilesystemError::Unlocated(_)),
+                                    location: location.clone(),
+                                    message: error.into_message().into(),
+                                })?;
+                            }
+                            directories.push(original_directory.to_vec());
+                        }
+                        if !directories.is_empty() {
+                            if let Some(history) = &self.database_history {
+                                history.intern(pattern);
+                            }
+                            self.vpaths.push(Vpath {
+                                key: pattern.to_vec(),
+                                pattern: Pattern::new(pattern),
+                                directories,
+                            });
+                        }
                     }
                 } else {
                     self.vpaths.clear();
@@ -4111,6 +4343,9 @@ impl Database {
                         if !declaration.patterns.contains_key(target) && stem.is_none() {
                             self.explicit_names.insert(name.clone());
                         }
+                        if !observed_prereqs && let Some(history) = &self.database_history {
+                            history.intern(&name);
+                        }
                         rule.dependencies.push(Dependency {
                             name,
                             order_only,
@@ -4127,7 +4362,15 @@ impl Database {
                         .iter()
                         .filter(|dep| dep.name != b".WAIT")
                     {
-                        self.file_records.insert(&dependency.name);
+                        self.file_records.enter_prerequisite(&dependency.name);
+                    }
+                }
+                if let Some(history) = &self.database_history {
+                    history.intern(target);
+                    if double_colon {
+                        // Classify the existing record before creating this
+                        // independent branch, including the first declaration.
+                        history.record_file_lookup(target);
                     }
                 }
                 self.file_records.insert(target);

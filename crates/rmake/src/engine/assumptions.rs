@@ -47,6 +47,9 @@ impl Files {
             }
         }
     }
+    pub(super) fn is_old_time(&self, time: Option<SystemTime>) -> bool {
+        time == Some(self.old)
+    }
     pub(super) fn is_new_time(&self, time: Option<SystemTime>) -> bool {
         time == Some(self.new)
     }

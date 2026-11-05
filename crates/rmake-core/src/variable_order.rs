@@ -204,7 +204,7 @@ impl Layout {
 
 // Length-aware three-lane fingerprint. The tail is aligned to the final lane;
 // full twelve-byte blocks and the final block have distinct permutations.
-fn fingerprint(name: &[u8]) -> u32 {
+pub(crate) fn fingerprint(name: &[u8]) -> u32 {
     let mut lanes = [0xdead_beef_u32.wrapping_add(name.len() as u32); 3];
     let blocks = name.len().saturating_sub(1) / 12;
     for block in name[..blocks * 12].chunks_exact(12) {

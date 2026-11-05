@@ -1,0 +1,6 @@
+{
+  "classification": "Original authenticated private French locale bootstrap, complete cold and warm provisioner observations, source/lock/check logs and signed package provenance. No package/system install, maintainer scripts, rmake compatibility or performance credit. Third-party data packages remain external; exact authenticated hashes and license identities are retained.",
+  "sha256": "e6612ccc1b9d7f81fc4899b2f5328fc0473b9fe4c5e428fbd275ef2a78d4497b",
+  "raw_sha256": "def25141550e72f0e3308f625d038d69dbf0df25ecab7fea941d3873ac804a27",
+  "raw_bytes": 967675
+}

@@ -1,0 +1,9 @@
+{
+  "classification": "Original guarded Guile component and native fenv qualification; no enabled GNU CLI or full M3/M6 credit",
+  "component_cases": 20,
+  "native_fenv_cases": 18,
+  "sha256": "ef54c783e4039bcef9f9171b9034fc4d8ffaf3d6e6b95d1e6e2a60f3637b6279",
+  "raw_sha256": "136c99a098b17315939087c19305bc3d50f03bbd852468475383127e979709b1",
+  "raw_bytes": 11349443,
+  "gzip_bytes": 2697707
+}

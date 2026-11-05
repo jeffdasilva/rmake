@@ -52,3 +52,15 @@ pub mod native;
 #[allow(unsafe_code)]
 pub mod stdin_source;
 pub mod temporary;
+// The application supplies cached file times and owns emission-point clocks.
+#[allow(unsafe_code)]
+pub mod clock;
+
+// Percentage diagnostics use the live libc locale/fenv on the same OS thread.
+#[allow(unsafe_code)]
+pub mod database_numeric;
+
+// Explicit component only: no function registration or public profile claim.
+#[cfg(feature = "guile")]
+#[allow(unsafe_code)]
+pub mod guile;

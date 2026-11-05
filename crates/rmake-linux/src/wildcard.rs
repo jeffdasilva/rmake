@@ -22,6 +22,13 @@ const LIMIT: &[u8] = b"variable expansion resource limit exceeded";
 struct Entry {
     name: CString,
     directory: Option<bool>,
+    order: u32,
+}
+
+#[derive(Clone, Copy)]
+struct EntryState {
+    directory: Option<bool>,
+    order: u32,
 }
 
 // Borrow raw filename bytes without another string allocation or hashing the
@@ -46,8 +53,10 @@ struct Contents {
     generation: Option<u64>,
     opened: bool,
     stream: Option<directory::Stream>,
-    pending: HashMap<Name, Option<bool>>,
+    pending: HashMap<Name, EntryState>,
     sorted: Option<Vec<Entry>>,
+    collation_rank: Option<Box<[usize]>>,
+    next_order: u32,
     bytes: usize,
 }
 
@@ -55,6 +64,25 @@ struct Contents {
 struct PathEntry {
     contents: Option<usize>,
     generation: u64,
+}
+
+/// Cached facts for diagnostics; requesting them performs no filesystem work.
+/// These observations are not in GNU directory-table traversal order. A host
+/// must apply its retained logical order and separate impossibility records.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DirectoryObservation<'a> {
+    pub name: &'a [u8],
+    pub path_generation: u64,
+    pub identity: Option<(u64, u64)>,
+    pub contents: Option<DirectoryContents>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DirectoryContents {
+    pub generation: Option<u64>,
+    pub opened: bool,
+    pub stream_open: bool,
+    pub files: usize,
 }
 
 #[derive(Default)]
@@ -67,6 +95,7 @@ pub struct Wildcard {
     open_streams: usize,
     bytes: usize,
     generation: u64,
+    database_history: Option<rmake_core::database::History>,
 }
 
 pub fn magic(pattern: &[u8]) -> bool {
@@ -261,8 +290,43 @@ impl Wildcard {
         }
     }
 
+    pub fn set_database_history(&mut self, history: rmake_core::database::History) {
+        self.database_history = Some(history);
+    }
+
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// Borrow cached directory facts exactly as retained, including stale
+    /// generations and physical aliases. Do not refresh, open/drain a stream,
+    /// sort entries, or manufacture GNU's separate impossible-file counts.
+    pub fn database_directories(&self) -> impl Iterator<Item = DirectoryObservation<'_>> {
+        self.paths.iter().map(|(name, path)| {
+            let identity = path.contents.and_then(|index| {
+                self.directories
+                    .iter()
+                    .find_map(|(identity, old)| (*old == index).then_some(*identity))
+            });
+            let contents = path
+                .contents
+                .and_then(|index| self.contents.get(index))
+                .map(|contents| DirectoryContents {
+                    generation: contents.generation,
+                    opened: contents.opened,
+                    stream_open: contents.stream.is_some(),
+                    files: contents
+                        .sorted
+                        .as_ref()
+                        .map_or(contents.pending.len(), Vec::len),
+                });
+            DirectoryObservation {
+                name,
+                path_generation: path.generation,
+                identity,
+                contents,
+            }
+        })
     }
 
     fn charge(&mut self, bytes: usize) -> Result<(), FilesystemError> {
@@ -292,6 +356,9 @@ impl Wildcard {
         } else {
             path
         };
+        if let Some(history) = &self.database_history {
+            history.record_directory(key_path);
+        }
         if let Some(previous) = self.paths.get(key_path).copied() {
             if let Some(index) = previous.contents {
                 if self.contents[index].generation == Some(self.generation) {
@@ -303,6 +370,9 @@ impl Wildcard {
             }
         } else {
             self.charge(key_path.len() + 64)?;
+            if let Some(history) = &self.database_history {
+                history.intern(key_path);
+            }
         }
         let metadata = retry_interrupted(|| fs::metadata(OsStr::from_bytes(key_path)));
         let Ok(metadata) = metadata else {
@@ -356,16 +426,25 @@ impl Wildcard {
         Ok(Some(index))
     }
 
-    fn next_entry(
-        &mut self,
-        index: usize,
-        path: &[u8],
-    ) -> Result<Option<directory::Entry>, FilesystemError> {
+    fn next_entry(&mut self, index: usize, path: &[u8]) -> Result<Option<Entry>, FilesystemError> {
         let Some(stream) = &mut self.contents[index].stream else {
             return Ok(None);
         };
         match stream.next_entry() {
-            Ok(Some(entry)) => Ok(Some(entry)),
+            Ok(Some(entry)) => {
+                if let Some(history) = &self.database_history {
+                    history.intern(entry.name.as_bytes());
+                }
+                let order = self.contents[index].next_order;
+                self.contents[index].next_order = order
+                    .checked_add(1)
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
+                Ok(Some(Entry {
+                    name: entry.name,
+                    directory: entry.directory,
+                    order,
+                }))
+            }
             Ok(None) => {
                 self.close_stream(index);
                 Ok(None)
@@ -391,9 +470,10 @@ impl Wildcard {
         }
         let mut entries: Vec<_> = std::mem::take(&mut self.contents[index].pending)
             .into_iter()
-            .map(|(name, directory)| Entry {
+            .map(|(name, state)| Entry {
                 name: name.0,
-                directory,
+                directory: state.directory,
+                order: state.order,
             })
             .collect();
         // A full glob needs no incremental hash index. Append directly and
@@ -403,10 +483,7 @@ impl Wildcard {
             let bytes = entry.name.as_bytes().len() + 48;
             self.charge(bytes)?;
             self.contents[index].bytes += bytes;
-            entries.push(Entry {
-                name: entry.name,
-                directory: entry.directory,
-            });
+            entries.push(entry);
         }
         entries.sort_by(|left, right| left.name.as_bytes().cmp(right.name.as_bytes()));
         let mut discarded = 0;
@@ -458,7 +535,12 @@ impl Wildcard {
             }
             self.contents[index]
                 .pending
-                .insert(Name(entry.name), entry.directory);
+                .entry(Name(entry.name))
+                .and_modify(|known| known.directory = entry.directory)
+                .or_insert(EntryState {
+                    directory: entry.directory,
+                    order: entry.order,
+                });
             if matches {
                 return Ok(true);
             }
@@ -466,6 +548,18 @@ impl Wildcard {
         // A negative membership probe leaves the completed hash table ready
         // for later probes; sorting is needed only if a wildcard consumes it.
         Ok(false)
+    }
+
+    /// Retain the directory-name observation used by VPATH construction.
+    /// Missing/unopenable directories still have a named cache record; this
+    /// operation does not drain the directory or test any member filename.
+    pub fn directory_name(&mut self, path: &[u8]) -> Result<Vec<u8>, FilesystemError> {
+        self.directory(path)?;
+        Ok(if path.is_empty() {
+            b".".to_vec()
+        } else {
+            path.to_vec()
+        })
     }
 
     /// Literal directory membership for rule search, distinct from glob's
@@ -482,14 +576,41 @@ impl Wildcard {
         self.read_directory(index, parent, Some(filename))
     }
 
-    fn entries(&mut self, path: &[u8]) -> Result<&[Entry], FilesystemError> {
+    fn entries(
+        &mut self,
+        path: &[u8],
+        collated: bool,
+    ) -> Result<(&[Entry], Option<&[usize]>), FilesystemError> {
         let Some(index) = self.directory(path)? else {
-            return Ok(&[]);
+            return Ok((&[], None));
         };
         if self.contents[index].sorted.is_none() {
             self.read_all(index, path)?;
         }
-        Ok(self.contents[index].sorted.as_deref().unwrap_or_default())
+        if collated && self.contents[index].collation_rank.is_none() {
+            let entries = self.contents[index].sorted.as_deref().unwrap_or_default();
+            let mut insertion: Vec<_> = (0..entries.len()).collect();
+            insertion.sort_unstable_by_key(|index| entries[*index].order);
+            let names: Vec<_> = insertion
+                .iter()
+                .map(|index| entries[*index].name.as_bytes())
+                .collect();
+            let order = rmake_core::file_records::traversal_order(&names, 128)
+                .expect("fixed directory table capacity");
+            let mut rank = vec![0; entries.len()].into_boxed_slice();
+            for (position, index) in order.into_iter().enumerate() {
+                rank[insertion[index]] = position;
+            }
+            let bytes = rank.len() * std::mem::size_of::<usize>();
+            self.charge(bytes)?;
+            self.contents[index].bytes += bytes;
+            self.contents[index].collation_rank = Some(rank);
+        }
+        let contents = &self.contents[index];
+        Ok((
+            contents.sorted.as_deref().unwrap_or_default(),
+            contents.collation_rank.as_deref(),
+        ))
     }
 
     fn paths(&mut self, pattern: &[u8]) -> Result<Vec<Vec<u8>>, FilesystemError> {
@@ -549,8 +670,10 @@ impl Wildcard {
         };
         let mut result = Vec::new();
         let mut bytes = 0usize;
+        let collation = crate::locale::Collation::current();
+        let mut rank_base = 0usize;
         for parent in parents {
-            let mut emit = |name: &[u8]| -> Result<(), FilesystemError> {
+            let mut emit = |name: &[u8], rank: usize| -> Result<(), FilesystemError> {
                 let mut path = if prefix {
                     join(&parent, name)
                 } else {
@@ -563,6 +686,14 @@ impl Wildcard {
                 if bytes > MAX_OUTPUT {
                     return Err(LIMIT.to_vec().into());
                 }
+                if !collation.is_bytewise() {
+                    let rank = rank_base
+                        .checked_add(rank)
+                        .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
+                    path.reserve(1 + size_of::<usize>());
+                    path.push(0);
+                    path.extend_from_slice(&rank.to_ne_bytes());
+                }
                 result.push(path);
                 Ok(())
             };
@@ -570,22 +701,31 @@ impl Wildcard {
                 let Some(matcher) = posix::Matcher::new(leaf) else {
                     continue;
                 };
-                let entries = self.entries(&parent)?;
-                for entry in entries.iter() {
+                let (entries, rank) = self.entries(&parent, !collation.is_bytewise())?;
+                for (index, entry) in entries.iter().enumerate() {
                     if matcher.matches(&entry.name)
                         && (!directories_only
                             || entry.directory.unwrap_or_else(|| {
                                 exists(&join(&parent, entry.name.as_bytes()), true)
                             }))
                     {
-                        emit(entry.name.as_bytes())?;
+                        emit(
+                            entry.name.as_bytes(),
+                            rank.map_or(index, |rank| rank[index]),
+                        )?;
                     }
                 }
+                rank_base = rank_base
+                    .checked_add(entries.len())
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
             } else if exists(&join(&parent, leaf), false) {
-                emit(leaf)?;
+                emit(leaf, 0)?;
+                rank_base = rank_base
+                    .checked_add(1)
+                    .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
             }
         }
-        result.sort_unstable();
+        collation.sort(&mut result);
         Ok(result)
     }
 
@@ -673,6 +813,52 @@ mod stream_budget_tests {
     use super::*;
 
     #[test]
+    fn repeated_directory_entry_updates_type_without_moving_its_insertion() {
+        let root = std::env::temp_dir().join(format!(
+            "rmake-dir-order-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(root.join("entry")).unwrap();
+        struct Remove(std::path::PathBuf);
+        impl Drop for Remove {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let _remove = Remove(root.clone());
+        let path = root.as_os_str().as_bytes();
+        for partial in [false, true] {
+            let mut cache = Wildcard::default();
+            let index = cache.directory(path).unwrap().unwrap();
+            // A prior observation may recur while a directory stream changes.
+            // Reuse the actual stream to exercise both accumulation paths.
+            cache.contents[index].pending.insert(
+                Name(CString::new("entry").unwrap()),
+                EntryState {
+                    directory: Some(false),
+                    order: 7,
+                },
+            );
+            cache.contents[index].next_order = 8;
+            if partial {
+                assert!(!cache.read_directory(index, path, Some(b"missing")).unwrap());
+            }
+            let (entries, _) = cache.entries(path, false).unwrap();
+            let entry = entries
+                .iter()
+                .find(|entry| entry.name.as_bytes() == b"entry")
+                .unwrap();
+            assert_eq!(entry.directory, Some(true));
+            assert_eq!(entry.order, 7);
+        }
+    }
+
+    #[test]
     fn allocation_failure_while_draining_tenth_stream_releases_it() {
         let root = std::env::temp_dir().join(format!(
             "rmake-dir-budget-{}-{}",
@@ -714,5 +900,151 @@ mod stream_budget_tests {
         );
         assert_eq!(cache.open_streams, 9);
         assert!(cache.contents.last().unwrap().stream.is_none());
+    }
+}
+
+#[cfg(test)]
+mod database_view_tests {
+    use super::*;
+
+    #[test]
+    fn diagnostic_view_borrows_failed_stat_failed_open_aliases_and_stale_contents() {
+        let mut cache = Wildcard {
+            generation: 9,
+            ..Wildcard::default()
+        };
+        let mut populated = Contents {
+            generation: Some(7),
+            opened: true,
+            ..Contents::default()
+        };
+        for (order, name) in [b".".as_slice(), b"..", b"input"].into_iter().enumerate() {
+            populated.pending.insert(
+                Name(CString::new(name).unwrap()),
+                EntryState {
+                    directory: None,
+                    order: order as u32,
+                },
+            );
+        }
+        populated.next_order = 3;
+        cache.contents = vec![
+            populated,
+            Contents {
+                generation: Some(8),
+                ..Contents::default()
+            },
+        ];
+        cache.directories.insert((42, 99), 0);
+        cache.directories.insert((42, 100), 1);
+        for (name, contents, generation) in [
+            (b".".as_slice(), Some(0), 7),
+            (b"alias", Some(0), 7),
+            (b"unopened", Some(1), 8),
+            (b"missing", None, 9),
+        ] {
+            cache.paths.insert(
+                name.to_vec(),
+                PathEntry {
+                    contents,
+                    generation,
+                },
+            );
+        }
+        let views = cache
+            .database_directories()
+            .map(|view| (view.name, view))
+            .collect::<HashMap<_, _>>();
+        let first = views[b".".as_slice()];
+        assert_eq!(first.identity, Some((42, 99)));
+        assert_eq!(first.path_generation, 7);
+        assert_eq!(
+            first.contents,
+            Some(DirectoryContents {
+                generation: Some(7),
+                opened: true,
+                stream_open: false,
+                files: 3
+            })
+        );
+        assert_eq!(views[b"alias".as_slice()].contents, first.contents);
+        assert_eq!(views[b"alias".as_slice()].identity, first.identity);
+        assert!(!views[b"unopened".as_slice()].contents.unwrap().opened);
+        assert_eq!(views[b"missing".as_slice()].identity, None);
+        assert_eq!(views[b"missing".as_slice()].contents, None);
+        assert_eq!(cache.generation, 9);
+        assert_eq!(cache.contents[0].pending.len(), 3);
+        assert!(cache.contents[0].sorted.is_none());
+        assert_eq!(cache.open_streams, 0);
+    }
+
+    #[test]
+    fn diagnostic_view_counts_finished_sorted_entries_without_allocating_a_new_index() {
+        let mut cache = Wildcard::default();
+        cache.contents.push(Contents {
+            generation: Some(0),
+            opened: true,
+            sorted: Some(vec![
+                Entry {
+                    name: CString::new("a").unwrap(),
+                    directory: None,
+                    order: 0,
+                },
+                Entry {
+                    name: CString::new("b").unwrap(),
+                    directory: None,
+                    order: 1,
+                },
+            ]),
+            next_order: 2,
+            ..Contents::default()
+        });
+        cache.directories.insert((1, 2), 0);
+        cache.paths.insert(
+            b"cached".to_vec(),
+            PathEntry {
+                contents: Some(0),
+                generation: 0,
+            },
+        );
+        assert_eq!(
+            cache
+                .database_directories()
+                .next()
+                .unwrap()
+                .contents
+                .unwrap()
+                .files,
+            2
+        );
+        assert!(cache.contents[0].pending.is_empty());
+        assert_eq!(cache.contents[0].sorted.as_ref().unwrap().len(), 2);
+    }
+    #[test]
+    fn directory_name_retains_open_state_without_enumerating_members() {
+        let root = std::env::temp_dir().join(format!(
+            "rmake-dir-name-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("member"), b"present").unwrap();
+        let mut cache = Wildcard::default();
+        let name = root.as_os_str().as_bytes();
+        assert_eq!(cache.directory_name(name).unwrap(), name);
+        let retained = cache.database_directories().next().unwrap();
+        assert!(retained.contents.unwrap().opened);
+        assert!(retained.contents.unwrap().stream_open);
+        assert_eq!(retained.contents.unwrap().files, 0);
+        assert!(
+            cache
+                .file_exists(root.join("member").as_os_str().as_bytes())
+                .unwrap()
+        );
+        drop(cache);
+        fs::remove_dir_all(root).unwrap();
     }
 }

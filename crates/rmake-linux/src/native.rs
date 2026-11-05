@@ -57,6 +57,8 @@ unsafe extern "C" {
     fn rm_native_flush_stream(error: c_int) -> c_int;
     fn rm_native_stdout_closed() -> c_int;
     fn rm_native_thread_id() -> usize;
+    #[cfg(feature = "guile")]
+    fn rg_guile_callback(name: *const c_char, argc: c_uint, argv: *mut *mut c_char) -> *mut c_char;
     fn malloc(size: usize) -> *mut c_void;
     fn free(pointer: *mut c_void);
 }
@@ -199,6 +201,10 @@ impl Runtime {
         Self::default()
     }
     pub fn has_modules(&self) -> bool {
+        #[cfg(feature = "guile")]
+        if crate::guile::initialized() {
+            return true;
+        }
         !self.0.images.borrow().is_empty()
             || !self.0.loaded.borrow().is_empty()
             || !self.0.unloaded.borrow().is_empty()
@@ -206,7 +212,41 @@ impl Runtime {
     pub fn unloaded(&self) -> Vec<Vec<u8>> {
         self.0.unloaded.borrow().clone()
     }
+    #[cfg(feature = "guile")]
+    pub(crate) fn evaluate_guile(
+        &self,
+        source: &[u8],
+        host: &mut dyn NativeHost,
+    ) -> Result<(Vec<u8>, Vec<u8>), ExpandError> {
+        let result = self.run(
+            3,
+            rg_guile_callback as *const () as usize,
+            Some(b"guile"),
+            0,
+            None,
+            &[source.to_vec()],
+            None,
+            host,
+        )?;
+        let value = if result.pointer.is_null() {
+            Vec::new()
+        } else {
+            let value = bytes(result.pointer.cast());
+            unsafe { free(result.pointer) };
+            value
+        };
+        if value.len() > MAX_OUTPUT {
+            return Err(ExpandError::ExpansionLimit);
+        }
+        Ok((value, result.message))
+    }
     fn check(&self) -> Result<(), ExpandError> {
+        #[cfg(feature = "guile")]
+        if !crate::guile::host_active() {
+            return Err(error(
+                b"rmake: Guile-enabled native operations require the leading-C dispatcher".to_vec(),
+            ));
+        }
         if self.0.poisoned.get() && !self.0.exiting.get() {
             Err(error(
                 b"rmake: native invocation stopped after a fatal error".to_vec(),
@@ -295,6 +335,10 @@ impl Runtime {
             // no Rust frame or borrow lives on the foreign stack.
             let request = unsafe { *rm_native_drive(raw.as_ptr(), reply) };
             reply = ptr::null_mut();
+            #[cfg(feature = "guile")]
+            if !self.0.exiting.get() && crate::guile::pending_signal().is_some() {
+                return Err(ExpandError::Cancelled);
+            }
             match request.kind {
                 0 => {
                     session.completed = true;
@@ -325,7 +369,7 @@ impl Runtime {
                     };
                     host.evaluate(&input, location.as_ref())?;
                 }
-                3 => self.register(request, owner.clone())?,
+                3 => self.register(request, owner.clone(), host)?,
                 5 => {
                     let message = bytes(request.text);
                     if !host.emit(Output::Warning {
@@ -335,6 +379,8 @@ impl Runtime {
                         return Err(error(message));
                     }
                 }
+                #[cfg(feature = "guile")]
+                6 => return Err(ExpandError::Cancelled),
                 _ => return Err(error(b"virtual memory exhausted".to_vec())),
             }
         }
@@ -358,7 +404,12 @@ impl Runtime {
             .and_then(|images| images.iter().rev().find(|image| image.open.get()).cloned())
     }
 
-    fn register(&self, request: Request, owner: Option<Rc<Image>>) -> Result<(), ExpandError> {
+    fn register(
+        &self,
+        request: Request,
+        owner: Option<Rc<Image>>,
+        host: &mut dyn NativeHost,
+    ) -> Result<(), ExpandError> {
         let name = bytes(request.text);
         let prefix = name
             .iter()
@@ -420,6 +471,7 @@ impl Runtime {
                 .base
                 .set(unsafe { rm_native_base(request.function) } as usize);
         }
+        host.registered_function_name(&name);
         let callback = Rc::new(Callback {
             state: Rc::downgrade(&self.0),
             function: request.function as usize,
@@ -455,6 +507,24 @@ impl Runtime {
                 b"rmake: native process exit unexpectedly returned".to_vec(),
             )),
         }
+    }
+    /// Finish an already-cleaned-up fatal signal on the ordinary C stack.
+    /// Signal termination skips ELF finalizers, matching the host signal path.
+    #[cfg(feature = "guile")]
+    pub fn terminate_signal(
+        &self,
+        number: i32,
+        host: &mut dyn NativeHost,
+    ) -> Result<(), ExpandError> {
+        if !matches!(number, 1 | 2 | 3 | 13 | 15 | 24 | 25) {
+            return Err(error(b"unsupported native termination signal".to_vec()));
+        }
+        self.0.exiting.set(true);
+        self.0.retry_exit.set(false);
+        self.run(6, 0, None, number, None, &[], None, host)?;
+        Err(error(
+            b"native signal termination unexpectedly returned".to_vec(),
+        ))
     }
 
     pub fn can_retry_exit(&self) -> bool {

@@ -1,0 +1,7 @@
+{
+  "classification": "DB compact logical-key and lookup optimization discovery; exact33 profiles; wrong-build-prefix attempt retained; not full milestone/performance acceptance",
+  "sha256": "d176d2c8db104e0a5eec4f586728514df64fc14840c05418a2974fc058d7cca4",
+  "raw_sha256": "dbaeb61bdf46c970fc7b9d05d42614950fcd98a21e937ccbf39e9af6b5d7f284",
+  "raw_bytes": 16415846,
+  "gzip_bytes": 1637573
+}

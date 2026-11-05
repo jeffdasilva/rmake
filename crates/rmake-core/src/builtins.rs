@@ -35,7 +35,10 @@ const SUFFIX_RECORD_ORDER: &[u8] = b".o .s .S .c .cc .C .cpp .f .m .p .F .r .mod
 impl Database {
     pub fn record_builtin_suffixes(&mut self) {
         for name in SUFFIX_RECORD_ORDER.split(|byte| *byte == b' ') {
-            self.file_records.insert(name);
+            if let Some(history) = self.database_history() {
+                history.intern(name);
+            }
+            self.file_records.insert_builtin(name);
         }
     }
 
@@ -108,6 +111,18 @@ impl Database {
     }
 
     fn append_pattern(&mut self, pattern: Pattern, rule: Rule) {
+        self.append_pattern_with_cache(pattern, rule, true);
+    }
+
+    fn append_pattern_with_cache(&mut self, pattern: Pattern, rule: Rule, intern_target: bool) {
+        if let Some(history) = self.database_history() {
+            if intern_target {
+                history.intern(pattern.literal_bytes());
+            }
+            for dependency in &rule.dependencies {
+                history.intern(&dependency.name);
+            }
+        }
         // User definitions (including cancellations) precede generated and
         // built-in alternatives, even when their recipes are empty.
         if !self
@@ -166,6 +181,9 @@ impl Database {
                     continue;
                 }
                 let name = [source.as_slice(), destination].concat();
+                if let Some(history) = self.database_history() {
+                    history.record_file_lookup(&name);
+                }
                 if let Some(rule) = self
                     .rules
                     .get(&name)
@@ -205,7 +223,9 @@ impl Database {
             defaults.read(PATTERN_RULES, b"<builtin>")?;
             for (pattern, mut rule) in defaults.implicit_rules {
                 builtin_location(&mut rule);
-                self.append_pattern(pattern, rule);
+                // Compiled default-pattern targets have permanent storage in
+                // GNU; only their dependency spellings enter its string cache.
+                self.append_pattern_with_cache(pattern, rule, false);
             }
         }
         Ok(())

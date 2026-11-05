@@ -3159,3 +3159,6 @@ assigned. Larger JOBS transports/scopes/recursion/restarts/loaded and resource
 profiles, Guile/GC, broader diagnostics, caches, integration, full developer
 flows and M3/M6 remain open. Frozen exact-head local acceptance and CI remain
 merge gates; no general speed parity is claimed.
+
+
+Locale wildcard collation adds [74 complete original models](locale-collation.md) across C/C.UTF8/private French, native global/thread-local changes, malformed-byte ties and directory-table growth. Both builds pass 74 and preserve all 183 earlier locale controls; the preceding release passes41/fails33. Public libc compares completed globs while byte-ordered directory lookup and Make sort remain separate. Authenticated local-only locale generation removes host French-data assumptions. Complete failed/refined hypotheses, raw observations and coherent source/input/binary closure remain in the [evidence index](../tests/locale-collation/README.md). Wider locale/cache-history/resource profiles, performance measurements and M3/M6 remain open.
