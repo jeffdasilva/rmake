@@ -79,6 +79,7 @@ PROFILE_CANDIDATE ?= $(CURDIR)/artifacts/profile/target/release/rmake
 PROFILE_OUTPUT ?= $(CURDIR)/artifacts/profile/allocations
 BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
+BENCH_VALIDATE ?= 0
 BENCH_BASELINE ?=
 SEED ?= 44101
 GENERATED_CASES ?= 200
@@ -761,7 +762,7 @@ test-m4-release: test-shell-capture-lifetime-release
 ci: check test-selfhost
 
 bench: oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)
 
 profile-allocations:
 	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
@@ -772,7 +773,7 @@ profile-allocations-frozen:
 
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)
 
 clean:
 	+$(CARGO) clean

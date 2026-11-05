@@ -3,6 +3,8 @@
 """Keep comparison methodology and frozen workload identities reviewable."""
 
 import hashlib
+from pathlib import Path
+import tempfile
 import unittest
 
 import benchmark
@@ -10,6 +12,38 @@ import conformance
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_untimed_workload_rejects_wrong_stream_effect_or_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "runtime"
+            runtime.mkdir()
+            variants = {
+                "good": b'printf "built\\n"; printf "kept\\n" > outcome',
+                "wrong-stream": b'printf "wrong\\n"; printf "kept\\n" > outcome',
+                "wrong-file": b'printf "built\\n"; printf "wrong\\n" > outcome',
+                "failed": b'printf "built\\n"; printf "kept\\n" > outcome; exit 9',
+            }
+            for name, script in variants.items():
+                path = root / name
+                path.write_bytes(b"#!/bin/sh\n" + script + b"\n")
+                path.chmod(0o755)
+
+            def run(candidate):
+                return benchmark.validate_workload(
+                    runtime, "unit", b"all:;\n", [], {"PATH": "/usr/bin:/bin", "LC_ALL": "C"},
+                    {"oracle": root / "good", "candidate": root / candidate},
+                )
+
+            result = run("good")
+            self.assertEqual(result["engine_order"], ["oracle", "oracle", "candidate"])
+            self.assertEqual(result["stdout_sha256"], hashlib.sha256(b"built\n").hexdigest())
+            self.assertEqual(result["status"], 0)
+            self.assertNotIn("measurements", result)
+            for candidate, error in (("wrong-stream", "stdout"), ("wrong-file", "filesystem"),
+                                     ("failed", "status=9")):
+                with self.subTest(candidate=candidate), self.assertRaisesRegex(RuntimeError, error):
+                    run(candidate)
+
     def test_locale_workloads_bound_queries_without_rewriting_historical_inputs(self):
         original = dict(benchmark.wildcard_workloads())
         bounded = dict(benchmark.selected_workloads('wildcard-locale'))
