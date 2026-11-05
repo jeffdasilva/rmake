@@ -21,7 +21,8 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes all five projects. `INTEGRATION_CASE` selects an exact manifest ID.
+executes all six profiles across five projects. `INTEGRATION_CASE` selects an
+exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
 retain its complete artifacts. No additional workflow with weaker criteria is
@@ -55,6 +56,14 @@ value `3` to `255`. Both independently expected byte values are checked along
 with a nonempty compression and decompression round trip. The upstream archive
 and GPLv3 license file are pinned by digest.
 
+The same pinned gzip archive also runs as `gzip-1.14-parallel-fifo`. This
+profile uses two jobs, the FIFO jobserver and recursive output synchronization
+through the original `all` target. `-s V=1` leaves the two upstream recursive
+directory announcements as the exact fresh, no-op and rebuild output. The
+profile checks both executable smoke results and full filesystem snapshots.
+It reuses the verified serial-profile source archive and has its own common
+configure preparation.
+
 The GNU Patch profile freezes one common `configure` preparation and runs the
 original serial `all` target through `lib`, `src`, and `tests`. It watches
 `src/version.o` and `src/patch`. The scratch `config.h` change must replace one
@@ -68,7 +77,7 @@ The detached signature was verified against release signer fingerprint
 manifest pins the archive and its `COPYING` file. [Release announcement and signer](https://lists.gnu.org/archive/html/info-gnu/2025-03/msg00014.html)
 · [Official archive and signature](https://ftp.gnu.org/gnu/patch/) · [GNU release keyring](https://ftp.gnu.org/gnu/gnu-keyring.gpg)
 
-These five Linux/GCC profiles are counted separately from ordinary curated
+These six Linux/GCC profiles are counted separately from ordinary curated
 Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its

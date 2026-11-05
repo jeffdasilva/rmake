@@ -176,6 +176,26 @@
       }
     }
   ],
+  "profiles": [
+    {
+      "id": "gzip-1.14-parallel-fifo",
+      "project": "gzip-1.14",
+      "args": [
+        "-j2",
+        "--jobserver-style=fifo",
+        "--output-sync=recurse",
+        "--no-print-directory",
+        "-s",
+        "SUBDIRS=lib .",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
+      ],
+      "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e202e0a"
+    }
+  ],
   "phases": [
     "fresh-build",
     "optional-fresh-binary-smoke",
