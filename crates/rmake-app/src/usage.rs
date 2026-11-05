@@ -88,6 +88,27 @@ pub(crate) fn output_sync_mode(mode: &[u8]) -> Vec<u8> {
     format(c"unknown output-sync type '%s'", &[Argument::Bytes(mode)])
 }
 
+pub(crate) fn invalid_sync_mutex(authentication: &[u8]) -> Vec<u8> {
+    format(
+        c"invalid --sync-mutex string '%s'",
+        &[Argument::Bytes(authentication)],
+    )
+}
+
+pub(crate) fn sync_mutex_open(authentication: &[u8], error: &std::io::Error) -> Vec<u8> {
+    let path = authentication
+        .strip_prefix(b"fnm:")
+        .unwrap_or(authentication);
+    let detail = error
+        .raw_os_error()
+        .and_then(rmake_linux::messages::errno_detail)
+        .unwrap_or_else(|| crate::engine::os_error(error).into_bytes());
+    format(
+        c"cannot open output sync mutex %s: %s",
+        &[Argument::Bytes(path), Argument::Bytes(&detail)],
+    )
+}
+
 pub(crate) fn jobserver_style(style: &[u8]) -> Vec<u8> {
     format(
         c"unknown jobserver auth style '%s'",

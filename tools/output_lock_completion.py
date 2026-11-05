@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Check live output-mutex completion in C and French against two GNU runs."""
+"""Check live output-mutex completion in five catalog profiles against two GNU runs."""
 
 import argparse
 from dataclasses import dataclass, field
+import gettext
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import tempfile
 
 import conformance as h
 import nls_diagnostics as nls
+from trace_job_languages import CATALOGS
 from trace_nls import CATALOG_HASH, file_entry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,9 +23,10 @@ PAYLOAD = br'X:=$$(file\ >>seen,payload)'
 MISSING = b'--sync-mutex=fnm:absent'
 VALID = b'--sync-mutex=fnm:lock'
 INVALID = b'--sync-mutex=broken'
-WARNING = b"make: invalid --sync-mutex string 'broken'\n"
-MODE_ERROR = (b"unknown output-sync type 'broken'",
-              'type de output-sync «\xa0broken\xa0» inconnu'.encode())
+INVALID_TAG = "invalid --sync-mutex string '%s'"
+OPEN_ERROR = 'cannot open output sync mutex %s: %s'
+MODE_ERROR = ("unknown output-sync type '%s'", (b'broken',))
+STOP = '.  Stop.\n'
 
 
 @dataclass(frozen=True)
@@ -35,13 +38,12 @@ class Model:
     seen: bytes | None = None
     remove: tuple[str, ...] = ()
     stdout: bytes = b''
-    warning: bytes = b''
-    error: tuple[bytes, bytes] | None = None
+    invalid_warnings: int = 0
+    error: tuple[str, tuple[bytes, ...]] | None = None
 
 
 def missing(path):
-    message = b'cannot open output sync mutex ' + path + b': No such file or directory'
-    return message, message
+    return OPEN_ERROR, (path, b'No such file or directory')
 
 
 def live(flags):
@@ -56,14 +58,16 @@ def models():
         Model('cli-inactive', empty, (b'-Onone', MISSING), error=missing(b'absent')),
         Model('cli-raw-path', empty, (b'-Otarget', b'--sync-mutex=fnm:missing-\xff'),
               error=missing(b'missing-\xff')),
-        Model('cli-invalid-tag', empty, (b'-Otarget', INVALID), warning=WARNING * 2),
+        Model('cli-invalid-tag', empty, (b'-Otarget', INVALID), invalid_warnings=2),
         Model('cli-mode-first', empty, (b'--output-sync=broken', MISSING), error=MODE_ERROR),
         Model('cli-existing', b'all:;@printf "ok\\n"\n', (b'-Otarget', VALID), good, stdout=b'ok\n'),
         Model('live-later-read', b'$(info before)\nMAKEFLAGS += ' + MISSING
               + b'\n$(info after)\n' + empty, stdout=b'before\n', error=missing(b'absent')),
         Model('live-invalid-tag', live(INVALID), seen=b'anchor\nafter\n',
-              stdout=b'recipe\n', warning=WARNING * 2),
+              stdout=b'recipe\n', invalid_warnings=2),
         Model('live-existing', live(VALID), inputs=good, seen=b'anchor\nafter\n', stdout=b'recipe\n'),
+        Model('live-raw-path', live(b'--sync-mutex=fnm:missing-\xff'), seen=b'anchor\n',
+              error=missing(b'missing-\xff')),
         Model('live-last-existing', live(MISSING + b' ' + VALID), inputs=good,
               seen=b'anchor\nafter\n', stdout=b'recipe\n'),
         Model('live-last-missing', live(VALID + b' ' + MISSING), inputs=good,
@@ -91,13 +95,22 @@ def main():
     parser.add_argument('--locale-root', required=True, type=Path)
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
-    oracle, profile, _, locale = nls.prepare_reference(args.oracle, CATALOG_HASH, args.locale_root)
+    oracle, profile, french, locale = nls.prepare_reference(args.oracle, CATALOG_HASH, args.locale_root)
     engines = (oracle, oracle, args.candidate.resolve())
     report = {'oracle_profile_id': profile['profile_id'], 'locale_profile': locale,
               'binary_identities': [h.executable_identity(path) for path in engines], 'cases': []}
-    languages = (('C', {}, b'.  Stop.\n'),
-                 ('fr', {**locale['environment'], 'LC_ALL': locale['locale'], 'LANG': locale['locale']},
-                  '. Arrêt.\n'.encode()))
+    catalog_root = french.parents[2]
+    languages = [('C', {}, str.encode)]
+    localized = {**locale['environment'], 'LC_ALL': locale['locale'], 'LANG': locale['locale']}
+    for language, digest in {'fr': CATALOG_HASH, **CATALOGS}.items():
+        path = Path(language) / 'LC_MESSAGES/make.mo'
+        for base in (catalog_root, ROOT / 'catalogs'):
+            if h.sha256_file(base / path) != digest:
+                raise h.HarnessError('incorrect output lock catalog: ' + language)
+        with (catalog_root / path).open('rb') as stream:
+            catalog = gettext.GNUTranslations(stream)
+        languages.append((language, {**localized, 'LANGUAGE': language},
+                          lambda key, catalog=catalog: catalog.gettext(key).encode()))
     inventory = models()
     with tempfile.TemporaryDirectory(prefix='rmake-output-lock-') as directory:
         root = Path(directory)
@@ -108,10 +121,14 @@ def main():
             fixture.mkdir()
             for name, contents in {'Makefile': model.makefile, **model.inputs}.items():
                 (fixture / name).write_bytes(contents)
-            for index, (language, environment, stop) in enumerate(languages):
-                stderr = model.warning
+            for language, environment, lookup in languages:
+                stderr = b''
+                if model.invalid_warnings:
+                    warning = b'make: ' + (lookup(INVALID_TAG) % (b'broken',)) + b'\n'
+                    stderr += warning * model.invalid_warnings
                 if model.error:
-                    stderr += b'make: *** ' + model.error[index] + stop
+                    key, arguments = model.error
+                    stderr += b'make: *** ' + (lookup(key) % arguments) + lookup(STOP)
                 argv = ('-rR', '--no-print-directory', *map(os.fsdecode, model.args))
                 expected = {'exit_code': 2 if model.error else 0,
                             'stdout_hex': model.stdout.hex(), 'stderr_hex': stderr.hex()}

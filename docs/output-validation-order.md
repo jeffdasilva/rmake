@@ -67,7 +67,8 @@ side effects; a failed lock open stops subsequent file reads and recipes.
 When both the mode and lock are invalid, mode validation takes precedence.
 
 `make test-output-lock-completion` and `make test-output-lock-completion-release`
-exercise 16 original models in C and French. They compare two pinned GNU runs
+exercise 17 original models in C, French, German, Japanese, and Brazilian
+Portuguese. They compare two pinned GNU runs
 and rmake against independently specified status, byte streams, and complete
 filesystem effects, including repeated options, an included reader, raw path
 bytes, and reopening a lock removed between live assignments.

@@ -1358,17 +1358,7 @@ impl Engine {
         );
         if let Some(authentication) = &options.sync_mutex {
             retain!(output.decode_mutex(authentication).map_err(|error| {
-                Diagnostic::from(
-                    [
-                        b"cannot open output sync mutex ".as_slice(),
-                        authentication
-                            .strip_prefix(b"fnm:")
-                            .unwrap_or(authentication),
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                )
+                Diagnostic::from(crate::usage::sync_mutex_open(authentication, &error))
             }));
         }
         let flag_state =
@@ -2465,18 +2455,7 @@ impl Engine {
             if let Some(authentication) = &self.options.sync_mutex
                 && let Err(error) = self.output.decode_mutex(authentication)
             {
-                self.fatal(
-                    None,
-                    &[
-                        b"cannot open output sync mutex ".as_slice(),
-                        authentication
-                            .strip_prefix(b"fnm:")
-                            .unwrap_or(authentication),
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                );
+                self.fatal(None, &crate::usage::sync_mutex_open(authentication, &error));
                 return 2;
             }
             match crate::command_variables::replay(
