@@ -2675,11 +2675,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        format!(
-                            "extraneous text after '{}' directive",
-                            String::from_utf8_lossy(keyword)
-                        )
-                        .into(),
+                        Diagnostic::system(Message::DirectiveTail(keyword)),
                     );
                 }
                 return Ok(Some(
@@ -2963,9 +2959,16 @@ impl Database {
                 database: self,
                 context: context.at(Some(location)),
             },
-        )?;
+        );
+        let loaded = loaded.map_err(|error| {
+            if error.system_message().is_some() {
+                context.freeze_error(error)
+            } else {
+                error
+            }
+        })?;
         if loaded.status == NativeLoadStatus::Failed && !optional {
-            return Err(ExpandError::FileError([name, b": failed to load"].concat()));
+            return Err(context.freeze_error(ExpandError::system(Message::LoadFailed(name))));
         }
         self.loaded_modules
             .entry(loaded.name.clone())
@@ -3478,7 +3481,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        "extraneous text after 'else' directive".into(),
+                        Diagnostic::system(Message::DirectiveTail(b"else")),
                     );
                     top.otherwise = true;
                     eligible
@@ -3499,7 +3502,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        "extraneous text after 'endif' directive".into(),
+                        Diagnostic::system(Message::DirectiveTail(b"endif")),
                     );
                 }
                 continue;
@@ -3539,7 +3542,7 @@ impl Database {
                             &mut self.warnings,
                             context,
                             location.clone(),
-                            "extraneous text after 'define' directive".into(),
+                            Diagnostic::system(Message::DefineTail),
                         );
                     }
                     let (raw_name, kind) = spec.map_or((header, Assignment::Recursive), |spec| {
@@ -3632,7 +3635,7 @@ impl Database {
                                         file: source_name.clone(),
                                         line: part.end_line,
                                     },
-                                    "extraneous text after 'endef' directive".into(),
+                                    Diagnostic::system(Message::EndefTail),
                                 );
                             }
                             depth -= 1;
@@ -3872,13 +3875,11 @@ impl Database {
                     if let Some(open) = name.iter().position(|&byte| byte == b'(')
                         && name.get(open + 1..) == Some(b")")
                     {
-                        return Err(ParseError {
-                            unlocated: false,
+                        return Err(ParseError::system(
                             location,
-                            message: [b"Empty symbol name for load: ".as_slice(), &name]
-                                .concat()
-                                .into(),
-                        });
+                            Message::EmptyLoadSymbol(&name),
+                            context,
+                        ));
                     }
                     self.load_native_with(&name, keyword == b"-load", &location, context)
                         .map_err(|error| ParseError {
@@ -4009,18 +4010,14 @@ impl Database {
                 let pattern_text = crate::filenames::target_colons(&prereqs[..second]);
                 let patterns: Vec<_> = crate::filenames::words(&pattern_text).collect();
                 if patterns.len() != 1 || !Pattern::new(&patterns[0]).has_wildcard() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: if patterns.is_empty() {
-                            "missing target pattern"
-                        } else if patterns.len() > 1 {
-                            "multiple target patterns"
-                        } else {
-                            "target pattern contains no '%'"
-                        }
-                        .into(),
-                    });
+                    let message = if patterns.is_empty() {
+                        Message::MissingTargetPattern
+                    } else if patterns.len() > 1 {
+                        Message::MultipleTargetPatterns
+                    } else {
+                        Message::TargetPatternWithoutPercent
+                    };
+                    return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);
                 prereqs = &prereqs[second + 1..];

@@ -43,10 +43,30 @@ pub enum MessageId {
     LeaveUnknownDirectoryAtDepth,
     OsError,
     NothingToBeDone,
+    UpToDate,
+    CircularDependency,
+    MissingTargetPattern,
+    MultipleTargetPatterns,
+    TargetPatternWithoutPercent,
+    DirectiveTail,
+    DefineTail,
+    EndefTail,
+    MissingFileName,
+    ExtraFileArgument,
+    InvalidFileOperation,
+    LoadFailed,
+    EmptyLoadSymbol,
+    MissingNativeLicense,
+    NativeSymbolFailure,
+    EmptyNativeFunction,
+    InvalidNativeFunction,
+    LongNativeFunction,
+    NativeMinimumArguments,
+    NativeMaximumArguments,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 56] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -83,6 +103,26 @@ impl MessageId {
         Self::LeaveUnknownDirectoryAtDepth,
         Self::OsError,
         Self::NothingToBeDone,
+        Self::UpToDate,
+        Self::CircularDependency,
+        Self::MissingTargetPattern,
+        Self::MultipleTargetPatterns,
+        Self::TargetPatternWithoutPercent,
+        Self::DirectiveTail,
+        Self::DefineTail,
+        Self::EndefTail,
+        Self::MissingFileName,
+        Self::ExtraFileArgument,
+        Self::InvalidFileOperation,
+        Self::LoadFailed,
+        Self::EmptyLoadSymbol,
+        Self::MissingNativeLicense,
+        Self::NativeSymbolFailure,
+        Self::EmptyNativeFunction,
+        Self::InvalidNativeFunction,
+        Self::LongNativeFunction,
+        Self::NativeMinimumArguments,
+        Self::NativeMaximumArguments,
     ];
     pub fn sample(self) -> Message<'static> {
         match self {
@@ -172,6 +212,41 @@ impl MessageId {
             },
             Self::OsError => Message::GetcwdError(b"File not found"),
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
+            Self::UpToDate => Message::UpToDate(b"target"),
+            Self::CircularDependency => Message::CircularDependency {
+                target: b"target",
+                prerequisite: b"input",
+            },
+            Self::MissingTargetPattern => Message::MissingTargetPattern,
+            Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
+            Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
+            Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
+            Self::DefineTail => Message::DefineTail,
+            Self::EndefTail => Message::EndefTail,
+            Self::MissingFileName => Message::MissingFileName,
+            Self::ExtraFileArgument => Message::ExtraFileArgument,
+            Self::InvalidFileOperation => Message::InvalidFileOperation(b"invalid"),
+            Self::LoadFailed => Message::LoadFailed(b"library.so"),
+            Self::EmptyLoadSymbol => Message::EmptyLoadSymbol(b"library.so()"),
+            Self::MissingNativeLicense => Message::MissingNativeLicense(b"library.so"),
+            Self::NativeSymbolFailure => Message::NativeSymbolFailure {
+                symbol: b"setup",
+                object: b"library.so",
+                detail: b"loader error",
+            },
+            Self::EmptyNativeFunction => Message::EmptyNativeFunction,
+            Self::InvalidNativeFunction => Message::InvalidNativeFunction(b"name"),
+            Self::LongNativeFunction => Message::LongNativeFunction(b"name"),
+            Self::NativeMinimumArguments => Message::NativeArgumentCount {
+                minimum: true,
+                count: 256,
+                name: b"function",
+            },
+            Self::NativeMaximumArguments => Message::NativeArgumentCount {
+                minimum: false,
+                count: 256,
+                name: b"function",
+            },
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -218,6 +293,26 @@ impl MessageId {
             Self::LeaveUnknownDirectoryAtDepth => c"%s[%u]: Leaving an unknown directory\n",
             Self::OsError => c"%s%s: %s",
             Self::NothingToBeDone => c"Nothing to be done for '%s'.",
+            Self::UpToDate => c"'%s' is up to date.",
+            Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
+            Self::MissingTargetPattern => c"missing target pattern",
+            Self::MultipleTargetPatterns => c"multiple target patterns",
+            Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
+            Self::DirectiveTail => c"extraneous text after '%s' directive",
+            Self::DefineTail => c"extraneous text after 'define' directive",
+            Self::EndefTail => c"extraneous text after 'endef' directive",
+            Self::MissingFileName => c"file: missing filename",
+            Self::ExtraFileArgument => c"file: too many arguments",
+            Self::InvalidFileOperation => c"file: invalid file operation: %s",
+            Self::LoadFailed => c"%s: failed to load",
+            Self::EmptyLoadSymbol => c"Empty symbol name for load: %s",
+            Self::MissingNativeLicense => c"Loaded object %s is not declared to be GPL compatible",
+            Self::NativeSymbolFailure => c"Failed to load symbol %s from %s: %s",
+            Self::EmptyNativeFunction => c"Empty function name",
+            Self::InvalidNativeFunction => c"Invalid function name: %s",
+            Self::LongNativeFunction => c"Function name too long: %s",
+            Self::NativeMinimumArguments => c"Invalid minimum argument count (%u) for function %s",
+            Self::NativeMaximumArguments => c"Invalid maximum argument count (%u) for function %s",
         }
     }
 }
@@ -314,6 +409,36 @@ pub enum Message<'a> {
     },
     GetcwdError(&'a [u8]),
     NothingToBeDone(&'a [u8]),
+    UpToDate(&'a [u8]),
+    CircularDependency {
+        target: &'a [u8],
+        prerequisite: &'a [u8],
+    },
+    MissingTargetPattern,
+    MultipleTargetPatterns,
+    TargetPatternWithoutPercent,
+    DirectiveTail(&'a [u8]),
+    DefineTail,
+    EndefTail,
+    MissingFileName,
+    ExtraFileArgument,
+    InvalidFileOperation(&'a [u8]),
+    LoadFailed(&'a [u8]),
+    EmptyLoadSymbol(&'a [u8]),
+    MissingNativeLicense(&'a [u8]),
+    NativeSymbolFailure {
+        symbol: &'a [u8],
+        object: &'a [u8],
+        detail: &'a [u8],
+    },
+    EmptyNativeFunction,
+    InvalidNativeFunction(&'a [u8]),
+    LongNativeFunction(&'a [u8]),
+    NativeArgumentCount {
+        minimum: bool,
+        count: u32,
+        name: &'a [u8],
+    },
 }
 impl<'a> Message<'a> {
     pub fn id(self) -> MessageId {
@@ -389,6 +514,26 @@ impl<'a> Message<'a> {
             },
             Self::GetcwdError(_) => MessageId::OsError,
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
+            Self::UpToDate(_) => MessageId::UpToDate,
+            Self::CircularDependency { .. } => MessageId::CircularDependency,
+            Self::MissingTargetPattern => MessageId::MissingTargetPattern,
+            Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
+            Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
+            Self::DirectiveTail(_) => MessageId::DirectiveTail,
+            Self::DefineTail => MessageId::DefineTail,
+            Self::EndefTail => MessageId::EndefTail,
+            Self::MissingFileName => MessageId::MissingFileName,
+            Self::ExtraFileArgument => MessageId::ExtraFileArgument,
+            Self::InvalidFileOperation(_) => MessageId::InvalidFileOperation,
+            Self::LoadFailed(_) => MessageId::LoadFailed,
+            Self::EmptyLoadSymbol(_) => MessageId::EmptyLoadSymbol,
+            Self::MissingNativeLicense(_) => MessageId::MissingNativeLicense,
+            Self::NativeSymbolFailure { .. } => MessageId::NativeSymbolFailure,
+            Self::EmptyNativeFunction => MessageId::EmptyNativeFunction,
+            Self::InvalidNativeFunction(_) => MessageId::InvalidNativeFunction,
+            Self::LongNativeFunction(_) => MessageId::LongNativeFunction,
+            Self::NativeArgumentCount { minimum: true, .. } => MessageId::NativeMinimumArguments,
+            Self::NativeArgumentCount { minimum: false, .. } => MessageId::NativeMaximumArguments,
         }
     }
     fn arguments(self) -> ([Argument<'a>; 6], usize) {
@@ -409,11 +554,47 @@ impl<'a> Message<'a> {
             | Self::MissingEndif
             | Self::EmptyVariableName
             | Self::MissingEndef
-            | Self::UnterminatedReference => {}
+            | Self::UnterminatedReference
+            | Self::MissingTargetPattern
+            | Self::MultipleTargetPatterns
+            | Self::TargetPatternWithoutPercent
+            | Self::DefineTail
+            | Self::EndefTail
+            | Self::MissingFileName
+            | Self::ExtraFileArgument
+            | Self::EmptyNativeFunction => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
-            | Self::NothingToBeDone(name) => {
+            | Self::NothingToBeDone(name)
+            | Self::UpToDate(name)
+            | Self::DirectiveTail(name)
+            | Self::InvalidFileOperation(name)
+            | Self::LoadFailed(name)
+            | Self::EmptyLoadSymbol(name)
+            | Self::MissingNativeLicense(name)
+            | Self::InvalidNativeFunction(name)
+            | Self::LongNativeFunction(name) => {
                 push(Argument::Bytes(name));
+            }
+            Self::NativeSymbolFailure {
+                symbol,
+                object,
+                detail,
+            } => {
+                push(Argument::Bytes(symbol));
+                push(Argument::Bytes(object));
+                push(Argument::Bytes(detail));
+            }
+            Self::NativeArgumentCount { count, name, .. } => {
+                push(Argument::Unsigned(u64::from(count)));
+                push(Argument::Bytes(name));
+            }
+            Self::CircularDependency {
+                target,
+                prerequisite,
+            } => {
+                push(Argument::Bytes(target));
+                push(Argument::Bytes(prerequisite));
             }
             Self::Directory {
                 program,
@@ -886,6 +1067,20 @@ mod user_error_boundary {
             )
             .unwrap_err();
         assert_eq!(direct.diagnostic().as_bytes(), b"text");
+    }
+
+    #[test]
+    fn raw_file_error_keeps_text_that_matches_a_system_message() {
+        let raw = b"file: missing filename";
+        let error = crate::variables::ExpandError::FileError(raw.to_vec());
+        let diagnostic = ExpansionContext::with_receiver(None, &mut Receiver)
+            .freeze_error(error)
+            .diagnostic();
+        assert_eq!(diagnostic.as_bytes(), raw);
+        assert_eq!(
+            diagnostic.frozen_stop(),
+            Some(b" private-stop\n".as_slice())
+        );
     }
 }
 

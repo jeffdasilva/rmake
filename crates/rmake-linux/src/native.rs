@@ -13,6 +13,7 @@ use std::rc::{Rc, Weak};
 use std::sync::OnceLock;
 
 use rmake_core::diagnostic::{Location, Output};
+use rmake_core::messages::Message;
 use rmake_core::native::{
     LoadOutcome, NativeCallback, NativeFunction, NativeHost, NativeLoadStatus, NativeRuntime,
 };
@@ -463,37 +464,27 @@ impl Runtime {
             .take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
             .count();
         if prefix == 0 {
-            return Err(error(b"Empty function name".to_vec()));
+            return Err(ExpandError::system(Message::EmptyNativeFunction));
         }
         if name[0] == b'.' || prefix != name.len() {
-            return Err(error(
-                [b"Invalid function name: ".as_slice(), &name].concat(),
-            ));
+            return Err(ExpandError::system(Message::InvalidNativeFunction(&name)));
         }
         if name.len() > 255 {
-            return Err(error(
-                [b"Function name too long: ".as_slice(), &name].concat(),
-            ));
+            return Err(ExpandError::system(Message::LongNativeFunction(&name)));
         }
         if request.minimum > 255 {
-            return Err(error(
-                format!(
-                    "Invalid minimum argument count ({}) for function {}",
-                    request.minimum,
-                    String::from_utf8_lossy(&name)
-                )
-                .into_bytes(),
-            ));
+            return Err(ExpandError::system(Message::NativeArgumentCount {
+                minimum: true,
+                count: request.minimum,
+                name: &name,
+            }));
         }
         if request.maximum > 255 || (request.maximum != 0 && request.maximum < request.minimum) {
-            return Err(error(
-                format!(
-                    "Invalid maximum argument count ({}) for function {}",
-                    request.maximum,
-                    String::from_utf8_lossy(&name)
-                )
-                .into_bytes(),
-            ));
+            return Err(ExpandError::system(Message::NativeArgumentCount {
+                minimum: false,
+                count: request.maximum,
+                name: &name,
+            }));
         }
         if rmake_core::native::is_builtin_function(&name) {
             return Err(error(
@@ -809,14 +800,7 @@ impl NativeRuntime for Runtime {
                 host,
             )?;
             if marker.pointer.is_null() {
-                return Err(error(
-                    [
-                        b"Loaded object ".as_slice(),
-                        &name,
-                        b" is not declared to be GPL compatible",
-                    ]
-                    .concat(),
-                ));
+                return Err(ExpandError::system(Message::MissingNativeLicense(&name)));
             }
             let found = self.run(
                 1,
@@ -829,17 +813,11 @@ impl NativeRuntime for Runtime {
                 host,
             )?;
             if found.pointer.is_null() {
-                return Err(error(
-                    [
-                        b"Failed to load symbol ".as_slice(),
-                        &symbol,
-                        b" from ",
-                        &name,
-                        b": ",
-                        &found.message,
-                    ]
-                    .concat(),
-                ));
+                return Err(ExpandError::system(Message::NativeSymbolFailure {
+                    symbol: &symbol,
+                    object: &name,
+                    detail: &found.message,
+                }));
             }
             function = found.pointer as usize;
             image
@@ -892,9 +870,7 @@ fn setup_name(input: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ExpandError> {
         && close + 1 == input.len()
     {
         if close == open + 1 {
-            return Err(error(
-                [b"Empty symbol name for load: ".as_slice(), input].concat(),
-            ));
+            return Err(ExpandError::system(Message::EmptyLoadSymbol(input)));
         }
         return Ok((input[..open].to_vec(), input[open + 1..close].to_vec()));
     }

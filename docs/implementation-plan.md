@@ -448,6 +448,21 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 
 [Enabled Guile application](guile-frontend.md) adds an opt-in application gate with 83 independently specified GNU comparisons and 14 default signal controls. It retains the separate component safety gate and profile-specific self-host checks. Asynchronous and detached execution, full error traces, and broader M3/M6 acceptance remain open.
 
+The next [localization tranche](nls-diagnostics.md) adds 18 original model-bound
+comparisons for translated scheduler, parser and built-in `file` diagnostics.
+Only the owned syntax diagnostics are translated; message text from users and
+native extensions still passes through unchanged.
+
+The [native loader localization tranche](nls-diagnostics.md) adds 15 original
+GNU2 cases. The loader carries typed system wrappers to the correct diagnostic
+boundary while preserving the raw `dlerror` argument and foreign/user messages.
+
+[Inherited signal masks](../tests/signal-mask/README.md) now retain the launch
+mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
+verified boundary, and pass an empty mask to command children without mutating
+the parent's live mask around spawn. Ten original GNU2 comparisons cover
+native callbacks, actual self-exec, early exits and low descriptor limits.
+
 The [developer entry point gate](../tests/developer-flows/README.md) runs the
 real Makefile and scripts in an owned offline Cargo workspace. It covers warm
 oracle bootstrap, six cleanup modes and three benchmark preconditions in both

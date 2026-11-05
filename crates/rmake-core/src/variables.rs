@@ -259,12 +259,31 @@ impl Variable {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FileArgumentError {
+    MissingName,
+    ExtraValue,
+    InvalidOperation(Vec<u8>),
+}
+
+impl FileArgumentError {
+    fn message(&self) -> crate::messages::Message<'_> {
+        use crate::messages::Message;
+        match self {
+            Self::MissingName => Message::MissingFileName,
+            Self::ExtraValue => Message::ExtraFileArgument,
+            Self::InvalidOperation(operation) => Message::InvalidFileOperation(operation),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpandError {
     /// System text is frozen before a foreign callback can restore ambient state.
     RenderedSystem {
         error: Box<ExpandError>,
         diagnostic: Diagnostic,
     },
+    System(crate::messages::OwnedMessage),
     Cancelled,
     Safety(crate::safety::SafetyError),
     Located {
@@ -273,6 +292,7 @@ pub enum ExpandError {
     },
     Unsupported(Vec<u8>),
     FileError(Vec<u8>),
+    FileArgument(FileArgumentError),
     UnlocatedError(Vec<u8>),
     UserError(Vec<u8>),
     /// A user error inside a recursive binding keeps the first entered binding
@@ -324,31 +344,34 @@ impl ExpandError {
             self
         }
     }
-    pub fn system_message(&self) -> Option<crate::messages::Message<'_>> {
-        match self {
-            Self::Located { error, .. } => error.system_message(),
-            Self::UnterminatedReference => Some(crate::messages::Message::UnterminatedReference),
-            Self::RecursiveVariable(name) => {
-                Some(crate::messages::Message::RecursiveVariable(name))
-            }
-            Self::EmptyVariableName => Some(crate::messages::Message::EmptyVariableName),
-            Self::UnterminatedFunction { function, close } => {
-                Some(crate::messages::Message::UnterminatedFunction {
-                    name: function,
-                    close: *close,
-                })
-            }
+    pub fn system(message: crate::messages::Message<'_>) -> Self {
+        Self::System(message.owned())
+    }
+    pub fn system_message(&self) -> Option<crate::messages::MessageRef<'_>> {
+        use crate::messages::{Message, MessageRef};
+        let message = match self {
+            Self::Located { error, .. } => return error.system_message(),
+            Self::System(message) => return Some(MessageRef::Owned(message)),
+            Self::FileArgument(error) => error.message(),
+            Self::UnterminatedReference => Message::UnterminatedReference,
+            Self::RecursiveVariable(name) => Message::RecursiveVariable(name),
+            Self::EmptyVariableName => Message::EmptyVariableName,
+            Self::UnterminatedFunction { function, close } => Message::UnterminatedFunction {
+                name: function,
+                close: *close,
+            },
             Self::InvalidInteger {
                 second,
                 value,
                 empty,
-            } => Some(crate::messages::Message::InvalidIntcmp {
+            } => Message::InvalidIntcmp {
                 second: *second,
                 empty: *empty,
                 value,
-            }),
-            _ => None,
-        }
+            },
+            _ => return None,
+        };
+        Some(MessageRef::Borrowed(message))
     }
     pub fn is_unlocated(&self) -> bool {
         match self {
@@ -416,7 +439,9 @@ impl ExpandError {
         match self {
             Self::RenderedSystem { diagnostic, .. } => diagnostic.clone(),
             Self::Located { error, .. } => error.diagnostic(),
+            Self::System(message) => Diagnostic::system_owned(message.clone()),
             Self::UnlocatedError(message) => Diagnostic::Unlocated(message.clone()),
+            Self::FileArgument(error) => Diagnostic::system(error.message()),
             Self::FileError(message)
             | Self::WordIndexError(message)
             | Self::UserError(message)
@@ -463,6 +488,8 @@ impl fmt::Display for ExpandError {
         match self {
             Self::Located { error, .. } => error.fmt(output),
             Self::RenderedSystem { diagnostic, .. } => diagnostic.fmt(output),
+            Self::System(message) => output.write_str(&String::from_utf8_lossy(&message.english())),
+            Self::FileArgument(error) => Diagnostic::system(error.message()).fmt(output),
             Self::FileError(message)
             | Self::UnlocatedError(message)
             | Self::WordIndexError(message)
@@ -3340,17 +3367,17 @@ impl Expansion<'_, '_> {
                     [b'>', ..] => (1, false, false),
                     [b'<', ..] => (1, true, false),
                     _ => {
-                        return Err(ExpandError::FileError(
-                            [b"file: invalid file operation: ".as_slice(), first].concat(),
+                        return Err(ExpandError::FileArgument(
+                            FileArgumentError::InvalidOperation(first.to_vec()),
                         ));
                     }
                 };
                 let path = words(&first[offset..])
                     .next()
-                    .ok_or_else(|| ExpandError::FileError(b"file: missing filename".to_vec()))?;
+                    .ok_or(ExpandError::FileArgument(FileArgumentError::MissingName))?;
                 if read {
                     if args.len() > 1 {
-                        return Err(ExpandError::FileError(b"file: too many arguments".to_vec()));
+                        return Err(ExpandError::FileArgument(FileArgumentError::ExtraValue));
                     }
                     self.filesystem(name, FilesystemEffect::ReadFile(path))
                 } else {

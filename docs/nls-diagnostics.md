@@ -98,3 +98,34 @@ private French messages in a joined worker and preservation of that locale
 through fatal diagnostics and finalizers. The default profile retains the
 restart, stdin, database, and native-module behaviors covered by their
 existing gates.
+
+## Scheduler, parser, and file arguments
+
+The diagnostic gate also covers the up-to-date summary, cycle drops,
+static-pattern errors, and warnings about text after directives. The
+`file` function reports typed argument errors for a missing name, an
+extra read argument, or an invalid operation. The tests check source lines,
+side effects, and raw bytes in target names and operation arguments. User and
+native error text can match a catalog message ID byte for byte and still
+retain its original text.
+
+These 18 cases extend `test-nls` and `test-nls-release` to 64 diagnostic
+profiles. Their literal expectations use translations from the pinned
+compiled catalog. The 17 directory profiles run through the separate
+directory gate.
+
+## Native loader diagnostics
+
+The loader and registration checks in this gate use checked system templates.
+A missing object still emits the raw loader error before the localized
+failure, and a missing setup symbol passes the raw loader error as one
+template argument. Function names and numeric argument limits retain
+their original values. Private message locales remain active for failures
+reported through an included makefile.
+
+The 15 loader cases bring the diagnostic gate to 79 cases. They include
+optional module handling and custom templates that reorder loader
+arguments. For the raw loader argument, the gate queries the same public
+`dlopen` and `dlsym` interfaces in a separate process before running either
+engine. The remaining diagnostic bytes, exit statuses, and file effects
+come from the literal expectations.
