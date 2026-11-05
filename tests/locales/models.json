@@ -1,0 +1,2578 @@
+{
+  "schema_version": 1,
+  "classification": "Original required glibc C/C.UTF8 startup locale/wildcard profiles;90 initial models before implementation,93 interactions before their execution; exact GNU2 and independent full filesystem assertions, no NLS/full Linux/M3/M6 claim",
+  "filenames_hex": [
+    "61",
+    "42",
+    "c3a9",
+    "c39f",
+    "e4b8ad",
+    "f09f8eb8",
+    "65cc81",
+    "ff",
+    "c3a978",
+    "78c3a9",
+    "2ec3a9"
+  ],
+  "models": [
+    {
+      "id": "all-c-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-c-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-c-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-c-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "all-c-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "all-c-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "all-c-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "all-c-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "all-c-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "all-c-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "all-c-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "all-c-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "all-c-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-c-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-c-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-utf8-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-utf8-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-utf8-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-utf8-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-utf8-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-utf8-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-utf8-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "all-utf8-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "all-utf8-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "all-utf8-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "all-utf8-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "all-utf8-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "all-utf8-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-utf8-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-utf8-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "lang-utf8-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "lang-utf8-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "lang-utf8-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "lang-utf8-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "lang-utf8-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "lang-utf8-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "lang-utf8-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "lang-utf8-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "lang-utf8-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "lang-utf8-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "lang-utf8-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "lang-utf8-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "lang-utf8-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "lang-utf8-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "lang-utf8-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-utf8-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "ctype-utf8-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "ctype-utf8-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "ctype-utf8-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-utf8-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-utf8-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-utf8-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "ctype-utf8-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "ctype-utf8-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "ctype-utf8-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "ctype-utf8-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "ctype-utf8-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "ctype-utf8-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-utf8-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-utf8-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-overrides-ctype-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-overrides-ctype-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-overrides-ctype-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "all-overrides-ctype-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "all-overrides-ctype-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "all-overrides-ctype-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "all-overrides-ctype-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "all-overrides-ctype-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "all-overrides-ctype-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "all-overrides-ctype-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "all-overrides-ctype-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "all-overrides-ctype-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "all-overrides-ctype-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-overrides-ctype-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "all-overrides-ctype-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LC_CTYPE": "C.utf8",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "ctype-overrides-lang-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LC_CTYPE": "C",
+        "LANG": "C.utf8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "invalid-all-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "invalid-all-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "invalid-all-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "invalid-all-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "invalid-all-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "invalid-all-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "invalid-all-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "invalid-all-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "invalid-all-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "invalid-all-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "invalid-all-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "invalid-all-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "invalid-all-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "invalid-all-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "invalid-all-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "rmake_missing_locale",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])",
+        "LANG": "C.utf8",
+        "LC_CTYPE": "C.utf8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "invalid-category-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "invalid-category-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "invalid-category-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "invalid-category-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "invalid-category-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "invalid-category-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "invalid-category-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "invalid-category-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "invalid-category-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "invalid-category-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "invalid-category-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "invalid-category-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "invalid-category-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "invalid-category-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "invalid-category-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])",
+        "LANG": "C",
+        "LC_CTYPE": "C.utf8",
+        "LC_TIME": "rmake_missing_locale"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "utf8-alias-one-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "utf8-alias-one-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "utf8-alias-one-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "utf8-alias-two-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "utf8-alias-two-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/??)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "utf8-alias-two-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/??)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "utf8-alias-alpha-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "utf8-alias-alpha-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "utf8-alias-alpha-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/[[:alpha:]])])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "utf8-alias-dot-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "utf8-alias-dot-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/.?)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "utf8-alias-dot-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/.?)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "utf8-alias-literal-star-read",
+      "source_hex": "2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "utf8-alias-literal-star-cli",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "$(info RESULT=[$(wildcard names/*x)])"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "utf8-alias-literal-star-flags",
+      "source_hex": "2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(info RESULT=[$(wildcard names/*x)])"
+      },
+      "stdout_hex": "524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-file-all-c-one-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20432e757466380a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-cli-all-c-one-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-flags-all-c-one-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "LC_ALL=C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-eval-all-c-one-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "recursive-all-c-one-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f3f295d290a6578706f7274204c435f414c4c203a3d20432e757466380a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a4348494c443d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-file-all-c-two-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20432e757466380a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "late-cli-all-c-two-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "late-flags-all-c-two-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "LC_ALL=C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "late-eval-all-c-two-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "recursive-all-c-two-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f3f3f295d290a6578706f7274204c435f414c4c203a3d20432e757466380a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732fc39f206e616d65732fc3a95d0a4348494c443d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-file-all-c-alpha-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20432e757466380a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "late-cli-all-c-alpha-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "late-flags-all-c-alpha-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "LC_ALL=C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "late-eval-all-c-alpha-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "recursive-all-c-alpha-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a6578706f7274204c435f414c4c203a3d20432e757466380a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f42206e616d65732f615d0a4348494c443d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "late-file-all-c-dot-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20432e757466380a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "late-cli-all-c-dot-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "late-flags-all-c-dot-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "LC_ALL=C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "late-eval-all-c-dot-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "recursive-all-c-dot-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f2e3f295d290a6578706f7274204c435f414c4c203a3d20432e757466380a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f2e2e5d0a4348494c443d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "late-file-all-c-literal-star-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20432e757466380a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-cli-all-c-literal-star-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-flags-all-c-literal-star-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "GNUMAKEFLAGS": "LC_ALL=C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-eval-all-c-literal-star-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C.utf8"
+      ],
+      "environment": {
+        "LC_ALL": "C"
+      },
+      "stdout_hex": "5641524941424c453d5b432e757466385d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-file-all-utf8-one-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20430a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-cli-all-utf8-one-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-flags-all-utf8-one-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "LC_ALL=C"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-eval-all-utf8-one-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a"
+    },
+    {
+      "id": "recursive-all-utf8-one-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f3f295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f3f295d290a6578706f7274204c435f414c4c203a3d20430a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad206e616d65732ff09f8eb8206e616d65732fff5d0a4348494c443d5b6e616d65732f42206e616d65732f61206e616d65732fff5d0a"
+    },
+    {
+      "id": "late-file-all-utf8-two-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20430a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-cli-all-utf8-two-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-flags-all-utf8-two-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "LC_ALL=C"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-eval-all-utf8-two-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "recursive-all-utf8-two-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f3f3f295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f3f3f295d290a6578706f7274204c435f414c4c203a3d20430a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f65cc81206e616d65732f78c3a9206e616d65732fc39f206e616d65732fc3a9206e616d65732fc3a9785d0a4348494c443d5b6e616d65732fc39f206e616d65732fc3a95d0a"
+    },
+    {
+      "id": "late-file-all-utf8-alpha-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20430a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "late-cli-all-utf8-alpha-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "late-flags-all-utf8-alpha-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "LC_ALL=C"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "late-eval-all-utf8-alpha-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a"
+    },
+    {
+      "id": "recursive-all-utf8-alpha-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f5b5b3a616c7068613a5d5d295d290a6578706f7274204c435f414c4c203a3d20430a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f42206e616d65732f61206e616d65732fc39f206e616d65732fc3a9206e616d65732fe4b8ad5d0a4348494c443d5b6e616d65732f42206e616d65732f615d0a"
+    },
+    {
+      "id": "late-file-all-utf8-dot-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20430a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "late-cli-all-utf8-dot-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "late-flags-all-utf8-dot-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "LC_ALL=C"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "late-eval-all-utf8-dot-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a"
+    },
+    {
+      "id": "recursive-all-utf8-dot-read",
+      "source_hex": "69666571202824284d414b45434d44474f414c53292c6368696c64290a2428696e666f204348494c443d5b242877696c6463617264206e616d65732f2e3f295d290a2e50484f4e593a206368696c640a6368696c643a3b403a0a656c73650a2428696e666f20504152454e543d5b242877696c6463617264206e616d65732f2e3f295d290a6578706f7274204c435f414c4c203a3d20430a2e50484f4e593a20616c6c0a616c6c3a0a092b4024284d414b4529202d7252202d2d6e6f2d7072696e742d6469726563746f7279206368696c640a656e6469660a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "504152454e543d5b6e616d65732f2e2e206e616d65732f2ec3a95d0a4348494c443d5b6e616d65732f2e2e5d0a"
+    },
+    {
+      "id": "late-file-all-utf8-literal-star-read",
+      "source_hex": "6578706f7274204c435f414c4c203a3d20430a2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-cli-all-utf8-literal-star-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "LC_ALL=C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-flags-all-utf8-literal-star-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8",
+        "GNUMAKEFLAGS": "LC_ALL=C"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    },
+    {
+      "id": "late-eval-all-utf8-literal-star-read",
+      "source_hex": "2428696e666f205641524941424c453d5b24284c435f414c4c295d290a2428696e666f20524553554c543d5b242877696c6463617264206e616d65732f2a78295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+      "arguments": [
+        "-rR",
+        "--no-print-directory",
+        "--eval",
+        "export LC_ALL := C"
+      ],
+      "environment": {
+        "LC_ALL": "C.utf8"
+      },
+      "stdout_hex": "5641524941424c453d5b435d0a524553554c543d5b6e616d65732fc3a9785d0a"
+    }
+  ]
+}

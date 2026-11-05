@@ -23,6 +23,7 @@ mod shell;
 mod shuffle;
 
 fn main() -> ExitCode {
+    rmake_linux::locale::initialize();
     rmake_linux::output::initialize();
     let signals = match rmake_linux::signals::Guard::install() {
         Ok(guard) => guard,

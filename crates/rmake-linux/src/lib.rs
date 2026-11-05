@@ -10,6 +10,9 @@ pub mod archive;
 pub mod evaluation;
 pub mod filesystem;
 pub mod timestamp;
+
+#[allow(unsafe_code)]
+pub mod locale;
 // The public surface owns descriptors/tokens; only this adapter performs the
 // reviewed Linux FIFO, pipe, and fork/exec descriptor operations.
 #[allow(unsafe_code)]
