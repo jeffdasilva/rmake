@@ -1,0 +1,11 @@
+id = "pattern-deferred-immediate-recursive-include"
+requirement = "scope.pattern-specific"
+candidate = "required"
+provenance = "Original rmake fixture for GNU 4.4.1 activation order."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read=[before]\nvalue=[included] raw=[included] seed=[included] extra=[]\n"
+stderr = ""

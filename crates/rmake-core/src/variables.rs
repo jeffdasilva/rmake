@@ -2083,8 +2083,18 @@ impl PatternVariable {
         })
     }
 
-    pub(crate) fn uses_shell(&self) -> bool {
-        self.assignment == Assignment::Shell
+    pub(crate) fn needs_database_expansion(&self, scope: &TargetScope) -> bool {
+        match self.assignment {
+            Assignment::Shell => true,
+            Assignment::ImmediateRecursive => self.value.contains(&b'$'),
+            Assignment::Append => {
+                scope
+                    .get(&self.name)
+                    .is_some_and(|binding| binding.flavor() == Flavor::Simple)
+                    && self.value.contains(&b'$')
+            }
+            _ => false,
+        }
     }
 
     pub fn name(&self) -> &[u8] {
