@@ -205,6 +205,32 @@ pub fn wait(
     additional: Option<BorrowedFd<'_>>,
     maximum_wait: Option<std::time::Duration>,
 ) -> io::Result<Vec<u64>> {
+    wait_with_notification(
+        children,
+        block,
+        interruptible,
+        additional,
+        None,
+        maximum_wait,
+    )
+    .map(|events| events.children)
+}
+
+pub struct WaitEvents {
+    pub children: Vec<u64>,
+    pub notification_only: bool,
+}
+
+/// Preserve the distinction between a private notification and any child,
+/// signal or jobserver readiness. This wait never consumes their data.
+pub fn wait_with_notification(
+    children: &[(u64, &Child)],
+    block: bool,
+    interruptible: bool,
+    additional: Option<BorrowedFd<'_>>,
+    notification: Option<BorrowedFd<'_>>,
+    maximum_wait: Option<std::time::Duration>,
+) -> io::Result<WaitEvents> {
     let mut descriptors: Vec<_> = children
         .iter()
         .map(|(_, child)| PollFd {
@@ -227,7 +253,7 @@ pub fn wait(
             returned: 0,
         });
     }
-    if let Some(fd) = additional {
+    for fd in [additional, notification].into_iter().flatten() {
         descriptors.push(PollFd {
             descriptor: fd.as_raw_fd(),
             events: 1,
@@ -251,19 +277,26 @@ pub fn wait(
     }
     // The vector owns a correctly sized array of initialized Linux pollfd
     // records. EINTR is a scheduler wake, allowing safe signal processing.
-    if unsafe { poll(descriptors.as_mut_ptr(), descriptors.len(), timeout) } < 0 {
+    let result = unsafe { poll(descriptors.as_mut_ptr(), descriptors.len(), timeout) };
+    if result < 0 {
         let error = io::Error::last_os_error();
         if error.kind() != io::ErrorKind::Interrupted {
             return Err(error);
         }
     }
+    let notification_only = notification.is_some()
+        && result == 1
+        && descriptors.last().is_some_and(|fd| fd.returned == 1);
     let mut ready: Vec<_> = children
         .iter()
         .zip(&descriptors)
         .filter_map(|((id, child), fd)| (child.pidfd.is_none() || fd.returned != 0).then_some(*id))
         .collect();
     ready.sort_unstable();
-    Ok(ready)
+    Ok(WaitEvents {
+        children: ready,
+        notification_only,
+    })
 }
 
 /// Capture stays responsive both while reading a pipe and after its writer
@@ -379,6 +412,38 @@ mod tests {
         let (bytes, status) = capture(child, stdout, 16).unwrap();
         assert!(bytes.is_empty());
         assert_eq!(status.code(), Some(7));
+    }
+
+    #[test]
+    fn notification_only_keeps_simultaneous_reader_readiness_distinct() {
+        use std::io::Write;
+        use std::os::unix::net::UnixStream;
+
+        let (mut token, mut token_sender) = UnixStream::pair().unwrap();
+        let (mut notification, mut notification_sender) = UnixStream::pair().unwrap();
+        token.set_nonblocking(true).unwrap();
+        notification.set_nonblocking(true).unwrap();
+        notification_sender.write_all(b"wake").unwrap();
+        let wait = |token: &UnixStream, notification: &UnixStream| {
+            wait_with_notification(
+                &[],
+                false,
+                false,
+                Some(token.as_fd()),
+                Some(notification.as_fd()),
+                None,
+            )
+            .unwrap()
+        };
+        let events = wait(&token, &notification);
+        assert!(events.notification_only && events.children.is_empty());
+        token_sender.write_all(b"+").unwrap();
+        let events = wait(&token, &notification);
+        assert!(!events.notification_only && events.children.is_empty());
+        let (mut token_bytes, mut notification_bytes) = ([0], [0; 4]);
+        token.read_exact(&mut token_bytes).unwrap();
+        notification.read_exact(&mut notification_bytes).unwrap();
+        assert_eq!((&token_bytes, &notification_bytes), (b"+", b"wake"));
     }
 
     #[test]

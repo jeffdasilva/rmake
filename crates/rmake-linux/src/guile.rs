@@ -23,7 +23,7 @@ unsafe extern "C" {
     fn rg_workers_end_wait(descriptor: c_int, idle_only: c_int) -> c_int;
 }
 
-/// Admission and wake ownership for one blocking serial recipe child.
+/// Admission and wake ownership for one blocking scheduler wait.
 pub struct WorkerWait {
     descriptor: Option<OwnedFd>,
     _leading_thread: std::marker::PhantomData<Rc<()>>,

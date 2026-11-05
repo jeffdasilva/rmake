@@ -1,0 +1,348 @@
+{
+  "classification": "Independent fixed-state positive parallel detached worker models",
+  "oracle_revision": "GNU Make 4.4.1 with verified enabled Guile",
+  "cases": [
+    {
+      "id": "pipe-drain-plain",
+      "style": "pipe",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer \"plain\")) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=outer\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "plain\n",
+          "alpha.result": "plain\n",
+          "beta.result": "plain\n"
+        }
+      }
+    },
+    {
+      "id": "pipe-drain-expand",
+      "style": "pipe",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=outer\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "outer\n",
+          "alpha.result": "outer\n",
+          "beta.result": "outer\n"
+        }
+      }
+    },
+    {
+      "id": "pipe-reserve-evaluate",
+      "style": "pipe",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (begin (gmk-eval \"VALUE := changed\") \"evaluated\"))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf 'gamma\\n' > gamma.result\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=changed\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "evaluated\n",
+          "alpha.result": "evaluated\n",
+          "beta.result": "evaluated\n",
+          "gamma.queued": "queued\n",
+          "gamma.result": "gamma\n"
+        }
+      }
+    },
+    {
+      "id": "pipe-reserve-nested",
+      "style": "pipe",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (gmk-expand \"$$(guile (if (eq? (current-thread) detached-thread) \\\"worker\\\" \\\"leader\\\"))\"))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf 'gamma\\n' > gamma.result\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=outer\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "worker\n",
+          "alpha.result": "worker\n",
+          "beta.result": "worker\n",
+          "gamma.queued": "queued\n",
+          "gamma.result": "gamma\n"
+        }
+      }
+    },
+    {
+      "id": "fifo-drain-plain",
+      "style": "fifo",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer \"plain\")) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=outer\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "plain\n",
+          "alpha.result": "plain\n",
+          "beta.result": "plain\n"
+        }
+      }
+    },
+    {
+      "id": "fifo-drain-expand",
+      "style": "fifo",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (gmk-expand \"$$(VALUE)\"))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=outer\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "outer\n",
+          "alpha.result": "outer\n",
+          "beta.result": "outer\n"
+        }
+      }
+    },
+    {
+      "id": "fifo-reserve-evaluate",
+      "style": "fifo",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (begin (gmk-eval \"VALUE := changed\") \"evaluated\"))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf 'gamma\\n' > gamma.result\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=changed\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "evaluated\n",
+          "alpha.result": "evaluated\n",
+          "beta.result": "evaluated\n",
+          "gamma.queued": "queued\n",
+          "gamma.result": "gamma\n"
+        }
+      }
+    },
+    {
+      "id": "fifo-reserve-nested",
+      "style": "fifo",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (gmk-expand \"$$(guile (if (eq? (current-thread) detached-thread) \\\"worker\\\" \\\"leader\\\"))\"))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf 'gamma\\n' > gamma.result\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=outer\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "worker\n",
+          "alpha.result": "worker\n",
+          "beta.result": "worker\n",
+          "gamma.queued": "queued\n",
+          "gamma.result": "gamma\n"
+        }
+      }
+    },
+    {
+      "id": "pipe-reserve-chain",
+      "style": "pipe",
+      "wait": "reserve",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (begin (call-with-output-file \"first.done\" (lambda (port) (display (gmk-expand \"$$(VALUE)\") port) (newline port))) (gmk-eval \"VALUE := changed\") (gmk-expand \"$$(VALUE)\")))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta gamma\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\ngamma:\n\t$(file >gamma.queued,queued)@printf 'gamma\\n' > gamma.result\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=changed\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "changed\n",
+          "alpha.result": "changed\n",
+          "beta.result": "changed\n",
+          "first.done": "outer\n",
+          "gamma.queued": "queued\n",
+          "gamma.result": "gamma\n"
+        }
+      }
+    },
+    {
+      "id": "fifo-drain-chain",
+      "style": "fifo",
+      "wait": "drain",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "all"
+      ],
+      "files": {
+        "Makefile": "VALUE := outer\n$(file >>seen,read-before)\nSTART = $(guile (begin (use-modules (ice-9 threads)) (define detached-thread (quote ())) (call-with-new-thread (lambda () (set! detached-thread (current-thread)) (let again () (unless (file-exists? \"callback.release\") (usleep 2000) (again))) (let ((answer (begin (call-with-output-file \"first.done\" (lambda (port) (display (gmk-expand \"$$(VALUE)\") port) (newline port))) (gmk-eval \"VALUE := changed\") (gmk-expand \"$$(VALUE)\")))) (call-with-output-file \"callback.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"callback.tmp\" \"callback.done\")))) \"\"))\n$(file >>seen,read-after)\n.PHONY: all alpha beta gamma\nall: alpha beta\n\t@printf 'VALUE=%s\\n' '$(VALUE)'\nalpha:\n\t$(START)$(file >>seen,recipe-init)$(file >transport.auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))@/usr/bin/python3 worker.py $@\nbeta:\n\t@/usr/bin/python3 worker.py $@\n",
+        "worker.py": "#!/usr/bin/env python3\n\"\"\"A real recipe child holds its owned slot until a detached callback returns.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\n\nname = sys.argv[1]\nif name not in ('alpha', 'beta'):\n    raise SystemExit(90)\nready = Path(f'{name}.ready')\ntemporary = ready.with_suffix('.tmp')\ntemporary.write_bytes(name.encode() + b'\\n')\ntemporary.rename(ready)\nresult = Path('callback.done')\nwhile not result.is_file():\n    time.sleep(0.002)\nPath(f'{name}.result').write_bytes(result.read_bytes())\n",
+        "seen": "anchor\n"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "VALUE=changed\n",
+        "stderr": "",
+        "changed": {
+          "seen": "anchor\nread-before\nread-after\nrecipe-init\n"
+        },
+        "created": {
+          "alpha.ready": "alpha\n",
+          "beta.ready": "beta\n",
+          "callback.release": "go\n",
+          "callback.done": "changed\n",
+          "alpha.result": "changed\n",
+          "beta.result": "changed\n",
+          "first.done": "outer\n"
+        }
+      }
+    }
+  ]
+}
