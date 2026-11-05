@@ -156,6 +156,16 @@ fixture_count = 21
 cases = ["include-required", "include-optional-missing", "include-ordered-files", "include-expanded-name", "include-makefile-list", "dynamic-include-nested-order", "dynamic-include-conditional-isolated", "dynamic-include-conditional-unclosed", "dynamic-include-conditional-inactive", "dynamic-include-optional-nested-required", "dynamic-include-optional-syntax-fatal", "dynamic-include-missing-empty-rule", "dynamic-include-list-absent-excluded", "dynamic-include-glob-sorted", "dynamic-include-glob-unmatched-optional", "dynamic-include-glob-unmatched-required", "dynamic-include-escaped-space", "dynamic-include-empty-expanded", "dynamic-include-duplicate-read", "dynamic-include-parent-recipe-boundary", "dynamic-include-included-default-goal"]
 
 [[requirements]]
+id = "includes.literal-glob"
+title = "Preserve literal names returned by include glob expansion"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 10
+fixture_count = 10
+reference = "docs/dynamic-makefiles.md"
+cases = ["include-complete-name-escaped-space-control", "include-complete-name-eval-glob", "include-complete-name-glob-in-escaped-directory", "include-complete-name-glob-parentheses", "include-complete-name-glob-space", "include-complete-name-glob-tab", "include-complete-name-literal-parentheses-list", "include-complete-name-multiple-glob-order", "include-complete-name-optional-unmatched-control", "include-complete-name-secondary-expansion"]
+
+[[requirements]]
 id = "includes.remake"
 title = "Generated makefiles and restart semantics"
 status = "fixture-ready"

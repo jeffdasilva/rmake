@@ -6233,6 +6233,7 @@ mod tests {
                 FilesystemEffect::Wildcard(_)
                 | FilesystemEffect::ArchiveGlob(_)
                 | FilesystemEffect::RuleGlob(_)
+                | FilesystemEffect::IncludeGlob(_)
                 | FilesystemEffect::Tilde(_)
                 | FilesystemEffect::DirectoryName(_) => {
                     panic!("unexpected filesystem operation")

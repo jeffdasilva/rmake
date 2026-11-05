@@ -1,0 +1,2 @@
+OUT += nested
+MARK := $(file >>seen,nested)

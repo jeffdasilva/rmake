@@ -1,0 +1,2 @@
+OUT += spaced
+MARK := $(file >>seen,spaced)

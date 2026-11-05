@@ -28,3 +28,10 @@ missing files with empty rules, multi-pass generation, command-line binding
 preservation, mode flags, default goals, and phony restart avoidance.
 GNU Make 4.4.1 `main.c` and `remake.c` were consulted for remake staging and
 deferred errors; no upstream implementation or test text was incorporated.
+
+Include glob expansion keeps each matched pathname intact, including spaces
+and tabs, in glob order. Include operands use literal filename rules for
+parentheses instead of grouping archive members. Ten original required
+cases cover multiple matches, nested `eval`, and a matched include enabling
+secondary expansion. Archive-looking names during makefile remake have a
+separate acceptance boundary after the reader has opened the literal path.
