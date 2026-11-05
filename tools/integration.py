@@ -46,19 +46,28 @@ def archive_for(project, cache):
         return archive
     last = None
     for url in [project['source_url'], *([project['fallback_url']] if project.get('fallback_url') else [])]:
-        try:
+        def receive():
             with urllib.request.urlopen(url, timeout=30) as response:
-                data = response.read(h.MAX_FILE_BYTES + 1)
-            if len(data) > h.MAX_FILE_BYTES or hashlib.sha256(data).hexdigest() != expected:
-                raise h.HarnessError('downloaded source fails pinned size/digest')
+                return response.read(h.MAX_FILE_BYTES + 1)
+
+        try:
+            data = oracle.retry_download(receive)
+        except oracle.DOWNLOAD_ERRORS as error:
+            last = error
+            continue
+        if len(data) > h.MAX_FILE_BYTES or hashlib.sha256(data).hexdigest() != expected:
+            raise h.HarnessError('downloaded source fails pinned size/digest')
+        temporary = None
+        try:
             with tempfile.NamedTemporaryFile(dir=cache, prefix='.download-', delete=False) as output:
                 temporary = Path(output.name)
                 output.write(data)
             temporary.replace(archive)
-            return archive
-        except (urllib.error.HTTPError, urllib.error.URLError) as error:
-            last = error
-    raise h.HarnessError(f'cannot fetch pinned source: {last}')
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        return archive
+    raise h.HarnessError(f"cannot fetch pinned source {project['id']}: {last}")
 
 
 def extract(project, archive, destination):

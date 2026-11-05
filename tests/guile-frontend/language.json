@@ -1,0 +1,1191 @@
+{
+  "classification": "Original finite frontend57 plan before any new observations:55 transparently reused already-qualified original GNU semantic models plus2 new phase hypotheses. No frontend acceptance credit yet. No quarantined SIGQUIT or nondeterministic backtrace input included.",
+  "scope": "Exact bytes/status/ordered effects/full filesystem/repeats/bounds; authenticated enabled reference discovery identity kept separately from default pinned oracle.",
+  "source_models": {
+    "stable41-before.json": {
+      "sha256": "b2c6f6a7f80607626281863ecd23f3955ec10a2640af66955085f8a0ced12730",
+      "bytes": 31620,
+      "retained_source_path": "/tmp/rmake-guile-bootstrap/conversion-research/stable41-before.json",
+      "classification": "Original finite GNU2 Guile language models; no candidate or CLI compatibility credit yet",
+      "hypothesis": "Guile values convert by documented type rules; lists flatten recursively while retaining each empty field; gmk callbacks use the same conversion, preserve local scope and evaluate effects eagerly. Complex spelling and empty-list spacing are explicit independent hypotheses. Host fatal errors cannot be caught by Scheme or permit later effects.",
+      "refinements": [
+        "Empty/false/list-empty fields omitted, not separator gaps",
+        "Improper pairs flatten car and cdr recursively",
+        "Unspecified value silently converts to empty"
+      ]
+    },
+    "namespace-refined-before.json": {
+      "sha256": "fe882b1ebefc04cb646e522e8f72c0ded2b995a078d5c92bf2534a411cfb6f3b",
+      "bytes": 3729,
+      "retained_source_path": "/tmp/rmake-guile-bootstrap/conversion-research/namespace-refined-before.json",
+      "classification": "Original GNU2 namespace/evaluation scope controls, zero candidate credit",
+      "hypothesis": "First retained GNU2 observations showed guile-user as the evaluation module, and persistent definitions. These refined rows retain the original raw wrong predictions separately. A genuine excursion switches to (gnu make), then the next invocation is predicted to restore guile-user.",
+      "refinements": null
+    },
+    "terminal-refined-before.json": {
+      "sha256": "1f68d056a4d89a7ae517a7376de4b02ff8b47be47da192da79839b493301c1f3",
+      "bytes": 3748,
+      "retained_source_path": "/tmp/rmake-guile-bootstrap/conversion-research/terminal-refined-before.json",
+      "classification": "Original pre-observation Guile error/terminal controls; zero candidate acceptance",
+      "hypothesis": "Refinement preserves first wrong predictions and all raw observations. With backtrace disabled, pinned Guile error emits its exact error procedure source prefix; terminal no-later-effect predictions were unchanged and already qualified.",
+      "refinements": null
+    },
+    "worker-before.json": {
+      "sha256": "3daf87489bbdfa8b81a7a9fdccf4e092c100c15bfbc08f307f52a896175129e7",
+      "bytes": 3145,
+      "retained_source_path": "/tmp/rmake-guile-bootstrap/conversion-research/worker-before.json",
+      "classification": "Original finite Scheme-created-worker gmk callback controls authored before observations; zero candidate credit",
+      "hypothesis": "A joined worker executes gmk-expand/eval synchronously against the current make context, and may recursively enter Guile; no concurrent Rust effects or arbitrary external pthread API contract is assumed. New bounds/signals stop without replay.",
+      "refinements": null
+    },
+    "worker-origin-before.json": {
+      "sha256": "d01c08b3a3bd279ce0e2d0509798743803b1e9ad8b1afccbc93e5e4cb7148e38",
+      "bytes": 2562,
+      "retained_source_path": "/tmp/rmake-guile-bootstrap/conversion-research/worker-origin-before.json",
+      "classification": "Original finite worker-origin semantics pre-models; no candidate or oracle acceptance until observations",
+      "hypothesis": "Nested Guile invoked through worker gmk-expand retains the requesting Scheme thread identity and current module, rather than using the leading thread dynamic state. This distinguishes an origin-preserving bridge from a leading-only shortcut.",
+      "refinements": null
+    }
+  },
+  "rows": [
+    {
+      "id": "guile-frontend-empty-direct",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "empty-direct",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-false",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202366290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "false",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-true",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202374290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[#t]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "true",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-integer",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520363331290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[631]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "integer",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-negative",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202d323437290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[-247]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "negative",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-bignum",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520313233343536373839303132333435363738393031323334353637383930313233343536373839290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[123456789012345678901234567890123456789]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "bignum",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-rational",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520372f33290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[7/3]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "rational",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-real",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520322e35290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[2.5]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "real",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-complex",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520342b3369290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[4.0+3.0i]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "complex",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-symbol",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520276e6f727468290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "symbol",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-character",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520235c51290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[Q]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "character",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-space-character",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520235c7370616365290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[ ]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "space-character",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-string",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652022636564617222290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[cedar]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "string",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-comma-string",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202263656461722c656c6d22290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[cedar,elm]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "comma-string",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-line-string",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520226c6566745c6e72696768745c74656e6422290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[left\nright\tend]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "line-string",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-flat-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652027286e6f72746820736f75746829290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north south]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "flat-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-nested-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652027286e6f72746820287765737420656173742920736f75746829290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north west east south]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "nested-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-empty-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520272829290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "empty-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-empty-list-items",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652027286e6f727468202829202823662920736f75746829290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north south]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "empty-list-items",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-boolean-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652027282366206e6f72746820237420236629290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north #t]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "boolean-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-mixed-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520286c69737420276e6f7274682036333120235c5129290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north 631 Q]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "mixed-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-empty-call",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d20242863616c6c206775696c65290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "empty-call",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-variable-vs-function",
+      "files": {
+        "Makefile": "6775696c65203a3d20736861646f770a56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65297c24286775696c6520297c24286775696c6520226f6b22290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[shadow||ok]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "variable-vs-function",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-call-all-arguments-eager",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d20242863616c6c206775696c652c226365646172222c242866696c65203e3e7365656e2c69676e6f7265642d657870616e64656429290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[cedar]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nignored-expanded\nafter\n"
+      },
+      "original_id": "call-all-arguments-eager",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-expand-number",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028676d6b2d657870616e642036333129290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[631]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "expand-number",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-expand-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028676d6b2d657870616e6420286c697374202224242856414c554529222023742023662929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[outer #t]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "expand-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-eval-list",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e2028676d6b2d6576616c20272856414c5545203a3d206368616e67656429292028676d6b2d657870616e64202224242856414c554529222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[changed]\nSTATE=[changed]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "eval-list",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-eval-effects",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e2028676d6b2d6576616c202256414c5545203a3d206368616e6765645c6e24242866696c65203e3e7365656e2c696e736964652922292028676d6b2d657870616e64202224242856414c554529222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[changed]\nSTATE=[changed]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\ninside\nafter\n"
+      },
+      "original_id": "eval-effects",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-foreach-local",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d202428666f72656163682056414c55452c6c6f6f702c24286775696c652028676d6b2d657870616e64202224242856414c554529222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[loop]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "foreach-local",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-call-local",
+      "files": {
+        "Makefile": "464e203d2024286775696c652028676d6b2d657870616e64202224242831292229290a56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d20242863616c6c20464e2c736c6f74290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[slot]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "call-local",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-unsupported-expand-vector-caught",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028636174636820237420286c616d6264612028292028676d6b2d657870616e642023283720313929292920286c616d62646120617267732022766563746f722d72656a6563746564222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[vector-rejected]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "unsupported-expand-vector-caught",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-unsupported-expand-procedure-caught",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028636174636820237420286c616d6264612028292028676d6b2d657870616e6420286c616d626461202829203129292920286c616d6264612061726773202270726f6365647572652d72656a6563746564222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[procedure-rejected]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "unsupported-expand-procedure-caught",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-scheme-error-caught",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028636174636820237420286c616d62646120282920286572726f7220226f7264696e61727922292920286c616d62646120617267732022636175676874222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[caught]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "scheme-error-caught",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-fatal-eval",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028636174636820237420286c616d6264612028292028676d6b2d6576616c20222424286572726f72206775696c652d73746f702922292028676d6b2d6576616c202224242866696c65203e3e7365656e2c666f7262696464656e2922292920286c616d62646120617267732022636175676874222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** guile-stop.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      },
+      "original_id": "fatal-eval",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-fatal-expand",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028636174636820237420286c616d6264612028292028676d6b2d657870616e6420222424286572726f72206775696c652d73746f702922292028676d6b2d6576616c202224242866696c65203e3e7365656e2c666f7262696464656e2922292920286c616d62646120617267732022636175676874222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** guile-stop.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      },
+      "original_id": "fatal-expand",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-list-empty-string",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520286c69737420226e6f727468222022222022736f7574682229290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north south]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "list-empty-string",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-list-blank-string",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520286c69737420226e6f72746822202220222022736f7574682229290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north   south]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "list-blank-string",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-list-edge-spaces",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520286c6973742022206e6f7274682022202220736f757468202229290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[ north   south ]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "list-edge-spaces",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-improper-argument-caught",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028636174636820237420286c616d6264612028292028676d6b2d657870616e642028636f6e7320276e6f7274682027736f75746829292920286c616d62646120617267732022696d70726f7065722d72656a6563746564222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[north south]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "improper-argument-caught",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-newline-character",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520235c6e65776c696e65290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[\n]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "newline-character",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-outer-unspecified-error",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202869662023662022756e757365642229290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "outer-unspecified-error",
+      "original_model_file": "stable41-before.json"
+    },
+    {
+      "id": "guile-frontend-current-module",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520286d6f64756c652d6e616d65202863757272656e742d6d6f64756c652929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[guile-user]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "current-module",
+      "original_model_file": "namespace-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-persistent-definition",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e2028646566696e652072657461696e6564202263656461722229202366292924286775696c652072657461696e6564290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[cedar]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "persistent-definition",
+      "original_model_file": "namespace-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-module-excursion",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287365742d63757272656e742d6d6f64756c6520287265736f6c76652d6d6f64756c652027286775696c652d75736572292929202366292924286775696c6520286d6f64756c652d6e616d65202863757272656e742d6d6f64756c652929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[guile-user]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "module-excursion",
+      "original_model_file": "namespace-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-genuine-module-excursion",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287365742d63757272656e742d6d6f64756c6520287265736f6c76652d6d6f64756c65202728676e75206d616b65292929202366292924286775696c6520286d6f64756c652d6e616d65202863757272656e742d6d6f64756c652929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[guile-user]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "genuine-module-excursion",
+      "original_model_file": "namespace-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-outer-error-backtrace-disabled",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e202864656275672d64697361626c6520276261636b74726163652920286572726f7220226f7264696e617279222929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "ice-9/boot-9.scm:2007:7: In procedure error:\nordinary\n",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "outer-error-backtrace-disabled",
+      "original_model_file": "terminal-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-outer-vector-backtrace-disabled",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e202864656275672d64697361626c6520276261636b747261636529202328372031392929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[outer]\n",
+        "stderr": "ice-9/boot-9.scm:2007:7: In procedure error:\nUnknown object: #(7 19)\n",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "outer-vector-backtrace-disabled",
+      "original_model_file": "terminal-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-quit-success",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202871756974203029290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\n"
+      },
+      "original_id": "quit-success",
+      "original_model_file": "terminal-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-quit-failure",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c65202871756974203729290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 7,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\n"
+      },
+      "original_id": "quit-failure",
+      "original_model_file": "terminal-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-primitive-exit",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c6520287072696d69746976652d65786974203929290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 9,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\n"
+      },
+      "original_id": "primitive-exit",
+      "original_model_file": "terminal-refined-before.json"
+    },
+    {
+      "id": "guile-frontend-worker-expand",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287573652d6d6f64756c657320286963652d392074687265616473292920286a6f696e2d746872656164202863616c6c2d776974682d6e65772d74687265616420286c616d6264612028292028676d6b2d657870616e64202224242856414c55452922292929292029290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[outer]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "worker-expand",
+      "original_model_file": "worker-before.json"
+    },
+    {
+      "id": "guile-frontend-worker-eval",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287573652d6d6f64756c657320286963652d392074687265616473292920286a6f696e2d746872656164202863616c6c2d776974682d6e65772d74687265616420286c616d6264612028292028676d6b2d6576616c202256414c5545203a3d20776f726b657222292929292029290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[]\nSTATE=[worker]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "worker-eval",
+      "original_model_file": "worker-before.json"
+    },
+    {
+      "id": "guile-frontend-worker-nested-guile",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287573652d6d6f64756c657320286963652d392074687265616473292920286a6f696e2d746872656164202863616c6c2d776974682d6e65772d74687265616420286c616d6264612028292028676d6b2d657870616e6420222424286775696c6520282b203137203139292922292929292029290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[36]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "worker-nested-guile",
+      "original_model_file": "worker-before.json"
+    },
+    {
+      "id": "guile-frontend-worker-current-thread",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287573652d6d6f64756c657320286963652d39207468726561647329292028646566696e6520776f726b65722d69642023662920286a6f696e2d746872656164202863616c6c2d776974682d6e65772d74687265616420286c616d62646120282920287365742120776f726b65722d6964202863757272656e742d74687265616429292028676d6b2d657870616e6420222424286775696c65202865713f202863757272656e742d7468726561642920776f726b65722d69642929222929292929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[#t]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "worker-current-thread",
+      "original_model_file": "worker-origin-before.json"
+    },
+    {
+      "id": "guile-frontend-worker-current-module",
+      "files": {
+        "Makefile": "56414c5545203a3d206f757465720a242866696c65203e3e7365656e2c6265666f7265290a524553554c54203a3d2024286775696c652028626567696e20287573652d6d6f64756c657320286963652d392074687265616473292920286a6f696e2d746872656164202863616c6c2d776974682d6e65772d74687265616420286c616d62646120282920287365742d63757272656e742d6d6f64756c6520287265736f6c76652d6d6f64756c65202728676e75206d616b652929292028676d6b2d657870616e6420222424286775696c6520286d6f64756c652d6e616d65202863757272656e742d6d6f64756c65292929222929292929290a242866696c65203e3e7365656e2c6166746572290a2428696e666f20524553554c543d5b2428524553554c54295d290a2428696e666f2053544154453d5b242856414c5545295d290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "RESULT=[gnu make]\nSTATE=[outer]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_id": "worker-current-module",
+      "original_model_file": "worker-origin-before.json"
+    },
+    {
+      "id": "guile-frontend-features",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f2046454154555245533d5b24282e4645415455524553295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "FEATURES=[target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink guile load]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_model_file": "new frontend-only phase hypothesis"
+    },
+    {
+      "id": "guile-frontend-eager-cli",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f20434c493d5b24284e4f57295d7c24286f726967696e204e4f5729290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "NOW:=$(guile (+ 19 23))"
+      ],
+      "expected": {
+        "status": 0,
+        "stdout": "CLI=[42]|command line\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nafter\n"
+      },
+      "original_model_file": "new frontend-only phase hypothesis"
+    }
+  ]
+}

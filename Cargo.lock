@@ -68,6 +68,15 @@ dependencies = [
 name = "rmake"
 version = "0.1.0"
 dependencies = [
+ "rmake-app",
+ "rmake-core",
+ "rmake-linux",
+]
+
+[[package]]
+name = "rmake-app"
+version = "0.1.0"
+dependencies = [
  "rmake-core",
  "rmake-linux",
 ]

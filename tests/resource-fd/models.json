@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "classification": "Original bounded startup and controlled live cancellation models",
+  "stable_inputs": {
+    "runtime_signals_cell": "changed, parent-only, serial",
+    "make_args": [
+      "-rR",
+      "--no-print-directory",
+      "-j1",
+      "--jobserver-style=pipe"
+    ],
+    "live_target": "changed\n",
+    "expected_final_markers": {
+      "ready": "ready\n",
+      "release": "release\n"
+    },
+    "expected_events": [
+      "live-owned-target",
+      "signal-to-make",
+      "target-removed-before-release",
+      "release-child"
+    ]
+  },
+  "models": [
+    {
+      "id": "low6-term-live-recipe",
+      "nofile": 6,
+      "signal": 15,
+      "status": -15,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\nmake: *** [Makefile:5: out] Terminated\n",
+      "forwarded_signal": "15",
+      "candidate_private_pipe": []
+    },
+    {
+      "id": "low6-int-live-recipe",
+      "nofile": 6,
+      "signal": 2,
+      "status": -2,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\n",
+      "forwarded_signal": null,
+      "candidate_private_pipe": []
+    },
+    {
+      "id": "roomy32-term-live-recipe",
+      "nofile": 32,
+      "signal": 15,
+      "status": -15,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\nmake: *** [Makefile:5: out] Terminated\n",
+      "forwarded_signal": "15",
+      "candidate_private_pipe": [
+        [
+          5,
+          6
+        ]
+      ]
+    }
+  ],
+  "startup": [
+    {
+      "id": "ordinary-fdlimit-4",
+      "nofile": 4,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stdout_hex": "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
+      "stderr_hex": "",
+      "status": 0
+    },
+    {
+      "id": "ordinary-fdlimit-5",
+      "nofile": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stdout_hex": "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
+      "stderr_hex": "",
+      "status": 0
+    },
+    {
+      "id": "ordinary-fdlimit-6",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stdout_hex": "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
+      "stderr_hex": "",
+      "status": 0
+    },
+    {
+      "id": "ordinary-fdlimit-7",
+      "nofile": 7,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "stdout_hex": "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
+      "stderr_hex": "",
+      "status": 0
+    }
+  ]
+}

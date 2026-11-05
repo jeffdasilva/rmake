@@ -3,12 +3,18 @@
 fn main() {
     build_guile();
     println!("cargo:rerun-if-changed=native_shim.c");
+    println!("cargo:rerun-if-changed=stdin_source.c");
+    println!("cargo:rerun-if-changed=restart.c");
+    println!("cargo:rerun-if-changed=spawn.c");
     let mut native = cc::Build::new();
     if std::env::var_os("CARGO_FEATURE_GUILE").is_some() {
         native.define("RMAKE_GUILE_DISPATCH", None);
     }
     native
         .file("native_shim.c")
+        .file("stdin_source.c")
+        .file("restart.c")
+        .file("spawn.c")
         .flag_if_supported("-std=c11")
         .warnings(true)
         .warnings_into_errors(true)
@@ -22,6 +28,16 @@ fn build_guile() {
     println!("cargo:rerun-if-env-changed=RMAKE_GUILE_PREFIX");
     println!("cargo:rerun-if-changed=guile.c");
     println!("cargo:rerun-if-changed=guile_interrupt.c");
+    for file in [
+        "guile_workers.c",
+        "guile_workers.h",
+        "guile_worker_packet.c",
+        "guile_worker_packet.h",
+        "guile_environment.c",
+        "guile_environment.h",
+    ] {
+        println!("cargo:rerun-if-changed={file}");
+    }
     if std::env::var_os("CARGO_FEATURE_GUILE").is_none() {
         return;
     }
@@ -38,6 +54,9 @@ fn build_guile() {
     cc::Build::new()
         .file("guile.c")
         .file("guile_interrupt.c")
+        .file("guile_worker_packet.c")
+        .file("guile_workers.c")
+        .file("guile_environment.c")
         .flag_if_supported("-std=c11")
         .include(prefix.join("usr/include"))
         .include(prefix.join("usr/include/x86_64-linux-gnu"))

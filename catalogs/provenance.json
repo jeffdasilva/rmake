@@ -1,0 +1,27 @@
+{
+  "classification": "Project-owned compatibility catalog data, imported with root authorization. No GNU implementation/header/test code reused. Declarative translations and package-license/translator notices retained unchanged.",
+  "package": "GNU Make4.4.1",
+  "source_archive_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "package_license": "Same-as-package notice in fr.po; complete package COPYING included",
+  "translator_header": "# Messages français pour make.\n# Copyright © 2010 Free Software Foundation, Inc.\n# This file is distributed under the same license as the make package.\n#\n# 30-juillet-2001, n'avons plus de nouvelle de Marc depuis 5 janvier 1997\n# Marc Baudoin <babafou@ensta.fr>, Frédéric Liné <line@MicroNet.fr>, 1996.\n# Michel Robitaille <robitail@IRO.UMontreal.CA>, 1996-2006\n# Christophe Combelles <ccomb@free.fr>, 2009, 2010\n# Kévin Raymond <shaiton@fedoraproject.org>, 2012-2016, 2018, 2020\n#\n",
+  "catalog_metadata": {
+    "project-id-version": "GNU make 4.2.93",
+    "report-msgid-bugs-to": "bug-make@gnu.org",
+    "po-revision-date": "2020-05-25 08:54+0200",
+    "last-translator": "Kévin Raymond <shaiton@fedoraproject.org>",
+    "language-team": "French <traduc@traduc.org>",
+    "language": "fr",
+    "mime-version": "1.0",
+    "content-type": "text/plain; charset=UTF-8",
+    "content-transfer-encoding": "8bit",
+    "x-bugs": "Report translation errors to the Language-Team address.",
+    "plural-forms": "nplurals=2; plural=(n > 1);",
+    "x-generator": "Poedit 2.3"
+  },
+  "adaptation": "Catalog contents unchanged; installed under rmake-owned directory and bound explicitly as the compatibility domain make. System-message producers/formatting are independently authored Rust.",
+  "files": {
+    "fr.po": "0eabc9b242d57d7fa5566a6f4db85cb13320c4391532d1e1b7991fa5bca2f442",
+    "fr/LC_MESSAGES/make.mo": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+    "COPYING": "e79e9c8a0c85d735ff98185918ec94ed7d175efc377012787aebcf3b80f0d90b"
+  }
+}

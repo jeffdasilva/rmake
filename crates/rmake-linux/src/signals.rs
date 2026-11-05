@@ -9,6 +9,9 @@ use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
+mod debug;
+pub use debug::Handle as DebugHandle;
+
 const CAUGHT: [c_int; 7] = [1, 2, 3, 13, 15, 24, 25];
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 static TERMINAL_STATUS: AtomicI32 = AtomicI32::new(-1);
@@ -27,6 +30,7 @@ unsafe extern "C" {
     fn __errno_location() -> *mut c_int;
     fn getpid() -> c_int;
     fn kill(pid: c_int, number: c_int) -> c_int;
+    fn rmake_set_execution_mask(reader: c_int) -> c_int;
 }
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
@@ -50,13 +54,18 @@ extern "C" fn caught(number: c_int) {
     unsafe { signal(number, 0) };
     CANCELLED.store(true, Ordering::Relaxed);
     PENDING.store(number, Ordering::SeqCst);
+    #[cfg(feature = "guile")]
+    // This is a caught host-fatal signal; the C helper uses only atomics/write
+    // here and schedules language cancellation outside the signal handler.
+    unsafe {
+        crate::guile::notify_signal(number);
+    }
     let byte = number as u8;
     unsafe {
-        write(
-            WAKE_WRITER.load(Ordering::Relaxed),
-            (&byte as *const u8).cast(),
-            1,
-        );
+        let descriptor = WAKE_WRITER.load(Ordering::Relaxed);
+        if descriptor >= 0 {
+            write(descriptor, (&byte as *const u8).cast(), 1);
+        }
     }
     unsafe { *__errno_location() = saved };
 }
@@ -74,31 +83,54 @@ fn private_wake_end(file: File) -> io::Result<File> {
     Ok(unsafe { File::from_raw_fd(descriptor) })
 }
 
+fn wake_pipe() -> io::Result<(File, File)> {
+    let mut descriptors = [-1; 2];
+    if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let reader = unsafe { File::from_raw_fd(descriptors[0]) };
+    let writer = unsafe { File::from_raw_fd(descriptors[1]) };
+    Ok((private_wake_end(reader)?, private_wake_end(writer)?))
+}
+
 pub struct Guard {
+    debug: debug::Owner,
     saved: Vec<(c_int, usize)>,
-    _reader: File,
-    _writer: File,
+    _reader: Option<File>,
+    _writer: Option<File>,
 }
 
 impl Guard {
+    /// Bind the actual process output policy without installing SIGUSR1 early.
+    pub fn debug_handle(&self) -> DebugHandle {
+        self.debug.handle()
+    }
+
     /// Install once, before parsing or launching children. Preserve dispositions
     /// explicitly ignored by the caller, and restore ordinary SIGCHLD reaping.
     pub fn install() -> io::Result<Self> {
-        let mut descriptors = [-1; 2];
-        if unsafe { pipe2(descriptors.as_mut_ptr(), 0x80000 | 0x800) } < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let reader = unsafe { File::from_raw_fd(descriptors[0]) };
-        let writer = unsafe { File::from_raw_fd(descriptors[1]) };
-        let reader = private_wake_end(reader)?;
-        let writer = private_wake_end(writer)?;
+        let (reader, writer) = match wake_pipe() {
+            Ok((reader, writer)) => (Some(reader), Some(writer)),
+            // A low descriptor limit can reject the pipe itself or the minimum
+            // private descriptor number. Do not occupy protocol slots 3/4.
+            // Interruptible scheduler waits use a bounded poll in this mode.
+            Err(error) if matches!(error.raw_os_error(), Some(22..=24)) => (None, None),
+            Err(error) => return Err(error),
+        };
         let mut guard = Self {
+            debug: debug::Owner::reserve()?,
             saved: Vec::new(),
             _reader: reader,
             _writer: writer,
         };
-        WAKE_READER.store(guard._reader.as_raw_fd(), Ordering::Relaxed);
-        WAKE_WRITER.store(guard._writer.as_raw_fd(), Ordering::Relaxed);
+        WAKE_READER.store(
+            guard._reader.as_ref().map_or(-1, AsRawFd::as_raw_fd),
+            Ordering::Relaxed,
+        );
+        WAKE_WRITER.store(
+            guard._writer.as_ref().map_or(-1, AsRawFd::as_raw_fd),
+            Ordering::Relaxed,
+        );
         PENDING.store(0, Ordering::SeqCst);
         TERMINAL_STATUS.store(-1, Ordering::Relaxed);
         CANCELLED.store(false, Ordering::Relaxed);
@@ -141,12 +173,32 @@ impl Drop for Guard {
     }
 }
 
+/// Enter normal reader startup on the interpreter's thread. Eager option
+/// evaluation and stdin preparation run with the incoming mask.
+pub fn enter_reader_mask() -> io::Result<()> {
+    set_execution_mask(true)
+}
+
+/// Apply only in an exec child. Self-exec keeps the live interpreter mask.
+pub(crate) fn clear_exec_mask() -> io::Result<()> {
+    set_execution_mask(false)
+}
+
+fn set_execution_mask(reader: bool) -> io::Result<()> {
+    // SAFETY: the C adapter initializes its local sigset_t and changes the
+    // calling thread's mask using async-signal-safe libc operations.
+    match unsafe { rmake_set_execution_mask(reader.into()) } {
+        0 => Ok(()),
+        error => Err(io::Error::from_raw_os_error(error)),
+    }
+}
+
 /// Rust resets SIGPIPE in spawned children. GNU preserves an explicitly
 /// inherited ignore disposition; restore it after std's child setup. Only the
 /// async-signal-safe disposition operation runs between fork and exec.
 pub fn configure_child(command: &mut std::process::Command) {
     use std::os::unix::process::CommandExt;
-    if INITIAL_PIPE.load(Ordering::Relaxed) == 0 {
+    if !preserve_child_pipe_ignore() {
         return;
     }
     unsafe {
@@ -158,6 +210,10 @@ pub fn configure_child(command: &mut std::process::Command) {
             }
         });
     }
+}
+
+pub(crate) fn preserve_child_pipe_ignore() -> bool {
+    INITIAL_PIPE.load(Ordering::Relaxed) != 0
 }
 
 pub fn pending() -> Option<i32> {
@@ -194,24 +250,47 @@ pub fn deletes_targets(number: i32) -> bool {
     matches!(number, 1 | 2 | 3 | 15)
 }
 
-/// Call after the interpreter has released owned resources. SIGQUIT has GNU's
-/// explicit status 1 convention; other fatal signals retain wait-status identity.
-pub fn exit_status(status: u8) -> u8 {
-    let terminal = TERMINAL_STATUS.load(Ordering::Relaxed);
+/// Pure exit selection, before a caller chooses its platform stack.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExitAction {
+    Code(u8),
+    Signal(i32),
+}
+
+fn select_exit(status: u8, terminal: i32, pending: i32) -> ExitAction {
     if terminal >= 0 {
-        return terminal as u8;
+        ExitAction::Code(terminal as u8)
+    } else if pending == 3 {
+        // Preserve GNU's explicit SIGQUIT numeric status convention.
+        ExitAction::Code(1)
+    } else if pending != 0 {
+        ExitAction::Signal(pending)
+    } else {
+        ExitAction::Code(status)
     }
-    if let Some(number) = pending() {
-        if number == 3 {
-            return 1;
+}
+
+pub fn exit_action(status: u8) -> ExitAction {
+    select_exit(
+        status,
+        TERMINAL_STATUS.load(Ordering::Relaxed),
+        PENDING.load(Ordering::SeqCst),
+    )
+}
+
+/// Call after the interpreter has released owned resources. Feature hosts with
+/// a live foreign lifetime deliver this action through their leading C stack.
+pub fn exit_status(status: u8) -> u8 {
+    match exit_action(status) {
+        ExitAction::Code(status) => status,
+        ExitAction::Signal(number) => {
+            unsafe {
+                signal(number, 0);
+                kill(getpid(), number);
+            }
+            (128 + number) as u8
         }
-        unsafe {
-            signal(number, 0);
-            kill(getpid(), number);
-        }
-        return (128 + number) as u8;
     }
-    status
 }
 
 /// Core evaluation receives only a cooperative cancellation flag, with no
@@ -224,4 +303,18 @@ pub fn cancellation() -> &'static AtomicBool {
 /// completion owner reenters shutdown. Effects and cleanup still observe PENDING.
 pub fn terminal_status(status: u8) {
     TERMINAL_STATUS.store(i32::from(status), Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod exit_action_tests {
+    use super::*;
+
+    #[test]
+    fn terminal_overrides_and_quit_do_not_lose_numeric_exit_semantics() {
+        assert_eq!(select_exit(0, -1, 0), ExitAction::Code(0));
+        assert_eq!(select_exit(2, -1, 0), ExitAction::Code(2));
+        assert_eq!(select_exit(0, -1, 3), ExitAction::Code(1));
+        assert_eq!(select_exit(0, -1, 15), ExitAction::Signal(15));
+        assert_eq!(select_exit(0, 2, 15), ExitAction::Code(2));
+    }
 }

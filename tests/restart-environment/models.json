@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "classification": "Original parent raw-vector and duplicate restart predictions copied byte-for-byte as data. Added one independently predeclared wrap+unset case: GNU imports UINT32_MAX, a synchronous native setup removes the live counter, increment wraps to zero and a missing zero counter is not appended. No oracle output used to write the expectations. Whole FS includes the independently bound engine symlink, exact streams/status and ordered witness. No ordinary-ledger/exception credit.",
+  "original_plan_sha256": "6a10924e04c4db82390c2592a3484a883cfabc7df7f0a07d8aa3680aa7dc4eaf",
+  "sources": {
+    "constructor": "#define _GNU_SOURCE\n#include <fcntl.h>\n#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\nextern char **environ;\nextern char *program_invocation_short_name;\nstatic void write_all(int fd, const char *s) {\n    size_t n = strlen(s);\n    if (write(fd, s, n) != (ssize_t)n) _exit(121);\n}\n__attribute__((constructor)) static void entry(void) {\n    if (!program_invocation_short_name || strcmp(program_invocation_short_name,\"make\")) return;\n    int fd=open(\"seen\",O_WRONLY|O_APPEND|O_CLOEXEC);\n    if (fd<0) _exit(122);\n    write_all(fd,\"ENTRY\\n\");\n    for(char **slot=environ; *slot; ++slot) {\n        if (!strncmp(*slot,\"RMKEEP_\",7) || !strncmp(*slot,\"MAKELEVEL=\",10)\n            || !strncmp(*slot,\"MAKE_RESTARTS=\",14)) {\n            write_all(fd,*slot);\n            write_all(fd,\"\\n\");\n        }\n    }\n    if (close(fd)) _exit(123);\n    if (!getenv(\"RMKEEP_LIVE\") && setenv(\"RMKEEP_LIVE\",\"set-in-loader\",1)) _exit(124);\n}\n",
+    "launcher": "import ctypes, os, sys\nfrom pathlib import Path\nfile = os.fsencode(sys.argv[1])\nlibc = ctypes.CDLL(None, use_errno=True)\nexecve = libc.execve\nexecve.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_char_p)]\nexecve.restype = ctypes.c_int\nargv = [file, b'-rR', b'--no-print-directory']\nentries = [k + b'=' + v for k, v in os.environb.items()]\nentries.extend(bytes.fromhex(line) for line in Path('extra-entries').read_text().splitlines())\nexecve(file, (ctypes.c_char_p * (len(argv) + 1))(*argv, None),\n       (ctypes.c_char_p * (len(entries) + 1))(*entries, None))\nraise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n",
+    "makefile": "$(file >>seen,READ|$(RMKEEP_DUP)|$(MAKELEVEL)|$(MAKE_RESTARTS)|$(RMKEEP_LIVE))\ninclude generated.mk\nall:;@$(file >>seen,GOAL):\ngenerated.mk:;@printf 'READY:=yes\\n' > generated.mk\n"
+  },
+  "models": [
+    {
+      "id": "raw-ordered-vector",
+      "raw": [
+        "524d4b4545505f4455503d6669727374",
+        "524d4b4545505f42415245",
+        "524d4b4545505f4455503d7365636f6e64",
+        "524d4b4545505f5241573dff"
+      ],
+      "seen": "616e63686f720a454e5452590a4d414b454c4556454c3d320a524d4b4545505f4455503d66697273740a524d4b4545505f424152450a524d4b4545505f4455503d7365636f6e640a524d4b4545505f5241573dff0a524541447c7365636f6e647c327c7c7365742d696e2d6c6f616465720a454e5452590a4d414b454c4556454c3d320a524d4b4545505f4455503d66697273740a524d4b4545505f424152450a524d4b4545505f4455503d7365636f6e640a524d4b4545505f5241573dff0a524d4b4545505f4c4956453d7365742d696e2d6c6f616465720a4d414b455f52455354415254533d310a524541447c7365636f6e647c327c317c7365742d696e2d6c6f616465720a474f414c0a"
+    },
+    {
+      "id": "duplicate-restart-counters",
+      "raw": [
+        "524d4b4545505f4455503d6669727374",
+        "4d414b455f52455354415254533d34",
+        "524d4b4545505f42415245",
+        "4d414b455f52455354415254533d38",
+        "524d4b4545505f4455503d7365636f6e64"
+      ],
+      "seen": "616e63686f720a454e5452590a4d414b454c4556454c3d320a524d4b4545505f4455503d66697273740a4d414b455f52455354415254533d340a524d4b4545505f424152450a4d414b455f52455354415254533d380a524d4b4545505f4455503d7365636f6e640a524541447c7365636f6e647c327c387c7365742d696e2d6c6f616465720a454e5452590a4d414b454c4556454c3d320a524d4b4545505f4455503d66697273740a4d414b455f52455354415254533d390a524d4b4545505f424152450a4d414b455f52455354415254533d300a524d4b4545505f4455503d7365636f6e640a524d4b4545505f4c4956453d7365742d696e2d6c6f616465720a524541447c7365636f6e647c327c307c7365742d696e2d6c6f616465720a474f414c0a"
+    },
+    {
+      "id": "missing-wrapped-zero",
+      "raw": [
+        "524d4b4545505f4455503d6f6e6c79",
+        "4d414b455f52455354415254533d34323934393637323935"
+      ],
+      "seen": "616e63686f720a454e5452590a4d414b454c4556454c3d320a524d4b4545505f4455503d6f6e6c790a4d414b455f52455354415254533d343239343936373239350a524541447c6f6e6c797c327c343239343936373239357c7365742d696e2d6c6f616465720a554e5345542d434f554e540a454e5452590a4d414b454c4556454c3d320a524d4b4545505f4455503d6f6e6c790a524d4b4545505f4c4956453d7365742d696e2d6c6f616465720a524541447c6f6e6c797c327c7c7365742d696e2d6c6f616465720a474f414c0a",
+      "makefile": "$(file >>seen,READ|$(RMKEEP_DUP)|$(MAKELEVEL)|$(MAKE_RESTARTS)|$(RMKEEP_LIVE))\nload ./unset_restart.so\ninclude generated.mk\nall:;@$(file >>seen,GOAL):\ngenerated.mk:;@printf 'READY:=yes\\n' > generated.mk\n",
+      "extra_module": {
+        "source": "unset_restart.c",
+        "output": "unset_restart.so",
+        "bytes_hex": "2f2a20535044582d4c6963656e73652d4964656e7469666965723a2047504c2d332e302d6f722d6c617465720a202a20436f707972696768742032303236204a65666620446153696c76610a202a204f726967696e616c20626f756e646564207075626c69632d414249206f6273657276657220666f7220612077726170706564206d697373696e6720636f756e7465722e202a2f0a23646566696e65205f504f5349585f435f534f55524345203230303830394c0a23696e636c756465203c737464696f2e683e0a23696e636c756465203c7374646c69622e683e0a23696e636c756465203c737472696e672e683e0a73747275637420506c616365207b636f6e73742063686172202a66696c653b756e7369676e6564206c6f6e67206c696e653b7d3b0a65787465726e2063686172202a676d6b5f657870616e6428636f6e73742063686172202a293b0a65787465726e20766f696420676d6b5f667265652863686172202a293b0a696e7420706c7567696e5f69735f47504c5f636f6d70617469626c653d313b0a696e7420756e7365745f726573746172745f676d6b5f736574757028636f6e73742073747275637420506c616365202a706c61636529207b0a2020202028766f696429706c6163653b0a2020202063686172202a76616c75653d676d6b5f657870616e64282224284d414b455f52455354415254532922293b0a2020202069662821737472636d702876616c75652c2234323934393637323935222929207b0a2020202020202020696628756e736574656e7628224d414b455f52455354415254532229295f4578697428313235293b0a202020202020202046494c45202a7769746e6573733d666f70656e28227365656e222c226122293b0a2020202020202020696628217769746e6573737c7c66707574732822554e5345542d434f554e545c6e222c7769746e657373293c307c7c66636c6f7365287769746e65737329295f4578697428313236293b0a202020207d0a20202020676d6b5f667265652876616c7565293b72657475726e20313b0a7d0a"
+      }
+    }
+  ]
+}

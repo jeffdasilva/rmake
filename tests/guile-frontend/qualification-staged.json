@@ -1,0 +1,7 @@
+{
+  "classification": "First integrated default and enabled Guile gate on main172: four complete GNU2 reports and both candidate core self-host runs, before database/stdin integration",
+  "sha256": "0f664018c7caba61f53ecb55dbd1cfcfa254d79cfa09865225ea059c54e33505",
+  "raw_sha256": "970f3997a4a11c3a9d4c61a4f2dba9efd14d1144d88dadf0c3dcebaf36cf73fe",
+  "raw_bytes": 26257195,
+  "files": 11
+}

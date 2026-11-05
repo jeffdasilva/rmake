@@ -1,0 +1,387 @@
+{
+  "classification": "Original16 GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
+  "original_models_sha256": "bfbf1aba4a8f821ef33bbc2014a2a4fbc00649a4498988b455794582bad4766c",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "rows": [
+    {
+      "id": "fr-absent-makefile",
+      "files": {
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20506173206465206369626c65207370c3a963696669c3a96520657420617563756e206d616b6566696c65206e276120c3a974c3a92074726f7576c3a92e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-no-goal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206e6f20676f616c20686572650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20506173206465206369626c652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-multiple-default-goals",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e44454641554c545f474f414c203a3d206669727374207365636f6e640a6669727374207365636f6e643a203b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a202e44454641554c545f474f414c20636f6e7469656e7420706c7573206427756e65206369626c652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-orphan-recipe",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "09407072696e74662027666f7262696464656e5c6e270a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a206c61207265636574746520636f6d6d656e6365206176616e74206c61207072656d69c3a87265206369626c652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-invalid-condition",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "69666571202873696e676c65290a616c6c3a203b0a656e6469660a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a2073796e7461786520696e636f7272656374652064616e73206c6120636f6e646974696f6e2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-unclosed-conditional",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "696665712028782c78290a616c6c3a203b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a20c2abc2a0656e646966c2a0c2bb206d616e7175616e742e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-empty-variable",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "3d2061737369676e65640a616c6c3a203b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a206e6f6d206465207661726961626c6520766964652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-unclosed-define",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "646566696e6520580a636f6e74656e74730a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a20c2abc2a0656e646566c2a0c2bb206d616e7175616e742c20c2abc2a0646566696e65c2a0c2bb206e6f6e207465726d696ec3a92e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-unclosed-variable-reference",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "59203a3d202428554e4b4e4f574e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a2072c3a966c3a972656e636520696e636f6d706cc3a8746520c3a020756e65207661726961626c652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-recursive-variable",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "58203d20242858290a59203a3d20242858290a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a204c61207661726961626c652072c3a96375727369766520c2abc2a058c2a0c2bb2073652072c3a966c3a972656e636520656c6c652d6dc3aa6d652028c3a0206c612066696e292e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-duplicate-recipe-raw-target-and-user-message",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e50484f4e593a2063686f73656eff0a63686f73656eff3a203b20407072696e7466202766697273745c6e270a63686f73656eff3a203b20407072696e746620276c6173745c6e270a6f746865723a203b0a24287761726e696e6720757365722dff290a242866696c65203e3e7365656e2c6166746572290a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6c6173740a",
+        "stderr_hex": "4d616b6566696c653a333a206176657274697373656d656e74c2a03a207375726368617267656d656e74206465206c61207265636574746520706f7572206c61206369626c6520c2abc2a063686f73656effc2a0c2bb0a4d616b6566696c653a323a206176657274697373656d656e74c2a03a20616e6369656e6e6520726563657474652069676e6f72c3a96520706f7572206c61206369626c6520c2abc2a063686f73656effc2a0c2bb0a4d616b6566696c653a353a20757365722dff0a",
+        "seen_hex": "616e63686f720a61667465720a"
+      }
+    },
+    {
+      "id": "c-no-goal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206e6f20676f616c20686572650a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a204e6f20746172676574732e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "c-recursive-variable",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "58203d20242858290a59203a3d20242858290a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a20526563757273697665207661726961626c6520275827207265666572656e63657320697473656c6620286576656e7475616c6c79292e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "c-duplicate-recipe-raw-target-and-user-message",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e50484f4e593a2063686f73656eff0a63686f73656eff3a203b20407072696e7466202766697273745c6e270a63686f73656eff3a203b20407072696e746620276c6173745c6e270a6f746865723a203b0a24287761726e696e6720757365722dff290a242866696c65203e3e7365656e2c6166746572290a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6c6173740a",
+        "stderr_hex": "4d616b6566696c653a333a207761726e696e673a206f766572726964696e672072656369706520666f7220746172676574202763686f73656eff270a4d616b6566696c653a323a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f7220746172676574202763686f73656eff270a4d616b6566696c653a353a20757365722dff0a",
+        "seen_hex": "616e63686f720a61667465720a"
+      }
+    },
+    {
+      "id": "private-fr-include-orphan",
+      "files": {
+        "seen": "616e63686f720a",
+        "broken.mk": "09407072696e74662027666f7262696464656e5c6e270a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f707269766174655f667220290a242866696c65203e3e7365656e2c6265666f7265290a696e636c7564652062726f6b656e2e6d6b0a242866696c65203e3e7365656e2c666f7262696464656e290a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "62726f6b656e2e6d6b3a313a202a2a2a206c61207265636574746520636f6d6d656e6365206176616e74206c61207072656d69c3a87265206369626c652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "private-c-duplicate-then-global-fatal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "6c6f6164202e2f6e6c735f636f6e74726f6c2e736f0a24286e6c735f707269766174655f6320290a616c6c3a203b20407072696e7466202766697273745c6e270a616c6c3a203b20407072696e746620276c6173745c6e270a6f746865723a203b0a24286e6c735f7573655f676c6f62616c20290a24286572726f722072617720ff290a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [
+        {
+          "source": "nls_control.c",
+          "filename": "nls_control.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a343a207761726e696e673a206f766572726964696e672072656369706520666f72207461726765742027616c6c270a4d616b6566696c653a333a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f72207461726765742027616c6c270a4d616b6566696c653a373a202a2a2a2072617720ff2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    }
+  ]
+}
