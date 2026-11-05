@@ -103,38 +103,63 @@ impl UsageIssue {
         }
     }
 
-    pub(crate) fn message(&self) -> (bool, Vec<u8>) {
-        let quoted = |prefix: &[u8], value: &[u8], suffix: &[u8]| {
-            [prefix, b"'", value, b"'", suffix].concat()
+    pub(crate) fn getopt_line(&self, invocation: &[u8], localized: bool) -> Option<Vec<u8>> {
+        use rmake_core::messages::Argument::{Bytes, Character};
+
+        let short = |key, letter| {
+            crate::usage::getopt(key, &[Bytes(invocation), Character(letter)], localized)
         };
-        match self {
-            Self::Empty(option) => (false, crate::usage::empty(option)),
-            Self::Jobs => (false, crate::usage::jobs()),
-            Self::MissingShort(letter) => (
-                true,
-                quoted(b"option requires an argument -- ", &[*letter], b""),
-            ),
-            Self::UnknownShort(letter) => (true, quoted(b"invalid option -- ", &[*letter], b"")),
-            Self::MissingLong(name) => (true, quoted(b"option ", name, b" requires an argument")),
-            Self::UnexpectedLong(name) => (
-                true,
-                quoted(b"option ", name, b" doesn't allow an argument"),
-            ),
+        let long = |key, name: &[u8]| {
+            let operand = name.strip_prefix(b"--").expect("long option spelling");
+            crate::usage::getopt(
+                key,
+                &[Bytes(invocation), Bytes(b"--"), Bytes(operand)],
+                localized,
+            )
+        };
+        Some(match self {
+            Self::Empty(_) | Self::Jobs => return None,
+            Self::MissingShort(letter) => {
+                short(c"%s: option requires an argument -- '%c'\n", *letter)
+            }
+            Self::UnknownShort(letter) => short(c"%s: invalid option -- '%c'\n", *letter),
+            Self::MissingLong(name) => long(c"%s: option '%s%s' requires an argument\n", name),
+            Self::UnexpectedLong(name) => {
+                long(c"%s: option '%s%s' doesn't allow an argument\n", name)
+            }
             Self::UnknownLong(arg) => {
                 let name = arg.split(|byte| *byte == b'=').next().unwrap_or_default();
                 let mut names = GNU_LONG_OPTIONS
                     .iter()
                     .filter(|candidate| candidate.starts_with(name));
                 if let (Some(first), Some(second)) = (names.next(), names.next()) {
-                    let mut result = quoted(b"option ", arg, b" is ambiguous; possibilities:");
+                    let mut result = long(c"%s: option '%s%s' is ambiguous; possibilities:", arg);
                     for candidate in [first, second].into_iter().chain(names) {
-                        result.extend_from_slice(&quoted(b" ", candidate, b""));
+                        result.extend_from_slice(b" '");
+                        result.extend_from_slice(candidate);
+                        result.push(b'\'');
                     }
-                    (true, result)
+                    result.push(b'\n');
+                    result
                 } else {
-                    (true, quoted(b"unrecognized option ", arg, b""))
+                    long(c"%s: unrecognized option '%s%s'\n", arg)
                 }
             }
+        })
+    }
+
+    pub(crate) fn message(&self) -> Vec<u8> {
+        match self {
+            Self::Empty(option) => crate::usage::empty(option),
+            Self::Jobs => crate::usage::jobs(),
+            _ => self
+                .getopt_line(b"", false)
+                .and_then(|line| {
+                    line.strip_prefix(b": ")?
+                        .strip_suffix(b"\n")
+                        .map(<[u8]>::to_vec)
+                })
+                .expect("English getopt error framing"),
         }
     }
 }
@@ -836,7 +861,7 @@ impl Decoder {
 impl Options {
     fn reject_usage(argument: Argument) -> Result<(), String> {
         if let Argument::Usage(_, issue) = argument {
-            return Err(String::from_utf8_lossy(&issue.message().1).into_owned());
+            return Err(String::from_utf8_lossy(&issue.message()).into_owned());
         }
         Ok(())
     }

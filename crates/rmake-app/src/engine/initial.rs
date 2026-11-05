@@ -154,21 +154,17 @@ impl Plan {
         explicit: bool,
     ) -> Result<(), InvocationError> {
         if let crate::cli::Argument::Usage(_, issue) = argument {
-            let (getopt, message) = issue.message();
-            if getopt {
-                let name = if explicit {
-                    self.invocation.as_bytes()
-                } else {
-                    b""
-                };
-                let mut stderr = std::io::stderr().lock();
-                for part in [name, b": ", &message, b"\n"] {
-                    let _ = std::io::Write::write_all(&mut stderr, part);
-                }
+            let name = if explicit {
+                self.invocation.as_bytes()
+            } else {
+                b""
+            };
+            if let Some(message) = issue.getopt_line(name, true) {
+                let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), &message);
             } else {
                 state
                     .output
-                    .write_parts(true, &[&self.program, b": ", &message, b"\n"]);
+                    .write_parts(true, &[&self.program, b": ", &issue.message(), b"\n"]);
             }
             return Ok(());
         }

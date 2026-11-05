@@ -56,6 +56,16 @@ fn format(key: &'static CStr, arguments: &[Argument<'_>]) -> Vec<u8> {
         .expect("typed built-in usage format")
 }
 
+pub(crate) fn getopt(key: &'static CStr, arguments: &[Argument<'_>], localized: bool) -> Vec<u8> {
+    if localized
+        && let Ok(template) = rmake_linux::messages::lookup_libc(key)
+        && let Ok(message) = checked_format(&template, arguments)
+    {
+        return message;
+    }
+    checked_format(key.to_bytes(), arguments).expect("typed libc getopt format")
+}
+
 pub(crate) fn empty(option: &[u8]) -> Vec<u8> {
     let prefix = if option.starts_with(b"--") { 2 } else { 1 };
     format(

@@ -321,6 +321,9 @@ test-runtime-option-values: build oracle-verify
 
 test-startup-usage: build oracle-verify
 	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/development.json $(if $(STARTUP_USAGE_CASE),--case "$(STARTUP_USAGE_CASE)")
+ifeq ($(STARTUP_USAGE_CASE),)
+	$(PYTHON) tools/getopt_locale.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/getopt-development.json
+endif
 
 test-flag-terminator: build oracle-verify
 	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/flag-terminator/development.json $(if $(FLAG_TERMINATOR_CASE),--case "$(FLAG_TERMINATOR_CASE)")
@@ -386,6 +389,7 @@ test-m5-release: test-m4-release
 test-m4-release: release oracle-verify test-nls-release test-nls-directory-release
 	$(PYTHON) tools/runtime_option_values.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/runtime-option-values/optimized.json
 	$(PYTHON) tools/startup_usage.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/optimized.json
+	$(PYTHON) tools/getopt_locale.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/startup-usage/getopt-optimized.json
 	$(PYTHON) tools/flag_terminator.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/flag-terminator/optimized.json
 	$(PYTHON) tools/developer_flows.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/developer-flows/optimized.json
 	$(PYTHON) tools/safety.py --candidate "$(M4_RELEASE)"

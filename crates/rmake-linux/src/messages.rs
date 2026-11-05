@@ -8,6 +8,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 unsafe extern "C" {
     fn gettext(message: *const c_char) -> *mut c_char;
+    fn dgettext(domain: *const c_char, message: *const c_char) -> *mut c_char;
     fn bindtextdomain(domain: *const c_char, directory: *const c_char) -> *mut c_char;
     fn textdomain(domain: *const c_char) -> *mut c_char;
 }
@@ -24,10 +25,23 @@ pub fn initialize(directory: &Path) -> Result<(), &'static str> {
     Ok(())
 }
 pub fn lookup_static(key: &'static CStr) -> Result<Vec<u8>, FormatError> {
-    // SAFETY: the msgid is a static C string and gettext returns immutable
-    // library-owned text. Copy immediately; no pointer enters core or survives
-    // later domain/locale operations. gettext leaves errno unchanged.
-    let value = unsafe { gettext(key.as_ptr()) };
+    lookup(key, None)
+}
+
+/// getopt uses libc's domain independently of the application domain.
+pub fn lookup_libc(key: &'static CStr) -> Result<Vec<u8>, FormatError> {
+    lookup(key, Some(c"libc"))
+}
+
+fn lookup(key: &'static CStr, domain: Option<&'static CStr>) -> Result<Vec<u8>, FormatError> {
+    // SAFETY: the key and domain are static C strings. Copy the immutable
+    // library-owned result before any later domain or locale operation.
+    let value = unsafe {
+        match domain {
+            Some(domain) => dgettext(domain.as_ptr(), key.as_ptr()),
+            None => gettext(key.as_ptr()),
+        }
+    };
     if value.is_null() {
         return Err(FormatError::CatalogLookup);
     }

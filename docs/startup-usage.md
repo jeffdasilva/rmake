@@ -37,3 +37,32 @@ creation. Live value errors preserve the earlier selection and continue,
 while the same argv errors print usage. An unknown jobserver style is
 reported only when make attempts to create a pool. Numeric job operands use
 the observed unsigned 32-bit bound, including leading blank handling.
+
+## Host libc option diagnostics
+
+The Linux GNU Make 4.4.1 reference delegates lexical option diagnostics to
+glibc's `getopt_long`. Those lines use the active message locale and the
+`libc` domain. GNU Make's usage text and value diagnostics still use the
+Make catalog. The startup decoder supplies the exact original invocation
+name, or an empty name for an inherited option source. Long-option
+templates receive the option prefix and operand as separate arguments.
+Malformed argv bytes are retained.
+
+rmake uses public `dgettext` for those specific templates and applies the
+existing checked byte formatter. The host provides the libc catalog and
+native locale and domain bindings take effect at publication. The
+compatibility Make catalog continues to use its own binding.
+
+`make test-startup-usage` includes ten comparisons with an original native
+constructor and a test-owned libc catalog. The cases cover C, French
+`LC_MESSAGES` on a private UTF-8 locale, inherited option sources, raw
+option bytes, and reordered catalog fields. They check the complete
+usage transcript, both output streams, status and file effects. The
+optimized acceptance flow runs the same comparisons.
+
+Independent verification used the French `libc.mo` from Ubuntu Noble
+`language-pack-fr-base` version `1:24.04+20240419`. The archive's signed
+`InRelease` authenticates the package index and the downloaded package.
+The checked catalog SHA-256 is
+`716d8d95928401c9eed84ffcbbde676c0dac79af97582e0a710d05a925bf93fe`.
+[Ubuntu package and catalog listing](https://packages.ubuntu.com/noble/all/language-pack-fr-base/filelist)
