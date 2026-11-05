@@ -217,6 +217,13 @@ impl Decoder {
     pub(crate) fn advance<const STARTUP: bool>(
         &mut self,
     ) -> Result<Option<DecodedArgument>, String> {
+        self.advance_in_sources::<STARTUP>(&[])
+    }
+
+    fn advance_in_sources<const STARTUP: bool>(
+        &mut self,
+        source_ends: &[usize],
+    ) -> Result<Option<DecodedArgument>, String> {
         let mut args = std::mem::take(&mut self.args);
         let mut evals_seen = std::mem::take(&mut self.evals_seen);
         let result = &mut self.options;
@@ -225,6 +232,8 @@ impl Decoder {
         let offset = self.offset;
         let track_jobs = self.track_jobs;
         let mut expanded_long = None;
+        let mut ends = source_ends[source_ends.partition_point(|end| *end < i)..].iter();
+        let mut source_end = ends.next().copied().unwrap_or(args.len());
         macro_rules! pause {
             ($event:expr) => {{
                 let step = DecodedArgument {
@@ -239,8 +248,13 @@ impl Decoder {
             }};
         }
         while i < args.len() {
+            while i == source_end {
+                end_options = false;
+                source_end = ends.next().copied().unwrap_or(args.len());
+            }
             let argument_index = i;
-            let arg = &args[i];
+            let source_args = &args[..source_end];
+            let arg = &source_args[i];
             if !end_options && arg == b"--" {
                 end_options = true;
                 i += 1;
@@ -255,7 +269,7 @@ impl Decoder {
                 // an operand receiver. Startup still reports the usage error.
                 if !STARTUP
                     && value.is_none()
-                    && i + 1 == args.len()
+                    && i + 1 == source_end
                     && matches!(
                         name,
                         b"--file"
@@ -372,7 +386,7 @@ impl Decoder {
                                 value
                                     .or_else(|| {
                                         i += 1;
-                                        args.get(i).cloned()
+                                        source_args.get(i).cloned()
                                     })
                                     .ok_or("jobserver authentication requires an argument")?,
                             );
@@ -381,7 +395,7 @@ impl Decoder {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
-                                    args.get(i).cloned()
+                                    source_args.get(i).cloned()
                                 })
                                 .ok_or("jobserver style requires an argument")?;
                             result.jobserver_pipe = match value.as_slice() {
@@ -396,7 +410,7 @@ impl Decoder {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
-                                    args.get(i).cloned()
+                                    source_args.get(i).cloned()
                                 })
                                 .ok_or_else(|| {
                                     format!(
@@ -460,7 +474,7 @@ impl Decoder {
                             let value = value
                                 .or_else(|| {
                                     i += 1;
-                                    args.get(i).cloned()
+                                    source_args.get(i).cloned()
                                 })
                                 .ok_or("option '--eval' requires an argument")?;
                             if value.is_empty() {
@@ -481,14 +495,14 @@ impl Decoder {
                                 value
                                     .or_else(|| {
                                         i += 1;
-                                        args.get(i).cloned()
+                                        source_args.get(i).cloned()
                                     })
                                     .ok_or("option '--sync-mutex' requires an argument")?,
                             );
                         }
                         b"--load-average" | b"--max-load" => {
                             let value = value.or_else(|| {
-                                if args.get(i + 1).is_some_and(|v| {
+                                if source_args.get(i + 1).is_some_and(|v| {
                                     v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
                                 }) {
                                     i += 1;
@@ -502,7 +516,7 @@ impl Decoder {
                         }
                         b"--jobs" => {
                             let value = value.or_else(|| {
-                                if args
+                                if source_args
                                     .get(i + 1)
                                     .is_some_and(|v| v.iter().all(u8::is_ascii_digit))
                                 {
@@ -589,7 +603,7 @@ impl Decoder {
                         b'l' => {
                             let value = if j + 1 < arg.len() {
                                 Some(arg[j + 1..].to_vec())
-                            } else if args.get(i + 1).is_some_and(|v| {
+                            } else if source_args.get(i + 1).is_some_and(|v| {
                                 v.first().is_some_and(|b| b.is_ascii_digit() || *b == b'.')
                             }) {
                                 i += 1;
@@ -605,19 +619,19 @@ impl Decoder {
                             let value = if j + 1 < arg.len() {
                                 arg[j + 1..].to_vec()
                             } else if option == b'j'
-                                && !args.get(i + 1).is_some_and(|v| {
+                                && !source_args.get(i + 1).is_some_and(|v| {
                                     !v.is_empty() && v.iter().all(u8::is_ascii_digit)
                                 })
                             {
                                 Vec::new()
                             } else {
                                 i += 1;
-                                if !STARTUP && i == args.len() {
+                                if !STARTUP && i == source_end {
                                     // The missing operand does not consume an argv slot.
                                     i -= 1;
                                     break;
                                 }
-                                args.get(i).cloned().ok_or_else(|| {
+                                source_args.get(i).cloned().ok_or_else(|| {
                                     format!("option requires an argument -- '{}'", option as char)
                                 })?
                             };
@@ -719,28 +733,21 @@ impl Options {
         gnumakeflags: Option<OsString>,
     ) -> Result<Self, String> {
         let missing_makeflags = makeflags.is_none();
-        let mut combined = Vec::new();
+        let mut prefix_count = 0;
+        let mut inherited_options = Self::default();
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
-            Self::append_flags(&mut combined, flags.as_bytes())?;
+            let mut tokens = Vec::new();
+            Self::append_flags(&mut tokens, flags.as_bytes());
+            let count = tokens.len();
+            inherited_options = Self::parse_continued_with::<String>(
+                tokens,
+                inherited_options,
+                prefix_count,
+                &mut |_, _| Ok(()),
+                &mut |_| {},
+            )?;
+            prefix_count += count;
         }
-        Self::with_inherited_tokens(args, combined, missing_makeflags)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn with_inherited_tokens(
-        args: impl IntoIterator<Item = OsString>,
-        combined: Vec<OsString>,
-        missing_makeflags: bool,
-    ) -> Result<Self, String> {
-        // No inherited tokens means there is no source merge. Decode the
-        // explicit arguments once, retaining the same jobserver finalization.
-        if combined.is_empty() {
-            let result = Self::parse(args)?;
-            let jobs = result.jobs;
-            return Ok(result.with_command_jobs(jobs));
-        }
-        let prefix_count = combined.len();
-        let inherited_options = Self::parse(combined)?;
         Self::with_parsed_inherited(args, inherited_options, prefix_count, missing_makeflags)
     }
 
@@ -819,7 +826,7 @@ impl Options {
         self
     }
 
-    fn append_flags(combined: &mut Vec<OsString>, flags: &[u8]) -> Result<(), String> {
+    fn append_flags(combined: &mut Vec<OsString>, flags: &[u8]) {
         let raw = flags;
         let mut decoded = Vec::with_capacity(raw.len());
         let mut pos = 0;
@@ -830,23 +837,12 @@ impl Options {
             }
             pos += 1;
         }
-        Self::append_expanded_flags(combined, &decoded)
+        Self::append_expanded_flags(combined, &decoded);
     }
 
     // Expanded file flags have already consumed their make-dollar quoting.
     // GNU skips C whitespace once at the start, then separates only SP/TAB.
-    pub(crate) fn append_expanded_flags(
-        combined: &mut Vec<OsString>,
-        bytes: &[u8],
-    ) -> Result<(), String> {
-        Self::append_flag_arguments(combined, bytes, false)
-    }
-
-    fn append_flag_arguments(
-        combined: &mut Vec<OsString>,
-        mut bytes: &[u8],
-        preserve_end: bool,
-    ) -> Result<(), String> {
+    pub(crate) fn append_expanded_flags(combined: &mut Vec<OsString>, mut bytes: &[u8]) {
         while bytes
             .first()
             .is_some_and(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
@@ -878,21 +874,9 @@ impl Options {
         {
             first.insert(0, b'-');
         }
-        let mut inherited_end = false;
-        for token in tokens {
-            if token == b"--" {
-                inherited_end = true;
-                if preserve_end {
-                    combined.push(OsString::from_vec(token));
-                }
-                continue;
-            }
-            if inherited_end && token.starts_with(b"-") && !preserve_end {
-                return Err("option-like goals in inherited make flags are not implemented".into());
-            }
-            combined.push(OsString::from_vec(token));
-        }
-        Ok(())
+        // Keep every marker until decoding. `--` can be an operand, and
+        // only the first unconsumed marker ends the options for this source.
+        combined.extend(tokens.into_iter().map(OsString::from_vec));
     }
 
     /// Decode changed file bindings after reading. Existing switches persist;
@@ -935,7 +919,7 @@ impl Options {
             return Ok(None);
         }
         let mut incoming = Vec::new();
-        Self::append_flag_arguments(&mut incoming, value, true)?;
+        Self::append_expanded_flags(&mut incoming, value);
         let inspected = Self::parse_mode::<false>(incoming.clone())?;
         if !stored_tilde
             && !inspected
@@ -946,7 +930,7 @@ impl Options {
             return Ok(None);
         }
         let mut prefix = Vec::new();
-        Self::append_flags(&mut prefix, &self.recursive_flags_with_includes(false))?;
+        Self::append_flags(&mut prefix, &self.recursive_flags_with_includes(false));
         if self.jobserver_pipe {
             prefix.push("--jobserver-style=pipe".into());
         }
@@ -970,19 +954,29 @@ impl Options {
         restore_cli_jobs: bool,
         origin: Origin,
     ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
-        let mut incoming = Vec::new();
-        for value in flags {
-            Self::append_expanded_flags(&mut incoming, value)?;
-        }
         let mut arguments = Vec::new();
-        Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false))
-            .map_err(|error| Self::incoming_error(flags, error))?;
+        Self::append_flags(&mut arguments, &self.recursive_flags_with_includes(false));
         if self.jobserver_pipe {
             arguments.push("--jobserver-style=pipe".into());
         }
         let prefix_count = arguments.len();
-        let flag_word_count = incoming.len() + 1;
-        arguments.extend(incoming);
+        let prefix_end = [prefix_count];
+        let mut other_ends = Vec::new();
+        if flags.len() > 1 {
+            other_ends.push(prefix_count);
+        }
+        for (index, value) in flags.iter().enumerate() {
+            if index > 0 && other_ends.last() != Some(&arguments.len()) {
+                other_ends.push(arguments.len());
+            }
+            Self::append_expanded_flags(&mut arguments, value);
+        }
+        let source_ends = if other_ends.is_empty() {
+            &prefix_end[..]
+        } else {
+            &other_ends
+        };
+        let flag_word_count = arguments.len() - prefix_count + 1;
         let seeded = Self {
             include_directories: self.include_directories.clone(),
             include_assignment_positions: self.include_assignment_positions.clone(),
@@ -997,11 +991,9 @@ impl Options {
         // Capture incoming switch selections during the merged decode. Prefix
         // reconstruction must not manufacture new source-origin selections.
         let mut warning_positions = Vec::new();
-        let (mut parsed, incoming_options) = Self::parse_with_inspection::<false, true, String>(
-            arguments,
-            seeded,
-            0,
-            false,
+        let (mut parsed, incoming_options) = Self::run_decoder::<false, true, String>(
+            Decoder::new(arguments, seeded, 0, false),
+            source_ends,
             prefix_count,
             &mut |options, argument| {
                 if let Argument::Warning(position) = argument
@@ -1100,15 +1092,14 @@ impl Options {
     /// Both parses are pure: callbacks only update owned decoder bookkeeping.
     #[cold]
     fn incoming_error(flags: &[Vec<u8>], merged_error: String) -> String {
-        let mut incoming = Vec::new();
         for value in flags {
-            if let Err(error) = Self::append_expanded_flags(&mut incoming, value) {
+            let mut incoming = Vec::new();
+            Self::append_expanded_flags(&mut incoming, value);
+            if let Err(error) = Self::parse_mode::<false>(incoming) {
                 return error;
             }
         }
-        Self::parse_mode::<false>(incoming)
-            .err()
-            .unwrap_or(merged_error)
+        merged_error
     }
 
     #[cfg(test)]
@@ -1165,7 +1156,26 @@ impl Options {
         receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
         completed: &mut impl FnMut(&Self),
     ) -> Result<(Self, IncomingSwitches), E> {
-        let mut decoder = Decoder::new(args, result, offset, track_jobs);
+        Self::run_decoder::<STARTUP, INSPECT, E>(
+            Decoder::new(args, result, offset, track_jobs),
+            &[],
+            incoming_start,
+            receiver,
+            completed,
+        )
+    }
+
+    fn run_decoder<
+        const STARTUP: bool,
+        const INSPECT: bool,
+        E: From<String> + From<&'static str>,
+    >(
+        mut decoder: Decoder,
+        source_ends: &[usize],
+        incoming_start: usize,
+        receiver: &mut impl FnMut(&mut Self, Argument) -> Result<(), E>,
+        completed: &mut impl FnMut(&Self),
+    ) -> Result<(Self, IncomingSwitches), E> {
         let mut incoming = IncomingSwitches::default();
         let result = (|| -> Result<(), E> {
             loop {
@@ -1179,7 +1189,9 @@ impl Options {
                 } else {
                     (None, None, None, None)
                 };
-                let step = decoder.advance::<STARTUP>().map_err(E::from)?;
+                let step = decoder
+                    .advance_in_sources::<STARTUP>(source_ends)
+                    .map_err(E::from)?;
                 if INSPECT {
                     let options = &mut decoder.options;
                     if step
@@ -1621,6 +1633,21 @@ mod tests {
     }
 
     #[test]
+    fn live_source_terminator_and_operand_lookahead_are_source_local() {
+        let options = Options::default();
+        let (split, _) = options
+            .assigned_flags(&[b"-- -n".to_vec(), b"-s".to_vec()], Origin::File)
+            .unwrap();
+        assert!(!split.dry_run);
+        assert!(split.silent);
+        let (missing, _) = options
+            .assigned_flags(&[b"-I".to_vec(), b"-s".to_vec()], Origin::File)
+            .unwrap();
+        assert!(missing.include_directories.is_empty());
+        assert!(missing.silent);
+    }
+
+    #[test]
     fn passive_warning_positions_preserve_explicit_cli_job_priority() {
         let initial = Options::with_environment(["-j4".into()], None, None).unwrap();
         let (passive, jobs, positions) = initial
@@ -1809,7 +1836,9 @@ mod tests {
                 .jobserver_auth,
             Some(b"3,4".to_vec())
         );
-        assert!(Options::with_environment([], Some("r -- -n".into()), None).is_err());
+        let literal = Options::with_environment([], Some("r -- -n".into()), None).unwrap();
+        assert!(!literal.dry_run);
+        assert_eq!(literal.goals, [b"-n".to_vec()]);
     }
 
     #[test]

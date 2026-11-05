@@ -295,7 +295,7 @@ impl Plan {
                     })
                     .map_err(StartupError::expansion)?;
                 let mut incoming = Vec::new();
-                Options::append_expanded_flags(&mut incoming, &value)?;
+                Options::append_expanded_flags(&mut incoming, &value);
                 // Empty sources retain expansion effects without another parse.
                 if !incoming.is_empty() {
                     let count = incoming.len();
