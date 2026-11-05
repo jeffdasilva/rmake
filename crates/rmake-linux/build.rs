@@ -5,6 +5,7 @@ fn main() {
     println!("cargo:rerun-if-changed=native_shim.c");
     println!("cargo:rerun-if-changed=stdin_source.c");
     println!("cargo:rerun-if-changed=restart.c");
+    println!("cargo:rerun-if-changed=spawn.c");
     println!("cargo:rerun-if-changed=source_error.c");
     let mut native = cc::Build::new();
     if std::env::var_os("CARGO_FEATURE_GUILE").is_some() {
@@ -14,6 +15,7 @@ fn main() {
         .file("native_shim.c")
         .file("stdin_source.c")
         .file("restart.c")
+        .file("spawn.c")
         .file("source_error.c")
         .flag_if_supported("-std=c11")
         .warnings(true)

@@ -2136,6 +2136,15 @@ impl Engine {
         if self.prepare_stdin().is_err() {
             return 2;
         }
+        if let Err(error) = rmake_linux::signals::enter_reader_mask() {
+            let message = format!("sigprocmask(SIG_SETMASK, SIGCHLD): {}", os_error(&error));
+            self.fatal(None, message.as_bytes());
+            return 2;
+        }
+        self.observe_interrupt();
+        if self.interrupt.is_some() {
+            return 2;
+        }
         let mut found_makefile;
         self.database.activate_runtime_metadata();
         // Empty command eval initializes this binding before ordinary reading;
@@ -8007,6 +8016,18 @@ impl Engine {
                     }
                     if crate::native::has_modules() {
                         rmake_linux::native::flush_standard_streams()?;
+                    }
+                    if stdin_owner
+                        && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                        && self.jobserver.is_none()
+                        && let Some(process) =
+                            rmake_linux::child::Child::try_spawn_inherited_ordered(
+                                &command,
+                                image,
+                                os(arg0),
+                            )
+                    {
+                        return process;
                     }
                     rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
                 },
