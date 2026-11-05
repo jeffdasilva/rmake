@@ -527,3 +527,8 @@ returned capacity. The GNU FD4 error and leftover FIFO remain open.
 preserve GNU's write and close boundaries before publishing a named makefile.
 Fifteen original GNU2 comparisons cover explicit write failure, buffered close
 truncation, early SIGXFSZ and ordinary file-function controls.
+
+[File-size limits on standard output](../tests/stdout-file-size/README.md)
+check fourteen exact GNU2 profiles, including native inspection of the
+shared libc error indicator, synchronized replay, and final process status.
+Write, flush, and close failures retain their distinct publication points.

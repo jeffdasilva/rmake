@@ -5,6 +5,7 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <locale.h>
 #include <fenv.h>
 #include <signal.h>
@@ -321,6 +322,7 @@ int rm_native_flush(void) { return fflush(NULL); }
 /* Registered before modules: their atexit callbacks run first; ELF fini runs
  * after this close, matching the public stdout lifetime of the reference. */
 static atomic_int native_stdout_closed;
+static atomic_uint stdout_level;
 static void close_native_stdout(void) {
     int previous_error = ferror(stdout);
     atomic_store_explicit(&native_stdout_closed, 1, memory_order_release);
@@ -337,22 +339,43 @@ static void close_native_stdout(void) {
             yield_request(active, 5);
         } else {
             extern char *program_invocation_short_name;
-            fprintf(stderr, "%s: %s\n", program_invocation_short_name, message);
+            unsigned int level = atomic_load_explicit(&stdout_level, memory_order_relaxed);
+            if (level)
+                fprintf(stderr, "%s[%u]: %s\n", program_invocation_short_name, level, message);
+            else
+                fprintf(stderr, "%s: %s\n", program_invocation_short_name, message);
         }
-        exit(2);
+        exit(1);
     }
 }
-static pthread_once_t stdio_once = PTHREAD_ONCE_INIT;
-static void initialize_stdio_once(void) {
-    atexit(close_native_stdout);
+static pthread_once_t stdout_close_once = PTHREAD_ONCE_INIT;
+static void register_stdout_once(void) {
+    if (fcntl(STDOUT_FILENO, F_GETFD) >= 0)
+        atexit(close_native_stdout);
+}
+void rm_register_stdout_close(void) {
+    pthread_once(&stdout_close_once, register_stdout_once);
+}
+void rm_set_stdout_level(unsigned int level) {
+    atomic_store_explicit(&stdout_level, level, memory_order_relaxed);
 }
 void rm_native_stdout_line_buffered(void) {
     setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
 }
 void rm_native_stdio_initialize(void) {
-    pthread_once(&stdio_once, initialize_stdio_once);
+    rm_register_stdout_close();
 }
-int rm_native_flush_stream(int error) { return fflush(error ? stderr : stdout); }
+int rm_native_flush_stream(int error) {
+    if (!error && atomic_load_explicit(&native_stdout_closed, memory_order_acquire))
+        return 0;
+    return fflush(error ? stderr : stdout);
+}
+
+size_t rm_write_standard(int error, const unsigned char *bytes, size_t length) {
+    if (!length || (!error && atomic_load_explicit(&native_stdout_closed, memory_order_acquire)))
+        return length;
+    return fwrite(bytes, 1, length, error ? stderr : stdout);
+}
 
 int rm_native_stdout_closed(void) {
     return atomic_load_explicit(&native_stdout_closed, memory_order_acquire);

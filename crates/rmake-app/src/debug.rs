@@ -5,7 +5,6 @@
 //! Rendering never evaluates make expressions or performs filesystem searches.
 use crate::debug_messages as msg;
 use rmake_core::messages::{Argument, checked_format};
-use std::io::{self, Write};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Mask(u8);
@@ -132,9 +131,7 @@ pub fn raw(parts: &[&[u8]]) {
     if crate::native::has_modules() {
         let _ = rmake_linux::native::flush_stream(false);
     }
-    let mut stdout = io::stdout().lock();
-    let _ = parts.iter().try_for_each(|part| stdout.write_all(part));
-    let _ = stdout.flush();
+    crate::output::stdout_parts(parts);
 }
 
 pub fn restart_prefix(count: u32) -> Vec<u8> {

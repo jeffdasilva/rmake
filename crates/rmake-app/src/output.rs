@@ -523,10 +523,15 @@ fn plain_parts(error: bool, parts: &[&[u8]]) {
         let _ = parts.iter().try_for_each(|bytes| stream.write_all(bytes));
         let _ = stream.flush();
     } else {
-        let mut stream = io::stdout().lock();
-        let _ = parts.iter().try_for_each(|bytes| stream.write_all(bytes));
-        let _ = stream.flush();
+        stdout_parts(parts);
     }
+}
+
+pub(crate) fn stdout_parts(parts: &[&[u8]]) {
+    let _ = parts
+        .iter()
+        .try_for_each(|bytes| rmake_linux::output::write_standard(false, bytes));
+    let _ = rmake_linux::native::flush_stream(false);
 }
 
 /// Preserve output preceding a constructor failure without imposing scope-stack

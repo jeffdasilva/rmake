@@ -17,6 +17,63 @@ unsafe extern "C" {
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn ttyname(descriptor: c_int) -> *mut c_char;
     fn isatty(descriptor: c_int) -> c_int;
+    fn rm_register_stdout_close();
+    fn rm_set_stdout_level(level: u32);
+    fn rm_write_standard(error: c_int, bytes: *const u8, length: usize) -> usize;
+}
+
+fn write_standard_count(error: bool, bytes: &[u8]) -> usize {
+    // SAFETY: the readable byte span is valid for the synchronous write.
+    unsafe { rm_write_standard(error.into(), bytes.as_ptr(), bytes.len()) }
+}
+
+/// Parent output shares libc's standard stream with native extensions.
+pub fn write_standard(error: bool, bytes: &[u8]) -> io::Result<()> {
+    if write_standard_count(error, bytes) == bytes.len() {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+pub fn set_stdout_level(level: u32) {
+    unsafe { rm_set_stdout_level(level) };
+}
+
+/// Track actual stream failures separately from formatter errors.
+#[derive(Default)]
+pub struct Stdout {
+    failed: bool,
+}
+
+impl Stdout {
+    pub fn failed(&self) -> bool {
+        self.failed
+    }
+}
+
+impl Write for Stdout {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let count = write_standard_count(false, bytes);
+        self.failed |= count != bytes.len();
+        if count == 0 && !bytes.is_empty() {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(count)
+        }
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {
+        let result = write_standard(false, bytes);
+        self.failed |= result.is_err();
+        result
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        let result = crate::native::flush_stream(false);
+        self.failed |= result.is_err();
+        result
+    }
 }
 
 fn directory() -> PathBuf {
@@ -219,7 +276,7 @@ impl Spool {
         } else if error {
             io::stderr().lock().write_all(bytes)?;
         } else {
-            io::stdout().lock().write_all(bytes)?;
+            write_standard(false, bytes)?;
         }
         Ok(())
     }
@@ -287,17 +344,13 @@ impl Spool {
                 if count == 0 {
                     break;
                 }
-                let result = if error {
-                    let mut out = io::stderr().lock();
-                    out.write_all(&bytes[..count]).and_then(|_| out.flush())
-                } else {
-                    let mut out = io::stdout().lock();
-                    out.write_all(&bytes[..count]).and_then(|_| out.flush())
-                };
-                if let Err(error) = result {
+                if let Err(error) = write_standard(error, &bytes[..count]) {
                     report("fwrite()", &error);
                     break;
                 }
+                // A delayed flush failure is reported by the stdout owner
+                // at exit. Only failure of the fwrite itself is reported here.
+                let _ = crate::native::flush_stream(error);
             }
             let _ = file.seek(SeekFrom::Start(0));
             while file
@@ -336,6 +389,7 @@ pub fn terminal(descriptor: c_int) -> Option<Vec<u8>> {
 /// Make appends to inherited regular output files, including explicit recipe
 /// seeks. Preserve all other descriptor flags, and tolerate closed streams.
 pub fn initialize() {
+    unsafe { rm_register_stdout_close() };
     for descriptor in [1, 2] {
         let flags = unsafe { fcntl(descriptor, 3) };
         if flags >= 0 {
