@@ -1,0 +1,12 @@
+id = "target-name-own-shadows-global-foreach"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "target name own shadows global foreach"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "loop=[LOCAL]\nslot=[from-owner] origin=file\n"
+stderr = ""
