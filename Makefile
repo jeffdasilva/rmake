@@ -23,6 +23,7 @@ DEVELOPER_FLOW_CASE ?=
 .PHONY: test-resource-fd-fifo-failure test-resource-fd-fifo-failure-release
 .PHONY: test-shell-capture-lifetime test-shell-capture-lifetime-release
 .PHONY: test-roomy-wake-slots test-roomy-wake-slots-release
+.PHONY: test-output-lock-completion test-output-lock-completion-release
 .PHONY: test-trace-nls test-trace-nls-release
 .PHONY: test-trace-job-languages test-trace-job-languages-release
 .PHONY: test-job-debug test-job-debug-nls test-job-debug-nls-release test-job-debug-load test-job-debug-load-release
@@ -440,6 +441,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_CASE=debug-child-queued-parallel test-debug-output
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEBUG_TRAVERSAL_CASE=chain-secondary test-debug-traversal
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_TRAVERSAL_CASE=generated-include test-debug-traversal-nls
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" test-output-lock-completion
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" DEBUG_VERBOSE_CASE=vpath-no-update test-debug-verbose
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" JOB_DEBUG_CASE=jobs-serial-multiline test-job-debug
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" MODE_CASE=mode-ordinary-first-force-qt test-modes
@@ -682,6 +684,12 @@ test-debug-traversal-nls: build oracle-verify
 test-debug-verbose: build oracle-verify
 	$(PYTHON) tools/debug_verbose.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report-dir artifacts/debug-verbose/development $(if $(DEBUG_VERBOSE_CASE),--case "$(DEBUG_VERBOSE_CASE)")
 
+test-output-lock-completion: build oracle-verify catalog-check
+	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/development.json
+
+test-output-lock-completion-release: release oracle-verify catalog-check
+	$(PYTHON) tools/output_lock_completion.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/output-lock-completion/optimized.json
+
 test-trace-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/trace_nls.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/trace/nls-development.json
 
@@ -788,6 +796,9 @@ check: check-core test-oracle test-builtins test-diff test-safety test-native-mo
 test: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory test-database-nls
 
 check: test-integration test-database-output test-database-lifecycle test-database-numeric test-database-order-roles test-database-dry-run-time test-native-fenv test-locales test-locale-collation test-stdin-sources test-resource-file-size test-stdout-file-size test-process-restarts test-restart-environment test-restart-pipe test-resource-fd test-resource-fd-recipes test-signal-mask test-resource-fd-spool test-resource-fd-pipe test-resource-fd-fifo test-resource-fd-parallel test-jobserver-release test-nls test-nls-directory test-database-nls
+
+test check: test-output-lock-completion
+test-m4-release: test-output-lock-completion-release
 
 test: test-trace-nls
 check: test-trace-nls

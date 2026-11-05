@@ -41,6 +41,26 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         self.0.dirty.set(true);
     }
 
+    fn complete_live_flags(&mut self) -> Result<(), Vec<u8>> {
+        let Some(authentication) = self.0.options.borrow().sync_mutex.clone() else {
+            return Ok(());
+        };
+        self.0
+            .output
+            .decode_mutex(&authentication)
+            .map_err(|error| {
+                [
+                    b"cannot open output sync mutex ".as_slice(),
+                    authentication
+                        .strip_prefix(b"fnm:")
+                        .unwrap_or(&authentication),
+                    b": ",
+                    os_error(&error).as_bytes(),
+                ]
+                .concat()
+            })
+    }
+
     fn report_flag_notice(&mut self, notice: rmake_core::diagnostic::FlagNotice) {
         use rmake_core::diagnostic::FlagNotice;
         let message = match notice {
@@ -161,12 +181,9 @@ impl State {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
         if mode.is_none() && assignments.is_empty() && notices.is_empty() {
-            return Err([
-                b"unknown output-sync type '".as_slice(),
+            return Err(crate::usage::output_sync_mode(
                 updated.output_sync.as_deref().unwrap_or_default(),
-                b"'",
-            ]
-            .concat());
+            ));
         }
         // GNU validates output synchronization after payload definitions. The
         // core refreshes this receiver when they finish, so an invalid pending
@@ -496,12 +513,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse)
             .ok_or_else(|| {
-                [
-                    b"unknown output-sync type '".as_slice(),
-                    current.output_sync.as_deref().unwrap_or_default(),
-                    b"'",
-                ]
-                .concat()
+                crate::usage::output_sync_mode(current.output_sync.as_deref().unwrap_or_default())
             })?;
         let mut result = rmake_core::diagnostic::MakeflagsResult {
             eval_reference: !current.evals.is_empty(),
@@ -814,12 +826,9 @@ impl Engine {
         let Some(mode) = mode else {
             self.fatal(
                 None,
-                &[
-                    b"unknown output-sync type '".as_slice(),
+                &crate::usage::output_sync_mode(
                     self.options.output_sync.as_deref().unwrap_or_default(),
-                    b"'",
-                ]
-                .concat(),
+                ),
             );
             return Err(());
         };
@@ -1013,10 +1022,7 @@ impl Engine {
         if let Some(value) = updated.output_sync.as_deref()
             && crate::output::Mode::parse(value).is_none()
         {
-            self.fatal(
-                None,
-                &[b"unknown output-sync type '".as_slice(), value, b"'"].concat(),
-            );
+            self.fatal(None, &crate::usage::output_sync_mode(value));
             return Err(());
         }
         updated.files = std::mem::take(&mut self.options.files);

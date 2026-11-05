@@ -84,6 +84,10 @@ pub(crate) fn jobs() -> Vec<u8> {
     )
 }
 
+pub(crate) fn output_sync_mode(mode: &[u8]) -> Vec<u8> {
+    format(c"unknown output-sync type '%s'", &[Argument::Bytes(mode)])
+}
+
 pub(crate) fn jobserver_style(style: &[u8]) -> Vec<u8> {
     format(
         c"unknown jobserver auth style '%s'",
