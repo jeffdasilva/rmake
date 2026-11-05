@@ -63,10 +63,32 @@ impl Child {
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
     ) -> Option<io::Result<Self>> {
-        if crate::signals::wake_descriptor() >= 0 {
+        Self::try_spawn_ordered_fds(command, image, arg0, [None, None])
+    }
+
+    pub fn try_spawn_ordered_spool(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        spool: &crate::output::Spool,
+    ) -> Option<io::Result<Self>> {
+        Self::try_spawn_ordered_fds(command, image, arg0, spool.child_output())
+    }
+
+    pub fn wake_pipe_unavailable() -> bool {
+        crate::signals::wake_descriptor() < 0
+    }
+
+    fn try_spawn_ordered_fds(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        output: [Option<BorrowedFd<'_>>; 2],
+    ) -> Option<io::Result<Self>> {
+        if !Self::wake_pipe_unavailable() {
             return None;
         }
-        image.spawn_inherited(command, arg0).map(|result| {
+        image.spawn_inherited(command, arg0, output).map(|result| {
             result.and_then(|pid| {
                 if pid <= 0 {
                     return Err(io::Error::other("spawn did not return an owned child"));

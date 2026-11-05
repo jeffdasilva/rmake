@@ -34,7 +34,8 @@ static int spawn_returns_exec_errno(void)
 /* -1 means the backend was not selected and no child was started. A positive
    result is the actual spawn/exec errno. Only a zero result transfers one PID. */
 int rmake_spawn_inherited(const char *path, char *const argv[],
-                          char *const envp[], int preserve_pipe_ignore, int *pid)
+                          char *const envp[], int preserve_pipe_ignore,
+                          int out, int err, int *pid)
 {
 #ifdef __GLIBC__
     if (!spawn_returns_exec_errno())
@@ -66,8 +67,23 @@ int rmake_spawn_inherited(const char *path, char *const argv[],
     }
     if (!error)
         error = posix_spawnattr_setflags(&attributes, flags);
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_t *configured = NULL;
+    if (!error && (out >= 0 || err >= 0)) {
+        error = posix_spawn_file_actions_init(&actions);
+        if (!error)
+            configured = &actions;
+        /* These CLOEXEC spools remain borrowed in the caller. The child
+           duplicates them onto its own standard descriptors before exec. */
+        if (!error && out >= 0)
+            error = posix_spawn_file_actions_adddup2(&actions, out, 1);
+        if (!error && err >= 0)
+            error = posix_spawn_file_actions_adddup2(&actions, err, 2);
+    }
     if (!error)
-        error = posix_spawn(&child, path, NULL, &attributes, argv, envp);
+        error = posix_spawn(&child, path, configured, &attributes, argv, envp);
+    if (configured)
+        posix_spawn_file_actions_destroy(configured);
     posix_spawnattr_destroy(&attributes);
     if (!error)
         *pid = child;
@@ -77,6 +93,8 @@ int rmake_spawn_inherited(const char *path, char *const argv[],
     (void)argv;
     (void)envp;
     (void)preserve_pipe_ignore;
+    (void)out;
+    (void)err;
     (void)pid;
     return -1;
 #endif

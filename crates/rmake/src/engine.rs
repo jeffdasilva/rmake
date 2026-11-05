@@ -7708,6 +7708,24 @@ impl Engine {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
                     if let Some(buffer) = &output {
+                        // Descriptor pressure can leave room for the spool but
+                        // no room to clone it or open std's spawn error pipe.
+                        if buffer.enabled()
+                            && stdin_owner
+                            && self.jobserver.is_none()
+                            && rmake_linux::child::Child::wake_pipe_unavailable()
+                            && !crate::native::has_modules()
+                            && let Some(spool) = buffer.child_spool()
+                            && let Some(process) =
+                                rmake_linux::child::Child::try_spawn_ordered_spool(
+                                    &command,
+                                    image,
+                                    os(arg0),
+                                    &spool,
+                                )
+                        {
+                            return process;
+                        }
                         buffer.configure_child(&mut command)?;
                     }
                     if crate::native::has_modules() {

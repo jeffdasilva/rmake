@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 use std::ffi::{CString, OsStr, OsString, c_char, c_int};
 use std::io;
+use std::os::fd::{AsRawFd, BorrowedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
@@ -30,6 +31,8 @@ unsafe extern "C" {
         argv: *const *const c_char,
         envp: *const *mut c_char,
         preserve_pipe_ignore: c_int,
+        out: c_int,
+        err: c_int,
         pid: *mut c_int,
     ) -> c_int;
 }
@@ -200,6 +203,7 @@ impl Image {
         &self,
         command: &Command,
         arg0: &OsStr,
+        output: [Option<BorrowedFd<'_>>; 2],
     ) -> Option<io::Result<c_int>> {
         let frame = match self.exec_frame(command, arg0) {
             Ok(frame) => frame,
@@ -207,13 +211,16 @@ impl Image {
         };
         let mut pid = 0;
         // SAFETY: the frame keeps both terminated vectors and their CStrings
-        // live for the full synchronous libc call; pid is a writable scalar.
+        // live for the full synchronous libc call. Both optional spool
+        // sources remain borrowed for the same call; pid is a writable scalar.
         let error = unsafe {
             rmake_spawn_inherited(
                 frame.program.as_ptr(),
                 frame.pointers.as_ptr(),
                 frame.environment.0.pointers.as_ptr(),
                 crate::signals::preserve_child_pipe_ignore().into(),
+                output[0].map_or(-1, |fd| fd.as_raw_fd()),
+                output[1].map_or(-1, |fd| fd.as_raw_fd()),
                 &mut pid,
             )
         };

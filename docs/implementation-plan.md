@@ -451,3 +451,8 @@ mask during eager evaluation, enter the reader's SIGCHLD-only mask at the
 verified boundary, and pass an empty mask to command children without mutating
 the parent's live mask around spawn. Ten original GNU2 comparisons cover
 native callbacks, actual self-exec, early exits and low descriptor limits.
+
+[Output spools under low descriptor limits](../tests/resource-fd-spool/README.md)
+retain GNU's grouped bytes and physical child descriptor identity. The selected
+Linux launch can borrow existing spools for child-only descriptor actions
+without duplicating them or changing the parent's ownership.

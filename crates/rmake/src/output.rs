@@ -5,7 +5,7 @@
 //! buffers keep the controller alive without creating a controller/buffer cycle.
 use crate::cli::DirectoryChoice;
 use rmake_linux::output::{Coordination, Spool};
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 
@@ -410,12 +410,15 @@ impl Buffer {
             plain(error, bytes);
         }
     }
-    pub fn configure_child(&self, child: &mut std::process::Command) -> io::Result<()> {
+    pub fn child_spool(&self) -> Option<Ref<'_, Spool>> {
         if !self.enabled() {
-            return Ok(());
+            return None;
         }
         self.prepare();
-        if let Some(spool) = self.spool.borrow().as_ref() {
+        Ref::filter_map(self.spool.borrow(), Option::as_ref).ok()
+    }
+    pub fn configure_child(&self, child: &mut std::process::Command) -> io::Result<()> {
+        if let Some(spool) = self.child_spool() {
             spool.configure_child(child)?;
         }
         Ok(())
