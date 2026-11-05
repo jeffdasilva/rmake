@@ -47,11 +47,12 @@ fn descriptor_control(fd: c_int, operation: c_int, flags: c_int) -> io::Result<c
     }
 }
 
-fn pipe_identity(fd: c_int, reader: bool) -> io::Result<[u64; 2]> {
+fn pipe_identity(fd: c_int, reader: Option<bool>) -> io::Result<[u64; 2]> {
     let mut identity = [0; 2];
     // SAFETY: the Linux helper initializes both words on success. Passing
     // a numeric descriptor does not assert Rust ownership of that slot.
-    match unsafe { rmake_pipe_identity(fd, reader.into(), identity.as_mut_ptr()) } {
+    let direction = reader.map_or(-1, c_int::from);
+    match unsafe { rmake_pipe_identity(fd, direction, identity.as_mut_ptr()) } {
         0 => Ok(identity),
         error => Err(io::Error::from_raw_os_error(error)),
     }
@@ -79,7 +80,7 @@ impl Endpoint {
                 // Validate the retained object and direction before operating.
                 // Concurrent native descriptor rebinding is outside the same
                 // process-owner contract as ordinary native descriptor access.
-                if pipe_identity(*descriptor, *reader)? == *identity {
+                if pipe_identity(*descriptor, Some(*reader))? == *identity {
                     Ok(*descriptor)
                 } else {
                     Err(io::Error::from_raw_os_error(9))
@@ -523,6 +524,17 @@ impl Jobserver {
         if read < 3 || write < 3 || read == write {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
+        // Startup can occupy previously closed slots advertised by stale
+        // authentication. Compare pipe identities before reopening either end.
+        let wake = crate::signals::wake_descriptor();
+        if wake >= 0
+            && let Ok(identity) = pipe_identity(wake, None)
+            && [read, write]
+                .into_iter()
+                .any(|fd| pipe_identity(fd, None).is_ok_and(|pipe| pipe == identity))
+        {
+            return Err(io::Error::from_raw_os_error(9));
+        }
         if crate::signals::compact_pipe_budget() {
             return Self::join_compact(read, write).map(|server| server.with_diagnostic_auth(auth));
         }
@@ -552,8 +564,8 @@ impl Jobserver {
     }
 
     fn join_compact(read: c_int, write: c_int) -> io::Result<Self> {
-        let identity = pipe_identity(read, true)?;
-        if pipe_identity(write, false)? != identity {
+        let identity = pipe_identity(read, Some(true))?;
+        if pipe_identity(write, Some(false))? != identity {
             return Err(io::Error::from_raw_os_error(9));
         }
         for descriptor in [read, write] {
@@ -734,7 +746,7 @@ mod tests {
 
         let foreign = Jobserver::create(2, true).unwrap();
         let foreign_read = foreign.0.protocol_reader.as_ref().unwrap().as_raw_fd();
-        let identity = pipe_identity(read, true).unwrap();
+        let identity = pipe_identity(read, Some(true)).unwrap();
         let replacement = Endpoint::Inherited {
             descriptor: foreign_read,
             reader: true,
