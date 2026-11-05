@@ -33,7 +33,13 @@ keys! {
     REMADE: c"Successfully remade target file '%s'.\n", [B];
     FAILED: c"Failed to remake target file '%s'.\n", [B];
     NO_NEED: c"No need to remake target '%s'", [B];
+    USING_VPATH: c"; using VPATH name '%s'", [B];
     ALREADY: c"File '%s' was considered already.\n", [B];
+    PRUNING: c"Pruning file '%s'.\n", [B];
+    GIVE_UP: c"Giving up on target file '%s'.\n", [B];
+    DOUBLE_WITHOUT_PREREQUISITES: c"Target '%s' is double-colon and has no prerequisites.\n", [B];
+    NO_RECIPE_NO_CHANGES: c"No recipe for '%s' and no prerequisites actually changed.\n", [B];
+    ALWAYS_MAKE: c"Making '%s' due to always-make flag.\n", [B];
     LOOKING: c"Looking for an implicit rule for '%s'.\n", [B];
     LOOKING_ARCHIVE: c"Looking for archive-member implicit rule for '%s'.\n", [B];
     NO_ARCHIVE_RULE: c"No archive-member implicit rule found for '%s'.\n", [B];

@@ -161,8 +161,13 @@ pub enum Event<'a> {
     MustRemake(&'a [u8], usize),
     Remade(&'a [u8], usize),
     Failed(&'a [u8], usize),
-    NoNeed(&'a [u8], usize),
+    NoNeed(&'a [u8], Option<&'a [u8]>, usize),
     Already(&'a [u8], usize),
+    Pruning(&'a [u8], usize),
+    GiveUp(&'a [u8], usize),
+    DoubleWithoutPrerequisites(&'a [u8], usize),
+    NoRecipeNoChanges(&'a [u8], usize),
+    AlwaysMake(&'a [u8], usize),
     Looking(&'a [u8], usize),
     LookingArchive(&'a [u8], usize),
     NoArchiveRule(&'a [u8], usize),
@@ -195,8 +200,12 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         ),
         Event::Considering(_, depth)
         | Event::Finished(_, depth)
-        | Event::NoNeed(_, depth)
-        | Event::Already(_, depth) => (Mask::VERBOSE, depth),
+        | Event::NoNeed(_, _, depth)
+        | Event::Already(_, depth)
+        | Event::Pruning(_, depth)
+        | Event::GiveUp(_, depth)
+        | Event::NoRecipeNoChanges(_, depth)
+        | Event::AlwaysMake(_, depth) => (Mask::VERBOSE, depth),
         Event::Looking(_, depth)
         | Event::LookingArchive(_, depth)
         | Event::NoArchiveRule(_, depth)
@@ -218,7 +227,8 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::Missing(_, depth)
         | Event::MustRemake(_, depth)
         | Event::Remade(_, depth)
-        | Event::Failed(_, depth) => (Mask::BASIC, depth),
+        | Event::Failed(_, depth)
+        | Event::DoubleWithoutPrerequisites(_, depth) => (Mask::BASIC, depth),
         _ => (Mask::BASIC, 0),
     };
     if !output.debug_mask().has(category) {
@@ -246,8 +256,19 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::MustRemake(name, _) => print(msg::MUST_REMAKE, &[bytes(name)]),
         Event::Remade(name, _) => print(msg::REMADE, &[bytes(name)]),
         Event::Failed(name, _) => print(msg::FAILED, &[bytes(name)]),
-        Event::NoNeed(name, _) => raw(&[prefix, &localized(msg::NO_NEED, &[bytes(name)]), b".\n"]),
+        Event::NoNeed(name, path, _) => {
+            let line = localized(msg::NO_NEED, &[bytes(name)]);
+            let suffix = path.map(|path| localized(msg::USING_VPATH, &[bytes(path)]));
+            raw(&[prefix, &line, suffix.as_deref().unwrap_or_default(), b".\n"]);
+        }
         Event::Already(name, _) => print(msg::ALREADY, &[bytes(name)]),
+        Event::Pruning(name, _) => print(msg::PRUNING, &[bytes(name)]),
+        Event::GiveUp(name, _) => print(msg::GIVE_UP, &[bytes(name)]),
+        Event::DoubleWithoutPrerequisites(name, _) => {
+            print(msg::DOUBLE_WITHOUT_PREREQUISITES, &[bytes(name)])
+        }
+        Event::NoRecipeNoChanges(name, _) => print(msg::NO_RECIPE_NO_CHANGES, &[bytes(name)]),
+        Event::AlwaysMake(name, _) => print(msg::ALWAYS_MAKE, &[bytes(name)]),
         Event::Looking(name, _) => print(msg::LOOKING, &[bytes(name)]),
         Event::LookingArchive(name, _) => print(msg::LOOKING_ARCHIVE, &[bytes(name)]),
         Event::NoArchiveRule(name, _) => print(msg::NO_ARCHIVE_RULE, &[bytes(name)]),
