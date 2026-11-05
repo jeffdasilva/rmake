@@ -246,25 +246,38 @@ static SCM object_text(SCM value) {
         SCM text = convert_scalar(value);
         return scm_is_false(text) ? scm_from_utf8_string("") : text;
     }
-    SCM work=scm_list_1(scm_cons(SCM_BOOL_F,value));
+    const SCM visit = SCM_BOOL_F;
+    const SCM follow_tail = SCM_UNSPECIFIED;
+    const SCM leave_pair = SCM_BOOL_T;
+    SCM work=scm_list_1(scm_cons(visit,value));
     SCM active_pairs=scm_make_hash_table(scm_from_int(31));
     SCM parts=SCM_EOL;
     unsigned int ticks=0;
     while(scm_is_pair(work)) {
-        if((ticks++&63)==0)scm_async_tick();
-        SCM item=scm_car(work);work=scm_cdr(work);
-        SCM current=scm_cdr(item);
-        if(scm_is_true(scm_car(item))) {
-            scm_hashq_remove_x(active_pairs,current);
+        SCM frame = work;
+        SCM item = scm_car(frame);
+        SCM phase = scm_car(item);
+        SCM current = scm_cdr(item);
+        work = scm_cdr(frame);
+        if (scm_is_eq(phase, follow_tail)) {
+            // The Scheme converter can mutate this pair while visiting its car.
+            // Read the live cdr now and reuse this frame for leaving the pair.
+            scm_set_car_x(item, leave_pair);
+            work = scm_cons(scm_cons(visit, scm_cdr(current)), frame);
+            continue;
+        }
+        if ((ticks++ & 63) == 0)
+            scm_async_tick();
+        if (scm_is_eq(phase, leave_pair)) {
+            scm_hashq_remove_x(active_pairs, current);
             continue;
         }
         if(scm_is_pair(current)) {
             if(scm_is_true(scm_hashq_ref(active_pairs,current,SCM_BOOL_F)))
                 scm_misc_error("guile","circular value conversion",SCM_EOL);
             scm_hashq_set_x(active_pairs,current,SCM_BOOL_T);
-            work=scm_cons(scm_cons(SCM_BOOL_T,current),work);
-            work=scm_cons(scm_cons(SCM_BOOL_F,scm_cdr(current)),work);
-            work=scm_cons(scm_cons(SCM_BOOL_F,scm_car(current)),work);
+            work = scm_cons(scm_cons(follow_tail, current), work);
+            work = scm_cons(scm_cons(visit, scm_car(current)), work);
         }else {
             SCM text=convert_scalar(current);
             if (scm_is_true(text))

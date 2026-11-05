@@ -20,6 +20,10 @@ signal cases in the enabled profile, plus one named stdin restart and three vali
 default binary. Two GNU runs and each rmake build must independently match
 literal streams, status, ordered effects, complete filesystems and bounds.
 
+The list converter reads a pair's tail after converting its head. Four original
+cases cover live tail changes in returned values, `gmk-expand`, and `gmk-eval`,
+plus reuse of an acyclic shared pair. Traversal remains iterative.
+
 Run `make test-guile-frontend` to verify the private SDK and enabled reference,
 build separate Cargo profiles, run workspace tests and Clippy, compare both
 build modes and drive core checks through each enabled executable. Reports are
