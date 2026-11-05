@@ -9,6 +9,9 @@ use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
+mod debug;
+pub use debug::Handle as DebugHandle;
+
 const CAUGHT: [c_int; 7] = [1, 2, 3, 13, 15, 24, 25];
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 static TERMINAL_STATUS: AtomicI32 = AtomicI32::new(-1);
@@ -51,6 +54,12 @@ extern "C" fn caught(number: c_int) {
     unsafe { signal(number, 0) };
     CANCELLED.store(true, Ordering::Relaxed);
     PENDING.store(number, Ordering::SeqCst);
+    #[cfg(feature = "guile")]
+    // This is a caught host-fatal signal; the C helper uses only atomics/write
+    // here and schedules language cancellation outside the signal handler.
+    unsafe {
+        crate::guile::notify_signal(number);
+    }
     let byte = number as u8;
     unsafe {
         let descriptor = WAKE_WRITER.load(Ordering::Relaxed);
@@ -85,12 +94,18 @@ fn wake_pipe() -> io::Result<(File, File)> {
 }
 
 pub struct Guard {
+    debug: debug::Owner,
     saved: Vec<(c_int, usize)>,
     _reader: Option<File>,
     _writer: Option<File>,
 }
 
 impl Guard {
+    /// Bind the actual process output policy without installing SIGUSR1 early.
+    pub fn debug_handle(&self) -> DebugHandle {
+        self.debug.handle()
+    }
+
     /// Install once, before parsing or launching children. Preserve dispositions
     /// explicitly ignored by the caller, and restore ordinary SIGCHLD reaping.
     pub fn install() -> io::Result<Self> {
@@ -103,6 +118,7 @@ impl Guard {
             Err(error) => return Err(error),
         };
         let mut guard = Self {
+            debug: debug::Owner::reserve()?,
             saved: Vec::new(),
             _reader: reader,
             _writer: writer,
@@ -234,24 +250,47 @@ pub fn deletes_targets(number: i32) -> bool {
     matches!(number, 1 | 2 | 3 | 15)
 }
 
-/// Call after the interpreter has released owned resources. SIGQUIT has GNU's
-/// explicit status 1 convention; other fatal signals retain wait-status identity.
-pub fn exit_status(status: u8) -> u8 {
-    let terminal = TERMINAL_STATUS.load(Ordering::Relaxed);
+/// Pure exit selection, before a caller chooses its platform stack.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExitAction {
+    Code(u8),
+    Signal(i32),
+}
+
+fn select_exit(status: u8, terminal: i32, pending: i32) -> ExitAction {
     if terminal >= 0 {
-        return terminal as u8;
+        ExitAction::Code(terminal as u8)
+    } else if pending == 3 {
+        // Preserve GNU's explicit SIGQUIT numeric status convention.
+        ExitAction::Code(1)
+    } else if pending != 0 {
+        ExitAction::Signal(pending)
+    } else {
+        ExitAction::Code(status)
     }
-    if let Some(number) = pending() {
-        if number == 3 {
-            return 1;
+}
+
+pub fn exit_action(status: u8) -> ExitAction {
+    select_exit(
+        status,
+        TERMINAL_STATUS.load(Ordering::Relaxed),
+        PENDING.load(Ordering::SeqCst),
+    )
+}
+
+/// Call after the interpreter has released owned resources. Feature hosts with
+/// a live foreign lifetime deliver this action through their leading C stack.
+pub fn exit_status(status: u8) -> u8 {
+    match exit_action(status) {
+        ExitAction::Code(status) => status,
+        ExitAction::Signal(number) => {
+            unsafe {
+                signal(number, 0);
+                kill(getpid(), number);
+            }
+            (128 + number) as u8
         }
-        unsafe {
-            signal(number, 0);
-            kill(getpid(), number);
-        }
-        return (128 + number) as u8;
     }
-    status
 }
 
 /// Core evaluation receives only a cooperative cancellation flag, with no
@@ -264,4 +303,18 @@ pub fn cancellation() -> &'static AtomicBool {
 /// completion owner reenters shutdown. Effects and cleanup still observe PENDING.
 pub fn terminal_status(status: u8) {
     TERMINAL_STATUS.store(i32::from(status), Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod exit_action_tests {
+    use super::*;
+
+    #[test]
+    fn terminal_overrides_and_quit_do_not_lose_numeric_exit_semantics() {
+        assert_eq!(select_exit(0, -1, 0), ExitAction::Code(0));
+        assert_eq!(select_exit(2, -1, 0), ExitAction::Code(2));
+        assert_eq!(select_exit(0, -1, 3), ExitAction::Code(1));
+        assert_eq!(select_exit(0, -1, 15), ExitAction::Signal(15));
+        assert_eq!(select_exit(0, 2, 15), ExitAction::Code(2));
+    }
 }

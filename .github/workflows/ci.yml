@@ -69,9 +69,30 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  guile-frontend:
+    name: guile-enabled-application
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compare default and enabled application builds
+        run: make test-guile-frontend
+      - name: Retain application and SDK qualification
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: guile-frontend-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            artifacts/guile-frontend/run-*/*.json
+            .tools/guile/profile.json
+            .tools/guile/reference-profile.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   compatibility:
     name: compatibility
-    needs: [validation, guile-components]
+    needs: [validation, guile-components, guile-frontend]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -80,6 +101,8 @@ jobs:
         env:
           VALIDATION_RESULT: ${{ needs.validation.result }}
           GUILE_COMPONENT_RESULT: ${{ needs['guile-components'].result }}
+          GUILE_FRONTEND_RESULT: ${{ needs['guile-frontend'].result }}
         run: |
           test "$VALIDATION_RESULT" = success
           test "$GUILE_COMPONENT_RESULT" = success
+          test "$GUILE_FRONTEND_RESULT" = success

@@ -17,6 +17,12 @@ impl Mask {
     pub const WHY: Self = Self(64);
     pub const ALL: Self = Self(127);
     pub const NONE: Self = Self(0);
+    pub(crate) fn bits(self) -> u8 {
+        self.0
+    }
+    pub(crate) fn from_bits(bits: u8) -> Self {
+        Self(bits & Self::ALL.0)
+    }
     pub fn has(self, category: Self) -> bool {
         self.0 & category.0 != 0
     }
@@ -36,8 +42,14 @@ impl Requests {
             self.values.push(value);
         }
     }
+    #[cfg(test)]
     pub fn decode(&mut self, trace: bool) -> Result<Mask, String> {
-        let mut mask = if self.all { Mask::ALL } else { Mask::NONE };
+        self.decode_from(trace, Mask::NONE)
+    }
+    pub fn decode_from(&mut self, trace: bool, current: Mask) -> Result<Mask, String> {
+        // A signal changes the effective mask, not recorded option history.
+        // Completed decodes replay requests onto that live selection.
+        let mut mask = if self.all { Mask::ALL } else { current };
         if trace {
             mask.add(Mask::PRINT);
             mask.add(Mask::WHY);
@@ -492,5 +504,33 @@ mod job_record_tests {
         assert!(weak.upgrade().is_none());
         jobs.removed(Mask::NONE, &second, false);
         assert!(jobs.chain.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod live_selection_tests {
+    use super::*;
+    #[test]
+    fn replay_preserves_live_selection_and_only_records_actual_requests() {
+        let mut requests = Requests::default();
+        assert_eq!(
+            requests.decode_from(false, Mask::BASIC).unwrap(),
+            Mask::BASIC
+        );
+        assert!(requests.values.is_empty());
+        requests.push(b"print".to_vec());
+        let selected = requests.decode_from(false, Mask::BASIC).unwrap();
+        assert!(selected.has(Mask::BASIC));
+        assert!(selected.has(Mask::PRINT));
+        assert_eq!(requests.values, [b"print".to_vec()]);
+        assert_eq!(
+            requests.decode_from(false, Mask::NONE).unwrap(),
+            Mask::PRINT
+        );
+        requests.push(b"none".to_vec());
+        assert_eq!(
+            requests.decode_from(false, Mask::BASIC).unwrap(),
+            Mask::NONE
+        );
     }
 }
