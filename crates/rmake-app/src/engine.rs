@@ -7835,9 +7835,11 @@ impl Engine {
             phony,
             before,
             branch,
+            implicit_group,
             location,
             dependencies,
             dropped,
+            ..
         } = inputs;
         self.observe_interrupt();
         if self.interrupt.is_some() {
@@ -7915,7 +7917,7 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let variables = if trace.branch.is_some_and(|ordinal| ordinal > 0) {
+        let variables = if branch.is_some_and(|ordinal| ordinal > 0) {
             let head_key = (target.to_vec(), 0);
             if let Some(head) = self.database_branch_contexts.get(&head_key) {
                 Ok(head.fresh_double_colon_scope())
@@ -7939,7 +7941,7 @@ impl Engine {
             }
         };
         variables.refresh_globals(&self.database.variables);
-        if !trace.implicit_group {
+        if !implicit_group {
             if let Some(history) = self.database.database_history() {
                 history.intern(b".SUFFIXES");
             }
@@ -7951,8 +7953,8 @@ impl Engine {
                 return Execution::fatal(false);
             }
         }
-        self.remember_prepared_prerequisite_roles(target, &trace);
-        self.retain_database_context(target, trace.branch, &variables);
+        self.remember_prepared_prerequisite_roles(target, &inputs);
+        self.retain_database_context(target, branch, &variables);
         let output = Some(self.output.recipe_buffer());
         if let Some(buffer) = &output
             && buffer.enabled()
@@ -7971,7 +7973,7 @@ impl Engine {
                 }
             }
         }
-        self.retain_database_context(target, trace.branch, &variables);
+        self.retain_database_context(target, branch, &variables);
         if parallel {
             while self.parallel_jobs.len() >= self.job_slots() {
                 self.reap_job();
@@ -8097,7 +8099,7 @@ impl Engine {
         execution
     }
 
-    fn remember_prepared_prerequisite_roles(&mut self, target: &[u8], trace: &TraceInputs<'_>) {
+    fn remember_prepared_prerequisite_roles(&mut self, target: &[u8], trace: &RecipeInputs<'_>) {
         if !trace.dropped.is_empty()
             || !trace.dependencies.iter().any(|dependency| {
                 dependency.order_only
