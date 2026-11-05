@@ -1,0 +1,12 @@
+id = "pattern-immediate-recipe-caller"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "pattern immediate recipe caller"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "value=[target-caller] origin=file\n"
+stderr = ""

@@ -76,3 +76,9 @@ oracle differences: `src/read.c` (`record_target_var`); `src/variable.c`
 The Rust binding/activation implementation and regression tests were written
 independently; no upstream source or test code was copied or translated.
 See the [licensing policy](licensing.md) for the project's GPL terms.
+
+Immediate pattern-specific assignments expand in the active reader context
+before storing their values. The six required cases cover reader and recipe
+`eval`, a nested include, caller lexical values, command-line precedence,
+and a filesystem control. The prepared value is stored without running its
+effects again.
