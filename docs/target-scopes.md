@@ -49,6 +49,11 @@ Recognize target assignments before ordinary prerequisite expansion and inline-r
 
 Non-override target assignments are replaced by the current command-line binding when applicable, preserving its flavor and origin. That creates a local snapshot: a later global `override X=later` does not change it. A suppressed target `?=` creates no local binding, so it observes later changes to the global definition instead.
 
+The caller supplies the value, origin, and flavor. The destination keeps its
+definition location and export and private qualifiers, and clears append state.
+A declaration made by recipe-time `eval` can use a caller target's command
+value while keeping a different export policy on the declared target.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.
