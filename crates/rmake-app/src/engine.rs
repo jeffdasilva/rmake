@@ -33,7 +33,10 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, SystemTime};
 
+#[cfg(not(feature = "guile"))]
 const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load";
+#[cfg(feature = "guile")]
+const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink guile load";
 
 fn os(bytes: &[u8]) -> &OsStr {
     OsStr::from_bytes(bytes)
@@ -936,6 +939,7 @@ impl Engine {
         if options.debug_mask.has(crate::debug::Mask::BASIC) {
             crate::debug::print_header();
         }
+        rmake_linux::native::line_buffer_stdout();
         output.set_debug_mask(options.debug_mask);
         // Explicit switches select the active context only after every CLI
         // effect and early exit. Closing an inherited spool still uses level 0.
@@ -1055,6 +1059,9 @@ impl Engine {
             },
             &mut exit_includes,
         ));
+        retain!(output.activate_debug_signal().map_err(|error| {
+            StartupError::from(Diagnostic::from(error.to_string())).with_program(&program)
+        }));
         retain!(
             database
                 .variables
@@ -1461,35 +1468,7 @@ impl Engine {
             let _ = std::env::set_current_dir(directory);
         }
         loop {
-            let result = {
-                let mut output = RuntimeOutput::new(
-                    &self.output,
-                    &self.program,
-                    &self.flag_state.warn_undefined,
-                );
-                let mut flags = self.flag_state.receiver();
-                let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
-                    self.filesystem.borrow_mut().execute(effect)
-                };
-                let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-                    let result = crate::shell::run(
-                        request,
-                        &self.program,
-                        self.makelevel,
-                        &self.output,
-                        self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
-                };
-                let mut include = |name: &[u8]| self.include_search.borrow().read(name);
-                let mut context = runtime_context(None, &mut output)
-                    .with_makeflags(&mut flags)
-                    .with_filesystem(&mut filesystem)
-                    .with_shell(&mut shell)
-                    .with_includes(&mut include);
-                self.database.terminate_native_with(status, &mut context)
-            };
+            let result = self.terminate_native(rmake_linux::signals::ExitAction::Code(status));
             match result {
                 Ok(()) => return status,
                 Err(error) => {
@@ -1501,6 +1480,63 @@ impl Engine {
                 }
             }
         }
+    }
+
+    fn terminate_native(
+        &mut self,
+        action: rmake_linux::signals::ExitAction,
+    ) -> Result<(), ExpandError> {
+        let mut output =
+            RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
+        let mut flags = self.flag_state.receiver();
+        let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+            self.filesystem.borrow_mut().execute(effect)
+        };
+        let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let result = crate::shell::run(
+                request,
+                &self.program,
+                self.makelevel,
+                &self.output,
+                self.jobserver.as_ref(),
+            );
+            self.filesystem.borrow_mut().child_completed();
+            result
+        };
+        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+        let mut context = runtime_context(None, &mut output)
+            .with_makeflags(&mut flags)
+            .with_filesystem(&mut filesystem)
+            .with_shell(&mut shell)
+            .with_includes(&mut include);
+        match action {
+            rmake_linux::signals::ExitAction::Code(status) => {
+                self.database.terminate_native_with(status, &mut context)
+            }
+            rmake_linux::signals::ExitAction::Signal(number) => self
+                .database
+                .terminate_native_signal_with(number, &mut context),
+        }
+    }
+
+    #[cfg(feature = "guile")]
+    pub fn native_signal_exit(&mut self, number: i32) -> u8 {
+        if let Some(mut exit) = self.native_exit_override.take() {
+            return exit.finish_signal(number);
+        }
+        self.output.process_lifetime().finish();
+        if !self.options.directories.is_empty()
+            && let Some(directory) = &self.startup_directory
+        {
+            let _ = std::env::set_current_dir(directory);
+        }
+        if let Err(error) = self.terminate_native(rmake_linux::signals::ExitAction::Signal(number))
+        {
+            self.expansion_error(None, &error);
+        }
+        // A valid platform signal operation never returns. The bootstrap
+        // contract guard retains this host and fail-stops if it does.
+        2
     }
 
     fn show_makefile_error(&self) {
@@ -7805,6 +7841,11 @@ pub(crate) fn launch_child<T>(
         }
     }
     Err(denied.unwrap_or(missing))
+}
+
+#[cfg(feature = "test-support")]
+pub(crate) fn run_native_ownership_check(name: &str) -> bool {
+    initial::run_native_ownership_check(name)
 }
 
 #[cfg(test)]

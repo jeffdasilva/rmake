@@ -17,6 +17,11 @@
 #include <sys/resource.h>
 #include <ucontext.h>
 #include <unistd.h>
+#ifdef RMAKE_GUILE_DISPATCH
+#include <stddef.h>
+#include "guile_workers.h"
+#include "guile_worker_packet.h"
+#endif
 
 struct rm_location { const char *file; unsigned long line; };
 typedef char *(*rm_callback)(const char *, unsigned int, char **);
@@ -27,6 +32,15 @@ struct rm_request {
     void *function;
     unsigned int minimum, maximum, flags;
 };
+#ifdef RMAKE_GUILE_DISPATCH
+_Static_assert(sizeof(struct rm_request)==sizeof(struct rg_worker_request),"worker packet ABI size");
+_Static_assert(_Alignof(struct rm_request)==_Alignof(struct rg_worker_request),"worker packet ABI alignment");
+#define VERIFY_FIELD(field) _Static_assert(offsetof(struct rm_request,field)==offsetof(struct rg_worker_request,field),"worker packet ABI field " #field)
+VERIFY_FIELD(kind);VERIFY_FIELD(text);VERIFY_FIELD(location);VERIFY_FIELD(function);
+VERIFY_FIELD(minimum);VERIFY_FIELD(maximum);VERIFY_FIELD(flags);
+#undef VERIFY_FIELD
+_Static_assert(sizeof(struct rm_location)==sizeof(struct rg_worker_location),"worker location ABI size");
+#endif
 struct rm_session {
     ucontext_t host, foreign;
     void *mapping;
@@ -95,12 +109,24 @@ char *gmk_alloc(unsigned int length) {
 }
 void gmk_free(char *value) { free(value); }
 char *gmk_expand(const char *text) {
+#ifdef RMAKE_GUILE_DISPATCH
+    if(!active&&rg_workers_can_submit()) {
+        struct rm_request request={.kind=1,.text=text};
+        return rg_workers_submit(&request);
+    }
+#endif
     struct rm_session *s = current();
     s->request.text = text;
     yield_request(s, 1);
     return s->reply;
 }
 void gmk_eval(const char *text, const struct rm_location *location) {
+#ifdef RMAKE_GUILE_DISPATCH
+    if(!active&&rg_workers_can_submit()) {
+        struct rm_request request={.kind=2,.text=text,.location=location};
+        (void)rg_workers_submit(&request);return;
+    }
+#endif
     struct rm_session *s = current();
     s->request.text = text;
     s->request.location = location;
@@ -109,6 +135,13 @@ void gmk_eval(const char *text, const struct rm_location *location) {
 void gmk_add_function(const char *name, rm_callback function,
                       unsigned int minimum, unsigned int maximum,
                       unsigned int flags) {
+#ifdef RMAKE_GUILE_DISPATCH
+    if(!active&&rg_workers_can_submit()) {
+        struct rm_request request={.kind=3,.text=name,.function=(void *)function,
+            .minimum=minimum,.maximum=maximum,.flags=flags};
+        (void)rg_workers_submit(&request);return;
+    }
+#endif
     struct rm_session *s = current();
     s->request.text = name;
     s->request.function = (void *)function;
@@ -310,6 +343,8 @@ static void close_native_stdout(void) {
 static pthread_once_t stdio_once = PTHREAD_ONCE_INIT;
 static void initialize_stdio_once(void) {
     atexit(close_native_stdout);
+}
+void rm_native_stdout_line_buffered(void) {
     setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
 }
 void rm_native_stdio_initialize(void) {

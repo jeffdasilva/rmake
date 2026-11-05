@@ -1,0 +1,176 @@
+{
+  "classification": "New nine original safe phase hypotheses. Cstdio is queried only while the stream is open in constructor/probe. Finalizer observes rawFD1 BEFORE opening its own seen file; it never passes closed stdout to Cstdio. Original bad fixture/observations remain external and zero-credit, no unchanged replay. No SA_RESTART/privateFD/resource parity claim.",
+  "hypothesis": "GNU initializes on actual guile function entry, including zero/empty arguments; registration/variable-only/help/version without that entry remain uninitialized. Same leading thread/ordinary Cstack and C locale/Cstdio/signal kinds survive.",
+  "source_sha256": "dcd75e5fcf04add0efc3d1997a95267b792aba190dcbe2035e0f53ba10875f65",
+  "rows": [
+    {
+      "id": "phase-no-function",
+      "makefile_hex": "6c6f6164202e2f70686173655f70726f62652e736f0a0a2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "gnumakeflags": "",
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nprobe|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "phase-variable-only",
+      "makefile_hex": "6c6f6164202e2f70686173655f70726f62652e736f0a24286775696c65290a2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "gnumakeflags": "",
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nprobe|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "phase-empty-direct",
+      "makefile_hex": "6c6f6164202e2f70686173655f70726f62652e736f0a24286775696c6520290a2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "gnumakeflags": "",
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nprobe|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "phase-empty-call",
+      "makefile_hex": "6c6f6164202e2f70686173655f70726f62652e736f0a242863616c6c206775696c65290a2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "gnumakeflags": "",
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nprobe|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "phase-nonempty",
+      "makefile_hex": "6c6f6164202e2f70686173655f70726f62652e736f0a24286775696c65202366290a2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "gnumakeflags": "",
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nprobe|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "phase-eager-empty",
+      "makefile_hex": "2428706861736520290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "NOW:=$(guile )"
+      ],
+      "gnumakeflags": "$(eval load ./phase_probe.so)",
+      "redirect": false,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nprobe|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=1|int=H|usr1=H\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=H\n"
+      }
+    },
+    {
+      "id": "phase-help",
+      "makefile_hex": "242866696c65203e3e7365656e2c554e45585045435445442d52454144290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--help"
+      ],
+      "gnumakeflags": "$(eval load ./phase_redirect.so)",
+      "redirect": true,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nfini|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=D\n"
+      }
+    },
+    {
+      "id": "phase-version",
+      "makefile_hex": "242866696c65203e3e7365656e2c554e45585045435445442d52454144290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--version"
+      ],
+      "gnumakeflags": "$(eval load ./phase_redirect.so)",
+      "redirect": true,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nfini|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=D\n"
+      }
+    },
+    {
+      "id": "phase-help-after-empty",
+      "makefile_hex": "242866696c65203e3e7365656e2c554e45585045435445442d52454144290a616c6c3a3b403a0a",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--help"
+      ],
+      "gnumakeflags": "$(eval load ./phase_redirect.so) $(guile )",
+      "redirect": true,
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nctor|init=0|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=1|orientation=0|line=0|int=H|usr1=D\nfini|init=1|leading=1|same-thread=1|ordinary-stack=1|locale=C|stdout-open=0|int=H|usr1=D\n"
+      }
+    }
+  ],
+  "pre_observation_refinement": {
+    "classification": "Own source/model review before any compile or GNU observation; originalplan/source remain unchanged.",
+    "changes": [
+      "Declare _Exit through its public stdlib header.",
+      "Call native phase function with explicit space; plain variable syntax does not invoke it.",
+      "Predict byte orientation after GNU help/version printf while their cosmetic stdout is redirected."
+    ]
+  },
+  "safe_refinement_provenance": {
+    "first_report_sha256": "9716870716643524f88fe4bbc1f5b37ffca521feaf4414cd556bc1e3d096b73e",
+    "source_audit": "GNU startup close_stdout is registered before _dl_fini; it closesstdout before plugin finalizers. Only public raw fcntl may queryFD1 then. Valid ctor/probe predictions are transparent first-observation derivations; exact safe fullGNU2 requalification is required."
+  }
+}

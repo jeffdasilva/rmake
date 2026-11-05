@@ -439,3 +439,5 @@ M3/M6 and general GNU performance parity keep their existing acceptance criteria
 
 
 [Wildcard locale collation](locale-collation.md) adds 74 required original models, with both profiles matching GNU2 across live global/thread-local choices, raw-byte equal keys and directory-table growth. The private French locale is generated from authenticated pinned packages. The earlier 183 C/CUTF8 controls remain required. Wider locale/cache-history acceptance and complete M3/M6 criteria are unchanged.
+
+[Enabled Guile application](guile-frontend.md) adds an opt-in application gate with 83 independently specified GNU comparisons and 14 default signal controls. It retains the separate component safety gate and profile-specific self-host checks. Asynchronous and detached execution, full error traces, and broader M3/M6 acceptance remain open.

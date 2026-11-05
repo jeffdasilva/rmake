@@ -22,6 +22,16 @@ fn build_guile() {
     println!("cargo:rerun-if-env-changed=RMAKE_GUILE_PREFIX");
     println!("cargo:rerun-if-changed=guile.c");
     println!("cargo:rerun-if-changed=guile_interrupt.c");
+    for file in [
+        "guile_workers.c",
+        "guile_workers.h",
+        "guile_worker_packet.c",
+        "guile_worker_packet.h",
+        "guile_environment.c",
+        "guile_environment.h",
+    ] {
+        println!("cargo:rerun-if-changed={file}");
+    }
     if std::env::var_os("CARGO_FEATURE_GUILE").is_none() {
         return;
     }
@@ -38,6 +48,9 @@ fn build_guile() {
     cc::Build::new()
         .file("guile.c")
         .file("guile_interrupt.c")
+        .file("guile_worker_packet.c")
+        .file("guile_workers.c")
+        .file("guile_environment.c")
         .flag_if_supported("-std=c11")
         .include(prefix.join("usr/include"))
         .include(prefix.join("usr/include/x86_64-linux-gnu"))

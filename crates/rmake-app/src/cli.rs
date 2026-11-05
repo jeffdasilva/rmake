@@ -950,6 +950,7 @@ impl Options {
         let seeded = Self {
             include_directories: self.include_directories.clone(),
             include_assignment_positions: self.include_assignment_positions.clone(),
+            debug_mask: self.debug_mask,
             ..Self::default()
         };
         let mut seen: std::collections::HashSet<_> = seeded
@@ -1203,7 +1204,7 @@ impl Options {
     /// Stored MAKEFLAGS is recursive: literal option dollars need one layer
     /// of make quoting, separate from its encoded command-variable reference.
     pub fn decode_debug(&mut self) -> Result<(), String> {
-        self.debug_mask = self.debug.decode(self.trace)?;
+        self.debug_mask = self.debug.decode_from(self.trace, self.debug_mask)?;
         Ok(())
     }
 
@@ -2147,5 +2148,26 @@ mod runtime_marker_tests {
             .err()
             .unwrap();
         assert!(prefix_error.contains("'-j'"), "{prefix_error}");
+    }
+}
+
+#[cfg(test)]
+mod live_debug_replay_tests {
+    use super::*;
+    #[test]
+    fn unrelated_runtime_flags_preserve_signal_basic_without_serializing_it() {
+        let options = Options {
+            debug_mask: crate::debug::Mask::BASIC,
+            ..Options::default()
+        };
+        let (updated, _, _) = options.file_flags_with_positions(&[b"s".to_vec()]).unwrap();
+        assert!(updated.debug_mask.has(crate::debug::Mask::BASIC));
+        assert!(updated.silent);
+        assert!(
+            !updated
+                .recursive_flags()
+                .windows(b"--debug".len())
+                .any(|bytes| bytes == b"--debug")
+        );
     }
 }

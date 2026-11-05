@@ -1,0 +1,39 @@
+{
+  "classification": "Exact qualified source/model bytes; representation-only portable wrapper. Unsafe/closed-stdout/SIGQUIT research is not runnable here.",
+  "suites": [
+    {
+      "name": "language",
+      "plan": "language.json",
+      "plan_sha256": "d661a2050436970c3efd6b820bdee4535ee76afa2473de22c6514fea1d23d93c",
+      "schema": "files",
+      "count": 57
+    },
+    {
+      "name": "phase",
+      "plan": "phase.json",
+      "plan_sha256": "adfd84d54d6a6dd3e2657609ca3ca26cb5b622a2b69fe84a83000b332d07018b",
+      "schema": "phase",
+      "count": 9,
+      "source": "phase.c",
+      "source_sha256": "dcd75e5fcf04add0efc3d1997a95267b792aba190dcbe2035e0f53ba10875f65"
+    },
+    {
+      "name": "home",
+      "plan": "home.json",
+      "plan_sha256": "d77a606f446afb6208d6524f85cc46cad037118cc638bd5f4e076e015066d5f5",
+      "schema": "phase",
+      "count": 3,
+      "source": "home.c",
+      "source_sha256": "dcd75e5fcf04add0efc3d1997a95267b792aba190dcbe2035e0f53ba10875f65"
+    },
+    {
+      "name": "signal",
+      "plan": "signal.json",
+      "plan_sha256": "a47aa1b6e24aaafad66dbb0a65034be381b71a59d73fae304213001cf6bb788c",
+      "schema": "signal",
+      "count": 14,
+      "source": "signal.c",
+      "source_sha256": "e0290382b4a731d7affb606e0d58021cee71abe76f0438525d14dc343a9b3919"
+    }
+  ]
+}
