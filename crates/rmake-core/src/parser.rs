@@ -2545,6 +2545,7 @@ impl Database {
                     target,
                     &mut parse_variables,
                     raw_name,
+                    false,
                     context.at(Some(location)),
                 );
                 // The name may have changed this target's own table. Finish
@@ -2584,7 +2585,7 @@ impl Database {
                     && scope
                         .get(&name)
                         .is_some_and(|binding| binding.flavor() == Flavor::Simple));
-            let result = if immediate && rhs.contains(&b'$') {
+            let result = if kind == Assignment::Shell || (immediate && rhs.contains(&b'$')) {
                 let mut updated = scope.clone();
                 let mut globals = std::mem::take(&mut self.variables);
                 let result = updated.define_with_using(
@@ -2597,9 +2598,9 @@ impl Database {
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
-                    |globals, scope, bytes, _, context| {
+                    |globals, scope, bytes, shell, context| {
                         std::mem::swap(globals, &mut self.variables);
-                        let result = self.expand_target_read(target, scope, bytes, context);
+                        let result = self.expand_target_read(target, scope, bytes, shell, context);
                         std::mem::swap(globals, &mut self.variables);
                         result
                     },
@@ -2647,6 +2648,7 @@ impl Database {
         target: &[u8],
         scope: &mut VariableStore,
         bytes: &[u8],
+        shell: bool,
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         let global_lexical = if let Some(read) = &self.target_read {
@@ -2663,7 +2665,11 @@ impl Database {
         });
         let previous_scope = self.evaluation_scope.take();
         let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
-        let result = crate::variables::expand_scoped_database::<false>(self, scope, bytes, context);
+        let result = if shell {
+            crate::variables::shell_scoped_database(self, scope, bytes, context)
+        } else {
+            crate::variables::expand_scoped_database::<false>(self, scope, bytes, context)
+        };
         self.evaluation_bindings = previous_bindings;
         self.evaluation_scope = previous_scope;
         self.target_read = parent;

@@ -109,3 +109,9 @@ conditional selection or right hand side expansion. Name effects happen once
 for each target, and survive an empty-name error without evaluating the RHS.
 Ten further required fixtures cover these boundaries and the unchanged
 literal-name rules.
+
+Target-specific `!=` assignments expand the shell command in the same
+reader context. Nested `eval` and `include` effects complete before launch,
+and an empty command leaves an existing target-local `.SHELLSTATUS` alone.
+Nine required cases check effects, status ownership, lexical scope, and
+the recursive result. The ordinary lexical shell status cases remain gated.

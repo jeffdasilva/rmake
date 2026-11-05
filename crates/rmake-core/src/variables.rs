@@ -1894,11 +1894,7 @@ impl VariableStore {
             context,
             binding_context: None,
         };
-        if !expansion.context.has_shell() {
-            return Err(ExpandError::Unsupported(b"!=".to_vec()));
-        }
-        let command = expansion.expand(input)?;
-        expansion.shell(&command)
+        expansion.shell_assignment(input)
     }
 
     /// Invocation phases have an unlocated outer expansion, as when GNU
@@ -2473,9 +2469,34 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
     input: &[u8],
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
+    let mut expansion = scoped_database_expansion(db, variables, context);
+    let result = if NAMED {
+        expansion.variable(input)
+    } else {
+        expansion.expand(input)
+    };
+    expansion.finish_database_expansion(result)
+}
+
+pub(crate) fn shell_scoped_database(
+    db: &mut crate::parser::Database,
+    variables: &mut VariableStore,
+    input: &[u8],
+    context: ExpansionContext<'_>,
+) -> Result<Vec<u8>, ExpandError> {
+    let mut expansion = scoped_database_expansion(db, variables, context);
+    let result = expansion.shell_assignment(input);
+    expansion.finish_database_expansion(result)
+}
+
+fn scoped_database_expansion<'a, 'b>(
+    db: &'a mut crate::parser::Database,
+    variables: &'a mut VariableStore,
+    context: ExpansionContext<'b>,
+) -> Expansion<'a, 'b> {
     let inherited_active = db.evaluation_active.clone();
     let bindings = std::mem::take(&mut db.evaluation_bindings);
-    let mut expansion = Expansion {
+    Expansion {
         store: StoreAccess::Scoped {
             database: db,
             variables,
@@ -2488,13 +2509,7 @@ pub(crate) fn expand_scoped_database<const NAMED: bool>(
         machine_nesting: 0,
         context,
         binding_context: None,
-    };
-    let result = if NAMED {
-        expansion.variable(input)
-    } else {
-        expansion.expand(input)
-    };
-    expansion.finish_database_expansion(result)
+    }
 }
 
 pub(crate) fn expand_environment_database(
@@ -2604,13 +2619,7 @@ pub(crate) fn shell_database(
             context,
             binding_context: None,
         };
-        let result = if !expansion.context.has_shell() {
-            Err(ExpandError::Unsupported(b"!=".to_vec()))
-        } else {
-            expansion
-                .expand(input)
-                .and_then(|command| expansion.shell(&command))
-        };
+        let result = expansion.shell_assignment(input);
         expansion.finish_database_expansion(result)
     };
     db.evaluation_scope = scope;
@@ -3109,6 +3118,14 @@ impl Expansion<'_, '_> {
             self.store.database_mut().unwrap().exporting.pop();
         }
         result
+    }
+
+    fn shell_assignment(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        if !self.context.has_shell() {
+            return Err(ExpandError::Unsupported(b"!=".to_vec()));
+        }
+        let command = self.expand(input)?;
+        self.shell(&command)
     }
 
     fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
