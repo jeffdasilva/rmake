@@ -1,0 +1,12 @@
+id = "fs-file-verbose-live"
+requirement = "functions.file"
+candidate = "required"
+description = "File read debug behavior for live."
+provenance = "Original rmake fixture; behavior researched in GNU Make 4.4.1 function.c and checked with its executable."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=[]\nfile: Failed to open 'live.missing': No such file or directory\nlive=[]\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n"
+stderr = ""

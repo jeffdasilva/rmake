@@ -1,9 +1,10 @@
 # Verbose debug decisions
 
-These 23 original Makefiles exercise VPATH and GPATH spelling, observed
+These 25 original Makefiles exercise VPATH and GPATH spelling, observed
 prerequisite timestamp changes, serial pruning, declaration order-only
 roles, always-make, empty double-colon branches, existing targets without
-recipes, and stopping and keep-going prerequisite failures.
+recipes, stopping and keep-going prerequisite failures, and missing and
+successful file reads with non-ASCII paths.
 
 The runner compares two GNU Make 4.4.1 invocations and one candidate to the
 literal C and French streams. Each invocation starts from the same files and

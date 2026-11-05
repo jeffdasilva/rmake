@@ -1,0 +1,2 @@
+include detail.mk
+all: ; @:

@@ -40,6 +40,15 @@ These fast-path checks avoid unnecessary debug formatting and evaluation when
 that output is disabled. They do not establish zero overhead or a general
 performance improvement.
 
+`$(file <path)` returns an empty value on an absent file. With VERBOSE active,
+GNU Make 4.4.1's `func_file` in `src/function.c` also reports the failed open
+immediately on stdout. The Linux effect exposes the original error to the app
+without retrying the open. The renderer checks the current mask, preserves the
+filename bytes, and uses the active catalog and libc error text. Eleven original
+Makefiles check startup eval, inclusion, secondary expansion, live mask
+activation, recipes, output synchronization and control paths. Two additional
+models check C and French output and unchanged timestamps.
+
 `make test-debug-output` runs the separate strict gate; `DEBUG_CASE` selects an
 exact ID, including `debug-bare-basic` for the focused self-host flow. Paths come
 only from the predetermined reset workspace and executable alias. All stream

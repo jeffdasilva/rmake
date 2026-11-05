@@ -134,6 +134,16 @@ pub fn raw(parts: &[&[u8]]) {
     crate::output::stdout_parts(parts);
 }
 
+pub fn missing_file_read(output: &crate::output::Controller, path: &[u8], error: &std::io::Error) {
+    if output.debug_mask().has(Mask::VERBOSE) {
+        let detail = rmake_linux::filesystem::source_error_detail(error);
+        raw(&[&localized(
+            msg::FILE_READ_MISSING,
+            &[bytes(path), bytes(&detail)],
+        )]);
+    }
+}
+
 pub enum TraceReason<'a> {
     Phony,
     Missing,
