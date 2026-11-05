@@ -114,7 +114,11 @@ fn has_native(case: &str) -> bool {
     case.starts_with("native-")
         || matches!(
             case,
-            "signal-native" | "signal-scheme-native" | "signal-constructor" | "signal-worker-init"
+            "signal-native"
+                | "signal-scheme-native"
+                | "signal-constructor"
+                | "signal-worker-init"
+                | "signal-worker-init-transient"
         )
 }
 
@@ -192,7 +196,10 @@ fn child(case: &str) {
             &location,
             &mut host,
         );
-        if matches!(case, "signal-constructor" | "signal-worker-init") {
+        if matches!(
+            case,
+            "signal-constructor" | "signal-worker-init" | "signal-worker-init-transient"
+        ) {
             assert!(matches!(loaded, Err(ExpandError::Cancelled)));
             assert!(!runtime.initialized());
             assert_eq!(rmake_linux::guile::pending_signal(), Some(15));
@@ -444,19 +451,14 @@ fn wait(mut process: std::process::Child) -> std::process::Output {
     }
     process.wait_with_output().unwrap()
 }
-fn compile(directory: &Path, case: &str) {
+fn compile(directory: &Path, source: &str, target: &str, extra: &[&str]) {
     let prefix = PathBuf::from(std::env::var_os("RMAKE_GUILE_PREFIX").unwrap());
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/guile/native.c");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/guile")
+        .join(source);
     let library = prefix.join("usr/lib/x86_64-linux-gnu");
-    let mut command = Command::new("cc");
-    if case == "signal-constructor" {
-        command.arg("-DCONSTRUCTOR_GUILE_SIGNAL");
-    }
-    if case == "signal-worker-init" {
-        command.arg("-DWORKER_GUILE_FIRST");
-    }
     let output = wait(
-        command
+        Command::new("cc")
             .args([
                 "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
             ])
@@ -470,9 +472,10 @@ fn compile(directory: &Path, case: &str) {
             .arg("-L")
             .arg(&library)
             .arg("-lguile-3.0")
+            .args(extra)
             .arg(format!("-Wl,-rpath,{}", library.display()))
             .arg("-o")
-            .arg(directory.join("native_guile.so"))
+            .arg(directory.join(target))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -546,6 +549,7 @@ fn main() {
         "signal-preinit",
         "signal-constructor",
         "signal-worker-init",
+        "signal-worker-init-transient",
     ] {
         let root = std::env::temp_dir().join(format!(
             "rmake-guile-component-{}-{case}",
@@ -553,9 +557,24 @@ fn main() {
         ));
         std::fs::create_dir(&root).unwrap();
         if has_native(case) {
-            compile(&root, case);
+            let extra: &[&str] = match case {
+                "signal-constructor" => &["-DCONSTRUCTOR_GUILE_SIGNAL"],
+                "signal-worker-init" | "signal-worker-init-transient" => &["-DWORKER_GUILE_FIRST"],
+                _ => &[],
+            };
+            compile(&root, "native.c", "native_guile.so", extra);
         }
-        let mut process = Command::new(std::env::current_exe().unwrap())
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        if case == "signal-worker-init-transient" {
+            compile(
+                &root,
+                "transient_thread.c",
+                "transient_thread.so",
+                &["-ldl"],
+            );
+            command.env("LD_PRELOAD", root.join("transient_thread.so"));
+        }
+        let mut process = command
             .env("RMAKE_GUILE_COMPONENT_CASE", case)
             .current_dir(&root)
             .stdout(Stdio::piped())
@@ -598,7 +617,9 @@ fn main() {
             format!("CASE={case}:ok\n").as_bytes(),
             "{case}"
         );
-        let stderr = if case.starts_with("native-") || case == "signal-scheme-native" {
+        let stderr = if case == "signal-worker-init-transient" {
+            b"transient Guile thread handle supplied\n".as_slice()
+        } else if case.starts_with("native-") || case == "signal-scheme-native" {
             b"native-finalizer:hostkept\n".as_slice()
         } else {
             b""

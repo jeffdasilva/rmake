@@ -67,7 +67,9 @@ static void *queue_interrupt(void *unused) {
         SCM threads=scm_all_threads();
         for(SCM walk=threads;scm_is_pair(walk);walk=scm_cdr(walk)) {
             SCM thread=scm_car(walk);
-            if(scm_is_false(scm_memq(thread,queued))) {
+            /* Guile can publish an in-progress registration as #f. A later
+             * snapshot can notify the real thread after its handle exists. */
+            if(scm_is_true(scm_thread_p(thread))&&scm_is_false(scm_memq(thread,queued))) {
                 scm_system_async_mark_for_thread(interrupt_procedure,thread);
                 queued=scm_cons(thread,queued);
             }

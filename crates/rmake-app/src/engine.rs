@@ -3840,8 +3840,14 @@ impl Engine {
             #[cfg(feature = "guile")]
             let worker_wake = workers.descriptor();
             #[cfg(not(feature = "guile"))]
-            let worker_wake = None;
-            rmake_linux::child::wait(&[(0, child)], true, true, worker_wake, None)?;
+            let worker_wake = None::<std::os::fd::BorrowedFd<'_>>;
+            rmake_linux::child::wait(
+                &[(0, child)],
+                true,
+                true,
+                worker_wake.map(|fd| std::os::fd::AsRawFd::as_raw_fd(&fd)),
+                None,
+            )?;
         }
     }
 
