@@ -7776,7 +7776,8 @@ impl Engine {
                 );
             }
         }
-        let debug_remake = stale && !outcome.failed && !outcome.question_outdated;
+        let prerequisite_question = outcome.question_outdated;
+        let debug_remake = stale && !outcome.failed && !prerequisite_question;
         let double_without_prerequisites = branch.is_some() && rule.dependencies.is_empty();
         let no_recipe_no_changes = mask.has(crate::debug::Mask::BASIC)
             && !outcome.failed
@@ -8040,7 +8041,7 @@ impl Engine {
         // update-return diagnostic. Keep-going updates retain that diagnostic.
         let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
         if !self.parallel_jobs.contains_key(target) && !stopping_failure && !stopping_dependency {
-            if outcome.blocked {
+            if outcome.blocked || prerequisite_question {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::GiveUp(target, debug_depth),
@@ -8050,6 +8051,8 @@ impl Engine {
                     &self.output,
                     if outcome.failed {
                         crate::debug::Event::Failed(target, debug_depth)
+                    } else if outcome.question_outdated {
+                        crate::debug::Event::QuestionOutdated(target, debug_depth)
                     } else {
                         crate::debug::Event::Remade(target, debug_depth)
                     },

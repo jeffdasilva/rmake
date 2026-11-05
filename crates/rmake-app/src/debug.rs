@@ -214,6 +214,7 @@ pub enum Event<'a> {
     RecipeRunning(&'a [u8], usize),
     Remade(&'a [u8], usize),
     Failed(&'a [u8], usize),
+    QuestionOutdated(&'a [u8], usize),
     NoNeed(&'a [u8], Option<&'a [u8]>, usize),
     Already(&'a [u8], usize),
     RecentlyFailed(&'a [u8], usize),
@@ -292,6 +293,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::MustRemake(_, depth)
         | Event::Remade(_, depth)
         | Event::Failed(_, depth)
+        | Event::QuestionOutdated(_, depth)
         | Event::DoubleWithoutPrerequisites(_, depth) => (Mask::BASIC, depth),
         _ => (Mask::BASIC, 0),
     };
@@ -324,6 +326,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::RecipeRunning(name, _) => print(msg::RECIPE_RUNNING, &[bytes(name)]),
         Event::Remade(name, _) => print(msg::REMADE, &[bytes(name)]),
         Event::Failed(name, _) => print(msg::FAILED, &[bytes(name)]),
+        Event::QuestionOutdated(name, _) => print(msg::QUESTION_OUTDATED, &[bytes(name)]),
         Event::NoNeed(name, path, _) => {
             let line = localized(msg::NO_NEED, &[bytes(name)]);
             let suffix = path.map(|path| localized(msg::USING_VPATH, &[bytes(path)]));

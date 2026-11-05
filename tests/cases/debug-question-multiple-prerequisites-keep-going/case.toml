@@ -1,0 +1,12 @@
+id = "debug-question-multiple-prerequisites-keep-going"
+requirement = "functions.diagnostics"
+candidate = "required"
+description = "Check exact serial question-mode debug status and recipe expansion effects."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "--debug=v", "-q", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'left'.\n  File 'left' does not exist.\n Finished prerequisites of target file 'left'.\n Must remake target 'left'.\n Target file 'left' needs to be remade under -q.\n Considering target file 'right'.\n  File 'right' does not exist.\n Finished prerequisites of target file 'right'.\n Must remake target 'right'.\n Target file 'right' needs to be remade under -q.\nFinished prerequisites of target file 'all'.\nGiving up on target file 'all'.\n"
+stderr = ""
