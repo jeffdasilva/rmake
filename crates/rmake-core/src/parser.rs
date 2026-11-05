@@ -3004,6 +3004,20 @@ impl Database {
         Ok(loaded)
     }
 
+    /// Service accepted worker callbacks against the actual paused interpreter.
+    pub fn service_waiting_native_workers_with(
+        &mut self,
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<(), ExpandError> {
+        let runtime = context
+            .native_runtime()
+            .ok_or_else(|| ExpandError::Unsupported(b"native worker callbacks".to_vec()))?;
+        runtime.service_waiting_workers(&mut LoadHost {
+            database: self,
+            context: context.reborrow(),
+        })
+    }
+
     /// Keep interpreter state available while native process finalizers run.
     pub fn terminate_native_with(
         &mut self,

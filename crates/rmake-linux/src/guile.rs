@@ -7,6 +7,7 @@
 use rmake_core::native::NativeHost;
 use rmake_core::variables::ExpandError;
 use std::ffi::{c_int, c_void};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::rc::Rc;
 
 unsafe extern "C" {
@@ -17,6 +18,74 @@ unsafe extern "C" {
     fn rg_guile_component_signal(number: c_int);
     fn rg_guile_notify_signal(number: c_int);
     fn rg_guile_pending_signal() -> c_int;
+    fn rg_workers_begin_wait() -> c_int;
+    fn rg_workers_wait_notification(descriptor: c_int) -> c_int;
+    fn rg_workers_end_wait(descriptor: c_int, idle_only: c_int) -> c_int;
+}
+
+/// Admission and wake ownership for one blocking serial recipe child.
+pub struct WorkerWait {
+    descriptor: Option<OwnedFd>,
+    _leading_thread: std::marker::PhantomData<Rc<()>>,
+}
+
+impl WorkerWait {
+    pub fn begin() -> std::io::Result<Self> {
+        let descriptor = if initialized() {
+            if !host_active() {
+                return Err(std::io::ErrorKind::Unsupported.into());
+            }
+            // SAFETY: the leading dispatcher owns admission. C transfers a
+            // fresh descriptor and borrows it until this guard detaches it.
+            match unsafe { rg_workers_begin_wait() } {
+                -2 => None,
+                -1 => return Err(std::io::Error::last_os_error()),
+                descriptor => Some(unsafe { OwnedFd::from_raw_fd(descriptor) }),
+            }
+        } else {
+            None
+        };
+        Ok(Self {
+            descriptor,
+            _leading_thread: std::marker::PhantomData,
+        })
+    }
+
+    pub fn descriptor(&self) -> Option<BorrowedFd<'_>> {
+        self.descriptor.as_ref().map(AsFd::as_fd)
+    }
+
+    pub fn pending(&self) -> bool {
+        // The descriptor stays owned and registered during this call.
+        self.descriptor.as_ref().is_some_and(|descriptor| unsafe {
+            rg_workers_wait_notification(descriptor.as_raw_fd()) != 0
+        })
+    }
+
+    pub fn finish_if_idle(&mut self) -> bool {
+        self.finish(true)
+    }
+
+    pub fn cancel(&mut self) {
+        self.finish(false);
+    }
+
+    fn finish(&mut self, idle_only: bool) -> bool {
+        // Clear the C borrow under its queue lock before dropping the fd.
+        if let Some(descriptor) = &self.descriptor
+            && unsafe { rg_workers_end_wait(descriptor.as_raw_fd(), c_int::from(idle_only)) } == 0
+        {
+            return false;
+        }
+        self.descriptor.take();
+        true
+    }
+}
+
+impl Drop for WorkerWait {
+    fn drop(&mut self) {
+        self.cancel();
+    }
 }
 
 /// Default-off component handler used by isolated signal proofs. No frontend
