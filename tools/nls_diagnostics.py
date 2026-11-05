@@ -87,8 +87,9 @@ def cases(selection):
     loader = json.loads((DATA / "loader.json").read_bytes())
     include = json.loads((DATA / "include.json").read_bytes())
     remake = json.loads((DATA / "remake.json").read_bytes())
-    suites = (data, structure, producers, loader, include, remake)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20, 14):
+    repeat = json.loads((DATA / "repeat.json").read_bytes())
+    suites = (data, structure, producers, loader, include, remake, repeat)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20, 14, 13):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -116,6 +117,8 @@ def cases(selection):
     fixtures["include_errno.c"] = include_fixtures["include_errno.c"]
     if remake["fixture_sha256"] != {"nls_control.c": fixtures["nls_control.c"]}:
         raise h.HarnessError("remake fixture inventory or shared source identity differs")
+    if repeat["fixture_sha256"]:
+        raise h.HarnessError("repeat cases should not compile any additional fixtures")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -136,7 +139,7 @@ def prepare(row, environment):
                         {"exit_code": expected["exit_code"], "stdout_hex": expected_bytes("stdout").hex(),
                          "stderr_hex": expected_bytes("stderr").hex()}, expected_bytes("seen"), modules,
                         tuple(row["args"]), {**row["environment"], **environment},
-                        symlinks=row.get("symlinks", {}))
+                        symlinks=row.get("symlinks", {}), mtimes_ns=row.get("mtimes_ns", {}))
 
 
 def loader_witness(case, runtime, kind):
@@ -189,6 +192,7 @@ def main(argv=None):
               "loader_sha256": h.sha256_file(DATA / "loader.json"),
               "include_sha256": h.sha256_file(DATA / "include.json"),
               "remake_sha256": h.sha256_file(DATA / "remake.json"),
+              "repeat_sha256": h.sha256_file(DATA / "repeat.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
@@ -230,19 +234,24 @@ def main(argv=None):
                     sha256=hashlib.sha256(value).hexdigest(),
                 )
             record.update(compilation=compilation, expected_filesystem=expected_files, environment=case.environment)
+            expected_mtimes = row.get("expected_mtimes_ns", {})
+            timestamp_paths = {name: reset / "work" / native.safe_relative(name) for name in expected_mtimes}
             observed = []
             for executable in [oracle, oracle, *([args.candidate] if args.candidate else [])]:
                 value = h.execute(case, reset, executable)
                 differences = h.differences(observed[0], value) if observed else []
                 observed.append(value)
+                timestamps = {name: path.stat().st_mtime_ns if path.exists() else None
+                              for name, path in timestamp_paths.items()}
                 record["observations"].append(dict(h.observation_json(value), stdout_hex=value.stdout.hex(), stderr_hex=value.stderr.hex(),
+                                                   observed_mtimes_ns=timestamps, timestamps_match=timestamps == expected_mtimes,
                                                    errors=h.expectation_errors(case, value), filesystem_matches=value.filesystem == expected_files,
                                                    differences=differences))
                 if value.limit or value.leftover_processes or value.returncode < 0:
                     record["zero_credit"] = True
                     publish()
                     raise h.HarnessError("new NLS bound/signal retained; stop without replay")
-            record["passed"] = all(not item["errors"] and item["filesystem_matches"] and not item["differences"] for item in record["observations"])
+            record["passed"] = all(not item["errors"] and item["filesystem_matches"] and item["timestamps_match"] and not item["differences"] for item in record["observations"])
             print(("PASS " if record["passed"] else "FAIL ") + row["id"], flush=True)
             publish()
     report["passed"] = all(record["passed"] for record in report["cases"])

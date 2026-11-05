@@ -2587,15 +2587,15 @@ impl Engine {
             let mut changed = false;
             let mut failed = false;
             let mut skipped_errors = Vec::new();
-            let mut failed_remakes = Vec::new();
+            let mut failed_remakes = HashMap::new();
             let mut seen = HashSet::new();
             let read_files = self.database.makefiles.clone();
             let required_names: HashSet<_> = read_files
                 .iter()
                 .filter(|file| !file.optional)
-                .map(|file| file.name.clone())
+                .map(|file| file.name.as_slice())
                 .collect();
-            for mut makefile in read_files {
+            for makefile in &read_files {
                 // The published stdin source is already a completed input,
                 // retained across restarts. It is never a makefile remake goal.
                 if self.options.temp_stdin_file.is_some_and(|index| {
@@ -2619,29 +2619,29 @@ impl Engine {
                         })
                 {
                     if !makefile.optional
-                        && let Some(detail) = makefile.read_error
+                        && let Some(detail) = &makefile.read_error
                     {
                         skipped_errors.push(PendingIncludeError {
-                            location: makefile.location,
-                            name: makefile.name,
-                            detail,
+                            location: makefile.location.clone(),
+                            name: makefile.name.clone(),
+                            detail: detail.clone(),
                         });
                     }
                     continue;
                 }
-                if !seen.insert(makefile.name.clone()) {
+                if !seen.insert(makefile.name.as_slice()) {
                     continue;
                 }
                 // Global symbol lookup can load a logical module name whose
                 // file is absent. Loader success does not make that file exist.
-                if self.database.loaded_modules.contains_key(&makefile.name) {
-                    makefile.missing = self.modified(&makefile.name).is_none();
-                }
+                let missing = if self.database.loaded_modules.contains_key(&makefile.name) {
+                    self.modified(&makefile.name).is_none()
+                } else {
+                    makefile.missing
+                };
                 let promoted_required =
-                    makefile.optional && required_names.contains(&makefile.name);
-                if promoted_required {
-                    makefile.optional = false;
-                }
+                    makefile.optional && required_names.contains(makefile.name.as_slice());
+                let optional = makefile.optional && !promoted_required;
                 if !self.ignores_file_rules(&makefile.name)
                     && !self.resolve_implicit(&makefile.name)
                 {
@@ -2649,9 +2649,7 @@ impl Engine {
                     return 2;
                 }
                 let before = self.modified(&makefile.name);
-                if !self.database.rules.contains_key(&makefile.name)
-                    && (!makefile.missing || makefile.optional)
-                {
+                if !self.database.rules.contains_key(&makefile.name) && (!missing || optional) {
                     if before.is_some() {
                         self.database_secondary.insert(makefile.name.clone());
                     }
@@ -2665,9 +2663,9 @@ impl Engine {
                     );
                     continue;
                 }
-                *self.makefile_error.borrow_mut() = if makefile.optional {
+                *self.makefile_error.borrow_mut() = if optional {
                     None
-                } else if promoted_required && makefile.missing && makefile.read_error.is_none() {
+                } else if promoted_required && missing && makefile.read_error.is_none() {
                     Some(PendingIncludeError {
                         location: None,
                         name: makefile.name.clone(),
@@ -2683,20 +2681,21 @@ impl Engine {
                             detail: detail.clone(),
                         })
                 };
-                self.optional_remake = makefile.optional;
+                self.optional_remake = optional;
                 let result = self.build(&makefile.name, None, 0);
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
-                failed |= result.failed && !makefile.optional;
-                if result.failed && !result.fatal && self.options.keep_going && !makefile.optional {
-                    failed_remakes.push((makefile.location, makefile.name.clone()));
-                }
-                if !result.failed {
+                failed |= result.failed && !optional;
+                if result.failed && !result.fatal && self.options.keep_going && !optional {
+                    // Without its own recipe run, the makefile keeps its cached time.
+                    let refresh_timestamp = result.ran && !result.blocked;
+                    failed_remakes.insert(makefile.name.as_slice(), (before, refresh_timestamp));
+                } else if !result.failed {
                     self.database_unchecked_times
                         .borrow_mut()
                         .remove(&makefile.name);
+                    changed |= self.modified(&makefile.name) != before;
                 }
-                changed |= !result.failed && self.modified(&makefile.name) != before;
                 if result.fatal {
                     failed = true;
                     break;
@@ -2731,15 +2730,31 @@ impl Engine {
                     },
                 );
             }
-            for (location, name) in failed_remakes {
-                emit_output(
-                    &self.output,
-                    &self.program,
-                    Output::Warning {
-                        location: location.as_ref(),
-                        message: &crate::messages::system(Message::FailedMakefileRemake(&name)),
-                    },
-                );
+            // Build each name once, then report at every required read locus.
+            if !failed_remakes.is_empty() {
+                for makefile in read_files.iter().filter(|file| !file.optional) {
+                    let Some((before, refresh_timestamp)) =
+                        failed_remakes.get_mut(makefile.name.as_slice())
+                    else {
+                        continue;
+                    };
+                    emit_output(
+                        &self.output,
+                        &self.program,
+                        Output::Warning {
+                            location: makefile.location.as_ref(),
+                            message: &crate::messages::system(Message::FailedMakefileRemake(
+                                &makefile.name,
+                            )),
+                        },
+                    );
+                    // Later remake recipes can still change this file.
+                    if *refresh_timestamp {
+                        let after = self.modified(&makefile.name);
+                        changed |= after.is_some() && after != *before;
+                        *refresh_timestamp = false;
+                    }
+                }
             }
             if changed {
                 self.remove_intermediates();

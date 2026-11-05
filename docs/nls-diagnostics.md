@@ -160,3 +160,18 @@ reserved for ordinary goals.
 
 Fourteen cases for default source selection and failed remake summaries
 bring the diagnostic gate to 113 cases.
+
+A required makefile can appear in several include directives. Its remake
+recipe runs once, and each required read gets its own summary at the end of
+the remake pass. With `-k`, a failed update that leaves a required makefile
+present at a changed timestamp can still trigger a restart. The failure
+summary is published before restarting. The timestamp is checked after the
+whole remake chain, so a later recipe can restore or change it. A makefile
+that could not run its own recipe retains its cached timestamp for this
+decision.
+
+Thirteen further cases bring the diagnostic gate to 126. The restart cases
+assert the original and final timestamps, ordered read and recipe markers,
+the output of the next process and its exit status. Controls cover a file
+whose contents change with the same timestamp, an optional makefile, and
+stop mode without `-k`.

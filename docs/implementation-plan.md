@@ -471,3 +471,9 @@ later libc error translation without changing which errno was captured.
 now retain the first matching directory entry and defer required-file
 summaries until after the remake phase. Fourteen original GNU2 cases cover
 source loci, failed prerequisites and locale selection.
+
+[Repeated required includes and failed timestamp changes](nls-diagnostics.md)
+retain each required source locus and permit real restart only after a failed
+recipe actually changes the final tracked timestamp. Thirteen GNU2 models
+cover one-recipe ownership, later changes, and prerequisites that never ran
+an own recipe. Mixed optional-first failure replay remains separate.
