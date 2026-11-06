@@ -1,0 +1,11 @@
+id = "rule-delimiter-literal-double-colon"
+requirement = "rules.delimiter-provenance"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original rule delimiter provenance: literal double colon."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e640a"
+stderr_hex = ""

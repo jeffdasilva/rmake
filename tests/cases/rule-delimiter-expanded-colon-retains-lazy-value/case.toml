@@ -1,0 +1,11 @@
+id = "rule-delimiter-expanded-colon-retains-lazy-value"
+requirement = "rules.delimiter-provenance"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original rule delimiter provenance: expanded colon retains lazy value."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7072656669780a64656665727265640a5b617c76616c75653b6b6570743a62797465735d0a"
+stderr_hex = ""

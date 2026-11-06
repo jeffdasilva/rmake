@@ -1,0 +1,11 @@
+id = "rule-delimiter-expanded-amp-assignment-spaced"
+requirement = "rules.delimiter-provenance"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a&"]
+description = "Original rule delimiter provenance: expanded amp assignment spaced."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b61267c6c6f63616c5d0a"
+stderr_hex = ""

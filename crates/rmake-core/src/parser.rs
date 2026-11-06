@@ -2069,7 +2069,26 @@ struct TargetAssignment<'a> {
 struct RulePrefix {
     expanded: Vec<u8>,
     consumed: usize,
-    colon: Option<usize>,
+    delimiter: Option<RuleDelimiter>,
+}
+
+#[derive(Clone, Copy)]
+struct RuleDelimiter {
+    targets_end: usize,
+    tail_start: usize,
+    grouped: bool,
+    double_colon: bool,
+}
+
+impl RuleDelimiter {
+    fn new(colon: usize, grouped: bool, double_colon: bool) -> Self {
+        Self {
+            targets_end: colon - usize::from(grouped),
+            tail_start: colon + 1 + usize::from(double_colon),
+            grouped,
+            double_colon,
+        }
+    }
 }
 
 /// Modifiers are keywords only when the complete remaining text is not itself
@@ -2283,11 +2302,18 @@ impl Database {
         context: &mut ExpansionContext<'_>,
     ) -> Result<RulePrefix, ParseError> {
         let limit = separator(bytes, b';').unwrap_or(bytes.len());
+        let expansion_limit = || ParseError {
+            unlocated: false,
+            location: location.clone(),
+            message: ExpandError::ExpansionLimit.diagnostic(),
+        };
         let mut expanded = Vec::new();
         let mut consumed = 0;
+        let mut generated_colon = None;
         while consumed < limit {
             let start = consumed;
-            let part = if bytes[start] == b'$' {
+            let expansion = bytes[start] == b'$';
+            let part = if expansion {
                 consumed = match bytes.get(start + 1) {
                     Some(b'(' | b'{') => {
                         reference_end(bytes, start + 1).map_err(|error| {
@@ -2339,30 +2365,54 @@ impl Database {
                 }
             };
             if expanded.len().saturating_add(part.len()) > MAX_OUTPUT {
-                return Err(ParseError {
-                    unlocated: false,
-                    location: location.clone(),
-                    message: ExpandError::ExpansionLimit.diagnostic(),
-                });
+                return Err(expansion_limit());
             }
             let has_colon = part.contains(&b':');
             let has_semicolon = part.contains(&b';');
+            let part_start = expanded.len();
             expanded.extend_from_slice(&part);
-            if has_colon || has_semicolon {
-                let colon = separator(&expanded, b':');
+            if has_colon || has_semicolon || generated_colon.is_some() {
+                let colon = generated_colon.or_else(|| separator(&expanded, b':'));
                 let semicolon = separator(&expanded, b';');
                 if semicolon.is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon)) {
                     return Ok(RulePrefix {
                         expanded,
                         consumed,
-                        colon: None,
+                        delimiter: None,
                     });
                 }
-                if colon.is_some() {
+                if let Some(colon) = colon {
+                    // Adjacent references belong to the same source word and
+                    // can finish a delimiter started by the first expansion.
+                    if expansion
+                        && expanded.len() == colon + 1
+                        && consumed < limit
+                        && bytes[consumed] == b'$'
+                    {
+                        generated_colon = Some(colon);
+                        continue;
+                    }
+                    // Raw delimiter tokens cannot pick up an ampersand from a
+                    // preceding expansion or a colon from a following one.
+                    let grouped = colon != 0
+                        && expanded[colon - 1] == b'&'
+                        && (expansion || colon > part_start);
+                    let double_colon = if expansion {
+                        expanded.get(colon + 1) == Some(&b':')
+                    } else if bytes.get(consumed) == Some(&b':') {
+                        if expanded.len() == MAX_OUTPUT {
+                            return Err(expansion_limit());
+                        }
+                        expanded.push(b':');
+                        consumed += 1;
+                        true
+                    } else {
+                        false
+                    };
                     return Ok(RulePrefix {
                         expanded,
                         consumed,
-                        colon,
+                        delimiter: Some(RuleDelimiter::new(colon, grouped, double_colon)),
                     });
                 }
             }
@@ -2370,7 +2420,7 @@ impl Database {
         Ok(RulePrefix {
             expanded,
             consumed,
-            colon: None,
+            delimiter: None,
         })
     }
 
@@ -2589,13 +2639,6 @@ impl Database {
         let targets = self
             .parsed_rule_filenames(&targets, location, context)?
             .collect::<Vec<_>>();
-        if targets.last().is_some_and(|target| target.ends_with(b"&")) {
-            return Err(ParseError {
-                unlocated: false,
-                location: location.clone(),
-                message: "rmake: unsupported rule form".into(),
-            });
-        }
         for target in targets {
             let target = target.as_ref();
             let pattern = Pattern::new(target);
@@ -4373,15 +4416,12 @@ impl Database {
             // generated by expanding the target prefix. Semicolons and colons
             // in that RHS remain value bytes, and recursive effects stay lazy.
             let prefix_expansion = self.expand_rule_prefix(text, &location, context)?;
-            if let Some(colon) = prefix_expansion.colon {
-                let mut tail = prefix_expansion.expanded[colon + 1..].to_vec();
+            if let Some(delimiter) = prefix_expansion.delimiter {
+                let mut tail = prefix_expansion.expanded[delimiter.tail_start..].to_vec();
                 tail.extend_from_slice(&text[prefix_expansion.consumed..]);
-                let tail = tail.strip_prefix(b":").unwrap_or(&tail);
-                if let Some(assignment) = target_assignment(tail) {
+                if let Some(assignment) = target_assignment(&tail) {
                     self.define_target_assignments(
-                        prefix_expansion.expanded[..colon]
-                            .strip_suffix(b"&")
-                            .unwrap_or(&prefix_expansion.expanded[..colon]),
+                        &prefix_expansion.expanded[..delimiter.targets_end],
                         assignment,
                         &location,
                         context,
@@ -4392,14 +4432,12 @@ impl Database {
             // GNU observes target globs before expanding the prerequisite
             // tail. A shell/file effect in that tail must not change which
             // targets this declaration names. Ordinary words remain borrowed.
-            let observed_targets = if let Some(colon) = prefix_expansion.colon
-                && prefix_expansion.expanded[..colon]
+            let observed_targets = if let Some(delimiter) = prefix_expansion.delimiter
+                && prefix_expansion.expanded[..delimiter.targets_end]
                     .iter()
                     .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'[' | b'~'))
             {
-                let targets = prefix_expansion.expanded[..colon]
-                    .strip_suffix(b"&")
-                    .unwrap_or(&prefix_expansion.expanded[..colon]);
+                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
                 let targets = crate::filenames::target_colons(targets);
                 Some(
                     self.parsed_rule_filenames(&targets, &location, context)?
@@ -4438,7 +4476,16 @@ impl Database {
             if trim(expanded).is_empty() {
                 continue;
             }
-            let Some(colon) = separator(expanded, b':') else {
+            let delimiter = prefix_expansion.delimiter.or_else(|| {
+                separator(expanded, b':').map(|colon| {
+                    RuleDelimiter::new(
+                        colon,
+                        expanded[..colon].ends_with(b"&"),
+                        expanded.get(colon + 1) == Some(&b':'),
+                    )
+                })
+            });
+            let Some(delimiter) = delimiter else {
                 return Err(ParseError::system(
                     location,
                     Message::MissingSeparator {
@@ -4447,13 +4494,10 @@ impl Database {
                     context,
                 ));
             };
-            let double_colon = expanded.get(colon + 1) == Some(&b':');
-            let grouped = expanded[..colon].ends_with(b"&");
             declaration.location = Some(location.clone());
-            declaration.grouped = grouped;
-            let target_end = colon - usize::from(grouped);
+            declaration.grouped = delimiter.grouped;
             let early_targets = observed_targets.is_some();
-            let target_text = crate::filenames::target_colons(&expanded[..target_end]);
+            let target_text = crate::filenames::target_colons(&expanded[..delimiter.targets_end]);
             let targets = observed_targets
                 .into_iter()
                 .flatten()
@@ -4477,7 +4521,7 @@ impl Database {
             if declaration.targets.is_empty() {
                 continue;
             }
-            let mut prereqs = &expanded[colon + 1 + usize::from(double_colon)..];
+            let mut prereqs = &expanded[delimiter.tail_start..];
             let static_pattern = if let Some(second) = expanded_colon(prereqs) {
                 let pattern_text = crate::filenames::target_colons(&prereqs[..second]);
                 let patterns: Vec<_> = crate::filenames::words(&pattern_text).collect();
@@ -4549,7 +4593,7 @@ impl Database {
             declaration.prerequisites.extend_from_slice(prereqs);
             declaration.header = Some(RuleHeader {
                 static_pattern,
-                double_colon,
+                double_colon: delimiter.double_colon,
             });
             let recipe = inline
                 .map(|i| line.bytes[i + 1..].to_vec())
