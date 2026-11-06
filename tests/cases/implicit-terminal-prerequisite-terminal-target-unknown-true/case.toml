@@ -1,0 +1,12 @@
+id = "implicit-terminal-prerequisite-terminal-target-unknown-true"
+requirement = "rules.implicit"
+candidate = "required"
+description = "Implicit search after selecting a terminal pattern rule: pattern-terminal-target-unknown-True"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "--debug=i", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\n Looking for an implicit rule for 'all'.\n No implicit rule found for 'all'.\n  Looking for an implicit rule for 'app.out'.\n   Trying pattern rule '%.out:: %.part' with stem 'app'.\n   Trying implicit prerequisite 'app.part'.\n   Not found 'app.part'.\n   Trying harder.\n  No implicit rule found for 'app.out'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\nmake: Nothing to be done for 'all'.\n"
+stderr = ""

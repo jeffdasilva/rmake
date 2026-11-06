@@ -1,0 +1,12 @@
+id = "vpath-discarded-name-none-missing-normal-newer-false"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Freshness and automatic variables after discarding a searched name: vpath-none-missing-normal-newer-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "producer [mid.unit][seed]\nconsumer [mid.unit][mid.unit][]\n"
+stderr = ""

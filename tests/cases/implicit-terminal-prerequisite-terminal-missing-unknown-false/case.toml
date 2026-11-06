@@ -1,0 +1,12 @@
+id = "implicit-terminal-prerequisite-terminal-missing-unknown-false"
+requirement = "rules.implicit"
+candidate = "required"
+description = "Implicit search after selecting a terminal pattern rule: pattern-terminal-missing-unknown-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'app.out', needed by 'all'.  Stop.\n"
