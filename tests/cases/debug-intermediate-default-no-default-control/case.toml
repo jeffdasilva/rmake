@@ -1,0 +1,12 @@
+id = "debug-intermediate-default-no-default-control"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "Check missing intermediate inspection, .DEFAULT selection and parent freshness trace."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "--debug=i", "parent"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n Looking for an implicit rule for 'scratch'.\n No implicit rule found for 'scratch'.\n Prerequisite 'scratch' of target 'parent' does not exist.\nmake: 'parent' is up to date.\n"
+stderr = ""

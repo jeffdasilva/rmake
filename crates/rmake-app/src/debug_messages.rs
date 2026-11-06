@@ -51,6 +51,7 @@ keys! {
     LOOKING_ARCHIVE: c"Looking for archive-member implicit rule for '%s'.\n", [B];
     NO_ARCHIVE_RULE: c"No archive-member implicit rule found for '%s'.\n", [B];
     TRYING_RULE: c"Trying pattern rule '%s' with stem '%.*s'.\n", [B, P, B];
+    STEM_TOO_LONG: c"Stem too long: '%s%.*s'.\n", [B, P, B];
     TRYING_LITERAL: c"Trying rule prerequisite '%s'.\n", [B];
     TRYING_IMPLICIT: c"Trying implicit prerequisite '%s'.\n", [B];
     TRYING_HARDER: c"Trying harder.\n", [];
@@ -70,6 +71,8 @@ keys! {
     OUGHT_TO_EXIST: c"'%s' ought to exist.\n", [B];
     FOUND_RULE: c"Found implicit rule '%s' for '%s'.\n", [B, B];
     NO_RULE: c"No implicit rule found for '%s'.\n", [B];
+    USING_DEFAULT_RECIPE: c"Using default recipe for '%s'.\n", [B];
+    USING_DEFAULT_COMMANDS: c"Using default commands for '%s'.\n", [B];
     READING_FILE: c"Reading makefile '%s'", [B];
     FILE_READ_MISSING: c"file: Failed to open '%s': %s\n", [B, B];
     NO_DEFAULT_GOAL: c" (no default goal)", [];

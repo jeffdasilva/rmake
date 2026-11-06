@@ -22,7 +22,6 @@ use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule,
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
 };
-use rmake_linux::filesystem::Runtime as FilesystemRuntime;
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
@@ -36,6 +35,8 @@ use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
+
+type FilesystemRuntime = rmake_linux::filesystem::Runtime<crate::output::Controller>;
 
 #[cfg(not(feature = "guile"))]
 const FEATURES: &[u8] = b"target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs notintermediate shell-export archives jobserver jobserver-fifo output-sync check-symlink load";
@@ -3493,7 +3494,7 @@ impl Engine {
         self.scope_parents
             .entry(target.to_vec())
             .or_insert_with(|| Some(parent.to_vec()));
-        if !self.resolve_implicit(target) {
+        if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
                     failed: true,
@@ -5304,10 +5305,17 @@ impl Engine {
     }
 
     #[must_use = "search exhaustion must stop the build instead of selecting a fallback"]
-    fn resolve_implicit(&mut self, target: &[u8]) -> bool {
-        self.resolve_implicit_at(target, usize::from(self.remaking))
+    fn resolve_implicit_for_intermediate(&mut self, target: &[u8], depth: usize) -> bool {
+        // Inspection already receives the edge depth used by search output.
+        let debug_depth = depth - 1 + usize::from(self.remaking);
+        self.resolve_implicit_at(target, debug_depth, false)
     }
-    fn resolve_implicit_at(&mut self, target: &[u8], debug_depth: usize) -> bool {
+    fn resolve_implicit_at(
+        &mut self,
+        target: &[u8],
+        debug_depth: usize,
+        graph_visit: bool,
+    ) -> bool {
         let existing = match self.database.rules.get(target) {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
             rule => rule.cloned(),
@@ -5440,6 +5448,12 @@ impl Engine {
             && let Some(default) = self.database.rules.get(b".DEFAULT".as_slice())
             && default.recipes.is_some()
         {
+            let event = if graph_visit {
+                crate::debug::Event::UsingDefaultRecipe(target, debug_depth + 1)
+            } else {
+                crate::debug::Event::UsingDefaultCommands(target, debug_depth + 1)
+            };
+            crate::debug::emit(&self.output, event);
             self.database.rules.insert(
                 target.to_vec(),
                 Rule {
@@ -5566,19 +5580,23 @@ impl Engine {
                 }
                 let debug_label =
                     tracing.then(|| crate::debug::rule_label(&self.database, candidate.identity));
+                let stem = candidate.rule.stem.as_deref().unwrap_or_default();
+                // The candidate stem already includes any ignored directory.
+                // GNU's stem buffer holds PATH_MAX bytes plus the terminator.
+                let stem_too_long = stem.len() > rmake_linux::filesystem::PATH_MAX;
                 if let Some(label) = &debug_label {
-                    let stem = candidate.rule.stem.as_deref().unwrap_or_default();
-                    let printed_stem = if !archive_search
+                    let (directory, printed_stem) = if !archive_search
                         && candidate
                             .rule
                             .implicit_pattern
                             .as_ref()
                             .is_some_and(|pattern| !pattern.contains(&b'/'))
                         && let Some(slash) = target.iter().rposition(|byte| *byte == b'/')
+                        && let Some(printed) = stem.strip_prefix(&target[..=slash])
                     {
-                        stem.strip_prefix(&target[..=slash]).unwrap_or(stem)
+                        (&target[..=slash], printed)
                     } else {
-                        stem
+                        (b"".as_slice(), stem)
                     };
                     crate::debug::emit(
                         &self.output,
@@ -5588,6 +5606,19 @@ impl Engine {
                             debug_depth + active.len() + 2,
                         ),
                     );
+                    if stem_too_long {
+                        crate::debug::emit(
+                            &self.output,
+                            crate::debug::Event::StemTooLong(
+                                directory,
+                                printed_stem,
+                                debug_depth + active.len() + 2,
+                            ),
+                        );
+                    }
+                }
+                if stem_too_long {
+                    continue;
                 }
                 let mut plan = Vec::new();
                 let mut explicit_names = Vec::new();
@@ -6617,7 +6648,7 @@ impl Engine {
         } else {
             self.comparison_time(target, before)
         };
-        if !phony && !self.resolve_implicit_at(target, debug_depth) {
+        if !phony && !self.resolve_implicit_at(target, debug_depth, true) {
             return Outcome {
                 failed: true,
                 fatal: true,
@@ -7557,6 +7588,7 @@ impl Engine {
             presentation_drops,
             intermediate_stale,
             debug_changed_edges,
+            deferred_intermediates,
             waited_for_prerequisites,
             depth,
             ..
@@ -7686,23 +7718,30 @@ impl Engine {
             && !outcome.failed
             && !outcome.question_outdated
         {
-            // This reports recorded freshness after dependency traversal. It
-            // must not re-stat, expand, or trigger another prerequisite.
+            // A deferred intermediate can still be missing when its parent
+            // is current. Its inspection did not produce a completion record.
+            let deferred: HashSet<_> = deferred_intermediates
+                .iter()
+                .map(|name| self.aliases.resolve(name))
+                .collect();
             for (index, occurrence) in rule.dependencies.iter().enumerate() {
                 let dependency = &occurrence.name;
                 if dependency == b".WAIT" || dropped.contains(dependency) {
                     continue;
                 }
-                let Some(child) = self.done.get(dependency).copied() else {
+                let child = self.done.get(dependency).copied();
+                if child.is_none() && !deferred.contains(dependency.as_slice()) {
                     continue;
-                };
+                }
                 let changed = debug_changed_edges
                     .as_ref()
                     .is_some_and(|edges| edges.contains(&index));
                 let inspected_stale = intermediate_stale
                     .as_ref()
                     .is_some_and(|edges| edges.contains(&index));
-                if !occurrence.order_only {
+                if let Some(child) = child
+                    && !occurrence.order_only
+                {
                     dependencies_changed |= changed;
                     if self.options.always {
                         natural_remake |=
@@ -7710,19 +7749,21 @@ impl Engine {
                     }
                 }
                 use crate::debug::Prerequisite;
-                let state = if occurrence.order_only {
-                    Prerequisite::OrderOnly
-                } else if child.time.is_none() {
-                    Prerequisite::Missing
-                } else if changed
-                    || child.time > comparison
-                    || (child.completion == CompletionTime::AssumeNew
-                        && self.prerequisite_stale(comparison, child))
-                    || inspected_stale
-                {
-                    Prerequisite::Newer
-                } else {
-                    Prerequisite::Older
+                let state = match child {
+                    _ if occurrence.order_only => Prerequisite::OrderOnly,
+                    Some(child) if child.time.is_some() => {
+                        if changed
+                            || child.time > comparison
+                            || (child.completion == CompletionTime::AssumeNew
+                                && self.prerequisite_stale(comparison, child))
+                            || inspected_stale
+                        {
+                            Prerequisite::Newer
+                        } else {
+                            Prerequisite::Older
+                        }
+                    }
+                    _ => Prerequisite::Missing,
                 };
                 crate::debug::emit(
                     &self.output,

@@ -76,10 +76,74 @@ def models() -> list[Model]:
     result = (_model_file('models.toml') + _model_file('extension.toml')
               + _model_file('child.toml') + _model_file('vpath.toml')
               + _model_file('dispatch.toml') + _model_file('revisit.toml')
-              + _model_file('prerequisite-wait.toml'))
+              + _model_file('prerequisite-wait.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
     return result
+
+
+def stem_limit_models() -> list[Model]:
+    """Use bounded spellings and no on-disk paths near the Linux limit."""
+    header = (
+        b'GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\n'
+        b'Copyright (C) 1988-2023 Free Software Foundation, Inc.\n'
+        b'License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n'
+        b'This is free software: you are free to change and redistribute it.\n'
+        b'There is NO WARRANTY, to the extent permitted by law.\n'
+        b'Reading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n'
+    )
+
+    def directory(length: int) -> bytes:
+        prefix = (b'd' * 252 + b'/') * 16
+        return prefix + b'e' * (length - len(prefix) - 1) + b'/'
+
+    below, exact, above = (directory(length - 5) for length in (4095, 4096, 4097))
+    rows = (
+        ('short', b'', b'%.out', b'build', True, True),
+        ('short-relative', b'virtual/', b'%.out', b'build', True, True),
+        ('directory-below', below, b'%.out', b'build', True, True),
+        ('directory-exact', exact, b'%.out', b'build', True, True),
+        ('directory-above', above, b'%.out', b'build', False, True),
+        ('slash-pattern-above', b'', b'head/%.out', above + b'build', False, True),
+        ('long-literal-pattern', b'', above + b'%.out', b'build', True, True),
+        ('quiet-rejects-before-expansion', above, b'%.out', b'build', False, False),
+    )
+    models = []
+    for suffix, prefix, pattern, stem, selected, trace in rows:
+        target = prefix + pattern.replace(b'%', stem)
+        args = ('-rR', '--no-print-directory') + (('--debug=i',) if trace else ())
+        secondary = b'' if trace else b'.SECONDEXPANSION:\nSIDE = $(info unexpected-expansion)\n'
+        prerequisites = b'' if trace else b' $$(SIDE)'
+        makefile = secondary + pattern + b':' + prerequisites + b'\n\t@$(info selected-implicit):\n'
+        if not trace:
+            makefile += b'.DEFAULT:\n\t@$(info selected-default):\n'
+        status = 2 if trace and not selected else 0
+        stat_error = b'make: stat: %s: File name too long\n' % target if len(target) >= 4096 else b''
+        stderr = (stat_error + b"make: *** No rule to make target '%s'.  Stop.\n" % target
+                  if status else stat_error * 2)
+        stdout = b'selected-implicit\n' if selected else b'selected-default\n'
+        if trace:
+            label = pattern + b':'
+            trying = b"  Trying pattern rule '%s' with stem '%s'.\n" % (label, stem)
+            if selected:
+                search = trying + b" Found implicit rule '%s' for '%s'.\n" % (label, target)
+            else:
+                rejected = trying + b"  Stem too long: '%s'.\n" % (prefix + stem)
+                search = rejected + b'  Trying harder.\n' + rejected
+                search += b" No implicit rule found for '%s'.\n" % target
+            completion = stdout + b"Successfully remade target file '%s'.\n" % target if selected else b''
+            stdout = (
+                header + b" File '%s' does not exist.\n" % target
+                + b" Looking for an implicit rule for '%s'.\n" % target + search
+                + b"Must remake target '%s'.\n" % target + completion
+            )
+        models.append(Model('debug-stem-limit-' + suffix,
+                            {'Makefile': makefile, 'seen': b'anchor\n'},
+                            (*args, os.fsdecode(target)), {},
+                            {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                             'stderr_template_hex': stderr.hex()},
+                            b'anchor\n'))
+    return models
 
 
 def render(template: bytes, runtime: Path, explicit_version: bytes | None = None) -> bytes:

@@ -278,9 +278,9 @@ impl Plan {
             }
         };
         database.variables.set_startup_directory_pending();
-        let read_output = output.clone();
         let filesystem = RefCell::new(FilesystemRuntime::with_missing_read_observer(
-            move |path, error| crate::debug::missing_file_read(&read_output, path, error),
+            output.clone(),
+            crate::debug::missing_file_read,
         ));
         filesystem.borrow_mut().set_database_history(
             database

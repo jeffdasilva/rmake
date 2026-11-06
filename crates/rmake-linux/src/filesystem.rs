@@ -14,20 +14,31 @@ use rmake_core::variables::MAX_OUTPUT;
 use crate::stdio::Stream;
 use crate::{posix, wildcard::Wildcard};
 
-type MissingReadObserver = dyn Fn(&[u8], &io::Error);
+/// Path buffer size on the Linux process ABI, including the terminating NUL.
+pub const PATH_MAX: usize = 4096;
 
-#[derive(Default)]
-pub struct Runtime {
+type MissingReadObserver<O> = fn(&O, &[u8], &io::Error);
+
+pub struct Runtime<O = ()> {
     wildcard: Wildcard,
-    missing_read: Option<Box<MissingReadObserver>>,
+    missing_read: Option<(O, MissingReadObserver<O>)>,
 }
 
-impl Runtime {
-    /// Observe the original open failure without probing the path again.
-    pub fn with_missing_read_observer(observer: impl Fn(&[u8], &io::Error) + 'static) -> Self {
+impl Default for Runtime {
+    fn default() -> Self {
         Self {
-            missing_read: Some(Box::new(observer)),
-            ..Self::default()
+            wildcard: Wildcard::default(),
+            missing_read: None,
+        }
+    }
+}
+
+impl<O> Runtime<O> {
+    /// Observe the original open failure without probing the path again.
+    pub fn with_missing_read_observer(context: O, observer: MissingReadObserver<O>) -> Self {
+        Self {
+            wildcard: Wildcard::default(),
+            missing_read: Some((context, observer)),
         }
     }
 
@@ -55,7 +66,12 @@ impl Runtime {
     }
 
     pub fn execute(&mut self, effect: FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> {
-        execute_with(effect, &mut self.wildcard, self.missing_read.as_deref())
+        let missing_read = self.missing_read.as_ref();
+        execute_with(effect, &mut self.wildcard, |path, error| {
+            if let Some((context, observer)) = missing_read {
+                observer(context, path, error);
+            }
+        })
     }
 
     /// Completed make children invalidate directory observations, including
@@ -76,7 +92,7 @@ pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
 fn execute_with(
     effect: FilesystemEffect<'_>,
     wildcard: &mut Wildcard,
-    missing_read: Option<&MissingReadObserver>,
+    missing_read: impl FnOnce(&[u8], &io::Error),
 ) -> Result<Vec<u8>, FilesystemError> {
     match effect {
         FilesystemEffect::Wildcard(pattern) => wildcard.expand(pattern),
@@ -102,13 +118,13 @@ fn execute_with(
         FilesystemEffect::Realpath(path) => {
             // GNU's Linux profile uses PATH_MAX-sized input/output buffers and
             // verifies the resolved path still exists. Failures omit this word.
-            if path.len() >= 4096 {
+            if path.len() >= PATH_MAX {
                 return Ok(Vec::new());
             }
             let Ok(path) = retry_interrupted(|| fs::canonicalize(OsStr::from_bytes(path))) else {
                 return Ok(Vec::new());
             };
-            if path.as_os_str().as_bytes().len() >= 4096
+            if path.as_os_str().as_bytes().len() >= PATH_MAX
                 || retry_interrupted(|| fs::metadata(&path)).is_err()
             {
                 return Ok(Vec::new());
@@ -142,13 +158,11 @@ pub(crate) fn retry_interrupted<T>(mut operation: impl FnMut() -> io::Result<T>)
     }
 }
 
-fn read(path: &[u8], missing_read: Option<&MissingReadObserver>) -> Result<Vec<u8>, Vec<u8>> {
+fn read(path: &[u8], missing_read: impl FnOnce(&[u8], &io::Error)) -> Result<Vec<u8>, Vec<u8>> {
     let mut stream = match Stream::open(path, c"r") {
         Ok(stream) => stream,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            if let Some(observer) = missing_read {
-                observer(path, &error);
-            }
+            missing_read(path, &error);
             return Ok(Vec::new());
         }
         Err(error) => return Err(diagnostic(b"open", path, error)),

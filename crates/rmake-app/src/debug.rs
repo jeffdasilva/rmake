@@ -226,6 +226,7 @@ pub enum Event<'a> {
     LookingArchive(&'a [u8], usize),
     NoArchiveRule(&'a [u8], usize),
     TryingRule(&'a [u8], &'a [u8], usize),
+    StemTooLong(&'a [u8], &'a [u8], usize),
     TryingPrerequisite(&'a [u8], bool, usize),
     TryingHarder(usize),
     AvoidingRecursion(&'a [u8], usize),
@@ -241,6 +242,8 @@ pub enum Event<'a> {
     OughtToExist(&'a [u8], usize),
     FoundRule(&'a [u8], &'a [u8], usize),
     NoRule(&'a [u8], usize),
+    UsingDefaultRecipe(&'a [u8], usize),
+    UsingDefaultCommands(&'a [u8], usize),
 }
 
 pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
@@ -268,6 +271,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::LookingArchive(_, depth)
         | Event::NoArchiveRule(_, depth)
         | Event::TryingRule(_, _, depth)
+        | Event::StemTooLong(_, _, depth)
         | Event::TryingPrerequisite(_, _, depth)
         | Event::TryingHarder(depth)
         | Event::AvoidingRecursion(_, depth)
@@ -281,7 +285,9 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::SearchingCompatibility(_, depth)
         | Event::OughtToExist(_, depth)
         | Event::FoundRule(_, _, depth)
-        | Event::NoRule(_, depth) => (Mask::IMPLICIT, depth),
+        | Event::NoRule(_, depth)
+        | Event::UsingDefaultRecipe(_, depth)
+        | Event::UsingDefaultCommands(_, depth) => (Mask::IMPLICIT, depth),
         Event::Missing(_, depth)
         | Event::MustRemake(_, depth)
         | Event::Remade(_, depth)
@@ -343,6 +349,14 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
                 bytes(stem),
             ],
         ),
+        Event::StemTooLong(directory, stem, _) => print(
+            msg::STEM_TOO_LONG,
+            &[
+                bytes(directory),
+                Argument::Unsigned(stem.len() as u64),
+                bytes(stem),
+            ],
+        ),
         Event::TryingPrerequisite(name, literal, _) => print(
             if literal {
                 msg::TRYING_LITERAL
@@ -385,6 +399,8 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::OughtToExist(name, _) => print(msg::OUGHT_TO_EXIST, &[bytes(name)]),
         Event::FoundRule(rule, name, _) => print(msg::FOUND_RULE, &[bytes(rule), bytes(name)]),
         Event::NoRule(name, _) => print(msg::NO_RULE, &[bytes(name)]),
+        Event::UsingDefaultRecipe(name, _) => print(msg::USING_DEFAULT_RECIPE, &[bytes(name)]),
+        Event::UsingDefaultCommands(name, _) => print(msg::USING_DEFAULT_COMMANDS, &[bytes(name)]),
     }
 }
 
