@@ -15,7 +15,14 @@ colons, original recipe boundaries, lazy values, raw bytes, and ordered file
 and diagnostic effects. The GNU Make 4.4.1 reader was consulted for the two
 scan phases. The Rust code and fixture sources were written independently.
 
-One recorded generated-assignment case still needs reader classification
-work. If an expansion supplies `a:W=` and a quoted semicolon is exposed in
-the same source word, GNU stops the assignment value at the expanded recipe
-boundary. rmake currently retains the remainder of that word in the value.
+An inline separator exposed in an expanded source word cuts the generated
+assignment value. The reader expands the remaining recipe text before
+recording that assignment, even when the target is unused. A still-quoted
+semicolon loses its quoting byte and remains part of the variable name or
+value. The following raw text retains the assignment's usual expansion
+timing. A physical inline separator bounds syntax lookahead, and a recognized
+assignment keeps the original separator and following bytes in its value.
+
+Twenty additional GNU2 fixtures cover simple and recursive values, protected
+variable names, file effects, `eval`, multiple targets, and fatal expansion
+before recipe selection.

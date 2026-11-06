@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-expanded-quoted-semicolon-remains-value"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated target assignment boundary: expanded quoted semicolon remains value."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "64656665727265640a76616c75653d5b66697273743b7365636f6e64205d0a"
+stderr_hex = ""

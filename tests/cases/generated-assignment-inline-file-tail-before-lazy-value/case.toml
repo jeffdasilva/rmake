@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-file-tail-before-lazy-value"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated target assignment boundary: file tail before lazy value."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6d61726b5d0a7461696c0a76616c75650a"
+stderr_hex = ""

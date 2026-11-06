@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-failed-effect-after-inline-stops-before-recipe"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original generated target assignment boundary: failed effect after inline stops before recipe."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a2073746f702e202053746f702e0a"
