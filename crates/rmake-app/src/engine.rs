@@ -3793,7 +3793,9 @@ impl Engine {
             .unwrap_or(stored)
             .clone();
         if rule.secondary.is_some() {
-            if let Err(error) = self.expand_dependencies(target, &mut rule, double_colon) {
+            if let Err(error) =
+                self.expand_dependencies(target, &mut rule, double_colon.then_some(0))
+            {
                 self.expansion_error(rule.prerequisite_location.as_ref(), &error);
                 return Inspection {
                     outcome: Outcome {
@@ -6427,12 +6429,13 @@ impl Engine {
         &mut self,
         target: &[u8],
         rule: &mut Rule,
-        double_colon: bool,
+        branch: Option<usize>,
     ) -> Result<(), ExpandError> {
         let Some(secondary) = rule.secondary.take() else {
             return Ok(());
         };
-        let mut variables = self.target_variables(target)?;
+        let grouped_double = rule.grouped_double_id().is_some();
+        let mut variables = self.rule_variables(target, branch.filter(|_| !grouped_double))?;
         // GNU attributes secondary-expansion messages to the selected recipe,
         // including for prerequisite clauses read from other files.
         rule.prerequisite_location = rule.recipe_location.clone();
@@ -6531,12 +6534,13 @@ impl Engine {
             rule.dependencies.splice(index..=index, expanded);
         }
         if let Some(context) = self.target_contexts.get_mut(target) {
-            context.retain_runtime_metadata(&variables, !double_colon);
+            let retain_shell_status = !grouped_double && branch.is_none_or(|ordinal| ordinal == 0);
+            context.retain_runtime_metadata(&variables, retain_shell_status);
         }
-        if !double_colon {
-            // Later evals can read these automatic variables even when this
-            // file has no recipe. Children use the reusable target context.
-            self.retain_database_context(target, None, &variables);
+        if !grouped_double {
+            // The recipe can read the prepared table, and a later branch can
+            // read the head's table. Prerequisites use the target context.
+            self.retain_database_context(target, branch, &variables);
         }
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
@@ -7458,7 +7462,7 @@ impl Engine {
             }
         }
         let had_secondary = rule.secondary.is_some();
-        if let Err(error) = self.expand_dependencies(target, &mut rule, double_colon) {
+        if let Err(error) = self.expand_dependencies(target, &mut rule, branch) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
                 failed: true,
@@ -7645,11 +7649,7 @@ impl Engine {
                 self.scope_parents
                     .entry(peer.clone())
                     .or_insert(peer_parent);
-                if let Err(error) = self.expand_dependencies(
-                    &peer,
-                    &mut peer_rule,
-                    state.rule.grouped_double_id().is_some(),
-                ) {
+                if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule, None) {
                     self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
                     state.outcome.failed = true;
                     state.outcome.fatal = true;
@@ -8681,6 +8681,34 @@ impl Engine {
         Ok(variables)
     }
 
+    // Later double-colon branches see the head's table without sharing a
+    // writable local table with it or with each other.
+    fn rule_variables(
+        &mut self,
+        target: &[u8],
+        branch: Option<usize>,
+    ) -> Result<VariableStore, ExpandError> {
+        let Some(ordinal) = branch else {
+            return self.target_variables(target);
+        };
+        let key = (target.to_vec(), ordinal);
+        if let Some(scope) = self.database_branch_contexts.get(&key) {
+            return Ok(scope.clone());
+        }
+        if ordinal == 0 {
+            return self.target_variables(target);
+        }
+        let head_key = (key.0, 0);
+        if let Some(head) = self.database_branch_contexts.get(&head_key) {
+            return Ok(head.fresh_double_colon_scope());
+        }
+        // A later branch can be the first one to expand a recipe.
+        let head = self.target_variables(target)?;
+        let scope = head.fresh_double_colon_scope();
+        self.database_branch_contexts.insert(head_key, head);
+        Ok(scope)
+    }
+
     fn execute(
         &mut self,
         target: &[u8],
@@ -8812,23 +8840,7 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let variables = if branch.is_some_and(|ordinal| ordinal > 0) {
-            let head_key = (target.to_vec(), 0);
-            if let Some(head) = self.database_branch_contexts.get(&head_key) {
-                Ok(head.fresh_double_colon_scope())
-            } else {
-                // A later branch initializes its own table even if the head
-                // never expanded a recipe. Its lookups can visit the head.
-                self.target_variables(target).map(|head| {
-                    let variables = head.fresh_double_colon_scope();
-                    self.database_branch_contexts.insert(head_key, head);
-                    variables
-                })
-            }
-        } else {
-            self.target_variables(target)
-        };
-        let mut variables = match variables {
+        let mut variables = match self.rule_variables(target, branch) {
             Ok(variables) => variables,
             Err(error) => {
                 self.expansion_error(None, &error);

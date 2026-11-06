@@ -1,0 +1,12 @@
+id = "double-secondary-scope-head-recipe-status-wins"
+requirement = "scope.double-secondary"
+candidate = "required"
+description = "Check file and branch scope across double-colon secondary expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "head=[split|3]\nlater=[split|3]\nnext=[split|3]\n"
