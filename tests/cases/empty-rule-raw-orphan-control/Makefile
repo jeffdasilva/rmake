@@ -1,0 +1,2 @@
+	@:
+all:;@printf "all\n"

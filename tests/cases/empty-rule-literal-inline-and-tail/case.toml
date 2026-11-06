@@ -1,0 +1,12 @@
+id = "empty-rule-literal-inline-and-tail"
+requirement = "language.empty-static-target"
+candidate = "required"
+description = "Check attachment and expansion boundaries of a targetless declaration."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "all\n"
+stderr = ""

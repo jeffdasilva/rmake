@@ -218,6 +218,7 @@ struct RuleDeclaration {
     offsets: HashMap<Vec<u8>, usize>,
     location: Option<Location>,
     recipe_started: bool,
+    ignore_recipes: bool,
     branches: HashMap<Vec<u8>, Vec<usize>>,
     patterns: HashMap<Vec<u8>, Pattern>,
     target_patterns: Vec<bool>,
@@ -239,6 +240,10 @@ struct RuleHeader {
 }
 
 impl RuleDeclaration {
+    fn has_recipe_context(&self) -> bool {
+        self.ignore_recipes || !self.targets.is_empty()
+    }
+
     fn finish(
         &mut self,
         rules: &mut HashMap<Vec<u8>, Rule>,
@@ -281,6 +286,7 @@ impl RuleDeclaration {
         self.implicit_group_identity = None;
         self.location = None;
         self.recipe_started = false;
+        self.ignore_recipes = false;
         Ok(())
     }
 }
@@ -2697,11 +2703,12 @@ impl Database {
         assignment: TargetAssignment<'_>,
         location: &Location,
         context: &mut ExpansionContext<'_>,
-    ) -> Result<(), ParseError> {
+    ) -> Result<bool, ParseError> {
         let targets = crate::filenames::target_colons(targets);
         let targets = self
             .parsed_rule_filenames(&targets, location, context)?
             .collect::<Vec<_>>();
+        let has_targets = !targets.is_empty();
         for target in targets {
             let target = target.as_ref();
             let pattern = Pattern::new(target);
@@ -2879,7 +2886,7 @@ impl Database {
                 self.publish_target_scope(target);
             }
         }
-        Ok(())
+        Ok(has_targets)
     }
 
     fn publish_target_scope(&mut self, target: &[u8]) {
@@ -3934,7 +3941,7 @@ impl Database {
                 reader.skip_eval_bom();
             }
             let Some(mut line) = reader
-                .next_line(prefix, !declaration.targets.is_empty())
+                .next_line(prefix, declaration.has_recipe_context())
                 .map_err(|message| source_read_error_at(source_name.clone(), message, context))?
             else {
                 if !conditions.is_empty() {
@@ -3994,7 +4001,7 @@ impl Database {
             }
             let active = conditions.last().is_none_or(|c| c.active);
             if line.recipe {
-                if active {
+                if active && !declaration.ignore_recipes {
                     self.add_recipe(
                         declaration,
                         Recipe {
@@ -4181,7 +4188,8 @@ impl Database {
                         // Ignored definitions have no nesting counter: the
                         // first standalone endef resumes conditional reading.
                         let normal = strip_comment(&part.bytes);
-                        if (part.bytes.first() != Some(&prefix) || declaration.targets.is_empty())
+                        if (part.bytes.first() != Some(&prefix)
+                            || !declaration.has_recipe_context())
                             && directive(assignment_start(&normal), b"endef")
                                 .is_some_and(|rest| rest.is_empty())
                         {
@@ -4484,15 +4492,21 @@ impl Database {
             // in that RHS remain value bytes, and recursive effects stay lazy.
             let prefix_expansion = self.expand_rule_prefix(&text, rule_end, &location, context)?;
             if let Some(delimiter) = prefix_expansion.delimiter {
+                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
+                // Prefix effects already ran. A declaration with no names
+                // has no prerequisite expansion or target assignments.
+                if targets
+                    .iter()
+                    .all(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
+                {
+                    declaration.ignore_recipes = true;
+                    continue;
+                }
                 let mut tail = prefix_expansion.expanded[delimiter.tail_start..].to_vec();
                 tail.extend_from_slice(&text[prefix_expansion.consumed..]);
                 if let Some(assignment) = target_assignment(&tail) {
-                    self.define_target_assignments(
-                        &prefix_expansion.expanded[..delimiter.targets_end],
-                        assignment,
-                        &location,
-                        context,
-                    )?;
+                    declaration.ignore_recipes =
+                        !self.define_target_assignments(targets, assignment, &location, context)?;
                     continue;
                 }
             }
@@ -4514,6 +4528,10 @@ impl Database {
             } else {
                 None
             };
+            if observed_targets.as_ref().is_some_and(Vec::is_empty) {
+                declaration.ignore_recipes = true;
+                continue;
+            }
             let source_inline = separator(&line.bytes, b';')
                 .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
             let tail = self.expand(
@@ -4595,6 +4613,7 @@ impl Database {
                 declaration.targets.push(pattern.literal_bytes().to_vec());
             }
             if declaration.targets.is_empty() {
+                declaration.ignore_recipes = true;
                 continue;
             }
             let mut prereqs = &expanded[delimiter.tail_start..];

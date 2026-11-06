@@ -1,0 +1,12 @@
+id = "busybox-empty-static-no-recipe"
+requirement = "language.empty-static-target"
+candidate = "required"
+description = "Check recipe handling after an empty static pattern target list."
+provenance = "Original fixture inspired by the BusyBox host build shape."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "all\n"

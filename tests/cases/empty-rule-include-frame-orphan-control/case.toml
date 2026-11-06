@@ -1,0 +1,12 @@
+id = "empty-rule-include-frame-orphan-control"
+requirement = "language.empty-static-target"
+candidate = "required"
+description = "Check attachment and expansion boundaries of a targetless declaration."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** recipe commences before first target.  Stop.\n"
