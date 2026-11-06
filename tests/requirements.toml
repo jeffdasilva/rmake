@@ -2022,3 +2022,33 @@ candidate_required = 36
 fixture_count = 36
 reference = "docs/rule-quoted-semicolons.md"
 cases = ["rule-quoted-semicolon-continued-quoted-recipe", "rule-quoted-semicolon-following-effect-beyond-quoted-inline", "rule-quoted-semicolon-generated-recipe-dry-run-effect", "rule-quoted-semicolon-generated-rule-slashes-0", "rule-quoted-semicolon-generated-rule-slashes-1", "rule-quoted-semicolon-generated-rule-slashes-2", "rule-quoted-semicolon-generated-rule-slashes-3", "rule-quoted-semicolon-generated-rule-slashes-4", "rule-quoted-semicolon-generated-rule-slashes-5", "rule-quoted-semicolon-generated-rule-slashes-6", "rule-quoted-semicolon-generated-word-prerequisite", "rule-quoted-semicolon-no-physical-recipe-after-quoted-target", "rule-quoted-semicolon-physical-inline-prevents-expanded-scan", "rule-quoted-semicolon-physical-recipe-and-quoted-target", "rule-quoted-semicolon-quoted-semicolon-from-variable-value", "rule-quoted-semicolon-raw-inline-recipe-owns-shell-quoting", "rule-quoted-semicolon-raw-literal-inline-wins-over-expanded-semicolon", "rule-quoted-semicolon-raw-quotes-inside-function-are-expansion-data", "rule-quoted-semicolon-raw-rule-slashes-0", "rule-quoted-semicolon-raw-rule-slashes-1", "rule-quoted-semicolon-raw-rule-slashes-2", "rule-quoted-semicolon-raw-rule-slashes-3", "rule-quoted-semicolon-raw-rule-slashes-4", "rule-quoted-semicolon-raw-rule-slashes-5", "rule-quoted-semicolon-raw-rule-slashes-6", "rule-quoted-semicolon-target-assignment-raw-byte", "rule-quoted-semicolon-target-assignment-slashes-0", "rule-quoted-semicolon-target-assignment-slashes-1", "rule-quoted-semicolon-target-assignment-slashes-2", "rule-quoted-semicolon-target-assignment-slashes-3", "rule-quoted-semicolon-target-assignment-slashes-4", "rule-quoted-semicolon-target-assignment-slashes-5", "rule-quoted-semicolon-target-assignment-slashes-6", "rule-quoted-semicolon-top-level-variable-keeps-own-quoting", "rule-quoted-semicolon-unclosed-reference-keeps-earlier-effect", "rule-quoted-semicolon-unselected-raw-inline-remains-lazy"]
+
+[[requirements]]
+id = "scope.double-secondary"
+title = "Ordinary double-colon branch scope across secondary expansion and recipes"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 10
+fixture_count = 10
+reference = "docs/target-scopes.md"
+cases = ["double-secondary-scope-head-prerequisite", "double-secondary-scope-head-recipe-only", "double-secondary-scope-head-recipe-status-wins", "double-secondary-scope-head-without-recipe", "double-secondary-scope-no-status-control", "double-secondary-scope-prior-branch-prerequisite-inherits-head", "double-secondary-scope-sibling-keeps-global-status", "double-secondary-scope-single-branch-control", "double-secondary-scope-three-branches", "double-secondary-scope-up-to-date-head"]
+
+[[requirements]]
+id = "scope.double-branch-parent"
+title = "First prerequisite scope of ordinary double-colon branches"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 12
+fixture_count = 12
+reference = "docs/target-scopes.md"
+cases = ["double-parent-scope-branch-local-in-active-eval", "double-parent-scope-child-own-status", "double-parent-scope-empty-status-control", "double-parent-scope-gpath", "double-parent-scope-head-latest-recipe-status", "double-parent-scope-implicit-search", "double-parent-scope-inspected-intermediate", "double-parent-scope-later-direct", "double-parent-scope-order-only", "double-parent-scope-shared-first-owner", "double-parent-scope-transitive", "double-parent-scope-unrelated-owner-control"]
+
+[[requirements]]
+id = "scope.double-branch-retained"
+title = "Eager scope after a prerequisite is revisited by a later ordinary double-colon branch"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 14
+fixture_count = 14
+reference = "docs/target-scopes.md"
+cases = ["retained-double-branch-external-caller", "retained-double-branch-first-owner-later-control", "retained-double-branch-gpath", "retained-double-branch-keeps-retained-local", "retained-double-branch-live-caller", "retained-double-branch-named-head-control", "retained-double-branch-no-recipe-prerequisite", "retained-double-branch-no-revisit-control", "retained-double-branch-no-secondary-in-later-branch", "retained-double-branch-same-name-later", "retained-double-branch-suspended-caller", "retained-double-branch-switch-to-ordinary-parent", "retained-double-branch-third-branch", "retained-double-branch-transitive-retained"]

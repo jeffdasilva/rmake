@@ -1,0 +1,12 @@
+id = "double-secondary-scope-sibling-keeps-global-status"
+requirement = "scope.double-secondary"
+candidate = "required"
+description = "Check file and branch scope across double-colon secondary expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "next=[split|11]\nsibling=[sibling|3]\n"

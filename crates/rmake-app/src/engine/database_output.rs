@@ -465,7 +465,7 @@ mod tests {
             .unwrap();
         head.define_literal(b"*", b"first-stem", Origin::Automatic)
             .unwrap();
-        let mut branch = head.fresh_double_colon_scope();
+        let mut branch = head.fresh_double_colon_scope(1);
         branch
             .define_literal(b"@", b"second", Origin::Automatic)
             .unwrap();

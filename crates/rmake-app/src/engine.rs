@@ -16,7 +16,9 @@ use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver};
+use rmake_core::diagnostic::{
+    Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver, ScopeParent,
+};
 use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
@@ -547,11 +549,21 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
 }
 
 struct TargetReads<'a> {
-    parents: &'a HashMap<Vec<u8>, Option<Vec<u8>>>,
-    retained_parents: &'a HashMap<Vec<u8>, Vec<u8>>,
+    parents: &'a HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
+    retained_parents: &'a HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
     recipes: &'a mut HashMap<Vec<u8>, VariableStore>,
+    branches: &'a HashMap<(Vec<u8>, usize), VariableStore>,
+}
+
+impl TargetReads<'_> {
+    fn resolve_parent<'a>(&'a self, parent: &'a ScopeParent<Vec<u8>>) -> ScopeParent<&'a [u8]> {
+        ScopeParent {
+            target: self.aliases.resolve(&parent.target),
+            branch: parent.branch,
+        }
+    }
 }
 
 impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
@@ -559,20 +571,37 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
         self.recipes.get(target).or_else(|| self.base.get(target))
     }
 
-    fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>> {
+    fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>> {
         self.parents
             .get(target)
-            .map(|parent| parent.as_deref().map(|name| self.aliases.resolve(name)))
+            .map(|parent| parent.as_ref().map(|parent| self.resolve_parent(parent)))
     }
 
     fn has_parent_changes(&self) -> bool {
         !self.retained_parents.is_empty()
     }
 
-    fn changed_parent(&self, target: &[u8]) -> Option<&[u8]> {
+    fn changed_parent(&self, target: &[u8]) -> Option<ScopeParent<&[u8]>> {
         self.retained_parents
             .get(target)
-            .map(|name| self.aliases.resolve(name))
+            .map(|parent| self.resolve_parent(parent))
+    }
+
+    fn parent_variables(&self, parent: ScopeParent<&[u8]>) -> Option<&VariableStore> {
+        if let Some(ordinal) = parent.branch {
+            let mut key = (parent.target.to_vec(), ordinal);
+            if let Some(scope) = self.branches.get(&key) {
+                return Some(scope);
+            }
+            // A branch without its own table sees the head's table.
+            if ordinal != 0 {
+                key.1 = 0;
+                if let Some(head) = self.branches.get(&key) {
+                    return Some(head);
+                }
+            }
+        }
+        self.variables(parent.target)
     }
 
     fn retain_locals(&mut self, target: &[u8], variables: VariableStore) {
@@ -784,6 +813,15 @@ struct RuleState {
 }
 
 impl RuleState {
+    // Ordinary branches own their prerequisite edges. A group can combine
+    // prerequisites from several file records in the same traversal.
+    fn scope_parent<'a>(&self, target: &'a [u8]) -> ScopeParent<&'a [u8]> {
+        ScopeParent {
+            target,
+            branch: self.branch.filter(|_| self.group.is_none()),
+        }
+    }
+
     fn visited_prerequisites(&self) -> bool {
         self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
     }
@@ -949,10 +987,10 @@ pub struct Engine {
     recipe_reaps: u64,
     debug_pass: u64,
     visiting: HashSet<Vec<u8>>,
-    scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
+    scope_parents: HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
-    retained_scope_parents: HashMap<Vec<u8>, Vec<u8>>,
+    retained_scope_parents: HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
     impossible_prerequisites: HashSet<Vec<u8>>,
@@ -1624,6 +1662,7 @@ impl Engine {
             aliases: &self.aliases,
             base: &self.target_contexts,
             recipes: &mut self.database_contexts,
+            branches: &self.database_branch_contexts,
         };
         let result = self.database.expand_in(
             variables,
@@ -3698,7 +3737,7 @@ impl Engine {
     fn check_intermediate(
         &mut self,
         target: &[u8],
-        parent: &[u8],
+        parent: ScopeParent<&[u8]>,
         time: Option<SystemTime>,
         depth: usize,
     ) -> Inspection {
@@ -3758,7 +3797,7 @@ impl Engine {
         }
         self.scope_parents
             .entry(target.to_vec())
-            .or_insert_with(|| Some(parent.to_vec()));
+            .or_insert_with(|| Some(parent.into_owned()));
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
@@ -3793,7 +3832,9 @@ impl Engine {
             .unwrap_or(stored)
             .clone();
         if rule.secondary.is_some() {
-            if let Err(error) = self.expand_dependencies(target, &mut rule, double_colon) {
+            if let Err(error) =
+                self.expand_dependencies(target, &mut rule, double_colon.then_some(0))
+            {
                 self.expansion_error(rule.prerequisite_location.as_ref(), &error);
                 return Inspection {
                     outcome: Outcome {
@@ -3807,6 +3848,12 @@ impl Engine {
             }
             self.store_inspected_rule(target, double_colon, rule.clone());
         }
+        let child_parent = ScopeParent {
+            target,
+            branch: double_colon
+                .then_some(0)
+                .filter(|_| rule.grouped_double_id().is_none()),
+        };
         let mut result = Outcome {
             time,
             ..Outcome::default()
@@ -3851,7 +3898,7 @@ impl Engine {
                 outcome: mut child,
                 pending,
                 needs_rebuild,
-            } = self.check_intermediate(&dep.name, target, time, depth + 1);
+            } = self.check_intermediate(&dep.name, child_parent, time, depth + 1);
             self.optional_remake = optional;
             if optional && child.failed && !self.options.keep_going {
                 let mut shutdown = self.shutdown.get();
@@ -6427,12 +6474,13 @@ impl Engine {
         &mut self,
         target: &[u8],
         rule: &mut Rule,
-        double_colon: bool,
+        branch: Option<usize>,
     ) -> Result<(), ExpandError> {
         let Some(secondary) = rule.secondary.take() else {
             return Ok(());
         };
-        let mut variables = self.target_variables(target)?;
+        let grouped_double = rule.grouped_double_id().is_some();
+        let mut variables = self.rule_variables(target, branch.filter(|_| !grouped_double))?;
         // GNU attributes secondary-expansion messages to the selected recipe,
         // including for prerequisite clauses read from other files.
         rule.prerequisite_location = rule.recipe_location.clone();
@@ -6531,12 +6579,13 @@ impl Engine {
             rule.dependencies.splice(index..=index, expanded);
         }
         if let Some(context) = self.target_contexts.get_mut(target) {
-            context.retain_runtime_metadata(&variables, !double_colon);
+            let retain_shell_status = !grouped_double && branch.is_none_or(|ordinal| ordinal == 0);
+            context.retain_runtime_metadata(&variables, retain_shell_status);
         }
-        if !double_colon {
-            // Later evals can read these automatic variables even when this
-            // file has no recipe. Children use the reusable target context.
-            self.retain_database_context(target, None, &variables);
+        if !grouped_double {
+            // The recipe can read the prepared table, and a later branch can
+            // read the head's table. Prerequisites use the target context.
+            self.retain_database_context(target, branch, &variables);
         }
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
@@ -6623,8 +6672,8 @@ impl Engine {
                     parent: self
                         .scope_parents
                         .get(&dependency.name)
-                        .and_then(Clone::clone)
-                        .unwrap_or_else(|| target.to_vec()),
+                        .and_then(Option::as_ref)
+                        .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
                 })
             });
         self.optional_remake_failures
@@ -6723,14 +6772,19 @@ impl Engine {
         }
     }
 
-    fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+    fn build(
+        &mut self,
+        target: &[u8],
+        parent: Option<ScopeParent<&[u8]>>,
+        depth: usize,
+    ) -> Outcome {
         self.build_recording_initial_time(target, parent, depth, None, BuildVisit::Ordinary)
     }
 
     fn build_recording_initial_time(
         &mut self,
         target: &[u8],
-        parent: Option<&[u8]>,
+        parent: Option<ScopeParent<&[u8]>>,
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
         visit: BuildVisit,
@@ -6828,7 +6882,7 @@ impl Engine {
         &mut self,
         target: &[u8],
         considering_name: &[u8],
-        parent: Option<&[u8]>,
+        parent: Option<ScopeParent<&[u8]>>,
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
     ) -> Outcome {
@@ -6841,7 +6895,7 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
-            self.report_missing_rule(target, parent);
+            self.report_missing_rule(target, parent.map(|parent| parent.target));
         }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
@@ -6940,7 +6994,7 @@ impl Engine {
         // for this context. Pattern-scope activation itself remains lazy.
         self.scope_parents
             .entry(target.to_vec())
-            .or_insert_with(|| parent.map(Vec::from));
+            .or_insert_with(|| parent.map(ScopeParent::into_owned));
         let phony = self.special(b".PHONY", target, false);
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
@@ -7030,7 +7084,7 @@ impl Engine {
             );
             if !self.optional_remake {
                 self.show_makefile_error();
-                self.report_missing_rule(target, parent);
+                self.report_missing_rule(target, parent.map(|parent| parent.target));
             } else if depth == 0 {
                 crate::debug::emit(
                     &self.output,
@@ -7075,23 +7129,27 @@ impl Engine {
         self.build_rule(target, depth, before, comparison, phony, rule, None)
     }
 
-    fn remember_retained_scope_parent(&mut self, target: &[u8], parent: &[u8]) {
+    fn remember_retained_scope_parent(&mut self, target: &[u8], parent: ScopeParent<&[u8]>) {
         if !self.retained_scope_parents.is_empty()
             && let Some(latest) = self.retained_scope_parents.get_mut(target)
         {
-            if latest.as_slice() != parent {
-                latest.clear();
-                latest.extend_from_slice(parent);
+            if latest.target.as_slice() != parent.target {
+                latest.target.clear();
+                latest.target.extend_from_slice(parent.target);
             }
+            latest.branch = parent.branch;
             // Keep the live edge if it returns to its original parent. A
             // retained eager read may have updated this file's local table.
             return;
         }
         if self.scope_parents.get(target).is_some_and(|first| {
-            first.as_deref().map(|name| self.aliases.resolve(name)) != Some(parent)
+            first
+                .as_ref()
+                .map(|first| (self.aliases.resolve(&first.target), first.branch))
+                != Some((parent.target, parent.branch))
         }) {
             self.retained_scope_parents
-                .insert(target.to_vec(), parent.to_vec());
+                .insert(target.to_vec(), parent.into_owned());
         }
     }
 
@@ -7458,7 +7516,7 @@ impl Engine {
             }
         }
         let had_secondary = rule.secondary.is_some();
-        if let Err(error) = self.expand_dependencies(target, &mut rule, double_colon) {
+        if let Err(error) = self.expand_dependencies(target, &mut rule, branch) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
                 failed: true,
@@ -7645,11 +7703,7 @@ impl Engine {
                 self.scope_parents
                     .entry(peer.clone())
                     .or_insert(peer_parent);
-                if let Err(error) = self.expand_dependencies(
-                    &peer,
-                    &mut peer_rule,
-                    state.rule.grouped_double_id().is_some(),
-                ) {
+                if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule, None) {
                     self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
                     state.outcome.failed = true;
                     state.outcome.fatal = true;
@@ -7821,7 +7875,11 @@ impl Engine {
             self.apply_graph_abort(&mut state.outcome);
             if state.stale && !state.outcome.failed && !state.outcome.question_outdated {
                 for dependency in &state.deferred_intermediates {
-                    let child = self.build(dependency, Some(target), state.depth + 1);
+                    let child = self.build(
+                        dependency,
+                        Some(state.scope_parent(target)),
+                        state.depth + 1,
+                    );
                     merge_child(&mut state.outcome, child);
                     waiting |= self.pending(dependency);
                 }
@@ -7864,6 +7922,7 @@ impl Engine {
         }
         let occurrence = &state.rule.dependencies[index];
         let dependency = &occurrence.name;
+        let parent = state.scope_parent(target);
         let missing_middle = if first && self.intermediate(dependency) {
             match self.intermediate_time(dependency) {
                 Ok(time) => time.is_none(),
@@ -7888,7 +7947,7 @@ impl Engine {
                 outcome: child,
                 pending,
                 needs_rebuild,
-            } = self.check_intermediate(dependency, target, state.comparison, state.depth + 1);
+            } = self.check_intermediate(dependency, parent, state.comparison, state.depth + 1);
             if needs_rebuild {
                 state
                     .intermediate_stale
@@ -7933,7 +7992,7 @@ impl Engine {
                 };
                 self.build_recording_initial_time(
                     dependency,
-                    Some(target),
+                    Some(parent),
                     state.depth + 1,
                     None,
                     build_visit,
@@ -8438,7 +8497,8 @@ impl Engine {
                     let parent = self
                         .scope_parents
                         .get(target)
-                        .and_then(|name| name.as_deref());
+                        .and_then(Option::as_ref)
+                        .map(|parent| parent.target.as_slice());
                     self.report_missing_rule(target, parent);
                 }
                 outcome.failed = true;
@@ -8634,7 +8694,7 @@ impl Engine {
         }
         let parent = self.scope_parents.get(target).cloned().flatten();
         let inherited = if let Some(parent) = parent {
-            self.target_variables(&parent)?
+            self.rule_variables(&parent.target, parent.branch)?
         } else {
             self.database.variables.clone()
         };
@@ -8679,6 +8739,34 @@ impl Engine {
         self.target_contexts
             .insert(target.to_vec(), variables.clone());
         Ok(variables)
+    }
+
+    // Later double-colon branches see the head's table without sharing a
+    // writable local table with it or with each other.
+    fn rule_variables(
+        &mut self,
+        target: &[u8],
+        branch: Option<usize>,
+    ) -> Result<VariableStore, ExpandError> {
+        let Some(ordinal) = branch else {
+            return self.target_variables(target);
+        };
+        let key = (self.aliases.resolve(target).to_vec(), ordinal);
+        if let Some(scope) = self.database_branch_contexts.get(&key) {
+            return Ok(scope.clone());
+        }
+        if ordinal == 0 {
+            return self.target_variables(&key.0);
+        }
+        let head_key = (key.0, 0);
+        if let Some(head) = self.database_branch_contexts.get(&head_key) {
+            return Ok(head.fresh_double_colon_scope(ordinal));
+        }
+        // A later branch can be the first one to expand a recipe.
+        let head = self.target_variables(&head_key.0)?;
+        let scope = head.fresh_double_colon_scope(ordinal);
+        self.database_branch_contexts.insert(head_key, head);
+        Ok(scope)
     }
 
     fn execute(
@@ -8812,23 +8900,7 @@ impl Engine {
         if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
             return Execution::failure(false, Cleanup::None);
         }
-        let variables = if branch.is_some_and(|ordinal| ordinal > 0) {
-            let head_key = (target.to_vec(), 0);
-            if let Some(head) = self.database_branch_contexts.get(&head_key) {
-                Ok(head.fresh_double_colon_scope())
-            } else {
-                // A later branch initializes its own table even if the head
-                // never expanded a recipe. Its lookups can visit the head.
-                self.target_variables(target).map(|head| {
-                    let variables = head.fresh_double_colon_scope();
-                    self.database_branch_contexts.insert(head_key, head);
-                    variables
-                })
-            }
-        } else {
-            self.target_variables(target)
-        };
-        let mut variables = match variables {
+        let mut variables = match self.rule_variables(target, branch) {
             Ok(variables) => variables,
             Err(error) => {
                 self.expansion_error(None, &error);
@@ -9354,6 +9426,7 @@ impl Engine {
                     aliases: &self.aliases,
                     base: &self.target_contexts,
                     recipes: &mut self.database_contexts,
+                    branches: &self.database_branch_contexts,
                 };
                 for name in &exports {
                     self.database.refresh_scoped_variables(variables);

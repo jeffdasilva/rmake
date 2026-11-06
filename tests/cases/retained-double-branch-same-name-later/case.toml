@@ -1,0 +1,12 @@
+id = "retained-double-branch-same-name-later"
+requirement = "scope.double-branch-retained"
+candidate = "required"
+description = "Check retained prerequisite reads after an ordinary branch visit."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "first=[shared|7]\nretained=[shared|11]\n"

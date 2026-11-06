@@ -648,6 +648,7 @@ pub struct VariableStore {
     environment_override: bool,
     scoped: bool,
     file_locals: bool,
+    double_colon_ordinal: usize,
     target_scope_revision: u64,
 }
 
@@ -661,6 +662,7 @@ impl Default for VariableStore {
             environment_override: false,
             scoped: false,
             file_locals: false,
+            double_colon_ordinal: 0,
             target_scope_revision: 0,
         }
     }
@@ -1319,13 +1321,15 @@ impl VariableStore {
             environment_override: false,
             scoped: true,
             file_locals: true,
+            double_colon_ordinal: 0,
             target_scope_revision: self.target_scope_revision,
         }
     }
 
     /// Enter a later double-colon branch. Its automatic locals are independent,
     /// while the first branch remains a visible sibling scope, not an ancestor.
-    pub fn fresh_double_colon_scope(&self) -> Self {
+    pub fn fresh_double_colon_scope(&self, ordinal: usize) -> Self {
+        debug_assert!(ordinal > 0);
         let mut variables = empty_bindings(32);
         if self.variables.database_history.is_some() {
             Arc::make_mut(&mut variables).database_history = Some(
@@ -1350,6 +1354,7 @@ impl VariableStore {
             environment_override: self.environment_override,
             scoped: true,
             file_locals: true,
+            double_colon_ordinal: ordinal,
             target_scope_revision: self.target_scope_revision,
         }
     }
@@ -1473,6 +1478,22 @@ impl VariableStore {
 
     pub(crate) fn is_file_read_context(&self, target: &[u8]) -> bool {
         self.current_file_declarations(Some(target)).is_some()
+    }
+
+    pub(crate) fn is_file_read_parent(
+        &self,
+        parent: crate::diagnostic::ScopeParent<&[u8]>,
+    ) -> bool {
+        let ordinal = parent.branch.unwrap_or(0);
+        if ordinal == 0 {
+            return self.is_file_read_context(parent.target);
+        }
+        // A later branch's first layer holds the head's locals. Its explicit
+        // declarations follow that layer, with the same file name.
+        self.double_colon_ordinal == ordinal
+            && self.layers.get(1).is_some_and(|layer| {
+                !layer.inherited && layer.target.as_deref() == Some(parent.target)
+            })
     }
 
     /// A completed file keeps its locals and activated patterns. Only the
@@ -8527,7 +8548,7 @@ mod runtime_metadata_scope_tests {
         head.define_literal(b"PRIVATE", b"visible", Origin::File)
             .unwrap();
         head.set_private(b"PRIVATE", true);
-        let mut branch = head.fresh_double_colon_scope();
+        let mut branch = head.fresh_double_colon_scope(1);
         branch
             .define_literal(b"@", b"second", Origin::Automatic)
             .unwrap();
