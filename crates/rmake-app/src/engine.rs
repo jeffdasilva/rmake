@@ -3913,7 +3913,6 @@ impl Engine {
         };
         let mut stale = self.options.always;
         let mut waiting = false;
-        let serial = self.special(b".NOTPARALLEL", target, false);
         self.visiting.insert(target.to_vec());
         let mut next = 0;
         let mut order = self.shuffle.order(target, rule.dependencies.len());
@@ -3921,10 +3920,9 @@ impl Engine {
         while next < rule.dependencies.len() {
             let index = order.get(next).copied().unwrap_or(next);
             let dep = &rule.dependencies[index];
+            // A freshness inspection visits inputs across prerequisite
+            // barriers. The actual rebuild still uses the normal scheduler.
             if dep.name == b".WAIT" {
-                if waiting {
-                    break;
-                }
                 next += 1;
                 continue;
             }
@@ -3966,7 +3964,7 @@ impl Engine {
             if !pending {
                 stale |= !dep.order_only && needs_rebuild;
             }
-            if child.fatal || (child.failed && !self.options.keep_going) || (serial && pending) {
+            if child.fatal || (child.failed && !self.options.keep_going) {
                 break;
             }
         }
