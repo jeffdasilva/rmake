@@ -146,6 +146,7 @@ def models() -> list[Model]:
     result.extend(source_provenance_models())
     result.extend(startup_exit_models())
     result.extend(target_read_models())
+    result.extend(secondary_scope_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -570,6 +571,52 @@ caller: export TRIGGER = $(probe_eval_guard dest: FIRST := $$(info before=[$$(.S
               b'ready\ncaller:;@$(info shell=[$(shell printf \'%s\' "$$TRIGGER")]):\n',
               b'selected=[first|dest]\n:\nretained=[second|dest]\nshell=[ready]\n:\n',
               b'retained\neval-returned\n', args=('-n',)),
+    ]
+
+
+def secondary_scope_models() -> list[Model]:
+    header = b'load probe_api.so\n.SECONDEXPANSION:\n'
+
+    def model(name, source, stdout, marks, **files):
+        return Model('native-secondary-scope-' + name,
+                       {'Makefile': header + source, 'seen': b'anchor\n', **files},
+                       {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+                       b'anchor\n' + marks, args=('-rR', '--no-print-directory'))
+
+    return [
+        model('current-explicit', b'''CHECK = $(probe_eval_guard all: RESULT := $$(info active=[$$@|$$<|$$(.SHELLSTATUS)])$$(file >>seen,active))
+all: stamp
+all: $$(shell /bin/sh -c 'exit 7') $$(CHECK)
+all:;@:
+stamp:;@:
+''', b'active=[all|stamp|7]\n', b'active\neval-returned\n'),
+        model('previous-explicit', b'''CHECK = $(probe_eval_guard first: RESULT := $$(info retained=[$$@|$$<|$$(.SHELLSTATUS)])$$(file >>seen,retained))
+all: first after
+.PHONY: first
+first: stamp
+first: $$(shell /bin/sh -c 'exit 7')
+after: $$(CHECK)
+after:;@:
+stamp:;@:
+''', b'retained=[first|stamp|7]\n', b'retained\neval-returned\n'),
+        model('suspended-explicit', b'''CHECK = $(probe_eval_guard first: RESULT := $$(eval after: BACK := $$$$(info caller=[$$$$@|$$$$(.SHELLSTATUS)])$$$$(file >>seen,caller))$$(info retained=[$$@|$$<|$$(.SHELLSTATUS)])$$(file >>seen,retained))
+all: first after
+.PHONY: first
+first: stamp
+first: $$(shell /bin/sh -c 'exit 7')
+after: $$(shell /bin/sh -c 'exit 11') $$(CHECK)
+after:;@$(info recipe=[$@|$(.SHELLSTATUS)]):
+stamp:;@:
+''', b'caller=[after|11]\nretained=[first|stamp|7]\nrecipe=[after|11]\n',
+              b'caller\nretained\neval-returned\n'),
+        model('unentered-implicit-intermediate', b'''CHECK = $(probe_eval_guard item.mid: RESULT := $$(info active=[$$@|$$*])$$(file >>seen,active))
+all: item.out
+all:;@:
+%.out: %.mid
+	@:
+%.mid: %.in $$(CHECK)
+	@:
+''', b'active=[|]\n', b'active\neval-returned\n', **{'item.in': b''}),
     ]
 
 

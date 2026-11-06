@@ -987,11 +987,15 @@ impl VariableStore {
         self.define(name, value, Assignment::Recursive, origin)
     }
 
-    /// Retain normalized per-file switch bindings across secondary expansion.
-    /// Automatic variables belong to that expansion and must not enter the
-    /// reusable target context or be inherited by its prerequisites.
-    pub fn retain_runtime_metadata(&mut self, expanded: &Self) {
-        for name in [b"MAKEFLAGS".as_slice(), b"MFLAGS"] {
+    /// Retain per-file state that the recipe and prerequisites can inherit.
+    /// A secondary expansion's automatic variables stay in its read context.
+    pub fn retain_runtime_metadata(&mut self, expanded: &Self, retain_shell_status: bool) {
+        let names: &[&[u8]] = if retain_shell_status {
+            &[b"MAKEFLAGS", b"MFLAGS", b".SHELLSTATUS"]
+        } else {
+            &[b"MAKEFLAGS", b"MFLAGS"]
+        };
+        for &name in names {
             if let Some(value) = expanded.variables.get(name) {
                 Arc::make_mut(&mut self.variables).insert(name, value.clone());
             }
@@ -8527,7 +8531,7 @@ mod runtime_metadata_scope_tests {
     }
 
     #[test]
-    fn retained_flags_do_not_leak_secondary_automatic_variables() {
+    fn retained_metadata_does_not_leak_secondary_automatic_variables() {
         let globals = VariableStore::new();
         let mut base = globals.with_target_scopes(&[]);
         let mut secondary = base.clone();
@@ -8538,8 +8542,15 @@ mod runtime_metadata_scope_tests {
         secondary
             .define_literal(b"@", b"parent", Origin::Automatic)
             .unwrap();
-        base.retain_runtime_metadata(&secondary);
-        assert_eq!(base.expand(b"$(MAKEFLAGS)|$(MFLAGS)|$@").unwrap(), b"k|-k|");
+        secondary
+            .define_literal(b".SHELLSTATUS", b"7", Origin::Override)
+            .unwrap();
+        base.retain_runtime_metadata(&secondary, true);
+        assert_eq!(
+            base.expand(b"$(MAKEFLAGS)|$(MFLAGS)|$(.SHELLSTATUS)|$@")
+                .unwrap(),
+            b"k|-k|7|"
+        );
         assert!(globals.get(b"MAKEFLAGS").is_none());
         assert!(base.get(b"@").is_none());
         assert_eq!(secondary.expand(b"$@").unwrap(), b"parent");

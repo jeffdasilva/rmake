@@ -1982,3 +1982,13 @@ candidate_required = 20
 fixture_count = 20
 reference = "docs/rule-delimiters.md"
 cases = ["rule-delimiter-adjacent-expanded-amp-and-colon", "rule-delimiter-adjacent-expanded-colons", "rule-delimiter-adjacent-expanded-colons-with-empty-word-fragment", "rule-delimiter-eval-expanded-amp-assignment", "rule-delimiter-expanded-amp-assignment-keeps-name", "rule-delimiter-expanded-amp-assignment-spaced", "rule-delimiter-expanded-amp-before-literal-group", "rule-delimiter-expanded-amp-pattern-assignment", "rule-delimiter-expanded-amp-rule-literal-goal", "rule-delimiter-expanded-amp-rule-plain-goal", "rule-delimiter-expanded-colon-before-literal-assignment", "rule-delimiter-expanded-colon-before-literal-colon", "rule-delimiter-expanded-colon-retains-lazy-value", "rule-delimiter-expanded-double-colon-token", "rule-delimiter-expanded-group-before-literal-colon", "rule-delimiter-expanded-grouped-token", "rule-delimiter-literal-amp-assignment", "rule-delimiter-literal-colon-before-expanded-colon", "rule-delimiter-literal-double-colon", "rule-delimiter-literal-group-keeps-other-amp"]
+
+[[requirements]]
+id = "scope.secondary-retained"
+title = "Retained single-colon file scope after explicit secondary expansion"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 10
+fixture_count = 10
+reference = "docs/target-scopes.md"
+cases = ["secondary-retained-scope-active-eval", "secondary-retained-scope-cross-from-recipe", "secondary-retained-scope-cross-from-secondary", "secondary-retained-scope-cross-then-return", "secondary-retained-scope-descendant-local-wins", "secondary-retained-scope-descendant-status", "secondary-retained-scope-global-unchanged", "secondary-retained-scope-later-clause-reads-status", "secondary-retained-scope-no-local-status-control", "secondary-retained-scope-same-recipe-status"]

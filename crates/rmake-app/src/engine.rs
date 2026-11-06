@@ -3705,7 +3705,7 @@ impl Engine {
             .unwrap_or(stored)
             .clone();
         if rule.secondary.is_some() {
-            if let Err(error) = self.expand_dependencies(target, &mut rule) {
+            if let Err(error) = self.expand_dependencies(target, &mut rule, double_colon) {
                 self.expansion_error(rule.prerequisite_location.as_ref(), &error);
                 return Inspection {
                     outcome: Outcome {
@@ -6307,7 +6307,12 @@ impl Engine {
         Ok(result)
     }
 
-    fn expand_dependencies(&mut self, target: &[u8], rule: &mut Rule) -> Result<(), ExpandError> {
+    fn expand_dependencies(
+        &mut self,
+        target: &[u8],
+        rule: &mut Rule,
+        double_colon: bool,
+    ) -> Result<(), ExpandError> {
         let Some(secondary) = rule.secondary.take() else {
             return Ok(());
         };
@@ -6410,7 +6415,12 @@ impl Engine {
             rule.dependencies.splice(index..=index, expanded);
         }
         if let Some(context) = self.target_contexts.get_mut(target) {
-            context.retain_runtime_metadata(&variables);
+            context.retain_runtime_metadata(&variables, !double_colon);
+        }
+        if !double_colon {
+            // Later evals can read these automatic variables even when this
+            // file has no recipe. Children use the reusable target context.
+            self.retain_database_context(target, None, &variables);
         }
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
@@ -7325,7 +7335,7 @@ impl Engine {
             }
         }
         let had_secondary = rule.secondary.is_some();
-        if let Err(error) = self.expand_dependencies(target, &mut rule) {
+        if let Err(error) = self.expand_dependencies(target, &mut rule, double_colon) {
             self.expansion_error(rule.prerequisite_location.as_ref(), &error);
             let result = Outcome {
                 failed: true,
@@ -7513,7 +7523,11 @@ impl Engine {
                 self.scope_parents
                     .entry(peer.clone())
                     .or_insert(peer_parent);
-                if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule) {
+                if let Err(error) = self.expand_dependencies(
+                    &peer,
+                    &mut peer_rule,
+                    state.rule.grouped_double_id().is_some(),
+                ) {
                     self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
                     state.outcome.failed = true;
                     state.outcome.fatal = true;
