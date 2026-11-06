@@ -30,6 +30,31 @@ pub enum Invocation {
 /// `/bin/sh` with the attempted program and its prepared arguments, without
 /// adding `.SHELLFLAGS` again.
 pub fn prepare(command: &[u8], shell: &[u8], flags: &[u8], ifs: Option<&[u8]>) -> Invocation {
+    prepare_in_mode(command, shell, flags, ifs, Mode::Recipe)
+}
+
+pub(crate) fn prepare_shell_function(
+    command: &[u8],
+    shell: &[u8],
+    flags: &[u8],
+    ifs: Option<&[u8]>,
+    one_shell: bool,
+) -> Invocation {
+    let mode = if one_shell {
+        Mode::Recipe
+    } else {
+        Mode::ShellFunction
+    };
+    prepare_in_mode(command, shell, flags, ifs, mode)
+}
+
+fn prepare_in_mode(
+    command: &[u8],
+    shell: &[u8],
+    flags: &[u8],
+    ifs: Option<&[u8]>,
+    mode: Mode,
+) -> Invocation {
     if shell == b"/bin/sh"
         && matches!(flags, b"-c" | b"-ec")
         && ifs.is_none_or(|value| {
@@ -37,13 +62,16 @@ pub fn prepare(command: &[u8], shell: &[u8], flags: &[u8], ifs: Option<&[u8]>) -
                 .iter()
                 .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
         })
-        && let Some(split) = split_words(command, Mode::Recipe)
+        && let Some(split) = split_words(command, mode)
         && split
             .words
             .first()
             .is_some_and(|program| !requires_shell(program))
     {
         return direct_command(split.words);
+    }
+    if mode == Mode::ShellFunction && command.contains(&b'\n') {
+        return shell_invocation(&fold_unescaped_newlines(command), shell, flags);
     }
     shell_invocation(command, shell, flags)
 }
@@ -125,6 +153,7 @@ fn command_boundary(command: &[u8], direct: bool) -> usize {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Recipe,
+    ShellFunction,
     Configuration,
 }
 
@@ -163,7 +192,7 @@ fn split_words(input: &[u8], mode: Mode) -> Option<WordSplit> {
                 started = true;
                 quote = Some(byte);
             }
-            b'\n' if mode == Mode::Configuration => {
+            b'\n' if mode != Mode::Recipe => {
                 word.push(byte);
                 started = true;
             }
@@ -357,26 +386,30 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     // A failed fast configuration parse goes through an outer interpreter.
     // Unescaped configuration LFs fold at that boundary; original backslash-LF
     // pairs survive to the interpreter. The recipe is quoted only afterwards.
-    let mut folded = Vec::with_capacity(configuration.len());
-    let mut at = 0;
-    while at < configuration.len() {
-        if configuration[at] == b'\\' && configuration.get(at + 1) == Some(&b'\n') {
-            folded.extend_from_slice(&configuration[at..at + 2]);
-            at += 2;
-        } else {
-            if configuration[at] != b'\n' {
-                folded.push(configuration[at]);
-            }
-            at += 1;
-        }
-    }
-    configuration = folded;
+    configuration = fold_unescaped_newlines(&configuration);
     configuration.push(b' ');
     single_quote(command, &mut configuration);
     Invocation::Shell {
         program: b"/bin/sh".to_vec(),
         args: vec![b"-c".to_vec(), configuration],
     }
+}
+
+fn fold_unescaped_newlines(input: &[u8]) -> Vec<u8> {
+    let mut folded = Vec::with_capacity(input.len());
+    let mut at = 0;
+    while at < input.len() {
+        if input[at] == b'\\' && input.get(at + 1) == Some(&b'\n') {
+            folded.extend_from_slice(&input[at..at + 2]);
+            at += 2;
+        } else {
+            if input[at] != b'\n' {
+                folded.push(input[at]);
+            }
+            at += 1;
+        }
+    }
+    folded
 }
 
 fn single_quote(input: &[u8], output: &mut Vec<u8>) {

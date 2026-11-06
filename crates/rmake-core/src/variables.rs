@@ -684,6 +684,7 @@ pub struct VariableStore {
     layers: VariableLayers,
     working_directory: StartingDirectory,
     original_shell: Option<Arc<[u8]>>,
+    one_shell: bool,
     environment_override: bool,
     scoped: bool,
     file_locals: bool,
@@ -698,6 +699,7 @@ impl Default for VariableStore {
             layers: VariableLayers::default(),
             working_directory: StartingDirectory::Unconfigured,
             original_shell: None,
+            one_shell: false,
             environment_override: false,
             scoped: false,
             file_locals: false,
@@ -927,6 +929,10 @@ impl VariableStore {
     }
 
     /// Invocation data, independent of the visible SHELL binding and eval.
+    pub(crate) fn enable_oneshell(&mut self) {
+        self.one_shell = true;
+    }
+
     pub fn set_original_shell(&mut self, value: &[u8]) {
         self.original_shell = Some(value.into());
     }
@@ -1404,6 +1410,7 @@ impl VariableStore {
             layers: VariableLayers::new(layers),
             working_directory: self.working_directory.clone(),
             original_shell: self.original_shell.clone(),
+            one_shell: self.one_shell,
             environment_override: false,
             scoped: true,
             file_locals: true,
@@ -1437,6 +1444,7 @@ impl VariableStore {
             layers: VariableLayers::new(layers),
             working_directory: self.working_directory.clone(),
             original_shell: self.original_shell.clone(),
+            one_shell: self.one_shell,
             environment_override: self.environment_override,
             scoped: true,
             file_locals: true,
@@ -1499,6 +1507,7 @@ impl VariableStore {
     /// Rebase a saved traversal context after an activation changed global
     /// metadata. Explicit scope snapshots remain independent of global changes.
     pub fn refresh_globals(&mut self, globals: &VariableStore) {
+        self.one_shell |= globals.one_shell;
         if !self.scoped {
             if !Arc::ptr_eq(&self.variables, &globals.variables) {
                 self.variables = Arc::clone(&globals.variables);
@@ -3935,6 +3944,7 @@ impl Expansion<'_, '_> {
                 ifs: ifs.as_deref(),
                 environment: &environment,
                 original_shell: original_shell.as_deref(),
+                one_shell: self.store.one_shell,
             })
             .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
             .map_err(ExpandError::UnlocatedError)?;

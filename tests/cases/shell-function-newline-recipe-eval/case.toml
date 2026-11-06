@@ -1,0 +1,12 @@
+id = "shell-function-newline-recipe-eval"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell-function newline bytes and one-shell activation follow GNU command selection."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout = "before=[[66697273740a2e2f63617074757265][7365636f6e64]]\n"
+stderr = "Makefile:2: *** prerequisites cannot be defined in recipes.  Stop.\n"

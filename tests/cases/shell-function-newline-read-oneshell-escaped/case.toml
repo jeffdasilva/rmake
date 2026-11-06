@@ -1,0 +1,12 @@
+id = "shell-function-newline-read-oneshell-escaped"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell-function newline bytes and one-shell activation follow GNU command selection."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "result=[[6669727374][2e2f63617074757265][7365636f6e64]] status=[0]\nmake: 'all' is up to date.\n"
+stderr = ""
