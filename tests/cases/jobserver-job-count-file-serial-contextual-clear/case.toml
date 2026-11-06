@@ -1,0 +1,12 @@
+id = "jobserver-job-count-file-serial-contextual-clear"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "GNU job-count conversion and job flag source ordering."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "--jobserver-style=pipe", "-rR", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "before=[rR -j1 --no-print-directory]\nafter=[rR -I<home>/include --no-print-directory]\n"

@@ -1,0 +1,16 @@
+id = "jobserver-job-count-sequential-env-sets"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "GNU job-count conversion and job flag source ordering."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "--jobserver-style=pipe", "-rR", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = "--jobs=-1"
+MAKEFLAGS = "--jobs=1"
+
+[expected]
+exit_code = 0
+stdout = "before=[rR -j1 --no-print-directory]\nafter=[rR -j1 --no-print-directory]\n"
+stderr = ""

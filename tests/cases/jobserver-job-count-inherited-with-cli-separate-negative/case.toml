@@ -1,0 +1,14 @@
+id = "jobserver-job-count-inherited-with-cli-separate-negative"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "GNU job-count conversion and job flag source ordering."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "--jobserver-style=pipe", "-rR", "--jobs", "-1", "all"]
+timeout_seconds = 5
+
+[environment]
+MAKEFLAGS = "--jobs=1"
+
+[expected]
+exit_code = 2
+stdout = ""

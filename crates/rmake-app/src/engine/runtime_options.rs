@@ -386,7 +386,6 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         let options = &mut self.decoder.options;
         let silent = (options.silent, options.silent_origin.take());
         let keep = (options.keep_going, options.keep_going_origin.take());
-        let jobs = options.jobs.take();
         let directory = (options.directory_choice, options.directory_origin.take());
         self.decoder.cursor = cursor.saturating_sub(1);
         let mut next = self
@@ -419,10 +418,8 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             options.directory_choice = directory.0;
             options.directory_origin = directory.1;
         }
-        if options.jobs.is_some() {
+        if self.decoder.jobs_changed {
             self.file_jobs = options.jobs;
-        } else {
-            options.jobs = jobs;
         }
         let notice = next
             .as_ref()
