@@ -1446,6 +1446,30 @@ impl VariableStore {
         layer.variables.get(name)
     }
 
+    fn current_file_declarations(&self, target: Option<&[u8]>) -> Option<&VariableLayer> {
+        let target = target?;
+        self.layers.first().filter(|layer| {
+            self.file_locals && !layer.inherited && layer.target.as_deref() == Some(target)
+        })
+    }
+
+    /// Read an eager declaration in the already active file context while
+    /// keeping the explicit binding table separate from automatic locals.
+    pub(crate) fn active_target_read(&self, target: &[u8], declaration: &Self) -> Option<Self> {
+        let layer = self.current_file_declarations(Some(target))?;
+        let mut read = self.clone();
+        if !Arc::ptr_eq(&layer.variables, &declaration.variables) {
+            read.layers.make_mut()[0].variables = Arc::clone(&declaration.variables);
+        }
+        Some(read)
+    }
+
+    pub(crate) fn finish_active_target_read(&mut self, read: Self, caller: &mut Self) {
+        self.variables = Arc::clone(&read.layers[0].variables);
+        // A shell effect in this reader updates the same active file locals.
+        caller.variables = read.variables;
+    }
+
     pub(crate) fn file_scope_history(
         &self,
         target: &[u8],
@@ -2345,8 +2369,8 @@ impl TargetScope {
         }
     }
 
-    /// The read context sees this target's earlier declarations over the current
-    /// global definitions. Ancestors do not exist until dependency traversal.
+    /// The declaration table with the current global definitions underneath.
+    /// An active file can supply a richer view during eager expansion.
     pub fn context(&self, globals: &VariableStore) -> VariableStore {
         let mut context = globals.with_target_scopes(&[]);
         context.variables = Arc::clone(&self.variables);
@@ -2609,11 +2633,20 @@ impl TargetScope {
     }
 
     pub(crate) fn retain_read_bindings(&mut self, scope: &VariableStore) {
-        self.variables = Arc::clone(&scope.variables);
+        let bindings = scope
+            .current_file_declarations(self.target.as_deref())
+            .map_or(&scope.variables, |layer| &layer.variables);
+        self.variables = Arc::clone(bindings);
     }
 
     pub(crate) fn refresh_read_bindings(&self, scope: &mut VariableStore) {
-        scope.variables = Arc::clone(&self.variables);
+        if let Some(layer) = scope.current_file_declarations(self.target.as_deref()) {
+            if !Arc::ptr_eq(&layer.variables, &self.variables) {
+                scope.layers.make_mut()[0].variables = Arc::clone(&self.variables);
+            }
+        } else {
+            scope.variables = Arc::clone(&self.variables);
+        }
     }
 }
 

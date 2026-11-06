@@ -277,6 +277,23 @@
         "fresh_smoke_stdout_hex": "7a6c69623d312e332e320a726f756e64747269703d6f6b0a"
       },
       "smoke_stdout_hex": "7a6c69623d312e332e322d726d616b650a726f756e64747269703d6f6b0a"
+    },
+    {
+      "id": "gnu-make-4.4.1-parallel-fifo",
+      "project": "gnu-make-4.4.1",
+      "args": [
+        "-j2",
+        "--jobserver-style=fifo",
+        "--output-sync=recurse",
+        "--no-print-directory",
+        "-s",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
+      ],
+      "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e20706f0a4d616b696e6720616c6c20696e20646f630a"
     }
   ],
   "phases": [

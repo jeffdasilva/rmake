@@ -1,0 +1,12 @@
+id = "debug-grouped-missing-freshness-older-and-order-only"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Check grouped prerequisite diagnostics and side effects with missing or current peers."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory", "--debug=v", "a"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'a'.\n Grouped target peer 'b' of file 'a' does not exist.\n Considering target file 'input'.\n Finished prerequisites of target file 'input'.\n No need to remake target 'input'.\n Considering target file 'witness'.\n Finished prerequisites of target file 'witness'.\n No need to remake target 'witness'.\n Pruning file 'input'.\n Pruning file 'witness'.\n Pruning file 'input'.\n Pruning file 'witness'.\nFinished prerequisites of target file 'a'.\nMust remake target 'a'.\nbuilt:a\nSuccessfully remade target file 'a'.\n"
+stderr = ""

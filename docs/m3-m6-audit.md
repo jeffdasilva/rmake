@@ -63,6 +63,21 @@ pinned development profile does not establish those surfaces.
 | Performance | [Prepared startup retention](startup-retention.md) removes unused copies with repeated allocation observations and mixed paired timing evidence. [Automatic snapshots](automatic-snapshots.md) avoid unused owned preparation with raw glibc-request and paired timing evidence. General performance parity, persistent cache correctness and complete workload/profile acceptance remain open. |
 | Unsafe oracle behavior | The owner approved [documented safe errors](safety-exceptions.md), including the explicit normal-exit nested-short extension. The separate gate covers 32 inputs: 17 recorded crash/hang cases plus 15 approved state hazards, with zero exact-conformance credit. Eighteen nested-short boundaries retain exact GNU behavior. CLI eval/restart controls remain required ordinary fixtures. Broader decoder/resource/profile work stays open. |
 
+The live target declaration gate now includes eager recipe-time `eval` in the
+active file scope. It verifies inherited, pattern and automatic variables,
+nested publications, and shell status alongside inactive-target controls.
+The selected named Makefile operand is also retained across process restart
+while startup assignments replay. [Target scopes](target-scopes.md) ·
+[Named Makefiles and stdin](stdin-sources.md)
+
+The diagnostic gate has separate models for ordinary and intermediate
+`.DEFAULT` selection, grouped peer and owner freshness, serial question mode,
+and cached asynchronous prerequisite visits after a child reap. An owned pipe
+test verifies the nested wait when the recipe child is already waitable. The
+real-project gate also builds pinned GNU Make itself in serial and with a
+recursive FIFO jobserver. [Reap regression](../tests/debug-reap-race/README.md) ·
+[Real-project corpus](project-integration.md)
+
 The implementation order is language and metadata correctness, complete option
 and presentation behavior, native extension/profile adapters, then the expanded
 integration/profile audit. Continue adding cross-family cases rather than

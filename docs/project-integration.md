@@ -21,7 +21,7 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes all eight profiles across six projects. `INTEGRATION_CASE` selects an
+executes all nine profiles across six projects. `INTEGRATION_CASE` selects an
 exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
@@ -94,7 +94,12 @@ disposable `src/config.h` rebuilds both outputs. The fresh and rebuilt
 executables report their expected versions and execute a small original
 Makefile read from standard input. The built executable is a smoke witness.
 
-These eight Linux/GCC profiles are counted separately from ordinary curated
+The same GNU Make source runs with a two-slot FIFO jobserver and recursive
+output synchronization. The original directory announcements for `lib`, `po`,
+and `doc` are the exact build, no-op and rebuild output. The serial and
+parallel profiles each check the same version change and stdin rule execution.
+
+These nine Linux/GCC profiles are counted separately from ordinary curated
 Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its

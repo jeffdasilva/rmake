@@ -46,6 +46,7 @@ pub enum MessageId {
     FailedMakefileRemake,
     NothingToBeDone,
     UpToDate,
+    LowResolutionTime,
     CircularDependency,
     MissingTargetPattern,
     MultipleTargetPatterns,
@@ -68,7 +69,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 58] = [
+    pub const ALL: [Self; 59] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -108,6 +109,7 @@ impl MessageId {
         Self::FailedMakefileRemake,
         Self::NothingToBeDone,
         Self::UpToDate,
+        Self::LowResolutionTime,
         Self::CircularDependency,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
@@ -226,6 +228,7 @@ impl MessageId {
             Self::FailedMakefileRemake => Message::FailedMakefileRemake(b"Makefile"),
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
             Self::UpToDate => Message::UpToDate(b"target"),
+            Self::LowResolutionTime => Message::LowResolutionTime(b"target"),
             Self::CircularDependency => Message::CircularDependency {
                 target: b"target",
                 prerequisite: b"input",
@@ -309,6 +312,9 @@ impl MessageId {
             Self::FailedMakefileRemake => c"Failed to remake makefile '%s'.",
             Self::NothingToBeDone => c"Nothing to be done for '%s'.",
             Self::UpToDate => c"'%s' is up to date.",
+            Self::LowResolutionTime => {
+                c"*** Warning: .LOW_RESOLUTION_TIME file '%s' has a high resolution time stamp"
+            }
             Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
@@ -448,6 +454,7 @@ pub enum Message<'a> {
     FailedMakefileRemake(&'a [u8]),
     NothingToBeDone(&'a [u8]),
     UpToDate(&'a [u8]),
+    LowResolutionTime(&'a [u8]),
     CircularDependency {
         target: &'a [u8],
         prerequisite: &'a [u8],
@@ -555,6 +562,7 @@ impl<'a> Message<'a> {
             Self::FailedMakefileRemake(_) => MessageId::FailedMakefileRemake,
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
             Self::UpToDate(_) => MessageId::UpToDate,
+            Self::LowResolutionTime(_) => MessageId::LowResolutionTime,
             Self::CircularDependency { .. } => MessageId::CircularDependency,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
@@ -607,6 +615,7 @@ impl<'a> Message<'a> {
             | Self::DuplicateRecipe { target: name, .. }
             | Self::NothingToBeDone(name)
             | Self::UpToDate(name)
+            | Self::LowResolutionTime(name)
             | Self::DirectiveTail(name)
             | Self::InvalidFileOperation(name)
             | Self::FailedMakefileRemake(name)

@@ -54,6 +54,13 @@ definition location and export and private qualifiers, and clears append state.
 A declaration made by recipe-time `eval` can use a caller target's command
 value while keeping a different export policy on the declared target.
 
+An eager declaration of the currently active file uses its existing pattern,
+ancestor, and automatic bindings for computed names and immediate values. Its
+explicit definitions stay in their declaration table across nested `eval`,
+and a shell completion updates the active file's `.SHELLSTATUS`. Reading an
+unselected file still uses its declarations and the reader's global context.
+Thirteen original fixtures cover the active and unselected cases.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.
