@@ -1,0 +1,12 @@
+id = "shell-assignment-fold-eval-multiple"
+requirement = "functions.shell"
+candidate = "required"
+description = "A shell assignment folds newlines and strips one trailing line break."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "assign=[text  ] func=[text] status=[0]\nmake: 'all' is up to date.\n"
+stderr = ""
