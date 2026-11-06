@@ -1,0 +1,11 @@
+id = "generated-rule-word-inline-assignment-value-effect"
+requirement = "rules.generated-word-tail"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated rule source-word boundary: inline assignment value effect."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6174650a5b617c6c6f63616c3b5d0a"
+stderr_hex = ""
