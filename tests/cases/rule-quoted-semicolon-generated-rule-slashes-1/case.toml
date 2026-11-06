@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-generated-rule-slashes-1"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original quoted rule semicolon phases: generated rule slashes 1."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265636970650a"
+stderr_hex = ""

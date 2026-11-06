@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-physical-recipe-and-quoted-target"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a;b"]
+description = "Original quoted rule semicolon phases: physical recipe and quoted target."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b613b625d0a"
+stderr_hex = ""

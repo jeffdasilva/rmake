@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-target-assignment-slashes-6"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original quoted rule semicolon phases: target assignment slashes 6."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6265666f72655c3b61667465725d0a"
+stderr_hex = ""
