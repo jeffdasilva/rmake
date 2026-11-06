@@ -359,13 +359,7 @@ pub fn disable_pipe_jobserver(command: &mut std::process::Command, inherited_mfl
                         flags
                             .windows(4)
                             .position(|part| part == b" -- ")
-                            .unwrap_or_else(|| {
-                                if flags.ends_with(b" --") {
-                                    flags.len() - 3
-                                } else {
-                                    flags.len()
-                                }
-                            })
+                            .unwrap_or(flags.len())
                     } else {
                         flags.len()
                     };

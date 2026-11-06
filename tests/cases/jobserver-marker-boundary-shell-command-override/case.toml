@@ -1,0 +1,12 @@
+id = "jobserver-marker-boundary-shell-command-override"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Pipe marker insertion respects the exported flag assignment boundary."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "x --jobserver-auth=opaque --jobserver-auth=-2,-2 -- X=a b\n"
+stderr = ""
