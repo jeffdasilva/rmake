@@ -1,0 +1,13 @@
+id = "include-optional-replay-0-recipe-failure-required-other-false"
+requirement = "includes.remake"
+candidate = "required"
+description = "Read failure or hidden prerequisite cause in cause-0-recipe-failure-required-other-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "6661696c0a4d616b6566696c653a353a2072657175697265642e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202773686172656430272c206e6565646564206279202772657175697265642e6d6b272e202053746f702e0a"
+stderr_hex = ""

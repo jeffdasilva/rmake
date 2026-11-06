@@ -1,0 +1,13 @@
+id = "include-failed-open-read-late-created-false-false-none"
+requirement = "includes.remake"
+candidate = "required"
+description = "Read failure or hidden prerequisite cause in read-late-created-False-False-none"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "4d616b6566696c653a323a207061796c6f61642e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420277061796c6f61642e6d6b272e202053746f702e0a"
+stderr_hex = ""
