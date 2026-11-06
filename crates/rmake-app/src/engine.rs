@@ -843,7 +843,7 @@ impl RuleState {
 
     fn waiting_at_barrier(&self) -> bool {
         let index = self.order.get(self.next).copied().unwrap_or(self.next);
-        self.group.is_none()
+        self.group.as_ref().is_none_or(|group| group.run.implicit)
             && !self.serial_phase
             && self
                 .rule
@@ -7770,7 +7770,10 @@ impl Engine {
             && self.shutdown.get() == Shutdown::Running;
         state.replay_cached_after_recipe = (state.replay_cached_after_recipe
             && state.last_debug_pass == self.debug_pass)
-            || (replay_debug && state.branch.is_some() && state.waiting_at_barrier());
+            || (replay_debug
+                && (state.branch.is_some()
+                    || state.group.as_ref().is_some_and(|group| group.run.implicit))
+                && state.waiting_at_barrier());
         state.last_debug_pass = self.debug_pass;
         if replay_debug {
             if let Some(ordinal) = state.branch {
