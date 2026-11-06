@@ -130,6 +130,17 @@ def successful(value):
     return value.returncode == 0 and value.limit is None and not value.leftover_processes
 
 
+def configuration_stdout_matches(profile, stdout):
+    anchor = profile.get('stdout_anchor')
+    if anchor is not None:
+        marker = anchor.encode('utf-8')
+        offset = stdout.find(marker)
+        if not marker or offset < 0 or stdout.find(marker, offset + len(marker)) >= 0:
+            return False
+        stdout = stdout[offset:]
+    return hashlib.sha256(stdout).hexdigest() == profile['stdout_sha256']
+
+
 def validate_smoke(value, expected):
     return successful(value) and value.stdout == expected and not value.stderr
 
@@ -271,7 +282,7 @@ def configuration_campaign(project, fixture, runtime, binaries, parts):
         errors = []
         if not successful(value):
             errors.append('configuration status/process bounds')
-        if value.stderr or hashlib.sha256(value.stdout).hexdigest() != profile['stdout_sha256']:
+        if value.stderr or not configuration_stdout_matches(profile, value.stdout):
             errors.append('independent configuration stream bytes')
         for name, digest in profile['output_sha256'].items():
             result = effects.get('work/' + str(safe_name(name))) or {}

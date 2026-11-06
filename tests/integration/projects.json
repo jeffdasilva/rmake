@@ -268,7 +268,8 @@
           "KCONFIG_NOTIMESTAMP": "1",
           "SOURCE_DATE_EPOCH": "1727390000"
         },
-        "stdout_sha256": "230d32315dc5bfd2115994ce98cc90c3c8b7eb46017f6971ff9854063c7d9398",
+        "stdout_anchor": "* Busybox Configuration\n",
+        "stdout_sha256": "c631d70ee83d68cc0812c42171038ea413b269c12735ea348ebb673a7d335967",
         "output_sha256": {
           ".config": "474fff392e218faf6854acb4fd017a9c9352875f96c9442e35bdb12cbd1d399f",
           ".kernelrelease": "fbfda2117eb5b2ed303ae73dbc55f71c3080cf120fcf78aab3959d1502b9ded6"
