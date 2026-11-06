@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+import os
+import sys
+
+print("[" + "][".join(os.fsencode(arg).hex() for arg in sys.argv[1:]) + "]")

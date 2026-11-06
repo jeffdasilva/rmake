@@ -148,7 +148,22 @@ fn split_words(input: &[u8], mode: Mode) -> Option<Vec<Vec<u8>>> {
                 started = true;
             }
             b'\\' => match input.get(index) {
-                Some(b'\n') => index += 1,
+                Some(b'\n') => {
+                    index += 1;
+                    // At the start of a word, GNU's direct lexer also skips
+                    // the indentation after the continuation. A quote may
+                    // have started the word without contributing any bytes.
+                    if word.is_empty() {
+                        while matches!(input.get(index), Some(b' ' | b'\t')) {
+                            index += 1;
+                        }
+                        // Configuration appends the recipe as its final
+                        // word. It fills this empty word at the boundary.
+                        if mode == Mode::Configuration && index == input.len() {
+                            started = false;
+                        }
+                    }
+                }
                 Some(next) => {
                     word.push(*next);
                     started = true;

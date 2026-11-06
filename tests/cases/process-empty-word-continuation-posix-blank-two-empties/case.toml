@@ -1,0 +1,12 @@
+id = "process-empty-word-continuation-posix-blank-two-empties"
+requirement = "process.invocation"
+candidate = "required"
+description = "An escaped line continuation can join the argument following an empty word."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[746f70][6e657874][7461696c]\n"
+stderr = ""
