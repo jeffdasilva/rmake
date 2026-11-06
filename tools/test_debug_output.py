@@ -152,7 +152,7 @@ class DebugOutputTests(unittest.TestCase):
                 identity(1234)
 
     def test_static_inventory_and_retained_history_hashes(self):
-        models=d.models();self.assertEqual(len(models),280);self.assertEqual(len({model.id for model in models}),280)
+        models=d.models();self.assertEqual(len(models),292);self.assertEqual(len({model.id for model in models}),292)
         self.assertEqual(sum(model.id.startswith('debug-child-') for model in models),10)
         self.assertEqual(sum(model.id.startswith('debug-boundary-') for model in models),14)
         self.assertEqual(sum(model.id.startswith('debug-stem-limit-') for model in models),8)
