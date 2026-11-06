@@ -1,0 +1,13 @@
+id = "library-refresh-effect-literal-question-archive-quiet"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Goal or library status after a recipe: library-effect-literal-question-archive-quiet"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-q"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

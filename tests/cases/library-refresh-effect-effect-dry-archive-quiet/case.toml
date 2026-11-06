@@ -1,0 +1,13 @@
+id = "library-refresh-effect-effect-dry-archive-quiet"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Goal or library status after a recipe: library-effect-effect-dry-archive-quiet"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-n"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368206c69627769646765742e610a3a0a7072696e74662022696e707574733d5b25735d5c6e2220222d6c776964676574220a"
+stderr_hex = ""

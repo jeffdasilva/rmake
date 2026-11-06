@@ -1,0 +1,13 @@
+id = "library-refresh-implicit-local-short-name-false-false"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Goal or library status after a recipe: library-implicit-local-short-name-False-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "6275696c64696e67205b6c69627769646765742e615d0a696e707574733d5b2d6c7769646765745d0a"
+stderr_hex = ""

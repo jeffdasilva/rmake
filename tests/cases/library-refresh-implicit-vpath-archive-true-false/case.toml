@@ -1,0 +1,13 @@
+id = "library-refresh-implicit-vpath-archive-true-false"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Goal or library status after a recipe: library-implicit-vpath-archive-True-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "6275696c64696e67205b706f6f6c2f6c69627769646765742e615d0a696e707574733d5b706f6f6c2f6c69627769646765742e6120616c6c2e6d61726b65725d0a"
+stderr_hex = ""

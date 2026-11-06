@@ -1,0 +1,13 @@
+id = "goal-summary-after-indirect-exists-empty-normal"
+requirement = "includes.remake"
+candidate = "required"
+description = "Goal or library status after a recipe: remake-status-indirect-exists-empty-normal"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "product"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a202770726f647563742720697320757020746f20646174652e0a"
+stderr_hex = ""
