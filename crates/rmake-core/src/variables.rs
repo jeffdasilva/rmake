@@ -642,7 +642,7 @@ enum StartingDirectory {
 #[derive(Clone, Debug)]
 pub struct VariableStore {
     variables: Arc<Bindings>,
-    layers: Vec<VariableLayer>,
+    layers: VariableLayers,
     working_directory: StartingDirectory,
     original_shell: Option<Arc<[u8]>>,
     environment_override: bool,
@@ -655,7 +655,7 @@ impl Default for VariableStore {
     fn default() -> Self {
         Self {
             variables: empty_bindings(1024),
-            layers: Vec::new(),
+            layers: VariableLayers::default(),
             working_directory: StartingDirectory::Unconfigured,
             original_shell: None,
             environment_override: false,
@@ -687,6 +687,29 @@ struct VariableLayer {
     inherited: bool,
     global: bool,
     pattern: bool,
+}
+
+/// Snapshots share the ordered layers until a binding or visibility changes.
+/// The unscoped store needs no layer allocation.
+#[derive(Clone, Debug, Default)]
+struct VariableLayers(Option<Arc<Vec<VariableLayer>>>);
+
+impl VariableLayers {
+    fn new(layers: Vec<VariableLayer>) -> Self {
+        Self((!layers.is_empty()).then(|| Arc::new(layers)))
+    }
+
+    fn make_mut(&mut self) -> &mut Vec<VariableLayer> {
+        Arc::make_mut(self.0.get_or_insert_with(|| Arc::new(Vec::new())))
+    }
+}
+
+impl std::ops::Deref for VariableLayers {
+    type Target = [VariableLayer];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_deref().map_or(&[], Vec::as_slice)
+    }
 }
 
 /// Bindings attached to a target or pattern, independent of build rules.
@@ -1278,7 +1301,7 @@ impl VariableStore {
             // Empty local maps can share storage. Definitions use Arc::make_mut
             // so writes in one target still leave parents and siblings intact.
             variables: local_variables,
-            layers,
+            layers: VariableLayers::new(layers),
             working_directory: self.working_directory.clone(),
             original_shell: self.original_shell.clone(),
             environment_override: false,
@@ -1309,7 +1332,7 @@ impl VariableStore {
         layers.extend(self.layers.iter().cloned());
         Self {
             variables,
-            layers,
+            layers: VariableLayers::new(layers),
             working_directory: self.working_directory.clone(),
             original_shell: self.original_shell.clone(),
             environment_override: self.environment_override,
@@ -1322,15 +1345,19 @@ impl VariableStore {
     /// A file rename can merge explicit bindings after its pattern scope was
     /// activated. Replace only that explicit layer, without replaying effects.
     pub fn refresh_target_scope(&mut self, scope: &TargetScope) {
-        if let Some(layer) = self
+        if let Some(index) = self
             .layers
-            .iter_mut()
-            .find(|layer| !layer.inherited && layer.target.is_some())
+            .iter()
+            .position(|layer| !layer.inherited && layer.target.is_some())
         {
-            layer.variables = Arc::clone(&scope.variables);
-            layer.target.clone_from(&scope.target);
+            let layer = &self.layers[index];
+            if !Arc::ptr_eq(&layer.variables, &scope.variables) || layer.target != scope.target {
+                let layer = &mut self.layers.make_mut()[index];
+                layer.variables = Arc::clone(&scope.variables);
+                layer.target.clone_from(&scope.target);
+            }
         } else if !scope.variables.is_empty() {
-            self.layers.insert(
+            self.layers.make_mut().insert(
                 0,
                 VariableLayer {
                     file_locals: false,
@@ -1347,7 +1374,7 @@ impl VariableStore {
     /// A target declared inside a global call or loop sees those lexical
     /// bindings behind its own table, before the permanent global table.
     pub(crate) fn add_declaration_lexical(&mut self, lexical: &DeclarationLexical) {
-        let layers = lexical
+        let mut layers = lexical
             .0
             .iter()
             .rev()
@@ -1359,26 +1386,29 @@ impl VariableStore {
                 inherited: true,
                 global: false,
                 pattern: false,
-            });
-        self.layers.splice(0..0, layers);
+            })
+            .peekable();
+        if layers.peek().is_some() {
+            self.layers.make_mut().splice(0..0, layers);
+        }
     }
 
     /// Rebase a saved traversal context after an activation changed global
     /// metadata. Explicit scope snapshots remain independent of global changes.
     pub fn refresh_globals(&mut self, globals: &VariableStore) {
         if !self.scoped {
-            self.variables = Arc::clone(&globals.variables);
+            if !Arc::ptr_eq(&self.variables, &globals.variables) {
+                self.variables = Arc::clone(&globals.variables);
+            }
             return;
         }
-        let mut found = false;
-        for layer in &mut self.layers {
-            if layer.global {
-                layer.variables = Arc::clone(&globals.variables);
-                found = true;
+        // The root is the only layer that represents the global table.
+        if let Some(index) = self.layers.iter().position(|layer| layer.global) {
+            if !Arc::ptr_eq(&self.layers[index].variables, &globals.variables) {
+                self.layers.make_mut()[index].variables = Arc::clone(&globals.variables);
             }
-        }
-        if !found && !globals.variables.is_empty() {
-            self.layers.push(VariableLayer {
+        } else if !globals.variables.is_empty() {
+            self.layers.make_mut().push(VariableLayer {
                 file_locals: false,
                 variables: Arc::clone(&globals.variables),
                 target: None,
@@ -1399,9 +1429,12 @@ impl VariableStore {
         if self.target_scope_revision == revision {
             return;
         }
-        for layer in &mut self.layers {
-            if let Some(scope) = layer.target.as_deref().and_then(|name| scopes.get(name)) {
-                layer.variables = Arc::clone(&scope.variables);
+        for index in 0..self.layers.len() {
+            let layer = &self.layers[index];
+            if let Some(scope) = layer.target.as_deref().and_then(|name| scopes.get(name))
+                && !Arc::ptr_eq(&layer.variables, &scope.variables)
+            {
+                self.layers.make_mut()[index].variables = Arc::clone(&scope.variables);
             }
         }
         self.target_scope_revision = revision;
@@ -1438,9 +1471,10 @@ impl VariableStore {
     /// in the complete target context; use expand_environment_variable_with.
     pub fn for_environment(&self) -> Self {
         let mut environment = self.clone();
-        for layer in &mut environment.layers {
-            if layer.pattern {
-                layer.inherited = true;
+        for index in 0..environment.layers.len() {
+            let layer = &environment.layers[index];
+            if layer.pattern && !layer.inherited {
+                environment.layers.make_mut()[index].inherited = true;
             }
         }
         environment
@@ -2376,10 +2410,12 @@ impl TargetScope {
         let mut scope = self.context(globals);
         // Pattern initialization shares the global lookup boundary. A private
         // global is visible here even though recipes cannot inherit its value.
-        for layer in &mut scope.layers {
-            if layer.global {
-                layer.inherited = false;
-            }
+        if let Some(index) = scope
+            .layers
+            .iter()
+            .position(|layer| layer.global && layer.inherited)
+        {
+            scope.layers.make_mut()[index].inherited = false;
         }
         let name = prepared.name.as_slice();
         let aliases_global = prepared.assignment == Assignment::Conditional
@@ -6958,7 +6994,7 @@ mod tests {
     #[test]
     fn additional_append_storage_rejects_before_the_outer_body_effect() {
         let mut store = append_stress_context(260, |_| vec![b'x'; 128 * 1024]);
-        let global = Arc::make_mut(&mut store.layers.last_mut().unwrap().variables)
+        let global = Arc::make_mut(&mut store.layers.make_mut().last_mut().unwrap().variables)
             .get_mut(b"V".as_slice())
             .unwrap();
         global.value = b"$(file >>seen,E)base".to_vec();
@@ -6985,7 +7021,7 @@ mod tests {
     #[test]
     fn append_separator_overflow_prevents_the_next_body_effect() {
         let mut store = append_stress_context(1, |_| b"$(file >>seen,E)x".to_vec());
-        let global = Arc::make_mut(&mut store.layers.last_mut().unwrap().variables)
+        let global = Arc::make_mut(&mut store.layers.make_mut().last_mut().unwrap().variables)
             .get_mut(b"V".as_slice())
             .unwrap();
         global.flavor = Flavor::Simple;
@@ -7025,6 +7061,24 @@ mod tests {
         assert!(first.get(b"@").is_none());
         assert_eq!(second.expand(b"$@:$(X)").unwrap(), b"target:global");
         assert_eq!(second.definitions().count(), 2);
+    }
+
+    #[test]
+    fn empty_declaration_lexical_keeps_shared_layers() {
+        let mut globals = VariableStore::new();
+        define(&mut globals, b"X", b"global", Assignment::Recursive);
+        let mut context = globals.with_target_scopes(&[]);
+        let snapshot = context.clone();
+        for lexical in [
+            DeclarationLexical::default(),
+            DeclarationLexical::capture(&[LocalFrame::new(None)]),
+        ] {
+            context.add_declaration_lexical(&lexical);
+            assert!(Arc::ptr_eq(
+                context.layers.0.as_ref().unwrap(),
+                snapshot.layers.0.as_ref().unwrap(),
+            ));
+        }
     }
 
     #[test]
