@@ -1,0 +1,2 @@
+include existing.mk
+all: ; @:

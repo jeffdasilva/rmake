@@ -206,6 +206,7 @@ pub enum Event<'a> {
     UpdatingGoals,
     Considering(&'a [u8], usize),
     Missing(&'a [u8], usize),
+    PrerequisitesRunning(&'a [u8], usize),
     Finished(&'a [u8], usize),
     Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
     MustRemake(&'a [u8], usize),
@@ -253,6 +254,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
             depth,
         ),
         Event::Considering(_, depth)
+        | Event::PrerequisitesRunning(_, depth)
         | Event::Finished(_, depth)
         | Event::RecipeRunning(_, depth)
         | Event::NoNeed(_, _, depth)
@@ -300,6 +302,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
         Event::Considering(name, _) => print(msg::CONSIDERING, &[bytes(name)]),
         Event::Missing(name, _) => print(msg::MISSING, &[bytes(name)]),
+        Event::PrerequisitesRunning(name, _) => print(msg::PREREQUISITES_RUNNING, &[bytes(name)]),
         Event::Finished(name, _) => print(msg::FINISHED, &[bytes(name)]),
         Event::Prerequisite(state, dependency, target, _) => print(
             match state {

@@ -1,0 +1,12 @@
+id = "shell-lexical-directive-eager-next-iteration-retains-only-policy"
+requirement = "variables.export-bindings"
+candidate = "required"
+description = "Check live lexical export policy ownership across eager target reads."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "outer=[one]\nouter=[two]\ncap=[one] after=[]\n"
+stderr = ""

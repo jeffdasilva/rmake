@@ -140,6 +140,19 @@ class LocaleDataTests(unittest.TestCase):
                 with self.assertRaisesRegex(data.ProfileError, 'compiled locale differs'): data.provision(destination)
                 self.assertEqual(run.call_count, 1)
 
+    def test_compiled_locpath_cannot_be_used_as_a_profile_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            compiled = Path(temporary) / 'locales'
+            french = compiled / 'fr_FR.UTF-8'
+            french.mkdir(parents=True)
+            (french / 'LC_COLLATE').write_bytes(b'compiled')
+            before = data.tree_digest(compiled)
+            with patch.object(data, 'authenticate') as authenticate:
+                with self.assertRaisesRegex(data.ProfileError, 'compiled LOCPATH'):
+                    data.provision(compiled)
+                authenticate.assert_not_called()
+            self.assertEqual(data.tree_digest(compiled), before)
+
     def test_unpinned_profile_and_wrong_platform_fail_before_authentication(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); lock = root / 'lock.json'; lock.write_text(json.dumps({'schema_version': 1, 'locale': 'fr_FR.UTF-8'}))

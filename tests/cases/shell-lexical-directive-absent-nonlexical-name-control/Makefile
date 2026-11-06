@@ -1,0 +1,1 @@
+all:;@$(foreach LEX,local,$(eval export OTHER)$(info inside=$(origin OTHER)|$(flavor OTHER)|$(shell printf "[%s]" "$$OTHER")))$(info after=$(origin OTHER)|$(flavor OTHER))printf "recipe=%s\n" "$${OTHER+x}"

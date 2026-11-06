@@ -1,0 +1,1 @@
+all:;@$(let LEX AUX NAMES,one two LEX AUX,$(eval export $$(info names=$$(NAMES))$$(NAMES))$(info lex=$(shell printf "[%s]" "$$LEX") aux=$(shell printf "[%s]" "$$AUX")))$(info after=$(origin LEX)|$(origin AUX)):
