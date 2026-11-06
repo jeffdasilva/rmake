@@ -987,6 +987,7 @@ pub struct Engine {
     database: Database,
     database_dumped: Cell<bool>,
     database_implicit: HashSet<Vec<u8>>,
+    terminal_prerequisites: HashSet<Vec<u8>>,
     database_contexts: HashMap<Vec<u8>, VariableStore>,
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
@@ -1556,6 +1557,7 @@ impl Engine {
             database,
             database_dumped: Cell::new(false),
             database_implicit: HashSet::new(),
+            terminal_prerequisites: HashSet::new(),
             database_contexts: HashMap::new(),
             database_branch_contexts: HashMap::new(),
             database_branch_outcomes: HashMap::new(),
@@ -4992,6 +4994,7 @@ impl Engine {
         }
         for flags in [
             &mut self.database_implicit,
+            &mut self.terminal_prerequisites,
             &mut self.database_secondary,
             &mut self.database_remake_started,
         ] {
@@ -5673,20 +5676,23 @@ impl Engine {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
             rule => rule.cloned(),
         };
-        self.database_implicit.insert(target.to_vec());
         let mut budget = 100_000;
-        crate::debug::emit(
-            &self.output,
-            crate::debug::Event::Looking(target, debug_depth + 1),
-        );
-        let plan =
+        let plan = if self.terminal_prerequisites.contains(target) {
+            None
+        } else {
+            self.database_implicit.insert(target.to_vec());
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Looking(target, debug_depth + 1),
+            );
             match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
                 Ok(plan) => plan,
                 Err(error) => {
                     self.expansion_error(None, &error);
                     return false;
                 }
-            };
+            }
+        };
         if plan.is_none() && budget == 0 {
             self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
             return false;
@@ -5765,6 +5771,17 @@ impl Engine {
                     explicit_names: _,
                     intermediate_names,
                 } = selection;
+                if rule.terminal {
+                    // Accepting a terminal rule bars implicit search when
+                    // visiting its prerequisites. Explicit recipes and the
+                    // ordinary default-recipe check still apply.
+                    for dependency in &rule.dependencies {
+                        if dependency.name != b".WAIT" {
+                            self.terminal_prerequisites.insert(dependency.name.clone());
+                            self.database_implicit.insert(dependency.name.clone());
+                        }
+                    }
+                }
                 // A selected implicit rule promotes its file to a target,
                 // including recipes converted from undeclared builtin records.
                 rule.record_only = false;
