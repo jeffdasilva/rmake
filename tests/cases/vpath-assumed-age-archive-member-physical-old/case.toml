@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-archive-member-physical-old"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-o", "src/libpack.a(item.o)", "all"]
+description = "An old searched archive member skips its recipe while a dependent sees its physical member age."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "706172656e743d5b7372632f6c69627061636b2e61286974656d2e6f297c6974656d2e6f5d0a"
+stderr_hex = ""

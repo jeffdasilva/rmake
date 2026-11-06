@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-vpath-physical-age-considers-link"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-L", "-o", "src/x", "all"]
+description = "Vpath physical age considers link."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "706172656e743d5b7372632f787c7372632f785d0a"
+stderr_hex = ""

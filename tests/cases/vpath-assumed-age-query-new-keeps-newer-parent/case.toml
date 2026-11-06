@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-query-new-keeps-newer-parent"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q", "-W", "src/x", "all"]
+description = "Query new keeps newer parent."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = ""
+stderr_hex = ""

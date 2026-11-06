@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-physical-new-rebuilds-stale-source"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-W", "src/x", "all"]
+description = "Physical new rebuilds stale source."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d5b7372632f787c736565645d0a"
+stderr_hex = ""

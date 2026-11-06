@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-selective-search-keeps-physical-age"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-W", "src/x", "all"]
+description = "Selective search keeps physical age."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a2027616c6c2720697320757020746f20646174652e0a"
+stderr_hex = ""

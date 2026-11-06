@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-query-old-sees-newer-file"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q", "-o", "src/x", "all"]
+description = "Query old sees newer file."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

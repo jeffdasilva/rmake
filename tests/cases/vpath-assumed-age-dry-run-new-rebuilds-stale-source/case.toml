@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-dry-run-new-rebuilds-stale-source"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n", "-W", "src/x", "all"]
+description = "Dry run new rebuilds stale source."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620276368696c643d5b25737c25735d5c6e2720277372632f7827202773656564270a7072696e74662027706172656e743d5b25737c25735d5c6e2720277372632f782720277372632f78270a"
+stderr_hex = ""
