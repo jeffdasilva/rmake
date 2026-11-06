@@ -95,6 +95,50 @@ class IntegrationTests(unittest.TestCase):
         self.assertNotEqual(shared['smoke_stdout_hex'],
                             shared['header_rebuild']['fresh_smoke_stdout_hex'])
 
+    def test_busybox_build_reuses_the_config_source_and_pins_the_reviewed_edits(self):
+        cases = i.project_profiles(json.loads(i.MANIFEST.read_text()))
+        config, source = cases['busybox-1.37.0']
+        build, pinned = cases['busybox-1.37.0-executable']
+        self.assertIs(config, source)
+        self.assertIs(pinned, source)
+        self.assertEqual(config['target'], 'defconfig')
+        self.assertEqual(build['configuration']['args'][-1], 'allnoconfig')
+        self.assertEqual(build['target'], 'busybox')
+        self.assertEqual(build['smoke'], ['./busybox', 'printf', '%s\\n', 'rmake-busybox'])
+        self.assertEqual(bytes.fromhex(build['smoke_stdout_hex']), b'rmake-busybox\n')
+        self.assertEqual(set(build['configuration']['build']['replace_lines'].values()),
+                         {'CONFIG_BUSYBOX=y', 'CONFIG_PRINTF=y', 'CONFIG_SHOW_USAGE=y'})
+        self.assertEqual(i.build_snapshot_limits(config), {})
+        self.assertEqual(i.build_snapshot_limits(build),
+                         {'max_files': 8192, 'max_total_bytes': 48 * 1024 * 1024})
+        for limits in ({'max_files': 8193}, {'max_total_bytes': True}, {'max_files': -1},
+                       {'timeout': 180}, []):
+            with self.subTest(limits=limits), self.assertRaisesRegex(h.HarnessError, 'snapshot limits'):
+                i.build_snapshot_limits({'snapshot': limits})
+
+    def test_configuration_edits_require_unique_lines_and_a_pinned_result(self):
+        old = b'# CONFIG_APP is not set\nother=value\n'
+        new = b'CONFIG_APP=y\nother=value\n'
+        plan = {'path': '.config', 'replace_lines': {'# CONFIG_APP is not set': 'CONFIG_APP=y'},
+                'sha256': hashlib.sha256(new).hexdigest()}
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            config = work / '.config'
+            config.write_bytes(old)
+            i.edit_configuration(work, plan)
+            self.assertEqual(config.read_bytes(), new)
+            for initial, expected in ((old * 2, 'exactly one'), (new, 'exactly one'),
+                                      (old.replace(b'other=value', b'other=different'), 'reviewed build input')):
+                config.write_bytes(initial)
+                with self.assertRaisesRegex(h.HarnessError, expected):
+                    i.edit_configuration(work, plan)
+                self.assertEqual(config.read_bytes(), initial)
+            outside = work / 'real'
+            config.rename(outside)
+            config.symlink_to(outside)
+            with self.assertRaisesRegex(h.HarnessError, 'regular file'):
+                i.edit_configuration(work, plan)
+
     def test_archive_cache_does_not_accept_changed_or_symlinked_sources(self):
         source = b'pinned bytes'
         project = {'id': 'unit', 'archive_sha256': hashlib.sha256(source).hexdigest()}

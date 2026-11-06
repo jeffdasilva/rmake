@@ -195,6 +195,20 @@ class ObservationTests(unittest.TestCase):
             with self.assertRaises(runner.HarnessError):
                 runner.snapshot({"work": self.root})
 
+    def test_snapshot_can_bound_larger_aggregate_without_allowing_larger_files(self):
+        (self.root / "first").write_bytes(b"abc")
+        (self.root / "second").write_bytes(b"def")
+        with mock.patch.object(runner, "MAX_FILE_BYTES", 3), mock.patch.object(runner, "MAX_FILES", 2):
+            with self.assertRaisesRegex(runner.HarnessError, "limit"):
+                runner.snapshot({"work": self.root})
+            observed = runner.snapshot({"work": self.root}, max_files=3, max_total_bytes=6)
+            self.assertEqual(set(observed), {"work", "work/first", "work/second"})
+            with self.assertRaisesRegex(runner.HarnessError, "fixture"):
+                runner.validate_fixture(self.root)
+            (self.root / "first").write_bytes(b"abcd")
+            with self.assertRaisesRegex(runner.HarnessError, "byte limit"):
+                runner.snapshot({"work": self.root}, max_files=3, max_total_bytes=8)
+
     def test_comparator_mutants(self):
         original = runner.Observation(b"out\n", b"err\n", 0, None,
                                       {"out": {"mode": 0o644, "content": "eA=="}})
