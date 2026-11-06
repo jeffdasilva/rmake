@@ -1135,8 +1135,18 @@ impl VariableStore {
     }
 
     fn lookup_from(&self, name: &[u8], start: usize) -> Option<(usize, &Variable)> {
+        self.lookup_from_visible(name, start, true)
+    }
+
+    fn lookup_from_visible(
+        &self,
+        name: &[u8],
+        start: usize,
+        local_private: bool,
+    ) -> Option<(usize, &Variable)> {
         if start == 0
             && let Some(value) = self.variables.get(name)
+            && (local_private || !value.scope.private)
         {
             return Some((0, value));
         }
@@ -1146,7 +1156,8 @@ impl VariableStore {
             .skip(start.saturating_sub(1))
             .find_map(|(index, layer)| {
                 let value = layer.variables.get(name)?;
-                (!layer.inherited || !value.scope.private).then_some((index + 1, value))
+                ((local_private && !layer.inherited) || !value.scope.private)
+                    .then_some((index + 1, value))
             })
     }
 
@@ -1453,6 +1464,14 @@ impl VariableStore {
     /// eligible exports. Keep this independent from lookup and .VARIABLES order.
     pub fn environment_order(
         &self,
+        exported: impl FnMut(&[u8], &Variable) -> bool,
+    ) -> Vec<Vec<u8>> {
+        self.environment_order_with_lexical(&[], exported)
+    }
+
+    fn environment_order_with_lexical(
+        &self,
+        lexical: &[LocalFrame],
         mut exported: impl FnMut(&[u8], &Variable) -> bool,
     ) -> Vec<Vec<u8>> {
         use crate::variable_order::NameOrder;
@@ -1466,6 +1485,30 @@ impl VariableStore {
             )
         }));
         let mut table = NameOrder::new(1024, false);
+        let local_private = lexical.is_empty();
+        for (index, frame) in lexical.iter().enumerate().rev() {
+            frame.for_each_environment_name(|name| {
+                if table.contains(name) {
+                    return;
+                }
+                let variable = frame.get(name).expect("lexical environment binding");
+                if variable.export_policy().is_none() {
+                    // Resolve outer policy before expanding any environment value.
+                    let policy = lexical[..index]
+                        .iter()
+                        .rev()
+                        .filter_map(|scope| scope.get(name))
+                        .find_map(Variable::export_policy)
+                        .or_else(|| {
+                            self.export_policy_for(name, false, || {
+                                variable.origin != Origin::Default
+                            })
+                        });
+                    variable.scope.export.resolve(policy);
+                }
+                table.insert(name);
+            });
+        }
         let mut index = 0;
         while index < sources.len() {
             let (bindings, global, locals, _) = sources[index];
@@ -1487,16 +1530,18 @@ impl VariableStore {
                         .reserved_exports
                         .iter()
                         .any(|reserved| reserved == name)
-                    && self.lookup_from(name, 0).is_none()
+                    && self.lookup_from_visible(name, 0, local_private).is_none()
                 {
                     table.insert(name);
                     continue;
                 }
-                let Some((selected, variable)) = self.lookup_from(name, 0) else {
+                let Some((selected, variable)) = self.lookup_from_visible(name, 0, local_private)
+                else {
                     continue;
                 };
                 if (selected == index || (paired && selected == index + 1))
-                    && (!global || exported(name, variable))
+                    && (!global
+                        || ((local_private || !table.contains(name)) && exported(name, variable)))
                 {
                     table.insert(name);
                 }
@@ -1509,14 +1554,26 @@ impl VariableStore {
     /// An unspecified local policy inherits the closest visible explicit one,
     /// even when a different binding supplies the variable's value.
     pub fn export_policy(&self, name: &[u8]) -> Option<bool> {
+        self.export_policy_for(name, true, || {
+            self.get(name)
+                .is_some_and(|selected| selected.origin != Origin::Default)
+        })
+    }
+
+    fn export_policy_for(
+        &self,
+        name: &[u8],
+        local_private: bool,
+        if_set: impl Fn() -> bool,
+    ) -> Option<bool> {
         let mut start = 0;
-        while let Some((index, value)) = self.lookup_from(name, start) {
-            if let Some(policy) = value.scope.export.get().or_else(|| {
-                value.scope.export_if_set.then(|| {
-                    self.get(name)
-                        .is_some_and(|selected| selected.origin != Origin::Default)
-                })
-            }) {
+        while let Some((index, value)) = self.lookup_from_visible(name, start, local_private) {
+            if let Some(policy) = value
+                .scope
+                .export
+                .get()
+                .or_else(|| value.scope.export_if_set.then(&if_set))
+            {
                 return Some(policy);
             }
             start = index + 1;
@@ -1528,8 +1585,17 @@ impl VariableStore {
     /// GNU remembers the answer on that binding, even if an outer declaration's
     /// metadata changes when another target initializes later.
     pub fn resolve_export_policy(&self, name: &[u8]) -> Option<bool> {
-        let policy = self.export_policy(name);
-        self.get(name).map_or(policy, |variable| {
+        self.resolve_export_policy_visible(name, true)
+    }
+
+    fn resolve_export_policy_visible(&self, name: &[u8], local_private: bool) -> Option<bool> {
+        let selected = self
+            .lookup_from_visible(name, 0, local_private)
+            .map(|(_, variable)| variable);
+        let policy = self.export_policy_for(name, local_private, || {
+            selected.is_some_and(|variable| variable.origin != Origin::Default)
+        });
+        selected.map_or(policy, |variable| {
             if variable.scope.export_if_set && variable.scope.export.get().is_none() {
                 policy
             } else {
@@ -2521,15 +2587,78 @@ impl TargetScope {
 }
 
 #[derive(Clone)]
-pub(crate) struct LocalFrame {
-    values: BTreeMap<Vec<u8>, Variable>,
-    call: bool,
+struct LocalBinding {
+    variable: Variable,
+    position: usize,
 }
 
-impl std::ops::Deref for LocalFrame {
-    type Target = BTreeMap<Vec<u8>, Variable>;
-    fn deref(&self) -> &Self::Target {
-        &self.values
+#[derive(Clone)]
+pub(crate) struct LocalFrame {
+    values: BTreeMap<Vec<u8>, LocalBinding>,
+    call_arguments: Option<usize>,
+}
+
+impl LocalFrame {
+    fn new(call_arguments: Option<usize>) -> Self {
+        Self {
+            values: BTreeMap::new(),
+            call_arguments,
+        }
+    }
+
+    pub(crate) fn contains_key(&self, name: &[u8]) -> bool {
+        self.values.contains_key(name)
+    }
+
+    pub(crate) fn get(&self, name: &[u8]) -> Option<&Variable> {
+        self.values.get(name).map(|binding| &binding.variable)
+    }
+
+    fn get_mut(&mut self, name: &[u8]) -> Option<&mut Variable> {
+        self.values
+            .get_mut(name)
+            .map(|binding| &mut binding.variable)
+    }
+
+    fn insert(&mut self, name: Vec<u8>, variable: Variable) {
+        let position = self.values.len();
+        match self.values.entry(name) {
+            std::collections::btree_map::Entry::Occupied(mut entry) => {
+                entry.get_mut().variable = variable;
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(LocalBinding { variable, position });
+            }
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&Vec<u8>, &Variable)> {
+        self.values
+            .iter()
+            .map(|(name, binding)| (name, &binding.variable))
+    }
+
+    fn for_each_environment_name(&self, mut visit: impl FnMut(&[u8])) {
+        if self.values.len() <= 1 {
+            for name in self.values.keys() {
+                visit(name);
+            }
+            return;
+        }
+        // Recreate this small table's slot order only for a shell consumer.
+        let mut bindings: Vec<_> = self.values.iter().collect();
+        bindings.sort_unstable_by_key(|(_, binding)| binding.position);
+        let mut order = crate::variable_order::NameOrder::new(16, false);
+        for (name, _) in bindings {
+            order.insert(name);
+        }
+        for name in order.names() {
+            visit(name);
+        }
     }
 }
 
@@ -2818,9 +2947,13 @@ impl Expansion<'_, '_> {
         result.map_err(|error| error.at(variable.definition.as_ref()))
     }
 
+    fn lexical_binding(&self, name: &[u8]) -> Option<&Variable> {
+        self.bindings.iter().rev().find_map(|scope| scope.get(name))
+    }
+
     fn lookup(&self, name: &[u8]) -> Option<&Variable> {
-        let binding = self.bindings.iter().rev().find_map(|scope| scope.get(name));
-        binding.or_else(|| self.store.database_lookup(name))
+        self.lexical_binding(name)
+            .or_else(|| self.store.database_lookup(name))
     }
 
     fn inherited_active_bindings(&self) -> impl Iterator<Item = &InheritedActiveBinding> {
@@ -2966,8 +3099,7 @@ impl Expansion<'_, '_> {
         &mut self,
         name: &[u8],
     ) -> Result<Vec<u8>, ExpandError> {
-        let binding = self.bindings.iter().rev().find_map(|scope| scope.get(name));
-        let (variable, layer) = if let Some(variable) = binding {
+        let (variable, layer) = if let Some(variable) = self.lexical_binding(name) {
             (variable, None)
         } else if let Some((layer, variable)) = self.store.database_lookup_from(name) {
             (variable, Some(layer))
@@ -3061,7 +3193,7 @@ impl Expansion<'_, '_> {
             let Some(next) = literal_alias(value) else {
                 return (!value.contains(&b'$')).then(|| LiteralChain::Value(value.to_vec()));
             };
-            if let Some(binding) = self.bindings.iter().rev().find_map(|scope| scope.get(next)) {
+            if let Some(binding) = self.lexical_binding(next) {
                 variable = binding;
                 layer = None;
             } else {
@@ -3253,12 +3385,13 @@ impl Expansion<'_, '_> {
         }
     }
 
-    fn environment_variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        let environment = self.store.for_environment();
-        let Some((layer, variable)) = environment.lookup_from(name, 0) else {
-            return Ok(Vec::new());
-        };
-        let tracked = environment.global_layer(layer)
+    fn environment_variable(
+        &mut self,
+        name: &[u8],
+        variable: &Variable,
+        layer: usize,
+    ) -> Result<Vec<u8>, ExpandError> {
+        let tracked = self.store.global_layer(layer)
             && variable.flavor == Flavor::Recursive
             && variable.value.contains(&b'$')
             && self.store.database_mut().is_some();
@@ -3326,6 +3459,18 @@ impl Expansion<'_, '_> {
         })
     }
 
+    fn shell_export_default(name: &[u8], origin: Origin, export_all: bool) -> bool {
+        name.first()
+            .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
+            && name
+                .iter()
+                .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+            && (matches!(
+                origin,
+                Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
+            ) || (export_all && !matches!(origin, Origin::Default | Origin::Automatic)))
+    }
+
     fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
         if matches!(self.store, StoreAccess::Read(_)) {
             return Err(ExpandError::Unsupported(b"shell".to_vec()));
@@ -3354,32 +3499,41 @@ impl Expansion<'_, '_> {
             _ => false,
         };
         let snapshot = self.store.for_environment();
-        let names = snapshot.environment_order(|name, variable| {
-            if name == b"SHELL" && variable.export_policy().is_none() {
-                return false;
-            }
-            let valid = name
-                .first()
-                .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
-                && name
-                    .iter()
-                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_');
-            self.store.resolve_export_policy(name).unwrap_or(
-                valid
-                    && (matches!(
-                        variable.origin,
-                        Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
-                    ) || (export_all
-                        && !matches!(variable.origin, Origin::Default | Origin::Automatic))),
-            )
+        // Only the innermost environment scope exposes private bindings.
+        let local_private = self.bindings.is_empty();
+        let mut names =
+            snapshot.environment_order_with_lexical(&self.bindings, |name, variable| {
+                if name == b"SHELL" && variable.export_policy().is_none() {
+                    return false;
+                }
+                self.store
+                    .resolve_export_policy_visible(name, local_private)
+                    .unwrap_or_else(|| {
+                        Self::shell_export_default(name, variable.origin, export_all)
+                    })
+            });
+        names.retain(|name| {
+            self.lexical_binding(name).is_some()
+                || snapshot
+                    .lookup_from_visible(name, 0, local_private)
+                    .is_some()
         });
-        let names = names
-            .into_iter()
-            .filter(|name| snapshot.get(name).is_some());
         let mut environment = Vec::new();
         for name in names {
+            if let Some(variable) = self.lexical_binding(&name) {
+                let value = if variable.export_policy().unwrap_or_else(|| {
+                    Self::shell_export_default(&name, variable.origin, export_all)
+                }) {
+                    crate::diagnostic::EnvironmentValue::Set(variable.value.clone())
+                } else {
+                    crate::diagnostic::EnvironmentValue::Remove
+                };
+                environment.push((name, value));
+                continue;
+            }
             let current = self.store.for_environment();
-            let Some((layer, variable)) = current.lookup_from(&name, 0) else {
+            let Some((layer, variable)) = current.lookup_from_visible(&name, 0, local_private)
+            else {
                 environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
                 continue;
             };
@@ -3387,20 +3541,10 @@ impl Expansion<'_, '_> {
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
-            let valid = name
-                .first()
-                .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
-                && name
-                    .iter()
-                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_');
-            let export = self.store.resolve_export_policy(&name).unwrap_or(
-                valid
-                    && (matches!(
-                        variable.origin,
-                        Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
-                    ) || (export_all
-                        && !matches!(variable.origin, Origin::Default | Origin::Automatic))),
-            );
+            let export = self
+                .store
+                .resolve_export_policy_visible(&name, local_private)
+                .unwrap_or_else(|| Self::shell_export_default(&name, variable.origin, export_all));
             if !export {
                 environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
                 continue;
@@ -3426,7 +3570,7 @@ impl Expansion<'_, '_> {
             let value = if imported_raw {
                 variable.value
             } else {
-                self.environment_variable(&name)?
+                self.environment_variable(&name, &variable, layer)?
             };
             environment.push((name, crate::diagnostic::EnvironmentValue::Set(value)));
         }
@@ -3448,14 +3592,14 @@ impl Expansion<'_, '_> {
             // A completion writes only to the active scope. Its automatic
             // bindings retain precedence over the override origin.
             let name = b".SHELLSTATUS".as_slice();
-            if let Some(previous) = frame.values.get_mut(name) {
+            if let Some(previous) = frame.get_mut(name) {
                 if previous.origin <= Origin::Override {
                     previous.value = status.into_bytes();
                 }
             } else {
                 let mut variable = local(status.into_bytes());
                 variable.origin = Origin::Override;
-                frame.values.insert(name.to_vec(), variable);
+                frame.insert(name.to_vec(), variable);
             }
         } else {
             self.store

@@ -40,6 +40,7 @@ keys! {
     NO_NEED: c"No need to remake target '%s'", [B];
     USING_VPATH: c"; using VPATH name '%s'", [B];
     ALREADY: c"File '%s' was considered already.\n", [B];
+    RECENTLY_FAILED: c"Recently tried and failed to update file '%s'.\n", [B];
     PRUNING: c"Pruning file '%s'.\n", [B];
     GIVE_UP: c"Giving up on target file '%s'.\n", [B];
     DOUBLE_WITHOUT_PREREQUISITES: c"Target '%s' is double-colon and has no prerequisites.\n", [B];

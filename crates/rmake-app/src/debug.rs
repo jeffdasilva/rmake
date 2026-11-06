@@ -215,6 +215,7 @@ pub enum Event<'a> {
     Failed(&'a [u8], usize),
     NoNeed(&'a [u8], Option<&'a [u8]>, usize),
     Already(&'a [u8], usize),
+    RecentlyFailed(&'a [u8], usize),
     Pruning(&'a [u8], usize),
     GiveUp(&'a [u8], usize),
     DoubleWithoutPrerequisites(&'a [u8], usize),
@@ -256,6 +257,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         | Event::RecipeRunning(_, depth)
         | Event::NoNeed(_, _, depth)
         | Event::Already(_, depth)
+        | Event::RecentlyFailed(_, depth)
         | Event::Pruning(_, depth)
         | Event::GiveUp(_, depth)
         | Event::NoRecipeNoChanges(_, depth)
@@ -319,6 +321,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
             raw(&[prefix, &line, suffix.as_deref().unwrap_or_default(), b".\n"]);
         }
         Event::Already(name, _) => print(msg::ALREADY, &[bytes(name)]),
+        Event::RecentlyFailed(name, _) => print(msg::RECENTLY_FAILED, &[bytes(name)]),
         Event::Pruning(name, _) => print(msg::PRUNING, &[bytes(name)]),
         Event::GiveUp(name, _) => print(msg::GIVE_UP, &[bytes(name)]),
         Event::DoubleWithoutPrerequisites(name, _) => {

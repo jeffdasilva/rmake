@@ -89,6 +89,9 @@ impl NameOrder {
         }
         self.changes.push((name.into(), false));
     }
+    pub(crate) fn contains(&self, name: &[u8]) -> bool {
+        self.layout().position(name).1
+    }
     pub(crate) fn names(&self) -> impl Iterator<Item = &[u8]> {
         self.layout().names()
     }
