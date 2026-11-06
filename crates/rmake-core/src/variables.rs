@@ -4171,11 +4171,10 @@ impl Expansion<'_, '_> {
     }
 
     fn eager_builtin(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
-        if matches!(name, b"word" | b"wordlist") {
-            let minimum = if name == b"word" { 2 } else { 3 };
-            if args.len() < minimum {
-                return Err(too_few_arguments(name, args.len()));
-            }
+        if let Some((minimum, _)) = arity(name)
+            && args.len() < minimum
+        {
+            return Err(too_few_arguments(name, args.len()));
         }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
@@ -4544,13 +4543,6 @@ pub(crate) fn evaluation_error(error: crate::parser::ParseError) -> ExpandError 
         }
     };
     original.preserve_frozen(diagnostic)
-}
-
-fn invalid(function: &[u8], message: &'static str) -> ExpandError {
-    ExpandError::InvalidArguments {
-        function: function.to_vec(),
-        message,
-    }
 }
 
 fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
