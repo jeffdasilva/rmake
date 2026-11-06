@@ -36,6 +36,7 @@ class Model:
     mtimes_ns: dict[str, int] = field(default_factory=dict)
     explicit_version_reference: bytes | None = None
     release_after: bytes | None = None
+    release_sequence: tuple[tuple[str, bytes], ...] = ()
 
 
 def safe_relative(name: str) -> Path:
@@ -43,6 +44,24 @@ def safe_relative(name: str) -> Path:
     if not name or path.is_absolute() or '..' in path.parts or '\0' in name:
         raise h.HarnessError('debug fixture path must stay inside its input directory')
     return path
+
+
+def validate_release_sequence(model: Model, stdout: bytes) -> None:
+    if model.release_after is not None:
+        raise h.HarnessError('choose one held-worker release format')
+    names = set()
+    previous_end = 0
+    for name, marker in model.release_sequence:
+        prefix = name + '.'
+        files = {prefix + 'started': b'started\n', prefix + 'release': b'yes\n', prefix + 'done': b'done\n'}
+        forbidden = files.keys() | {prefix + 'started.tmp', prefix + 'release.tmp'}
+        start = stdout.find(marker, previous_end)
+        if (not re.fullmatch(r'[a-z][a-z0-9-]*', name) or name in names
+                or not marker.endswith(b'\n') or stdout.count(marker) != 1 or start < 0
+                or forbidden & model.files.keys() or any(model.updates.get(p) != v for p, v in files.items())):
+            raise h.HarnessError('invalid ordered held-worker release boundary')
+        previous_end = start + len(marker)
+        names.add(name)
 
 
 def _model_file(filename: str) -> list[Model]:
@@ -57,7 +76,8 @@ def _model_file(filename: str) -> list[Model]:
                     {name: bytes.fromhex(value) for name, value in row.get('expected_file_updates', {}).items()},
                     row.get('mtimes_ns', {}),
                     bytes.fromhex(row['oracle_explicit_version_hex']) if 'oracle_explicit_version_hex' in row else None,
-                    bytes.fromhex(row['release_after_stdout_hex']) if 'release_after_stdout_hex' in row else None)
+                    bytes.fromhex(row['release_after_stdout_hex']) if 'release_after_stdout_hex' in row else None,
+                    tuple((name, bytes.fromhex(marker)) for name, marker in row.get('release_sequence', [])))
               for row in data['models']]
     for model in result:
         stdout = bytes.fromhex(model.expected['stdout_template_hex'])
@@ -68,6 +88,8 @@ def _model_file(filename: str) -> list[Model]:
             or model.updates.get('started') != b'started\n' or model.updates.get('release') != b'yes\n'
         ):
             raise h.HarnessError('invalid held-worker release boundary')
+        if model.release_sequence:
+            validate_release_sequence(model, stdout)
         uses_version = b'@EXPLICIT_VERSION@' in stdout
         if uses_version != (model.explicit_version_reference is not None):
             raise h.HarnessError('explicit version reference and slot must agree')
@@ -87,7 +109,7 @@ def models() -> list[Model]:
               + _model_file('prerequisite-wait.toml') + _model_file('post-reap.toml')
               + _model_file('wait-reap.toml') + _model_file('grouped-reap.toml')
               + _model_file('notparallel-reap.toml') + _model_file('file-write-pass.toml')
-              + stem_limit_models())
+              + _model_file('later-file-write.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
     return result
@@ -256,23 +278,30 @@ def calibrate_version(binary: Path, root: Path, reference: bytes | None = None) 
 
 
 def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.Observation:
-    boundary = model.release_after
-    if boundary is None:
+    sequence = tuple((name + '.', marker) for name, marker in model.release_sequence)
+    if model.release_after is not None:
+        sequence = (('', model.release_after),)
+    if not sequence:
         return h.execute(case, runtime, binary)
     work = runtime / 'work'
-    released = False
+    released = 0
 
     def release(_parent: int, stdout: bytes) -> None:
         nonlocal released
-        if released or boundary not in stdout or not (work / 'started').is_file():
+        if released == len(sequence):
             return
-        if (work / 'started').read_bytes() != b'started\n' or (work / 'done').exists():
+        prefix, marker = sequence[released]
+        if marker not in stdout or not all((work / (name + 'started')).is_file() for name, _ in sequence[released:]):
+            return
+        if released and not (work / (sequence[released - 1][0] + 'done')).is_file():
+            return
+        if (work / (prefix + 'started')).read_bytes() != b'started\n' or (work / (prefix + 'done')).exists():
             raise h.HarnessError('worker was not held at the declared boundary')
-        temporary = work / 'release.tmp'
+        temporary = work / (prefix + 'release.tmp')
         temporary.write_bytes(b'yes\n')
         temporary.chmod(0o644)
-        temporary.rename(work / 'release')
-        released = True
+        temporary.rename(work / (prefix + 'release'))
+        released += 1
 
     return h.execute(case, runtime, binary, observe=release)
 
@@ -299,6 +328,8 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
                         'input_files_hex': {name: value.hex() for name, value in model.files.items()},
                         'input_mtimes_ns': model.mtimes_ns, 'expected_filesystem': filesystem,
                         'release_after_stdout_hex': model.release_after.hex() if model.release_after is not None else None,
+                        **({'release_sequence': [[name, marker.hex()] for name, marker in model.release_sequence]}
+                           if model.release_sequence else {}),
                         'output': model.output, 'oracle_explicit_version_hex': model.explicit_version_reference.hex() if model.explicit_version_reference is not None else None, **judgment})
         print(('PASS ' if judgment['passed'] else 'FAIL ') + model.id, flush=True)
     return {'classification': 'Original static debug-output oracle qualification; zero ordinary-ledger or exception credit' if candidate is None else 'Original static debug-output differential profile; ordinary-ledger credit is separate',

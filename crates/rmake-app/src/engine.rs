@@ -3199,10 +3199,10 @@ impl Engine {
                     goal.awaiting_recipe = false;
                 }
             }
-            // A completion observed while walking a later branch may make an
-            // earlier one ready. Rescan that work before blocking on a child
-            // which can itself be waiting for the newly ready recipe.
+            // A completion or a file write can make more work observable in
+            // the next pass. Rescan before blocking on the remaining children.
             if self.graph_epoch == pass_epoch
+                && self.debug_progress() == self.debug_pass
                 && requested.iter().any(|goal| self.pending(&goal.name))
                 && !self.parallel_jobs.is_empty()
             {
