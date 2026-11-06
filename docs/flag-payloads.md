@@ -119,3 +119,9 @@ Canonical flag publication marks the current file's binding, including a
 stronger declaration that retains its value. Later conditionals on that
 binding continue to replay its switches. Original tests check direct eval,
 includes and secondary expansion, with ordered flag reads and shell exports.
+
+When replay publishes a current file's canonical flags, a conditional's
+`private`, `export` and `unexport` modifiers still apply to the binding
+selected before replay. Tests distinguish the current recipe's canonical
+value from the original global or ancestor binding, and check the shell
+and recipe environments of that file and its siblings.

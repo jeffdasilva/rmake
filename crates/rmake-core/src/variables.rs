@@ -117,6 +117,13 @@ pub enum Assignment {
     Shell,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum ConditionalFlagBinding {
+    Ordinary,
+    Global,
+    Outer(usize),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Origin {
     Default,
@@ -161,6 +168,7 @@ pub struct Variable {
 struct ScopeMetadata {
     private: BindingFlag,
     special_makeflags: BindingFlag,
+    flags_from_declaration: bool,
     export: ExportPolicy,
     export_default_reset: bool,
     export_if_set: bool,
@@ -1026,11 +1034,11 @@ impl VariableStore {
         let mark_makeflags = name == b"MAKEFLAGS";
         if self.file_locals
             && !self.variables.contains_key(name)
-            && let Some(old) = self
+            && let Some((layer, old)) = self
                 .layers
                 .iter()
                 .filter(|layer| !layer.global && !layer.inherited && !layer.pattern)
-                .find_map(|layer| layer.variables.get(name))
+                .find_map(|layer| layer.variables.get(name).map(|old| (layer, old)))
         {
             if old.origin > origin {
                 // The logical file table already owns this declaration even
@@ -1042,7 +1050,10 @@ impl VariableStore {
                 }
                 return Ok(());
             }
-            let old = old.clone();
+            let mut old = old.clone();
+            if mark_makeflags {
+                old.scope.flags_from_declaration = layer.target.is_some();
+            }
             Arc::make_mut(&mut self.variables).insert(name, old);
         }
         self.define(name, value, Assignment::Recursive, origin)?;
@@ -1057,11 +1068,52 @@ impl VariableStore {
         Ok(())
     }
 
-    pub(crate) fn selects_ordinary_scoped_makeflags(&self) -> bool {
-        self.lookup_from(b"MAKEFLAGS", 0)
-            .is_some_and(|(layer, variable)| {
-                !self.global_layer(layer) && !variable.scope.special_makeflags.get()
-            })
+    pub(crate) fn conditional_flag_binding(&self) -> Option<ConditionalFlagBinding> {
+        let Some((layer, variable)) = self.lookup_from(b"MAKEFLAGS", 0) else {
+            return Some(ConditionalFlagBinding::Global);
+        };
+        if self.global_layer(layer) {
+            return Some(ConditionalFlagBinding::Global);
+        }
+        if !variable.scope.special_makeflags.get() {
+            return Some(ConditionalFlagBinding::Ordinary);
+        }
+        let outer = layer > 0 && {
+            let scope = &self.layers[layer - 1];
+            scope.inherited || scope.file_locals
+        };
+        outer.then_some(ConditionalFlagBinding::Outer(layer))
+    }
+
+    pub(crate) fn qualify_outer_flags(&self, layer: usize, private: bool, export: Option<bool>) {
+        let name = b"MAKEFLAGS".as_slice();
+        if let Some(binding) = self.bindings_at_layer(layer).and_then(|set| set.get(name)) {
+            self.qualify_selected_binding(layer, name, binding, private, export);
+        }
+    }
+
+    fn qualify_selected_binding(
+        &self,
+        layer: usize,
+        name: &[u8],
+        binding: &Variable,
+        private: bool,
+        export: Option<bool>,
+    ) {
+        binding.scope.apply_assignment_qualifiers(private, export);
+        // A canonical flag value may replace a declaration in the same
+        // logical file table. Hiding it must hide the stored declaration too.
+        if binding.scope.flags_from_declaration
+            && let Some(declared) = self
+                .layers
+                .iter()
+                .skip(layer)
+                .take_while(|scope| !scope.file_locals)
+                .find(|scope| scope.target.is_some())
+                .and_then(|scope| scope.variables.get(name))
+        {
+            declared.scope.apply_assignment_qualifiers(private, export);
+        }
     }
 
     /// Read the shell status owned by this table rather than an ancestor.
@@ -1139,7 +1191,7 @@ impl VariableStore {
         if self.global_layer(index) {
             return false;
         }
-        variable.scope.apply_assignment_qualifiers(private, export);
+        self.qualify_selected_binding(index, name, variable, private, export);
         true
     }
 

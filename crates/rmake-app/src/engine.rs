@@ -9712,10 +9712,13 @@ impl Engine {
                         child.env_remove(os(name));
                     }
                 }
-                if !environment_variables
-                    .resolve_export_policy(b"MAKEFLAGS")
-                    .unwrap_or_else(|| !self.database.unexports.contains(b"MAKEFLAGS".as_slice()))
-                {
+                if !export_selected(
+                    &environment_variables,
+                    &self.database.variables,
+                    &self.database.unexports,
+                    b"MAKEFLAGS",
+                    export_all,
+                ) {
                     child.env_remove("MAKEFLAGS");
                 } else if !child
                     .get_envs()
