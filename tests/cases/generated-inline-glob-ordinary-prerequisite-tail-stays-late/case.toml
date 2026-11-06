@@ -1,0 +1,11 @@
+id = "generated-inline-glob-ordinary-prerequisite-tail-stays-late"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real"]
+description = "Original expanded inline recipe and target glob order: ordinary prerequisite tail stays late."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220276d617463682d7265616c272e0a"
+stderr_hex = ""

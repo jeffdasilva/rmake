@@ -4490,17 +4490,8 @@ impl Database {
             // Keep the raw assignment tail until a source word has produced
             // an inline recipe boundary during expansion.
             let prefix_expansion = self.expand_rule_prefix(&text, rule_end, &location, context)?;
+            let mut expanded_recipe_tail = None;
             if let Some(delimiter) = prefix_expansion.delimiter {
-                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
-                // Prefix effects already ran. A declaration with no names
-                // has no prerequisite expansion or target assignments.
-                if targets
-                    .iter()
-                    .all(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
-                {
-                    declaration.ignore_recipes = true;
-                    continue;
-                }
                 let prefix_tail = &prefix_expansion.expanded[delimiter.tail_start..];
                 let raw_tail = &text[prefix_expansion.consumed..];
                 let (mut tail, expanded_inline) =
@@ -4516,17 +4507,27 @@ impl Database {
                     } else {
                         (prefix_tail.to_vec(), false)
                     };
+                if expanded_inline {
+                    // An inline recipe exposed in the prefix expands its
+                    // remaining text before target filenames are observed.
+                    expanded_recipe_tail = Some(self.expand(raw_tail, &location, context)?);
+                }
+                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
+                // Prefix effects already ran. A declaration with no names
+                // has no prerequisite expansion or target assignments.
+                if targets
+                    .iter()
+                    .all(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
+                {
+                    declaration.ignore_recipes = true;
+                    continue;
+                }
                 let mut syntax_end = tail.len();
                 if !expanded_inline {
                     syntax_end += rule_end.saturating_sub(prefix_expansion.consumed);
                     tail.extend_from_slice(raw_tail);
                 }
                 if let Some(assignment) = target_assignment(&tail, syntax_end) {
-                    if expanded_inline {
-                        // Effects in the remainder of an expanded recipe run
-                        // before the reader records the target assignment.
-                        self.expand(raw_tail, &location, context)?;
-                    }
                     declaration.ignore_recipes =
                         !self.define_target_assignments(targets, assignment, &location, context)?;
                     continue;
@@ -4556,11 +4557,14 @@ impl Database {
             }
             let source_inline = separator(&line.bytes, b';')
                 .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
-            let tail = self.expand(
-                &text[prefix_expansion.consumed..rule_end],
-                &location,
-                context,
-            )?;
+            let tail = match expanded_recipe_tail {
+                Some(tail) => tail,
+                None => self.expand(
+                    &text[prefix_expansion.consumed..rule_end],
+                    &location,
+                    context,
+                )?,
+            };
             let mut expanded_line = prefix_expansion.expanded;
             if expanded_line.len().saturating_add(tail.len()) > MAX_OUTPUT {
                 return Err(ParseError {

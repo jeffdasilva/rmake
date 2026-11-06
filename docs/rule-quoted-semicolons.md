@@ -26,3 +26,11 @@ assignment keeps the original separator and following bytes in its value.
 Twenty additional GNU2 fixtures cover simple and recursive values, protected
 variable names, file effects, `eval`, multiple targets, and fatal expansion
 before recipe selection.
+
+When prefix expansion has already exposed an ordinary inline recipe, the
+remaining source expands before target filename observation. The reader keeps
+that expansion for the recipe, so file effects run once. A physical inline
+delimiter, a still-quoted semicolon, or a delimiter found only in the later
+prerequisite expansion retains the usual target-first order. Fourteen GNU2
+fixtures check created and removed glob matches, grouped and double-colon
+rules, recipe arguments, and file and diagnostic effects.

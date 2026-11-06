@@ -1,0 +1,11 @@
+id = "generated-inline-glob-generated-grouped-globs"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "left-now", "right-now"]
+description = "Original expanded inline recipe and target glob order: generated grouped globs."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "67726f75700a6d616b653a202772696768742d6e6f772720697320757020746f20646174652e0a"
+stderr_hex = ""

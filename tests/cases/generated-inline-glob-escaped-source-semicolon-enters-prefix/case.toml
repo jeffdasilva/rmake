@@ -1,0 +1,11 @@
+id = "generated-inline-glob-escaped-source-semicolon-enters-prefix"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real"]
+description = "Original expanded inline recipe and target glob order: escaped source semicolon enters prefix."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "72616e0a"
+stderr_hex = ""

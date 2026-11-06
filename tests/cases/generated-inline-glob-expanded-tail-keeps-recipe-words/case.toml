@@ -1,0 +1,11 @@
+id = "generated-inline-glob-expanded-tail-keeps-recipe-words"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real"]
+description = "Original expanded inline recipe and target glob order: expanded tail keeps recipe words."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7072656669780a7375666669780a"
+stderr_hex = ""
