@@ -5,7 +5,7 @@
 //! Initial probes preceded source inspection; later argv/tail findings use
 //! verified job.c references with an independently authored state model.
 
-use crate::process::{Invocation, prepare as prepare_ordinary};
+use crate::process::{Invocation, prepare as prepare_ordinary, prepare_oneshell_flags};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawScript {
@@ -105,8 +105,8 @@ pub fn prepare_script(
         };
     }
     let mut args = Vec::new();
-    if !flags.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
-        let (program, words) = match prepare_ordinary(flags, b"/bin/sh", b"-c", None) {
+    if let Some(invocation) = prepare_oneshell_flags(flags) {
+        let (program, words) = match invocation {
             Invocation::Direct { program, args } => (program, args),
             Invocation::Shell { program, mut args } => {
                 // A slow flag parse re-enters GNU's .ONESHELL Bourne-body

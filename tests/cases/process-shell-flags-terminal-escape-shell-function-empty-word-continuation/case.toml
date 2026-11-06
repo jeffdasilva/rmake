@@ -1,0 +1,12 @@
+id = "process-shell-flags-terminal-escape-shell-function-empty-word-continuation"
+requirement = "process.invocation"
+candidate = "required"
+description = "A terminal shell flag escape preserves the GNU command argument boundary."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "result=[[68656164][64756d6d79206578747261]]\nmake: 'all' is up to date.\n"
+stderr = ""

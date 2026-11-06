@@ -37,17 +37,31 @@ pub fn prepare(command: &[u8], shell: &[u8], flags: &[u8], ifs: Option<&[u8]>) -
                 .iter()
                 .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
         })
-        && let Some(mut words) = split_words(command, Mode::Recipe)
-        && !words.is_empty()
-        && !requires_shell(&words[0])
+        && let Some(split) = split_words(command, Mode::Recipe)
+        && split
+            .words
+            .first()
+            .is_some_and(|program| !requires_shell(program))
     {
-        let program = words.remove(0);
-        return Invocation::Direct {
-            program,
-            args: words,
-        };
+        return direct_command(split.words);
     }
     shell_invocation(command, shell, flags)
+}
+
+fn direct_command(mut words: Vec<Vec<u8>>) -> Invocation {
+    let program = words.remove(0);
+    Invocation::Direct {
+        program,
+        args: words,
+    }
+}
+
+pub(crate) fn prepare_oneshell_flags(flags: &[u8]) -> Option<Invocation> {
+    match split_words(flags, Mode::Recipe) {
+        Some(split) if split.words.is_empty() => None,
+        Some(split) if !requires_shell(&split.words[0]) => Some(direct_command(split.words)),
+        _ => Some(shell_invocation(flags, b"/bin/sh", b"-c")),
+    }
 }
 
 pub struct PreparedLine {
@@ -114,12 +128,18 @@ enum Mode {
     Configuration,
 }
 
+struct WordSplit {
+    words: Vec<Vec<u8>>,
+    joins_command: bool,
+}
+
 /// Return None as soon as shell interpretation is necessary. Quote state is
 /// lexical: an escaped or single-quoted '=' in argv[0] is not an assignment.
-fn split_words(input: &[u8], mode: Mode) -> Option<Vec<Vec<u8>>> {
+fn split_words(input: &[u8], mode: Mode) -> Option<WordSplit> {
     let mut words = Vec::new();
     let mut word = Vec::new();
     let mut started = false;
+    let mut joins_command = false;
     let mut quote = None;
     let mut index = 0;
     while let Some(&byte) = input.get(index) {
@@ -169,7 +189,13 @@ fn split_words(input: &[u8], mode: Mode) -> Option<Vec<Vec<u8>>> {
                     started = true;
                     index += 1;
                 }
-                // GNU drops a final unpaired backslash in this fast path.
+                None if mode == Mode::Configuration => {
+                    // The recipe follows a separator that this backslash
+                    // escapes, so it continues the current configuration word.
+                    word.push(b' ');
+                    started = true;
+                    joins_command = true;
+                }
                 None => {}
             },
             b'=' if words.is_empty() => return None,
@@ -186,7 +212,10 @@ fn split_words(input: &[u8], mode: Mode) -> Option<Vec<Vec<u8>>> {
     if started {
         words.push(word);
     }
-    Some(words)
+    Some(WordSplit {
+        words,
+        joins_command,
+    })
 }
 
 fn is_metacharacter(byte: u8) -> bool {
@@ -271,7 +300,11 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     }
     configuration.push(b' ');
     configuration.extend_from_slice(flags);
-    if let Some(mut words) = split_words(&configuration, Mode::Configuration) {
+    if let Some(WordSplit {
+        mut words,
+        joins_command,
+    }) = split_words(&configuration, Mode::Configuration)
+    {
         if words.is_empty() {
             // With no configured program or flags, the recipe is one literal
             // word. An '=' requires a shell to recognize assignment syntax;
@@ -301,8 +334,16 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
             };
         }
         if !requires_shell(&words[0]) {
+            if joins_command {
+                words
+                    .last_mut()
+                    .expect("joined word")
+                    .extend_from_slice(command);
+            }
             let program = words.remove(0);
-            words.push(command.to_vec());
+            if !joins_command {
+                words.push(command.to_vec());
+            }
             return Invocation::Shell {
                 program,
                 args: words,
@@ -834,7 +875,7 @@ mod tests {
 
     #[test]
     fn double_quoted_flags_require_shell_lexing() {
-        assert_eq!(split_words(b"one \"two words\"", Mode::Configuration), None);
+        assert!(split_words(b"one \"two words\"", Mode::Configuration).is_none());
     }
 
     #[test]
