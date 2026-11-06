@@ -426,6 +426,16 @@ fixture_count = 18
 cases = ["graph-merged-empty-recipe-prepends", "graph-merged-multiple-targets", "graph-merged-normal-before-order", "graph-merged-order-before-normal", "graph-merged-order-only-deduplicated", "graph-merged-promoted-position", "graph-merged-promotion-across-prepend", "graph-merged-recipe-block-prepends", "graph-merged-recipe-order-only-prepends", "graph-merged-repeated-normal-occurrences", "graph-merged-repeated-self-cycle", "graph-merged-single-declaration", "graph-repeated-missing-goal", "graph-repeated-missing-prerequisite", "graph-repeated-target-without-recipe-no-warning", "graph-special-ignore-order-only", "graph-special-phony-order-only", "graph-special-silent-order-only"]
 
 [[requirements]]
+id = "functions.shell-oneshell-prefix"
+title = "Bourne prefixes in the slow one-shell function constructor"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 17
+fixture_count = 17
+reference = "docs/shell-configuration.md"
+cases = ["shell-function-oneshell-prefix-bash-bourne-interior-prefix", "shell-function-oneshell-prefix-bourne-continuation-prefix-is-data", "shell-function-oneshell-prefix-bourne-first-and-padded-prefix", "shell-function-oneshell-prefix-bourne-interior-force-and-ignore", "shell-function-oneshell-prefix-bourne-interior-quiet", "shell-function-oneshell-prefix-fast-program-prefix-is-data", "shell-function-oneshell-prefix-fast-single-quoted-prefix-is-data", "shell-function-oneshell-prefix-modifier-only-slow-body", "shell-function-oneshell-prefix-non-bourne-prefix-is-data", "shell-function-oneshell-prefix-oneshell-recipes-retain-modifiers", "shell-function-oneshell-prefix-ordinary-recipes-retain-modifiers", "shell-function-oneshell-prefix-ordinary-shell-function-keeps-quoted-prefix", "shell-function-oneshell-prefix-single-line-slow-prefix-with-ifs", "shell-function-oneshell-prefix-slow-double-quoted-prefix", "shell-function-oneshell-prefix-slow-even-backslashes-start-next-line", "shell-function-oneshell-prefix-slow-quoted-continuation-prefix-is-data", "shell-function-oneshell-prefix-slow-single-quoted-prefix"]
+
+[[requirements]]
 id = "recipes.oneshell"
 title = "One-shell execution, script transformation and configuration timing"
 status = "fixture-ready"

@@ -41,7 +41,7 @@ pub(crate) fn prepare_shell_function(
     one_shell: bool,
 ) -> Invocation {
     let mode = if one_shell {
-        Mode::Recipe
+        Mode::OneShellFunction
     } else {
         Mode::ShellFunction
     };
@@ -72,6 +72,10 @@ fn prepare_in_mode(
     }
     if mode == Mode::ShellFunction && command.contains(&b'\n') {
         return shell_invocation(&fold_unescaped_newlines(command), shell, flags);
+    }
+    if mode == Mode::OneShellFunction {
+        let command = crate::oneshell::shell_function_body(command, shell);
+        return shell_invocation(&command, shell, flags);
     }
     shell_invocation(command, shell, flags)
 }
@@ -154,6 +158,7 @@ fn command_boundary(command: &[u8], direct: bool) -> usize {
 enum Mode {
     Recipe,
     ShellFunction,
+    OneShellFunction,
     Configuration,
 }
 
@@ -192,7 +197,7 @@ fn split_words(input: &[u8], mode: Mode) -> Option<WordSplit> {
                 started = true;
                 quote = Some(byte);
             }
-            b'\n' if mode != Mode::Recipe => {
+            b'\n' if matches!(mode, Mode::ShellFunction | Mode::Configuration) => {
                 word.push(byte);
                 started = true;
             }

@@ -1,0 +1,2 @@
+/usr/bin/printf '%s' 'left
+@right'

@@ -42,6 +42,15 @@ dry-run/query/touch modes do not launch a shell; forced recipes exercise the
 normal launch boundary. Permanent fixtures cover those distinctions and mixed
 protected shell bytes with interpreted flags.
 
+## Shell functions in one-shell mode
+
+A Bourne shell function call preserves prefix bytes in direct arguments. If
+command construction falls back to the shell, it removes blanks and modifiers
+at the start of each logical line. This scan follows backslash parity across
+newlines without interpreting shell quotes. Custom shells retain their command
+bytes. The focused fixtures cover both paths, quoting, continued lines, and
+ordinary recipes.
+
 ## Empty and undefined shell values
 
 The default `/bin/sh` is a variable binding established at startup. An explicit

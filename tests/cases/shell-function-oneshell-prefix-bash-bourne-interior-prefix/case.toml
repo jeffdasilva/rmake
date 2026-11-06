@@ -1,0 +1,11 @@
+id = "shell-function-oneshell-prefix-bash-bourne-interior-prefix"
+requirement = "functions.shell-oneshell-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Bash bourne interior prefix."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "676f743d5b6669727374207365636f6e645d0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""
