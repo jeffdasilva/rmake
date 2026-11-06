@@ -5206,13 +5206,20 @@ impl Engine {
                 // a stale positive when a fresh stat no longer finds it.
                 let physical = modified(&name);
                 if declared || physical.is_some() {
-                    let time = self.assumed_time(&lookup).or_else(|| {
-                        if self.options.check_symlink_times {
-                            self.name_time(&name)
-                        } else {
-                            physical
-                        }
-                    });
+                    // Only an eligible search record contributes its logical age.
+                    // GPATH merges the searched age with the age on the resulting name.
+                    let time = if declared && let Some(time) = self.assumed_time(&lookup) {
+                        Some(time)
+                    } else if !declared
+                        && let Some(time) = self.assumed_time(&name)
+                        && self.gpath_match(target, &name)
+                    {
+                        physical.max(Some(time))
+                    } else if self.options.check_symlink_times {
+                        self.name_time(&name)
+                    } else {
+                        physical
+                    };
                     self.record_vpath_result(directory, target, &mut name)?;
                     return Ok(Some((Some(name), time)));
                 }
@@ -6993,8 +7000,16 @@ impl Engine {
             return outcome;
         }
         if self.ignores_file_rules(target) {
+            // An old alias still suppresses recipes after the search has
+            // retained a physical timestamp for dependents.
+            let time = self
+                .path_observations
+                .remove(target)
+                .flatten()
+                .and_then(|(_, time)| time)
+                .or_else(|| self.assumed_time(target));
             let outcome = Outcome {
-                time: self.assumed_time(target),
+                time,
                 completion: CompletionTime::Preserve,
                 ..Outcome::default()
             };

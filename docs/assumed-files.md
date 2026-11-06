@@ -28,8 +28,16 @@ updates do not outrank a newest parent. Phony hypothetical completion retains
 its separate missing-file semantics. Physical timestamp witnesses are required
 in addition to the normal byte/type/mode filesystem comparison.
 
-VPATH and GPATH resolution retain assumptions on the selected qualified file
-record. Makefile remaking uses the same invocation policy. Existing double-colon
+An eligible VPATH record supplies its logical age during directory search.
+When an explicit source target finds a physical file whose qualified record
+is only an input, the search observes its physical age. GPATH retains the
+newer age when it merges that observation into the qualified record. An
+old-file assumption can still suppress the merged target's recipe while
+dependents use the observed physical age. Nineteen original fixtures cover
+these distinctions, including selective search, query, dry-run, symlink times
+and an aliased archive member.
+
+Makefile remaking uses the same invocation policy. Existing double-colon
 branches keep their physical times and declared rules: `-o` does not suppress
 them. A what-if double-colon operand adds a trailing input-only record. Its
 missing-rule error occurs in queue order, after preceding updates; a non-keep

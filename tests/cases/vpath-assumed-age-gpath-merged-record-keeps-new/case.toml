@@ -1,0 +1,11 @@
+id = "vpath-assumed-age-gpath-merged-record-keeps-new"
+requirement = "resolution.vpath-assumed-age"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-W", "src/x", "all"]
+description = "Gpath merged record keeps new."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "706172656e743d5b7372632f787c7372632f785d0a"
+stderr_hex = ""
