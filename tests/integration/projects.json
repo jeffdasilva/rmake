@@ -268,7 +268,8 @@
           "KCONFIG_NOTIMESTAMP": "1",
           "SOURCE_DATE_EPOCH": "1727390000"
         },
-        "stdout_sha256": "230d32315dc5bfd2115994ce98cc90c3c8b7eb46017f6971ff9854063c7d9398",
+        "stdout_anchor": "* Busybox Configuration\n",
+        "stdout_sha256": "c631d70ee83d68cc0812c42171038ea413b269c12735ea348ebb673a7d335967",
         "output_sha256": {
           ".config": "474fff392e218faf6854acb4fd017a9c9352875f96c9442e35bdb12cbd1d399f",
           ".kernelrelease": "fbfda2117eb5b2ed303ae73dbc55f71c3080cf120fcf78aab3959d1502b9ded6"
@@ -377,7 +378,8 @@
           "KCONFIG_NOTIMESTAMP": "1",
           "SOURCE_DATE_EPOCH": "1727390000"
         },
-        "stdout_sha256": "1394a1a3b31690297e4c19892af225d592aad4e420dff743771d0d642ade980a",
+        "stdout_anchor": "*\n* Busybox Configuration\n*\n*\n* Settings\n*\nEnable compatibility for full-blown desktop systems (8kb) (DESKTOP) [Y/n/?] (NEW) n\n",
+        "stdout_sha256": "887fcd7a53ce25f63267439cc400f36713358a899c2a10131be38f096ff4f43c",
         "output_sha256": {
           ".config": "4863a5cc3b80c7ea4131bc6dae497dbf744fb8abbb05330e0abd4b9423cc7992",
           ".kernelrelease": "fbfda2117eb5b2ed303ae73dbc55f71c3080cf120fcf78aab3959d1502b9ded6"
