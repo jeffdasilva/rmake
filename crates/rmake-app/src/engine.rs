@@ -5207,14 +5207,16 @@ impl Engine {
                 let physical = modified(&name);
                 if declared || physical.is_some() {
                     // Only an eligible search record contributes its logical age.
-                    // GPATH merges the searched age with the age on the resulting name.
-                    let time = if declared && let Some(time) = self.assumed_time(&lookup) {
-                        Some(time)
+                    // GPATH retains a physical search result and merges it with
+                    // the age already on the resulting name.
+                    let assumed = self.assumed_time(if declared { &lookup } else { &name });
+                    let time = if declared && assumed.is_some() {
+                        assumed
                     } else if !declared
-                        && let Some(time) = self.assumed_time(&name)
+                        && (self.options.check_symlink_times || assumed.is_some())
                         && self.gpath_match(target, &name)
                     {
-                        physical.max(Some(time))
+                        physical.max(assumed)
                     } else if self.options.check_symlink_times {
                         self.name_time(&name)
                     } else {

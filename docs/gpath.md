@@ -7,6 +7,11 @@ The engine prepares that identity before those operations. It consumes the same
 metadata observation afterward, preserving freshness decisions made before
 expansion effects. An existing local file wins; GPATH itself does not search.
 
+With `-L`, a GPATH rename retains the successful stat from physical search.
+An eligible declared destination with no recorded age uses link-aware metadata,
+as ordinary VPATH does. Eleven original fixtures cover both routes, including
+query mode, a link chain, and a recipe that updates the selected referent.
+
 The global policy is expanded once after each completed Makefile read. Target
 bindings and later recipe-time `eval` changes do not reconfigure it. Makefile
 restarts clear aliases and observations and read the policy again. Makefile
