@@ -1,0 +1,11 @@
+id = "rule-delimiter-escaped-dollar-static-pattern"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Expanded rule colon handling with escaped dollar static pattern."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7461726765743d5b7072696365245d2c7072657265713d5b7072696365242e696e7075745d0a"
+stderr_hex = ""

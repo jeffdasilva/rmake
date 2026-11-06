@@ -1,0 +1,11 @@
+id = "rule-delimiter-escaped-dollar-grouped"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Expanded rule colon handling with escaped dollar grouped."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "67726f757065643d5b7072696365245d0a"
+stderr_hex = ""

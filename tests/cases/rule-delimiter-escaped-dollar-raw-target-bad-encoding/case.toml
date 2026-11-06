@@ -1,0 +1,11 @@
+id = "rule-delimiter-escaped-dollar-raw-target-bad-encoding"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Expanded rule colon handling with escaped dollar raw target bad encoding."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f72202770726963652dff24272e0a"
+stderr_hex = ""

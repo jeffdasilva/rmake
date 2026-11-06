@@ -19,6 +19,13 @@ qualified against two verified GNU Make 4.4.1 runs, including filesystem and
 process checks. The pinned GNU `src/read.c` was consulted for rule token and
 delimiter phases. The Rust implementation and fixtures were written independently.
 
+The colon scan after immediate expansion treats remaining dollar bytes as
+literal text and still respects backslash quoting. A raw short variable
+reference such as `$:` expands before this scan. The literal dollar produced
+by `$$` or a variable value does not absorb the following rule colon.
+Thirty-six GNU2 fixtures cover literal and generated colons, deferred
+variable spellings, quoted colons, scoped assignments, and recipe effects.
+
 An ordinary, static-pattern, or grouped declaration with no target names
 consumes its attached recipe lines without recording a rule. The reader
 keeps effects already evaluated while scanning the target and skips the

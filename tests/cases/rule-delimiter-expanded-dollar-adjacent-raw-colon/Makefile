@@ -1,0 +1,3 @@
+D := $$
+price$(D):
+wrong:;
