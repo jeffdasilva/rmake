@@ -6,7 +6,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
 use rmake_core::diagnostic::{FilesystemEffect, FilesystemError};
 use rmake_core::variables::MAX_OUTPUT;
@@ -129,7 +129,7 @@ fn execute_with(
             {
                 return Ok(Vec::new());
             }
-            Ok(path.into_os_string().as_bytes().to_vec())
+            Ok(path.into_os_string().into_vec())
         }
         FilesystemEffect::ReadFile(path) => read(path, missing_read).map_err(Into::into),
         FilesystemEffect::WriteFile { path, text, append } => {
