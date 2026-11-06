@@ -8073,7 +8073,6 @@ impl Engine {
             intermediate_stale,
             debug_changed_edges,
             deferred_intermediates,
-            waited_for_prerequisites,
             depth,
             ..
         } = state;
@@ -8180,13 +8179,12 @@ impl Engine {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
-        // A stopped graph still settles its suspended frames internally.
-        let aborted_wait = waited_for_prerequisites && self.graph_abort.is_some();
+        // A stopped graph still settles its blocked frames internally.
         let stopping_dependency = outcome.blocked
             && (outcome.fatal
                 || (!self.options.keep_going
                     && !self.optional_remake
-                    && (aborted_wait || !self.parallel_graph())));
+                    && (self.graph_abort.is_some() || !self.parallel_graph())));
         if !stopping_dependency {
             crate::debug::emit(
                 &self.output,
