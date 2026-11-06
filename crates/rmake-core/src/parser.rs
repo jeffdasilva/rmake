@@ -4489,23 +4489,27 @@ impl Database {
             let (text, rule_end) = unquote_semicolons::<true>(text, raw_rule_end);
             // Keep the raw assignment tail until a source word has produced
             // an inline recipe boundary during expansion.
-            let prefix_expansion = self.expand_rule_prefix(&text, rule_end, &location, context)?;
+            let mut prefix_expansion =
+                self.expand_rule_prefix(&text, rule_end, &location, context)?;
             let mut expanded_recipe_tail = None;
             if let Some(delimiter) = prefix_expansion.delimiter {
                 let prefix_tail = &prefix_expansion.expanded[delimiter.tail_start..];
                 let raw_tail = &text[prefix_expansion.consumed..];
-                let (mut tail, expanded_inline) =
+                let (mut tail, expanded_inline, rescan_prefix) =
                     if rule_end == text.len() && prefix_tail.contains(&b';') {
                         let semicolon = expanded_separator(prefix_tail, b';');
                         let (normalized, end) = unquote_semicolons::<false>(
                             prefix_tail,
                             semicolon.unwrap_or(prefix_tail.len()),
                         );
+                        let rescan_prefix = semicolon.is_none()
+                            && !raw_tail.is_empty()
+                            && matches!(normalized, Cow::Owned(_));
                         let mut tail = normalized.into_owned();
                         tail.truncate(end);
-                        (tail, semicolon.is_some())
+                        (tail, semicolon.is_some(), rescan_prefix)
                     } else {
-                        (prefix_tail.to_vec(), false)
+                        (prefix_tail.to_vec(), false, false)
                     };
                 if expanded_inline {
                     // An inline recipe exposed in the prefix expands its
@@ -4522,7 +4526,8 @@ impl Database {
                     declaration.ignore_recipes = true;
                     continue;
                 }
-                let mut syntax_end = tail.len();
+                let prefix_tail_len = tail.len();
+                let mut syntax_end = prefix_tail_len;
                 if !expanded_inline {
                     syntax_end += rule_end.saturating_sub(prefix_expansion.consumed);
                     tail.extend_from_slice(raw_tail);
@@ -4531,6 +4536,14 @@ impl Database {
                     declaration.ignore_recipes =
                         !self.define_target_assignments(targets, assignment, &location, context)?;
                     continue;
+                }
+                if rescan_prefix {
+                    // The later prerequisite expansion scans again only when
+                    // source text remains. Keep the first scan's dequoting.
+                    prefix_expansion.expanded.truncate(delimiter.tail_start);
+                    prefix_expansion
+                        .expanded
+                        .extend_from_slice(&tail[..prefix_tail_len]);
                 }
             }
             // GNU observes target globs before expanding the prerequisite

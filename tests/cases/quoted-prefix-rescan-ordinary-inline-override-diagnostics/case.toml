@@ -1,0 +1,11 @@
+id = "quoted-prefix-rescan-ordinary-inline-override-diagnostics"
+requirement = "rules.quoted-prefix-rescan"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original quoted generated-prefix rescan: ordinary inline override diagnostics."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7365636f6e640a"
+stderr_hex = "4d616b6566696c653a333a207761726e696e673a206f766572726964696e672072656369706520666f7220746172676574202761270a4d616b6566696c653a323a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f7220746172676574202761270a"

@@ -76,3 +76,6 @@ tests/cases/literal-chains-*/Makefile -text whitespace=-blank-at-eol,-blank-at-e
 tests/cases/load-reader-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/load-reader-*/child.mk -text whitespace=-blank-at-eol,-blank-at-eof
 tests/cases/load-reader-*/payload -text
+
+# Trailing source blanks distinguish a present raw remainder from an empty one.
+tests/cases/quoted-prefix-rescan-trailing-raw-blanks/Makefile -text whitespace=-blank-at-eol

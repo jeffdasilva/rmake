@@ -1,0 +1,11 @@
+id = "quoted-prefix-rescan-eval-remainder"
+requirement = "rules.quoted-prefix-rescan"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original quoted generated-prefix rescan: eval remainder."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7461696c0a72616e0a"
+stderr_hex = ""

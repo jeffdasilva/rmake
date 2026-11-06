@@ -1,0 +1,11 @@
+id = "quoted-prefix-rescan-physical-inline-owns-recipe"
+requirement = "rules.quoted-prefix-rescan"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original quoted generated-prefix rescan: physical inline owns recipe."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420275c3b406563686f272c206e6565646564206279202761272e202053746f702e0a"

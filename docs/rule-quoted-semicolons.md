@@ -34,3 +34,10 @@ delimiter, a still-quoted semicolon, or a delimiter found only in the later
 prerequisite expansion retains the usual target-first order. Fourteen GNU2
 fixtures check created and removed glob matches, grouped and double-colon
 rules, recipe arguments, and file and diagnostic effects.
+
+When the expanded prefix contains a quoted semicolon and source text remains,
+the reader retains the first dequoting result for the scan after prerequisite
+expansion. The raw remainder can be whitespace or a reference that expands to
+empty text. Target filename observation still precedes that expansion.
+Thirty-two GNU2 fixtures cover both scan counts, backslash parity, comments,
+continued lines, `eval`, recipe overrides, and ordered file effects.
