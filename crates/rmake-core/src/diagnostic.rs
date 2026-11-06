@@ -391,12 +391,32 @@ pub trait EvaluationStack {
     ) -> Option<Result<(), crate::parser::ParseError>>;
 }
 
+/// A graph edge can refer to a particular double-colon file record.
+#[derive(Clone, Copy)]
+pub struct ScopeParent<T> {
+    pub target: T,
+    pub branch: Option<usize>,
+}
+
+impl ScopeParent<&[u8]> {
+    pub fn into_owned(self) -> ScopeParent<Vec<u8>> {
+        ScopeParent {
+            target: self.target.to_vec(),
+            branch: self.branch,
+        }
+    }
+}
+
 /// Runtime file contexts are available to eager declarations during eval.
 pub trait TargetReadReceiver {
     fn variables(&self, target: &[u8]) -> Option<&crate::variables::VariableStore>;
-    fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>>;
+    fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>>;
     fn has_parent_changes(&self) -> bool;
-    fn changed_parent(&self, target: &[u8]) -> Option<&[u8]>;
+    fn changed_parent(&self, target: &[u8]) -> Option<ScopeParent<&[u8]>>;
+    fn parent_variables(
+        &self,
+        parent: ScopeParent<&[u8]>,
+    ) -> Option<&crate::variables::VariableStore>;
     fn retain_locals(&mut self, target: &[u8], variables: crate::variables::VariableStore);
 }
 

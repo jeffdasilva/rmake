@@ -2919,17 +2919,17 @@ impl Database {
         let mut path = vec![target];
         let mut parent = reads.parent(target)?;
         let mut inherited = loop {
-            let Some(name) = parent else {
+            let Some(edge) = parent else {
                 break self.variables.clone();
             };
-            if let Some(variables) = reads.variables(name) {
+            if let Some(variables) = reads.parent_variables(edge) {
                 break variables.clone();
             }
-            if path.contains(&name) {
+            if path.contains(&edge.target) {
                 return None;
             }
-            path.push(name);
-            parent = reads.parent(name).flatten();
+            path.push(edge.target);
+            parent = reads.parent(edge.target).flatten();
         };
         for name in path.into_iter().rev() {
             inherited = self.variables_for_target_prepared(name, &inherited, None);
@@ -2944,7 +2944,7 @@ impl Database {
         reads: &dyn crate::diagnostic::TargetReadReceiver,
         caller: Option<&VariableStore>,
     ) -> Option<VariableStore> {
-        let mut path = vec![target];
+        let mut path: Vec<crate::diagnostic::ScopeParent<&[u8]>> = Vec::new();
         let mut changed = false;
         let mut name = target;
         loop {
@@ -2953,11 +2953,11 @@ impl Database {
             let Some(parent) = replacement.or_else(|| reads.parent(name).flatten()) else {
                 break;
             };
-            if path.contains(&parent) {
+            if parent.target == target || path.iter().any(|edge| edge.target == parent.target) {
                 return None;
             }
             path.push(parent);
-            name = parent;
+            name = parent.target;
         }
         if !changed {
             return None;
@@ -2970,24 +2970,26 @@ impl Database {
                 .active_target_read(target, declaration)?,
         };
         read.replace_file_read_ancestors(
-            path.into_iter().skip(1).map(|name| {
+            path.into_iter().map(|parent| {
                 let variables = caller
-                    .filter(|scope| scope.is_file_read_context(name))
+                    .filter(|scope| scope.is_file_read_parent(parent))
                     .or_else(|| {
                         self.suspended_target_reads
                             .iter()
                             .rev()
-                            .find(|scope| scope.is_file_read_context(name))
+                            .find(|scope| scope.is_file_read_parent(parent))
                     })
                     .or_else(|| {
-                        reads
-                            .variables(name)
-                            .filter(|scope| scope.is_file_read_context(name))
+                        reads.parent_variables(parent).filter(|scope| {
+                            // An uninitialized branch can use its head's table.
+                            scope.is_file_read_parent(parent)
+                                || scope.is_file_read_context(parent.target)
+                        })
                     });
                 crate::variables::ReadAncestor {
-                    name,
+                    name: parent.target,
                     variables,
-                    declarations: self.target_scopes.get(name),
+                    declarations: self.target_scopes.get(parent.target),
                 }
             }),
             &self.variables,

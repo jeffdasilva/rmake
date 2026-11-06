@@ -16,7 +16,9 @@ use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::IncludeSearch;
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
-use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver};
+use rmake_core::diagnostic::{
+    Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver, ScopeParent,
+};
 use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
@@ -546,27 +548,22 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
     );
 }
 
-#[derive(Clone, Copy)]
-struct ScopeParent<T> {
-    target: T,
-    branch: Option<usize>,
-}
-
-impl ScopeParent<&[u8]> {
-    fn into_owned(self) -> ScopeParent<Vec<u8>> {
-        ScopeParent {
-            target: self.target.to_vec(),
-            branch: self.branch,
-        }
-    }
-}
-
 struct TargetReads<'a> {
     parents: &'a HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
-    retained_parents: &'a HashMap<Vec<u8>, Vec<u8>>,
+    retained_parents: &'a HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
     recipes: &'a mut HashMap<Vec<u8>, VariableStore>,
+    branches: &'a HashMap<(Vec<u8>, usize), VariableStore>,
+}
+
+impl TargetReads<'_> {
+    fn resolve_parent<'a>(&'a self, parent: &'a ScopeParent<Vec<u8>>) -> ScopeParent<&'a [u8]> {
+        ScopeParent {
+            target: self.aliases.resolve(&parent.target),
+            branch: parent.branch,
+        }
+    }
 }
 
 impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
@@ -574,22 +571,37 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
         self.recipes.get(target).or_else(|| self.base.get(target))
     }
 
-    fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>> {
-        self.parents.get(target).map(|parent| {
-            parent
-                .as_ref()
-                .map(|parent| self.aliases.resolve(&parent.target))
-        })
+    fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>> {
+        self.parents
+            .get(target)
+            .map(|parent| parent.as_ref().map(|parent| self.resolve_parent(parent)))
     }
 
     fn has_parent_changes(&self) -> bool {
         !self.retained_parents.is_empty()
     }
 
-    fn changed_parent(&self, target: &[u8]) -> Option<&[u8]> {
+    fn changed_parent(&self, target: &[u8]) -> Option<ScopeParent<&[u8]>> {
         self.retained_parents
             .get(target)
-            .map(|name| self.aliases.resolve(name))
+            .map(|parent| self.resolve_parent(parent))
+    }
+
+    fn parent_variables(&self, parent: ScopeParent<&[u8]>) -> Option<&VariableStore> {
+        if let Some(ordinal) = parent.branch {
+            let mut key = (parent.target.to_vec(), ordinal);
+            if let Some(scope) = self.branches.get(&key) {
+                return Some(scope);
+            }
+            // A branch without its own table sees the head's table.
+            if ordinal != 0 {
+                key.1 = 0;
+                if let Some(head) = self.branches.get(&key) {
+                    return Some(head);
+                }
+            }
+        }
+        self.variables(parent.target)
     }
 
     fn retain_locals(&mut self, target: &[u8], variables: VariableStore) {
@@ -978,7 +990,7 @@ pub struct Engine {
     scope_parents: HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
-    retained_scope_parents: HashMap<Vec<u8>, Vec<u8>>,
+    retained_scope_parents: HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
     impossible_prerequisites: HashSet<Vec<u8>>,
@@ -1650,6 +1662,7 @@ impl Engine {
             aliases: &self.aliases,
             base: &self.target_contexts,
             recipes: &mut self.database_contexts,
+            branches: &self.database_branch_contexts,
         };
         let result = self.database.expand_in(
             variables,
@@ -6899,7 +6912,7 @@ impl Engine {
         }
         if let Some(mut outcome) = self.done.get(target).copied() {
             if let Some(parent) = parent {
-                self.remember_retained_scope_parent(target, parent.target);
+                self.remember_retained_scope_parent(target, parent);
             }
             let debug_depth = depth + usize::from(self.remaking);
             let pruned = self
@@ -7116,14 +7129,15 @@ impl Engine {
         self.build_rule(target, depth, before, comparison, phony, rule, None)
     }
 
-    fn remember_retained_scope_parent(&mut self, target: &[u8], parent: &[u8]) {
+    fn remember_retained_scope_parent(&mut self, target: &[u8], parent: ScopeParent<&[u8]>) {
         if !self.retained_scope_parents.is_empty()
             && let Some(latest) = self.retained_scope_parents.get_mut(target)
         {
-            if latest.as_slice() != parent {
-                latest.clear();
-                latest.extend_from_slice(parent);
+            if latest.target.as_slice() != parent.target {
+                latest.target.clear();
+                latest.target.extend_from_slice(parent.target);
             }
+            latest.branch = parent.branch;
             // Keep the live edge if it returns to its original parent. A
             // retained eager read may have updated this file's local table.
             return;
@@ -7131,11 +7145,11 @@ impl Engine {
         if self.scope_parents.get(target).is_some_and(|first| {
             first
                 .as_ref()
-                .map(|first| self.aliases.resolve(&first.target))
-                != Some(parent)
+                .map(|first| (self.aliases.resolve(&first.target), first.branch))
+                != Some((parent.target, parent.branch))
         }) {
             self.retained_scope_parents
-                .insert(target.to_vec(), parent.to_vec());
+                .insert(target.to_vec(), parent.into_owned());
         }
     }
 
@@ -8746,11 +8760,11 @@ impl Engine {
         }
         let head_key = (key.0, 0);
         if let Some(head) = self.database_branch_contexts.get(&head_key) {
-            return Ok(head.fresh_double_colon_scope());
+            return Ok(head.fresh_double_colon_scope(ordinal));
         }
         // A later branch can be the first one to expand a recipe.
         let head = self.target_variables(&head_key.0)?;
-        let scope = head.fresh_double_colon_scope();
+        let scope = head.fresh_double_colon_scope(ordinal);
         self.database_branch_contexts.insert(head_key, head);
         Ok(scope)
     }
@@ -9412,6 +9426,7 @@ impl Engine {
                     aliases: &self.aliases,
                     base: &self.target_contexts,
                     recipes: &mut self.database_contexts,
+                    branches: &self.database_branch_contexts,
                 };
                 for name in &exports {
                     self.database.refresh_scoped_variables(variables);

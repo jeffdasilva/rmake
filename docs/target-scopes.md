@@ -110,6 +110,12 @@ to the variable setup used during implicit search and intermediate
 inspection. A shared prerequisite's first branch supplies its recipe
 scope.
 
+An eager declaration that reopens a shared prerequisite follows the latest
+branch that visited it. The file keeps its own automatic values and shell
+locals. A read uses the later branch's live table when that branch is the
+current or suspended caller. A named declaration on the double-colon
+target itself still selects its head.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.

@@ -147,6 +147,7 @@ def models() -> list[Model]:
     result.extend(startup_exit_models())
     result.extend(target_read_models())
     result.extend(secondary_scope_models())
+    result.extend(retained_double_branch_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -617,6 +618,37 @@ all:;@:
 %.mid: %.in $$(CHECK)
 	@:
 ''', b'active=[|]\n', b'active\neval-returned\n', **{'item.in': b''}),
+    ]
+
+
+def retained_double_branch_models() -> list[Model]:
+    header = b'''load probe_api.so
+.SECONDEXPANSION:
+HEAD = $(shell /bin/sh -c 'exit 7')$(file >>seen,head)
+NEXT = $(shell /bin/sh -c 'exit 11')$(file >>seen,next)
+READ = $(probe_eval_guard shared: RESULT := $$(info retained=[$$@|$$(.SHELLSTATUS)])$$(file >>seen,retained))
+all: split
+all:;@:
+shared:;@$(info first=[$@|$(.SHELLSTATUS)])$(file >>seen,shared):
+'''
+
+    def model(name, body, stdout):
+        return Model('native-retained-double-branch-' + name,
+                            {'Makefile': header + body, 'seen': b'anchor\n'},
+                            {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+                            b'anchor\nhead\nshared\nnext\nretained\neval-returned\n',
+                            args=('-rR', '--no-print-directory'))
+
+    return [
+        model('live', b'''split:: shared $$(HEAD)
+	@:
+split:: shared $$(NEXT)
+	@$(shell /bin/sh -c 'exit 13')$(READ)$(info outer=[$@|$(.SHELLSTATUS)]):
+''', b'first=[shared|7]\nretained=[shared|13]\nouter=[split|13]\n'),
+        model('child-export', b'''split:: shared $$(HEAD)
+split:: shared $$(NEXT)
+	@$(eval export TRIGGER = $$(READ)ready)printf 'child=[%s]\\n' "$$TRIGGER"
+''', b'first=[shared|7]\nretained=[shared|11]\nchild=[ready]\n'),
     ]
 
 

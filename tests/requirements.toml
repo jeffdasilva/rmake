@@ -2042,3 +2042,13 @@ candidate_required = 12
 fixture_count = 12
 reference = "docs/target-scopes.md"
 cases = ["double-parent-scope-branch-local-in-active-eval", "double-parent-scope-child-own-status", "double-parent-scope-empty-status-control", "double-parent-scope-gpath", "double-parent-scope-head-latest-recipe-status", "double-parent-scope-implicit-search", "double-parent-scope-inspected-intermediate", "double-parent-scope-later-direct", "double-parent-scope-order-only", "double-parent-scope-shared-first-owner", "double-parent-scope-transitive", "double-parent-scope-unrelated-owner-control"]
+
+[[requirements]]
+id = "scope.double-branch-retained"
+title = "Eager scope after a prerequisite is revisited by a later ordinary double-colon branch"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 14
+fixture_count = 14
+reference = "docs/target-scopes.md"
+cases = ["retained-double-branch-external-caller", "retained-double-branch-first-owner-later-control", "retained-double-branch-gpath", "retained-double-branch-keeps-retained-local", "retained-double-branch-live-caller", "retained-double-branch-named-head-control", "retained-double-branch-no-recipe-prerequisite", "retained-double-branch-no-revisit-control", "retained-double-branch-no-secondary-in-later-branch", "retained-double-branch-same-name-later", "retained-double-branch-suspended-caller", "retained-double-branch-switch-to-ordinary-parent", "retained-double-branch-third-branch", "retained-double-branch-transitive-retained"]
