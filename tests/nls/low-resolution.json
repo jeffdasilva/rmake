@@ -1,0 +1,589 @@
+{
+  "classification": "Fixed-timestamp C and authenticated French low-resolution warning diagnostics",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {},
+  "rows": [
+    {
+      "id": "nls-low-resolution-current-fraction-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: 'out' is up to date.\n",
+        "stderr": "make: *** Warning: .LOW_RESOLUTION_TIME file 'out' has a high resolution time stamp\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-current-fraction-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: « out » est à jour.\n",
+        "stderr": "make: *** Avertissement : le fichier .LOW_RESOLUTION_TIME « out » a un horodatage à haute résolution\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-stale-fraction-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {
+        "out": "6e65770a"
+      },
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000003300000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "built:out\n",
+        "stderr": "make: *** Warning: .LOW_RESOLUTION_TIME file 'out' has a high resolution time stamp\nrecipe-stderr:out\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-stale-fraction-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {
+        "out": "6e65770a"
+      },
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000003300000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "built:out\n",
+        "stderr": "make: *** Avertissement : le fichier .LOW_RESOLUTION_TIME « out » a un horodatage à haute résolution\nrecipe-stderr:out\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-current-whole-second-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000000000000000,
+        "input": 1600000000800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000000000000000,
+        "input": 1600000000800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: 'out' is up to date.\n",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-current-whole-second-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000000000000000,
+        "input": 1600000000800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000000000000000,
+        "input": 1600000000800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: « out » est à jour.\n",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-unmarked-fraction-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {
+        "out": "6e65770a"
+      },
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000003300000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "built:out\n",
+        "stderr": "recipe-stderr:out\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-unmarked-fraction-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {
+        "out": "6e65770a"
+      },
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000003300000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "built:out\n",
+        "stderr": "recipe-stderr:out\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-question-stale-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-q",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "make: *** Warning: .LOW_RESOLUTION_TIME file 'out' has a high resolution time stamp\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-question-stale-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-q",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "make: *** Avertissement : le fichier .LOW_RESOLUTION_TIME « out » a un horodatage à haute résolution\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-silent-stale-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {
+        "out": "6e65770a"
+      },
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000003300000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "built:out\n",
+        "stderr": "make: *** Warning: .LOW_RESOLUTION_TIME file 'out' has a high resolution time stamp\nrecipe-stderr:out\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-silent-stale-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {
+        "out": "6e65770a"
+      },
+      "mtimes_ns": {
+        "out": 1600000000100000000,
+        "input": 1600000001800000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000003300000000,
+        "input": 1600000001800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "built:out\n",
+        "stderr": "make: *** Avertissement : le fichier .LOW_RESOLUTION_TIME « out » a un horodatage à haute résolution\nrecipe-stderr:out\n",
+        "seen": "anchor\nexpand:out\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-retained-gpath-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a5650415448203a3d20706f6f6c0a4750415448203a3d20706f6f6c0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "pool/out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "pool/out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "expected_mtimes_ns": {
+        "pool/out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: 'pool/out' is up to date.\n",
+        "stderr": "make: *** Warning: .LOW_RESOLUTION_TIME file 'pool/out' has a high resolution time stamp\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-retained-gpath-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a5650415448203a3d20706f6f6c0a4750415448203a3d20706f6f6c0a2e4c4f575f5245534f4c5554494f4e5f54494d453a206f75740a6f75743a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "pool/out": "6f6c640a",
+        "input": "736f757263650a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "pool/out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "expected_mtimes_ns": {
+        "pool/out": 1600000000100000000,
+        "input": 1600000000800000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: « pool/out » est à jour.\n",
+        "stderr": "make: *** Avertissement : le fichier .LOW_RESOLUTION_TIME « pool/out » a un horodatage à haute résolution\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-peer-only-marked-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a20706565720a6f7574207065657220263a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a",
+        "peer": "706565720a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000001000000000,
+        "input": 1600000000400000000,
+        "peer": 1600000000500000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000001000000000,
+        "input": 1600000000400000000,
+        "peer": 1600000000500000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: 'out' is up to date.\n",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-low-resolution-peer-only-marked-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "out"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4d616b6566696c653a3b0a2e4c4f575f5245534f4c5554494f4e5f54494d453a20706565720a6f7574207065657220263a20696e7075740a0940242866696c65203e3e7365656e2c657870616e643a2440297072696e746620276275696c743a25735c6e2720272440273b207072696e746620277265636970652d7374646572723a25735c6e272027244027203e26323b207072696e746620276e65775c6e27203e20272440273b20746f756368202d642040313630303030303030332e3320272440270a",
+        "seen": "616e63686f720a",
+        "out": "6f6c640a",
+        "input": "736f757263650a",
+        "peer": "706565720a"
+      },
+      "updates": {},
+      "mtimes_ns": {
+        "out": 1600000001000000000,
+        "input": 1600000000400000000,
+        "peer": 1600000000500000000
+      },
+      "expected_mtimes_ns": {
+        "out": 1600000001000000000,
+        "input": 1600000000400000000,
+        "peer": 1600000000500000000
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "make: « out » est à jour.\n",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    }
+  ]
+}

@@ -7107,14 +7107,9 @@ impl Engine {
             Err(error) => (1_000_000_000 - error.duration().subsec_nanos()) % 1_000_000_000,
         };
         if nanos != 0 {
-            self.stderr(
-                &[
-                    b"*** Warning: .LOW_RESOLUTION_TIME file '".as_slice(),
-                    target,
-                    b"' has a high resolution time stamp",
-                ]
-                .concat(),
-            );
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::LowResolutionTime(target),
+            ));
         }
         time.checked_add(std::time::Duration::from_nanos(u64::from(
             999_999_999 - nanos,
