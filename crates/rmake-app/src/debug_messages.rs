@@ -38,6 +38,7 @@ keys! {
     RECIPE_RUNNING: c"Recipe of '%s' is being run.\n", [B];
     REMADE: c"Successfully remade target file '%s'.\n", [B];
     FAILED: c"Failed to remake target file '%s'.\n", [B];
+    QUESTION_OUTDATED: c"Target file '%s' needs to be remade under -q.\n", [B];
     NO_NEED: c"No need to remake target '%s'", [B];
     USING_VPATH: c"; using VPATH name '%s'", [B];
     ALREADY: c"File '%s' was considered already.\n", [B];

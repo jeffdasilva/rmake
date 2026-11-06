@@ -1,0 +1,12 @@
+id = "restart-named-argv-short-attached-cluster"
+requirement = "cli.restart-named-argv"
+candidate = "required"
+description = "Retain the selected named Makefile while replaying command bindings on exec."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "HOME=$(if $(MAKE_RESTARTS),alternate,original)", "PAYLOAD:=phase$(MAKE_RESTARTS)", "-sf~/outer.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[original] files=[original/outer.mk] home=[original] cli=[phase] count=[]\nread=[original] files=[original/outer.mk] home=[alternate] cli=[phase1] count=[1]\ngoal=[original:yes:phase1]\n"
+stderr = ""

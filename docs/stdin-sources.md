@@ -6,6 +6,14 @@ A stdin source is a real named file with mode0600. Transfer uses public libc std
 
 The actual CLI decode records the first stdin argument's original span. A restart builds argv from that span, retaining short-option prefixes and surrounding arguments, and passes the rewritten span when replacing the process image. It does not decode, expand or replay an argument to reconstruct the span. The internal operand bypasses tilde expansion. Repeated stdin is the observed safe GNU fatal error. A copied source is published into both invocation and live flag state before command evals; later MAKEFLAGS changes cannot restore the old `-` filename. Real exec inherits live process environment changes made by native code while overriding the existing restart counters.
 
+Named `-f`, `--file`, and `--makefile` operands retain their selected paths in
+the same original argument coordinates. A restart can then replay command
+assignments with a new `MAKE_RESTARTS` while rereading the first selected
+Makefile. Short clusters and separated operands retain their shape, and full
+long forms become attached `-f` operands. GNU leaves abbreviated long forms
+in the original argument vector. Eight ordinary fixtures cover these forms,
+multiple files, and literal and no-restart controls.
+
 Two finite GNU quirks remain observable and receive no safety-exception credit. Restarting an abbreviated `--fi=-` invocation loses its input and leaves its first source file; the initial process's native finalizers do not run across exec. An early signal during a blocked, unpublished stdin copy also leaves its empty source. The tests bind exactly one source before exit through an independent host open/fstat/full-byte observation, then require that same device/inode/mode/full content and the complete final filesystem. They do not discard wildcard filenames or normalize output. Every other selected filesystem is static. This matches observed GNU behavior rather than treating any candidate temporary as acceptable.
 
 `tools/stdin_sources.py` exposes `--oracle`, `--candidate` or `--oracle-only`, `--report`, repeatable exact `--case` and `--cc`. Original modules compile once per case before identical GNU2/candidate resets. Forty-four profiles cover the initial four stdin/restart combinations, option forms and retained cluster policies, raw manual paths, help/version cleanup, temporary-directory priority, libc prefetch/consumption, reader failure, publication phases, and native environment transfer. Eight tooling controls reject shared wrong streams/status/effects, extra files, absent/late/replaced identities and incorrect containment; failing candidates always produce a nonzero separate report.
