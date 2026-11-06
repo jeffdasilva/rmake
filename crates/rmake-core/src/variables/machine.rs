@@ -579,9 +579,8 @@ impl Expansion<'_, '_> {
                     return Ok(());
                 }
                 if self.active_keys().any(|(n, l)| *n == name && *l == layer) {
-                    return Err(
-                        ExpandError::RecursiveVariable(name).at(variable.definition.as_ref())
-                    );
+                    m.values.push(self.recursive_binding(&name, &variable)?);
+                    return Ok(());
                 }
                 let active = self.active.len();
                 self.active.push((name.clone(), layer));

@@ -15,3 +15,19 @@ bytes in the nested child and the expanded bytes in the outer child.
 These cases form the `shell.initial-environment` requirement family. The
 standard development and optimized conformance gates compare literal
 streams, exit status, and the full fixture filesystem.
+
+## Recursive bindings in a shell function environment
+
+GNU uses the original process value when environment preparation encounters
+an active recursive binding through another export. The fallback also applies
+when the active variable itself is unexported. An absent original value expands
+as an empty string. Verbose mode identifies the variable that recurred, using
+`(null):0` when its definition came from the command line. A recursive binding
+in an ordinary expansion or a recipe process environment remains fatal.
+
+The original fixtures in `functions.shell` cover direct and indirect paths,
+original bytes, computed names, nested shell execution, target-local scope and
+the fatal-cycle boundary. GNU Make 4.4.1's [release archive](https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz)
+was consulted in `src/expand.c` and `src/variable.c` for the shell environment
+recursion boundary. The Rust implementation and fixtures were written
+independently.

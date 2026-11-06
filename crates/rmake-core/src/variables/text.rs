@@ -109,6 +109,7 @@ struct Piece {
 }
 enum TrialError {
     Budget,
+    RecursiveShellExport,
     Evaluation(ExpandError),
 }
 impl TrialError {
@@ -309,6 +310,9 @@ impl Expansion<'_, '_> {
         let mut lookups = crate::database::LookupBatch::default();
         let result = (|| {
             if program.nodes[0].externally_active {
+                if self.context.preparing_shell_environment {
+                    return Err(TrialError::RecursiveShellExport);
+                }
                 return Err(TrialError::Evaluation(
                     ExpandError::RecursiveVariable(program.nodes[0].name.to_vec())
                         .at(definition.as_ref()),
@@ -405,6 +409,9 @@ impl Expansion<'_, '_> {
                             Body::Text { .. } => {
                                 let nearest = definition.or_else(|| frame.nearest.clone());
                                 if active[node] || program.nodes[node].externally_active {
+                                    if self.context.preparing_shell_environment {
+                                        return Err(TrialError::RecursiveShellExport);
+                                    }
                                     return Err(TrialError::Evaluation(
                                         ExpandError::RecursiveVariable(
                                             program.nodes[node].name.to_vec(),
@@ -427,7 +434,7 @@ impl Expansion<'_, '_> {
             }
         })();
         let result = match result {
-            Err(TrialError::Budget) => return None,
+            Err(TrialError::Budget | TrialError::RecursiveShellExport) => return None,
             Err(TrialError::Evaluation(error)) => Err(error),
             Ok(value) => Ok(value),
         };
