@@ -104,7 +104,7 @@ fn execute_with(
             let home = if slash == 1 {
                 std::env::var_os("HOME")
                     .filter(|home| !home.is_empty())
-                    .map(|home| home.as_bytes().to_vec())
+                    .map(OsStringExt::into_vec)
                     .or_else(|| posix::home(None))
             } else {
                 posix::home(Some(&name[1..slash]))
