@@ -205,7 +205,10 @@ def main():
             source = root / g.safe_relative(row['id'])
             source.mkdir()
             for name, text in row['files'].items():
-                (source / g.safe_relative(name)).write_bytes(text.encode())
+                target = source / g.safe_relative(name)
+                target.write_bytes(text.encode())
+                if name == "Makefile":
+                    os.utime(target, (1_600_000_000, 1_600_000_000))
             case = h.Case(source, row['id'], 'guile.detached.parallel', 'required',
                           tuple(row['args']), 4, environment, {})
             for engine in engines:

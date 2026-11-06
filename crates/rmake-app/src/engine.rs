@@ -2686,11 +2686,6 @@ impl Engine {
             }
 
             if let Some(auth) = &self.options.jobserver_auth {
-                let auth = self
-                    .jobserver
-                    .as_ref()
-                    .filter(|server| server.auth() == auth)
-                    .map_or(auth.as_slice(), Jobserver::diagnostic_auth);
                 crate::debug::Jobs::controller(self.output.debug_mask(), auth);
             }
             if let Some(authentication) = self.options.sync_mutex.as_deref() {
@@ -8889,7 +8884,7 @@ impl Engine {
         }
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
-        let flow = Flow::new(recipes.iter().map(recursive_line).collect());
+        let flow = Flow::new(recipes.iter().map(recursive_line));
         let parallel = self.job_slots() > 1
             && !self.options.dry_run
             && !self.options.question
@@ -9420,6 +9415,7 @@ impl Engine {
                 let exports =
                     environment_variables.environment_order(|name, _| eligible.contains(name));
                 let mut emitted_order = Vec::new();
+                let mut inherited_mflags = false;
                 let mut target_reads = TargetReads {
                     parents: &self.scope_parents,
                     retained_parents: &self.retained_scope_parents,
@@ -9442,6 +9438,9 @@ impl Engine {
                         continue;
                     }
                     if let Some(variable) = environment_variables.get(name) {
+                        if name == b"MFLAGS" {
+                            inherited_mflags = variable.origin() == Origin::Environment;
+                        }
                         // Imported environment values are recursive when referenced
                         // by make syntax, but are passed back to children verbatim.
                         if matches!(
@@ -9528,9 +9527,9 @@ impl Engine {
                     .jobserver
                     .as_ref()
                     .is_some_and(|server| !server.auth().starts_with(b"fifo:"))
-                    && !flow.any_recursive()
+                    && !flow.has_declared_recursion()
                 {
-                    crate::process::disable_pipe_jobserver(&mut child);
+                    crate::process::disable_pipe_jobserver(&mut child, inherited_mflags);
                 }
                 environment = Some(RecipeEnvironment {
                     values: child

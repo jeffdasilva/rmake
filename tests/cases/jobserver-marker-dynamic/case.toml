@@ -1,0 +1,12 @@
+id = "jobserver-marker-dynamic"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Declared and expanded recursion select the environment marker and inherited descriptors."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "dynamic: open disabled\n"
+stderr = ""

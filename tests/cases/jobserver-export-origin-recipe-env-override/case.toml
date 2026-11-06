@@ -1,0 +1,12 @@
+id = "jobserver-export-origin-recipe-env-override"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "GNU pipe authentication export selects flag spelling and legacy variable origin."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "-e"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "MAKEFLAGS:disabled\nMFLAGS:enabled\n"
+stderr = ""

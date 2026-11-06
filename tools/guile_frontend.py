@@ -44,6 +44,8 @@ def prepare(specification, row, directory):
         target = source_file(directory, name)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(bytes.fromhex(encoded))
+        if schema == "signal" and name == "Makefile":
+            os.utime(target, (1_600_000_000, 1_600_000_000))
     compile_spec = []
     if schema == "phase":
         flags = ["-pthread", *(["-DPHASE_REDIRECT=1"] if row["redirect"] else [])]
