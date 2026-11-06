@@ -9415,6 +9415,7 @@ impl Engine {
                 let exports =
                     environment_variables.environment_order(|name, _| eligible.contains(name));
                 let mut emitted_order = Vec::new();
+                let mut inherited_mflags = false;
                 let mut target_reads = TargetReads {
                     parents: &self.scope_parents,
                     retained_parents: &self.retained_scope_parents,
@@ -9437,6 +9438,9 @@ impl Engine {
                         continue;
                     }
                     if let Some(variable) = environment_variables.get(name) {
+                        if name == b"MFLAGS" {
+                            inherited_mflags = variable.origin() == Origin::Environment;
+                        }
                         // Imported environment values are recursive when referenced
                         // by make syntax, but are passed back to children verbatim.
                         if matches!(
@@ -9525,7 +9529,7 @@ impl Engine {
                     .is_some_and(|server| !server.auth().starts_with(b"fifo:"))
                     && !flow.has_declared_recursion()
                 {
-                    crate::process::disable_pipe_jobserver(&mut child);
+                    crate::process::disable_pipe_jobserver(&mut child, inherited_mflags);
                 }
                 environment = Some(RecipeEnvironment {
                     values: child

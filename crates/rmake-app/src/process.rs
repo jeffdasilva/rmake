@@ -338,30 +338,47 @@ fn single_quote(input: &[u8], output: &mut Vec<u8>) {
 /// Nonrecursive pipe children receive GNU's explicit unavailable-pool marker.
 /// The original authentication remains as observable recursive flag text; the
 /// last marker prevents a descendant from using descriptors it did not inherit.
-pub fn disable_pipe_jobserver(command: &mut std::process::Command) {
+pub fn disable_pipe_jobserver(command: &mut std::process::Command, inherited_mflags: bool) {
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
-    let flags = command.get_envs().find_map(|(name, value)| {
-        (name.as_bytes() == b"MAKEFLAGS")
-            .then_some(value)
-            .flatten()
-            .map(|value| value.as_bytes().to_vec())
-    });
-    if let Some(mut flags) = flags {
-        let boundary = flags
-            .windows(4)
-            .position(|bytes| bytes == b" -- ")
-            .unwrap_or_else(|| {
-                if flags.ends_with(b" --") {
-                    flags.len() - 3
-                } else {
-                    flags.len()
-                }
-            });
-        flags.splice(
-            boundary..boundary,
-            b" --jobserver-auth=-2,-2".iter().copied(),
-        );
-        command.env("MAKEFLAGS", std::ffi::OsString::from_vec(flags));
+
+    const AUTH: &[u8] = b" --jobserver-auth=";
+    const DISABLED: &[u8] = b" --jobserver-auth=-2,-2";
+
+    for name in ["MAKEFLAGS", "MFLAGS"] {
+        if name == "MFLAGS" && !inherited_mflags {
+            continue;
+        }
+        let flags = command.get_envs().find_map(|(key, value)| {
+            (key == name)
+                .then_some(value)
+                .flatten()
+                .map(OsStrExt::as_bytes)
+                .filter(|flags| flags.windows(AUTH.len()).any(|part| part == AUTH))
+                .map(|flags| {
+                    let boundary = if name == "MAKEFLAGS" {
+                        flags
+                            .windows(4)
+                            .position(|part| part == b" -- ")
+                            .unwrap_or_else(|| {
+                                if flags.ends_with(b" --") {
+                                    flags.len() - 3
+                                } else {
+                                    flags.len()
+                                }
+                            })
+                    } else {
+                        flags.len()
+                    };
+                    let mut value = Vec::with_capacity(flags.len() + DISABLED.len());
+                    value.extend_from_slice(&flags[..boundary]);
+                    value.extend_from_slice(DISABLED);
+                    value.extend_from_slice(&flags[boundary..]);
+                    value
+                })
+        });
+        if let Some(flags) = flags {
+            command.env(name, std::ffi::OsString::from_vec(flags));
+        }
     }
 }
 
@@ -374,7 +391,7 @@ mod tests {
         use std::os::unix::ffi::OsStrExt;
         let mut command = std::process::Command::new("unused");
         command.env("MAKEFLAGS", "rR -j2 --jobserver-auth=3,4 -- X=a\\ b");
-        super::disable_pipe_jobserver(&mut command);
+        super::disable_pipe_jobserver(&mut command, false);
         let flags = command
             .get_envs()
             .find(|(name, _)| *name == "MAKEFLAGS")

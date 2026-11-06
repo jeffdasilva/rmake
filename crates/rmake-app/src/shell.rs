@@ -28,9 +28,13 @@ pub fn run(
     let mut command = Command::new(OsStr::from_bytes(&program));
     command.args(args.iter().map(|arg| OsStr::from_bytes(arg)));
     let mut order = Vec::new();
+    let mut inherited_mflags = false;
     for (name, value) in request.environment {
         match value {
-            EnvironmentValue::Set(value) => {
+            EnvironmentValue::Set { value, origin } => {
+                if name == b"MFLAGS" {
+                    inherited_mflags = *origin == rmake_core::variables::Origin::Environment;
+                }
                 command.env(OsStr::from_bytes(name), OsStr::from_bytes(value));
                 order.push(name.clone());
             }
@@ -46,7 +50,7 @@ pub fn run(
     }
     command.env("MAKELEVEL", makelevel.wrapping_add(1).to_string());
     if jobserver.is_some_and(|server| !server.auth().starts_with(b"fifo:")) {
-        crate::process::disable_pipe_jobserver(&mut command);
+        crate::process::disable_pipe_jobserver(&mut command, inherited_mflags);
     }
     let buffer = output.current();
     output.start();

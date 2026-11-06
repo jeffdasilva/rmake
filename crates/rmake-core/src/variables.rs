@@ -3757,7 +3757,10 @@ impl Expansion<'_, '_> {
                 let value = if variable.export_policy().unwrap_or_else(|| {
                     Self::shell_export_default(&name, variable.origin, export_all)
                 }) {
-                    crate::diagnostic::EnvironmentValue::Set(variable.value.clone())
+                    crate::diagnostic::EnvironmentValue::Set {
+                        value: variable.value.clone(),
+                        origin: variable.origin,
+                    }
                 } else {
                     crate::diagnostic::EnvironmentValue::Remove
                 };
@@ -3805,7 +3808,13 @@ impl Expansion<'_, '_> {
             } else {
                 self.environment_variable(&name, &variable, layer)?
             };
-            environment.push((name, crate::diagnostic::EnvironmentValue::Set(value)));
+            environment.push((
+                name,
+                crate::diagnostic::EnvironmentValue::Set {
+                    value,
+                    origin: variable.origin,
+                },
+            ));
         }
         let original_shell = self.store.original_shell.clone();
         let result = self

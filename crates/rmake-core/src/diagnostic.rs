@@ -226,7 +226,10 @@ impl From<Vec<u8>> for IncludeFailure {
 type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, IncludeFailure> + 'a;
 
 pub enum EnvironmentValue {
-    Set(Vec<u8>),
+    Set {
+        value: Vec<u8>,
+        origin: crate::variables::Origin,
+    },
     Remove,
     Original,
 }
