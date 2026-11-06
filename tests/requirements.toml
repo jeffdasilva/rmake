@@ -1952,3 +1952,13 @@ candidate_required = 12
 fixture_count = 12
 reference = "docs/target-scopes.md"
 cases = ["target-eager-retained-caller-lexical-control", "target-eager-retained-computed-destination-name", "target-eager-retained-inherited-automatic", "target-eager-retained-live-declaration-and-global", "target-eager-retained-multiple-destinations", "target-eager-retained-nested-destination-publication", "target-eager-retained-private-ancestors", "target-eager-retained-retained-pattern", "target-eager-retained-shell-effect-ownership", "target-eager-retained-unvisited-destination-control", "target-eager-retained-visited-no-recipe-control", "target-eager-retained-visited-parent-locals"]
+
+[[requirements]]
+id = "scope.target-eager-suspended"
+title = "Reentrant eager declarations in suspended file scopes"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 4
+fixture_count = 4
+reference = "docs/target-scopes.md"
+cases = ["target-eager-suspended-shell-status", "target-eager-suspended-shell-writeback", "target-eager-suspended-three-levels", "target-eager-suspended-unvisited-intermediate"]

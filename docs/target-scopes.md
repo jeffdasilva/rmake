@@ -67,8 +67,12 @@ global layers. A visited target without a recipe reads the existing parent chain
 without activating new pattern variables. A shell completion updates the
 destination's retained locals. Twelve fixtures cover these cases and an
 unvisited control. Shared targets subsequently encountered through another
-parent and reentrant reads back into a suspended caller have separate lifetime
-requirements.
+parent have a separate lifetime requirement.
+
+Nested eager declarations can re-enter a suspended caller through a visited or
+unvisited destination. The caller's live locals remain available for the nested
+read, and shell writes return to the same caller. Four fixtures cover reads,
+writeback, and multi-file nesting.
 
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 

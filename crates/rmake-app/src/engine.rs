@@ -782,6 +782,10 @@ impl RuleState {
             })
     }
 
+    fn waiting_at_serial_prerequisite(&self) -> bool {
+        self.branch.is_none() && self.group.is_none() && self.serial_dependency.is_some()
+    }
+
     fn waiting_at_barrier(&self) -> bool {
         let index = self.order.get(self.next).copied().unwrap_or(self.next);
         self.branch.is_none()
@@ -7387,7 +7391,8 @@ impl Engine {
             && state.waited_for_prerequisites
             && (state.visited_prerequisites()
                 || state.visited_explicit_group_prerequisites()
-                || state.waiting_at_barrier());
+                || state.waiting_at_barrier()
+                || state.waiting_at_serial_prerequisite());
         let post_reap = observes_reap
             && state.last_reap_pass != self.debug_reap_pass
             && self.graph_abort.is_none()
@@ -7480,8 +7485,25 @@ impl Engine {
                 continue;
             }
             if let Some(index) = state.serial_dependency {
-                let (child, pending) =
-                    self.visit_prerequisite(target, &mut state, index, PrerequisiteVisit::Resume);
+                let visit = std::mem::replace(&mut resume_visit, PrerequisiteVisit::Resume);
+                if visit == PrerequisiteVisit::PostReap {
+                    // The serial frontier is the last visited occurrence. The
+                    // earlier ones only need their cached diagnostic view.
+                    for position in 0..state.next - 1 {
+                        let prior = state.order.get(position).copied().unwrap_or(position);
+                        let dependency = &state.rule.dependencies[prior].name;
+                        if !state.dropped.contains(dependency)
+                            && let Some(outcome) = self.done.get(dependency).copied()
+                        {
+                            self.debug_cached_prerequisite_visit(
+                                dependency,
+                                state.depth + 1,
+                                outcome,
+                            );
+                        }
+                    }
+                }
+                let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
                 merge_child(&mut state.outcome, child);
                 if pending {
                     waiting = true;
