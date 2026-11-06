@@ -7081,7 +7081,8 @@ impl Engine {
             if !self.optional_remake {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
-            } else if depth == 0 {
+            }
+            if (self.optional_remake && depth == 0) || (!self.remaking && self.options.keep_going) {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
