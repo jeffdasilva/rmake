@@ -110,7 +110,8 @@ def project_profiles(plan):
         if source is None:
             raise h.HarnessError('integration profile does not name a pinned source')
         fields = ('args', 'expected_build_stdout_hex', 'configure', 'target', 'watched',
-                  'header_rebuild', 'smoke_stdout_hex', 'staged_install')
+                  'header', 'header_rebuild', 'smoke', 'smoke_stdout_hex', 'staged_install',
+                  'configuration', 'snapshot')
         case = {**source, **{field: profile[field] for field in fields if field in profile}, 'id': name}
         cases[name] = (case, source)
     return cases
@@ -120,9 +121,9 @@ def raw_observation(value):
     return {**h.observation_json(value), 'stdout_hex': value.stdout.hex(), 'stderr_hex': value.stderr.hex()}
 
 
-def observe(command, runtime, environment, timeout=120):
+def observe(command, runtime, environment, timeout=120, **snapshot_limits):
     out, err, status, limit, leftovers = h.capture(command, runtime / 'work', environment, timeout)
-    files = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
+    files = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')}, **snapshot_limits)
     return h.Observation(out, err, status, limit, files, leftovers)
 
 
@@ -158,12 +159,56 @@ def persist_part(directory, label, value):
     return integration_records.persist(directory, label, value)
 
 
+def build_snapshot_limits(project):
+    limits = project.get('snapshot', {})
+    ceilings = {'max_files': 8192, 'max_total_bytes': 48 * 1024 * 1024}
+    if not isinstance(limits, dict) or any(
+            name not in ceilings or type(value) is not int or not 0 < value <= ceilings[name]
+            for name, value in limits.items()):
+        raise h.HarnessError('invalid build snapshot limits')
+    return limits
+
+
+def configuration_errors(profile, value):
+    errors = []
+    if value.stderr or hashlib.sha256(value.stdout).hexdigest() != profile['stdout_sha256']:
+        errors.append('independent configuration stream bytes')
+    for name, digest in profile['output_sha256'].items():
+        result = value.filesystem.get('work/' + str(safe_name(name))) or {}
+        if result.get('type') != 'file' or result.get('sha256') != digest:
+            errors.append('independent configuration output: ' + name)
+    return errors
+
+
+def edit_configuration(work, build):
+    path = work / safe_name(build['path'])
+    if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(work):
+        raise h.HarnessError('configuration edits require a regular file in the workspace')
+    lines = path.read_bytes().splitlines(keepends=True)
+    for before, after in build['replace_lines'].items():
+        old = before.encode('ascii') + b'\n'
+        new = after.encode('ascii') + b'\n'
+        if len(old.splitlines()) != 1 or len(new.splitlines()) != 1 or old == new or lines.count(old) != 1:
+            raise h.HarnessError('configuration edit needs exactly one changed source line')
+        lines[lines.index(old)] = new
+    updated = b''.join(lines)
+    if hashlib.sha256(updated).hexdigest() != build['sha256']:
+        raise h.HarnessError('edited configuration differs from the reviewed build input')
+    path.write_bytes(updated)
+
+
 def campaign(project, fixture, runtime, binaries, plan, parts):
-    case = h.Case(fixture, project['id'], 'integration.real-projects', 'required', (), 120, plan['environment'], {})
+    configuration = project.get('configuration')
+    environment_plan = configuration['environment'] if configuration is not None else plan['environment']
+    snapshot_limits = build_snapshot_limits(project)
+    case = h.Case(fixture, project['id'], 'integration.real-projects', 'required', (), 120, environment_plan, {})
     row = {'id': project['id'], 'runs': [], 'input': persist_part(parts, project['id'] + '-input', h.snapshot({'work': fixture}))}
     comparisons = []
     change = project.get('header_rebuild')
     expected_steps = 5 if change is not None else 4
+    if configuration is not None:
+        expected_steps += 1
+        row['configuration_command'] = [str(runtime / 'bin/make'), *configuration['args']]
     expected_streams = {}
     if 'expected_build_stdout_hex' in project:
         expected_streams.update(dict.fromkeys(
@@ -182,14 +227,15 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             ('fresh-install', 'install'), bytes.fromhex(staged['stdout_hex'])))
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
-        environment = h.clean_environment(runtime, plan['environment'])
+        environment = h.clean_environment(runtime, environment_plan)
         command = [str(runtime / 'bin/make'), *project.get('args', plan['args']), project['target']]
         install_command = [*command[:-1], *STAGED_INSTALL_ARGS] if staged is not None else None
         run = {'binary': str(binary), 'command': command, 'parts': [], 'errors': []}
         row['runs'].append(run)
         steps = []
+        comparisons.append(steps)
         def step(label, arguments, timeout=120):
-            value = observe(arguments, runtime, environment, timeout)
+            value = observe(arguments, runtime, environment, timeout, **snapshot_limits)
             steps.append(value)
             run['parts'].append(persist_part(parts, f"{project['id']}-{index}-{label}", raw_observation(value)))
             if not successful(value):
@@ -199,7 +245,14 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                 run['errors'].append(label + ': independent stream bytes')
             return value
         try:
-            step('fresh', command)
+            if configuration is not None:
+                configured = step('configuration', row['configuration_command'], 90)
+                errors = configuration_errors(configuration, configured)
+                if errors:
+                    run['errors'].extend(errors)
+                    continue
+                edit_configuration(runtime / 'work', configuration['build'])
+            fresh_observation = step('fresh', command)
             fresh = {name: (runtime / 'work' / str(safe_name(name))).stat().st_mtime_ns for name in project['watched']}
             for name in project['watched']:
                 data = (runtime / 'work' / name).read_bytes()
@@ -219,6 +272,8 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             if (install_command is not None and fresh_smoke is not None
                     and fresh_smoke.filesystem != noop_observation.filesystem):
                 run['errors'].append('no-op changed the build or staged installation')
+            if configuration is not None and fresh_observation.filesystem != noop_observation.filesystem:
+                run['errors'].append('no-op changed the configured build')
             noop = {name: (runtime / 'work' / name).stat().st_mtime_ns for name in project['watched']}
             header = runtime / 'work' / str(safe_name(project['header']))
             header.write_bytes(rebuilt_header(project, header.read_bytes()))
@@ -235,7 +290,6 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                 run['errors'].append('independent executable smoke bytes')
         except (h.HarnessError, OSError, ValueError) as error:
             run['errors'].append(str(error))
-        comparisons.append(steps)
     row['differences'] = []
     for index in range(1, len(comparisons)):
         pair = comparisons[index]
@@ -271,12 +325,7 @@ def configuration_campaign(project, fixture, runtime, binaries, parts):
         errors = []
         if not successful(value):
             errors.append('configuration status/process bounds')
-        if value.stderr or hashlib.sha256(value.stdout).hexdigest() != profile['stdout_sha256']:
-            errors.append('independent configuration stream bytes')
-        for name, digest in profile['output_sha256'].items():
-            result = effects.get('work/' + str(safe_name(name))) or {}
-            if result.get('type') != 'file' or result.get('sha256') != digest:
-                errors.append('independent configuration output: ' + name)
+        errors.extend(configuration_errors(profile, value))
         part = persist_part(parts, f"{project['id']}-{index}-configuration", raw_observation(value))
         row['runs'].append({'binary': str(binary), 'command': command, 'parts': [part], 'errors': errors})
         if expected_observation is None:
@@ -351,13 +400,15 @@ def main(argv=None):
                                                 'limit': limit, 'leftovers': leftovers})
                     if (status, limit, leftovers) != (0, None, False):
                         raise h.HarnessError('common configure preparation failed')
-                if 'configuration' in project:
-                    row = configuration_campaign(project, fixture, runtime, binaries, parts)
-                else:
+                configuration = project.get('configuration')
+                if configuration is None:
                     (fixture / 'empty.input').write_bytes(b'')
                     for path in fixture.rglob('*'):
                         if path.is_file() and not path.is_symlink(): os.utime(path, ns=(SOURCE_TIME, SOURCE_TIME))
                     h.validate_fixture(fixture)
+                if configuration is not None and 'build' not in configuration:
+                    row = configuration_campaign(project, fixture, runtime, binaries, parts)
+                else:
                     row = campaign(project, fixture, runtime, binaries, plan, parts)
                 row['preparation'] = preparation
                 report['projects'].append(row)

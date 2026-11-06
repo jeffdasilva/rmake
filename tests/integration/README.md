@@ -30,13 +30,23 @@ and use GCC, the C locale, deterministic archives and no linker build IDs.
 Lua watches an object, the archive and both executable outputs after changing
 one exact version fragment in its public header. Fresh and rebuilt executions
 require independently expected and different version strings.
+The `busybox-1.37.0-executable` profile uses the same pinned source as the
+BusyBox `defconfig` profile. Each engine runs `allnoconfig` and the runner
+checks the generated configuration and kernel release. It enables only the
+reviewed `BUSYBOX`, `PRINTF`, and `SHOW_USAGE` options before compiling.
+The run checks the complete no-op snapshot, an `include/platform.h` rebuild
+with newer executable and `printf.o` timestamps, and exact output from
+`./busybox printf`. Its build snapshots allow up to 8,192 entries and 48 MiB
+in total. The per-file, source fixture and subprocess limits stay shared with
+the other profiles.
+
 Broader installation and compiler profiles remain open. These functional
 checks provide no performance evidence.
 
 The top-level `bootstrap-integration` verifies or downloads the pinned sources;
-`test-integration` runs all three projects. `INTEGRATION_CASE=xxhash-0.8.3` selects one
+`test-integration` runs all pinned profiles. `INTEGRATION_CASE=xxhash-0.8.3` selects one
 exact ID. Reports and lossless raw records go to `artifacts/integration/`.
-Developer and optimized compatibility gates require all three projects; a selected
+Developer and optimized compatibility gates include these profiles; a selected
 top-level self-host flow also executes the integration harness.
 
 `history/index.json` retains the original plan, source provenance, first

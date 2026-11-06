@@ -188,20 +188,24 @@ def clean_environment(root: Path, additions: dict[str, str] | None = None) -> di
     return env
 
 
-def snapshot(roots: dict[str, Path]) -> dict[str, Any]:
+def snapshot(roots: dict[str, Path], *, max_files: int | None = None,
+             max_total_bytes: int | None = None) -> dict[str, Any]:
     """Capture bounded bytes/type/mode/link topology, never following symlinks.
 
     Timestamps are deliberately omitted in M0. Tests that require timestamp
     comparison must wait for an explicit relational comparator, not normalize
-    wall-clock values and claim timestamp conformance.
+    wall-clock values and claim timestamp conformance. Aggregate bounds can
+    be selected for a build profile while each file keeps the shared limit.
     """
+    max_files = MAX_FILES if max_files is None else max_files
+    max_total_bytes = MAX_FILE_BYTES if max_total_bytes is None else max_total_bytes
     result: dict[str, Any] = {}
     links: dict[tuple[int, int], list[str]] = {}
     total_bytes = 0
 
     def visit(path: Path, key: str) -> None:
         nonlocal total_bytes
-        if len(result) >= MAX_FILES:
+        if len(result) >= max_files:
             raise HarnessError("filesystem observation exceeded entry limit")
         metadata = path.lstat()
         mode = metadata.st_mode
@@ -214,7 +218,8 @@ def snapshot(roots: dict[str, Path]) -> dict[str, Any]:
             for child in sorted(path.iterdir(), key=lambda p: os.fsencode(p.name)):
                 visit(child, f"{key}/{child.name}")
         elif stat.S_ISREG(mode):
-            if metadata.st_size + total_bytes > MAX_FILE_BYTES:
+            remaining = min(MAX_FILE_BYTES, max_total_bytes - total_bytes)
+            if metadata.st_size > remaining:
                 raise HarnessError("filesystem observation exceeded byte limit")
             descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
             try:
@@ -222,12 +227,12 @@ def snapshot(roots: dict[str, Path]) -> dict[str, Any]:
                 if not stat.S_ISREG(opened.st_mode):
                     raise HarnessError("file changed type during observation")
                 with os.fdopen(descriptor, "rb", closefd=False) as stream:
-                    content = stream.read(MAX_FILE_BYTES - total_bytes + 1)
+                    content = stream.read(remaining + 1)
             finally:
                 os.close(descriptor)
-            total_bytes += len(content)
-            if total_bytes > MAX_FILE_BYTES:
+            if len(content) > remaining:
                 raise HarnessError("filesystem observation exceeded byte limit")
+            total_bytes += len(content)
             item.update(type="file", content=base64.b64encode(content).decode("ascii"),
                         size=len(content), sha256=hashlib.sha256(content).hexdigest())
             links.setdefault((metadata.st_dev, metadata.st_ino), []).append(key)
@@ -242,6 +247,8 @@ def snapshot(roots: dict[str, Path]) -> dict[str, Any]:
         if root.exists() or root.is_symlink():
             visit(root, label)
         else:
+            if len(result) >= max_files:
+                raise HarnessError("filesystem observation exceeded entry limit")
             result[label] = {"type": "missing"}
     for group in links.values():
         if len(group) > 1:

@@ -358,6 +358,56 @@
         "ARFLAGS=crD"
       ],
       "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e20706f0a4d616b696e6720616c6c20696e20646f630a"
+    },
+    {
+      "id": "busybox-1.37.0-executable",
+      "project": "busybox-1.37.0",
+      "args": [
+        "--no-print-directory",
+        "-s"
+      ],
+      "target": "busybox",
+      "configuration": {
+        "args": [
+          "--no-print-directory",
+          "-s",
+          "allnoconfig"
+        ],
+        "environment": {
+          "KCONFIG_NOTIMESTAMP": "1",
+          "SOURCE_DATE_EPOCH": "1727390000"
+        },
+        "stdout_sha256": "1394a1a3b31690297e4c19892af225d592aad4e420dff743771d0d642ade980a",
+        "output_sha256": {
+          ".config": "4863a5cc3b80c7ea4131bc6dae497dbf744fb8abbb05330e0abd4b9423cc7992",
+          ".kernelrelease": "fbfda2117eb5b2ed303ae73dbc55f71c3080cf120fcf78aab3959d1502b9ded6"
+        },
+        "build": {
+          "path": ".config",
+          "replace_lines": {
+            "# CONFIG_BUSYBOX is not set": "CONFIG_BUSYBOX=y",
+            "# CONFIG_PRINTF is not set": "CONFIG_PRINTF=y",
+            "# CONFIG_SHOW_USAGE is not set": "CONFIG_SHOW_USAGE=y"
+          },
+          "sha256": "4649cd40f045bbfbe6b88abb5cec633853ce5c29d0e2f1b035679baefec0a7de"
+        }
+      },
+      "header": "include/platform.h",
+      "watched": [
+        "busybox",
+        "coreutils/printf.o"
+      ],
+      "smoke": [
+        "./busybox",
+        "printf",
+        "%s\\n",
+        "rmake-busybox"
+      ],
+      "smoke_stdout_hex": "726d616b652d62757379626f780a",
+      "snapshot": {
+        "max_files": 8192,
+        "max_total_bytes": 50331648
+      }
     }
   ],
   "phases": [
