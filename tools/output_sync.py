@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 from pathlib import Path
 import tempfile
 import conformance as harness
@@ -14,6 +15,7 @@ import oracle
 ROOT = Path(__file__).resolve().parents[1]
 MODES = ('none', 'line', 'target', 'recurse')
 PROTECTED = b'Original protected output mutex.\n'
+INPUT_TIME = 1_600_000_000
 # Helpers force A1 < B1 < B2 < A2 by observing owned helper exit. Small
 # recursive buffered cases also wait for the runner to read B's actual output.
 HELPER = b'''import os
@@ -135,6 +137,9 @@ def materialize(cell, path):
     if cell.child:
         (path / 'child.mk').write_bytes(b'.PHONY: all\nall:\n\t@python3 helper.py $(BRANCH)1\n\t@python3 helper.py $(BRANCH)2\n')
     if not cell.owned: (path / 'mutex').write_bytes(PROTECTED)
+    # Keep the exact stream checks independent of the host filesystem clock.
+    for source in path.iterdir():
+        os.utime(source, (INPUT_TIME, INPUT_TIME))
 
 
 def anchors(cell, observed):
