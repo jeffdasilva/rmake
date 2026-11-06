@@ -1,0 +1,3 @@
+R := price$$:
+$(R)
+wrong:;

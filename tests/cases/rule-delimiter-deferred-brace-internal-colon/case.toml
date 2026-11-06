@@ -1,0 +1,11 @@
+id = "rule-delimiter-deferred-brace-internal-colon"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Expanded rule colon handling with deferred brace internal colon."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a20746172676574207061747465726e20636f6e7461696e73206e6f202725272e202053746f702e0a"

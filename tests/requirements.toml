@@ -1984,6 +1984,16 @@ reference = "docs/rule-delimiters.md"
 cases = ["rule-delimiter-adjacent-expanded-amp-and-colon", "rule-delimiter-adjacent-expanded-colons", "rule-delimiter-adjacent-expanded-colons-with-empty-word-fragment", "rule-delimiter-eval-expanded-amp-assignment", "rule-delimiter-expanded-amp-assignment-keeps-name", "rule-delimiter-expanded-amp-assignment-spaced", "rule-delimiter-expanded-amp-before-literal-group", "rule-delimiter-expanded-amp-pattern-assignment", "rule-delimiter-expanded-amp-rule-literal-goal", "rule-delimiter-expanded-amp-rule-plain-goal", "rule-delimiter-expanded-colon-before-literal-assignment", "rule-delimiter-expanded-colon-before-literal-colon", "rule-delimiter-expanded-colon-retains-lazy-value", "rule-delimiter-expanded-double-colon-token", "rule-delimiter-expanded-group-before-literal-colon", "rule-delimiter-expanded-grouped-token", "rule-delimiter-literal-amp-assignment", "rule-delimiter-literal-colon-before-expanded-colon", "rule-delimiter-literal-double-colon", "rule-delimiter-literal-group-keeps-other-amp"]
 
 [[requirements]]
+id = "rules.expanded-colon-literal-dollar"
+title = "Rule colons adjacent to dollar bytes after expansion"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 36
+fixture_count = 36
+reference = "docs/rule-delimiters.md"
+cases = ["rule-delimiter-deferred-balanced-brace-before-colon", "rule-delimiter-deferred-balanced-variable-before-colon", "rule-delimiter-deferred-brace-internal-colon", "rule-delimiter-deferred-brace-quoted-internal-colon", "rule-delimiter-deferred-generated-open-paren", "rule-delimiter-deferred-variable-internal-colon", "rule-delimiter-deferred-variable-open-brace", "rule-delimiter-deferred-variable-open-paren", "rule-delimiter-deferred-variable-quoted-internal-colon", "rule-delimiter-escaped-dollar-adjacent-grouped", "rule-delimiter-escaped-dollar-double-colon", "rule-delimiter-escaped-dollar-generated-amp-raw-colon", "rule-delimiter-escaped-dollar-generated-then-literal-colon", "rule-delimiter-escaped-dollar-grouped", "rule-delimiter-escaped-dollar-multitarget", "rule-delimiter-escaped-dollar-multitarget-explicit", "rule-delimiter-escaped-dollar-only-name", "rule-delimiter-escaped-dollar-raw-colon-even-quoted", "rule-delimiter-escaped-dollar-raw-colon-quoted", "rule-delimiter-escaped-dollar-raw-inline", "rule-delimiter-escaped-dollar-raw-target-bad-encoding", "rule-delimiter-escaped-dollar-rule-tail-effects", "rule-delimiter-escaped-dollar-single", "rule-delimiter-escaped-dollar-spaced", "rule-delimiter-escaped-dollar-static-pattern", "rule-delimiter-escaped-dollar-target-assignment", "rule-delimiter-escaped-dollar-target-assignment-simple", "rule-delimiter-escaped-dollar-three-pairs", "rule-delimiter-escaped-dollar-twice", "rule-delimiter-expanded-dollar-adjacent-generated-colon", "rule-delimiter-expanded-dollar-adjacent-raw-colon", "rule-delimiter-expanded-dollar-colon-together", "rule-delimiter-literal-short-colon-before-target-prereq", "rule-delimiter-literal-short-colon-reference", "rule-delimiter-literal-short-colon-reference-followed-by-colon", "rule-delimiter-literal-short-letter-reference-followed-by-colon"]
+
+[[requirements]]
 id = "scope.secondary-retained"
 title = "Retained single-colon file scope after explicit secondary expansion"
 status = "fixture-ready"

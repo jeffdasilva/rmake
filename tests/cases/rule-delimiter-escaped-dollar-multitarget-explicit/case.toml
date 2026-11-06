@@ -1,0 +1,11 @@
+id = "rule-delimiter-escaped-dollar-multitarget-explicit"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "price$"]
+description = "Expanded rule colon handling with escaped dollar multitarget explicit."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7265717565737465643d5b7072696365245d0a"
+stderr_hex = ""

@@ -1,0 +1,2 @@
+price$$(A:B):
+wrong:;

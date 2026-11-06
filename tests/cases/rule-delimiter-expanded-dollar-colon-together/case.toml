@@ -1,0 +1,11 @@
+id = "rule-delimiter-expanded-dollar-colon-together"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Expanded rule colon handling with expanded dollar colon together."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027707269636524272e0a"
+stderr_hex = ""

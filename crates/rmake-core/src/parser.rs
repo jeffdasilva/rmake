@@ -2043,7 +2043,7 @@ fn separator(bytes: &[u8], needle: u8) -> Option<usize> {
     None
 }
 
-/// References that survive immediate expansion are literal prerequisite bytes.
+/// References that survive immediate expansion are literal rule bytes.
 /// Backslash parity still quotes separators.
 fn expanded_separator(bytes: &[u8], separator: u8) -> Option<usize> {
     let mut escaped = false;
@@ -2441,7 +2441,7 @@ impl Database {
             let part_start = expanded.len();
             expanded.extend_from_slice(&part);
             if has_colon || has_semicolon {
-                let colon = separator(&expanded, b':');
+                let colon = expanded_separator(&expanded, b':');
                 if scan_expanded_inline
                     && separator(&expanded, b';')
                         .is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon))
@@ -4629,7 +4629,7 @@ impl Database {
                 continue;
             }
             let delimiter = prefix_expansion.delimiter.or_else(|| {
-                separator(expanded, b':').map(|colon| {
+                expanded_separator(expanded, b':').map(|colon| {
                     RuleDelimiter::new(
                         colon,
                         expanded[..colon].ends_with(b"&"),

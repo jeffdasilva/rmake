@@ -1,0 +1,11 @@
+id = "rule-delimiter-escaped-dollar-target-assignment-simple"
+requirement = "rules.expanded-colon-literal-dollar"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+description = "Expanded rule colon handling with escaped dollar target assignment simple."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "65616765720a726573756c743d5b7072696365247c6f6b5d0a"
+stderr_hex = ""
