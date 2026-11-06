@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-ordinary-physical-inline-equals"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated target assignment boundary: ordinary physical inline equals."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "646570656e64656e63790a5641523d6c6f63616c0a"
+stderr_hex = ""

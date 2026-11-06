@@ -1,0 +1,11 @@
+id = "literal-inline-prefix-physical-inline-generated-double-colon"
+requirement = "rules.literal-inline-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real;file"]
+description = "Original physical inline ownership and rule prefix: physical inline generated double colon."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7365636f6e640a"
+stderr_hex = ""

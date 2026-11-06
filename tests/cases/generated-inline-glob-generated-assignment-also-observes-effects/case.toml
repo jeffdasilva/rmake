@@ -1,0 +1,11 @@
+id = "generated-inline-glob-generated-assignment-also-observes-effects"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real"]
+description = "Original expanded inline recipe and target glob order: generated assignment also observes effects."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6c6f63616c5d0a"
+stderr_hex = ""

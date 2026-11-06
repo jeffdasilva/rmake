@@ -1,0 +1,11 @@
+id = "literal-inline-prefix-generated-semicolon-without-physical-inline"
+requirement = "rules.literal-inline-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a;b"]
+description = "Original physical inline ownership and rule prefix: generated semicolon without physical inline."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = "7461696c0a"
+stderr_hex = "4d616b6566696c653a323a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

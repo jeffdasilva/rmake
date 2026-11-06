@@ -1,0 +1,11 @@
+id = "literal-inline-prefix-physical-inline-generated-grouped-targets"
+requirement = "rules.literal-inline-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "left-now;file", "right-now;file"]
+description = "Original physical inline ownership and rule prefix: physical inline generated grouped targets."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220276c6566742d6e6f773b66696c65272e0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f72202772696768742d6e6f773b66696c65272e0a"
+stderr_hex = ""

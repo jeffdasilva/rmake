@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-physical-inline-prevents-expansion-split"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated target assignment boundary: physical inline prevents expansion split."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "706879736963616c2d6c6174650a76616c75653d5b66697273743b7365636f6e643b5d0a"
+stderr_hex = ""

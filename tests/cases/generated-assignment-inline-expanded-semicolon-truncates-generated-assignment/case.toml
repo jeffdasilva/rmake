@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-expanded-semicolon-truncates-generated-assignment"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated target assignment boundary: expanded semicolon truncates generated assignment."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "696e736964650a61667465720a76616c75653d5b66697273745d0a"
+stderr_hex = ""

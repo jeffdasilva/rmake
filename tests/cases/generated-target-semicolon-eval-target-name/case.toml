@@ -1,0 +1,11 @@
+id = "generated-target-semicolon-eval-target-name"
+requirement = "rules.generated-target-quoted-semicolon"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a;b"]
+description = "Original semicolon quoting in generated target names: eval target name."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b613b625d0a"
+stderr_hex = ""

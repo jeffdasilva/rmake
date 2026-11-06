@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-simple-order"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated target assignment boundary: simple order."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "7461696c0a7268730a5b76616c75655d0a"
+stderr_hex = ""

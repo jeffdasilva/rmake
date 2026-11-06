@@ -1,0 +1,11 @@
+id = "generated-target-semicolon-generated-colon-parity-0"
+requirement = "rules.generated-target-quoted-semicolon"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a;b"]
+description = "Original semicolon quoting in generated target names: generated colon parity 0."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

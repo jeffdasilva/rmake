@@ -1,0 +1,11 @@
+id = "generated-assignment-inline-expanded-quoted-semicolon-defers-next-word"
+requirement = "rules.generated-assignment-inline"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original generated target assignment boundary: expanded quoted semicolon defers next word."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "61667465720a"
+stderr_hex = ""

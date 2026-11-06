@@ -1,0 +1,11 @@
+id = "generated-inline-glob-generated-double-colon-glob"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real"]
+description = "Original expanded inline recipe and target glob order: generated double colon glob."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e640a"
+stderr_hex = ""

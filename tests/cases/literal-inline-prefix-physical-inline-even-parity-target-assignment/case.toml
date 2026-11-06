@@ -1,0 +1,11 @@
+id = "literal-inline-prefix-physical-inline-even-parity-target-assignment"
+requirement = "rules.literal-inline-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a\\\\;b"]
+description = "Original physical inline ownership and rule prefix: physical inline even parity target assignment."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "706879736963616c0a5b615c5c3b627c6c6f63616c3b5d0a"
+stderr_hex = ""

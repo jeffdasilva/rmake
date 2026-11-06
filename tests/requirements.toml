@@ -2062,3 +2062,63 @@ candidate_required = 31
 fixture_count = 31
 reference = "docs/rule-delimiters.md"
 cases = ["busybox-empty-ordinary-control", "busybox-empty-static-after-rule", "busybox-empty-static-no-recipe", "busybox-expanded-empty-static", "busybox-literal-empty-static", "busybox-nonempty-static-control", "empty-rule-archive-empty-target", "empty-rule-archive-empty-target-assignment", "empty-rule-assignment-closes-empty-rule", "empty-rule-attached-in-include", "empty-rule-attached-in-reader-eval", "empty-rule-attached-in-recipe-eval", "empty-rule-conditional-and-comment-continuation", "empty-rule-custom-recipe-prefix", "empty-rule-empty-double-colon", "empty-rule-empty-grouped", "empty-rule-empty-grouped-double-colon", "empty-rule-empty-target-assignment", "empty-rule-ignored-define-in-empty-rule", "empty-rule-inactive-empty-rule-control", "empty-rule-include-frame-orphan-control", "empty-rule-invalid-static-pattern", "empty-rule-literal-inline-and-tail", "empty-rule-orphan-tabbed-assignment-control", "empty-rule-raw-orphan-control", "empty-rule-same-generated-word-effects", "empty-rule-tabbed-assignment-is-recipe", "empty-rule-target-effects", "empty-rule-target-effects-without-recipe", "empty-rule-vertical-whitespace-target", "empty-rule-warns-only-on-target-expansion"]
+
+[[requirements]]
+id = "rules.generated-assignment-inline"
+title = "Generated target assignment and inline semicolon phases"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 20
+fixture_count = 20
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["generated-assignment-inline-after-inline-effects-still-run-for-unused-target", "generated-assignment-inline-eager-eval-before-simple", "generated-assignment-inline-expanded-even-backslashes-before-boundary", "generated-assignment-inline-expanded-quoted-semicolon-defers-next-word", "generated-assignment-inline-expanded-quoted-semicolon-remains-value", "generated-assignment-inline-expanded-semicolon-truncates-generated-assignment", "generated-assignment-inline-failed-effect-after-inline-stops-before-recipe", "generated-assignment-inline-file-tail-before-lazy-value", "generated-assignment-inline-file-tail-when-assignment-unused", "generated-assignment-inline-generated-name-and-physical-inline", "generated-assignment-inline-literal-source-delimiter-keeps-raw-rhs", "generated-assignment-inline-one-eager-tail-for-two-targets", "generated-assignment-inline-ordinary-physical-inline-equals", "generated-assignment-inline-physical-inline-prevents-expansion-split", "generated-assignment-inline-quoted-semicolon-variable-name", "generated-assignment-inline-quoted-semicolon-variable-name-followed-by-inline", "generated-assignment-inline-raw-inline-unused-guard", "generated-assignment-inline-simple-order", "generated-assignment-inline-source-quoted-name-and-physical-inline", "generated-assignment-inline-source-quoted-semicolon-truncates-generated-assignment"]
+
+[[requirements]]
+id = "rules.generated-inline-glob-order"
+title = "Target filename observation after an early expanded inline recipe"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 14
+fixture_count = 14
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["generated-inline-glob-created-target-glob", "generated-inline-glob-disappearing-target-glob", "generated-inline-glob-effects-precede-fatal-and-stop-recipe", "generated-inline-glob-escaped-source-semicolon-enters-prefix", "generated-inline-glob-expanded-tail-effects-once", "generated-inline-glob-expanded-tail-keeps-recipe-words", "generated-inline-glob-generated-assignment-also-observes-effects", "generated-inline-glob-generated-double-colon-glob", "generated-inline-glob-generated-grouped-globs", "generated-inline-glob-inline-found-only-in-expanded-tail-stays-late", "generated-inline-glob-non-glob-recipe-tail-effect-once", "generated-inline-glob-ordinary-prerequisite-tail-stays-late", "generated-inline-glob-physical-inline-wins-over-expanded-prefix", "generated-inline-glob-quoted-expanded-semicolon-keeps-tail-late"]
+
+[[requirements]]
+id = "rules.quoted-prefix-rescan"
+title = "Dequoted generated prefix rescanned after a raw prerequisite tail"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 32
+fixture_count = 32
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["quoted-prefix-rescan-comment-after-raw-blank", "quoted-prefix-rescan-comment-without-raw-remainder", "quoted-prefix-rescan-continued-raw-remainder", "quoted-prefix-rescan-double-colon-recipes", "quoted-prefix-rescan-eval-remainder", "quoted-prefix-rescan-fatal-remainder-effect-before-recipe", "quoted-prefix-rescan-file-effect-once", "quoted-prefix-rescan-following-empty-reference", "quoted-prefix-rescan-grouped-target-recipe", "quoted-prefix-rescan-ordinary-inline-override-diagnostics", "quoted-prefix-rescan-physical-inline-owns-recipe", "quoted-prefix-rescan-prefix-parity-0-no-remainder", "quoted-prefix-rescan-prefix-parity-0-with-raw-effect", "quoted-prefix-rescan-prefix-parity-1-no-remainder", "quoted-prefix-rescan-prefix-parity-1-with-raw-effect", "quoted-prefix-rescan-prefix-parity-2-no-remainder", "quoted-prefix-rescan-prefix-parity-2-with-raw-effect", "quoted-prefix-rescan-prefix-parity-3-no-remainder", "quoted-prefix-rescan-prefix-parity-3-with-raw-effect", "quoted-prefix-rescan-prefix-parity-4-no-remainder", "quoted-prefix-rescan-prefix-parity-4-with-raw-effect", "quoted-prefix-rescan-prefix-parity-5-no-remainder", "quoted-prefix-rescan-prefix-parity-5-with-raw-effect", "quoted-prefix-rescan-prefix-parity-6-no-remainder", "quoted-prefix-rescan-prefix-parity-6-with-raw-effect", "quoted-prefix-rescan-prefix-parity-7-no-remainder", "quoted-prefix-rescan-prefix-parity-7-with-raw-effect", "quoted-prefix-rescan-quoted-prefix-keeps-glob-before-tail", "quoted-prefix-rescan-recursive-assignment-keeps-lazy-remainder", "quoted-prefix-rescan-trailing-raw-blanks", "quoted-prefix-rescan-two-quoted-semicolons", "quoted-prefix-rescan-unquoted-prefix-boundary-is-not-rescanned"]
+
+[[requirements]]
+id = "rules.generated-target-quoted-semicolon"
+title = "Quoted semicolon bytes in expanded target names"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 31
+fixture_count = 31
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["generated-target-semicolon-dequoted-default-goal-and-raw-target-byte", "generated-target-semicolon-eval-target-name", "generated-target-semicolon-generated-colon-parity-0", "generated-target-semicolon-generated-colon-parity-1", "generated-target-semicolon-generated-colon-parity-2", "generated-target-semicolon-generated-colon-parity-3", "generated-target-semicolon-generated-colon-parity-4", "generated-target-semicolon-generated-colon-parity-5", "generated-target-semicolon-generated-colon-parity-6", "generated-target-semicolon-generated-colon-parity-7", "generated-target-semicolon-generated-double-colon-target", "generated-target-semicolon-generated-grouped-targets", "generated-target-semicolon-generated-inline-recipe-and-dequoted-target", "generated-target-semicolon-generated-pattern-target", "generated-target-semicolon-generated-target-followed-by-raw-effect", "generated-target-semicolon-generated-target-glob", "generated-target-semicolon-generated-target-local-binding", "generated-target-semicolon-literal-colon-parity-0", "generated-target-semicolon-literal-colon-parity-1", "generated-target-semicolon-literal-colon-parity-2", "generated-target-semicolon-literal-colon-parity-3", "generated-target-semicolon-literal-colon-parity-4", "generated-target-semicolon-literal-colon-parity-5", "generated-target-semicolon-literal-colon-parity-6", "generated-target-semicolon-literal-colon-parity-7", "generated-target-semicolon-physical-inline-keeps-raw-source-normalization", "generated-target-semicolon-physical-inline-quote-parity-1", "generated-target-semicolon-physical-inline-quote-parity-2", "generated-target-semicolon-physical-inline-quote-parity-3", "generated-target-semicolon-same-source-word-split-quote-and-semicolon", "generated-target-semicolon-target-glob-before-late-file-effect"]
+
+[[requirements]]
+id = "rules.literal-inline-prefix"
+title = "Physical inline delimiter ownership during rule prefix scanning"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 15
+fixture_count = 15
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["literal-inline-prefix-comment-semicolon-is-not-a-physical-inline", "literal-inline-prefix-expanded-recipe-after-colon-keeps-physical-owner", "literal-inline-prefix-generated-semicolon-without-physical-inline", "literal-inline-prefix-physical-inline-and-no-semicolon-in-target", "literal-inline-prefix-physical-inline-even-parity-target-assignment", "literal-inline-prefix-physical-inline-generated-double-colon", "literal-inline-prefix-physical-inline-generated-grouped-targets", "literal-inline-prefix-physical-inline-target-removed-in-tail", "literal-inline-prefix-physical-inline-with-generated-local-assignment", "literal-inline-prefix-physical-inline-with-literal-colon", "literal-inline-prefix-physical-inline-with-quoted-generated-target", "literal-inline-prefix-physical-inline-with-unquoted-generated-target", "literal-inline-prefix-semicolon-from-adjacent-references", "literal-inline-prefix-unselected-generated-assignment-keeps-physical-value-lazy", "literal-inline-prefix-unselected-physical-inline-keeps-recipe-effects-lazy"]
+
+[[requirements]]
+id = "rules.empty-generated-inline-overlap"
+title = "Eager generated recipe tails on empty declarations"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 6
+fixture_count = 6
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["empty-inline-cross-empty-expanded-inline-archive-runs-raw-tail", "empty-inline-cross-empty-expanded-inline-assignment-runs-raw-tail", "empty-inline-cross-empty-expanded-inline-fatal-raw-tail", "empty-inline-cross-empty-expanded-inline-runs-raw-tail", "empty-inline-cross-empty-physical-inline-keeps-raw-tail-lazy", "empty-inline-cross-empty-raw-colon-keeps-raw-tail-lazy"]

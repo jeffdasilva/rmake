@@ -1,0 +1,11 @@
+id = "generated-inline-glob-effects-precede-fatal-and-stop-recipe"
+requirement = "rules.generated-inline-glob-order"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real"]
+description = "Original expanded inline recipe and target glob order: effects precede fatal and stop recipe."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a206661696c2e202053746f702e0a"
