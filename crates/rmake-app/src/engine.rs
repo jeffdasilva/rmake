@@ -999,6 +999,7 @@ pub struct Engine {
     intermediates: HashSet<Vec<u8>>,
     created_intermediates: Vec<Vec<u8>>,
     jobserver: Option<Jobserver>,
+    unbounded_auth_jobs: bool,
     shuffle: crate::shuffle::Planner,
 }
 
@@ -1563,6 +1564,7 @@ impl Engine {
             intermediates: HashSet::new(),
             created_intermediates: Vec::new(),
             jobserver: None,
+            unbounded_auth_jobs: false,
             shuffle: crate::shuffle::Planner::new(shuffle),
         };
         // Inherited pipe descriptors must become close-on-exec before reader
@@ -2619,7 +2621,11 @@ impl Engine {
                 self.fatal(None, error.as_bytes());
                 return 2;
             }
-            if self.options.jobs.unwrap_or(1) == 1 && self.output.mode().root_buffered() {
+            if self.jobserver.is_none()
+                && !self.unbounded_auth_jobs
+                && self.options.jobs.unwrap_or(1) == 1
+                && self.output.mode().root_buffered()
+            {
                 self.output.select(None);
                 if let Some(buffer) = self.reader_output.take() {
                     buffer.dump();
@@ -2640,8 +2646,13 @@ impl Engine {
                 }
             }
 
-            if let Some(server) = &self.jobserver {
-                crate::debug::Jobs::controller(self.output.debug_mask(), server.diagnostic_auth());
+            if let Some(auth) = &self.options.jobserver_auth {
+                let auth = self
+                    .jobserver
+                    .as_ref()
+                    .filter(|server| server.auth() == auth)
+                    .map_or(auth.as_slice(), Jobserver::diagnostic_auth);
+                crate::debug::Jobs::controller(self.output.debug_mask(), auth);
             }
             if let Some(authentication) = self.options.sync_mutex.as_deref() {
                 crate::debug::output_sync_mutex(self.output.debug_mask(), authentication);
@@ -3839,7 +3850,7 @@ impl Engine {
                 .is_some_and(|rule| rule.dependencies.iter().all(|dep| dep.hidden))
         {
             1
-        } else if self.jobserver.is_some() {
+        } else if self.jobserver.is_some() || self.unbounded_auth_jobs {
             usize::MAX
         } else {
             self.options.jobs.unwrap_or(1)

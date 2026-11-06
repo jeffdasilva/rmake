@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-argv-numeric-prefix"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "A signed numeric pair with a suffix reaches descriptor validation."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "--jobserver-auth=+181, +182suffix"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\nrun=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\n"
+stderr = "make: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n"

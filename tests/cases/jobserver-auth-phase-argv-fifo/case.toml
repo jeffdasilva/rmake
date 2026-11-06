@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-argv-fifo"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "An absent FIFO path uses the open error and serial fallback."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "--jobserver-auth=fifo:absent"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\nrun=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\n"
+stderr = "make: cannot open jobserver absent: No such file or directory\nmake: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n"

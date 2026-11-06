@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-makeflags-argv-serial"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "An argv job count is still published beside late authentication."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR -j1 --jobserver-auth=opaque --no-print-directory|-rR -j1 --jobserver-auth=opaque --no-print-directory]\nrun=[rR -j1 --jobserver-auth=opaque --no-print-directory|-rR -j1 --jobserver-auth=opaque --no-print-directory]\n"
+stderr = ""

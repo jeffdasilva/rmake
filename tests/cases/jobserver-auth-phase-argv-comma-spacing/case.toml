@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-argv-comma-spacing"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Whitespace before the comma stops descriptor pair recognition."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "--jobserver-auth=181 ,182"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\nrun=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\n"
+stderr = "make: invalid --jobserver-auth string '181 ,182'\nmake: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n"

@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-unpooled-parallel"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Late authentication enables parallel work without joining a transport."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parallel\n"
+stderr = ""
