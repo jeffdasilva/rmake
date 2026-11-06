@@ -1,0 +1,12 @@
+id = "vpath-assumption-spelling-dotpool-part-plain-gpath-old"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "Searched spelling and logical file age for dotpool-part-plain-gpath-old"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-o", "pool/part", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'all'.\n"
+stderr = ""

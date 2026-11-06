@@ -5231,7 +5231,9 @@ impl Engine {
                     // Only an eligible search record contributes its logical age.
                     // GPATH retains a physical search result and merges it with
                     // the age already on the resulting name.
-                    let assumed = self.assumed_time(if declared { &lookup } else { &name });
+                    let assumed_name: &[u8] = if declared { &lookup } else { &name };
+                    let assumed =
+                        self.assumed_time(rmake_core::filenames::without_dot_prefix(assumed_name));
                     let time = if declared && assumed.is_some() {
                         assumed
                     } else if !declared
