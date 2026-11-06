@@ -21,7 +21,7 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes all ten profiles across seven projects. `INTEGRATION_CASE` selects an
+executes eleven profiles across eight projects. `INTEGRATION_CASE` selects an
 exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
@@ -36,6 +36,14 @@ Comparisons use complete observations before storage. A failed archive-metadata
 decoder experiment and its correction remain recorded as tooling research and
 earn no compatibility credit. Later qualification supplements preserve earlier
 records.
+
+The BusyBox 1.37.0 profile runs the release's original `defconfig` target
+in fresh workspaces. Two GNU runs and the candidate must agree on the raw
+streams, exit status, process bounds, and every filesystem change. The
+configuration stream, `.config`, and `.kernelrelease` also have independent
+digests. The archive uses the publisher's SHA-256 and the extracted license
+has a separate pinned digest. [BusyBox release archive](https://busybox.net/downloads/busybox-1.37.0.tar.bz2) ·
+[Publisher SHA-256](https://busybox.net/downloads/busybox-1.37.0.tar.bz2.sha256)
 
 The separate `zlib-1.3.2-staged-shared` profile reuses the pinned zlib archive
 with a common shared-library configure preparation. It builds static and PIC
