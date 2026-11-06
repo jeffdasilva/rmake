@@ -2,6 +2,7 @@
 // Copyright 2026 Jeff DaSilva
 
 //! Owned traversal permutations. Declaration order remains available to autos.
+use crate::cli::unsigned_option;
 use rmake_core::parser::{Database, Rule};
 use std::collections::HashMap;
 
@@ -30,7 +31,7 @@ impl Mode {
             let mut random = Random(0);
             return Ok(Self::Seed(random.next()));
         }
-        unsigned(raw).map(Self::Seed).ok_or_else(|| {
+        unsigned_option(raw).map(Self::Seed).ok_or_else(|| {
             [
                 b"invalid shuffle mode: ".as_slice(),
                 if raw.is_empty() {
@@ -54,47 +55,6 @@ impl Mode {
             Self::Seed(value) => Some(value.to_string().into_bytes()),
         }
     }
-}
-
-// Decimal conversion on the pinned 64-bit Linux profile: strtoul's accepted
-// leading space/sign, saturating unsigned-long overflow, then 32-bit narrowing.
-fn unsigned(raw: &[u8]) -> Option<u32> {
-    let mut bytes = raw.iter().copied().peekable();
-    while bytes
-        .peek()
-        .is_some_and(|b| matches!(b, b' ' | b'\t'..=b'\r'))
-    {
-        bytes.next();
-    }
-    let negative = matches!(bytes.peek(), Some(b'-'));
-    if matches!(bytes.peek(), Some(b'-' | b'+')) {
-        bytes.next();
-    }
-    let mut value = 0_u64;
-    let mut digits = false;
-    let mut overflow = false;
-    for byte in bytes {
-        if !byte.is_ascii_digit() {
-            return None;
-        }
-        digits = true;
-        if let Some(next) = value
-            .checked_mul(10)
-            .and_then(|v| v.checked_add(u64::from(byte - b'0')))
-        {
-            value = next;
-        } else {
-            overflow = true;
-            value = u64::MAX;
-        }
-    }
-    if !digits {
-        return None;
-    }
-    if negative && !overflow {
-        value = value.wrapping_neg();
-    }
-    Some(value as u32)
 }
 
 struct Random(u32);

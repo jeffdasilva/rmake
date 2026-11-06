@@ -1,0 +1,12 @@
+id = "jobserver-job-count-short-leading-minus-zeros"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "GNU job-count conversion and job flag source ordering."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "--jobserver-style=pipe", "-rR", "-j -0001", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=[rR --no-print-directory]\nafter=[rR --no-print-directory]\n"
+stderr = ""

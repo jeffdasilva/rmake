@@ -1,0 +1,11 @@
+id = "jobserver-job-count-long-wrap-zero"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "GNU job-count conversion and job flag source ordering."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "--jobserver-style=pipe", "-rR", "--jobs=4294967296", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""

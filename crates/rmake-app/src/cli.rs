@@ -259,6 +259,7 @@ pub(crate) struct Decoder {
     end_options: bool,
     offset: usize,
     track_jobs: bool,
+    pub(crate) jobs_changed: bool,
     evals_seen: std::collections::HashSet<Vec<u8>>,
 }
 
@@ -314,6 +315,7 @@ impl Decoder {
         &mut self,
         source_ends: &[usize],
     ) -> Result<Option<DecodedArgument>, String> {
+        self.jobs_changed = false;
         let mut args = std::mem::take(&mut self.args);
         let mut evals_seen = std::mem::take(&mut self.evals_seen);
         let result = &mut self.options;
@@ -638,13 +640,14 @@ impl Decoder {
                                     None
                                 }
                             });
-                            result.jobs = Some(match job_count(value.as_deref()) {
+                            result.jobs = match job_count(value.as_deref()) {
                                 Ok(jobs) => jobs,
-                                Err(_) => {
+                                Err(()) => {
                                     usage.push(UsageIssue::Jobs);
                                     pause!(None);
                                 }
-                            });
+                            };
+                            self.jobs_changed = true;
                             if track_jobs {
                                 result.command_jobs = result.jobs;
                             }
@@ -792,15 +795,15 @@ impl Decoder {
                                 let index = result.include_directories.len() - 1;
                                 pause!(Some(Argument::Include(index)));
                             } else if option == b'j' {
-                                result.jobs = Some(
+                                result.jobs =
                                     match job_count(numeric_operand.then_some(value.as_slice())) {
                                         Ok(jobs) => jobs,
-                                        Err(_) => {
+                                        Err(()) => {
                                             usage.push(UsageIssue::Jobs);
                                             break;
                                         }
-                                    },
-                                );
+                                    };
+                                self.jobs_changed = true;
                                 if track_jobs {
                                     result.command_jobs = result.jobs;
                                 }
@@ -936,6 +939,8 @@ impl Options {
             completed,
         )?;
         let explicit = result.command_jobs;
+        // An unset command-line count falls back to the inherited selection.
+        result.jobs = result.jobs.or(inherited);
         result.startup_missing_makeflags_warning = missing_makeflags && inherited_warning;
         result.inherited_output_sync = inherited_output_sync;
         result.inherited_jobs = inherited.is_some() && explicit.is_none();
@@ -1362,11 +1367,10 @@ impl Options {
                     (
                         decoder.options.silent_origin.take(),
                         decoder.options.keep_going_origin.take(),
-                        decoder.options.jobs.take(),
                         decoder.options.directory_origin.take(),
                     )
                 } else {
-                    (None, None, None, None)
+                    (None, None, None)
                 };
                 let step = decoder
                     .advance_in_sources::<STARTUP>(source_ends)
@@ -1383,8 +1387,8 @@ impl Options {
                         if options.keep_going_origin.is_some() {
                             incoming.keep_going = Some(options.keep_going);
                         }
-                        if let Some(jobs) = options.jobs {
-                            incoming.jobs = Some(jobs);
+                        if decoder.jobs_changed {
+                            incoming.jobs = options.jobs;
                         }
                         if options.directory_origin.is_some() {
                             incoming.directory = Some(options.directory_choice);
@@ -1396,11 +1400,8 @@ impl Options {
                     if options.keep_going_origin.is_none() {
                         options.keep_going_origin = previous.1;
                     }
-                    if options.jobs.is_none() {
-                        options.jobs = previous.2;
-                    }
                     if options.directory_origin.is_none() {
-                        options.directory_origin = previous.3;
+                        options.directory_origin = previous.2;
                     }
                 }
                 let Some(step) = step else {
@@ -1576,16 +1577,56 @@ impl Options {
     }
 }
 
-fn job_count(value: Option<&[u8]>) -> Result<usize, String> {
+// Decimal conversion on the pinned 64-bit Linux profile: strtoul's accepted
+// leading space/sign, saturating unsigned-long overflow, then 32-bit narrowing.
+pub(crate) fn unsigned_option(raw: &[u8]) -> Option<u32> {
+    let mut bytes = raw.iter().copied().peekable();
+    while bytes
+        .peek()
+        .is_some_and(|b| matches!(b, b' ' | b'\t'..=b'\r'))
+    {
+        bytes.next();
+    }
+    let negative = matches!(bytes.peek(), Some(b'-'));
+    if matches!(bytes.peek(), Some(b'-' | b'+')) {
+        bytes.next();
+    }
+    let mut value = 0_u64;
+    let mut digits = false;
+    let mut overflow = false;
+    for byte in bytes {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        digits = true;
+        if let Some(next) = value
+            .checked_mul(10)
+            .and_then(|v| v.checked_add(u64::from(byte - b'0')))
+        {
+            value = next;
+        } else {
+            overflow = true;
+            value = u64::MAX;
+        }
+    }
+    if !digits {
+        return None;
+    }
+    if negative && !overflow {
+        value = value.wrapping_neg();
+    }
+    Some(value as u32)
+}
+
+fn job_count(value: Option<&[u8]>) -> Result<Option<usize>, ()> {
     let Some(value) = value else {
-        return Ok(usize::MAX);
+        return Ok(Some(usize::MAX));
     };
-    std::str::from_utf8(value.trim_ascii_start())
-        .ok()
-        .and_then(|value| value.parse::<u32>().ok())
-        .filter(|value| *value > 0)
-        .map(|value| value as usize)
-        .ok_or_else(|| "the '-j' option requires a positive integer argument".into())
+    match unsigned_option(value) {
+        Some(u32::MAX) => Ok(None),
+        Some(jobs) if jobs > 0 => Ok(Some(jobs as usize)),
+        _ => Err(()),
+    }
 }
 
 pub fn invocation_name(arg: &std::ffi::OsStr) -> Vec<u8> {
