@@ -31,6 +31,7 @@ keys! {
     UPDATING_GOALS: c"Updating goal targets....\n", [];
     CONSIDERING: c"Considering target file '%s'.\n", [B];
     MISSING: c"File '%s' does not exist.\n", [B];
+    GROUPED_PEER_MISSING: c"Grouped target peer '%s' of file '%s' does not exist.\n", [B, B];
     PREREQUISITES_RUNNING: c"The prerequisites of '%s' are being made.\n", [B];
     FINISHED: c"Finished prerequisites of target file '%s'.\n", [B];
     MUST_REMAKE: c"Must remake target '%s'.\n", [B];
@@ -41,6 +42,7 @@ keys! {
     QUESTION_OUTDATED: c"Target file '%s' needs to be remade under -q.\n", [B];
     NO_NEED: c"No need to remake target '%s'", [B];
     USING_VPATH: c"; using VPATH name '%s'", [B];
+    STILL_UPDATING: c"Still updating file '%s'.\n", [B];
     ALREADY: c"File '%s' was considered already.\n", [B];
     RECENTLY_FAILED: c"Recently tried and failed to update file '%s'.\n", [B];
     PRUNING: c"Pruning file '%s'.\n", [B];

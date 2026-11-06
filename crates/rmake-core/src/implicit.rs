@@ -3,6 +3,17 @@
 
 //! Lazy implicit-prerequisite words and literal-safe stem substitution.
 
+/// Directory bytes ignored by a slashless target pattern. A final slash stays
+/// in the basename and may be part of the selected stem.
+pub fn directory_prefix(target: &[u8]) -> &[u8] {
+    target
+        .strip_suffix(b"/")
+        .unwrap_or(target)
+        .iter()
+        .rposition(|byte| *byte == b'/')
+        .map_or(b"".as_slice(), |slash| &target[..=slash])
+}
+
 pub struct Words<'a> {
     bytes: &'a [u8],
     cursor: usize,

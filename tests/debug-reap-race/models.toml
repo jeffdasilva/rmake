@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+# Literal GNU2-qualified transcripts for the waitable-child boundary.
+schema_version = 1
+stdout_prefix = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+Updating goal targets....
+'''
+
+[[models]]
+id = "debug-reap-race-early-stop"
+recipe_status = 3
+exit_code = 2
+makefile = '''
+.PHONY: child
+all: middle
+middle: child
+child:
+	@python3 worker.py 3
+'''
+stdout = '''
+Considering target file 'all'.
+ Considering target file 'middle'.
+  Considering target file 'child'.
+   File 'child' does not exist.
+  Finished prerequisites of target file 'child'.
+  Must remake target 'child'.
+  Recipe of 'child' is being run.
+ The prerequisites of 'middle' are being made.
+The prerequisites of 'all' are being made.
+'''
+stderr = '''
+make: *** [Makefile:5: child] Error 3
+'''
+
+[[models]]
+id = "debug-reap-race-early-success"
+recipe_status = 0
+exit_code = 0
+makefile = '''
+.PHONY: child
+all: | middle
+middle: | child
+child:
+	@python3 worker.py 0
+'''
+stdout = '''
+Considering target file 'all'.
+ Considering target file 'middle'.
+  Considering target file 'child'.
+   File 'child' does not exist.
+  Finished prerequisites of target file 'child'.
+  Must remake target 'child'.
+  Recipe of 'child' is being run.
+ The prerequisites of 'middle' are being made.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ Considering target file 'middle'.
+  Considering target file 'child'.
+  File 'child' was considered already.
+ Finished prerequisites of target file 'middle'.
+  Prerequisite 'child' is order-only for target 'middle'.
+ No recipe for 'middle' and no prerequisites actually changed.
+ No need to remake target 'middle'.
+Finished prerequisites of target file 'all'.
+ Prerequisite 'middle' is order-only for target 'all'.
+No recipe for 'all' and no prerequisites actually changed.
+No need to remake target 'all'.
+'''
+stderr = ""

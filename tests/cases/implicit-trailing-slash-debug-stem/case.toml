@@ -1,0 +1,12 @@
+id = "implicit-trailing-slash-debug-stem"
+requirement = "rules.implicit-final-slash"
+candidate = "required"
+description = "Preserve a target final slash in the implicit pattern stem."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "--debug=i", "virtual/box/"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\n File 'virtual/box/' does not exist.\n Looking for an implicit rule for 'virtual/box/'.\n  Trying pattern rule 'b%:' with stem 'ox/'.\n Found implicit rule 'b%:' for 'virtual/box/'.\nMust remake target 'virtual/box/'.\ntarget=[virtual/box/] stem=[virtual/ox/] first=[]\nSuccessfully remade target file 'virtual/box/'.\n"
+stderr = ""

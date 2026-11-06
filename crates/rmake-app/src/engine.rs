@@ -731,6 +731,7 @@ struct RuleState {
     #[allow(clippy::box_collection)]
     debug_changed_edges: Option<Box<HashSet<usize>>>,
     waited_for_prerequisites: bool,
+    last_reap_pass: u64,
     stopped: bool,
     stale: bool,
     outcome: Outcome,
@@ -740,6 +741,26 @@ struct RuleState {
     #[allow(clippy::box_collection)]
     presentation_drops: Option<Box<HashSet<usize>>>,
     deferred_intermediates: Vec<Vec<u8>>,
+}
+
+impl RuleState {
+    fn visited_prerequisites(&self) -> bool {
+        self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BuildVisit {
+    Ordinary,
+    GoalPassStart,
+    RevisitPrerequisite,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PrerequisiteVisit {
+    First,
+    Resume,
+    PostReap,
 }
 
 /// Double-colon branches remain sequential for one target, while their
@@ -848,7 +869,9 @@ pub struct Engine {
     command_replay: bool,
     done: HashMap<Vec<u8>, Outcome>,
     #[allow(clippy::box_collection)]
-    debug_serial_considered: Option<Box<HashSet<Vec<u8>>>>,
+    debug_considered: Option<Box<HashSet<Vec<u8>>>>,
+    recipe_reaps: u64,
+    debug_reap_pass: u64,
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
@@ -1410,7 +1433,9 @@ impl Engine {
             inherited_exports,
             command_replay,
             done: HashMap::new(),
-            debug_serial_considered: None,
+            debug_considered: None,
+            recipe_reaps: 0,
+            debug_reap_pass: 0,
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
@@ -2824,7 +2849,13 @@ impl Engine {
                 self.optional_remake = optional;
                 self.retain_remake_failure = may_replay;
                 let initial_time = before.is_none().then_some(&mut before);
-                let result = self.build_recording_initial_time(name, None, 0, initial_time);
+                let result = self.build_recording_initial_time(
+                    name,
+                    None,
+                    0,
+                    initial_time,
+                    BuildVisit::Ordinary,
+                );
                 let before = before.unwrap_or(result.time);
                 self.retain_remake_failure = false;
                 self.optional_remake = false;
@@ -3028,7 +3059,8 @@ impl Engine {
             self.options.goals.clone()
         };
         // Remake and ordinary goals are separate diagnostic traversals.
-        self.debug_serial_considered = None;
+        self.debug_considered = None;
+        self.debug_reap_pass = self.recipe_reaps;
         crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
@@ -3067,17 +3099,26 @@ impl Engine {
             }
         }
         while requested.iter().any(|goal| self.pending(&goal.name)) {
+            self.advance_debug_reap_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
+            let mut first_goal = true;
             for goal in &mut requested {
                 if self.graph_pending(&goal.name) {
-                    self.build(&goal.name, None, 0);
+                    let visit = if first_goal {
+                        BuildVisit::GoalPassStart
+                    } else {
+                        BuildVisit::Ordinary
+                    };
+                    self.build_recording_initial_time(&goal.name, None, 0, None, visit);
+                    first_goal = false;
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self
                             .parallel_jobs
                             .contains_key(self.aliases.resolve(&goal.name));
                     }
                 } else if goal.awaiting_recipe && !self.pending(&goal.name) {
+                    first_goal = false;
                     self.debug_completed_goal_visit(&goal.name);
                     goal.awaiting_recipe = false;
                 }
@@ -3092,6 +3133,7 @@ impl Engine {
                 self.reap_job();
             }
         }
+        self.advance_debug_reap_pass();
         for goal in requested {
             // Reaping the last job can end the pending-work loop before the
             // next scan. This is the final visit to those completed goals.
@@ -3124,6 +3166,57 @@ impl Engine {
         } else {
             0
         }
+    }
+
+    /// Speculative scheduler rescans are not new diagnostic goal passes.
+    fn advance_debug_reap_pass(&mut self) {
+        if self.debug_reap_pass != self.recipe_reaps {
+            self.debug_reap_pass = self.recipe_reaps;
+            if let Some(considered) = &mut self.debug_considered {
+                considered.clear();
+            }
+        }
+    }
+
+    fn debug_consider(&mut self, target: &[u8], name: &[u8], depth: usize) {
+        use crate::debug::{Event, Mask, emit};
+
+        if self.output.debug_mask().has(Mask::VERBOSE) && (!self.remaking || !self.parallel_graph())
+        {
+            self.debug_considered
+                .get_or_insert_default()
+                .insert(target.to_vec());
+        }
+        emit(&self.output, Event::Considering(name, depth));
+    }
+
+    fn debug_cached_prerequisite_visit(&mut self, target: &[u8], depth: usize, outcome: Outcome) {
+        use crate::debug::{Event, Mask, emit};
+
+        if !self.output.debug_mask().has(Mask::VERBOSE)
+            || outcome.fatal
+            || outcome.question_outdated
+        {
+            return;
+        }
+        let name = self.aliases.resolve(target);
+        let considered = self.debug_considered.get_or_insert_default();
+        if considered.contains(name) {
+            emit(&self.output, Event::Pruning(name, depth));
+            return;
+        }
+        considered.insert(name.to_vec());
+        emit(&self.output, Event::Considering(name, depth));
+        emit(
+            &self.output,
+            if self.pending(name) {
+                Event::StillUpdating(name, depth)
+            } else if outcome.failed {
+                Event::RecentlyFailed(name, depth)
+            } else {
+                Event::Already(name, depth)
+            },
+        );
     }
 
     fn debug_completed_goal_visit(&self, goal: &[u8]) {
@@ -4148,6 +4241,7 @@ impl Engine {
             );
         }
         if result.as_ref().is_some_and(|status| status.is_ok()) {
+            self.recipe_reaps = self.recipe_reaps.wrapping_add(1);
             self.load.reaped();
             if let Some(buffer) = &output {
                 buffer.child_reaped(true);
@@ -5537,6 +5631,9 @@ impl Engine {
         debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         let tracing = self.output.debug_mask().has(crate::debug::Mask::IMPLICIT);
+        // Both archive search phases match without ignoring any directory.
+        let trace_directory =
+            tracing && !archive_search && rmake_core::filenames::archive_parts(target).is_none();
         if tracing && !active.is_empty() {
             let mut blocked = active.clone();
             blocked.sort_unstable();
@@ -5585,19 +5682,20 @@ impl Engine {
                 // GNU's stem buffer holds PATH_MAX bytes plus the terminator.
                 let stem_too_long = stem.len() > rmake_linux::filesystem::PATH_MAX;
                 if let Some(label) = &debug_label {
-                    let (directory, printed_stem) = if !archive_search
+                    let directory = if trace_directory
                         && candidate
                             .rule
                             .implicit_pattern
                             .as_ref()
                             .is_some_and(|pattern| !pattern.contains(&b'/'))
-                        && let Some(slash) = target.iter().rposition(|byte| *byte == b'/')
-                        && let Some(printed) = stem.strip_prefix(&target[..=slash])
                     {
-                        (&target[..=slash], printed)
+                        rmake_core::implicit::directory_prefix(target)
                     } else {
-                        (b"".as_slice(), stem)
+                        b""
                     };
+                    let (directory, printed_stem) = stem
+                        .strip_prefix(directory)
+                        .map_or((b"".as_slice(), stem), |printed| (directory, printed));
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::TryingRule(
@@ -6410,7 +6508,7 @@ impl Engine {
     }
 
     fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
-        self.build_recording_initial_time(target, parent, depth, None)
+        self.build_recording_initial_time(target, parent, depth, None, BuildVisit::Ordinary)
     }
 
     fn build_recording_initial_time(
@@ -6419,6 +6517,7 @@ impl Engine {
         parent: Option<&[u8]>,
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
+        visit: BuildVisit,
     ) -> Outcome {
         let known_alias = self.aliases.contains(target);
         let renamed = match self.prepare_search_name(target) {
@@ -6442,7 +6541,29 @@ impl Engine {
         // Prerequisites prepare their lookup before beginning consideration.
         let original_goal = (!known_alias && parent.is_none()).then_some(target);
         let target = renamed.as_deref().unwrap_or(target);
-        self.poll_jobs();
+        // The second look at this waiting frame will only read its current
+        // pass outcome. Reaping here could settle its child before the outer
+        // frame has a chance to yield to the goal loop.
+        let cached_wait = visit == BuildVisit::RevisitPrerequisite
+            && !self.remaking
+            && self.load_waiting.is_empty()
+            && self.pending_rules.get(target).is_some_and(|frame| {
+                frame.branch.is_none()
+                    && frame.last_epoch == Some(self.graph_epoch)
+                    && frame.waited_for_prerequisites
+                    && frame.visited_prerequisites()
+            });
+        if cached_wait {
+            self.observe_interrupt();
+        }
+        if !cached_wait || self.shutdown.get() != Shutdown::Running {
+            self.poll_jobs();
+        }
+        if visit == BuildVisit::GoalPassStart {
+            // The existing first poll can observe an already waitable child
+            // before this pass starts visiting its goals.
+            self.advance_debug_reap_pass();
+        }
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
         let previously_done = archive_target && self.done.contains_key(target);
         let mut outcome = if archive_target
@@ -6522,7 +6643,7 @@ impl Engine {
         if let Some(mut outcome) = self.done.get(target).copied() {
             let debug_depth = depth + usize::from(self.remaking);
             let pruned = self
-                .debug_serial_considered
+                .debug_considered
                 .as_ref()
                 .is_some_and(|files| files.contains(target));
             if !traced_optional_failure {
@@ -6595,15 +6716,7 @@ impl Engine {
             };
         }
         let debug_depth = depth + usize::from(self.remaking);
-        if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) && !self.parallel_graph() {
-            self.debug_serial_considered
-                .get_or_insert_default()
-                .insert(target.to_vec());
-        }
-        crate::debug::emit(
-            &self.output,
-            crate::debug::Event::Considering(considering_name, debug_depth),
-        );
+        self.debug_consider(target, considering_name, debug_depth);
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
         self.scope_parents
@@ -7070,6 +7183,16 @@ impl Engine {
                 *observed = true;
                 comparison = comparison.min(*time);
                 compare_peers = time.is_some();
+                if !compare_peers {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::GroupedPeerMissing(
+                            peer,
+                            target,
+                            depth + usize::from(self.remaking) + 1,
+                        ),
+                    );
+                }
             }
             // Resolve scheduler peer identities without rewriting declaration
             // names, which the database exposes even after a GPATH rename.
@@ -7163,6 +7286,7 @@ impl Engine {
             intermediate_stale: None,
             debug_changed_edges: None,
             waited_for_prerequisites: false,
+            last_reap_pass: self.debug_reap_pass,
             stopped: false,
             stale,
             outcome: Outcome {
@@ -7209,9 +7333,19 @@ impl Engine {
             .pending_rules
             .remove(target)
             .expect("pending rule frame");
-        // A new update pass revisits the parent's cached missing-file state.
-        // Resume its owned dependency frame without repeating observations.
-        if state.last_epoch.is_some() && state.before.is_none() {
+        // A fully visited dependency list can publish its next goal pass
+        // directly from the already owned frame and the cached edge outcomes.
+        let observes_reap =
+            !self.remaking && state.waited_for_prerequisites && state.visited_prerequisites();
+        let post_reap = observes_reap
+            && state.last_reap_pass != self.debug_reap_pass
+            && self.graph_abort.is_none()
+            && self.shutdown.get() == Shutdown::Running;
+        state.last_reap_pass = self.debug_reap_pass;
+        if post_reap {
+            self.debug_consider(target, target, state.depth);
+        }
+        if state.last_epoch.is_some() && state.before.is_none() && (!observes_reap || post_reap) {
             crate::debug::emit(
                 &self.output,
                 crate::debug::Event::Missing(target, state.depth + usize::from(self.remaking) + 1),
@@ -7290,7 +7424,8 @@ impl Engine {
                 continue;
             }
             if let Some(index) = state.serial_dependency {
-                let (child, pending) = self.visit_prerequisite(target, &mut state, index, false);
+                let (child, pending) =
+                    self.visit_prerequisite(target, &mut state, index, PrerequisiteVisit::Resume);
                 merge_child(&mut state.outcome, child);
                 if pending {
                     waiting = true;
@@ -7326,8 +7461,12 @@ impl Engine {
                     if prior.name == b".WAIT" || state.dropped.contains(&prior.name) {
                         continue;
                     }
-                    let (child, pending) =
-                        self.visit_prerequisite(target, &mut state, index, false);
+                    let (child, pending) = self.visit_prerequisite(
+                        target,
+                        &mut state,
+                        index,
+                        PrerequisiteVisit::Resume,
+                    );
                     waiting |= pending;
                     merge_child(&mut state.outcome, child);
                 }
@@ -7366,7 +7505,8 @@ impl Engine {
                 state.dropped.insert(dependency.clone());
                 continue;
             }
-            let (child, _) = self.visit_prerequisite(target, &mut state, index, true);
+            let (child, _) =
+                self.visit_prerequisite(target, &mut state, index, PrerequisiteVisit::First);
             merge_child(&mut state.outcome, child);
             if state.serial_phase {
                 state.serial_dependency = Some(index);
@@ -7379,13 +7519,18 @@ impl Engine {
         }
         // Revisit suspended children in traversal order without replaying the
         // parent's dependency expansion, circular diagnostics or scope setup.
+        let visit = if post_reap {
+            PrerequisiteVisit::PostReap
+        } else {
+            PrerequisiteVisit::Resume
+        };
         for position in 0..state.next {
             let index = state.order.get(position).copied().unwrap_or(position);
             let dependency = &state.rule.dependencies[index].name;
             if dependency == b".WAIT" || state.dropped.contains(dependency) {
                 continue;
             }
-            let (child, pending) = self.visit_prerequisite(target, &mut state, index, false);
+            let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
             merge_child(&mut state.outcome, child);
             waiting |= pending;
         }
@@ -7409,7 +7554,7 @@ impl Engine {
             }
         }
         if waiting {
-            if !state.waited_for_prerequisites {
+            if !state.waited_for_prerequisites || post_reap {
                 state.waited_for_prerequisites = true;
                 crate::debug::emit(
                     &self.output,
@@ -7435,8 +7580,9 @@ impl Engine {
         target: &[u8],
         state: &mut RuleState,
         index: usize,
-        first: bool,
+        visit: PrerequisiteVisit,
     ) -> (Outcome, bool) {
+        let first = visit == PrerequisiteVisit::First;
         if let Some((epoch, outcome)) = state.inspections.get(&index)
             && *epoch == self.graph_epoch
         {
@@ -7502,9 +7648,30 @@ impl Engine {
                 .is_some_and(|child| child.completion == CompletionTime::ArchiveUnknown)
                 && rmake_core::filenames::archive_parts(dependency).is_some();
             let child = if first || self.graph_pending(dependency) || unknown_archive {
-                self.build(dependency, Some(target), state.depth + 1)
+                let build_visit = if !first
+                    && !unknown_archive
+                    && state.branch.is_none()
+                    && state.visited_prerequisites()
+                {
+                    BuildVisit::RevisitPrerequisite
+                } else {
+                    BuildVisit::Ordinary
+                };
+                self.build_recording_initial_time(
+                    dependency,
+                    Some(target),
+                    state.depth + 1,
+                    None,
+                    build_visit,
+                )
             } else {
-                self.done.get(dependency).copied().unwrap_or_default()
+                let outcome = self.done.get(dependency).copied();
+                if let Some(outcome) = outcome
+                    && visit == PrerequisiteVisit::PostReap
+                {
+                    self.debug_cached_prerequisite_visit(dependency, state.depth + 1, outcome);
+                }
+                outcome.unwrap_or_default()
             };
             let pending = self.pending(dependency);
             let child = if pending {
@@ -7718,6 +7885,11 @@ impl Engine {
             && !outcome.failed
             && !outcome.question_outdated
         {
+            // Peer segments affect the rebuild decision. The trace lists
+            // only the selected file's original prerequisite occurrences.
+            let owner_end = group.as_ref().map_or(rule.dependencies.len(), |group| {
+                group.recipe_rule.dependencies.len()
+            });
             // A deferred intermediate can still be missing when its parent
             // is current. Its inspection did not produce a completion record.
             let deferred: HashSet<_> = deferred_intermediates
@@ -7747,6 +7919,9 @@ impl Engine {
                         natural_remake |=
                             inspected_stale || self.prerequisite_timestamp_stale(comparison, child);
                     }
+                }
+                if index >= owner_end {
+                    continue;
                 }
                 use crate::debug::Prerequisite;
                 let state = match child {
