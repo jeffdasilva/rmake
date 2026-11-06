@@ -56,3 +56,10 @@ filename data, and the reader can recognize the rule colon before expanding
 the prerequisite tail. Fifteen GNU2 fixtures cover generated and literal
 colons, target assignments, grouped and double-colon rules, and files created
 or removed after globbing.
+
+An empty declaration consumes its attached recipe. If prefix expansion has
+already exposed an inline recipe, its eager tail effects run before target
+filename preparation. Empty declarations with a physical inline delimiter
+or an ordinary rule colon skip the remaining prerequisite text. Six GNU2
+fixtures cover both timings, including fatal effects and archive targets
+whose filename sequence is empty.

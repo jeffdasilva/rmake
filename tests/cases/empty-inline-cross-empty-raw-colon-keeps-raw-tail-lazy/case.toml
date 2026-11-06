@@ -1,0 +1,11 @@
+id = "empty-inline-cross-empty-raw-colon-keeps-raw-tail-lazy"
+requirement = "rules.empty-generated-inline-overlap"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original empty declaration and generated recipe boundary: empty raw colon keeps raw tail lazy."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "66696e616c0a"
+stderr_hex = ""

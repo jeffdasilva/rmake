@@ -2112,3 +2112,13 @@ candidate_required = 15
 fixture_count = 15
 reference = "docs/rule-quoted-semicolons.md"
 cases = ["literal-inline-prefix-comment-semicolon-is-not-a-physical-inline", "literal-inline-prefix-expanded-recipe-after-colon-keeps-physical-owner", "literal-inline-prefix-generated-semicolon-without-physical-inline", "literal-inline-prefix-physical-inline-and-no-semicolon-in-target", "literal-inline-prefix-physical-inline-even-parity-target-assignment", "literal-inline-prefix-physical-inline-generated-double-colon", "literal-inline-prefix-physical-inline-generated-grouped-targets", "literal-inline-prefix-physical-inline-target-removed-in-tail", "literal-inline-prefix-physical-inline-with-generated-local-assignment", "literal-inline-prefix-physical-inline-with-literal-colon", "literal-inline-prefix-physical-inline-with-quoted-generated-target", "literal-inline-prefix-physical-inline-with-unquoted-generated-target", "literal-inline-prefix-semicolon-from-adjacent-references", "literal-inline-prefix-unselected-generated-assignment-keeps-physical-value-lazy", "literal-inline-prefix-unselected-physical-inline-keeps-recipe-effects-lazy"]
+
+[[requirements]]
+id = "rules.empty-generated-inline-overlap"
+title = "Eager generated recipe tails on empty declarations"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 6
+fixture_count = 6
+reference = "docs/rule-quoted-semicolons.md"
+cases = ["empty-inline-cross-empty-expanded-inline-archive-runs-raw-tail", "empty-inline-cross-empty-expanded-inline-assignment-runs-raw-tail", "empty-inline-cross-empty-expanded-inline-fatal-raw-tail", "empty-inline-cross-empty-expanded-inline-runs-raw-tail", "empty-inline-cross-empty-physical-inline-keeps-raw-tail-lazy", "empty-inline-cross-empty-raw-colon-keeps-raw-tail-lazy"]
