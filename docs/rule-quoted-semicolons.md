@@ -41,3 +41,11 @@ expansion. The raw remainder can be whitespace or a reference that expands to
 empty text. Target filename observation still precedes that expansion.
 Thirty-two GNU2 fixtures cover both scan counts, backslash parity, comments,
 continued lines, `eval`, recipe overrides, and ordered file effects.
+
+Quoted semicolons in expanded target names lose one quoting level before
+filename preparation. The reader keeps the resulting spelling separately so
+the recognized rule delimiter and recipe offsets still refer to the expanded
+line. With a literal inline recipe, filename preparation uses the spelling
+produced by source parsing and expansion. Thirty-one GNU2 fixtures cover
+generated and literal colons, even and odd parity, raw target bytes, scoped
+assignments, globs, pattern rules, and grouped and double-colon targets.

@@ -1,0 +1,11 @@
+id = "generated-target-semicolon-physical-inline-quote-parity-1"
+requirement = "rules.generated-target-quoted-semicolon"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a\\;b"]
+description = "Original semicolon quoting in generated target names: physical inline quote parity 1."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b615c3b625d0a"
+stderr_hex = ""

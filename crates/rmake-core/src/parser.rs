@@ -4491,6 +4491,18 @@ impl Database {
             // an inline recipe boundary during expansion.
             let mut prefix_expansion =
                 self.expand_rule_prefix(&text, rule_end, &location, context)?;
+            let dequoted_targets = prefix_expansion.delimiter.and_then(|delimiter| {
+                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
+                if rule_end != text.len() || !targets.contains(&b';') {
+                    return None;
+                }
+                // Keep the expanded delimiter offsets and prepare the target
+                // spelling separately for assignment and rule filenames.
+                match unquote_semicolons::<false>(targets, targets.len()).0 {
+                    Cow::Owned(targets) => Some(targets),
+                    Cow::Borrowed(_) => None,
+                }
+            });
             let mut expanded_recipe_tail = None;
             if let Some(delimiter) = prefix_expansion.delimiter {
                 let prefix_tail = &prefix_expansion.expanded[delimiter.tail_start..];
@@ -4516,7 +4528,9 @@ impl Database {
                     // remaining text before target filenames are observed.
                     expanded_recipe_tail = Some(self.expand(raw_tail, &location, context)?);
                 }
-                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
+                let targets = dequoted_targets
+                    .as_deref()
+                    .unwrap_or(&prefix_expansion.expanded[..delimiter.targets_end]);
                 // Prefix effects already ran. A declaration with no names
                 // has no prerequisite expansion or target assignments.
                 if targets
@@ -4554,7 +4568,9 @@ impl Database {
                     .iter()
                     .any(|byte| matches!(byte, b'(' | b'*' | b'?' | b'[' | b'~'))
             {
-                let targets = &prefix_expansion.expanded[..delimiter.targets_end];
+                let targets = dequoted_targets
+                    .as_deref()
+                    .unwrap_or(&prefix_expansion.expanded[..delimiter.targets_end]);
                 let targets = crate::filenames::target_colons(targets);
                 Some(
                     self.parsed_rule_filenames(&targets, &location, context)?
@@ -4630,7 +4646,10 @@ impl Database {
             declaration.location = Some(location.clone());
             declaration.grouped = delimiter.grouped;
             let early_targets = observed_targets.is_some();
-            let target_text = crate::filenames::target_colons(&expanded[..delimiter.targets_end]);
+            let targets = dequoted_targets
+                .as_deref()
+                .unwrap_or(&expanded[..delimiter.targets_end]);
+            let target_text = crate::filenames::target_colons(targets);
             let targets = observed_targets
                 .into_iter()
                 .flatten()
