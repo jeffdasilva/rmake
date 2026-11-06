@@ -5744,7 +5744,7 @@ impl Engine {
     fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
         !phony
             && !self.ignored_vpath.contains(target)
-            && self.vpath_searchable(target)
+            && (self.vpath_searchable(target) || target.starts_with(b"-l"))
             && (!(self.options.dry_run || self.options.question || self.options.touch)
                 || all_recursive)
     }
