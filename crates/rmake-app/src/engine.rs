@@ -7651,12 +7651,11 @@ impl Engine {
                 }],
                 peer_targets,
                 wait_frontiers: Vec::new(),
-                frontiers_enabled: rule.implicit_pattern.is_none()
-                    && (rule.grouped_double_id().is_some()
-                        || rule
-                            .dependencies
-                            .iter()
-                            .any(|dependency| dependency.name == b".WAIT")),
+                frontiers_enabled: rule.grouped_double_id().is_some()
+                    || rule
+                        .dependencies
+                        .iter()
+                        .any(|dependency| dependency.name == b".WAIT"),
                 run: GroupRun {
                     branch: rule.grouped_double_id(),
                     implicit: rule.implicit_pattern.is_some(),
