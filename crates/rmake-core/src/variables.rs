@@ -987,18 +987,29 @@ impl VariableStore {
         self.define(name, value, Assignment::Recursive, origin)
     }
 
+    /// Read the shell status owned by this table rather than an ancestor.
+    pub fn local_shell_status(&self) -> Option<&Variable> {
+        self.variables.get(b".SHELLSTATUS".as_slice())
+    }
+
+    /// Copy a shell completion without evaluating it or recording a new
+    /// variable definition in the file's logical table history.
+    pub fn retain_local_shell_status(&mut self, status: &Variable) {
+        if self.local_shell_status() != Some(status) {
+            Arc::make_mut(&mut self.variables).insert(b".SHELLSTATUS", status.clone());
+        }
+    }
+
     /// Retain per-file state that the recipe and prerequisites can inherit.
     /// A secondary expansion's automatic variables stay in its read context.
     pub fn retain_runtime_metadata(&mut self, expanded: &Self, retain_shell_status: bool) {
-        let names: &[&[u8]] = if retain_shell_status {
-            &[b"MAKEFLAGS", b"MFLAGS", b".SHELLSTATUS"]
-        } else {
-            &[b"MAKEFLAGS", b"MFLAGS"]
-        };
-        for &name in names {
+        for name in [b"MAKEFLAGS".as_slice(), b"MFLAGS"] {
             if let Some(value) = expanded.variables.get(name) {
                 Arc::make_mut(&mut self.variables).insert(name, value.clone());
             }
+        }
+        if retain_shell_status && let Some(status) = expanded.local_shell_status() {
+            self.retain_local_shell_status(status);
         }
     }
 

@@ -1992,3 +1992,13 @@ candidate_required = 10
 fixture_count = 10
 reference = "docs/target-scopes.md"
 cases = ["secondary-retained-scope-active-eval", "secondary-retained-scope-cross-from-recipe", "secondary-retained-scope-cross-from-secondary", "secondary-retained-scope-cross-then-return", "secondary-retained-scope-descendant-local-wins", "secondary-retained-scope-descendant-status", "secondary-retained-scope-global-unchanged", "secondary-retained-scope-later-clause-reads-status", "secondary-retained-scope-no-local-status-control", "secondary-retained-scope-same-recipe-status"]
+
+[[requirements]]
+id = "scope.implicit-secondary-status"
+title = "File shell status during and after implicit secondary expansion"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 18
+fixture_count = 18
+reference = "docs/target-scopes.md"
+cases = ["implicit-secondary-status-archive-fallback", "implicit-secondary-status-empty-shell-control", "implicit-secondary-status-explicit-secondary-after-search", "implicit-secondary-status-global-status-unchanged", "implicit-secondary-status-inherited-without-local", "implicit-secondary-status-intermediate-compat-retry", "implicit-secondary-status-intermediate-pattern-once", "implicit-secondary-status-recursive-search-reads-parent", "implicit-secondary-status-rejected-before-default", "implicit-secondary-status-rejected-before-ordinary-winner", "implicit-secondary-status-rejected-intermediate-isolated", "implicit-secondary-status-selected-intermediate", "implicit-secondary-status-selected-intermediate-descendant", "implicit-secondary-status-selected-prerequisite", "implicit-secondary-status-selected-recipe", "implicit-secondary-status-unused-selected-intermediate-isolated", "implicit-secondary-status-up-to-date-retained", "implicit-secondary-status-winning-shell-overrides"]

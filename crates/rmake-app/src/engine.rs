@@ -20,7 +20,7 @@ use rmake_core::diagnostic::{Diagnostic, ExpansionContext, IncludeError, Output,
 use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
 use rmake_core::variables::{
-    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
+    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
 };
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
@@ -887,9 +887,20 @@ enum ImplicitPresence {
 struct ImplicitSelection {
     name: Vec<u8>,
     rule: Rule,
-    pattern_scope: Option<Box<Option<TargetScope>>>,
+    prepared_scope: Option<Box<ImplicitScope>>,
     explicit_names: Vec<Vec<u8>>,
     intermediate_names: Vec<Vec<u8>>,
+}
+
+struct ImplicitScope {
+    pattern: Option<TargetScope>,
+    shell_status: Option<Variable>,
+}
+
+struct ImplicitSearch {
+    compatibility: bool,
+    archive: bool,
+    intermediate_scope: Option<ImplicitScope>,
 }
 
 // A selected Makefile record can name a file that does not exist yet.
@@ -943,7 +954,7 @@ pub struct Engine {
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, Vec<u8>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
-    implicit_pattern_scopes: HashMap<Vec<u8>, Option<TargetScope>>,
+    implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
     impossible_prerequisites: HashSet<Vec<u8>>,
     impossible_generation: u64,
     would_build: bool,
@@ -1508,7 +1519,7 @@ impl Engine {
             scope_parents: HashMap::new(),
             retained_scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
-            implicit_pattern_scopes: HashMap::new(),
+            implicit_scopes: HashMap::new(),
             impossible_prerequisites: HashSet::new(),
             impossible_generation: 0,
             would_build: false,
@@ -4842,10 +4853,8 @@ impl Engine {
         {
             context.refresh_target_scope(scope);
         }
-        if let Some(scope) = self.implicit_pattern_scopes.remove(from) {
-            self.implicit_pattern_scopes
-                .entry(to.to_vec())
-                .or_insert(scope);
+        if let Some(scope) = self.implicit_scopes.remove(from) {
+            self.implicit_scopes.entry(to.to_vec()).or_insert(scope);
         }
         if self.database.explicit_names.contains(from) {
             self.database.explicit_names.insert(to.to_vec());
@@ -5592,15 +5601,15 @@ impl Engine {
                 let ImplicitSelection {
                     name,
                     mut rule,
-                    pattern_scope,
+                    prepared_scope,
                     explicit_names: _,
                     intermediate_names,
                 } = selection;
                 // A selected implicit rule promotes its file to a target,
                 // including recipes converted from undeclared builtin records.
                 rule.record_only = false;
-                if let Some(pattern) = pattern_scope {
-                    self.implicit_pattern_scopes.insert(name.clone(), *pattern);
+                if let Some(scope) = prepared_scope {
+                    self.implicit_scopes.insert(name.clone(), *scope);
                 }
                 if let Some(group) = &rule.group {
                     for (peer, pattern) in &group.implicit_peer_patterns {
@@ -5673,6 +5682,11 @@ impl Engine {
         let archive_name = rmake_core::filenames::archive_parts(target)
             .map(|(archive, _)| &target[archive.len()..]);
         let root = active.is_empty();
+        let mut search = ImplicitSearch {
+            compatibility,
+            archive: false,
+            intermediate_scope: None,
+        };
         for archive_search in [false, true] {
             if archive_search && archive_name.is_none() {
                 break;
@@ -5683,14 +5697,11 @@ impl Engine {
                     crate::debug::Event::LookingArchive(target, depth),
                 );
             }
-            if let Some(plan) = self.implicit_search(
-                target,
-                active,
-                compatibility,
-                archive_search,
-                budget,
-                debug_depth,
-            )? {
+            search.compatibility = compatibility;
+            search.archive = archive_search;
+            if let Some(plan) =
+                self.implicit_search(target, active, &mut search, budget, debug_depth)?
+            {
                 return Ok(Some(plan));
             }
             let printed = if archive_search {
@@ -5715,11 +5726,12 @@ impl Engine {
         &mut self,
         target: &[u8],
         active: &mut Vec<usize>,
-        compatibility: bool,
-        archive_search: bool,
+        search: &mut ImplicitSearch,
         budget: &mut usize,
         debug_depth: usize,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
+        let compatibility = search.compatibility;
+        let archive_search = search.archive;
         let tracing = self.output.debug_mask().has(crate::debug::Mask::IMPLICIT);
         // Both archive search phases match without ignoring any directory.
         let trace_directory =
@@ -5745,7 +5757,6 @@ impl Engine {
         let mut cancelled = HashSet::new();
         let intermediate = !active.is_empty();
         let mut variables = None;
-        let mut pattern_scope = None;
         for chain in [false, true] {
             if chain && !candidates.is_empty() {
                 crate::debug::emit(
@@ -5837,13 +5848,12 @@ impl Engine {
                                 continue;
                             }
                             if variables.is_none() {
-                                let (context, prepared) = self.implicit_variables(
+                                variables = Some(self.implicit_variables(
                                     target,
                                     intermediate,
                                     candidate.rule.stem.clone().unwrap_or_default(),
-                                )?;
-                                pattern_scope = prepared;
-                                variables = Some(context);
+                                    &mut search.intermediate_scope,
+                                )?);
                             } else if !stem_set {
                                 variables.as_mut().unwrap().define_literal(
                                     b"*",
@@ -5857,8 +5867,26 @@ impl Engine {
                                 candidate.secondary_directory.is_some(),
                             );
                             explicit_word = !percent;
-                            let value =
-                                self.expand(variables.as_mut().unwrap(), &rewritten, None)?;
+                            let variables = variables.as_mut().expect("initialized file scope");
+                            let value = self.expand(variables, &rewritten, None);
+                            if let Some(status) = variables.local_shell_status() {
+                                if intermediate {
+                                    let scope = search
+                                        .intermediate_scope
+                                        .as_mut()
+                                        .expect("initialized intermediate scope");
+                                    if scope.shell_status.as_ref() != Some(status) {
+                                        scope.shell_status = Some(status.clone());
+                                    }
+                                } else if let Some(context) =
+                                    self.target_contexts.get_mut(self.aliases.resolve(target))
+                                {
+                                    // Later candidates and recursive searches can
+                                    // read a real file even after a rejection.
+                                    context.retain_local_shell_status(status);
+                                }
+                            }
+                            let value = value?;
                             self.implicit_filenames(
                                 &value,
                                 &mut order_only,
@@ -6124,8 +6152,7 @@ impl Engine {
                         rule: selected,
                         explicit_names,
                         intermediate_names,
-                        pattern_scope: (intermediate && variables.is_some())
-                            .then(|| Box::new(pattern_scope.clone())),
+                        prepared_scope: search.intermediate_scope.take().map(Box::new),
                     });
                     return Ok(Some(plan));
                 }
@@ -6136,7 +6163,8 @@ impl Engine {
                 &self.output,
                 crate::debug::Event::SearchingCompatibility(target, debug_depth + active.len() + 1),
             );
-            return self.implicit_search(target, active, true, archive_search, budget, debug_depth);
+            search.compatibility = true;
+            return self.implicit_search(target, active, search, budget, debug_depth);
         }
         Ok(None)
     }
@@ -6146,9 +6174,10 @@ impl Engine {
         target: &[u8],
         intermediate: bool,
         stem: Vec<u8>,
-    ) -> Result<(VariableStore, Option<TargetScope>), ExpandError> {
-        let (mut context, pattern_scope) = if intermediate {
-            let prepared = self.database.prepare_pattern_scope(
+        intermediate_scope: &mut Option<ImplicitScope>,
+    ) -> Result<VariableStore, ExpandError> {
+        if intermediate && intermediate_scope.is_none() {
+            let pattern = self.database.prepare_pattern_scope(
                 target,
                 runtime_context(
                     None,
@@ -6173,13 +6202,22 @@ impl Engine {
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?;
-            let context = match prepared.as_ref() {
+            *intermediate_scope = Some(ImplicitScope {
+                pattern,
+                shell_status: None,
+            });
+        }
+        let mut context = if let Some(prepared) = intermediate_scope.as_ref() {
+            let mut context = match prepared.pattern.as_ref() {
                 Some(scope) => self.database.variables.with_target_scopes(&[scope]),
                 None => self.database.variables.with_target_scopes(&[]),
             };
-            (context, prepared)
+            if let Some(status) = &prepared.shell_status {
+                context.retain_local_shell_status(status);
+            }
+            context
         } else {
-            (self.target_variables(target)?, None)
+            self.target_variables(target)?
         };
         let mut empty = Rule::default();
         let explicit = if intermediate {
@@ -6202,7 +6240,7 @@ impl Engine {
         ) {
             context.define_literal(name, &value, Origin::Automatic)?;
         }
-        Ok((context, pattern_scope))
+        Ok(context)
     }
 
     fn implicit_filename(
@@ -8516,9 +8554,16 @@ impl Engine {
         } else {
             self.database.variables.clone()
         };
-        let variables = if let Some(pattern) = self.implicit_pattern_scopes.remove(target) {
-            self.database
-                .variables_for_target_prepared(target, &inherited, pattern.as_ref())
+        let variables = if let Some(scope) = self.implicit_scopes.remove(target) {
+            let mut variables = self.database.variables_for_target_prepared(
+                target,
+                &inherited,
+                scope.pattern.as_ref(),
+            );
+            if let Some(status) = &scope.shell_status {
+                variables.retain_local_shell_status(status);
+            }
+            variables
         } else {
             self.database.variables_for_target_with(
                 target,

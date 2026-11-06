@@ -1,0 +1,12 @@
+id = "implicit-secondary-status-intermediate-pattern-once"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "Observe the file shell status after implicit secondary expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "phase=[|base ready]\nphase=[7|base ready]\nphase=[7|base ready]\nchild=[item.mid|7|base ready]\nroot=[item.out|]\n"
+stderr = ""

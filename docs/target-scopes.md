@@ -90,6 +90,13 @@ inherit the file's shell status, while recipes compute their own automatic
 values. Both builtin `eval` and native `gmk_eval` can read a previously
 expanded destination and return to the still-active caller.
 
+Implicit rule search retains shell status on the actual target as each
+deferred word expands. Recursive search, subsequent candidates, archive
+fallback, explicit secondary clauses, and recipes can read that status.
+An intermediate keeps its own status and pattern scope across retries.
+The selected plan publishes them to the intermediate's file context when
+it installs the rule.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.
