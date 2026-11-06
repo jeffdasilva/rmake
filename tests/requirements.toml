@@ -1962,3 +1962,13 @@ candidate_required = 4
 fixture_count = 4
 reference = "docs/target-scopes.md"
 cases = ["target-eager-suspended-shell-status", "target-eager-suspended-shell-writeback", "target-eager-suspended-three-levels", "target-eager-suspended-unvisited-intermediate"]
+
+[[requirements]]
+id = "scope.target-eager-latest-parent"
+title = "Retained target reads after a later parent encounter"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 14
+fixture_count = 14
+reference = "docs/target-scopes.md"
+cases = ["target-eager-latest-parent-active-parent-locals", "target-eager-latest-parent-completed-recipe", "target-eager-latest-parent-cycle-preserves-parent", "target-eager-latest-parent-dot-name", "target-eager-latest-parent-finished-parent-locals", "target-eager-latest-parent-gpath-canonical", "target-eager-latest-parent-live-declaration", "target-eager-latest-parent-no-recipe", "target-eager-latest-parent-order-only", "target-eager-latest-parent-private-parent", "target-eager-latest-parent-retained-pattern", "target-eager-latest-parent-return-to-first", "target-eager-latest-parent-third-parent", "target-eager-latest-parent-transitive-shared-parent"]

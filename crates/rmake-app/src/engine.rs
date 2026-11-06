@@ -548,6 +548,8 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
 
 struct TargetReads<'a> {
     parents: &'a HashMap<Vec<u8>, Option<Vec<u8>>>,
+    retained_parents: &'a HashMap<Vec<u8>, Vec<u8>>,
+    aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
     recipes: &'a mut HashMap<Vec<u8>, VariableStore>,
 }
@@ -558,7 +560,19 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
     }
 
     fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>> {
-        self.parents.get(target).map(Option::as_deref)
+        self.parents
+            .get(target)
+            .map(|parent| parent.as_deref().map(|name| self.aliases.resolve(name)))
+    }
+
+    fn has_parent_changes(&self) -> bool {
+        !self.retained_parents.is_empty()
+    }
+
+    fn changed_parent(&self, target: &[u8]) -> Option<&[u8]> {
+        self.retained_parents
+            .get(target)
+            .map(|name| self.aliases.resolve(name))
     }
 
     fn retain_locals(&mut self, target: &[u8], variables: VariableStore) {
@@ -924,6 +938,9 @@ pub struct Engine {
     debug_reap_pass: u64,
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
+    // A later encounter affects declarations that revisit a completed file.
+    // Its first traversal context still owns the recipe and diagnostics.
+    retained_scope_parents: HashMap<Vec<u8>, Vec<u8>>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_pattern_scopes: HashMap<Vec<u8>, Option<TargetScope>>,
     impossible_prerequisites: HashSet<Vec<u8>>,
@@ -1488,6 +1505,7 @@ impl Engine {
             debug_reap_pass: 0,
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
+            retained_scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_pattern_scopes: HashMap::new(),
             impossible_prerequisites: HashSet::new(),
@@ -1588,6 +1606,8 @@ impl Engine {
     ) -> Result<Vec<u8>, ExpandError> {
         let mut target_reads = TargetReads {
             parents: &self.scope_parents,
+            retained_parents: &self.retained_scope_parents,
+            aliases: &self.aliases,
             base: &self.target_contexts,
             recipes: &mut self.database_contexts,
         };
@@ -4742,6 +4762,11 @@ impl Engine {
         if let Some(parent) = self.scope_parents.remove(from) {
             self.scope_parents.entry(to.to_vec()).or_insert(parent);
         }
+        if let Some(parent) = self.retained_scope_parents.remove(from) {
+            self.retained_scope_parents
+                .entry(to.to_vec())
+                .or_insert(parent);
+        }
         if let Some(context) = self.target_contexts.remove(from) {
             self.target_contexts.entry(to.to_vec()).or_insert(context);
         }
@@ -6698,6 +6723,9 @@ impl Engine {
             return self.resume_rule(target);
         }
         if let Some(mut outcome) = self.done.get(target).copied() {
+            if let Some(parent) = parent {
+                self.remember_retained_scope_parent(target, parent);
+            }
             let debug_depth = depth + usize::from(self.remaking);
             let pruned = self
                 .debug_considered
@@ -6911,6 +6939,26 @@ impl Engine {
             return outcome;
         }
         self.build_rule(target, depth, before, comparison, phony, rule, None)
+    }
+
+    fn remember_retained_scope_parent(&mut self, target: &[u8], parent: &[u8]) {
+        if !self.retained_scope_parents.is_empty()
+            && let Some(latest) = self.retained_scope_parents.get_mut(target)
+        {
+            if latest.as_slice() != parent {
+                latest.clear();
+                latest.extend_from_slice(parent);
+            }
+            // Keep the live edge if it returns to its original parent. A
+            // retained eager read may have updated this file's local table.
+            return;
+        }
+        if self.scope_parents.get(target).is_some_and(|first| {
+            first.as_deref().map(|name| self.aliases.resolve(name)) != Some(parent)
+        }) {
+            self.retained_scope_parents
+                .insert(target.to_vec(), parent.to_vec());
+        }
     }
 
     fn trace_cached_unruled_makefile(
