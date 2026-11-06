@@ -1,0 +1,12 @@
+id = "secondary-retained-scope-later-clause-reads-status"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Observe target context after an effect during secondary expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "next=[all|7]\nrecipe=[all|7]\n"
+stderr = ""

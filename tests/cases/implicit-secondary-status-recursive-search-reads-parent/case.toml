@@ -1,0 +1,12 @@
+id = "implicit-secondary-status-recursive-search-reads-parent"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "Observe the file shell status after implicit secondary expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parent=[7]\nrecipe=[item.out|7]\n"
+stderr = ""
