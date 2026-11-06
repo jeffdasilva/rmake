@@ -877,6 +877,13 @@ struct DoubleColonState {
     active: Option<usize>,
     last_epoch: Option<u64>,
     combined: Outcome,
+    awaiting_recipe: bool,
+}
+
+impl DoubleColonState {
+    fn single_active_branch(&self) -> bool {
+        self.active.is_none_or(|ordinal| ordinal == 0) && self.branches.is_empty()
+    }
 }
 
 /// Only grouped rules need a second recipe view and peer traversal cursor.
@@ -3221,8 +3228,7 @@ impl Engine {
                 outcome
             };
             if self.parallel_graph() {
-                let awaiting_recipe =
-                    !already_done && self.parallel_jobs.contains_key(self.aliases.resolve(&goal));
+                let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 requested.push(RequestedGoal {
                     name: goal,
                     already_done,
@@ -3257,9 +3263,7 @@ impl Engine {
                     }
                     first_goal = false;
                     if !goal.already_done && !goal.awaiting_recipe {
-                        goal.awaiting_recipe = self
-                            .parallel_jobs
-                            .contains_key(self.aliases.resolve(&goal.name));
+                        goal.awaiting_recipe = self.goal_recipe_waiting(&goal.name);
                     }
                 } else if goal.awaiting_recipe && !self.pending(&goal.name) {
                     first_goal = false;
@@ -3419,6 +3423,15 @@ impl Engine {
                 );
             }
         }
+    }
+
+    fn goal_recipe_waiting(&self, goal: &[u8]) -> bool {
+        let name = self.aliases.resolve(goal);
+        self.parallel_jobs.contains_key(name)
+            && self
+                .pending_double_colon
+                .get(name)
+                .is_none_or(DoubleColonState::single_active_branch)
     }
 
     fn debug_completed_goal_visit(&self, goal: &[u8]) {
@@ -7114,6 +7127,7 @@ impl Engine {
                     branches,
                     active: None,
                     last_epoch: None,
+                    awaiting_recipe: false,
                     combined: Outcome {
                         time: before,
                         ..Outcome::default()
@@ -7198,9 +7212,9 @@ impl Engine {
                 if self.pending_rules.contains_key(target) {
                     self.resume_rule(target);
                 }
-                if self.pending_rules.contains_key(target)
-                    || self.parallel_jobs.contains_key(target)
-                {
+                let recipe_waiting = self.parallel_jobs.contains_key(target);
+                if self.pending_rules.contains_key(target) || recipe_waiting {
+                    state.awaiting_recipe |= recipe_waiting;
                     let mut outcome = state.combined;
                     if let Some(branch) = self.done.get(target).copied() {
                         merge_child(&mut outcome, branch);
@@ -7212,6 +7226,29 @@ impl Engine {
                     .done
                     .remove(target)
                     .expect("finished double-colon branch");
+                // A direct single declaration keeps the ordinary goal-level visit.
+                if std::mem::take(&mut state.awaiting_recipe)
+                    && (state.depth != 0 || !state.single_active_branch())
+                    && !self.remaking
+                    && self.graph_abort.is_none()
+                    && self.shutdown.get() == Shutdown::Running
+                    && !result.fatal
+                    && !result.question_outdated
+                    && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
+                {
+                    use crate::debug::{Event, emit};
+
+                    self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
+                    emit(&self.output, Event::Considering(target, state.depth));
+                    emit(
+                        &self.output,
+                        if result.failed {
+                            Event::RecentlyFailed(target, state.depth)
+                        } else {
+                            Event::Already(target, state.depth)
+                        },
+                    );
+                }
                 if result.database_result != DatabaseResult::RecipeUnstarted {
                     // Group completion can already have observed the owner's
                     // timestamp after a failed child was reaped.
