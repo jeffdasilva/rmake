@@ -2052,3 +2052,13 @@ candidate_required = 14
 fixture_count = 14
 reference = "docs/target-scopes.md"
 cases = ["retained-double-branch-external-caller", "retained-double-branch-first-owner-later-control", "retained-double-branch-gpath", "retained-double-branch-keeps-retained-local", "retained-double-branch-live-caller", "retained-double-branch-named-head-control", "retained-double-branch-no-recipe-prerequisite", "retained-double-branch-no-revisit-control", "retained-double-branch-no-secondary-in-later-branch", "retained-double-branch-same-name-later", "retained-double-branch-suspended-caller", "retained-double-branch-switch-to-ordinary-parent", "retained-double-branch-third-branch", "retained-double-branch-transitive-retained"]
+
+[[requirements]]
+id = "language.empty-static-target"
+title = "Targetless declarations and attached recipes"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 31
+fixture_count = 31
+reference = "docs/rule-delimiters.md"
+cases = ["busybox-empty-ordinary-control", "busybox-empty-static-after-rule", "busybox-empty-static-no-recipe", "busybox-expanded-empty-static", "busybox-literal-empty-static", "busybox-nonempty-static-control", "empty-rule-archive-empty-target", "empty-rule-archive-empty-target-assignment", "empty-rule-assignment-closes-empty-rule", "empty-rule-attached-in-include", "empty-rule-attached-in-reader-eval", "empty-rule-attached-in-recipe-eval", "empty-rule-conditional-and-comment-continuation", "empty-rule-custom-recipe-prefix", "empty-rule-empty-double-colon", "empty-rule-empty-grouped", "empty-rule-empty-grouped-double-colon", "empty-rule-empty-target-assignment", "empty-rule-ignored-define-in-empty-rule", "empty-rule-inactive-empty-rule-control", "empty-rule-include-frame-orphan-control", "empty-rule-invalid-static-pattern", "empty-rule-literal-inline-and-tail", "empty-rule-orphan-tabbed-assignment-control", "empty-rule-raw-orphan-control", "empty-rule-same-generated-word-effects", "empty-rule-tabbed-assignment-is-recipe", "empty-rule-target-effects", "empty-rule-target-effects-without-recipe", "empty-rule-vertical-whitespace-target", "empty-rule-warns-only-on-target-expansion"]

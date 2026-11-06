@@ -1,0 +1,2 @@
+: %: missing
+	@$(error attached)

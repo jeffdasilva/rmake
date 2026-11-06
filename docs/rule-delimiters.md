@@ -19,4 +19,11 @@ qualified against two verified GNU Make 4.4.1 runs, including filesystem and
 process checks. The pinned GNU `src/read.c` was consulted for rule token and
 delimiter phases. The Rust implementation and fixtures were written independently.
 
+An ordinary, static-pattern, or grouped declaration with no target names
+consumes its attached recipe lines without recording a rule. The reader
+keeps effects already evaluated while scanning the target and skips the
+unexpanded prerequisite tail. A new statement closes the declaration,
+and include and eval frames keep their own recipe attachment state.
+Thirty-one required fixtures cover these boundaries and true orphan recipes.
+
 Wider reader and profile combinations remain part of the M3/M6 audit.
