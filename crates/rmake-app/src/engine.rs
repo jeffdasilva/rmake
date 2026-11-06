@@ -3175,6 +3175,7 @@ impl Engine {
                 self.wait_target(&goal);
             }
             let outcome = self.build(&goal, None, 0);
+            self.debug_grouped_goal_prunes(&goal, outcome);
             let outcome = if !self.parallel_graph() && !self.pending(&goal) {
                 self.observe_updated(&goal, outcome)
             } else {
@@ -3197,6 +3198,7 @@ impl Engine {
                 break;
             }
         }
+        let mut last_goal_pass = self.debug_pass;
         while requested.iter().any(|goal| self.pending(&goal.name)) {
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -3209,7 +3211,11 @@ impl Engine {
                     } else {
                         BuildVisit::Ordinary
                     };
-                    self.build_recording_initial_time(&goal.name, None, 0, None, visit);
+                    let outcome =
+                        self.build_recording_initial_time(&goal.name, None, 0, None, visit);
+                    if self.debug_pass != last_goal_pass {
+                        self.debug_grouped_goal_prunes(&goal.name, outcome);
+                    }
                     first_goal = false;
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self
@@ -3222,6 +3228,7 @@ impl Engine {
                     goal.awaiting_recipe = false;
                 }
             }
+            last_goal_pass = self.debug_pass;
             // A completion or a file write can make more work observable in
             // the next pass. Rescan before blocking on the remaining children.
             if self.graph_epoch == pass_epoch
@@ -3323,6 +3330,35 @@ impl Engine {
                 Event::Already(name, depth)
             },
         );
+    }
+
+    fn debug_grouped_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
+        use crate::debug::{Event, Mask, emit};
+
+        if !self.output.debug_mask().has(Mask::VERBOSE)
+            || self.graph_abort.is_some()
+            || self.shutdown.get() != Shutdown::Running
+            || outcome.fatal
+            || (!self.options.keep_going && (outcome.failed || outcome.question_outdated))
+        {
+            return;
+        }
+        let name = self.aliases.resolve(goal);
+        if let Some(branches) = self
+            .database
+            .rules
+            .get(name)
+            .and_then(|rule| rule.double_colon.as_ref())
+            && branches.len() > 1
+            && branches
+                .iter()
+                .all(|rule| rule.grouped_double_id().is_some())
+        {
+            // Each extra goal entry returns to the same considered chain head.
+            for _ in &branches[1..] {
+                emit(&self.output, Event::Pruning(name, 0));
+            }
+        }
     }
 
     fn debug_completed_goal_visit(&self, goal: &[u8]) {
