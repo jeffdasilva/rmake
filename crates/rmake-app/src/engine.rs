@@ -3112,13 +3112,17 @@ impl Engine {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
             // references still carry their own definition locations.
-            let binding = self.database.variables.get(b".DEFAULT_GOAL").cloned();
-            let goal = match binding {
+            let goal = match self.database.variables.get(b".DEFAULT_GOAL") {
                 None => Ok(Vec::new()),
-                Some(variable) if variable.flavor() == Flavor::Simple => {
-                    Ok(variable.raw_value().to_vec())
+                Some(variable) => {
+                    // Expansion can replace the binding, so keep its raw bytes.
+                    let value = variable.raw_value().to_vec();
+                    if variable.flavor() == Flavor::Simple {
+                        Ok(value)
+                    } else {
+                        self.expand_global(&value, None)
+                    }
                 }
-                Some(variable) => self.expand_global(variable.raw_value(), None),
             };
             match goal {
                 Ok(mut goal) if !trim(&goal).is_empty() => {
