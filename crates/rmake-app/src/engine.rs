@@ -3449,19 +3449,28 @@ impl Engine {
         );
     }
 
+    fn report_blocked_goal(&self, goal: &[u8]) {
+        if self.options.keep_going && !self.options.question && !self.options.dry_run {
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::TargetNotRemade(goal),
+            ));
+        }
+    }
+
     fn report_goal(&self, goal: &[u8], already_done: bool, outcome: Outcome) {
         if outcome.fatal {
             return;
         }
-        if outcome.failed
-            && self.options.keep_going
-            && outcome.blocked
-            && !self.options.question
-            && !self.options.dry_run
-        {
-            self.stderr(&crate::messages::system(
-                rmake_core::messages::Message::TargetNotRemade(goal),
-            ));
+        if outcome.failed && outcome.blocked {
+            let identity = self.aliases.resolve(goal);
+            if !self
+                .database
+                .rules
+                .get(identity)
+                .is_some_and(|rule| rule.double_colon.is_some())
+            {
+                self.report_blocked_goal(goal);
+            }
         } else if !outcome.failed
             && (!outcome.ran || already_done)
             && !self.options.question
@@ -8538,6 +8547,10 @@ impl Engine {
                     &self.output,
                     crate::debug::Event::GiveUp(target, debug_depth),
                 );
+                // A double-colon goal reports each blocked declaration as it finishes.
+                if branch.is_some() && debug_depth == 0 && outcome.failed && outcome.blocked {
+                    self.report_blocked_goal(target);
+                }
             } else if debug_remake && !no_recipe_no_changes {
                 crate::debug::emit(
                     &self.output,
