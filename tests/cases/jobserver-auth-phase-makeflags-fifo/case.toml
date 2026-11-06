@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-makeflags-fifo"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "An absent FIFO introduced by the makefile is not opened."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR --jobserver-auth=fifo:absent --no-print-directory|-rR --jobserver-auth=fifo:absent --no-print-directory]\nrun=[rR --jobserver-auth=fifo:absent --no-print-directory|-rR --jobserver-auth=fifo:absent --no-print-directory]\n"
+stderr = ""

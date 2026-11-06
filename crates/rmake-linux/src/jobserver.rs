@@ -163,6 +163,38 @@ impl Drop for Inner {
 pub struct Jobserver(Arc<Inner>);
 
 #[derive(Debug)]
+pub enum JoinError {
+    Malformed,
+    Unavailable(io::Error),
+}
+
+fn authentication_fd(bytes: &[u8]) -> Option<(c_int, &[u8])> {
+    let start = bytes
+        .iter()
+        .position(|&byte| !matches!(byte, b' ' | b'\t'..=b'\r'))?;
+    let bytes = &bytes[start..];
+    let (negative, digits) = match bytes {
+        [b'-', rest @ ..] => (true, rest),
+        [b'+', rest @ ..] => (false, rest),
+        _ => (false, bytes),
+    };
+    let length = digits
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    if length == 0 {
+        return None;
+    }
+    // GNU scans a signed decimal prefix and narrows the C long to int.
+    let number = digits[..length].iter().fold(0_i64, |value, &digit| {
+        let digit = i64::from(digit - b'0');
+        let signed_digit = if negative { -digit } else { digit };
+        value.saturating_mul(10).saturating_add(signed_digit)
+    });
+    Some((number as c_int, &digits[length..]))
+}
+
+#[derive(Debug)]
 pub struct CreationError {
     pub operation: &'static str,
     pub error: io::Error,
@@ -515,20 +547,18 @@ impl Jobserver {
         self.0.owned_slots
     }
 
-    pub fn join(auth: &[u8]) -> io::Result<Self> {
+    pub fn join(auth: &[u8]) -> Result<Self, JoinError> {
         if let Some(path) = auth.strip_prefix(b"fifo:") {
             return Self::open_fifo(Path::new(std::ffi::OsStr::from_bytes(path)), false)
-                .map_err(FifoOpenError::into_io_error);
+                .map_err(|error| JoinError::Unavailable(error.into_io_error()));
         }
-        let text =
-            std::str::from_utf8(auth).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-        let (read, write) = text.split_once(',').ok_or(io::ErrorKind::InvalidInput)?;
-        let read: c_int = read
-            .parse()
-            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-        let write: c_int = write
-            .parse()
-            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let (read, rest) = authentication_fd(auth).ok_or(JoinError::Malformed)?;
+        let rest = rest.strip_prefix(b",").ok_or(JoinError::Malformed)?;
+        let (write, _) = authentication_fd(rest).ok_or(JoinError::Malformed)?;
+        Self::join_pipe(read, write, auth).map_err(JoinError::Unavailable)
+    }
+
+    fn join_pipe(read: c_int, write: c_int, auth: &[u8]) -> io::Result<Self> {
         if read < 3 || write < 3 || read == write {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }

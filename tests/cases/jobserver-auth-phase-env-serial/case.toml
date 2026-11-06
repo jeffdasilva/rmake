@@ -1,0 +1,15 @@
+id = "jobserver-auth-phase-env-serial"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Inherited -j1 still validates malformed startup authentication."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+MAKEFLAGS = "-j1 --jobserver-auth=opaque"
+
+[expected]
+exit_code = 0
+stdout = "read=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\nrun=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\n"
+stderr = "make: invalid --jobserver-auth string 'opaque'\nmake: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n"

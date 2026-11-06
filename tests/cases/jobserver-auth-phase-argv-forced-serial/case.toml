@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-argv-forced-serial"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Explicit -j1 bypasses authentication and reports the reset."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-auth=opaque"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\nrun=[rR -j1 --no-print-directory|-rR -j1 --no-print-directory]\n"
+stderr = "make: warning: -j1 forced in submake: resetting jobserver mode.\n"

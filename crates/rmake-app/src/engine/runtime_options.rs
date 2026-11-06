@@ -581,51 +581,98 @@ impl Engine {
                 self.options.jobs = Some(jobs);
             }
         }
-        if self.jobserver.is_some() {
+        if create && self.options.jobserver_auth.is_some() {
+            // Startup alone validates the transport. The post-read value is
+            // published to children, and enables unbounded work if no pool
+            // was adopted at startup.
+            self.unbounded_auth_jobs = self.jobserver.is_none();
+            self.options.inherited_jobs = false;
             return Ok(());
         }
-        if self.options.reset_jobserver {
+        if self.options.reset_jobserver
+            && self
+                .initial_plan
+                .as_ref()
+                .is_none_or(|plan| plan.startup_restarts == 0)
+        {
+            let jobs = self
+                .options
+                .jobs
+                .filter(|jobs| *jobs != usize::MAX)
+                .unwrap_or(0);
+            let message = rmake_linux::messages::render_format(
+                c"warning: -j%d forced in submake: resetting jobserver mode.",
+                &[rmake_core::messages::Argument::Signed(jobs as i64)],
+            )
+            .unwrap_or_else(|_| {
+                format!("warning: -j{jobs} forced in submake: resetting jobserver mode.")
+                    .into_bytes()
+            });
             emit_output(
                 &self.output,
                 &self.program,
                 Output::Warning {
                     location: None,
-                    message: format!(
-                        "warning: -j{} forced in submake: resetting jobserver mode.",
-                        self.options
-                            .jobs
-                            .filter(|jobs| *jobs != usize::MAX)
-                            .unwrap_or(0)
-                    )
-                    .as_bytes(),
+                    message: &message,
                 },
             );
         }
-        self.jobserver = if self.options.jobs == Some(1) {
-            self.options.jobserver_auth = None;
-            None
-        } else if let Some(auth) = &self.options.jobserver_auth {
+        self.jobserver = if let Some(auth) = &self.options.jobserver_auth {
+            use rmake_core::messages::Argument;
+            use rmake_linux::{jobserver::JoinError, messages};
             match Jobserver::join(auth) {
                 Ok(server) => Some(server),
                 Err(error) => {
-                    if let Some(path) = auth.strip_prefix(b"fifo:") {
+                    let detail = match error {
+                        JoinError::Malformed => Some(
+                            messages::render_format(
+                                c"invalid --jobserver-auth string '%s'",
+                                &[Argument::Bytes(auth)],
+                            )
+                            .unwrap_or_else(|_| {
+                                [b"invalid --jobserver-auth string '".as_slice(), auth, b"'"]
+                                    .concat()
+                            }),
+                        ),
+                        JoinError::Unavailable(error) => auth.strip_prefix(b"fifo:").map(|path| {
+                            let detail = os_error(&error);
+                            messages::render_format(
+                                c"cannot open jobserver %s: %s",
+                                &[Argument::Bytes(path), Argument::Bytes(detail.as_bytes())],
+                            )
+                            .unwrap_or_else(|_| {
+                                [
+                                    b"cannot open jobserver ".as_slice(),
+                                    path,
+                                    b": ",
+                                    detail.as_bytes(),
+                                ]
+                                .concat()
+                            })
+                        }),
+                    };
+                    if let Some(message) = &detail {
                         emit_output(
                             &self.output,
                             &self.program,
                             Output::Warning {
                                 location: None,
-                                message: &[
-                                    b"cannot open jobserver ".as_slice(),
-                                    path,
-                                    b": ",
-                                    os_error(&error).as_bytes(),
-                                ]
-                                .concat(),
+                                message,
                             },
                         );
                     }
-                    emit_output(&self.output, &self.program, Output::Warning { location: None,
-                        message: b"warning: jobserver unavailable: using -j1.  Add '+' to parent make rule." });
+                    let key =
+                        c"warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.";
+                    let message =
+                        messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
+                    emit_output(
+                        &self.output,
+                        &self.program,
+                        Output::Warning {
+                            location: None,
+                            message: &message,
+                        },
+                    );
                     self.options.jobs = Some(1);
                     self.options.jobserver_auth = None;
                     None
@@ -717,7 +764,6 @@ impl Engine {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
-        let entry_auth = self.options.jobserver_auth.clone();
         let mut changed = false;
         let mut file_jobs = None;
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
@@ -813,15 +859,20 @@ impl Engine {
         if !changed {
             return Ok(());
         }
-        if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs) {
-            if restarts == 0 && entry_auth.is_some() {
-                self.stderr(
-                    format!(
-                        "warning: -j{} forced in makefile: resetting jobserver mode.",
-                        if jobs == usize::MAX { 0 } else { jobs }
-                    )
-                    .as_bytes(),
-                );
+        if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs)
+            && self.options.jobserver_auth.is_some()
+        {
+            if restarts == 0 {
+                let jobs = if jobs == usize::MAX { 0 } else { jobs };
+                let message = rmake_linux::messages::render_format(
+                    c"warning: -j%d forced in makefile: resetting jobserver mode.",
+                    &[rmake_core::messages::Argument::Signed(jobs as i64)],
+                )
+                .unwrap_or_else(|_| {
+                    format!("warning: -j{jobs} forced in makefile: resetting jobserver mode.")
+                        .into_bytes()
+                });
+                self.stderr(&message);
             }
             self.jobserver.take();
             self.options.jobserver_auth = None;
@@ -840,9 +891,6 @@ impl Engine {
             );
             return Err(());
         };
-        if self.options.jobserver_auth != entry_auth {
-            self.jobserver.take();
-        }
         // Passive decoding selects policy; the enclosing post-read phase
         // publishes MFLAGS and MAKEFLAGS together after jobserver setup.
         // Passive operands accumulate without rebuilding include search.

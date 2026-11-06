@@ -78,6 +78,11 @@ real-project gate also builds pinned GNU Make itself in serial and with a
 recursive FIFO jobserver. [Reap regression](../tests/debug-reap-race/README.md) ·
 [Real-project corpus](project-integration.md)
 
+Startup jobserver authentication now distinguishes malformed text from closed
+descriptors and an unavailable FIFO. Authentication added while reading a
+Makefile remains in recursive metadata and preserves an already-adopted pipe.
+The 17 original fixtures cover startup, flag phases and actual parallel work.
+
 The implementation order is language and metadata correctness, complete option
 and presentation behavior, native extension/profile adapters, then the expanded
 integration/profile audit. Continue adding cross-family cases rather than

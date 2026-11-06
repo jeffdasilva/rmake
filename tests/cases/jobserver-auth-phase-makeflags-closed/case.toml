@@ -1,0 +1,12 @@
+id = "jobserver-auth-phase-makeflags-closed"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Late closed descriptors are preserved as metadata."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[rR --jobserver-auth=181,182 --no-print-directory|-rR --jobserver-auth=181,182 --no-print-directory]\nrun=[rR --jobserver-auth=181,182 --no-print-directory|-rR --jobserver-auth=181,182 --no-print-directory]\n"
+stderr = ""
