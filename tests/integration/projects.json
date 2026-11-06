@@ -218,6 +218,47 @@
         "after_hex": "23646566696e65205041434b4147455f56455253494f4e2022342e342e312d726d616b65220a",
         "fresh_smoke_stdout_hex": "474e55204d616b6520342e342e310a6275696c742d6d616b652d72656164732d72756c65730a"
       }
+    },
+    {
+      "id": "zstd-1.5.7",
+      "target": "zstd-release",
+      "args": [
+        "-j1",
+        "--no-print-directory",
+        "-s",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "HAVE_ZLIB=0",
+        "HAVE_LZMA=0",
+        "HAVE_LZ4=0",
+        "ZSTD_LEGACY_SUPPORT=0",
+        "HASH=/usr/bin/md5sum",
+        "HAVE_HASH=1"
+      ],
+      "header": "lib/zstd.h",
+      "watched": [
+        "programs/zstd"
+      ],
+      "smoke": [
+        "/bin/sh",
+        "-ec",
+        "version=$(./programs/zstd --version)\nprintf '%s\\n' \"$version\" | sed -n 's/.* v\\([0-9.]*\\),.*/\\1/p'\nprintf '%s\\n' 'Zstandard make compatibility witness' | ./programs/zstd -T1 -q -c | ./programs/zstd -q -d -c\n"
+      ],
+      "smoke_stdout_hex": "312e352e380a5a7374616e64617264206d616b6520636f6d7061746962696c697479207769746e6573730a",
+      "source_url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
+      "archive_sha256": "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+      "topdir": "zstd-1.5.7",
+      "license_file": "LICENSE",
+      "license_sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8",
+      "source_ref": "Zstandard official v1.5.7 source release",
+      "license_note": "Dual BSD or GPLv2 source release with the upstream license and notices retained",
+      "header_rebuild": {
+        "before_hex": "23646566696e65205a5354445f56455253494f4e5f52454c454153452020370a",
+        "after_hex": "23646566696e65205a5354445f56455253494f4e5f52454c454153452020380a",
+        "fresh_smoke_stdout_hex": "312e352e370a5a7374616e64617264206d616b6520636f6d7061746962696c697479207769746e6573730a"
+      }
     }
   ],
   "profiles": [
