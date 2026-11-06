@@ -2940,6 +2940,7 @@ impl Engine {
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
+            let mut stopped = false;
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3047,8 +3048,9 @@ impl Engine {
                         changed |= self.modified(&makefile.name) != before;
                     }
                 }
-                if result.fatal {
-                    failed = true;
+                if result.fatal || (result.failed && !optional && !self.options.keep_going) {
+                    // A stopping remake failure wins over any earlier update.
+                    stopped = true;
                     break;
                 }
             }
@@ -3060,7 +3062,7 @@ impl Engine {
             ) = modes;
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
-            if self.shutdown.get() != Shutdown::Running {
+            if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
                 return 2;
             }
