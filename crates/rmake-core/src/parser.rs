@@ -18,8 +18,10 @@ use crate::variables::{
     PatternVariable, TargetScope, VariableStore, reference_end,
 };
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 
 fn source_read_error_at(
     file: SourceName,
@@ -456,6 +458,7 @@ pub struct Database {
     /// Module identities remain distinct while sharing makefile remake traversal.
     pub loaded_modules: HashMap<Vec<u8>, Location>,
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
+    implicit_rule_shadow: OnceCell<Option<Vec<bool>>>,
     vpaths: Vec<Vpath>,
     include_depth: usize,
     next_group_id: usize,
@@ -478,6 +481,35 @@ pub struct Database {
     /// Global bindings being expanded for an environment vector. Target-local
     /// bindings do not refer to the global object removed by undefine.
     pub(crate) exporting: Vec<Vec<u8>>,
+}
+
+// Replacement compares ordered prerequisite names independently of edge flags.
+struct ImplicitRuleKey<'a> {
+    pattern: &'a Pattern,
+    prerequisites: &'a [Dependency],
+}
+
+impl PartialEq for ImplicitRuleKey<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern == other.pattern
+            && self
+                .prerequisites
+                .iter()
+                .map(|dep| &dep.name)
+                .eq(other.prerequisites.iter().map(|dep| &dep.name))
+    }
+}
+
+impl Eq for ImplicitRuleKey<'_> {}
+
+impl Hash for ImplicitRuleKey<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pattern.hash(state);
+        self.prerequisites.len().hash(state);
+        for dep in self.prerequisites {
+            dep.name.hash(state);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -775,6 +807,32 @@ impl Database {
         self.implicit_candidates_in(&name, active, true)
     }
 
+    pub(crate) fn invalidate_implicit_rule_shadow(&mut self) {
+        self.implicit_rule_shadow.take();
+    }
+
+    fn compile_implicit_rule_shadow(&self) -> Option<Vec<bool>> {
+        let count = self.implicit_rules.len();
+        let mut shadowed = Vec::new();
+        let mut later = HashSet::new();
+        shadowed.try_reserve_exact(count).ok()?;
+        later.try_reserve(count).ok()?;
+        for (pattern, rule) in self.implicit_rules.iter().rev() {
+            let duplicate = !later.insert(ImplicitRuleKey {
+                pattern,
+                prerequisites: &rule.dependencies,
+            });
+            shadowed.push(
+                duplicate
+                    && rule.grouped_targets().is_none_or(|peers| {
+                        peers.iter().all(|peer| peer == pattern.literal_bytes())
+                    }),
+            );
+        }
+        shadowed.reverse();
+        Some(shadowed)
+    }
+
     fn implicit_candidates_in(
         &self,
         target: &[u8],
@@ -788,6 +846,9 @@ impl Database {
         } else {
             crate::implicit::directory_prefix(target)
         };
+        // Large tables benefit when many candidate matches would otherwise
+        // rescan the remaining declarations for replacements.
+        let shadow_cache = (self.implicit_rules.len() >= 128).then_some(&self.implicit_rule_shadow);
         for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
             let identity = rule
                 .group
@@ -807,27 +868,31 @@ impl Database {
             let Some(stem) = pattern.matches(word).filter(|stem| !stem.is_empty()) else {
                 continue;
             };
-            // Nonmatching patterns cannot affect replacement/cancellation or
-            // match-anything suppression. Avoid scanning later definitions for
-            // every irrelevant pattern on every target.
-            if self.implicit_rules[index + 1..]
-                .iter()
-                .any(|(later_pattern, later_rule)| {
-                    // GNU 4.4.1 replacement treats the old declaration as
-                    // matching only when all its output patterns are the same
-                    // as this one. Distinct-output declarations consequently
-                    // keep their original priority, even after a repeated group.
-                    pattern == later_pattern
-                        && rule
-                            .grouped_targets()
-                            .is_none_or(|peers| peers.iter().all(|peer| peer == name))
-                        && rule
-                            .dependencies
-                            .iter()
-                            .map(|dep| &dep.name)
-                            .eq(later_rule.dependencies.iter().map(|dep| &dep.name))
-                })
-            {
+            let shadowed = shadow_cache.and_then(|cache| {
+                cache
+                    .get_or_init(|| self.compile_implicit_rule_shadow())
+                    .as_ref()
+            });
+            let replaced = shadowed.map_or_else(
+                || {
+                    self.implicit_rules[index + 1..]
+                        .iter()
+                        .any(|(later_pattern, later_rule)| {
+                            // Distinct-output groups retain their declaration priority.
+                            pattern == later_pattern
+                                && rule
+                                    .grouped_targets()
+                                    .is_none_or(|peers| peers.iter().all(|peer| peer == name))
+                                && rule
+                                    .dependencies
+                                    .iter()
+                                    .map(|dep| &dep.name)
+                                    .eq(later_rule.dependencies.iter().map(|dep| &dep.name))
+                        })
+                },
+                |shadowed| shadowed[index],
+            );
+            if replaced {
                 continue;
             }
             specific |= name != b"%" && (rule.recipes.is_some() || rule.dependencies.is_empty());
@@ -3484,6 +3549,7 @@ impl Database {
             .database_lookup(b".EXTRA_PREREQS")
             .map(|variable| variable.raw_value().to_vec());
         let global = self.extra_prerequisites(raw.as_deref(), context)?;
+        self.invalidate_implicit_rule_shadow();
         for (_, rule) in &mut self.implicit_rules {
             rule.dependencies.extend(global.iter().cloned());
         }
@@ -4964,6 +5030,7 @@ impl Database {
             };
             let mut group_ordinal = 0;
             let rule = if let Some(pattern) = declaration.patterns.get(target) {
+                self.invalidate_implicit_rule_shadow();
                 let index = *declaration
                     .implicit
                     .entry(target.clone())
@@ -6397,6 +6464,40 @@ mod tests {
         let mut quoted = Database::default();
         quoted.read(b"a\\ b:;\n", b"m").unwrap();
         assert!(quoted.rules.contains_key(b"a b".as_slice()));
+    }
+
+    #[test]
+    fn compiled_implicit_replacements_refresh_after_rule_edits() {
+        use std::fmt::Write;
+
+        let mut padding = String::new();
+        for index in 0..128 {
+            writeln!(&mut padding, "ignored{index}%.unused: ;").unwrap();
+        }
+        let sources: [&[u8]; 2] = [
+            b"%.out: seed ; @old\n%.out: | seed ; @new\n%.out %.peer: seed ; @group\n",
+            b"%.out: seed\n%.out: other ; @fallback\n",
+        ];
+        let mut small = Database::default();
+        let mut indexed = Database::default();
+        indexed.read(padding.as_bytes(), b"padding").unwrap();
+
+        let recipes = |db: &Database| {
+            db.implicit_candidates(b"item.out")
+                .into_iter()
+                .map(|candidate| candidate.rule.recipes.unwrap()[0].bytes.to_vec())
+                .collect::<Vec<_>>()
+        };
+        for source in sources {
+            small.read(source, b"rules").unwrap();
+            indexed.read(source, b"rules").unwrap();
+            assert_eq!(recipes(&indexed), recipes(&small));
+            assert!(matches!(indexed.implicit_rule_shadow.get(), Some(Some(_))));
+        }
+        assert_eq!(
+            recipes(&indexed),
+            [b" @group".to_vec(), b" @fallback".to_vec()]
+        );
     }
 
     #[test]

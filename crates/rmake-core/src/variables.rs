@@ -4963,7 +4963,7 @@ fn substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, ExpandErro
     Ok(output)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Pattern {
     bytes: Vec<u8>,
     wildcard: Option<usize>,
