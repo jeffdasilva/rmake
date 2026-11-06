@@ -2686,11 +2686,6 @@ impl Engine {
             }
 
             if let Some(auth) = &self.options.jobserver_auth {
-                let auth = self
-                    .jobserver
-                    .as_ref()
-                    .filter(|server| server.auth() == auth)
-                    .map_or(auth.as_slice(), Jobserver::diagnostic_auth);
                 crate::debug::Jobs::controller(self.output.debug_mask(), auth);
             }
             if let Some(authentication) = self.options.sync_mutex.as_deref() {

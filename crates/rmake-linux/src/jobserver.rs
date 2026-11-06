@@ -29,6 +29,7 @@ unsafe extern "C" {
     fn geteuid() -> c_uint;
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
+    fn dup2(original: c_int, replacement: c_int) -> c_int;
     fn rmake_restart_pipe_private(pipe: *const c_int);
     fn rmake_pipe_identity(descriptor: c_int, reader: c_int, identity: *mut u64) -> c_int;
     fn read(descriptor: c_int, bytes: *mut c_void, length: usize) -> isize;
@@ -57,6 +58,27 @@ fn pipe_identity(fd: c_int, reader: Option<bool>) -> io::Result<[u64; 2]> {
         0 => Ok(identity),
         error => Err(io::Error::from_raw_os_error(error)),
     }
+}
+
+fn expose_child_pipe_descriptor(owned: c_int, wire: c_int, reader: bool) -> io::Result<()> {
+    if owned != wire {
+        let identity = pipe_identity(owned, Some(reader))?;
+        if pipe_identity(wire, Some(reader)).ok() != Some(identity) {
+            // Only the forked child uses the advertised number here. If it
+            // was closed or rebound, pass the retained endpoint instead.
+            loop {
+                // SAFETY: both operands are numeric descriptors in the child.
+                if unsafe { dup2(owned, wire) } >= 0 {
+                    return Ok(());
+                }
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::Interrupted {
+                    return Err(error);
+                }
+            }
+        }
+    }
+    descriptor_control(wire, 2, 0).map(|_| ())
 }
 
 enum Endpoint {
@@ -574,7 +596,7 @@ impl Jobserver {
             return Err(io::Error::from_raw_os_error(9));
         }
         if crate::signals::compact_pipe_budget() {
-            return Self::join_compact(read, write).map(|server| server.with_diagnostic_auth(auth));
+            return Self::join_compact(read, write).map(|server| server.with_incoming_auth(auth));
         }
         let protocol_read = descriptor_control(read, DUPFD_CLOEXEC, 0)?;
         // SAFETY: F_DUPFD_CLOEXEC returned a new, uniquely owned descriptor
@@ -602,10 +624,10 @@ impl Jobserver {
         Arc::get_mut(&mut server.0)
             .expect("unshared joined jobserver")
             .inherited_pipe = Some([read, write]);
-        Ok(server.with_diagnostic_auth(auth))
+        Ok(server.with_incoming_auth(auth))
     }
 
-    fn with_diagnostic_auth(mut self, incoming: &[u8]) -> Self {
+    fn with_incoming_auth(mut self, incoming: &[u8]) -> Self {
         if self.auth() != incoming {
             Arc::get_mut(&mut self.0)
                 .expect("unshared joined jobserver")
@@ -674,12 +696,9 @@ impl Jobserver {
         }
     }
 
+    /// The borrowed pipe keeps the incoming text even when the scheduler
+    /// uses separately owned descriptors for its reads and writes.
     pub fn auth(&self) -> &[u8] {
-        &self.0.auth
-    }
-
-    /// GNU reports the incoming spelling even when protocol descriptors were reopened.
-    pub fn diagnostic_auth(&self) -> &[u8] {
         self.0.incoming_auth.as_deref().unwrap_or(&self.0.auth)
     }
 
@@ -719,17 +738,14 @@ impl Jobserver {
         };
         if let Some([read, write]) = wire {
             let owner = self.clone();
-            // Only async-signal-safe fcntl calls run between fork and exec. Arc
-            // owners in the caller keep both descriptors live through spawn.
+            let [wire_read, wire_write] = self.0.inherited_pipe.unwrap_or([read, write]);
+            // Only async-signal-safe descriptor operations run after fork.
             unsafe {
                 command.pre_exec(move || {
-                    // Retain descriptor ownership for the Command's lifetime,
-                    // including callers that drop their original server first.
+                    // Keep the endpoints live even if the caller drops its copy.
                     let _owner = &owner;
-                    if fcntl(read, 2, 0) < 0 || fcntl(write, 2, 0) < 0 {
-                        return Err(io::Error::last_os_error());
-                    }
-                    Ok(())
+                    expose_child_pipe_descriptor(read, wire_read, true)?;
+                    expose_child_pipe_descriptor(write, wire_write, false)
                 });
             }
         }
@@ -961,6 +977,38 @@ mod tests {
         retained.configure_child(&mut child, true).unwrap();
         drop(retained);
         assert!(child.status().unwrap().success());
+    }
+
+    #[test]
+    fn recursive_borrowed_pipe_uses_the_adopted_identity_after_child_rebinding() {
+        let owner = Jobserver::create(2, true).unwrap();
+        let foreign = Jobserver::create(2, true).unwrap();
+        let wire = owner.0.protocol_reader.as_ref().unwrap().as_raw_fd();
+        let replacement = foreign.0.protocol_reader.as_ref().unwrap().as_raw_fd();
+        let identity = pipe_identity(wire, Some(true)).unwrap();
+        let joined = Jobserver::join(owner.auth()).unwrap();
+        let mut child = Command::new("python3");
+        child.args([
+            "-c",
+            "import os,sys; info=os.fstat(int(sys.argv[1])); assert (info.st_dev, info.st_ino)==tuple(map(int,sys.argv[2:]))",
+            &wire.to_string(),
+            &identity[0].to_string(),
+            &identity[1].to_string(),
+        ]);
+        // SAFETY: both parent pipe owners stay live through spawn. Only this
+        // child's advertised slot is rebound before the jobserver hook.
+        unsafe {
+            child.pre_exec(move || {
+                if dup2(replacement, wire) < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+        joined.configure_child(&mut child, true).unwrap();
+        assert!(child.status().unwrap().success());
+        assert_eq!(pipe_identity(wire, Some(true)).unwrap(), identity);
     }
 
     #[test]

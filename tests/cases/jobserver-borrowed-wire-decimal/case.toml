@@ -1,0 +1,12 @@
+id = "jobserver-borrowed-wire-decimal"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Borrowed authentication spelling and physical wire descriptors in recursive and ordinary child recipes."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "AUTH=50,51"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[--jobserver-auth=50,51]\nrecursive=[open|--jobserver-auth=50,51]\nordinary=[closed|--jobserver-auth=50,51 --jobserver-auth=-2,-2]\n"
+stderr = ""
