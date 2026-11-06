@@ -134,23 +134,31 @@ impl Shutdown {
 
 pub struct Flow {
     recursive: Vec<bool>,
+    declared_recursive: bool,
     attempt: Attempt,
     scanned_since_attempt: bool,
     registered: Option<bool>,
 }
 
 impl Flow {
-    pub fn new(recursive: Vec<bool>) -> Self {
+    pub fn new(recursive: impl IntoIterator<Item = bool>) -> Self {
+        let mut declared_recursive = false;
+        let recursive = recursive
+            .into_iter()
+            .inspect(|&line| declared_recursive |= line)
+            .collect();
         Self {
             recursive,
+            declared_recursive,
             attempt: Attempt::None,
             scanned_since_attempt: false,
             registered: None,
         }
     }
 
-    pub fn any_recursive(&self) -> bool {
-        self.recursive.iter().any(|recursive| *recursive)
+    /// The exported environment uses the declarations before expansion.
+    pub fn has_declared_recursion(&self) -> bool {
+        self.declared_recursive
     }
 
     pub fn has_ordinary(&self) -> bool {

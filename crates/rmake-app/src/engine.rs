@@ -8884,7 +8884,7 @@ impl Engine {
         }
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
-        let flow = Flow::new(recipes.iter().map(recursive_line).collect());
+        let flow = Flow::new(recipes.iter().map(recursive_line));
         let parallel = self.job_slots() > 1
             && !self.options.dry_run
             && !self.options.question
@@ -9523,7 +9523,7 @@ impl Engine {
                     .jobserver
                     .as_ref()
                     .is_some_and(|server| !server.auth().starts_with(b"fifo:"))
-                    && !flow.any_recursive()
+                    && !flow.has_declared_recursion()
                 {
                     crate::process::disable_pipe_jobserver(&mut child);
                 }
