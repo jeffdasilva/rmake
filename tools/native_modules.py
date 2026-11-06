@@ -27,6 +27,7 @@ import oracle as reference_oracle
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / 'tests/native'
+INPUT_TIME_NS = 1_600_000_000_000_000_000
 
 
 @dataclass(frozen=True)
@@ -610,6 +611,7 @@ def prepare(model: Model, directory: Path, compiler: str) -> tuple[h.Case, list[
         destination = directory / safe_relative(name)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
+        os.utime(destination, ns=(INPUT_TIME_NS, INPUT_TIME_NS))
     records = []
     for index, module in enumerate(model.modules):
         source = SOURCES / safe_relative(module.source)
@@ -629,11 +631,14 @@ def prepare(model: Model, directory: Path, compiler: str) -> tuple[h.Case, list[
         if status or limit or leftovers:
             raise h.HarnessError('native module compilation failed: ' + json.dumps(record))
         record['module_sha256'] = hashlib.sha256(output.read_bytes()).hexdigest()
+        module_time = INPUT_TIME_NS + 1_000_000_000
+        os.utime(output, ns=(module_time, module_time))
     for name, target in model.symlinks.items():
         link = directory / safe_relative(name)
         link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(target)
     h.validate_fixture(directory)
+    # Models with a deliberate freshness relationship supply their own times.
     for name, value in model.mtimes_ns.items():
         os.utime(directory / safe_relative(name), ns=(value, value))
     case = h.Case(directory, model.id, 'native.modules', 'required', model.args, 5,
