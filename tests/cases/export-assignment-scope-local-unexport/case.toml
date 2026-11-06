@@ -1,0 +1,12 @@
+id = "export-assignment-scope-local-unexport"
+requirement = "variables.export-bindings"
+candidate = "required"
+description = "Check the variable table that receives export policy during a scoped read."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "scoped=[local]/[local]\nglobal=[new]/[]\n"
+stderr = ""
