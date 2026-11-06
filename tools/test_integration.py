@@ -44,6 +44,18 @@ class IntegrationTests(unittest.TestCase):
                 self.assertTrue(bytes.fromhex(project['smoke_stdout_hex']))
                 for name in [project['header'], *project['watched']]: i.safe_name(name)
 
+    def test_configuration_anchor_checks_the_suffix_without_changing_raw_output(self):
+        suffix = b'* Busybox Configuration\noption enabled\n'
+        profile = {'stdout_anchor': '* Busybox Configuration\n',
+                   'stdout_sha256': hashlib.sha256(suffix).hexdigest()}
+        for before in (b'gen-a\ngen-b\n', b'gen-b\ngen-a\n'):
+            self.assertTrue(i.configuration_stdout_matches(profile, before + suffix))
+        self.assertFalse(i.configuration_stdout_matches(profile, suffix + b'changed\n'))
+        self.assertFalse(i.configuration_stdout_matches(profile, suffix * 2))
+        self.assertFalse(i.configuration_stdout_matches(profile, b'no marker\n'))
+        self.assertTrue(i.configuration_stdout_matches(
+            {'stdout_sha256': hashlib.sha256(suffix).hexdigest()}, suffix))
+
     def test_parallel_gzip_profile_reuses_only_the_reviewed_source(self):
         plan = json.loads(i.MANIFEST.read_text())
         cases = i.project_profiles(plan)
