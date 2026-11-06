@@ -1,0 +1,11 @@
+id = "generated-rule-word-quoted-semicolon-retains-rule"
+requirement = "rules.generated-word-tail"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original generated rule source-word boundary with a quoted semicolon."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = "7461696c0a"
+stderr_hex = "4d616b6566696c653a343a202a2a2a207461726765742066696c65202761272068617320626f7468203a20616e64203a3a20656e74726965732e202053746f702e0a"

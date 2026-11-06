@@ -2053,6 +2053,32 @@ fn expanded_colon(bytes: &[u8]) -> Option<usize> {
     None
 }
 
+/// A generated delimiter can appear before the end of its source word. The
+/// rest of that word expands with it, up to the next raw token boundary.
+fn rule_word_tail(bytes: &[u8]) -> &[u8] {
+    let mut end = 0;
+    while let Some(&byte) = bytes.get(end) {
+        let next = bytes.get(end + 1).copied();
+        match byte {
+            b' ' | b'\t'..=b'\r' | b':' | b';' | b'=' | b'#' => break,
+            b'&' if next == Some(b':') => break,
+            b'+' | b'?' if next == Some(b'=') => break,
+            b'\\' if matches!(next, Some(b':' | b'=' | b'\\')) => end += 2,
+            b'$' => {
+                end = match next {
+                    Some(b'(' | b'{') => {
+                        reference_end(bytes, end + 1).map_or(bytes.len(), |close| close + 1)
+                    }
+                    Some(_) => end + 2,
+                    None => end + 1,
+                };
+            }
+            _ => end += 1,
+        }
+    }
+    &bytes[..end]
+}
+
 pub struct AssignmentSpec<'a> {
     pub name: &'a [u8],
     pub value: &'a [u8],
@@ -2309,7 +2335,6 @@ impl Database {
         };
         let mut expanded = Vec::new();
         let mut consumed = 0;
-        let mut generated_colon = None;
         while consumed < limit {
             let start = consumed;
             let expansion = bytes[start] == b'$';
@@ -2371,8 +2396,8 @@ impl Database {
             let has_semicolon = part.contains(&b';');
             let part_start = expanded.len();
             expanded.extend_from_slice(&part);
-            if has_colon || has_semicolon || generated_colon.is_some() {
-                let colon = generated_colon.or_else(|| separator(&expanded, b':'));
+            if has_colon || has_semicolon {
+                let colon = separator(&expanded, b':');
                 let semicolon = separator(&expanded, b';');
                 if semicolon.is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon)) {
                     return Ok(RulePrefix {
@@ -2382,15 +2407,16 @@ impl Database {
                     });
                 }
                 if let Some(colon) = colon {
-                    // Adjacent references belong to the same source word and
-                    // can finish a delimiter started by the first expansion.
-                    if expansion
-                        && expanded.len() == colon + 1
-                        && consumed < limit
-                        && bytes[consumed] == b'$'
-                    {
-                        generated_colon = Some(colon);
-                        continue;
+                    if expansion {
+                        let suffix = rule_word_tail(&bytes[consumed..limit]);
+                        if !suffix.is_empty() {
+                            consumed += suffix.len();
+                            let tail = self.expand(suffix, location, context)?;
+                            if expanded.len().saturating_add(tail.len()) > MAX_OUTPUT {
+                                return Err(expansion_limit());
+                            }
+                            expanded.extend_from_slice(&tail);
+                        }
                     }
                     // Raw delimiter tokens cannot pick up an ampersand from a
                     // preceding expansion or a colon from a following one.

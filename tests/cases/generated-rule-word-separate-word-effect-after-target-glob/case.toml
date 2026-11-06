@@ -1,0 +1,11 @@
+id = "generated-rule-word-separate-word-effect-after-target-glob"
+requirement = "rules.generated-word-tail"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "target-new"]
+description = "Original generated rule source-word boundary: separate word effect after target glob."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220277461726765742d6e6577272e0a"
+stderr_hex = ""

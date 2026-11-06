@@ -1,0 +1,11 @@
+id = "generated-rule-word-generated-word-effect-before-target-glob"
+requirement = "rules.generated-word-tail"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "target-new"]
+description = "Original generated rule source-word boundary: generated word effect before target glob."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b7461726765742d6e65775d0a"
+stderr_hex = ""
