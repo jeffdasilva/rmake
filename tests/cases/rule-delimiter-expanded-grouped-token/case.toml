@@ -1,0 +1,11 @@
+id = "rule-delimiter-expanded-grouped-token"
+requirement = "rules.delimiter-provenance"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a", "b"]
+description = "Original rule delimiter provenance: expanded grouped token."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "5b617c5d0a6d616b653a2027622720697320757020746f20646174652e0a"
+stderr_hex = ""

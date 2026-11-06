@@ -1,0 +1,11 @@
+id = "rule-delimiter-expanded-amp-rule-plain-goal"
+requirement = "rules.delimiter-provenance"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original rule delimiter provenance: expanded amp rule plain goal."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202761272e202053746f702e0a"
