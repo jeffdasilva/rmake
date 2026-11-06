@@ -13,6 +13,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 
+use crate::database::TableHistory;
 use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
 };
@@ -1147,6 +1148,15 @@ impl VariableStore {
                 let value = layer.variables.get(name)?;
                 (!layer.inherited || !value.scope.private).then_some((index + 1, value))
             })
+    }
+
+    fn history_for_layer(&self, layer: usize) -> Option<&TableHistory> {
+        let bindings = if layer == 0 {
+            &self.variables
+        } else {
+            &self.layers.get(layer - 1)?.variables
+        };
+        bindings.database_history.as_ref()
     }
 
     /// GNU promotes imported environment origins on a conflicting global
@@ -2770,8 +2780,14 @@ enum LiteralChain {
 }
 
 #[derive(Clone)]
+struct InheritedActiveBinding {
+    key: (Vec<u8>, Option<usize>),
+    table: Option<TableHistory>,
+}
+
+#[derive(Clone)]
 pub(crate) struct ActiveContext {
-    keys: Vec<(Vec<u8>, Option<usize>)>,
+    keys: Vec<InheritedActiveBinding>,
     parent: Option<Arc<ActiveContext>>,
     count: usize,
 }
@@ -2807,13 +2823,17 @@ impl Expansion<'_, '_> {
         binding.or_else(|| self.store.database_lookup(name))
     }
 
+    fn inherited_active_bindings(&self) -> impl Iterator<Item = &InheritedActiveBinding> {
+        std::iter::successors(self.inherited_active.as_deref(), |node| {
+            node.parent.as_deref()
+        })
+        .flat_map(|node| node.keys.iter())
+    }
+
     fn active_keys(&self) -> impl Iterator<Item = &(Vec<u8>, Option<usize>)> {
-        self.active.iter().chain(
-            std::iter::successors(self.inherited_active.as_deref(), |node| {
-                node.parent.as_deref()
-            })
-            .flat_map(|node| node.keys.iter()),
-        )
+        self.active
+            .iter()
+            .chain(self.inherited_active_bindings().map(|binding| &binding.key))
     }
     fn active_count(&self) -> usize {
         self.active.len() + self.inherited_active.as_ref().map_or(0, |node| node.count)
@@ -2823,7 +2843,17 @@ impl Expansion<'_, '_> {
             self.inherited_active.clone()
         } else {
             Some(Arc::new(ActiveContext {
-                keys: self.active.clone(),
+                keys: self
+                    .active
+                    .iter()
+                    .map(|key| InheritedActiveBinding {
+                        key: key.clone(),
+                        table: key
+                            .1
+                            .and_then(|layer| self.store.history_for_layer(layer))
+                            .cloned(),
+                    })
+                    .collect(),
                 parent: self.inherited_active.clone(),
                 count: self.active_count(),
             }))
@@ -3270,6 +3300,32 @@ impl Expansion<'_, '_> {
         self.shell(&command)
     }
 
+    fn shell_export_expanding(&self, name: &[u8], layer: usize) -> bool {
+        let table = self.store.history_for_layer(layer);
+        self.active.iter().any(|(active, active_layer)| {
+            active == name
+                && active_layer.is_some_and(|active_layer| {
+                    active_layer == layer
+                        || self
+                            .store
+                            .history_for_layer(active_layer)
+                            .zip(table)
+                            .is_some_and(|(active, selected)| active.same_table(selected))
+                })
+        }) || self.inherited_active_bindings().any(|active| {
+            // A nested reader can give the same logical table a different
+            // layer number. Keep the conservative fallback for stores whose
+            // callers did not enable table history.
+            active.key.0 == name
+                && active.key.1.is_some()
+                && active
+                    .table
+                    .as_ref()
+                    .zip(table)
+                    .is_none_or(|(active, selected)| active.same_table(selected))
+        })
+    }
+
     fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
         if matches!(self.store, StoreAccess::Read(_)) {
             return Err(ExpandError::Unsupported(b"shell".to_vec()));
@@ -3349,31 +3405,25 @@ impl Expansion<'_, '_> {
                 environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
                 continue;
             }
-            // GNU uses the original process environment when constructing an
-            // exported recursive variable would re-enter the current binding.
-            if self.active_keys().any(|(active, _)| *active == name) {
-                if let Some(definition) = variable.definition.as_deref()
-                    && variable.flavor == Flavor::Recursive
-                    && (name == b"MAKEFLAGS"
-                        || !matches!(
-                            variable.origin,
-                            Origin::Environment | Origin::EnvironmentOverride
-                        ))
-                    && self.active_keys().any(|(active, active_layer)| {
-                        *active == name && *active_layer == Some(layer)
-                    })
-                {
+            // MAKEFLAGS keeps its expansion semantics when inherited.
+            let imported_raw = name != b"MAKEFLAGS"
+                && matches!(
+                    variable.origin,
+                    Origin::Environment | Origin::EnvironmentOverride
+                );
+            // The original environment is used only when expanding the
+            // selected recursive binding would re-enter that same binding.
+            if !imported_raw
+                && variable.flavor == Flavor::Recursive
+                && self.shell_export_expanding(&name, layer)
+            {
+                if let Some(definition) = variable.definition.as_deref() {
                     self.context.recursive_shell_export(definition, &name);
                 }
                 environment.push((name, crate::diagnostic::EnvironmentValue::Original));
                 continue;
             }
-            // MAKEFLAGS keeps its expansion semantics when inherited.
-            let value = if name != b"MAKEFLAGS"
-                && matches!(
-                    variable.origin,
-                    Origin::Environment | Origin::EnvironmentOverride
-                ) {
+            let value = if imported_raw {
                 variable.value
             } else {
                 self.environment_variable(&name)?

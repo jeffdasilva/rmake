@@ -210,6 +210,7 @@ pub enum Event<'a> {
     Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
     MustRemake(&'a [u8], usize),
     IgnoringVpath(&'a [u8]),
+    RecipeRunning(&'a [u8], usize),
     Remade(&'a [u8], usize),
     Failed(&'a [u8], usize),
     NoNeed(&'a [u8], Option<&'a [u8]>, usize),
@@ -252,6 +253,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         ),
         Event::Considering(_, depth)
         | Event::Finished(_, depth)
+        | Event::RecipeRunning(_, depth)
         | Event::NoNeed(_, _, depth)
         | Event::Already(_, depth)
         | Event::Pruning(_, depth)
@@ -308,6 +310,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
         ),
         Event::MustRemake(name, _) => print(msg::MUST_REMAKE, &[bytes(name)]),
         Event::IgnoringVpath(name) => print(msg::IGNORING_VPATH, &[bytes(name)]),
+        Event::RecipeRunning(name, _) => print(msg::RECIPE_RUNNING, &[bytes(name)]),
         Event::Remade(name, _) => print(msg::REMADE, &[bytes(name)]),
         Event::Failed(name, _) => print(msg::FAILED, &[bytes(name)]),
         Event::NoNeed(name, path, _) => {

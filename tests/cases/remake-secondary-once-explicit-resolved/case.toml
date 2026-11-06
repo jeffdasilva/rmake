@@ -1,0 +1,10 @@
+id = "remake-secondary-once-explicit-resolved"
+requirement = "dynamic.remake-implicit-effects"
+candidate = "required"
+description = "Makefile remake runs the implicit search through one rule visit."
+provenance = "Original rmake fixture; independently authored and checked against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "all"]
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

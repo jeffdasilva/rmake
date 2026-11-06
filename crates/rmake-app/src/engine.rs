@@ -2802,8 +2802,11 @@ impl Engine {
                 };
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
-                if !self.ignores_file_rules(&makefile.name)
-                    && !self.resolve_implicit(&makefile.name)
+                // A recorded rule goes through normal traversal. Its implicit
+                // search can expand prerequisites with observable side effects.
+                if !self.database.rules.contains_key(name)
+                    && !self.ignores_file_rules(name)
+                    && !self.resolve_implicit(name)
                 {
                     self.remove_intermediates();
                     return 2;
@@ -2873,7 +2876,14 @@ impl Engine {
                     self.database_unchecked_times
                         .borrow_mut()
                         .remove(&makefile.name);
-                    changed |= self.modified(&makefile.name) != before;
+                    // A completed recipe can invalidate the makefile's time.
+                    // Expansion effects alone leave its cached observation intact.
+                    if matches!(
+                        result.completion,
+                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+                    ) {
+                        changed |= self.modified(&makefile.name) != before;
+                    }
                 }
                 if result.fatal {
                     failed = true;
@@ -7771,6 +7781,12 @@ impl Engine {
                         normal_names: &normal_names,
                     },
                 );
+                if execution.pending {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::RecipeRunning(target, debug_depth),
+                    );
+                }
                 outcome.ran |= execution.ran;
                 outcome.completion =
                     if (self.options.dry_run || self.options.question || self.options.touch)
@@ -8358,7 +8374,7 @@ impl Engine {
                 },
             );
             self.output.select(None);
-            return Execution::success(true);
+            return Execution::pending();
         }
         let (execution, permit) = self.continue_recipe(target, state, phony, before, parallel);
         *completed_permit = permit;
@@ -8970,7 +8986,7 @@ impl Engine {
                             },
                         );
                         self.observe_interrupt();
-                        return Execution::success(true);
+                        return Execution::pending();
                     }
                     Err(error) => Err(error),
                 }

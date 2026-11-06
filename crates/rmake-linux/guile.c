@@ -310,14 +310,6 @@ static SCM make_evaluate(SCM value) {
     }else rm_guile_evaluate(text);
     free(text);return SCM_BOOL_F;
 }
-static SCM make_variable(SCM value) {
-    SCM module = scm_c_resolve_module("gnu make");
-    SCM converter = scm_variable_ref(scm_c_module_lookup(module, "obj-to-str"));
-    SCM name = scm_call_1(converter, value);
-    SCM reference = scm_simple_format(SCM_BOOL_F, scm_from_utf8_string("$(~a)"), scm_list_1(name));
-    SCM expand = scm_variable_ref(scm_c_module_lookup(module, "gmk-expand"));
-    return scm_call_1(expand, reference);
-}
 static void define_module(void *unused) {
     (void)unused;
     scm_c_define_gsubr("gmk-expand",1,0,0,make_expand);
@@ -325,7 +317,15 @@ static void define_module(void *unused) {
     scm_c_define_gsubr("obj-to-str", 1, 0, 0, object_text);
     default_scalar_converter = scm_c_define_gsubr("to-string-maybe", 1, 0, 0, scalar_text);
     scalar_binding = scm_c_lookup("to-string-maybe");
-    scm_c_define_gsubr("gmk-var", 1, 0, 0, make_variable);
+    /* Publish a Scheme procedure with the module's live operators. Name
+     * conversion can rebind them, so select them before calling the converter. */
+    scm_c_eval_string(
+        "(define (gmk-var v)"
+        "  (let* ((expand gmk-expand)"
+        "         (render format)"
+        "         (name (obj-to-str v))"
+        "         (reference (render #f \"$(~a)\" name)))"
+        "    (expand reference)))");
     scm_c_export("gmk-expand", "gmk-eval", "gmk-var", NULL);
 }
 struct rg_evaluation { const char *source; char *result; int utf8_source; };

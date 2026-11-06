@@ -92,6 +92,13 @@
       "plan_sha256": "ff8d9ad47367b338fea7776edd85e14b3c5869f85f0999b617d9c302ba2932d1",
       "schema": "files",
       "count": 5
+    },
+    {
+      "name": "gmk-var-shape",
+      "plan": "gmk-var-shape.json",
+      "plan_sha256": "b8374dc83b3c8f9e2c45bcd9854de9bf5a9ff6fb3fb74fd5d8565a1eba4a6b1c",
+      "schema": "files",
+      "count": 5
     }
   ]
 }

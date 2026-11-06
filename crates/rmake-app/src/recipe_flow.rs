@@ -33,6 +33,8 @@ pub enum Cleanup {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Execution {
     pub ran: bool,
+    /// The recipe was handed off as a running or load-queued job.
+    pub pending: bool,
     pub status: Status,
     pub cleanup: Cleanup,
     /// At completion, every logical recipe line is recursive after prefix scanning.
@@ -52,11 +54,19 @@ impl Execution {
         }
     }
 
+    pub fn pending() -> Self {
+        Self {
+            pending: true,
+            ..Self::success(true)
+        }
+    }
+
     pub fn failure(ran: bool, cleanup: Cleanup) -> Self {
         Self {
             ran,
             status: Status::Failure,
             cleanup,
+            pending: false,
             all_recursive: false,
         }
     }
@@ -66,6 +76,7 @@ impl Execution {
             ran,
             status: Status::Fatal,
             cleanup: Cleanup::None,
+            pending: false,
             all_recursive: false,
         }
     }
@@ -75,6 +86,7 @@ impl Execution {
             ran,
             status: Status::Question,
             cleanup,
+            pending: false,
             all_recursive: false,
         }
     }
