@@ -2814,6 +2814,34 @@ impl Database {
             }
             let rhs = assignment.spec.value;
             let kind = assignment.spec.kind;
+            let scope = if kind == Assignment::Conditional
+                && (self.evaluation_scope.is_some()
+                    || self.target_read.is_some()
+                    || context.target_reads.is_some())
+            {
+                let declarations = scope.context(&self.variables);
+                if let Some((owner, mut read)) = self.existing_target_read(
+                    target,
+                    &declarations,
+                    self.evaluation_scope.as_ref(),
+                    context,
+                ) {
+                    self.refresh_target_read(&owner, &mut read, &declarations);
+                    if read.qualify_ancestor_or_pattern(
+                        &name,
+                        assignment.private,
+                        assignment.export,
+                    ) {
+                        self.publish_target_scope(target);
+                        continue;
+                    }
+                }
+                self.target_scopes
+                    .get_mut(target)
+                    .expect("target declaration")
+            } else {
+                scope
+            };
             let immediate = matches!(kind, Assignment::Simple | Assignment::ImmediateRecursive)
                 || (kind == Assignment::Append
                     && scope
@@ -3007,6 +3035,47 @@ impl Database {
         Some(read)
     }
 
+    fn existing_target_read(
+        &self,
+        target: &[u8],
+        scope: &VariableStore,
+        caller: Option<&VariableStore>,
+        context: &ExpansionContext<'_>,
+    ) -> Option<(TargetReadOwner, VariableStore)> {
+        caller
+            .and_then(|caller| caller.active_target_read(target, scope))
+            .map(|read| (TargetReadOwner::Current, read))
+            .or_else(|| {
+                self.suspended_target_reads
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(index, caller)| {
+                        caller
+                            .active_target_read(target, scope)
+                            .map(|read| (TargetReadOwner::Suspended(index), read))
+                    })
+            })
+            .or_else(|| {
+                self.retained_target_read(target, scope, context.target_reads.as_deref()?, caller)
+                    .map(|read| (TargetReadOwner::Retained, read))
+            })
+    }
+
+    fn refresh_target_read(
+        &self,
+        owner: &TargetReadOwner,
+        read: &mut VariableStore,
+        declarations: &VariableStore,
+    ) {
+        if matches!(owner, TargetReadOwner::Current) {
+            read.refresh_globals(&self.variables);
+        } else {
+            self.refresh_scoped_variables(read);
+            read.replace_target_read_declarations(declarations);
+        }
+    }
+
     fn expand_target_read(
         &mut self,
         target: &[u8],
@@ -3024,30 +3093,8 @@ impl Database {
             crate::variables::DeclarationLexical::default()
         };
         let mut previous_scope = self.evaluation_scope.take();
-        let mut file_read = previous_scope
-            .as_ref()
-            .and_then(|caller| caller.active_target_read(target, scope))
-            .map(|read| (TargetReadOwner::Current, read))
-            .or_else(|| {
-                self.suspended_target_reads
-                    .iter()
-                    .enumerate()
-                    .rev()
-                    .find_map(|(index, caller)| {
-                        caller
-                            .active_target_read(target, scope)
-                            .map(|read| (TargetReadOwner::Suspended(index), read))
-                    })
-            })
-            .or_else(|| {
-                self.retained_target_read(
-                    target,
-                    scope,
-                    context.target_reads.as_deref()?,
-                    previous_scope.as_ref(),
-                )
-                .map(|read| (TargetReadOwner::Retained, read))
-            });
+        let mut file_read =
+            self.existing_target_read(target, scope, previous_scope.as_ref(), &context);
         // Crossing into another file can re-enter this caller in a nested
         // declaration. Keep its live local table available until we return.
         let suspended = previous_scope.is_some()
@@ -3062,12 +3109,7 @@ impl Database {
             matches!(owner, TargetReadOwner::Retained).then(|| read.clone())
         });
         let read = if let Some((owner, read)) = file_read.as_mut() {
-            if matches!(owner, TargetReadOwner::Current) {
-                read.refresh_globals(&self.variables);
-            } else {
-                self.refresh_scoped_variables(read);
-                read.replace_target_read_declarations(scope);
-            }
+            self.refresh_target_read(owner, read, scope);
             read
         } else {
             scope.add_declaration_lexical(&global_lexical);
