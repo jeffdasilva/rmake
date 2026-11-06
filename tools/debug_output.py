@@ -108,6 +108,7 @@ def models() -> list[Model]:
               + _model_file('dispatch.toml') + _model_file('revisit.toml')
               + _model_file('prerequisite-wait.toml') + _model_file('post-reap.toml')
               + _model_file('wait-reap.toml') + _model_file('grouped-reap.toml')
+              + _model_file('implicit-group-reap.toml')
               + _model_file('notparallel-reap.toml') + _model_file('file-write-pass.toml')
               + _model_file('later-file-write.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):
