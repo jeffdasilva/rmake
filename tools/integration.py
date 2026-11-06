@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -54,7 +55,15 @@ def archive_for(project, cache):
     for url in [project['source_url'], *([project['fallback_url']] if project.get('fallback_url') else [])]:
         def receive():
             with urllib.request.urlopen(url, timeout=30) as response:
-                return response.read(h.MAX_FILE_BYTES + 1)
+                try:
+                    declared_size = int(response.headers.get('Content-Length', 0))
+                except ValueError:
+                    declared_size = 0
+                data = response.read(h.MAX_FILE_BYTES + 1)
+                # A bounded read may return early on a disconnected HTTP server.
+                if len(data) < declared_size <= h.MAX_FILE_BYTES:
+                    raise http.client.IncompleteRead(data, declared_size - len(data))
+                return data
 
         try:
             data = oracle.retry_download(receive)
@@ -62,7 +71,7 @@ def archive_for(project, cache):
             last = error
             continue
         if len(data) > h.MAX_FILE_BYTES or hashlib.sha256(data).hexdigest() != expected:
-            raise h.HarnessError('downloaded source fails pinned size/digest')
+            raise h.HarnessError(f"downloaded source fails pinned size/digest for {project['id']}")
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(dir=cache, prefix='.download-', delete=False) as output:

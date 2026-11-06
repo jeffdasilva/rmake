@@ -17,6 +17,12 @@ import integration as i
 import integration_records as records
 
 
+def reply(payload, content_length=None):
+    response = io.BytesIO(payload)
+    response.headers = {} if content_length is None else {'Content-Length': str(content_length)}
+    return response
+
+
 class IntegrationTests(unittest.TestCase):
     def test_sources_and_build_plans_are_pinned_and_have_independent_smokes(self):
         data = json.loads(i.MANIFEST.read_text())
@@ -164,7 +170,7 @@ class IntegrationTests(unittest.TestCase):
                 patch.object(i.oracle.time, 'sleep') as sleep:
             network.side_effect = [urllib.error.HTTPError(primary, 404, 'not found', {}, None),
                                    urllib.error.URLError(socket.gaierror(socket.EAI_AGAIN, 'temporary DNS')),
-                                   io.BytesIO(source)]
+                                   reply(source)]
             cache = Path(tmp)
             result = i.archive_for(project, cache)
             self.assertEqual(result.read_bytes(), source)
@@ -172,11 +178,26 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual([call.args[0] for call in network.call_args_list], [primary, fallback, fallback])
             sleep.assert_called_once_with(1)
 
+    def test_truncated_response_retries_before_publishing_verified_bytes(self):
+        source = b'verified source'
+        primary = 'https://example.invalid/primary'
+        project = {'id': 'unit', 'archive_sha256': hashlib.sha256(source).hexdigest(),
+                   'source_url': primary}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(i.urllib.request, 'urlopen') as network, \
+                patch.object(i.oracle.time, 'sleep') as sleep:
+            network.side_effect = [reply(source[:-3], len(source)), reply(source, len(source))]
+            cache = Path(tmp)
+            result = i.archive_for(project, cache)
+            self.assertEqual(result.read_bytes(), source)
+            self.assertEqual(list(cache.iterdir()), [result])
+            self.assertEqual([call.args[0] for call in network.call_args_list], [primary, primary])
+            sleep.assert_called_once_with(1)
+
     def test_bad_integrity_does_not_try_the_fallback(self):
         project = {'id': 'unit', 'archive_sha256': hashlib.sha256(b'expected').hexdigest(),
                    'source_url': 'https://example.invalid/primary', 'fallback_url': 'https://example.invalid/fallback'}
         with tempfile.TemporaryDirectory() as tmp, patch.object(i.urllib.request, 'urlopen') as network:
-            network.side_effect = [io.BytesIO(b'incorrect'), io.BytesIO(b'expected')]
+            network.side_effect = [reply(b'incorrect', 9), reply(b'expected', 8)]
             with self.assertRaisesRegex(h.HarnessError, 'pinned size/digest'):
                 i.archive_for(project, Path(tmp))
             network.assert_called_once()
