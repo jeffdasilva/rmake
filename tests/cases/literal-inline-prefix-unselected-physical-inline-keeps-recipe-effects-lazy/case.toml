@@ -1,0 +1,11 @@
+id = "literal-inline-prefix-unselected-physical-inline-keeps-recipe-effects-lazy"
+requirement = "rules.literal-inline-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-real;file", "all"]
+description = "Original physical inline ownership and rule prefix: unselected physical inline keeps recipe effects lazy."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220276d617463682d7265616c3b66696c65272e0a7461696c0a"
+stderr_hex = ""

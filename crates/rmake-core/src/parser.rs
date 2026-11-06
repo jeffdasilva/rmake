@@ -2371,6 +2371,7 @@ impl Database {
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<RulePrefix, ParseError> {
+        let scan_expanded_inline = limit == bytes.len();
         let expansion_limit = || ParseError {
             unlocated: false,
             location: location.clone(),
@@ -2436,13 +2437,15 @@ impl Database {
                 return Err(expansion_limit());
             }
             let has_colon = part.contains(&b':');
-            let has_semicolon = part.contains(&b';');
+            let has_semicolon = scan_expanded_inline && part.contains(&b';');
             let part_start = expanded.len();
             expanded.extend_from_slice(&part);
             if has_colon || has_semicolon {
                 let colon = separator(&expanded, b':');
-                let semicolon = separator(&expanded, b';');
-                if semicolon.is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon)) {
+                if scan_expanded_inline
+                    && separator(&expanded, b';')
+                        .is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon))
+                {
                     return Ok(RulePrefix {
                         expanded,
                         consumed,

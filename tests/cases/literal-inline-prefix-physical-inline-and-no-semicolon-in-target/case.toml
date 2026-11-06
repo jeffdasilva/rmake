@@ -1,0 +1,11 @@
+id = "literal-inline-prefix-physical-inline-and-no-semicolon-in-target"
+requirement = "rules.literal-inline-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-B", "match-realfile"]
+description = "Original physical inline ownership and rule prefix: physical inline and no semicolon in target."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f7220276d617463682d7265616c66696c65272e0a"
+stderr_hex = ""

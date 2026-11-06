@@ -49,3 +49,10 @@ line. With a literal inline recipe, filename preparation uses the spelling
 produced by source parsing and expansion. Thirty-one GNU2 fixtures cover
 generated and literal colons, even and odd parity, raw target bytes, scoped
 assignments, globs, pattern rules, and grouped and double-colon targets.
+
+The physical inline delimiter also governs prefix scanning. With that
+delimiter present, generated semicolons in the target spelling remain
+filename data, and the reader can recognize the rule colon before expanding
+the prerequisite tail. Fifteen GNU2 fixtures cover generated and literal
+colons, target assignments, grouped and double-colon rules, and files created
+or removed after globbing.
