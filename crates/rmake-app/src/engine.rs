@@ -1048,6 +1048,7 @@ pub struct Engine {
     aliases: Aliases,
     path_observations: HashMap<Vec<u8>, PathObservation>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
+    ignored_vpath: HashSet<Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     archive_completion_times: HashMap<Vec<u8>, ArchiveCompletion>,
     makefile_error: RefCell<Option<PendingIncludeError>>,
@@ -1614,6 +1615,7 @@ impl Engine {
             aliases: Aliases::default(),
             path_observations: HashMap::new(),
             resolved_names: HashMap::new(),
+            ignored_vpath: HashSet::new(),
             archive_vpath_reads: RefCell::new(None),
             archive_completion_times: HashMap::new(),
             makefile_error: RefCell::new(None),
@@ -4997,6 +4999,7 @@ impl Engine {
             &mut self.terminal_prerequisites,
             &mut self.database_secondary,
             &mut self.database_remake_started,
+            &mut self.ignored_vpath,
         ] {
             if flags.remove(from) {
                 flags.insert(to.to_vec());
@@ -5414,6 +5417,9 @@ impl Engine {
         if let Some(time) = self.modified(target) {
             return Ok(Some((None, Some(time))));
         }
+        if self.ignored_vpath.contains(target) {
+            return Ok(None);
+        }
         let searched = self.searched_file(target)?;
         if searched.is_some() || !target.starts_with(b"-l") || self.makefile_names.contains(target)
         {
@@ -5590,6 +5596,7 @@ impl Engine {
 
     fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
         !phony
+            && !self.ignored_vpath.contains(target)
             && self.vpath_searchable(target)
             && (!(self.options.dry_run || self.options.question || self.options.touch)
                 || all_recursive)
@@ -8525,6 +8532,9 @@ impl Engine {
                     .map(Vec::from)
                     .collect();
                 if let Some(discarded) = self.resolved_names.remove(target) {
+                    // A rebuild has selected the local name permanently for
+                    // this file. A missing result must stay missing.
+                    self.ignored_vpath.insert(target.to_vec());
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::IgnoringVpath(&discarded),
