@@ -1,0 +1,12 @@
+id = "process-shell-flags-terminal-escape-recipe-empty"
+requirement = "process.invocation"
+candidate = "required"
+description = "A terminal shell flag escape preserves the GNU command argument boundary."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "[64756d6d79206578747261]\n"
+stderr = ""
