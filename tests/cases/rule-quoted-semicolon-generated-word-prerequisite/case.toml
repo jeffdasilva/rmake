@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-generated-word-prerequisite"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a"]
+description = "Original quoted rule semicolon phases: generated word prerequisite."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = "6f6e63650a"
+stderr_hex = "4d616b6566696c653a343a207761726e696e673a206f766572726964696e672072656369706520666f7220746172676574202761270a4d616b6566696c653a333a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f7220746172676574202761270a6d616b653a202a2a2a204e6f2072756c6520746f206d616b6520746172676574202756272c206e6565646564206279202761272e202053746f702e0a"

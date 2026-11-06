@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-generated-recipe-dry-run-effect"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n", "all"]
+description = "Original quoted rule semicolon phases: generated recipe dry run effect."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f20227365656e3d5b77726974655d220a"
+stderr_hex = ""

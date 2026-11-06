@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-no-physical-recipe-after-quoted-target"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "a;b"]
+description = "Original quoted rule semicolon phases: no physical recipe after quoted target."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a"

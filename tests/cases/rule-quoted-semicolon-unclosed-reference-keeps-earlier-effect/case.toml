@@ -1,0 +1,11 @@
+id = "rule-quoted-semicolon-unclosed-reference-keeps-earlier-effect"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Original quoted rule semicolon phases: unclosed reference keeps earlier effect."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 2
+stdout_hex = "66697273740a"
+stderr_hex = "4d616b6566696c653a313a202a2a2a20756e7465726d696e61746564207661726961626c65207265666572656e63652e202053746f702e0a"
