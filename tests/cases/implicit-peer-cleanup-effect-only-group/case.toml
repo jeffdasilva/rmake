@@ -1,0 +1,10 @@
+id = "implicit-peer-cleanup-effect-only-group"
+requirement = "rules.implicit-peer-cleanup"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture."
+args = ["-rR", "--no-print-directory", "all"]
+
+[expected]
+exit_code = 0
+stdout = "rm unit.part unit.index\n"
+stderr = ""

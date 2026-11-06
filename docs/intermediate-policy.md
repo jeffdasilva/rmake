@@ -14,6 +14,13 @@ created intermediate files. A `.NOTINTERMEDIATE` flag inherited from the selecte
 implicit pattern also protects cleanup, even when the literal file is explicitly
 marked intermediate. Literal pattern names and selected pattern flags are separate.
 
+An implicit pattern recipe can update several targets. Its completed peers remain
+eligible for cleanup if a later search marks them intermediate. Cleanup applies
+the final file roles in database order, including secondary status learned
+when observing an existing peer. Effects from successful recipe expansion
+can create intermediate files without a shell command. A fatal expansion
+before execution leaves its effects in place.
+
 The interpreter compiles the three settings after each complete Makefile read.
 It indexes literal names, includes every double-colon branch, and rejects named
 `.NOTINTERMEDIATE`/`.INTERMEDIATE` and `.NOTINTERMEDIATE`/`.SECONDARY` conflicts
