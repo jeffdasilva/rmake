@@ -2464,13 +2464,13 @@ impl Engine {
                 Ok(found) => found,
                 Err(()) => return 2,
             };
-            let mut files = self.options.files.clone();
+            let files = self.options.files.clone();
+            let mut default_file = None;
             if files.is_empty() {
-                let mut default_file = None;
                 for name in ["GNUmakefile", "makefile", "Makefile"] {
                     match self.directory_member(name.as_bytes()) {
                         Ok(true) => {
-                            default_file = Some(name);
+                            default_file = Some(Path::new(name));
                             break;
                         }
                         Ok(false) => {}
@@ -2480,9 +2480,7 @@ impl Engine {
                         }
                     }
                 }
-                if let Some(file) = default_file {
-                    files.push(file.into());
-                } else {
+                if default_file.is_none() {
                     // Preloaded rules may generate a default main makefile.
                     for name in [b"GNUmakefile".as_slice(), b"makefile", b"Makefile"] {
                         self.database.file_records.insert(name);
@@ -2496,12 +2494,16 @@ impl Engine {
                     }
                 }
             }
+            let files = files
+                .iter()
+                .map(std::path::PathBuf::as_path)
+                .chain(default_file);
             found_makefile = startup_found
                 || files
-                    .iter()
+                    .clone()
                     .enumerate()
                     .any(|(index, _)| self.options.temp_stdin_file != Some(index));
-            for file in &files {
+            for file in files {
                 if let Some(history) = self.database.database_history() {
                     history.intern(file.as_os_str().as_bytes());
                 }
