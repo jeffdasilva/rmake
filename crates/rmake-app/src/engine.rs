@@ -750,6 +750,14 @@ impl RuleState {
         self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
     }
 
+    fn visited_explicit_group_prerequisites(&self) -> bool {
+        !self.serial_phase
+            && self.next == self.rule.dependencies.len()
+            && self.group.as_ref().is_some_and(|group| {
+                !group.run.implicit && group.run.branch.is_none() && group.peer_targets.is_empty()
+            })
+    }
+
     fn waiting_at_barrier(&self) -> bool {
         let index = self.order.get(self.next).copied().unwrap_or(self.next);
         self.branch.is_none()
@@ -7346,7 +7354,9 @@ impl Engine {
         // a .WAIT barrier or finishing the dependency traversal.
         let observes_reap = !self.remaking
             && state.waited_for_prerequisites
-            && (state.visited_prerequisites() || state.waiting_at_barrier());
+            && (state.visited_prerequisites()
+                || state.visited_explicit_group_prerequisites()
+                || state.waiting_at_barrier());
         let post_reap = observes_reap
             && state.last_reap_pass != self.debug_reap_pass
             && self.graph_abort.is_none()
