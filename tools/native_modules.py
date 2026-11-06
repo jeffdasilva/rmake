@@ -144,6 +144,7 @@ def models() -> list[Model]:
     result.extend(deep_models())
     result.extend(source_provenance_models())
     result.extend(startup_exit_models())
+    result.extend(target_read_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -516,6 +517,59 @@ def startup_exit_models() -> list[Model]:
                   tuple(Module('startup_probe.c', name) for name in row['modules']),
                   args=tuple(row['args']), environment=row['environment'])
             for row in data['models']]
+
+
+def target_read_models() -> list[Model]:
+    prefix = b'''load probe_api.so
+V := global
+all: left right caller
+left: V := first
+right: V := second
+left right: dest
+dest:;@$(info selected=[$(V)|$@]):
+'''
+    retained_call = b'$(probe_eval_guard dest: RESULT := $$(info retained=[$$(V)|$$@])$$(file >>seen,retained))'
+    active_prefix = b'''load probe_api.so
+V := global
+all: V := parent
+all: caller
+'''
+    active_call = b'$(probe_eval_guard caller: RESULT := $$(info active=[$$(V)|$$@])$$(file >>seen,active))'
+    child = b'''caller:;@printf 'child=[%s]\\n' "$$TRIGGER"
+'''
+    def model(name, source, stdout, marks, *, args=()):
+        return Model('native-target-read-' + name,
+                       {'Makefile': source, 'seen': b'anchor\n'},
+                       {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+                       b'anchor\n' + marks,
+                       args=('-rR', '--no-print-directory', *args))
+    return [
+        model('direct-active', active_prefix + b'caller:;@' + active_call + b':\n',
+              b'active=[parent|caller]\n', b'active\neval-returned\n'),
+        model('direct-retained', prefix + b'caller:;@' + retained_call + b':\n',
+              b'selected=[first|dest]\nretained=[second|dest]\n', b'retained\neval-returned\n'),
+        model('direct-nested-shell-locals', b'''load probe_api.so
+all: dest caller
+dest:;@$(shell /bin/sh -c 'exit 7'):
+caller:;@$(shell /bin/sh -c 'exit 11')$(probe_eval_guard dest: OUTER := $$(eval caller: INNER := $$$$(info inside=[$$$$(.SHELLSTATUS)|$$$$@]))$$(info retained=[$$(.SHELLSTATUS)|$$@]))$(info caller=[$(.SHELLSTATUS)|$@]):
+''', b'inside=[11|caller]\nretained=[7|dest]\ncaller=[11|caller]\n', b'eval-returned\n'),
+        model('environment-retained', prefix + b'caller: export TRIGGER = ' + retained_call + b'ready\n' + child,
+              b'selected=[first|dest]\nretained=[second|dest]\nchild=[ready]\n', b'retained\neval-returned\n'),
+        model('environment-builtin-control', prefix + b'caller: export TRIGGER = ' +
+              retained_call.replace(b'probe_eval_guard', b'eval') + b'ready\n' + child,
+              b'selected=[first|dest]\nretained=[second|dest]\nchild=[ready]\n', b'retained\n'),
+        model('environment-active', active_prefix + b'caller: export TRIGGER = ' + active_call + b'ready\n' + child,
+              b'active=[parent|caller]\nchild=[ready]\n', b'active\neval-returned\n'),
+        model('environment-shell-locals', b'''load probe_api.so
+all: dest caller
+dest:;@$(shell /bin/sh -c 'exit 7'):
+caller: export TRIGGER = $(probe_eval_guard dest: FIRST := $$(info before=[$$(.SHELLSTATUS)|$$@])$$(file >>seen,shell)$$(shell /bin/sh -c 'exit 13'))$(probe_eval_guard dest: SECOND := $$(info after=[$$(.SHELLSTATUS)|$$@]))ready
+''' + child, b'before=[7|dest]\nafter=[13|dest]\nchild=[ready]\n', b'shell\neval-returned\neval-returned\n'),
+        model('shell-capture-environment', prefix + b'caller: export TRIGGER = ' + retained_call +
+              b'ready\ncaller:;@$(info shell=[$(shell printf \'%s\' "$$TRIGGER")]):\n',
+              b'selected=[first|dest]\n:\nretained=[second|dest]\nshell=[ready]\n:\n',
+              b'retained\neval-returned\n', args=('-n',)),
+    ]
 
 
 def seen_matches(model: Model, observation: h.Observation) -> bool:

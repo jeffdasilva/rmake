@@ -78,6 +78,12 @@ unvisited destination. The caller's live locals remain available for the nested
 read, and shell writes return to the same caller. Four fixtures cover reads,
 writeback, and multi-file nesting.
 
+Recursive exports expanded for a recipe child use the same retained file
+contexts as recipe text and shell capture. This applies to builtin `eval`
+and to a native function that calls `gmk_eval`. The selected file keeps the
+result of a shell run inside an eager declaration. Eight native-module
+cases compare direct, environment, and shell-capture behavior.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.
