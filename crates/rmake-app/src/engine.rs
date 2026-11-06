@@ -7649,9 +7649,7 @@ impl Engine {
             && self.shutdown.get() == Shutdown::Running;
         state.last_debug_pass = self.debug_pass;
         if replay_debug {
-            if state.rule.grouped_double_id().is_some()
-                && let Some(ordinal) = state.branch
-            {
+            if let Some(ordinal) = state.branch {
                 self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
             }
             self.debug_consider(target, target, state.depth);
