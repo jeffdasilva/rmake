@@ -4620,21 +4620,22 @@ impl Engine {
             }
             return Ok(None);
         }
-        let observation = self
+        let observation = match self
             .find_vpath(target)
-            .map_err(|error| self.expansion_error(None, &error))?;
-        if let Some((Some(name), _)) = &observation
-            && (self.gpath_match(target, name) || self.other_file_record(name, target))
+            .map_err(|error| self.expansion_error(None, &error))?
         {
-            let name = name.clone();
-            self.rename_search_record(target, &name)?;
-            self.path_observations
-                .insert(name.clone(), observation.map(|(_, time)| (None, time)));
-            return Ok(Some(name));
-        }
-        if let Some((Some(name), _)) = &observation {
-            self.database.file_records.rehash(target, name);
-        }
+            Some((Some(name), time)) => {
+                if self.gpath_match(target, &name) || self.other_file_record(&name, target) {
+                    self.rename_search_record(target, &name)?;
+                    self.path_observations
+                        .insert(name.clone(), Some((None, time)));
+                    return Ok(Some(name));
+                }
+                self.database.file_records.rehash(target, &name);
+                Some((Some(name), time))
+            }
+            observation => observation,
+        };
         self.path_observations.insert(target.to_vec(), observation);
         Ok(None)
     }
