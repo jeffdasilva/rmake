@@ -1,7 +1,7 @@
 id = "builtin-argument-count-call-intcmp-1"
 requirement = "functions.diagnostics"
 candidate = "required"
-description = "Builtin arity errors report the number of arguments before evaluating them."
+description = "Builtin arity checks preserve GNU argument evaluation order and report the supplied count."
 provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
 args = ["-rR", "--no-print-directory", "all"]
 timeout_seconds = 6

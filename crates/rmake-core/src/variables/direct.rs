@@ -190,7 +190,7 @@ impl Expansion<'_, '_> {
         let body = &input[2..end];
         let end = body.iter().position(gnu_whitespace)?;
         let name = &body[..end];
-        let (minimum, maximum) = arity(name)?;
+        let (_, maximum) = arity(name)?;
         if super::machine::lazy(name) {
             return None;
         }
@@ -201,9 +201,6 @@ impl Expansion<'_, '_> {
         }
         let argument = trim_function_start(&body[end..]);
         let ranges = split_arg_ranges(argument, input[1], maximum).ok()?;
-        if ranges.len() < minimum && !matches!(name, b"word" | b"wordlist") {
-            return Some(Err(too_few_arguments(name, ranges.len())));
-        }
         // Capture the dispatch decision before any argument effects. Once native
         // preparation starts this invocation must not fall back and replay them.
         let native = self.depth < DIRECT_DEPTH && self.machine_nesting < DIRECT_MACHINES;
