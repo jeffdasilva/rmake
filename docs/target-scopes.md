@@ -66,8 +66,12 @@ read its retained automatic and pattern bindings and refresh its declaration and
 global layers. A visited target without a recipe reads the existing parent chain
 without activating new pattern variables. A shell completion updates the
 destination's retained locals. Twelve fixtures cover these cases and an
-unvisited control. Shared targets subsequently encountered through another
-parent have a separate lifetime requirement.
+unvisited control. When a later parent encounters a completed file, subsequent
+eager reads follow the resulting chain of live ancestors. The selected recipe
+keeps its original context, and the completed file retains its automatic and
+pattern locals. The engine records only edges that have selected a different
+parent. Fourteen fixtures cover direct and inherited changes, a return to the
+first parent, parent locals, aliases, and a dropped cycle.
 
 Nested eager declarations can re-enter a suspended caller through a visited or
 unvisited destination. The caller's live locals remain available for the nested

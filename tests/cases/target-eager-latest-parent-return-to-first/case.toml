@@ -1,0 +1,12 @@
+id = "target-eager-latest-parent-return-to-first"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Reenter the first parent through a later edge while keeping the destination's own shell status."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "selected=[first|dest]\nduring=[second|dest|7]\nretained=[first|dest|7]\n"
+stderr = ""

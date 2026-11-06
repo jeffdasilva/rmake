@@ -679,6 +679,12 @@ fn empty_bindings(size: usize) -> Arc<Bindings> {
     slot.get_or_init(|| Arc::new(Bindings::new(size))).clone()
 }
 
+pub(crate) struct ReadAncestor<'a> {
+    pub name: &'a [u8],
+    pub variables: Option<&'a VariableStore>,
+    pub declarations: Option<&'a TargetScope>,
+}
+
 #[derive(Clone, Debug)]
 struct VariableLayer {
     file_locals: bool,
@@ -1261,16 +1267,7 @@ impl VariableStore {
                 });
             }
         }
-        if !self.variables.is_empty() || self.variables.database_history.is_some() {
-            layers.push(VariableLayer {
-                file_locals: self.file_locals,
-                variables: Arc::clone(&self.variables),
-                target: None,
-                inherited: true,
-                global: !self.scoped,
-                pattern: false,
-            });
-        }
+        self.push_inherited_bindings(&mut layers);
         layers.extend(self.layers.iter().map(|layer| VariableLayer {
             file_locals: layer.file_locals,
             variables: Arc::clone(&layer.variables),
@@ -1444,6 +1441,76 @@ impl VariableStore {
         let layer = self.layers.get(layer.checked_sub(1)?)?;
         layer.target.as_ref()?;
         layer.variables.get(name)
+    }
+
+    fn push_inherited_bindings(&self, layers: &mut Vec<VariableLayer>) {
+        if !self.variables.is_empty() || self.variables.database_history.is_some() {
+            layers.push(VariableLayer {
+                file_locals: self.file_locals,
+                variables: Arc::clone(&self.variables),
+                target: None,
+                inherited: true,
+                global: !self.scoped,
+                pattern: false,
+            });
+        }
+    }
+
+    pub(crate) fn is_file_read_context(&self, target: &[u8]) -> bool {
+        self.current_file_declarations(Some(target)).is_some()
+    }
+
+    /// A completed file keeps its locals and activated patterns. Only the
+    /// inherited chain is assembled from the files now reached through it.
+    pub(crate) fn replace_file_read_ancestors<'a>(
+        &mut self,
+        ancestors: impl IntoIterator<Item = ReadAncestor<'a>>,
+        globals: &Self,
+    ) {
+        let mut layers: Vec<_> = self
+            .layers
+            .iter()
+            .take_while(|layer| !layer.inherited)
+            .cloned()
+            .collect();
+        for ReadAncestor {
+            name,
+            variables,
+            declarations,
+        } in ancestors
+        {
+            if let Some(variables) = variables {
+                variables.push_inherited_bindings(&mut layers);
+                layers.extend(
+                    variables
+                        .layers
+                        .iter()
+                        .take_while(|layer| !layer.inherited)
+                        .map(|layer| {
+                            let mut layer = layer.clone();
+                            layer.inherited = true;
+                            if layer.target.as_deref() == Some(name)
+                                && let Some(scope) = declarations
+                            {
+                                layer.variables = Arc::clone(&scope.variables);
+                            }
+                            layer
+                        }),
+                );
+            } else {
+                layers.push(VariableLayer {
+                    file_locals: false,
+                    variables: declarations
+                        .map_or_else(|| empty_bindings(32), |scope| Arc::clone(&scope.variables)),
+                    target: Some(Arc::from(name)),
+                    inherited: true,
+                    global: false,
+                    pattern: false,
+                });
+            }
+        }
+        globals.push_inherited_bindings(&mut layers);
+        self.layers = VariableLayers::new(layers);
     }
 
     fn current_file_declarations(&self, target: Option<&[u8]>) -> Option<&VariableLayer> {
