@@ -104,6 +104,12 @@ that branch, so another branch can still read the head's status. The
 head's secondary status is visible even when its recipe is empty or
 already up to date.
 
+A prerequisite first reached by an ordinary double-colon branch inherits
+that branch's variable scope. This applies to order-only prerequisites and
+to the variable setup used during implicit search and intermediate
+inspection. A shared prerequisite's first branch supplies its recipe
+scope.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.

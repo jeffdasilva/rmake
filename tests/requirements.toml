@@ -2032,3 +2032,13 @@ candidate_required = 10
 fixture_count = 10
 reference = "docs/target-scopes.md"
 cases = ["double-secondary-scope-head-prerequisite", "double-secondary-scope-head-recipe-only", "double-secondary-scope-head-recipe-status-wins", "double-secondary-scope-head-without-recipe", "double-secondary-scope-no-status-control", "double-secondary-scope-prior-branch-prerequisite-inherits-head", "double-secondary-scope-sibling-keeps-global-status", "double-secondary-scope-single-branch-control", "double-secondary-scope-three-branches", "double-secondary-scope-up-to-date-head"]
+
+[[requirements]]
+id = "scope.double-branch-parent"
+title = "First prerequisite scope of ordinary double-colon branches"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 12
+fixture_count = 12
+reference = "docs/target-scopes.md"
+cases = ["double-parent-scope-branch-local-in-active-eval", "double-parent-scope-child-own-status", "double-parent-scope-empty-status-control", "double-parent-scope-gpath", "double-parent-scope-head-latest-recipe-status", "double-parent-scope-implicit-search", "double-parent-scope-inspected-intermediate", "double-parent-scope-later-direct", "double-parent-scope-order-only", "double-parent-scope-shared-first-owner", "double-parent-scope-transitive", "double-parent-scope-unrelated-owner-control"]

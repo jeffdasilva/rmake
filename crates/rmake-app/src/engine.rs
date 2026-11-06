@@ -546,8 +546,23 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
     );
 }
 
+#[derive(Clone, Copy)]
+struct ScopeParent<T> {
+    target: T,
+    branch: Option<usize>,
+}
+
+impl ScopeParent<&[u8]> {
+    fn into_owned(self) -> ScopeParent<Vec<u8>> {
+        ScopeParent {
+            target: self.target.to_vec(),
+            branch: self.branch,
+        }
+    }
+}
+
 struct TargetReads<'a> {
-    parents: &'a HashMap<Vec<u8>, Option<Vec<u8>>>,
+    parents: &'a HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
     retained_parents: &'a HashMap<Vec<u8>, Vec<u8>>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
@@ -560,9 +575,11 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
     }
 
     fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>> {
-        self.parents
-            .get(target)
-            .map(|parent| parent.as_deref().map(|name| self.aliases.resolve(name)))
+        self.parents.get(target).map(|parent| {
+            parent
+                .as_ref()
+                .map(|parent| self.aliases.resolve(&parent.target))
+        })
     }
 
     fn has_parent_changes(&self) -> bool {
@@ -784,6 +801,15 @@ struct RuleState {
 }
 
 impl RuleState {
+    // Ordinary branches own their prerequisite edges. A group can combine
+    // prerequisites from several file records in the same traversal.
+    fn scope_parent<'a>(&self, target: &'a [u8]) -> ScopeParent<&'a [u8]> {
+        ScopeParent {
+            target,
+            branch: self.branch.filter(|_| self.group.is_none()),
+        }
+    }
+
     fn visited_prerequisites(&self) -> bool {
         self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
     }
@@ -949,7 +975,7 @@ pub struct Engine {
     recipe_reaps: u64,
     debug_pass: u64,
     visiting: HashSet<Vec<u8>>,
-    scope_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
+    scope_parents: HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, Vec<u8>>,
@@ -3698,7 +3724,7 @@ impl Engine {
     fn check_intermediate(
         &mut self,
         target: &[u8],
-        parent: &[u8],
+        parent: ScopeParent<&[u8]>,
         time: Option<SystemTime>,
         depth: usize,
     ) -> Inspection {
@@ -3758,7 +3784,7 @@ impl Engine {
         }
         self.scope_parents
             .entry(target.to_vec())
-            .or_insert_with(|| Some(parent.to_vec()));
+            .or_insert_with(|| Some(parent.into_owned()));
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
@@ -3809,6 +3835,12 @@ impl Engine {
             }
             self.store_inspected_rule(target, double_colon, rule.clone());
         }
+        let child_parent = ScopeParent {
+            target,
+            branch: double_colon
+                .then_some(0)
+                .filter(|_| rule.grouped_double_id().is_none()),
+        };
         let mut result = Outcome {
             time,
             ..Outcome::default()
@@ -3853,7 +3885,7 @@ impl Engine {
                 outcome: mut child,
                 pending,
                 needs_rebuild,
-            } = self.check_intermediate(&dep.name, target, time, depth + 1);
+            } = self.check_intermediate(&dep.name, child_parent, time, depth + 1);
             self.optional_remake = optional;
             if optional && child.failed && !self.options.keep_going {
                 let mut shutdown = self.shutdown.get();
@@ -6627,8 +6659,8 @@ impl Engine {
                     parent: self
                         .scope_parents
                         .get(&dependency.name)
-                        .and_then(Clone::clone)
-                        .unwrap_or_else(|| target.to_vec()),
+                        .and_then(Option::as_ref)
+                        .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
                 })
             });
         self.optional_remake_failures
@@ -6727,14 +6759,19 @@ impl Engine {
         }
     }
 
-    fn build(&mut self, target: &[u8], parent: Option<&[u8]>, depth: usize) -> Outcome {
+    fn build(
+        &mut self,
+        target: &[u8],
+        parent: Option<ScopeParent<&[u8]>>,
+        depth: usize,
+    ) -> Outcome {
         self.build_recording_initial_time(target, parent, depth, None, BuildVisit::Ordinary)
     }
 
     fn build_recording_initial_time(
         &mut self,
         target: &[u8],
-        parent: Option<&[u8]>,
+        parent: Option<ScopeParent<&[u8]>>,
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
         visit: BuildVisit,
@@ -6832,7 +6869,7 @@ impl Engine {
         &mut self,
         target: &[u8],
         considering_name: &[u8],
-        parent: Option<&[u8]>,
+        parent: Option<ScopeParent<&[u8]>>,
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
     ) -> Outcome {
@@ -6845,7 +6882,7 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
-            self.report_missing_rule(target, parent);
+            self.report_missing_rule(target, parent.map(|parent| parent.target));
         }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
@@ -6862,7 +6899,7 @@ impl Engine {
         }
         if let Some(mut outcome) = self.done.get(target).copied() {
             if let Some(parent) = parent {
-                self.remember_retained_scope_parent(target, parent);
+                self.remember_retained_scope_parent(target, parent.target);
             }
             let debug_depth = depth + usize::from(self.remaking);
             let pruned = self
@@ -6944,7 +6981,7 @@ impl Engine {
         // for this context. Pattern-scope activation itself remains lazy.
         self.scope_parents
             .entry(target.to_vec())
-            .or_insert_with(|| parent.map(Vec::from));
+            .or_insert_with(|| parent.map(ScopeParent::into_owned));
         let phony = self.special(b".PHONY", target, false);
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
@@ -7034,7 +7071,7 @@ impl Engine {
             );
             if !self.optional_remake {
                 self.show_makefile_error();
-                self.report_missing_rule(target, parent);
+                self.report_missing_rule(target, parent.map(|parent| parent.target));
             } else if depth == 0 {
                 crate::debug::emit(
                     &self.output,
@@ -7092,7 +7129,10 @@ impl Engine {
             return;
         }
         if self.scope_parents.get(target).is_some_and(|first| {
-            first.as_deref().map(|name| self.aliases.resolve(name)) != Some(parent)
+            first
+                .as_ref()
+                .map(|first| self.aliases.resolve(&first.target))
+                != Some(parent)
         }) {
             self.retained_scope_parents
                 .insert(target.to_vec(), parent.to_vec());
@@ -7821,7 +7861,11 @@ impl Engine {
             self.apply_graph_abort(&mut state.outcome);
             if state.stale && !state.outcome.failed && !state.outcome.question_outdated {
                 for dependency in &state.deferred_intermediates {
-                    let child = self.build(dependency, Some(target), state.depth + 1);
+                    let child = self.build(
+                        dependency,
+                        Some(state.scope_parent(target)),
+                        state.depth + 1,
+                    );
                     merge_child(&mut state.outcome, child);
                     waiting |= self.pending(dependency);
                 }
@@ -7864,6 +7908,7 @@ impl Engine {
         }
         let occurrence = &state.rule.dependencies[index];
         let dependency = &occurrence.name;
+        let parent = state.scope_parent(target);
         let missing_middle = if first && self.intermediate(dependency) {
             match self.intermediate_time(dependency) {
                 Ok(time) => time.is_none(),
@@ -7888,7 +7933,7 @@ impl Engine {
                 outcome: child,
                 pending,
                 needs_rebuild,
-            } = self.check_intermediate(dependency, target, state.comparison, state.depth + 1);
+            } = self.check_intermediate(dependency, parent, state.comparison, state.depth + 1);
             if needs_rebuild {
                 state
                     .intermediate_stale
@@ -7933,7 +7978,7 @@ impl Engine {
                 };
                 self.build_recording_initial_time(
                     dependency,
-                    Some(target),
+                    Some(parent),
                     state.depth + 1,
                     None,
                     build_visit,
@@ -8438,7 +8483,8 @@ impl Engine {
                     let parent = self
                         .scope_parents
                         .get(target)
-                        .and_then(|name| name.as_deref());
+                        .and_then(Option::as_ref)
+                        .map(|parent| parent.target.as_slice());
                     self.report_missing_rule(target, parent);
                 }
                 outcome.failed = true;
@@ -8634,7 +8680,7 @@ impl Engine {
         }
         let parent = self.scope_parents.get(target).cloned().flatten();
         let inherited = if let Some(parent) = parent {
-            self.target_variables(&parent)?
+            self.rule_variables(&parent.target, parent.branch)?
         } else {
             self.database.variables.clone()
         };
@@ -8691,19 +8737,19 @@ impl Engine {
         let Some(ordinal) = branch else {
             return self.target_variables(target);
         };
-        let key = (target.to_vec(), ordinal);
+        let key = (self.aliases.resolve(target).to_vec(), ordinal);
         if let Some(scope) = self.database_branch_contexts.get(&key) {
             return Ok(scope.clone());
         }
         if ordinal == 0 {
-            return self.target_variables(target);
+            return self.target_variables(&key.0);
         }
         let head_key = (key.0, 0);
         if let Some(head) = self.database_branch_contexts.get(&head_key) {
             return Ok(head.fresh_double_colon_scope());
         }
         // A later branch can be the first one to expand a recipe.
-        let head = self.target_variables(target)?;
+        let head = self.target_variables(&head_key.0)?;
         let scope = head.fresh_double_colon_scope();
         self.database_branch_contexts.insert(head_key, head);
         Ok(scope)

@@ -1,0 +1,12 @@
+id = "double-parent-scope-implicit-search"
+requirement = "scope.double-branch-parent"
+candidate = "required"
+description = "Check the file branch that owns a prerequisite variable scope."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "search=[item.out|11]\nleaf=[item.out|11]\n"
