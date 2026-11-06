@@ -1,0 +1,12 @@
+id = "scoped-private-conditional-computed-name"
+requirement = "variables.export-bindings"
+candidate = "required"
+description = "Check that a scoped conditional applies privacy to the selected binding."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[global]/[global]\nsibling=[global]/[global]\nparent=[parent]/[parent]\nafter=[global]/[global]\n"
+stderr = ""

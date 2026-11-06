@@ -4357,7 +4357,7 @@ impl Database {
                         .iter()
                         .rev()
                         .any(|frame| frame.set_export_policy(name, export))
-                        || self.set_scoped_export(name, export)
+                        || self.apply_scoped_assignment_qualifiers(name, false, Some(export))
                     {
                         continue;
                     }
@@ -5180,10 +5180,15 @@ impl Database {
         Ok(())
     }
 
-    fn set_scoped_export(&self, name: &[u8], export: bool) -> bool {
+    fn apply_scoped_assignment_qualifiers(
+        &self,
+        name: &[u8],
+        private: bool,
+        export: Option<bool>,
+    ) -> bool {
         self.evaluation_scope
             .as_ref()
-            .is_some_and(|scope| scope.set_scoped_export_policy(name, export))
+            .is_some_and(|scope| scope.apply_scoped_assignment_qualifiers(name, private, export))
     }
 
     fn apply_assignment_qualifiers(
@@ -5196,23 +5201,22 @@ impl Database {
         if !private && export.is_none() {
             return;
         }
-        // A suppressed conditional can return the existing lexical binding.
+        // A suppressed conditional can return an existing lexical or scoped binding.
         // A normal definition applies its modifiers to the global binding.
         if kind == Assignment::Conditional
-            && self
+            && (self
                 .evaluation_bindings
                 .iter()
                 .rev()
                 .any(|frame| frame.apply_assignment_qualifiers(&name, private, export))
+                || self.apply_scoped_assignment_qualifiers(&name, private, export))
         {
             return;
         }
         if private {
             self.variables.set_private(&name, true);
         }
-        if let Some(export) = export
-            && (kind != Assignment::Conditional || !self.set_scoped_export(&name, export))
-        {
+        if let Some(export) = export {
             self.set_global_export(name, export);
         }
     }
