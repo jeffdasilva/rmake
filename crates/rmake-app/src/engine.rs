@@ -3463,11 +3463,11 @@ impl Engine {
         }
         if outcome.failed && outcome.blocked {
             let identity = self.aliases.resolve(goal);
-            if !self
+            if self
                 .database
                 .rules
                 .get(identity)
-                .is_some_and(|rule| rule.double_colon.is_some())
+                .is_none_or(|rule| rule.double_colon.is_none())
             {
                 self.report_blocked_goal(goal);
             }
