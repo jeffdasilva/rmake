@@ -1,0 +1,15 @@
+id = "eval-active-table-text"
+requirement = "functions.eval"
+candidate = "required"
+description = "Check active variable table identity across a nested eval read."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "owner"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:1: *** Recursive variable 'K' references itself (eventually).  Stop.\n"
+
+[environment]
+K = "seed"
