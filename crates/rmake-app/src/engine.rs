@@ -7172,6 +7172,13 @@ impl Engine {
                     self.pending_double_colon.insert(target.to_vec(), state);
                     return outcome;
                 }
+                // The target visit announced the first declaration.
+                if ordinal != 0 && !self.remaking {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::Considering(target, state.depth),
+                    );
+                }
             }
             let comparison = self.comparison_time(target, state.before);
             self.build_rule(
