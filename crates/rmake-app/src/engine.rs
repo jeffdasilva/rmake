@@ -3175,6 +3175,7 @@ impl Engine {
                 self.wait_target(&goal);
             }
             let outcome = self.build(&goal, None, 0);
+            self.debug_grouped_goal_prunes(&goal, outcome);
             let outcome = if !self.parallel_graph() && !self.pending(&goal) {
                 self.observe_updated(&goal, outcome)
             } else {
@@ -3197,6 +3198,7 @@ impl Engine {
                 break;
             }
         }
+        let mut last_goal_pass = self.debug_pass;
         while requested.iter().any(|goal| self.pending(&goal.name)) {
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -3209,7 +3211,11 @@ impl Engine {
                     } else {
                         BuildVisit::Ordinary
                     };
-                    self.build_recording_initial_time(&goal.name, None, 0, None, visit);
+                    let outcome =
+                        self.build_recording_initial_time(&goal.name, None, 0, None, visit);
+                    if self.debug_pass != last_goal_pass {
+                        self.debug_grouped_goal_prunes(&goal.name, outcome);
+                    }
                     first_goal = false;
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self
@@ -3222,6 +3228,7 @@ impl Engine {
                     goal.awaiting_recipe = false;
                 }
             }
+            last_goal_pass = self.debug_pass;
             // A completion or a file write can make more work observable in
             // the next pass. Rescan before blocking on the remaining children.
             if self.graph_epoch == pass_epoch
@@ -3323,6 +3330,65 @@ impl Engine {
                 Event::Already(name, depth)
             },
         );
+    }
+
+    fn grouped_double_colon_branches(&self, target: &[u8]) -> Option<&[Rule]> {
+        self.database
+            .rules
+            .get(target)?
+            .double_colon
+            .as_deref()
+            .filter(|branches| {
+                branches
+                    .iter()
+                    .all(|rule| rule.grouped_double_id().is_some())
+            })
+    }
+
+    fn debug_grouped_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
+        use crate::debug::{Event, Mask, emit};
+
+        if !self.output.debug_mask().has(Mask::VERBOSE)
+            || self.graph_abort.is_some()
+            || self.shutdown.get() != Shutdown::Running
+            || outcome.fatal
+            || (!self.options.keep_going && (outcome.failed || outcome.question_outdated))
+        {
+            return;
+        }
+        let name = self.aliases.resolve(goal);
+        if let Some(branches) = self.grouped_double_colon_branches(name)
+            && branches.len() > 1
+        {
+            // Each extra goal entry returns to the same considered chain head.
+            for _ in &branches[1..] {
+                emit(&self.output, Event::Pruning(name, 0));
+            }
+        }
+    }
+
+    fn debug_completed_double_colon_prefix(&self, target: &[u8], ordinal: usize, depth: usize) {
+        use crate::debug::{Event, Mask, emit};
+
+        if ordinal == 0 || !self.output.debug_mask().has(Mask::VERBOSE) {
+            return;
+        }
+        let mut key = (target.to_vec(), 0);
+        for prior in 0..ordinal {
+            key.1 = prior;
+            if let Some(outcome) = self.database_branch_outcomes.get(&key) {
+                // Every finished declaration has its own diagnostic visit.
+                emit(&self.output, Event::Considering(target, depth));
+                emit(
+                    &self.output,
+                    if outcome.failed || outcome.question_outdated {
+                        Event::RecentlyFailed(target, depth)
+                    } else {
+                        Event::Already(target, depth)
+                    },
+                );
+            }
+        }
     }
 
     fn debug_completed_goal_visit(&self, goal: &[u8]) {
@@ -7172,6 +7238,13 @@ impl Engine {
                     self.pending_double_colon.insert(target.to_vec(), state);
                     return outcome;
                 }
+                // The target visit announced the first declaration.
+                if ordinal != 0 && !self.remaking {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::Considering(target, state.depth),
+                    );
+                }
             }
             let comparison = self.comparison_time(target, state.before);
             self.build_rule(
@@ -7506,15 +7579,9 @@ impl Engine {
         let can_replay_debug = !self.remaking
             && state.waited_for_prerequisites
             && (state.visited_prerequisites()
-                // Multiple double-colon declarations have separate visits.
                 || (state.visited_group_prerequisites()
                     && (state.rule.grouped_double_id().is_none()
-                        || self
-                            .database
-                            .rules
-                            .get(target)
-                            .and_then(|rule| rule.double_colon.as_ref())
-                            .is_some_and(|branches| branches.len() == 1)))
+                        || self.grouped_double_colon_branches(target).is_some()))
                 || state.waiting_at_barrier()
                 || state.waiting_at_serial_prerequisite());
         let replay_debug = can_replay_debug
@@ -7523,6 +7590,11 @@ impl Engine {
             && self.shutdown.get() == Shutdown::Running;
         state.last_debug_pass = self.debug_pass;
         if replay_debug {
+            if state.rule.grouped_double_id().is_some()
+                && let Some(ordinal) = state.branch
+            {
+                self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
+            }
             self.debug_consider(target, target, state.depth);
         }
         if state.last_epoch.is_some()
