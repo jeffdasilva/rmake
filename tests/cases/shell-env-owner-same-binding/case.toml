@@ -1,0 +1,15 @@
+id = "shell-env-owner-same-binding"
+requirement = "functions.shell"
+candidate = "required"
+description = "Observe variable identity when shell export evaluation reads another scope."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "owner"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[outer]\nowner=[seed]\n"
+stderr = ""
+
+[environment]
+K = "seed"

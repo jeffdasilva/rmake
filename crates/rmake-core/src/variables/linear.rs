@@ -147,10 +147,7 @@ impl Expansion<'_, '_> {
         // Until this plan owns its bytes, no evaluator callback may run.
         // Every suspended suffix is literal and cannot observe a later mutation.
         let mut root = Some(parts(c_string_prefix(&variable.value))?);
-        let mut seen: HashSet<_> = self
-            .active_keys()
-            .map(|(name, layer)| (name.as_slice(), *layer))
-            .collect();
+        let mut seen: HashSet<_> = self.active_keys().collect();
         let mut used = self.active_count().checked_mul(128)?;
         let mut nearest: Option<Arc<Location>> = None;
         let mut pending = Vec::new();

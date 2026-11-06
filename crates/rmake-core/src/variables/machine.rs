@@ -578,7 +578,7 @@ impl Expansion<'_, '_> {
                     m.values.push(result?);
                     return Ok(());
                 }
-                if self.active_keys().any(|(n, l)| *n == name && *l == layer) {
+                if self.active_keys().any(|(n, l)| n == name && l == layer) {
                     m.values.push(self.recursive_binding(&name, &variable)?);
                     return Ok(());
                 }

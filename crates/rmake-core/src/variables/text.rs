@@ -190,10 +190,7 @@ impl Expansion<'_, '_> {
     fn text_program<'c, 'active>(
         store: &'c StoreAccess<'_>,
         bindings: &'c [LocalFrame],
-        active: (
-            usize,
-            impl Iterator<Item = &'active (Vec<u8>, Option<usize>)>,
-        ),
+        active: (usize, impl Iterator<Item = (&'active [u8], Option<usize>)>),
         context: &ExpansionContext<'_>,
         name: &'c [u8],
         variable: &'c Variable,
@@ -216,10 +213,7 @@ impl Expansion<'_, '_> {
         {
             return None;
         }
-        let external: HashSet<_> = active
-            .1
-            .map(|(name, layer)| (name.as_slice(), *layer))
-            .collect();
+        let external: HashSet<_> = active.1.collect();
         let mut sources = vec![(name, variable, layer)];
         let mut indices = HashMap::from([((name, layer, false), 0)]);
         let mut nodes = vec![None];
