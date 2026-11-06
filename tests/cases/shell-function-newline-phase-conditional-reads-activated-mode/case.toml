@@ -1,0 +1,12 @@
+id = "shell-function-newline-phase-conditional-reads-activated-mode"
+requirement = "functions.shell"
+candidate = "required"
+description = "One-shell activation follows the shell command selection phase."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "active\nmake: Nothing to be done for 'all'.\n"
+stderr = ""

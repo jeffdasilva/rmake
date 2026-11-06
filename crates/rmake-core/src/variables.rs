@@ -3930,6 +3930,8 @@ impl Expansion<'_, '_> {
         } else {
             None
         };
+        // Configuration selects this call before recursive exports can run eval.
+        let one_shell = self.store.one_shell;
         let prior = std::mem::replace(&mut self.context.preparing_shell_environment, true);
         let environment = self.shell_environment();
         self.context.preparing_shell_environment = prior;
@@ -3944,7 +3946,7 @@ impl Expansion<'_, '_> {
                 ifs: ifs.as_deref(),
                 environment: &environment,
                 original_shell: original_shell.as_deref(),
-                one_shell: self.store.one_shell,
+                one_shell,
             })
             .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
             .map_err(ExpandError::UnlocatedError)?;
