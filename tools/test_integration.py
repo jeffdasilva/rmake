@@ -30,6 +30,27 @@ class IntegrationTests(unittest.TestCase):
             self.assertTrue(bytes.fromhex(project['smoke_stdout_hex']))
             for name in [project['header'], *project['watched']]: i.safe_name(name)
 
+    def test_parallel_gzip_profile_reuses_only_the_reviewed_source(self):
+        plan = json.loads(i.MANIFEST.read_text())
+        cases = i.project_profiles(plan)
+        gzip, source = cases['gzip-1.14']
+        parallel, pinned = cases['gzip-1.14-parallel-fifo']
+        self.assertIs(gzip, source)
+        self.assertIs(pinned, source)
+        self.assertEqual(parallel['archive_sha256'], source['archive_sha256'])
+        self.assertEqual(parallel['header_rebuild'], source['header_rebuild'])
+        self.assertEqual(parallel['args'][:3], [
+            '-j2', '--jobserver-style=fifo', '--output-sync=recurse'])
+        self.assertEqual(bytes.fromhex(parallel['expected_build_stdout_hex']),
+                         b'Making all in lib\nMaking all in .\n')
+        bad = dict(plan['profiles'][0], project='unknown')
+        with self.assertRaisesRegex(h.HarnessError, 'pinned source'):
+            i.project_profiles(dict(plan, profiles=[bad]))
+        for name in ('../outside', 'gzip-1.14'):
+            bad = dict(plan['profiles'][0], id=name)
+            with self.assertRaisesRegex(h.HarnessError, 'profile identifier'):
+                i.project_profiles(dict(plan, profiles=[bad]))
+
     def test_archive_cache_does_not_accept_changed_or_symlinked_sources(self):
         source = b'pinned bytes'
         project = {'id': 'unit', 'archive_sha256': hashlib.sha256(source).hexdigest()}

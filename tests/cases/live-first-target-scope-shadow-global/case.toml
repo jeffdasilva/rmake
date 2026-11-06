@@ -1,0 +1,12 @@
+id = "live-first-target-scope-shadow-global"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Publish the first explicit target binding in its live lookup scope."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before=[global]\nafter=[local]\n"
+stderr = ""

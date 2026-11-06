@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Exercise real top-level bootstrap, clean and benchmark preconditions."""
+"""Exercise real top-level bootstrap, packaging, clean and benchmark flows."""
 from __future__ import annotations
 
 import argparse
@@ -31,7 +31,8 @@ CLEAN_CASES = {
     'clean-default-directory': ((), False, True),
 }
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
-CASE_IDS = ('warm-bootstrap-oracle', *CLEAN_CASES,
+CATALOG_CASES = ('catalog-check', 'catalog-install-staged')
+CASE_IDS = ('warm-bootstrap-oracle', *CATALOG_CASES, *CLEAN_CASES,
             'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
             *VALIDATION_CASES)
 
@@ -135,6 +136,9 @@ class Subject:
         }
 
     def build_inputs(self, oracle_binary, selected):
+        if set(selected).intersection(CATALOG_CASES):
+            shutil.copy2(ROOT / 'tools/catalogs.py', self.work / 'tools/catalogs.py')
+            shutil.copytree(ROOT / 'catalogs', self.work / 'catalogs', symlinks=True)
         if set(selected) & CLEAN_CASES.keys():
             out, err, status, limit, children = self.run(
                 oracle_binary, '-j2', '--jobserver-style=pipe', 'build', target=self.seed)
@@ -190,6 +194,41 @@ class Subject:
                 f'benchmark validation stderr: {err!r}')
         return out, release_stderr(err) if compare else err, status, limit, children
 
+    def observe_catalogs(self, case, binary):
+        sources = self.work / 'catalogs'
+        original = digest_tree(sources)
+        script = self.work / 'tools/catalogs.py'
+        original_script = h.sha256_file(script)
+        stage = self.root / 'package stage'
+        require(not stage.exists(), 'catalog stage must start absent')
+        if case == 'catalog-check':
+            result = self.run(binary, 'catalog-check')
+            stdout = b'python3 tools/catalogs.py\nVerified 62 owned catalog and notice files.\n'
+            require(result == (stdout, b'', 0, None, False), f'catalog check: {result!r}')
+            require(not stage.exists(), 'catalog check created package output')
+        else:
+            destination = stage / 'usr/share/rmake/locale'
+            try:
+                result = self.run(binary, f'DESTDIR={stage}', 'PREFIX=/usr', 'catalog-install')
+                stdout = b'python3 tools/catalogs.py --install "' + os.fsencode(destination) + b'"\n'
+                require(result == (stdout, b'', 0, None, False), f'catalog install: {result!r}')
+                parents = ('tree', 'tree/usr', 'tree/usr/share', 'tree/usr/share/rmake')
+                expected = {name: {'type': 'directory', 'mode': 0o755} for name in parents}
+                prefix = 'tree/usr/share/rmake/locale'
+                for name, item in original.items():
+                    if name != 'tree/README.md':
+                        mode = 0o755 if item['type'] == 'directory' else 0o644
+                        expected[prefix + name.removeprefix('tree')] = {**item, 'mode': mode}
+                require(sum(item['type'] == 'file' for item in expected.values()) == 63,
+                        'catalog package input inventory changed')
+                require(digest_tree(stage) == expected, 'catalog package bytes or layout differ')
+            finally:
+                if stage.is_dir():
+                    shutil.rmtree(stage)
+        require(digest_tree(sources) == original and h.sha256_file(script) == original_script,
+                'catalog flow changed source assets')
+        return result
+
     def observe(self, case, binary):
         before = self.protected()
         if case == 'warm-bootstrap-oracle':
@@ -198,6 +237,8 @@ class Subject:
             require(result == (want, b'', 0, None, False), f'warm bootstrap model: {result!r}')
             require((self.work / '.tools/oracle.lock').is_file(), 'oracle did not take its lock')
             require(not (self.work / '.tools/downloads').exists(), 'warm oracle attempted a download')
+        elif case in CATALOG_CASES:
+            result = self.observe_catalogs(case, binary)
         elif case in CLEAN_CASES:
             flags, preserved, default = CLEAN_CASES[case]
             target = self.target if default else self.explicit_target

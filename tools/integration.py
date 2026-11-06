@@ -23,6 +23,7 @@ import oracle
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'tests/integration/projects.json'
 SOURCE_TIME = 1600000000000000000
+IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9._-]*')
 
 
 def safe_name(value):
@@ -33,7 +34,7 @@ def safe_name(value):
 
 
 def archive_for(project, cache):
-    if not re.fullmatch(r'[a-z0-9][a-z0-9._-]*', project['id']):
+    if not IDENTIFIER.fullmatch(project['id']):
         raise h.HarnessError('invalid integration project identifier')
     cache.mkdir(parents=True, exist_ok=True)
     archive = cache / (project['id'] + '.tar.gz')
@@ -93,6 +94,22 @@ def extract(project, archive, destination):
     return fixture
 
 
+def project_profiles(plan):
+    sources = {project['id']: project for project in plan['projects']}
+    cases = {name: (source, source) for name, source in sources.items()}
+    for profile in plan.get('profiles', ()):
+        name = profile['id']
+        if not IDENTIFIER.fullmatch(name) or name in cases:
+            raise h.HarnessError('invalid or duplicate integration profile identifier')
+        source = sources.get(profile['project'])
+        if source is None:
+            raise h.HarnessError('integration profile does not name a pinned source')
+        case = {**source, 'id': name, 'args': profile['args'],
+                'expected_build_stdout_hex': profile['expected_build_stdout_hex']}
+        cases[name] = (case, source)
+    return cases
+
+
 def raw_observation(value):
     return {**h.observation_json(value), 'stdout_hex': value.stdout.hex(), 'stderr_hex': value.stderr.hex()}
 
@@ -141,6 +158,8 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     comparisons = []
     change = project.get('header_rebuild')
     expected_steps = 5 if change is not None else 4
+    expected_build = (bytes.fromhex(project['expected_build_stdout_hex'])
+                      if 'expected_build_stdout_hex' in project else None)
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, plan['environment'])
@@ -154,6 +173,9 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             run['parts'].append(persist_part(parts, f"{project['id']}-{index}-{label}", raw_observation(value)))
             if not successful(value):
                 raise h.HarnessError(label + ': status/process bounds')
+            if (expected_build is not None and label in ('fresh', 'noop', 'rebuild')
+                    and (value.stdout != expected_build or value.stderr)):
+                run['errors'].append(label + ': independent build stream bytes')
             return value
         try:
             step('fresh', command)
@@ -205,16 +227,18 @@ def main(argv=None):
     plan = json.loads(MANIFEST.read_text())
     if plan.get('schema_version') != 1:
         raise h.HarnessError('unknown integration manifest schema')
-    selected = plan['projects']
-    if args.case:
-        if set(args.case) - {p['id'] for p in selected}: parser.error('unknown exact project')
-        selected = [p for p in selected if p['id'] in args.case]
-    archives = [(p, archive_for(p, args.cache)) for p in selected]
+    cases = project_profiles(plan)
+    if args.case and set(args.case) - cases.keys():
+        parser.error('unknown exact project or profile')
+    selected = [(case, source) for name, (case, source) in cases.items()
+                if not args.case or name in args.case]
+    sources = {source['id']: source for _, source in selected}
+    archives = {name: archive_for(source, args.cache) for name, source in sources.items()}
     if args.bootstrap_only:
         with tempfile.TemporaryDirectory(prefix='rmake-integration-source-check-') as tmp:
-            for project, archive in archives:
-                extract(project, archive, Path(tmp) / project['id'])
-                print('Verified', project['id'], project['archive_sha256'])
+            for name, source in sources.items():
+                extract(source, archives[name], Path(tmp) / name)
+                print('Verified', name, source['archive_sha256'])
         return 0
     oracle.verify(args.oracle.resolve())
     binaries = [args.oracle.resolve(), args.oracle.resolve()]
@@ -238,8 +262,8 @@ def main(argv=None):
             root = Path(tmp)
             runtime = root / 'runtime'; runtime.mkdir()
             report['runtime_root'] = str(runtime)
-            for project, archive in archives:
-                fixture = extract(project, archive, root / (project['id'] + '-source'))
+            for project, source in selected:
+                fixture = extract(source, archives[source['id']], root / (project['id'] + '-source'))
                 prepare = root / (project['id'] + '-prepare'); prepare.mkdir()
                 for name in ('home', 'tmp'): (prepare / name).mkdir()
                 environment = h.clean_environment(prepare, {**plan['environment'], 'CC': '/usr/bin/cc', 'CFLAGS': '-O1 -g0'})

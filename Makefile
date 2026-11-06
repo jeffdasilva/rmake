@@ -241,7 +241,7 @@ help:
 		'Directory reporting replay: DIRECTORY_REPORT_CASE=<case ID>.' \
 		'Debug replay: DEBUG_CASE=<case ID>.' \
 		'Implicit search replay: DEBUG_TRAVERSAL_CASE=<case ID>.' \
-		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14|patch-2.8.' \
+		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14|patch-2.8|gzip-1.14-parallel-fifo.' \
 		'Database replay: DATABASE_CASE=<case ID>; DATABASE_SEARCH_CASE=<search case ID>.' \
 		'Locale replay: LOCALE_CASE=<case ID>.' \
 		'JOBS replay: JOB_DEBUG_CASE=<case ID>.' \
@@ -419,6 +419,7 @@ test-selfhost: build
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" STARTUP_USAGE_CASE=empty-directory-then-assignment test-startup-usage
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" FLAG_TERMINATOR_CASE=inherited-short-goal test-flag-terminator
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=clean-parallel-pipe DEVELOPER_FLOW_REPORT=artifacts/developer-flows/selfhost.json test-developer-flows
+	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" DEVELOPER_FLOW_CASE=catalog-install-staged DEVELOPER_FLOW_REPORT=artifacts/developer-flows/selfhost-catalog-install.json test-developer-flows
 	+"$(CANDIDATE)" -rR --no-print-directory build check-core
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_CASE=nls-private-messages-warning test-nls
 	+"$(CANDIDATE)" -rR --no-print-directory "CANDIDATE=$(CANDIDATE)" "ORACLE=$(ORACLE)" "LOCALE_DATA_ROOT=$(LOCALE_DATA_ROOT)" NLS_DIRECTORY_CASE=nls-directory-fr-inherited-depth test-nls-directory
