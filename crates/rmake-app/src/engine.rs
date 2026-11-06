@@ -4910,27 +4910,28 @@ impl Engine {
     }
 
     fn modified(&self, name: &[u8]) -> Option<SystemTime> {
-        let time = self.observed_modified(name);
-        self.retain_database_time(name, time);
-        time
+        self.observed_modified(name, true)
     }
 
-    fn observed_modified(&self, name: &[u8]) -> Option<SystemTime> {
-        if let Some(time) = self.assumed_time(name) {
-            return Some(time);
-        }
-        if let Some(cached) = self.archive_completion_times.get(name) {
-            return cached.time;
-        }
-        if !self.options.check_symlink_times && rmake_core::filenames::archive_parts(name).is_some()
-        {
-            return modified(name);
-        }
-        if let Some((archive, member)) = rmake_core::filenames::archive_parts(name) {
-            self.archive_time(archive, member, self.name_time(member))
+    fn observed_modified(&self, name: &[u8], retain_result: bool) -> Option<SystemTime> {
+        let time = if let Some(time) = self.assumed_time(name) {
+            Some(time)
+        } else if let Some(cached) = self.archive_completion_times.get(name) {
+            cached.time
+        } else if let Some((archive, member)) = rmake_core::filenames::archive_parts(name) {
+            if self.options.check_symlink_times {
+                self.archive_time(archive, member, self.name_time(member))
+            } else {
+                modified(name)
+            }
         } else {
-            self.name_time(name)
+            // A physical file observation already records its database time.
+            return self.name_time(name);
+        };
+        if retain_result {
+            self.retain_database_time(name, time);
         }
+        time
     }
 
     fn general_search_directories(
@@ -8320,7 +8321,7 @@ impl Engine {
                     completed.time = if phony {
                         None
                     } else {
-                        self.observed_modified(&peer)
+                        self.observed_modified(&peer, false)
                     };
                     for (ordinal, branch) in branches.iter().enumerate() {
                         if branch.grouped_double_id() == Some(id) {
