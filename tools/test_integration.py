@@ -51,6 +51,24 @@ class IntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(h.HarnessError, 'profile identifier'):
                 i.project_profiles(dict(plan, profiles=[bad]))
 
+    def test_shared_zlib_profile_uses_the_pinned_archive_and_safe_install(self):
+        plan = json.loads(i.MANIFEST.read_text())
+        cases = i.project_profiles(plan)
+        zlib, source = cases['zlib-1.3.2']
+        shared, pinned = cases['zlib-1.3.2-staged-shared']
+        self.assertIs(zlib, source)
+        self.assertIs(pinned, source)
+        self.assertEqual(zlib['configure'][-1], '--static')
+        self.assertEqual(shared['configure'][-2:], ['--shared', '--prefix=/usr'])
+        self.assertEqual(i.STAGED_INSTALL_ARGS, ('DESTDIR=stage', 'LDCONFIG=:', 'install'))
+        self.assertEqual(shared['archive_sha256'], source['archive_sha256'])
+        self.assertEqual(shared['license_sha256'], source['license_sha256'])
+        self.assertIn('libz.so.1.3.2', shared['watched'])
+        witness = i.MANIFEST.parent / i.safe_name(shared['staged_install']['witness'])
+        self.assertTrue(witness.is_file())
+        self.assertNotEqual(shared['smoke_stdout_hex'],
+                            shared['header_rebuild']['fresh_smoke_stdout_hex'])
+
     def test_archive_cache_does_not_accept_changed_or_symlinked_sources(self):
         source = b'pinned bytes'
         project = {'id': 'unit', 'archive_sha256': hashlib.sha256(source).hexdigest()}

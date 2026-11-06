@@ -101,6 +101,7 @@ pub enum ReaderEvent<'a> {
 pub trait OutputReceiver {
     fn emit(&mut self, event: Output<'_>);
     fn reader_event(&mut self, _event: ReaderEvent<'_>) {}
+    fn recursive_shell_export(&mut self, _definition: &Location, _name: &[u8]) {}
     fn loader_event(&mut self, _event: crate::native::LoaderEvent<'_>) {}
     fn guile_callback(&mut self, _callback: crate::native::GuileCallback<'_>) {}
     /// An application may freeze a system message under the active locale/domain.
@@ -988,6 +989,12 @@ impl<'a> ExpansionContext<'a> {
     pub fn reader_event(&mut self, event: ReaderEvent<'_>) {
         if let Some(output) = self.output.as_mut() {
             output.reader_event(event);
+        }
+    }
+
+    pub(crate) fn recursive_shell_export(&mut self, definition: &Location, name: &[u8]) {
+        if let Some(output) = self.output.as_mut() {
+            output.recursive_shell_export(definition, name);
         }
     }
 

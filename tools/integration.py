@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'tests/integration/projects.json'
 SOURCE_TIME = 1600000000000000000
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9._-]*')
+STAGED_INSTALL_ARGS = ('DESTDIR=stage', 'LDCONFIG=:', 'install')
 
 
 def safe_name(value):
@@ -104,8 +105,9 @@ def project_profiles(plan):
         source = sources.get(profile['project'])
         if source is None:
             raise h.HarnessError('integration profile does not name a pinned source')
-        case = {**source, 'id': name, 'args': profile['args'],
-                'expected_build_stdout_hex': profile['expected_build_stdout_hex']}
+        fields = ('args', 'expected_build_stdout_hex', 'configure', 'target', 'watched',
+                  'header_rebuild', 'smoke_stdout_hex', 'staged_install')
+        case = {**source, **{field: profile[field] for field in fields if field in profile}, 'id': name}
         cases[name] = (case, source)
     return cases
 
@@ -158,12 +160,27 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     comparisons = []
     change = project.get('header_rebuild')
     expected_steps = 5 if change is not None else 4
-    expected_build = (bytes.fromhex(project['expected_build_stdout_hex'])
-                      if 'expected_build_stdout_hex' in project else None)
+    expected_streams = {}
+    if 'expected_build_stdout_hex' in project:
+        expected_streams.update(dict.fromkeys(
+            ('fresh', 'noop', 'rebuild'), bytes.fromhex(project['expected_build_stdout_hex'])))
+    staged = project.get('staged_install')
+    smoke_command = project['smoke']
+    if staged is not None:
+        if change is None:
+            raise h.HarnessError('staged installation requires a semantic rebuild')
+        witness = MANIFEST.parent / safe_name(staged['witness'])
+        smoke_command = [sys.executable, str(witness)]
+        row['install_witness_sha256'] = h.sha256_file(witness)
+        row['install_args'] = list(STAGED_INSTALL_ARGS)
+        expected_steps += 2
+        expected_streams.update(dict.fromkeys(
+            ('fresh-install', 'install'), bytes.fromhex(staged['stdout_hex'])))
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, plan['environment'])
         command = [str(runtime / 'bin/make'), *project.get('args', plan['args']), project['target']]
+        install_command = [*command[:-1], *STAGED_INSTALL_ARGS] if staged is not None else None
         run = {'binary': str(binary), 'command': command, 'parts': [], 'errors': []}
         row['runs'].append(run)
         steps = []
@@ -173,9 +190,9 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             run['parts'].append(persist_part(parts, f"{project['id']}-{index}-{label}", raw_observation(value)))
             if not successful(value):
                 raise h.HarnessError(label + ': status/process bounds')
-            if (expected_build is not None and label in ('fresh', 'noop', 'rebuild')
-                    and (value.stdout != expected_build or value.stderr)):
-                run['errors'].append(label + ': independent build stream bytes')
+            expected = expected_streams.get(label)
+            if expected is not None and (value.stdout != expected or value.stderr):
+                run['errors'].append(label + ': independent stream bytes')
             return value
         try:
             step('fresh', command)
@@ -184,11 +201,20 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                 data = (runtime / 'work' / name).read_bytes()
                 if not data.startswith(b'!<arch>\n' if name.endswith('.a') else b'\x7fELF'):
                     raise h.HarnessError('missing archive/ELF output')
+            if install_command is not None:
+                stage = runtime / 'work/stage'
+                if stage.is_symlink() or stage.exists():
+                    raise h.HarnessError('staged installation requires an unused destination')
+                step('fresh-install', install_command)
+            fresh_smoke = None
             if change is not None:
-                smoke = step('fresh-smoke', project['smoke'], 10)
-                if not validate_smoke(smoke, bytes.fromhex(change['fresh_smoke_stdout_hex'])):
+                fresh_smoke = step('fresh-smoke', smoke_command, 10)
+                if not validate_smoke(fresh_smoke, bytes.fromhex(change['fresh_smoke_stdout_hex'])):
                     run['errors'].append('independent fresh executable smoke bytes')
-            step('noop', command)
+            noop_observation = step('noop', command)
+            if (install_command is not None and fresh_smoke is not None
+                    and fresh_smoke.filesystem != noop_observation.filesystem):
+                run['errors'].append('no-op changed the build or staged installation')
             noop = {name: (runtime / 'work' / name).stat().st_mtime_ns for name in project['watched']}
             header = runtime / 'work' / str(safe_name(project['header']))
             header.write_bytes(rebuilt_header(project, header.read_bytes()))
@@ -198,7 +224,9 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             rebuilt = {name: (runtime / 'work' / name).stat().st_mtime_ns for name in project['watched']}
             run['mtime_witness'] = {'fresh': fresh, 'noop': noop, 'header': stamp, 'rebuilt': rebuilt}
             run['errors'].extend(freshness_errors(fresh, noop, rebuilt))
-            smoke = step('smoke', project['smoke'], 10)
+            if install_command is not None:
+                step('install', install_command)
+            smoke = step('smoke', smoke_command, 10)
             if not validate_smoke(smoke, bytes.fromhex(project['smoke_stdout_hex'])):
                 run['errors'].append('independent executable smoke bytes')
         except (h.HarnessError, OSError, ValueError) as error:
@@ -266,7 +294,10 @@ def main(argv=None):
                 fixture = extract(source, archives[source['id']], root / (project['id'] + '-source'))
                 prepare = root / (project['id'] + '-prepare'); prepare.mkdir()
                 for name in ('home', 'tmp'): (prepare / name).mkdir()
-                environment = h.clean_environment(prepare, {**plan['environment'], 'CC': '/usr/bin/cc', 'CFLAGS': '-O1 -g0'})
+                configure_env = {**plan['environment'], 'CC': '/usr/bin/cc', 'CFLAGS': '-O1 -g0'}
+                if 'staged_install' in project:
+                    configure_env['LDCONFIG'] = ':'
+                environment = h.clean_environment(prepare, configure_env)
                 preparation = None
                 if project.get('configure'):
                     out, err, status, limit, leftovers = h.capture(project['configure'], fixture, environment, 60)

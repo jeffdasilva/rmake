@@ -144,6 +144,12 @@ pub fn missing_file_read(output: &crate::output::Controller, path: &[u8], error:
     }
 }
 
+pub fn output_sync_mutex(mask: Mask, authentication: &[u8]) {
+    if mask.has(Mask::VERBOSE) {
+        raw(&[&localized(msg::OUTPUT_SYNC_MUTEX, &[bytes(authentication)])]);
+    }
+}
+
 pub enum TraceReason<'a> {
     Phony,
     Missing,
@@ -196,12 +202,14 @@ pub enum Prerequisite {
 pub enum Event<'a> {
     Reading,
     UpdatingMakefiles,
+    SkippingMakefileLoop(&'a [u8]),
     UpdatingGoals,
     Considering(&'a [u8], usize),
     Missing(&'a [u8], usize),
     Finished(&'a [u8], usize),
     Prerequisite(Prerequisite, &'a [u8], &'a [u8], usize),
     MustRemake(&'a [u8], usize),
+    IgnoringVpath(&'a [u8]),
     Remade(&'a [u8], usize),
     Failed(&'a [u8], usize),
     NoNeed(&'a [u8], Option<&'a [u8]>, usize),
@@ -234,6 +242,7 @@ pub enum Event<'a> {
 
 pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     let (category, depth) = match event {
+        Event::SkippingMakefileLoop(_) => (Mask::VERBOSE, 0),
         Event::Prerequisite(state, _, _, depth) => (
             match state {
                 Prerequisite::Older | Prerequisite::OrderOnly => Mask::VERBOSE,
@@ -283,6 +292,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     match event {
         Event::Reading => print(msg::READING, &[]),
         Event::UpdatingMakefiles => print(msg::UPDATING_MAKEFILES, &[]),
+        Event::SkippingMakefileLoop(name) => print(msg::SKIP_MAKEFILE_LOOP, &[bytes(name)]),
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
         Event::Considering(name, _) => print(msg::CONSIDERING, &[bytes(name)]),
         Event::Missing(name, _) => print(msg::MISSING, &[bytes(name)]),
@@ -297,6 +307,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
             &[bytes(dependency), bytes(target)],
         ),
         Event::MustRemake(name, _) => print(msg::MUST_REMAKE, &[bytes(name)]),
+        Event::IgnoringVpath(name) => print(msg::IGNORING_VPATH, &[bytes(name)]),
         Event::Remade(name, _) => print(msg::REMADE, &[bytes(name)]),
         Event::Failed(name, _) => print(msg::FAILED, &[bytes(name)]),
         Event::NoNeed(name, path, _) => {
@@ -407,6 +418,25 @@ pub fn guile_callback(
     };
     // BASIC diagnostics go straight to stdout, before any buffered callback effects.
     raw(&[&localized(key, &[bytes(input)])]);
+}
+
+pub fn recursive_shell_export(
+    output: &crate::output::Controller,
+    definition: &rmake_core::diagnostic::Location,
+    name: &[u8],
+) {
+    if !output.debug_mask().has(Mask::VERBOSE) || rmake_linux::native::stdout_closed() {
+        return;
+    }
+    let file = definition.file.as_option().unwrap_or(b"(null)");
+    raw(&[&localized(
+        msg::RECURSIVE_SHELL_EXPORT,
+        &[
+            bytes(file),
+            Argument::Unsigned(definition.line as u64),
+            bytes(name),
+        ],
+    )]);
 }
 
 pub fn reader(output: &crate::output::Controller, event: rmake_core::diagnostic::ReaderEvent<'_>) {

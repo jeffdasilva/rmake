@@ -25,12 +25,15 @@ macro_rules! keys {
 
 keys! {
     READING: c"Reading makefiles...\n", [];
+    RECURSIVE_SHELL_EXPORT: c"%s:%lu: not recursively expanding %s to export to shell function\n", [B, P, B];
     UPDATING_MAKEFILES: c"Updating makefiles....\n", [];
+    SKIP_MAKEFILE_LOOP: c"Makefile '%s' might loop; not remaking it.\n", [B];
     UPDATING_GOALS: c"Updating goal targets....\n", [];
     CONSIDERING: c"Considering target file '%s'.\n", [B];
     MISSING: c"File '%s' does not exist.\n", [B];
     FINISHED: c"Finished prerequisites of target file '%s'.\n", [B];
     MUST_REMAKE: c"Must remake target '%s'.\n", [B];
+    IGNORING_VPATH: c"  Ignoring VPATH name '%s'.\n", [B];
     REMADE: c"Successfully remade target file '%s'.\n", [B];
     FAILED: c"Failed to remake target file '%s'.\n", [B];
     NO_NEED: c"No need to remake target '%s'", [B];
@@ -82,6 +85,7 @@ keys! {
     GUILE_EVALUATING: c"guile: Evaluating '%s'\n", [B];
     SKIPPING_BOM: c"Skipping UTF-8 BOM in makefile '%s'\n", [B];
     JOB_CONTROLLER: c"Using jobserver controller %s\n", [B];
+    OUTPUT_SYNC_MUTEX: c"Using output-sync mutex %s\n", [B];
     JOB_OBTAINED: c"Obtained token for child %p (%s).\n", [A, B];
     JOB_PUT: c"Putting child %p (%s) PID %s%s on the chain.\n", [A, B, B, B];
     JOB_LIVE: c"Live child %p (%s) PID %s %s\n", [A, B, B, B];

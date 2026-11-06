@@ -195,6 +195,45 @@
         "ARFLAGS=crD"
       ],
       "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e202e0a"
+    },
+    {
+      "id": "zlib-1.3.2-staged-shared",
+      "project": "zlib-1.3.2",
+      "configure": [
+        "/bin/sh",
+        "./configure",
+        "--shared",
+        "--prefix=/usr"
+      ],
+      "target": "all",
+      "args": [
+        "-j2",
+        "--jobserver-style=pipe",
+        "--output-sync=target",
+        "--no-print-directory",
+        "-s",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=rcsD"
+      ],
+      "watched": [
+        "adler32.lo",
+        "libz.a",
+        "libz.so.1.3.2",
+        "minigzipsh"
+      ],
+      "expected_build_stdout_hex": "",
+      "staged_install": {
+        "stdout_hex": "6370206c69627a2e736f2e312e332e322073746167652f7573722f6c69620a63686d6f64203735352073746167652f7573722f6c69622f6c69627a2e736f2e312e332e320a",
+        "witness": "zlib-staged-shared.py"
+      },
+      "header_rebuild": {
+        "before_hex": "23646566696e65205a4c49425f56455253494f4e2022312e332e32220a",
+        "after_hex": "23646566696e65205a4c49425f56455253494f4e2022312e332e322d726d616b65220a",
+        "fresh_smoke_stdout_hex": "7a6c69623d312e332e320a726f756e64747269703d6f6b0a"
+      },
+      "smoke_stdout_hex": "7a6c69623d312e332e322d726d616b650a726f756e64747269703d6f6b0a"
     }
   ],
   "phases": [

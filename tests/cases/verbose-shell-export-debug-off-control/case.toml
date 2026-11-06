@@ -1,0 +1,12 @@
+id = "verbose-shell-export-debug-off-control"
+requirement = "functions.shell"
+candidate = "required"
+description = "Check the VERBOSE notice for a recursive shell export fallback."
+provenance = "Original independently asserted GNU Make 4.4.1 black-box fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "result=[child=[]]\n"
+stderr = ""

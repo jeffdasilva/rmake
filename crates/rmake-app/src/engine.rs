@@ -579,6 +579,10 @@ impl OutputReceiver for RuntimeOutput<'_> {
     fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
         crate::debug::reader(self.controller, event);
     }
+
+    fn recursive_shell_export(&mut self, definition: &Location, name: &[u8]) {
+        crate::debug::recursive_shell_export(self.controller, definition, name);
+    }
 }
 
 struct SerialWait {
@@ -2519,6 +2523,9 @@ impl Engine {
             if let Some(server) = &self.jobserver {
                 crate::debug::Jobs::controller(self.output.debug_mask(), server.diagnostic_auth());
             }
+            if let Some(authentication) = self.options.sync_mutex.as_deref() {
+                crate::debug::output_sync_mutex(self.output.debug_mask(), authentication);
+            }
 
             if let Err(error) = self.database.variables.update_mflags(
                 &self.options.recursive_flags(),
@@ -2684,11 +2691,44 @@ impl Engine {
             if self.interrupt.is_some() {
                 return 2;
             }
+            crate::debug::emit(&self.output, crate::debug::Event::UpdatingMakefiles);
+            // The published stdin input survives restarts without a remake goal.
+            let stdin_name = self.options.temp_stdin_file.map(|index| {
+                rmake_core::filenames::without_dot_prefix(
+                    self.options.files[index].as_os_str().as_bytes(),
+                )
+            });
+            // Classify all read makefiles before entering the remake debug mask.
+            let read_files: Vec<_> = self
+                .database
+                .makefiles
+                .iter()
+                .filter(|makefile| stdin_name != Some(makefile.name.as_slice()))
+                .map(|makefile| {
+                    let skip = self.special(b".PHONY", &makefile.name, false)
+                        || self
+                            .database
+                            .rules
+                            .get(&makefile.name)
+                            .and_then(|rule| rule.double_colon.as_ref())
+                            .is_some_and(|branches| {
+                                branches.iter().any(|rule| {
+                                    rule.dependencies.is_empty() && rule.recipes.is_some()
+                                })
+                            });
+                    if skip {
+                        crate::debug::emit(
+                            &self.output,
+                            crate::debug::Event::SkippingMakefileLoop(&makefile.name),
+                        );
+                    }
+                    (makefile.clone(), skip)
+                })
+                .collect();
             if let Err(error) = self.publish_phase_makeflags(true) {
                 self.expansion_error(None, &error);
                 return 2;
             }
-            crate::debug::emit(&self.output, crate::debug::Event::UpdatingMakefiles);
             // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
             // recipes. A fresh database is constructed only when a file changed.
             let modes = (
@@ -2714,35 +2754,14 @@ impl Engine {
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut seen = HashSet::new();
-            let read_files = self.database.makefiles.clone();
             let required_names: HashSet<_> = read_files
                 .iter()
-                .filter(|file| !file.optional)
-                .map(|file| file.name.as_slice())
+                .filter(|(file, _)| !file.optional)
+                .map(|(file, _)| file.name.as_slice())
                 .collect();
-            for makefile in &read_files {
-                // The published stdin source is already a completed input,
-                // retained across restarts. It is never a makefile remake goal.
-                if self.options.temp_stdin_file.is_some_and(|index| {
-                    rmake_core::filenames::without_dot_prefix(
-                        self.options.files[index].as_os_str().as_bytes(),
-                    ) == makefile.name
-                }) {
-                    continue;
-                }
+            for (makefile, skip) in &read_files {
                 self.database_remake_started.insert(makefile.name.clone());
-                if self.special(b".PHONY", &makefile.name, false)
-                    || self
-                        .database
-                        .rules
-                        .get(&makefile.name)
-                        .and_then(|rule| rule.double_colon.as_ref())
-                        .is_some_and(|branches| {
-                            branches
-                                .iter()
-                                .any(|rule| rule.dependencies.is_empty() && rule.recipes.is_some())
-                        })
-                {
+                if *skip {
                     if !makefile.optional
                         && let Some(detail) = &makefile.read_error
                     {
@@ -2798,6 +2817,12 @@ impl Engine {
                     && (!missing || (optional && !may_replay))
                 {
                     if before.is_some() {
+                        // Preserve the visible no-rule visit without building a graph node.
+                        use crate::debug::{Event, emit};
+
+                        emit(&self.output, Event::Considering(name, 1));
+                        emit(&self.output, Event::Finished(name, 1));
+                        self.debug_no_remake(name, 1);
                         self.database_secondary.insert(makefile.name.clone());
                     }
                     self.database_makefiles.insert(
@@ -2886,7 +2911,7 @@ impl Engine {
             }
             // Build each name once, then report at every required read locus.
             if !failed_remakes.is_empty() {
-                for makefile in read_files.iter().filter(|file| !file.optional) {
+                for (makefile, _) in read_files.iter().filter(|(file, _)| !file.optional) {
                     let Some((before, refresh_timestamp)) =
                         failed_remakes.get_mut(makefile.name.as_slice())
                     else {
@@ -7648,7 +7673,12 @@ impl Engine {
                     .filter(|name| automatic_drops.is_none_or(|set| !set.contains(*name)))
                     .map(Vec::from)
                     .collect();
-                self.resolved_names.remove(target);
+                if let Some(discarded) = self.resolved_names.remove(target) {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::IgnoringVpath(&discarded),
+                    );
+                }
                 let normal: Vec<_> = normal.iter().map(|name| self.resolved_name(name)).collect();
                 let order: Vec<_> = order.iter().map(|name| self.resolved_name(name)).collect();
                 let repeated: Vec<_> = repeated
