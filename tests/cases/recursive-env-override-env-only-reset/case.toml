@@ -1,0 +1,15 @@
+id = "recursive-env-override-env-only-reset"
+requirement = "recursion.environment"
+candidate = "required"
+description = "Recursive command-variable origins survive environment override when GNU propagates them."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "-e", "all"]
+timeout_seconds = 8
+
+[environment]
+V = "initial"
+
+[expected]
+exit_code = 0
+stdout = "parent environment:[initial]\nchild environment:[initial]\n"
+stderr = ""
