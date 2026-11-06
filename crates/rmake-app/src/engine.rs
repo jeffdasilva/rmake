@@ -3210,7 +3210,7 @@ impl Engine {
                 self.wait_target(&goal);
             }
             let outcome = self.build(&goal, None, 0);
-            self.debug_grouped_goal_prunes(&goal, outcome);
+            self.debug_double_colon_goal_prunes(&goal, outcome);
             let outcome = if !self.parallel_graph() && !self.pending(&goal) {
                 self.observe_updated(&goal, outcome)
             } else {
@@ -3249,7 +3249,7 @@ impl Engine {
                     let outcome =
                         self.build_recording_initial_time(&goal.name, None, 0, None, visit);
                     if self.debug_pass != last_goal_pass {
-                        self.debug_grouped_goal_prunes(&goal.name, outcome);
+                        self.debug_double_colon_goal_prunes(&goal.name, outcome);
                     }
                     first_goal = false;
                     if !goal.already_done && !goal.awaiting_recipe {
@@ -3380,7 +3380,7 @@ impl Engine {
             })
     }
 
-    fn debug_grouped_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
+    fn debug_double_colon_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
         use crate::debug::{Event, Mask, emit};
 
         if !self.output.debug_mask().has(Mask::VERBOSE)
@@ -3392,7 +3392,11 @@ impl Engine {
             return;
         }
         let name = self.aliases.resolve(goal);
-        if let Some(branches) = self.grouped_double_colon_branches(name)
+        if let Some(branches) = self
+            .database
+            .rules
+            .get(name)
+            .and_then(|rule| rule.double_colon.as_ref())
             && branches.len() > 1
         {
             // Each extra goal entry returns to the same considered chain head.
@@ -7293,13 +7297,13 @@ impl Engine {
                     self.pending_double_colon.insert(target.to_vec(), state);
                     return outcome;
                 }
-                // The target visit announced the first declaration.
-                if ordinal != 0 && !self.remaking {
-                    crate::debug::emit(
-                        &self.output,
-                        crate::debug::Event::Considering(target, state.depth),
-                    );
-                }
+            }
+            // The target visit announced the first declaration.
+            if ordinal != 0 && !self.remaking {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Considering(target, state.depth),
+                );
             }
             let comparison = self.comparison_time(target, state.before);
             self.build_rule(
