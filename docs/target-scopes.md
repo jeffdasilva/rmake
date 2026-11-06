@@ -61,6 +61,15 @@ and a shell completion updates the active file's `.SHELLSTATUS`. Reading an
 unselected file still uses its declarations and the reader's global context.
 Thirteen original fixtures cover the active and unselected cases.
 
+Eager declarations can also revisit a previously selected ordinary file. They
+read its retained automatic and pattern bindings and refresh its declaration and
+global layers. A visited target without a recipe reads the existing parent chain
+without activating new pattern variables. A shell completion updates the
+destination's retained locals. Twelve fixtures cover these cases and an
+unvisited control. Shared targets subsequently encountered through another
+parent and reentrant reads back into a suspended caller have separate lifetime
+requirements.
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.

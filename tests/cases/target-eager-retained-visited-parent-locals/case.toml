@@ -1,0 +1,12 @@
+id = "target-eager-retained-visited-parent-locals"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "Read a completed parent's live file locals when entering a retained no-recipe target."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "parent=[9|left]\ndest=[9|left]\n"
+stderr = ""

@@ -546,6 +546,30 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
     );
 }
 
+struct TargetReads<'a> {
+    parents: &'a HashMap<Vec<u8>, Option<Vec<u8>>>,
+    base: &'a HashMap<Vec<u8>, VariableStore>,
+    recipes: &'a mut HashMap<Vec<u8>, VariableStore>,
+}
+
+impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
+    fn variables(&self, target: &[u8]) -> Option<&VariableStore> {
+        self.recipes.get(target).or_else(|| self.base.get(target))
+    }
+
+    fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>> {
+        self.parents.get(target).map(Option::as_deref)
+    }
+
+    fn retain_locals(&mut self, target: &[u8], variables: VariableStore) {
+        if let Some(recipe) = self.recipes.get_mut(target) {
+            *recipe = variables;
+        } else {
+            self.recipes.insert(target.to_vec(), variables);
+        }
+    }
+}
+
 /// All reader/expansion contexts observe the same live diagnostic policy.
 struct RuntimeOutput<'a> {
     controller: &'a crate::output::Controller,
@@ -748,6 +772,14 @@ struct RuleState {
 impl RuleState {
     fn visited_prerequisites(&self) -> bool {
         self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
+    }
+
+    fn visited_explicit_group_prerequisites(&self) -> bool {
+        !self.serial_phase
+            && self.next == self.rule.dependencies.len()
+            && self.group.as_ref().is_some_and(|group| {
+                !group.run.implicit && group.run.branch.is_none() && group.peer_targets.is_empty()
+            })
     }
 
     fn waiting_at_barrier(&self) -> bool {
@@ -1550,6 +1582,11 @@ impl Engine {
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
+        let mut target_reads = TargetReads {
+            parents: &self.scope_parents,
+            base: &self.target_contexts,
+            recipes: &mut self.database_contexts,
+        };
         let result = self.database.expand_in(
             variables,
             bytes,
@@ -1562,6 +1599,7 @@ impl Engine {
                 ),
             )
             .with_makeflags(&mut self.flag_state.receiver())
+            .with_target_reads(&mut target_reads)
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
                 let result = crate::shell::run(
@@ -7346,7 +7384,9 @@ impl Engine {
         // a .WAIT barrier or finishing the dependency traversal.
         let observes_reap = !self.remaking
             && state.waited_for_prerequisites
-            && (state.visited_prerequisites() || state.waiting_at_barrier());
+            && (state.visited_prerequisites()
+                || state.visited_explicit_group_prerequisites()
+                || state.waiting_at_barrier());
         let post_reap = observes_reap
             && state.last_reap_pass != self.debug_reap_pass
             && self.graph_abort.is_none()

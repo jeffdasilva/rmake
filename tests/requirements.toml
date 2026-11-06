@@ -1942,3 +1942,13 @@ candidate_required = 13
 fixture_count = 13
 reference = "docs/target-scopes.md"
 cases = ["target-eager-active-active-pattern", "target-eager-active-automatic-shadow", "target-eager-active-before-traversal-control", "target-eager-active-computed-name", "target-eager-active-current-inherited", "target-eager-active-nested-publication", "target-eager-active-private-parent", "target-eager-active-recipe-lexical-excluded", "target-eager-active-retained-own", "target-eager-active-shell-assignment", "target-eager-active-shell-status", "target-eager-active-simple-append", "target-eager-active-unrelated-target-control"]
+
+[[requirements]]
+id = "scope.target-eager-retained"
+title = "Eager declarations in a previously visited target scope"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+candidate_required = 12
+fixture_count = 12
+reference = "docs/target-scopes.md"
+cases = ["target-eager-retained-caller-lexical-control", "target-eager-retained-computed-destination-name", "target-eager-retained-inherited-automatic", "target-eager-retained-live-declaration-and-global", "target-eager-retained-multiple-destinations", "target-eager-retained-nested-destination-publication", "target-eager-retained-private-ancestors", "target-eager-retained-retained-pattern", "target-eager-retained-shell-effect-ownership", "target-eager-retained-unvisited-destination-control", "target-eager-retained-visited-no-recipe-control", "target-eager-retained-visited-parent-locals"]

@@ -1,0 +1,12 @@
+id = "target-eager-retained-live-declaration-and-global"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "Distinguish a retained target file context from the running recipe context."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "destination=[live-global|live-parent|own-destination|dest]\n"
+stderr = ""

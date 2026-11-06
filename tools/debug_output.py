@@ -85,7 +85,8 @@ def models() -> list[Model]:
               + _model_file('child.toml') + _model_file('vpath.toml')
               + _model_file('dispatch.toml') + _model_file('revisit.toml')
               + _model_file('prerequisite-wait.toml') + _model_file('post-reap.toml')
-              + _model_file('wait-reap.toml') + stem_limit_models())
+              + _model_file('wait-reap.toml') + _model_file('grouped-reap.toml')
+              + stem_limit_models())
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
     return result
