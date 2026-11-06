@@ -964,6 +964,13 @@ struct ImplicitSearch {
 // Keep the search identity separate from its optional filesystem timestamp.
 type PathObservation = Option<(Option<Vec<u8>>, Option<SystemTime>)>;
 
+#[derive(Clone, Copy)]
+enum ClockSkew {
+    Unchecked,
+    Through(SystemTime),
+    Detected,
+}
+
 struct FailedOwner {
     target: Vec<u8>,
     location: Location,
@@ -973,6 +980,9 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
+    clock_skew: Cell<ClockSkew>,
+    delay_clock_checks: bool,
+    deferred_clock_checks: RefCell<Vec<(Vec<u8>, SystemTime)>>,
     assumptions: Option<Box<assumptions::Files>>,
     initial_plan: Option<Box<initial::Plan>>,
     startup_directory: Option<std::path::PathBuf>,
@@ -1545,6 +1555,9 @@ impl Engine {
         let mut engine = Self {
             initial_plan,
             assumptions,
+            clock_skew: Cell::new(ClockSkew::Unchecked),
+            delay_clock_checks: false,
+            deferred_clock_checks: RefCell::new(Vec::new()),
             startup_directory,
             output,
             reader_output,
@@ -1957,6 +1970,60 @@ impl Engine {
     fn stderr(&self, body: &[u8]) {
         self.output
             .write_parts(true, &[&self.program, b": ", body, b"\n"]);
+    }
+
+    fn clock_candidate(&self, time: Option<SystemTime>) -> Option<SystemTime> {
+        let time = time?;
+        match self.clock_skew.get() {
+            ClockSkew::Detected => None,
+            ClockSkew::Through(limit) if time <= limit => None,
+            _ => Some(time),
+        }
+    }
+
+    fn check_clock_skew(&self, name: &[u8], time: Option<SystemTime>) {
+        let Some(time) = self.clock_candidate(time) else {
+            return;
+        };
+        if self
+            .assumptions
+            .as_ref()
+            .is_some_and(|files| files.is_new_time(Some(time)) || files.is_old_time(Some(time)))
+        {
+            return;
+        }
+        if self.delay_clock_checks {
+            self.deferred_clock_checks
+                .borrow_mut()
+                .push((name.to_vec(), time));
+            return;
+        }
+        let Some((now, resolution)) = rmake_linux::clock::realtime() else {
+            return;
+        };
+        let limit = now
+            .checked_add(resolution - Duration::from_nanos(1))
+            .unwrap_or(now);
+        self.clock_skew.set(ClockSkew::Through(limit));
+        if time > limit
+            && let Some(seconds) = rmake_linux::clock::future_offset(time, now)
+        {
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::FutureFileTime {
+                    name,
+                    seconds: &seconds,
+                },
+            ));
+            self.clock_skew.set(ClockSkew::Detected);
+        }
+    }
+
+    fn check_considered_goal_clock(&mut self) {
+        if !self.deferred_clock_checks.get_mut().is_empty() {
+            for (name, time) in std::mem::take(self.deferred_clock_checks.get_mut()) {
+                self.check_clock_skew(&name, Some(time));
+            }
+        }
     }
 
     fn warn_circular_dependency(&self, target: &[u8], prerequisite: &[u8]) {
@@ -3247,6 +3314,7 @@ impl Engine {
             self.shuffle.start(&mut goals, &self.database, disabled);
         }
         let mut failed = false;
+        let mut fatal = false;
         let mut requested = Vec::new();
         for goal in goals {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -3274,6 +3342,7 @@ impl Engine {
                 failed |= outcome.failed;
                 self.report_goal(&goal, already_done, outcome);
             }
+            fatal |= outcome.fatal;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
                 break;
             }
@@ -3331,18 +3400,32 @@ impl Engine {
                 .unwrap_or(goal.initial);
             let outcome = self.observe_updated(&goal.name, outcome);
             failed |= outcome.failed;
+            fatal |= outcome.fatal;
             self.report_goal(&goal.name, goal.already_done, outcome);
         }
         self.wait_all_jobs();
+        failed |= self.parallel_failed;
+        let jobserver_error = self.jobserver.as_ref().and_then(Jobserver::take_error);
+        if matches!(self.clock_skew.get(), ClockSkew::Detected)
+            && self.interrupt.is_none()
+            && rmake_linux::signals::pending().is_none()
+            && jobserver_error.is_none()
+            && !fatal
+            && self.graph_abort != Some(Status::Fatal)
+            && (!failed || self.options.keep_going)
+        {
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::ClockSkew,
+            ));
+        }
         self.remove_intermediates();
-        if let Some(error) = self.jobserver.as_ref().and_then(Jobserver::take_error) {
+        if let Some(error) = jobserver_error {
             self.fatal(
                 None,
                 format!("jobserver token return: {}", os_error(&error)).as_bytes(),
             );
             return 2;
         }
-        failed |= self.parallel_failed;
         if failed {
             2
         } else if self.would_build {
@@ -3763,7 +3846,14 @@ impl Engine {
 
     fn intermediate_time(&mut self, target: &[u8]) -> Result<Option<SystemTime>, ()> {
         if rmake_core::filenames::archive_parts(target).is_none() {
-            return Ok(self.modified(target));
+            let time = self.modified(target);
+            if self.clock_candidate(time).is_some()
+                && !self.done.contains_key(target)
+                && !self.special(b".PHONY", target, false)
+            {
+                self.check_clock_skew(target, time);
+            }
+            return Ok(time);
         }
         if self.special(b".PHONY", target, false) {
             return Ok(None);
@@ -4720,7 +4810,7 @@ impl Engine {
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             let location = self
-                .archive_location(target)
+                .archive_location_for(target, false)
                 .map_err(|error| self.expansion_error(None, &error))?;
             if let Some(path) = &location.path
                 && self.has_file_record(archive)
@@ -4740,7 +4830,7 @@ impl Engine {
                 let name = [path.as_slice(), b"(", member, b")"].concat();
                 self.rename_search_record(target, &name)?;
                 let observation = self
-                    .archive_observation_at(target, &location)
+                    .archive_observation_at(target, &location, Some(&name))
                     .map_err(|error| self.expansion_error(None, &error))?;
                 if location.container_time.is_some() {
                     self.path_observations
@@ -4756,7 +4846,7 @@ impl Engine {
                 if self.other_file_record(&name, target) {
                     self.rename_search_record(target, &name)?;
                     let observation = self
-                        .archive_observation_at(target, &location)
+                        .archive_observation_at(target, &location, Some(&name))
                         .map_err(|error| self.expansion_error(None, &error))?;
                     if location.container_time.is_some() {
                         self.path_observations
@@ -4769,7 +4859,7 @@ impl Engine {
                 }
             }
             let observation = self
-                .archive_observation_at(target, &location)
+                .archive_observation_at(target, &location, Some(target))
                 .map_err(|error| self.expansion_error(None, &error))?;
             if location.container_time.is_some() {
                 self.path_observations.insert(target.to_vec(), observation);
@@ -4777,7 +4867,7 @@ impl Engine {
             return Ok(None);
         }
         let observation = match self
-            .find_vpath(target)
+            .find_vpath(target, true)
             .map_err(|error| self.expansion_error(None, &error))?
         {
             Some((Some(name), time)) => {
@@ -5297,10 +5387,6 @@ impl Engine {
         Ok(())
     }
 
-    fn archive_location(&mut self, target: &[u8]) -> Result<ArchiveLocation, ExpandError> {
-        self.archive_location_for(target, false)
-    }
-
     fn archive_location_for(
         &mut self,
         target: &[u8],
@@ -5337,6 +5423,19 @@ impl Engine {
         } else {
             local_time
         };
+        // The archive is a separate file observation even when the member
+        // has already finished. Its first physical timestamp may be here.
+        if self.clock_candidate(container_time).is_some()
+            && !self.done.contains_key(self.aliases.resolve(&container))
+        {
+            let name = path
+                .as_deref()
+                .filter(|path| {
+                    self.gpath_match(&container, path) || self.other_file_record(path, &container)
+                })
+                .unwrap_or(&container);
+            self.check_clock_skew(name, container_time);
+        }
         if let Some(path) = &path {
             let mut reads = self.archive_vpath_reads.borrow_mut();
             let reads = reads.get_or_insert_with(Default::default);
@@ -5359,6 +5458,7 @@ impl Engine {
         &self,
         target: &[u8],
         location: &ArchiveLocation,
+        clock_name: Option<&[u8]>,
     ) -> Result<PathObservation, ExpandError> {
         let (archive, member) =
             rmake_core::filenames::archive_parts(target).expect("archive reference");
@@ -5397,26 +5497,34 @@ impl Engine {
             .and_then(|date| {
                 SystemTime::UNIX_EPOCH.checked_add(std::time::Duration::from_secs(date))
             });
+        if let Some(name) = clock_name {
+            self.check_clock_skew(name, time);
+        }
         Ok(Some((resolved, time)))
     }
 
     fn archive_observation(
         &mut self,
         target: &[u8],
+        check_clock: bool,
     ) -> Result<(PathObservation, bool), ExpandError> {
-        let location = self.archive_location(target)?;
-        self.archive_observation_at(target, &location)
+        let location = self.archive_location_for(target, false)?;
+        self.archive_observation_at(target, &location, check_clock.then_some(target))
             .map(|observation| (observation, location.container_time.is_some()))
     }
 
-    fn find_vpath(&mut self, target: &[u8]) -> Result<PathObservation, ExpandError> {
+    fn find_vpath(
+        &mut self,
+        target: &[u8],
+        check_clock: bool,
+    ) -> Result<PathObservation, ExpandError> {
         self.database_unchecked_times.borrow_mut().remove(target);
         if let Some(time) = self.assumed_time(target) {
             return Ok(Some((None, Some(time))));
         }
         if rmake_core::filenames::archive_parts(target).is_some() {
             return self
-                .archive_observation(target)
+                .archive_observation(target, check_clock)
                 .map(|(observation, _)| observation);
         }
         if self
@@ -5430,17 +5538,48 @@ impl Engine {
         // Build timestamps use fresh metadata. Only implicit viability's
         // local-name test uses cached directory membership instead.
         if let Some(time) = self.modified(target) {
+            if check_clock {
+                self.check_clock_skew(target, Some(time));
+            }
             return Ok(Some((None, Some(time))));
         }
         if self.ignored_vpath.contains(target) {
             return Ok(None);
         }
-        let searched = self.searched_file(target)?;
-        if searched.is_some() || !target.starts_with(b"-l") || self.makefile_names.contains(target)
+        let mut searched = self.searched_file(target)?;
+        if searched.is_none() && target.starts_with(b"-l") && !self.makefile_names.contains(target)
         {
-            return Ok(searched);
+            searched = self.library_search(&target[2..])?;
         }
-        self.library_search(&target[2..])
+        if check_clock && let Some((Some(name), time)) = &searched {
+            self.check_search_clock(target, name, *time);
+        }
+        Ok(searched)
+    }
+
+    fn check_search_clock(&self, target: &[u8], name: &[u8], time: Option<SystemTime>) {
+        if self.clock_candidate(time).is_none() {
+            return;
+        }
+        let permanent = self.gpath_match(target, name);
+        if permanent {
+            // Ordinary GPATH matches can reuse a physical timestamp directly.
+            // A declared search record instead goes through the file-time lookup.
+            let record = rmake_core::filenames::without_dot_prefix(name);
+            if !self.database.file_records.contains(record)
+                || (self.record_is_target(target) && !self.record_is_target(record))
+            {
+                return;
+            }
+        }
+        let spelling = if permanent || self.other_file_record(name, target) {
+            name
+        } else {
+            target
+        };
+        if !self.done.contains_key(self.aliases.resolve(spelling)) {
+            self.check_clock_skew(spelling, time);
+        }
     }
 
     fn library_search(&mut self, library: &[u8]) -> Result<PathObservation, ExpandError> {
@@ -5645,7 +5784,7 @@ impl Engine {
             return outcome;
         }
         outcome.search_after_update = false;
-        match self.find_vpath(target) {
+        match self.find_vpath(target, false) {
             Ok(observation) => {
                 self.database_unchecked_times.borrow_mut().remove(target);
                 outcome.time = observation.as_ref().and_then(|(_, time)| *time);
@@ -6813,7 +6952,7 @@ impl Engine {
                 return true;
             }
         };
-        match self.archive_observation_at(target, &location) {
+        match self.archive_observation_at(target, &location, search.then_some(target)) {
             Ok(observation) => {
                 if search {
                     if location.container_time.is_some() {
@@ -6864,9 +7003,16 @@ impl Engine {
         visit: BuildVisit,
     ) -> Outcome {
         let known_alias = self.aliases.contains(target);
-        let renamed = match self.prepare_search_name(target) {
+        // Goal search preparation can observe a timestamp before the graph
+        // visit. Its warning belongs after that goal's consideration line.
+        let goal_clock = parent.is_none();
+        self.delay_clock_checks = goal_clock;
+        let prepared = self.prepare_search_name(target);
+        self.delay_clock_checks = false;
+        let renamed = match prepared {
             Ok(name) => name,
             Err(()) => {
+                self.check_considered_goal_clock();
                 return Outcome {
                     failed: true,
                     fatal: true,
@@ -6910,12 +7056,19 @@ impl Engine {
         }
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
         let previously_done = archive_target && self.done.contains_key(target);
-        let mut outcome = if archive_target
+        let archive_error = if archive_target
             && !previously_done
             && self.assumed_time(target).is_none()
             && !self.pending(target)
-            && self.archive_metadata_error(target, true)
         {
+            self.delay_clock_checks = goal_clock;
+            let error = self.archive_metadata_error(target, true);
+            self.delay_clock_checks = false;
+            error
+        } else {
+            false
+        };
+        let mut outcome = if archive_error {
             Outcome {
                 failed: true,
                 fatal: true,
@@ -6931,6 +7084,9 @@ impl Engine {
                 visit,
             )
         };
+        if goal_clock {
+            self.check_considered_goal_clock();
+        }
         if archive_target
             && !previously_done
             && !outcome.failed
@@ -7030,7 +7186,7 @@ impl Engine {
             if outcome.completion == CompletionTime::ArchiveUnknown
                 && rmake_core::filenames::archive_parts(target).is_some()
             {
-                match self.archive_observation(target) {
+                match self.archive_observation(target, false) {
                     Ok((observation, known)) => {
                         outcome.time = observation.as_ref().and_then(|(_, time)| *time);
                         outcome.completion = if known {
@@ -7087,7 +7243,10 @@ impl Engine {
             };
         }
         let debug_depth = depth + usize::from(self.remaking);
-        self.debug_consider(target, considering_name, debug_depth);
+        if parent.is_none() {
+            self.debug_consider(target, considering_name, debug_depth);
+            self.check_considered_goal_clock();
+        }
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
         self.scope_parents
@@ -7100,7 +7259,10 @@ impl Engine {
         let resolved = if phony && observed.is_none() && self.assumed_time(target).is_none() {
             None
         } else {
-            match observed.map(Ok).unwrap_or_else(|| self.find_vpath(target)) {
+            match observed
+                .map(Ok)
+                .unwrap_or_else(|| self.find_vpath(target, true))
+            {
                 Ok(observation) => observation,
                 Err(error) => {
                     self.expansion_error(None, &error);
@@ -7112,6 +7274,10 @@ impl Engine {
                 }
             }
         };
+        // The parent reads a prerequisite's mtime before considering it.
+        if parent.is_some() {
+            self.debug_consider(target, considering_name, debug_depth);
+        }
         let mut before = resolved.as_ref().and_then(|(_, time)| *time);
         if let Some(initial_time) = initial_time {
             *initial_time = Some(before);
@@ -7593,7 +7759,7 @@ impl Engine {
                         .get(peer.as_ref())
                         .cloned()
                         .map(Ok)
-                        .unwrap_or_else(|| self.find_vpath(peer))
+                        .unwrap_or_else(|| self.find_vpath(peer, true))
                     {
                         Ok(observation) => observation.and_then(|(_, time)| time),
                         Err(error) => {
