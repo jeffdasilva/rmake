@@ -27,7 +27,9 @@ def file_record(text):
 def execute(model, inputs, runtime, binaries, witness):
     fixture = inputs / model['id']
     fixture.mkdir()
-    (fixture / 'Makefile').write_text(model['makefile'])
+    makefile = fixture / 'Makefile'
+    makefile.write_text(model['makefile'])
+    os.utime(makefile, (1_600_000_000, 1_600_000_000))
     shutil.copyfile(FIXTURES / 'launch.py', fixture / 'launch.py')
     shutil.copy2(witness, fixture / 'witness')
     h.validate_fixture(fixture)
