@@ -21,7 +21,7 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes all seven profiles across five projects. `INTEGRATION_CASE` selects an
+executes all eight profiles across six projects. `INTEGRATION_CASE` selects an
 exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
@@ -86,7 +86,15 @@ The detached signature was verified against release signer fingerprint
 manifest pins the archive and its `COPYING` file. [Release announcement and signer](https://lists.gnu.org/archive/html/info-gnu/2025-03/msg00014.html)
 · [Official archive and signature](https://ftp.gnu.org/gnu/patch/) · [GNU release keyring](https://ftp.gnu.org/gnu/gnu-keyring.gpg)
 
-These seven Linux/GCC profiles are counted separately from ordinary curated
+The GNU Make source profile uses the same pinned archive as the GNU 4.4.1
+oracle, with its own serial build and dependency-tracking configuration. The
+original recursive `all` target builds `src/version.o` and `make`. The no-op
+preserves both timestamps. Changing one `PACKAGE_VERSION` definition in the
+disposable `src/config.h` rebuilds both outputs. The fresh and rebuilt
+executables report their expected versions and execute a small original
+Makefile read from standard input. The built executable is a smoke witness.
+
+These eight Linux/GCC profiles are counted separately from ordinary curated
 Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its

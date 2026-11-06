@@ -66,12 +66,14 @@ fn searched_name(directory: &[u8], target: &[u8]) -> Vec<u8> {
     let (prefix, basename) = slash.map_or((b"".as_slice(), target), |index| {
         (&target[..index], &target[index + 1..])
     });
-    let mut name = directory.to_vec();
+    let separator = prefix.last().or_else(|| directory.last()) != Some(&b'/');
+    let mut name = Vec::with_capacity(directory.len() + target.len() + usize::from(separator));
+    name.extend_from_slice(directory);
     if !prefix.is_empty() {
         name.push(b'/');
         name.extend_from_slice(prefix);
     }
-    if name.last() != Some(&b'/') {
+    if separator {
         name.push(b'/');
         name.extend_from_slice(basename);
     } else {

@@ -22,7 +22,12 @@ class IntegrationTests(unittest.TestCase):
         data = json.loads(i.MANIFEST.read_text())
         self.assertEqual(data['schema_version'], 1)
         self.assertEqual({p['id'] for p in data['projects']},
-                         {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14', 'patch-2.8'})
+                         {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14', 'patch-2.8',
+                          'gnu-make-4.4.1'})
+        make = next(p for p in data['projects'] if p['id'] == 'gnu-make-4.4.1')
+        archive = i.oracle.load_config()['archive']
+        self.assertEqual((make['source_url'], make['archive_sha256'], make['topdir']),
+                         (archive['url'], archive['sha256'], archive['root']))
         for project in data['projects']:
             self.assertRegex(project['archive_sha256'], r'^[0-9a-f]{64}$')
             self.assertRegex(project['license_sha256'], r'^[0-9a-f]{64}$')
