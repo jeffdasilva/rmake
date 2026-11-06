@@ -1,0 +1,12 @@
+id = "lexical-conditional-bare-list-control"
+requirement = "variables.export-bindings"
+candidate = "required"
+description = "Check that a suppressed conditional selects the nearest lexical binding."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "inside=[loop]/[loop]\noutside=[global]/[]\n"
+stderr = ""

@@ -2561,6 +2561,14 @@ impl Database {
         definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
+        if spec.kind == Assignment::Conditional
+            && self
+                .evaluation_bindings
+                .iter()
+                .any(|frame| frame.contains_key(spec.name))
+        {
+            return Ok(());
+        }
         let lookup_scope = if matches!(spec.kind, Assignment::Append | Assignment::Conditional) {
             self.evaluation_scope.as_mut().map(|scope| {
                 scope.refresh_globals(&self.variables);
@@ -4285,12 +4293,7 @@ impl Database {
                         },
                         context,
                     )?;
-                    if private {
-                        self.variables.set_private(&name, true);
-                    }
-                    if let Some(export) = export {
-                        self.set_assignment_export(name, kind, export);
-                    }
+                    self.apply_assignment_qualifiers(name, kind, private, export);
                 }
                 continue;
             }
@@ -4301,12 +4304,7 @@ impl Database {
                 self.finish_declaration(declaration, &location, context)?;
                 let kind = spec.kind;
                 let name = self.define(spec, origin, &location, &location, context)?;
-                if private {
-                    self.variables.set_private(&name, true);
-                }
-                if let Some(export) = export {
-                    self.set_assignment_export(name, kind, export);
-                }
+                self.apply_assignment_qualifiers(name, kind, private, export);
                 continue;
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
@@ -5188,10 +5186,33 @@ impl Database {
             .is_some_and(|scope| scope.set_scoped_export_policy(name, export))
     }
 
-    fn set_assignment_export(&mut self, name: Vec<u8>, kind: Assignment, export: bool) {
-        // A suppressed conditional returns the already visible binding.
-        // Other assignments store their value and modifiers in the global table.
-        if kind != Assignment::Conditional || !self.set_scoped_export(&name, export) {
+    fn apply_assignment_qualifiers(
+        &mut self,
+        name: Vec<u8>,
+        kind: Assignment,
+        private: bool,
+        export: Option<bool>,
+    ) {
+        if !private && export.is_none() {
+            return;
+        }
+        // A suppressed conditional can return the existing lexical binding.
+        // A normal definition applies its modifiers to the global binding.
+        if kind == Assignment::Conditional
+            && self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .any(|frame| frame.apply_assignment_qualifiers(&name, private, export))
+        {
+            return;
+        }
+        if private {
+            self.variables.set_private(&name, true);
+        }
+        if let Some(export) = export
+            && (kind != Assignment::Conditional || !self.set_scoped_export(&name, export))
+        {
             self.set_global_export(name, export);
         }
     }
