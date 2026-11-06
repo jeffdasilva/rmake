@@ -801,6 +801,7 @@ struct RuleState {
     #[allow(clippy::box_collection)]
     debug_changed_edges: Option<Box<HashSet<usize>>>,
     waited_for_prerequisites: bool,
+    replay_cached_after_recipe: bool,
     last_debug_pass: u64,
     stopped: bool,
     stale: bool,
@@ -858,6 +859,7 @@ enum BuildVisit {
     Ordinary,
     GoalPassStart,
     RevisitPrerequisite,
+    PrerequisiteAfterRecipe,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -6867,6 +6869,7 @@ impl Engine {
                 parent,
                 depth,
                 initial_time,
+                visit,
             )
         };
         if archive_target
@@ -6898,6 +6901,7 @@ impl Engine {
         parent: Option<ScopeParent<&[u8]>>,
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
+        visit: BuildVisit,
     ) -> Outcome {
         let mut traced_optional_failure = false;
         if !self.remaking && self.optional_remake_failures.remove(target).is_some() {
@@ -6944,10 +6948,14 @@ impl Engine {
                     debug_depth,
                     outcome.failed,
                 ) {
-                    crate::debug::emit(
-                        &self.output,
-                        crate::debug::Event::Already(target, debug_depth),
-                    );
+                    if visit == BuildVisit::PrerequisiteAfterRecipe {
+                        self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
+                    } else {
+                        crate::debug::emit(
+                            &self.output,
+                            crate::debug::Event::Already(target, debug_depth),
+                        );
+                    }
                 }
             }
             if outcome.completion == CompletionTime::ArchiveUnknown
@@ -7141,7 +7149,7 @@ impl Engine {
             }
             return outcome;
         }
-        self.build_rule(target, depth, before, comparison, phony, rule, None)
+        self.build_rule(target, depth, before, comparison, phony, rule, None, false)
     }
 
     fn remember_retained_scope_parent(&mut self, target: &[u8], parent: ScopeParent<&[u8]>) {
@@ -7207,6 +7215,7 @@ impl Engine {
             .remove(target)
             .expect("pending double-colon continuation");
         state.last_epoch = Some(self.graph_epoch);
+        let mut replay_cached_after_recipe = false;
         loop {
             if let Some(ordinal) = state.active {
                 if self.pending_rules.contains_key(target) {
@@ -7238,6 +7247,7 @@ impl Engine {
                 {
                     use crate::debug::{Event, emit};
 
+                    replay_cached_after_recipe = true;
                     self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
                     emit(&self.output, Event::Considering(target, state.depth));
                     emit(
@@ -7351,6 +7361,7 @@ impl Engine {
                 state.phony,
                 branch,
                 Some(ordinal),
+                replay_cached_after_recipe,
             );
             state.active = Some(ordinal);
         }
@@ -7455,6 +7466,7 @@ impl Engine {
         phony: bool,
         mut rule: Rule,
         branch: Option<usize>,
+        replay_cached_after_recipe: bool,
     ) -> Outcome {
         let double_colon = branch.is_some();
         let mut members = Vec::new();
@@ -7623,6 +7635,7 @@ impl Engine {
             intermediate_stale: None,
             debug_changed_edges: None,
             waited_for_prerequisites: false,
+            replay_cached_after_recipe,
             last_debug_pass: self.debug_pass,
             stopped: false,
             stale,
@@ -7682,6 +7695,7 @@ impl Engine {
             && state.last_debug_pass != self.debug_pass
             && self.graph_abort.is_none()
             && self.shutdown.get() == Shutdown::Running;
+        state.replay_cached_after_recipe &= state.last_debug_pass == self.debug_pass;
         state.last_debug_pass = self.debug_pass;
         if replay_debug {
             if let Some(ordinal) = state.branch {
@@ -8015,7 +8029,9 @@ impl Engine {
                 .is_some_and(|child| child.completion == CompletionTime::ArchiveUnknown)
                 && rmake_core::filenames::archive_parts(dependency).is_some();
             let child = if first || self.graph_pending(dependency) || unknown_archive {
-                let build_visit = if !first
+                let build_visit = if first && state.replay_cached_after_recipe {
+                    BuildVisit::PrerequisiteAfterRecipe
+                } else if !first
                     && !unknown_archive
                     && state.branch.is_none()
                     && state.visited_prerequisites()
