@@ -110,7 +110,9 @@ def models() -> list[Model]:
               + _model_file('wait-reap.toml') + _model_file('grouped-reap.toml')
               + _model_file('implicit-group-reap.toml') + _model_file('double-group-reap.toml')
               + _model_file('double-later-group.toml') + _model_file('double-goal-prune.toml')
-              + _model_file('double-cached-replay.toml')
+              + _model_file('double-cached-replay.toml') + _model_file('initial-missing.toml')
+              + _model_file('ordinary-double.toml') + _model_file('ordinary-cached.toml')
+              + _model_file('mixed-active-group.toml') + _model_file('parallel-stop.toml')
               + _model_file('notparallel-reap.toml') + _model_file('file-write-pass.toml')
               + _model_file('later-file-write.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):

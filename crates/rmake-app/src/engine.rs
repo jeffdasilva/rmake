@@ -3210,7 +3210,7 @@ impl Engine {
                 self.wait_target(&goal);
             }
             let outcome = self.build(&goal, None, 0);
-            self.debug_grouped_goal_prunes(&goal, outcome);
+            self.debug_double_colon_goal_prunes(&goal, outcome);
             let outcome = if !self.parallel_graph() && !self.pending(&goal) {
                 self.observe_updated(&goal, outcome)
             } else {
@@ -3249,7 +3249,7 @@ impl Engine {
                     let outcome =
                         self.build_recording_initial_time(&goal.name, None, 0, None, visit);
                     if self.debug_pass != last_goal_pass {
-                        self.debug_grouped_goal_prunes(&goal.name, outcome);
+                        self.debug_double_colon_goal_prunes(&goal.name, outcome);
                     }
                     first_goal = false;
                     if !goal.already_done && !goal.awaiting_recipe {
@@ -3367,20 +3367,7 @@ impl Engine {
         );
     }
 
-    fn grouped_double_colon_branches(&self, target: &[u8]) -> Option<&[Rule]> {
-        self.database
-            .rules
-            .get(target)?
-            .double_colon
-            .as_deref()
-            .filter(|branches| {
-                branches
-                    .iter()
-                    .all(|rule| rule.grouped_double_id().is_some())
-            })
-    }
-
-    fn debug_grouped_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
+    fn debug_double_colon_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
         use crate::debug::{Event, Mask, emit};
 
         if !self.output.debug_mask().has(Mask::VERBOSE)
@@ -3392,7 +3379,11 @@ impl Engine {
             return;
         }
         let name = self.aliases.resolve(goal);
-        if let Some(branches) = self.grouped_double_colon_branches(name)
+        if let Some(branches) = self
+            .database
+            .rules
+            .get(name)
+            .and_then(|rule| rule.double_colon.as_ref())
             && branches.len() > 1
         {
             // Each extra goal entry returns to the same considered chain head.
@@ -7081,7 +7072,8 @@ impl Engine {
             if !self.optional_remake {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
-            } else if depth == 0 {
+            }
+            if (self.optional_remake && depth == 0) || (!self.remaking && self.options.keep_going) {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
@@ -7292,13 +7284,13 @@ impl Engine {
                     self.pending_double_colon.insert(target.to_vec(), state);
                     return outcome;
                 }
-                // The target visit announced the first declaration.
-                if ordinal != 0 && !self.remaking {
-                    crate::debug::emit(
-                        &self.output,
-                        crate::debug::Event::Considering(target, state.depth),
-                    );
-                }
+            }
+            // The target visit announced the first declaration.
+            if ordinal != 0 && !self.remaking {
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Considering(target, state.depth),
+                );
             }
             let comparison = self.comparison_time(target, state.before);
             self.build_rule(
@@ -7633,9 +7625,7 @@ impl Engine {
         let can_replay_debug = !self.remaking
             && state.waited_for_prerequisites
             && (state.visited_prerequisites()
-                || (state.visited_group_prerequisites()
-                    && (state.rule.grouped_double_id().is_none()
-                        || self.grouped_double_colon_branches(target).is_some()))
+                || state.visited_group_prerequisites()
                 || state.waiting_at_barrier()
                 || state.waiting_at_serial_prerequisite());
         let replay_debug = can_replay_debug
@@ -7644,9 +7634,7 @@ impl Engine {
             && self.shutdown.get() == Shutdown::Running;
         state.last_debug_pass = self.debug_pass;
         if replay_debug {
-            if state.rule.grouped_double_id().is_some()
-                && let Some(ordinal) = state.branch
-            {
+            if let Some(ordinal) = state.branch {
                 self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
             }
             self.debug_consider(target, target, state.depth);
@@ -8085,7 +8073,6 @@ impl Engine {
             intermediate_stale,
             debug_changed_edges,
             deferred_intermediates,
-            waited_for_prerequisites,
             depth,
             ..
         } = state;
@@ -8192,13 +8179,12 @@ impl Engine {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
-        // A stopped graph still settles its suspended frames internally.
-        let aborted_wait = waited_for_prerequisites && self.graph_abort.is_some();
+        // A stopped graph still settles its blocked frames internally.
         let stopping_dependency = outcome.blocked
             && (outcome.fatal
                 || (!self.options.keep_going
                     && !self.optional_remake
-                    && (aborted_wait || !self.parallel_graph())));
+                    && (self.graph_abort.is_some() || !self.parallel_graph())));
         if !stopping_dependency {
             crate::debug::emit(
                 &self.output,
