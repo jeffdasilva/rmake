@@ -2937,6 +2937,19 @@ impl Engine {
             if !debug_before_remake.has(crate::debug::Mask::MAKEFILES) {
                 self.output.set_debug_mask(crate::debug::Mask::NONE);
             }
+            // A failed reader open installs a missing time for that file.
+            // A later successful read of the same file replaces that state.
+            let mut failed_opens = HashSet::new();
+            for (file, _) in &read_files {
+                if file.missing && self.assumed_time(&file.name).is_none() {
+                    failed_opens.insert(file.name.as_slice());
+                } else {
+                    failed_opens.remove(file.name.as_slice());
+                }
+            }
+            for &name in &failed_opens {
+                self.path_observations.insert(name.to_vec(), None);
+            }
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
@@ -2988,11 +3001,14 @@ impl Engine {
                 let may_replay = optional && required_names.contains(name);
                 // Keep the existing snapshot for recorded rules. A makefile
                 // without a rule uses the timestamp of its first graph visit.
-                let mut before = self
-                    .database
-                    .rules
-                    .contains_key(name)
-                    .then(|| self.modified(name));
+                let mut before = if failed_opens.contains(name) {
+                    Some(None)
+                } else {
+                    self.database
+                        .rules
+                        .contains_key(name)
+                        .then(|| self.modified(name))
+                };
                 let pending_open_error = || {
                     makefile
                         .read_error
