@@ -3367,19 +3367,6 @@ impl Engine {
         );
     }
 
-    fn grouped_double_colon_branches(&self, target: &[u8]) -> Option<&[Rule]> {
-        self.database
-            .rules
-            .get(target)?
-            .double_colon
-            .as_deref()
-            .filter(|branches| {
-                branches
-                    .iter()
-                    .all(|rule| rule.grouped_double_id().is_some())
-            })
-    }
-
     fn debug_double_colon_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
         use crate::debug::{Event, Mask, emit};
 
@@ -7638,9 +7625,7 @@ impl Engine {
         let can_replay_debug = !self.remaking
             && state.waited_for_prerequisites
             && (state.visited_prerequisites()
-                || (state.visited_group_prerequisites()
-                    && (state.rule.grouped_double_id().is_none()
-                        || self.grouped_double_colon_branches(target).is_some()))
+                || state.visited_group_prerequisites()
                 || state.waiting_at_barrier()
                 || state.waiting_at_serial_prerequisite());
         let replay_debug = can_replay_debug
