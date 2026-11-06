@@ -4551,13 +4551,9 @@ fn invalid(function: &[u8], message: &'static str) -> ExpandError {
 }
 
 fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
-    if matches!(function, b"intcmp" | b"file" | b"word" | b"wordlist") {
-        ExpandError::InsufficientArguments {
-            function: function.to_vec(),
-            count,
-        }
-    } else {
-        invalid(function, "too few arguments")
+    ExpandError::InsufficientArguments {
+        function: function.to_vec(),
+        count,
     }
 }
 

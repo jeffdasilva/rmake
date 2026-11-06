@@ -1,0 +1,12 @@
+id = "builtin-argument-count-foreach-2"
+requirement = "functions.diagnostics"
+candidate = "required"
+description = "Builtin arity errors report the number of arguments before evaluating them."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:1: *** insufficient number of arguments (2) to function 'foreach'.  Stop.\n"
