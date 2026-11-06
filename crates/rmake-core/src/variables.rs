@@ -1456,18 +1456,28 @@ impl VariableStore {
     /// Read an eager declaration in the already active file context while
     /// keeping the explicit binding table separate from automatic locals.
     pub(crate) fn active_target_read(&self, target: &[u8], declaration: &Self) -> Option<Self> {
-        let layer = self.current_file_declarations(Some(target))?;
+        self.current_file_declarations(Some(target))?;
         let mut read = self.clone();
-        if !Arc::ptr_eq(&layer.variables, &declaration.variables) {
-            read.layers.make_mut()[0].variables = Arc::clone(&declaration.variables);
-        }
+        read.replace_target_read_declarations(declaration);
         Some(read)
     }
 
-    pub(crate) fn finish_active_target_read(&mut self, read: Self, caller: &mut Self) {
+    pub(crate) fn replace_target_read_declarations(&mut self, declaration: &Self) {
+        if !Arc::ptr_eq(&self.layers[0].variables, &declaration.variables) {
+            self.layers.make_mut()[0].variables = Arc::clone(&declaration.variables);
+        }
+    }
+
+    pub(crate) fn retain_target_read_declarations(&mut self, read: &Self) {
         self.variables = Arc::clone(&read.layers[0].variables);
-        // A shell effect in this reader updates the same active file locals.
-        caller.variables = read.variables;
+    }
+
+    pub(crate) fn same_file_locals(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.variables, &other.variables)
+    }
+
+    pub(crate) fn retain_file_locals(&mut self, read: Self) {
+        self.variables = read.variables;
     }
 
     pub(crate) fn file_scope_history(

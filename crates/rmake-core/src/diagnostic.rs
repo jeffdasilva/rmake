@@ -391,6 +391,13 @@ pub trait EvaluationStack {
     ) -> Option<Result<(), crate::parser::ParseError>>;
 }
 
+/// Runtime file contexts are available to eager declarations during eval.
+pub trait TargetReadReceiver {
+    fn variables(&self, target: &[u8]) -> Option<&crate::variables::VariableStore>;
+    fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>>;
+    fn retain_locals(&mut self, target: &[u8], variables: crate::variables::VariableStore);
+}
+
 /// Explicit caller context and output receiver. This is never stored in or
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
@@ -401,6 +408,7 @@ pub struct ExpansionContext<'a> {
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
     makeflags: Option<&'a mut dyn MakeflagsReceiver>,
+    pub(crate) target_reads: Option<&'a mut dyn TargetReadReceiver>,
     pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
     native_runtime: Option<std::rc::Rc<dyn crate::native::NativeRuntime>>,
     makeflags_depth: usize,
@@ -426,6 +434,7 @@ impl<'a> ExpansionContext<'a> {
             includes: None,
             shell: None,
             makeflags: None,
+            target_reads: None,
             evaluation_stack: None,
             native_runtime: None,
             makeflags_depth: 0,
@@ -445,6 +454,7 @@ impl<'a> ExpansionContext<'a> {
             includes: None,
             shell: None,
             makeflags: None,
+            target_reads: None,
             evaluation_stack: None,
             native_runtime: None,
             makeflags_depth: 0,
@@ -481,6 +491,11 @@ impl<'a> ExpansionContext<'a> {
 
     pub fn with_makeflags(mut self, receiver: &'a mut dyn MakeflagsReceiver) -> Self {
         self.makeflags = Some(receiver);
+        self
+    }
+
+    pub fn with_target_reads(mut self, receiver: &'a mut dyn TargetReadReceiver) -> Self {
+        self.target_reads = Some(receiver);
         self
     }
 
@@ -1182,6 +1197,10 @@ impl<'a> ExpansionContext<'a> {
                 None => None,
             },
             makeflags: match &mut self.makeflags {
+                Some(receiver) => Some(&mut **receiver),
+                None => None,
+            },
+            target_reads: match &mut self.target_reads {
                 Some(receiver) => Some(&mut **receiver),
                 None => None,
             },

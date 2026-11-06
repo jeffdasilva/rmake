@@ -2639,6 +2639,13 @@ impl Database {
                         .evaluation_scope
                         .as_ref()
                         .and_then(|active| active.file_scope_history(target))
+                        .or_else(|| {
+                            context
+                                .target_reads
+                                .as_deref()?
+                                .variables(target)?
+                                .file_scope_history(target)
+                        })
                     {
                         scope.set_file_history(history);
                     }
@@ -2777,13 +2784,47 @@ impl Database {
         }
     }
 
+    fn retained_target_read(
+        &self,
+        target: &[u8],
+        declaration: &VariableStore,
+        reads: &dyn crate::diagnostic::TargetReadReceiver,
+    ) -> Option<VariableStore> {
+        if let Some(variables) = reads.variables(target) {
+            return variables.active_target_read(target, declaration);
+        }
+
+        // A visited file can have a parent before any recipe or secondary
+        // expansion has needed its variable table. Reading a declaration
+        // does not activate any pattern scopes along that path.
+        let mut path = vec![target];
+        let mut parent = reads.parent(target)?;
+        let mut inherited = loop {
+            let Some(name) = parent else {
+                break self.variables.clone();
+            };
+            if let Some(variables) = reads.variables(name) {
+                break variables.clone();
+            }
+            if path.contains(&name) {
+                return None;
+            }
+            path.push(name);
+            parent = reads.parent(name).flatten();
+        };
+        for name in path.into_iter().rev() {
+            inherited = self.variables_for_target_prepared(name, &inherited, None);
+        }
+        inherited.active_target_read(target, declaration)
+    }
+
     fn expand_target_read(
         &mut self,
         target: &[u8],
         scope: &mut VariableStore,
         bytes: &[u8],
         shell: bool,
-        context: ExpansionContext<'_>,
+        mut context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         let owns_reader_lexical = self.target_read.is_none() && self.evaluation_scope.is_none();
         let global_lexical = if let Some(read) = &self.target_read {
@@ -2794,11 +2835,20 @@ impl Database {
             crate::variables::DeclarationLexical::default()
         };
         let mut previous_scope = self.evaluation_scope.take();
-        let mut active_read = previous_scope
+        let active_read = previous_scope
             .as_ref()
             .and_then(|caller| caller.active_target_read(target, scope));
-        let read = if let Some(read) = active_read.as_mut() {
-            read.refresh_globals(&self.variables);
+        let uses_caller = active_read.is_some();
+        let mut file_read = active_read
+            .or_else(|| self.retained_target_read(target, scope, context.target_reads.as_deref()?));
+        let retained_before = (!uses_caller).then(|| file_read.clone()).flatten();
+        let read = if let Some(read) = file_read.as_mut() {
+            if uses_caller {
+                read.refresh_globals(&self.variables);
+            } else {
+                self.refresh_scoped_variables(read);
+                read.replace_target_read_declarations(scope);
+            }
             read
         } else {
             scope.add_declaration_lexical(&global_lexical);
@@ -2810,12 +2860,24 @@ impl Database {
         });
         let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
         let result = if shell {
-            crate::variables::shell_scoped_database(self, read, bytes, context)
+            crate::variables::shell_scoped_database(self, read, bytes, context.reborrow())
         } else {
-            crate::variables::expand_scoped_database::<false>(self, read, bytes, context)
+            crate::variables::expand_scoped_database::<false>(self, read, bytes, context.reborrow())
         };
-        if let Some(read) = active_read {
-            scope.finish_active_target_read(read, previous_scope.as_mut().expect("active caller"));
+        if let Some(read) = file_read {
+            scope.retain_target_read_declarations(&read);
+            if uses_caller {
+                previous_scope
+                    .as_mut()
+                    .expect("active caller")
+                    .retain_file_locals(read);
+            } else if retained_before.is_some_and(|before| !read.same_file_locals(&before)) {
+                context
+                    .target_reads
+                    .as_deref_mut()
+                    .expect("retained target")
+                    .retain_locals(target, read);
+            }
         }
         if owns_reader_lexical {
             self.target_read
