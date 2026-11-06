@@ -788,14 +788,13 @@ impl RuleState {
         self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
     }
 
-    // Grouped double-colon branches have a separate consideration order.
     fn visited_group_prerequisites(&self) -> bool {
         !self.serial_phase
             && self.next == self.rule.dependencies.len()
             && self
                 .group
                 .as_ref()
-                .is_some_and(|group| group.run.branch.is_none() && group.peer_targets.is_empty())
+                .is_some_and(|group| group.peer_targets.is_empty())
     }
 
     fn waiting_at_serial_prerequisite(&self) -> bool {
@@ -7447,7 +7446,15 @@ impl Engine {
         let can_replay_debug = !self.remaking
             && state.waited_for_prerequisites
             && (state.visited_prerequisites()
-                || state.visited_group_prerequisites()
+                // Multiple double-colon declarations have separate visits.
+                || (state.visited_group_prerequisites()
+                    && (state.rule.grouped_double_id().is_none()
+                        || self
+                            .database
+                            .rules
+                            .get(target)
+                            .and_then(|rule| rule.double_colon.as_ref())
+                            .is_some_and(|branches| branches.len() == 1)))
                 || state.waiting_at_barrier()
                 || state.waiting_at_serial_prerequisite());
         let replay_debug = can_replay_debug
