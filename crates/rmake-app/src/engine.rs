@@ -3022,7 +3022,7 @@ impl Engine {
                 *self.makefile_error.borrow_mut() =
                     if optional { None } else { pending_open_error() };
                 self.optional_remake = optional;
-                self.retain_remake_failure = may_replay;
+                self.retain_remake_failure = optional;
                 let initial_time = before.is_none().then_some(&mut before);
                 let result = self.build_recording_initial_time(
                     name,
@@ -6973,15 +6973,25 @@ impl Engine {
         visit: BuildVisit,
     ) -> Outcome {
         let mut traced_optional_failure = false;
-        if !self.remaking && self.optional_remake_failures.remove(target).is_some() {
-            // A missing optional makefile was silent during remake. If it
-            // becomes a goal, announce the cached failure before diagnosing it.
-            if self.done.get(target).is_some_and(|outcome| outcome.failed)
+        if !self.optional_remake
+            && let Some(cause) = self.optional_remake_failures.remove(target)
+        {
+            // A later required visit exposes the original failure hidden by
+            // the optional remake, including the edge to a deeper failure.
+            if !self.remaking
+                && self.done.get(target).is_some_and(|outcome| outcome.failed)
                 && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
             {
                 traced_optional_failure = true;
             }
-            self.report_missing_rule(target, parent.map(|parent| parent.target));
+            self.show_makefile_error();
+            if let Some(cause) = cause {
+                self.report_missing_rule(&cause.target, Some(&cause.parent));
+                self.optional_remake_failures
+                    .remove(cause.target.as_slice());
+            } else {
+                self.report_missing_rule(target, parent.map(|parent| parent.target));
+            }
         }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
