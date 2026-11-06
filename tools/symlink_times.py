@@ -11,6 +11,7 @@ import argparse
 import base64
 import dataclasses
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -111,6 +112,7 @@ def materialize(cell: Cell, parent: Path, library: Path) -> harness.Case:
         else:
             target.write_bytes(base64.b64decode(entry['content']))
             target.chmod(0o644)
+    os.utime(path / 'Makefile', (1_600_000_000, 1_600_000_000))
     return harness.Case(path, cell.id, 'filesystem.symlink-times', 'required', (ARGS if cell.symlinks else ARGS[:-1]) + cell.flags,
                         5, {'LD_PRELOAD': str(library), 'RMAKE_STDIO_FAULT': cell.fault}, {})
 
