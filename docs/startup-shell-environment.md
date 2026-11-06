@@ -30,6 +30,10 @@ recursion check follows the binding's table across scopes. A suspended global
 binding can remain active at a different layer in the destination, and an
 active variable local to the caller can be absent from the destination.
 
+A private pattern binding remains visible to Make expansion on the matching
+file. When shell environment preparation skips that binding, the eligible
+ancestor or global binding supplies both the value and its export policy.
+
 The original fixtures in `functions.shell` cover direct and indirect paths,
 original bytes, computed names, nested shell execution, target-local scope and
 the fatal-cycle boundary. GNU Make 4.4.1's [release archive](https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz)

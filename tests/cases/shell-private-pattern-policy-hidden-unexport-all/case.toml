@@ -1,0 +1,12 @@
+id = "shell-private-pattern-policy-hidden-unexport-all"
+requirement = "functions.shell"
+candidate = "required"
+description = "Check that shell export policy follows the visible variable table."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "make=[pattern] shell=[global]\n"
+stderr = ""

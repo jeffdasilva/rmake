@@ -3770,7 +3770,7 @@ impl Expansion<'_, '_> {
                 if name == b"SHELL" && variable.export_policy().is_none() {
                     return false;
                 }
-                self.store
+                snapshot
                     .resolve_export_policy_visible(name, local_private)
                     .unwrap_or_else(|| {
                         Self::shell_export_default(name, variable.origin, export_all)
@@ -3808,8 +3808,7 @@ impl Expansion<'_, '_> {
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
-            let export = self
-                .store
+            let export = current
                 .resolve_export_policy_visible(&name, local_private)
                 .unwrap_or_else(|| Self::shell_export_default(&name, variable.origin, export_all));
             if !export {
