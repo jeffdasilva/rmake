@@ -2796,7 +2796,13 @@ impl Database {
         target: &[u8],
         declaration: &VariableStore,
         reads: &dyn crate::diagnostic::TargetReadReceiver,
+        caller: Option<&VariableStore>,
     ) -> Option<VariableStore> {
+        if reads.has_parent_changes()
+            && let Some(read) = self.reparented_target_read(target, declaration, reads, caller)
+        {
+            return Some(read);
+        }
         if let Some(variables) = reads.variables(target) {
             return variables.active_target_read(target, declaration);
         }
@@ -2823,6 +2829,64 @@ impl Database {
             inherited = self.variables_for_target_prepared(name, &inherited, None);
         }
         inherited.active_target_read(target, declaration)
+    }
+
+    fn reparented_target_read(
+        &self,
+        target: &[u8],
+        declaration: &VariableStore,
+        reads: &dyn crate::diagnostic::TargetReadReceiver,
+        caller: Option<&VariableStore>,
+    ) -> Option<VariableStore> {
+        let mut path = vec![target];
+        let mut changed = false;
+        let mut name = target;
+        loop {
+            let replacement = reads.changed_parent(name);
+            changed |= replacement.is_some();
+            let Some(parent) = replacement.or_else(|| reads.parent(name).flatten()) else {
+                break;
+            };
+            if path.contains(&parent) {
+                return None;
+            }
+            path.push(parent);
+            name = parent;
+        }
+        if !changed {
+            return None;
+        }
+
+        let mut read = match reads.variables(target) {
+            Some(variables) => variables.active_target_read(target, declaration)?,
+            None => self
+                .variables_for_target_prepared(target, &self.variables, None)
+                .active_target_read(target, declaration)?,
+        };
+        read.replace_file_read_ancestors(
+            path.into_iter().skip(1).map(|name| {
+                let variables = caller
+                    .filter(|scope| scope.is_file_read_context(name))
+                    .or_else(|| {
+                        self.suspended_target_reads
+                            .iter()
+                            .rev()
+                            .find(|scope| scope.is_file_read_context(name))
+                    })
+                    .or_else(|| {
+                        reads
+                            .variables(name)
+                            .filter(|scope| scope.is_file_read_context(name))
+                    });
+                crate::variables::ReadAncestor {
+                    name,
+                    variables,
+                    declarations: self.target_scopes.get(name),
+                }
+            }),
+            &self.variables,
+        );
+        Some(read)
     }
 
     fn expand_target_read(
@@ -2858,8 +2922,13 @@ impl Database {
                     })
             })
             .or_else(|| {
-                self.retained_target_read(target, scope, context.target_reads.as_deref()?)
-                    .map(|read| (TargetReadOwner::Retained, read))
+                self.retained_target_read(
+                    target,
+                    scope,
+                    context.target_reads.as_deref()?,
+                    previous_scope.as_ref(),
+                )
+                .map(|read| (TargetReadOwner::Retained, read))
             });
         // Crossing into another file can re-enter this caller in a nested
         // declaration. Keep its live local table available until we return.

@@ -395,6 +395,8 @@ pub trait EvaluationStack {
 pub trait TargetReadReceiver {
     fn variables(&self, target: &[u8]) -> Option<&crate::variables::VariableStore>;
     fn parent(&self, target: &[u8]) -> Option<Option<&[u8]>>;
+    fn has_parent_changes(&self) -> bool;
+    fn changed_parent(&self, target: &[u8]) -> Option<&[u8]>;
     fn retain_locals(&mut self, target: &[u8], variables: crate::variables::VariableStore);
 }
 

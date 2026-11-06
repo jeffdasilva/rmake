@@ -6,7 +6,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
 use rmake_core::diagnostic::{FilesystemEffect, FilesystemError};
 use rmake_core::variables::MAX_OUTPUT;
@@ -21,6 +21,7 @@ type MissingReadObserver<O> = fn(&O, &[u8], &io::Error);
 
 pub struct Runtime<O = ()> {
     wildcard: Wildcard,
+    file_writes: u64,
     missing_read: Option<(O, MissingReadObserver<O>)>,
 }
 
@@ -28,6 +29,7 @@ impl Default for Runtime {
     fn default() -> Self {
         Self {
             wildcard: Wildcard::default(),
+            file_writes: 0,
             missing_read: None,
         }
     }
@@ -38,6 +40,7 @@ impl<O> Runtime<O> {
     pub fn with_missing_read_observer(context: O, observer: MissingReadObserver<O>) -> Self {
         Self {
             wildcard: Wildcard::default(),
+            file_writes: 0,
             missing_read: Some((context, observer)),
         }
     }
@@ -49,6 +52,11 @@ impl<O> Runtime<O> {
     /// The same boundary expires both directory data and failed rule searches.
     pub fn generation(&self) -> u64 {
         self.wildcard.generation()
+    }
+
+    /// Successful make-function write opens, including writes without text.
+    pub fn file_writes(&self) -> u64 {
+        self.file_writes
     }
 
     /// Existing directory cache facts only; no new stat, stream read or lookup.
@@ -67,11 +75,16 @@ impl<O> Runtime<O> {
 
     pub fn execute(&mut self, effect: FilesystemEffect<'_>) -> Result<Vec<u8>, FilesystemError> {
         let missing_read = self.missing_read.as_ref();
-        execute_with(effect, &mut self.wildcard, |path, error| {
-            if let Some((context, observer)) = missing_read {
-                observer(context, path, error);
-            }
-        })
+        execute_with(
+            effect,
+            &mut self.wildcard,
+            &mut self.file_writes,
+            |path, error| {
+                if let Some((context, observer)) = missing_read {
+                    observer(context, path, error);
+                }
+            },
+        )
     }
 
     /// Completed make children invalidate directory observations, including
@@ -92,6 +105,7 @@ pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
 fn execute_with(
     effect: FilesystemEffect<'_>,
     wildcard: &mut Wildcard,
+    file_writes: &mut u64,
     missing_read: impl FnOnce(&[u8], &io::Error),
 ) -> Result<Vec<u8>, FilesystemError> {
     match effect {
@@ -104,7 +118,7 @@ fn execute_with(
             let home = if slash == 1 {
                 std::env::var_os("HOME")
                     .filter(|home| !home.is_empty())
-                    .map(|home| home.as_bytes().to_vec())
+                    .map(OsStringExt::into_vec)
                     .or_else(|| posix::home(None))
             } else {
                 posix::home(Some(&name[1..slash]))
@@ -129,13 +143,14 @@ fn execute_with(
             {
                 return Ok(Vec::new());
             }
-            Ok(path.into_os_string().as_bytes().to_vec())
+            Ok(path.into_os_string().into_vec())
         }
         FilesystemEffect::ReadFile(path) => read(path, missing_read).map_err(Into::into),
         FilesystemEffect::WriteFile { path, text, append } => {
             let mut stream = Stream::open(path, if append { c"a" } else { c"w" })
                 .map_err(|error| diagnostic(b"open", path, error))?;
             wildcard.invalidate();
+            *file_writes = file_writes.wrapping_add(1);
             if let Some(text) = text {
                 stream
                     .write_text(text, !text.ends_with(b"\n"))
