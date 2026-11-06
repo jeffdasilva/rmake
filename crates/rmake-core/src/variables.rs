@@ -1208,25 +1208,40 @@ impl VariableStore {
             })
     }
 
-    fn history_for_layer(&self, layer: usize) -> Option<&TableHistory> {
-        let bindings = if layer == 0 {
-            &self.variables
+    fn bindings_at_layer(&self, layer: usize) -> Option<&Bindings> {
+        if layer == 0 {
+            Some(&self.variables)
         } else {
-            &self.layers.get(layer - 1)?.variables
-        };
-        bindings.database_history.as_ref()
+            self.layers
+                .get(layer - 1)
+                .map(|layer| layer.variables.as_ref())
+        }
     }
 
-    fn layer_for_binding_table(&self, name: &[u8], table: &TableHistory) -> Option<usize> {
+    fn history_for_layer(&self, layer: usize) -> Option<&TableHistory> {
+        self.bindings_at_layer(layer)?.database_history.as_ref()
+    }
+
+    fn layer_for_binding_table(
+        &self,
+        name: &[u8],
+        table: &TableHistory,
+        previous_layer: usize,
+    ) -> Option<usize> {
+        let matches = |values: &Bindings| {
+            values
+                .database_history
+                .as_ref()
+                .is_some_and(|history| history.same_table(table))
+                && values.get(name).is_some()
+        };
+        if self.bindings_at_layer(previous_layer).is_some_and(matches) {
+            return Some(previous_layer);
+        }
         std::iter::once(&self.variables)
             .chain(self.layers.iter().map(|layer| &layer.variables))
-            .position(|values| {
-                values
-                    .database_history
-                    .as_ref()
-                    .is_some_and(|history| history.same_table(table))
-                    && values.get(name).is_some()
-            })
+            .map(Arc::as_ref)
+            .position(matches)
     }
 
     /// GNU promotes imported environment origins on a conflicting global
@@ -3215,12 +3230,10 @@ impl Expansion<'_, '_> {
             .map(|(name, layer)| (name.as_slice(), *layer))
             .chain(self.inherited_active_bindings().filter_map(|binding| {
                 let (name, layer) = &binding.key;
-                let layer = if self.context.preparing_shell_environment
-                    && let Some(table) = &binding.table
-                {
+                let layer = if let (Some(layer), Some(table)) = (*layer, &binding.table) {
                     // A destination reader can give the caller's table a
                     // different layer or omit it from its scope entirely.
-                    Some(self.store.layer_for_binding_table(name, table)?)
+                    Some(self.store.layer_for_binding_table(name, table, layer)?)
                 } else {
                     *layer
                 };

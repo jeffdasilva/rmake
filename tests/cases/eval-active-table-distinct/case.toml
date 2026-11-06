@@ -1,0 +1,15 @@
+id = "eval-active-table-distinct"
+requirement = "functions.eval"
+candidate = "required"
+description = "Check active variable table identity across a nested eval read."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "owner"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[outer]\nowner=[global]\n"
+stderr = ""
+
+[environment]
+K = "seed"
