@@ -36,6 +36,11 @@ metadata appends retain it too, including updates to `CURDIR`, `MAKEFILE_LIST`
 and `MAKELEVEL`. Synthesizing a previously absent variable does not create an
 inherited export policy.
 
+In a target-scoped `eval` or include, an assignment's export policy follows
+the assigned global binding. This includes multiline `define` and appends
+whose value reads the target scope. A suppressed `?=` updates the existing
+selected binding's policy, as does a bare export or unexport name list.
+
 A successful `undefine` removes the binding and its explicit export/unexport
 membership. A later definition starts with default policy: an ordinary file
 binding is absent from the child environment unless export-all or a new explicit

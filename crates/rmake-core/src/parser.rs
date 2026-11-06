@@ -4247,7 +4247,7 @@ impl Database {
                         self.variables.set_private(&name, true);
                     }
                     if let Some(export) = export {
-                        self.set_export(name, export);
+                        self.set_assignment_export(name, kind, export);
                     }
                 }
                 continue;
@@ -4257,12 +4257,13 @@ impl Database {
             }
             if let Some(spec) = variable_assignment {
                 self.finish_declaration(declaration, &location, context)?;
+                let kind = spec.kind;
                 let name = self.define(spec, origin, &location, &location, context)?;
                 if private {
                     self.variables.set_private(&name, true);
                 }
                 if let Some(export) = export {
-                    self.set_export(name, export);
+                    self.set_assignment_export(name, kind, export);
                 }
                 continue;
             }
@@ -5138,8 +5139,10 @@ impl Database {
             .is_some_and(|scope| scope.set_scoped_export_policy(name, export))
     }
 
-    fn set_export(&mut self, name: Vec<u8>, export: bool) {
-        if !self.set_scoped_export(&name, export) {
+    fn set_assignment_export(&mut self, name: Vec<u8>, kind: Assignment, export: bool) {
+        // A suppressed conditional returns the already visible binding.
+        // Other assignments store their value and modifiers in the global table.
+        if kind != Assignment::Conditional || !self.set_scoped_export(&name, export) {
             self.set_global_export(name, export);
         }
     }
