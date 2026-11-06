@@ -1217,6 +1217,18 @@ impl VariableStore {
         bindings.database_history.as_ref()
     }
 
+    fn layer_for_binding_table(&self, name: &[u8], table: &TableHistory) -> Option<usize> {
+        std::iter::once(&self.variables)
+            .chain(self.layers.iter().map(|layer| &layer.variables))
+            .position(|values| {
+                values
+                    .database_history
+                    .as_ref()
+                    .is_some_and(|history| history.same_table(table))
+                    && values.get(name).is_some()
+            })
+    }
+
     /// GNU promotes imported environment origins on a conflicting global
     /// assignment, not when importing the environment or reading a variable.
     pub fn set_environment_override(&mut self, enabled: bool) {
@@ -3197,10 +3209,23 @@ impl Expansion<'_, '_> {
         .flat_map(|node| node.keys.iter())
     }
 
-    fn active_keys(&self) -> impl Iterator<Item = &(Vec<u8>, Option<usize>)> {
+    fn active_keys(&self) -> impl Iterator<Item = (&[u8], Option<usize>)> {
         self.active
             .iter()
-            .chain(self.inherited_active_bindings().map(|binding| &binding.key))
+            .map(|(name, layer)| (name.as_slice(), *layer))
+            .chain(self.inherited_active_bindings().filter_map(|binding| {
+                let (name, layer) = &binding.key;
+                let layer = if self.context.preparing_shell_environment
+                    && let Some(table) = &binding.table
+                {
+                    // A destination reader can give the caller's table a
+                    // different layer or omit it from its scope entirely.
+                    Some(self.store.layer_for_binding_table(name, table)?)
+                } else {
+                    *layer
+                };
+                Some((name.as_slice(), layer))
+            }))
     }
     fn active_count(&self) -> usize {
         self.active.len() + self.inherited_active.as_ref().map_or(0, |node| node.count)
@@ -3393,10 +3418,7 @@ impl Expansion<'_, '_> {
         mut layer: Option<usize>,
         lookups: &mut crate::database::LookupBatch,
     ) -> Option<LiteralChain> {
-        let mut seen: std::collections::HashSet<_> = self
-            .active_keys()
-            .map(|(name, layer)| (name.as_slice(), *layer))
-            .collect();
+        let mut seen: std::collections::HashSet<_> = self.active_keys().collect();
         let mut nearest_definition: Option<Arc<Location>> = None;
         loop {
             if self.context.is_cancelled() {
@@ -3506,7 +3528,7 @@ impl Expansion<'_, '_> {
         }
         if self
             .active_keys()
-            .any(|(active, active_layer)| active == name && *active_layer == layer)
+            .any(|(active, active_layer)| active == name && active_layer == layer)
         {
             return self.recursive_binding(name, variable);
         }
