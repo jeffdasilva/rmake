@@ -2578,21 +2578,17 @@ impl Database {
         } else {
             None
         };
-        let strip_flags = spec.name == b"MAKEFLAGS" && context.has_makeflags();
+        let live_makeflags = spec.name == b"MAKEFLAGS" && context.has_makeflags();
         let append_base = if spec.kind == Assignment::Append {
             lookup_scope.as_ref().and_then(|scope| {
                 scope
-                    .scoped_append(spec.name, strip_flags)
+                    .scoped_append(spec.name, live_makeflags)
                     .map(std::cell::RefCell::new)
             })
         } else {
             None
         };
-        if spec.name == b"MAKEFLAGS"
-            && spec.kind == Assignment::Append
-            && context.has_makeflags()
-            && !spec.value.is_empty()
-        {
+        if live_makeflags && spec.kind == Assignment::Append && !spec.value.is_empty() {
             self.variables.strip_makeflags_assignments(origin);
         }
         // Literal RHS bytes cannot invoke eval or read scoped bindings. Keep
@@ -2633,7 +2629,7 @@ impl Database {
                         && let Some(value) = self
                             .evaluation_scope
                             .as_ref()
-                            .and_then(|scope| scope.scoped_append(spec.name, strip_flags))
+                            .and_then(|scope| scope.scoped_append(spec.name, live_makeflags))
                     {
                         *base.borrow_mut() = value;
                     }
@@ -2645,7 +2641,14 @@ impl Database {
             result
         };
         result?;
-        if spec.name == b"MAKEFLAGS" && context.has_makeflags() {
+        // A conditional can return an ordinary file or pattern binding.
+        // The live setter runs only when that selected binding is special.
+        if live_makeflags
+            && (spec.kind != Assignment::Conditional
+                || !lookup_scope
+                    .as_ref()
+                    .is_some_and(VariableStore::selects_ordinary_scoped_makeflags))
+        {
             self.reset_assigned_flags(origin, context.reborrow())?;
         }
         Ok(())

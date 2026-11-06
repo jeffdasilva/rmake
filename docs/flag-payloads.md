@@ -109,3 +109,13 @@ Candidate SHA256:
 `7505a44f569c60ab3da2408ee93e4c2ce58074ed91b0971df4873a84d20f647b`;
 preceding-main SHA256:
 `76d053048b62cb607881c99589188db73c2feec41fcb3e748775f83f8fbdfda0`.
+
+## Conditional scoped bindings
+
+A suppressed `MAKEFLAGS ?=` runs the live flag setter when the selected
+binding carries the special flag metadata. Ordinary target and pattern
+declarations can supply the selected value without replaying its switches.
+Canonical flag publication marks the current file's binding, including a
+stronger declaration that retains its value. Later conditionals on that
+binding continue to replay its switches. Original tests check direct eval,
+includes and secondary expansion, with ordered flag reads and shell exports.

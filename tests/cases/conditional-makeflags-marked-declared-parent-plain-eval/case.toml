@@ -1,0 +1,12 @@
+id = "conditional-makeflags-marked-declared-parent-plain-eval"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Compare ordinary and canonical scoped flag bindings during conditional replay."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[krR --no-print-directory]\nsibling=[krR --no-print-directory]\nparent=[krR --no-print-directory]\nafter=[-k -k]\n"
+stderr = ""
