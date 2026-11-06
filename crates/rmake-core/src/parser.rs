@@ -456,6 +456,7 @@ pub struct Database {
     evaluation_depth: usize,
     pub(crate) evaluation_scope: Option<VariableStore>,
     target_read: Option<TargetRead>,
+    suspended_target_reads: Vec<VariableStore>,
     rules_frozen: bool,
     suppress_default_goal: bool,
     second_expansion: bool,
@@ -477,6 +478,12 @@ pub struct Database {
 struct TargetRead {
     target: Vec<u8>,
     global_lexical: crate::variables::DeclarationLexical,
+}
+
+enum TargetReadOwner {
+    Current,
+    Suspended(usize),
+    Retained,
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -2835,15 +2842,40 @@ impl Database {
             crate::variables::DeclarationLexical::default()
         };
         let mut previous_scope = self.evaluation_scope.take();
-        let active_read = previous_scope
+        let mut file_read = previous_scope
             .as_ref()
-            .and_then(|caller| caller.active_target_read(target, scope));
-        let uses_caller = active_read.is_some();
-        let mut file_read = active_read
-            .or_else(|| self.retained_target_read(target, scope, context.target_reads.as_deref()?));
-        let retained_before = (!uses_caller).then(|| file_read.clone()).flatten();
-        let read = if let Some(read) = file_read.as_mut() {
-            if uses_caller {
+            .and_then(|caller| caller.active_target_read(target, scope))
+            .map(|read| (TargetReadOwner::Current, read))
+            .or_else(|| {
+                self.suspended_target_reads
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(index, caller)| {
+                        caller
+                            .active_target_read(target, scope)
+                            .map(|read| (TargetReadOwner::Suspended(index), read))
+                    })
+            })
+            .or_else(|| {
+                self.retained_target_read(target, scope, context.target_reads.as_deref()?)
+                    .map(|read| (TargetReadOwner::Retained, read))
+            });
+        // Crossing into another file can re-enter this caller in a nested
+        // declaration. Keep its live local table available until we return.
+        let suspended = previous_scope.is_some()
+            && file_read
+                .as_ref()
+                .is_none_or(|(owner, _)| !matches!(owner, TargetReadOwner::Current));
+        if suspended {
+            self.suspended_target_reads
+                .push(previous_scope.take().expect("active caller"));
+        }
+        let retained_before = file_read.as_ref().and_then(|(owner, read)| {
+            matches!(owner, TargetReadOwner::Retained).then(|| read.clone())
+        });
+        let read = if let Some((owner, read)) = file_read.as_mut() {
+            if matches!(owner, TargetReadOwner::Current) {
                 read.refresh_globals(&self.variables);
             } else {
                 self.refresh_scoped_variables(read);
@@ -2864,20 +2896,29 @@ impl Database {
         } else {
             crate::variables::expand_scoped_database::<false>(self, read, bytes, context.reborrow())
         };
-        if let Some(read) = file_read {
+        if let Some((owner, read)) = file_read {
             scope.retain_target_read_declarations(&read);
-            if uses_caller {
-                previous_scope
+            match owner {
+                TargetReadOwner::Current => previous_scope
                     .as_mut()
                     .expect("active caller")
-                    .retain_file_locals(read);
-            } else if retained_before.is_some_and(|before| !read.same_file_locals(&before)) {
-                context
-                    .target_reads
-                    .as_deref_mut()
-                    .expect("retained target")
-                    .retain_locals(target, read);
+                    .retain_file_locals(read),
+                TargetReadOwner::Suspended(index) => {
+                    self.suspended_target_reads[index].retain_file_locals(read);
+                }
+                TargetReadOwner::Retained => {
+                    if retained_before.is_some_and(|before| !read.same_file_locals(&before)) {
+                        context
+                            .target_reads
+                            .as_deref_mut()
+                            .expect("retained target")
+                            .retain_locals(target, read);
+                    }
+                }
             }
+        }
+        if suspended {
+            previous_scope = self.suspended_target_reads.pop();
         }
         if owns_reader_lexical {
             self.target_read

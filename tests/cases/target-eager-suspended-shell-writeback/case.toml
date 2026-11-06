@@ -1,0 +1,12 @@
+id = "target-eager-suspended-shell-writeback"
+requirement = "scope.target-eager-suspended"
+candidate = "required"
+description = "Re-enter a suspended file context during a nested eager declaration."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "retained=[7|dest]\ncaller=[19|caller]\n"
+stderr = ""
