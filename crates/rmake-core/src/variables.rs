@@ -15,7 +15,8 @@ use std::sync::{Arc, OnceLock};
 
 use crate::database::TableHistory;
 use crate::diagnostic::{
-    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, Location, Output, ShellRequest,
+    Diagnostic, EnvironmentValue, ExpansionContext, FilesystemEffect, FilesystemError, Location,
+    Output, ShellRequest,
 };
 
 mod direct;
@@ -3415,6 +3416,9 @@ impl Expansion<'_, '_> {
                 return Some(LiteralChain::Value(value.to_vec()));
             }
             if !seen.insert((name, layer)) {
+                if self.context.preparing_shell_environment {
+                    return None;
+                }
                 return Some(LiteralChain::Error(
                     ExpandError::RecursiveVariable(name.to_vec())
                         .at(variable.definition.as_ref().or(nearest_definition.as_ref())),
@@ -3504,14 +3508,26 @@ impl Expansion<'_, '_> {
             .active_keys()
             .any(|(active, active_layer)| active == name && *active_layer == layer)
         {
-            return Err(
-                ExpandError::RecursiveVariable(name.to_vec()).at(variable.definition.as_ref())
-            );
+            return self.recursive_binding(name, variable);
         }
         self.active.push((name.to_vec(), layer));
         let result = self.expand_layer(name, variable, layer);
         self.active.pop();
         result
+    }
+
+    fn recursive_binding(
+        &mut self,
+        name: &[u8],
+        variable: &Variable,
+    ) -> Result<Vec<u8>, ExpandError> {
+        if self.context.preparing_shell_environment {
+            self.context
+                .recursive_shell_export(variable.definition.as_deref(), name);
+            Ok(self.context.original_environment(name))
+        } else {
+            Err(ExpandError::RecursiveVariable(name.to_vec()).at(variable.definition.as_ref()))
+        }
     }
 
     fn expand_layer(
@@ -3704,27 +3720,7 @@ impl Expansion<'_, '_> {
             ) || (export_all && !matches!(origin, Origin::Default | Origin::Automatic)))
     }
 
-    fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        if matches!(self.store, StoreAccess::Read(_)) {
-            return Err(ExpandError::Unsupported(b"shell".to_vec()));
-        }
-        if command
-            .iter()
-            .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
-        {
-            return Ok(Vec::new());
-        }
-        let shell = self.variable(b"SHELL")?;
-        let flags_raw = self
-            .store
-            .database_lookup(b".SHELLFLAGS")
-            .map_or_else(Vec::new, |v| v.value.clone());
-        let flags = self.expand(&flags_raw)?;
-        let ifs = if self.lookup(b"IFS").is_some() {
-            Some(self.variable(b"IFS")?)
-        } else {
-            None
-        };
+    fn shell_environment(&mut self) -> Result<Vec<(Vec<u8>, EnvironmentValue)>, ExpandError> {
         let export_all = match &self.store {
             StoreAccess::Database(db) | StoreAccess::Scoped { database: db, .. } => {
                 db.export_all_for_shell()
@@ -3757,12 +3753,12 @@ impl Expansion<'_, '_> {
                 let value = if variable.export_policy().unwrap_or_else(|| {
                     Self::shell_export_default(&name, variable.origin, export_all)
                 }) {
-                    crate::diagnostic::EnvironmentValue::Set {
+                    EnvironmentValue::Set {
                         value: variable.value.clone(),
                         origin: variable.origin,
                     }
                 } else {
-                    crate::diagnostic::EnvironmentValue::Remove
+                    EnvironmentValue::Remove
                 };
                 environment.push((name, value));
                 continue;
@@ -3770,7 +3766,7 @@ impl Expansion<'_, '_> {
             let current = self.store.for_environment();
             let Some((layer, variable)) = current.lookup_from_visible(&name, 0, local_private)
             else {
-                environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
+                environment.push((name, EnvironmentValue::Remove));
                 continue;
             };
             let variable = variable.clone();
@@ -3782,7 +3778,7 @@ impl Expansion<'_, '_> {
                 .resolve_export_policy_visible(&name, local_private)
                 .unwrap_or_else(|| Self::shell_export_default(&name, variable.origin, export_all));
             if !export {
-                environment.push((name, crate::diagnostic::EnvironmentValue::Remove));
+                environment.push((name, EnvironmentValue::Remove));
                 continue;
             }
             // MAKEFLAGS keeps its expansion semantics when inherited.
@@ -3797,10 +3793,9 @@ impl Expansion<'_, '_> {
                 && variable.flavor == Flavor::Recursive
                 && self.shell_export_expanding(&name, layer)
             {
-                if let Some(definition) = variable.definition.as_deref() {
-                    self.context.recursive_shell_export(definition, &name);
-                }
-                environment.push((name, crate::diagnostic::EnvironmentValue::Original));
+                self.context
+                    .recursive_shell_export(variable.definition.as_deref(), &name);
+                environment.push((name, EnvironmentValue::Original));
                 continue;
             }
             let value = if imported_raw {
@@ -3810,12 +3805,40 @@ impl Expansion<'_, '_> {
             };
             environment.push((
                 name,
-                crate::diagnostic::EnvironmentValue::Set {
+                EnvironmentValue::Set {
                     value,
                     origin: variable.origin,
                 },
             ));
         }
+        Ok(environment)
+    }
+
+    fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        if matches!(self.store, StoreAccess::Read(_)) {
+            return Err(ExpandError::Unsupported(b"shell".to_vec()));
+        }
+        if command
+            .iter()
+            .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
+        {
+            return Ok(Vec::new());
+        }
+        let shell = self.variable(b"SHELL")?;
+        let flags_raw = self
+            .store
+            .database_lookup(b".SHELLFLAGS")
+            .map_or_else(Vec::new, |v| v.value.clone());
+        let flags = self.expand(&flags_raw)?;
+        let ifs = if self.lookup(b"IFS").is_some() {
+            Some(self.variable(b"IFS")?)
+        } else {
+            None
+        };
+        let prior = std::mem::replace(&mut self.context.preparing_shell_environment, true);
+        let environment = self.shell_environment();
+        self.context.preparing_shell_environment = prior;
+        let environment = environment?;
         let original_shell = self.store.original_shell.clone();
         let result = self
             .context

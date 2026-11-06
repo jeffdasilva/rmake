@@ -23,7 +23,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(data['schema_version'], 1)
         self.assertEqual({p['id'] for p in data['projects']},
                          {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14', 'patch-2.8',
-                          'gnu-make-4.4.1', 'zstd-1.5.7'})
+                          'gnu-make-4.4.1', 'zstd-1.5.7', 'busybox-1.37.0'})
         make = next(p for p in data['projects'] if p['id'] == 'gnu-make-4.4.1')
         archive = i.oracle.load_config()['archive']
         self.assertEqual((make['source_url'], make['archive_sha256'], make['topdir']),
@@ -32,8 +32,29 @@ class IntegrationTests(unittest.TestCase):
             self.assertRegex(project['archive_sha256'], r'^[0-9a-f]{64}$')
             self.assertRegex(project['license_sha256'], r'^[0-9a-f]{64}$')
             self.assertTrue(project['source_url'].startswith('https://'))
-            self.assertTrue(bytes.fromhex(project['smoke_stdout_hex']))
-            for name in [project['header'], *project['watched']]: i.safe_name(name)
+            if 'configuration' in project:
+                config = project['configuration']
+                self.assertEqual(project['target'], 'defconfig')
+                self.assertRegex(config['stdout_sha256'], r'^[0-9a-f]{64}$')
+                self.assertEqual(set(config['output_sha256']), {'.config', '.kernelrelease'})
+                for name, digest in config['output_sha256'].items():
+                    i.safe_name(name)
+                    self.assertRegex(digest, r'^[0-9a-f]{64}$')
+            else:
+                self.assertTrue(bytes.fromhex(project['smoke_stdout_hex']))
+                for name in [project['header'], *project['watched']]: i.safe_name(name)
+
+    def test_configuration_anchor_checks_the_suffix_without_changing_raw_output(self):
+        suffix = b'* Busybox Configuration\noption enabled\n'
+        profile = {'stdout_anchor': '* Busybox Configuration\n',
+                   'stdout_sha256': hashlib.sha256(suffix).hexdigest()}
+        for before in (b'gen-a\ngen-b\n', b'gen-b\ngen-a\n'):
+            self.assertTrue(i.configuration_stdout_matches(profile, before + suffix))
+        self.assertFalse(i.configuration_stdout_matches(profile, suffix + b'changed\n'))
+        self.assertFalse(i.configuration_stdout_matches(profile, suffix * 2))
+        self.assertFalse(i.configuration_stdout_matches(profile, b'no marker\n'))
+        self.assertTrue(i.configuration_stdout_matches(
+            {'stdout_sha256': hashlib.sha256(suffix).hexdigest()}, suffix))
 
     def test_parallel_gzip_profile_reuses_only_the_reviewed_source(self):
         plan = json.loads(i.MANIFEST.read_text())

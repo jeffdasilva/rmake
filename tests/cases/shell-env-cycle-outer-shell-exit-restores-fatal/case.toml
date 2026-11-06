@@ -1,0 +1,15 @@
+id = "shell-env-cycle-outer-shell-exit-restores-fatal"
+requirement = "functions.shell"
+candidate = "required"
+description = "Observe an active recursive binding during shell environment expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "read=[value/seed]\n"
+stderr = "Makefile:5: *** Recursive variable 'A' references itself (eventually).  Stop.\n"
+
+[environment]
+K = "seed"

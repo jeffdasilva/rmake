@@ -111,6 +111,29 @@ impl Plan {
 }
 
 impl Expansion<'_, '_> {
+    fn linear_cycle_tail(
+        &self,
+        name: &[u8],
+        variable: &Variable,
+        layer: Option<usize>,
+        nearest: Option<&Arc<Location>>,
+        root: bool,
+    ) -> Option<Tail> {
+        if !self.context.preparing_shell_environment {
+            return Some(Tail::Error(
+                ExpandError::RecursiveVariable(name.to_vec())
+                    .at(variable.definition.as_ref().or(nearest)),
+            ));
+        }
+        // Let the evaluator resolve the original environment value and emit
+        // the notice, with the preceding frames still marked active.
+        (!root).then(|| Tail::Binding {
+            name: name.to_vec(),
+            variable: variable.clone(),
+            layer,
+        })
+    }
+
     pub(super) fn linear_plan<'c>(
         &'c self,
         mut name: &'c [u8],
@@ -151,10 +174,13 @@ impl Expansion<'_, '_> {
                 // A newly literal recursive value still shares its active key;
                 // only simple rebinding bypasses that recursive identity.
                 if seen.contains(&(name, layer)) {
-                    break Tail::Error(
-                        ExpandError::RecursiveVariable(name.to_vec())
-                            .at(variable.definition.as_ref().or(nearest.as_ref())),
-                    );
+                    break self.linear_cycle_tail(
+                        name,
+                        variable,
+                        layer,
+                        nearest.as_ref(),
+                        pending.is_empty(),
+                    )?;
                 }
                 break Tail::Value(bytes.to_vec());
             }
@@ -173,10 +199,13 @@ impl Expansion<'_, '_> {
                 };
             };
             if !seen.insert((name, layer)) {
-                break Tail::Error(
-                    ExpandError::RecursiveVariable(name.to_vec())
-                        .at(variable.definition.as_ref().or(nearest.as_ref())),
-                );
+                break self.linear_cycle_tail(
+                    name,
+                    variable,
+                    layer,
+                    nearest.as_ref(),
+                    pending.is_empty(),
+                )?;
             }
             if let Some(definition) = &variable.definition {
                 nearest = Some(definition.clone());

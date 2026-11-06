@@ -224,6 +224,7 @@ impl From<Vec<u8>> for IncludeFailure {
 }
 
 type IncludeReceiver<'a> = dyn FnMut(&[u8]) -> Result<IncludedFile, IncludeFailure> + 'a;
+type OriginalEnvironmentLookup = fn(&[u8]) -> Vec<u8>;
 
 pub enum EnvironmentValue {
     Set {
@@ -432,6 +433,8 @@ pub struct ExpansionContext<'a> {
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
     includes: Option<&'a mut IncludeReceiver<'a>>,
     shell: Option<&'a mut ShellReceiver<'a>>,
+    original_environment: Option<OriginalEnvironmentLookup>,
+    pub(crate) preparing_shell_environment: bool,
     makeflags: Option<&'a mut dyn MakeflagsReceiver>,
     pub(crate) target_reads: Option<&'a mut dyn TargetReadReceiver>,
     pub(crate) evaluation_stack: Option<&'a dyn EvaluationStack>,
@@ -458,6 +461,8 @@ impl<'a> ExpansionContext<'a> {
             filesystem: None,
             includes: None,
             shell: None,
+            original_environment: None,
+            preparing_shell_environment: false,
             makeflags: None,
             target_reads: None,
             evaluation_stack: None,
@@ -478,6 +483,8 @@ impl<'a> ExpansionContext<'a> {
             filesystem: None,
             includes: None,
             shell: None,
+            original_environment: None,
+            preparing_shell_environment: false,
             makeflags: None,
             target_reads: None,
             evaluation_stack: None,
@@ -1032,9 +1039,13 @@ impl<'a> ExpansionContext<'a> {
         }
     }
 
-    pub(crate) fn recursive_shell_export(&mut self, definition: &Location, name: &[u8]) {
+    pub(crate) fn recursive_shell_export(&mut self, definition: Option<&Location>, name: &[u8]) {
         if let Some(output) = self.output.as_mut() {
-            output.recursive_shell_export(definition, name);
+            let unlocated = Location {
+                file: SourceName::default(),
+                line: 0,
+            };
+            output.recursive_shell_export(definition.unwrap_or(&unlocated), name);
         }
     }
 
@@ -1062,6 +1073,16 @@ impl<'a> ExpansionContext<'a> {
     pub fn with_shell(mut self, shell: &'a mut ShellReceiver<'a>) -> Self {
         self.shell = Some(shell);
         self
+    }
+
+    pub fn with_original_environment(mut self, lookup: fn(&[u8]) -> Vec<u8>) -> Self {
+        self.original_environment = Some(lookup);
+        self
+    }
+
+    pub(crate) fn original_environment(&self, name: &[u8]) -> Vec<u8> {
+        self.original_environment
+            .map_or_else(Vec::new, |lookup| lookup(name))
     }
 
     pub fn has_shell(&self) -> bool {
@@ -1221,6 +1242,8 @@ impl<'a> ExpansionContext<'a> {
                 Some(shell) => Some(&mut **shell),
                 None => None,
             },
+            original_environment: self.original_environment,
+            preparing_shell_environment: self.preparing_shell_environment,
             makeflags: match &mut self.makeflags {
                 Some(receiver) => Some(&mut **receiver),
                 None => None,

@@ -4,6 +4,7 @@
 """Pinned, reviewed real-project GNU2/rmake builds, never a security sandbox."""
 from __future__ import annotations
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
@@ -38,7 +39,10 @@ def archive_for(project, cache):
     if not IDENTIFIER.fullmatch(project['id']):
         raise h.HarnessError('invalid integration project identifier')
     cache.mkdir(parents=True, exist_ok=True)
-    archive = cache / (project['id'] + '.tar.gz')
+    suffix = project.get('archive_suffix', '.tar.gz')
+    if suffix not in ('.tar.gz', '.tar.bz2'):
+        raise h.HarnessError('unsupported integration archive suffix')
+    archive = cache / (project['id'] + suffix)
     expected = project['archive_sha256']
     if archive.is_symlink():
         raise h.HarnessError('integration cache archive is a symlink')
@@ -77,7 +81,7 @@ def extract(project, archive, destination):
     top = safe_name(project['topdir'])
     if len(top.parts) != 1:
         raise h.HarnessError('integration archive top must be one directory')
-    with tarfile.open(archive, 'r:gz') as source:
+    with tarfile.open(archive, 'r:*') as source:
         members = source.getmembers()
         if len(members) > h.MAX_FILES or sum(m.size for m in members if m.isfile()) > h.MAX_FILE_BYTES:
             raise h.HarnessError('integration source exceeds fixture bounds')
@@ -124,6 +128,17 @@ def observe(command, runtime, environment, timeout=120):
 
 def successful(value):
     return value.returncode == 0 and value.limit is None and not value.leftover_processes
+
+
+def configuration_stdout_matches(profile, stdout):
+    anchor = profile.get('stdout_anchor')
+    if anchor is not None:
+        marker = anchor.encode('utf-8')
+        offset = stdout.find(marker)
+        if not marker or offset < 0 or stdout.find(marker, offset + len(marker)) >= 0:
+            return False
+        stdout = stdout[offset:]
+    return hashlib.sha256(stdout).hexdigest() == profile['stdout_sha256']
 
 
 def validate_smoke(value, expected):
@@ -243,6 +258,47 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     return row
 
 
+def configuration_campaign(project, fixture, runtime, binaries, parts):
+    profile = project['configuration']
+    case = h.Case(fixture, project['id'], 'integration.real-projects', 'required', (), 90, profile['environment'], {})
+    command = [str(runtime / 'bin/make'), project['target']]
+    roots = {name: runtime / name for name in ('work', 'home', 'tmp')}
+    row = {'id': project['id'], 'runs': [], 'differences': []}
+    expected_input = expected_observation = None
+    for index, binary in enumerate(binaries):
+        h.reset_workspace(case, runtime, binary)
+        before = h.snapshot(roots)
+        if expected_input is None:
+            expected_input = before
+            row['input'] = persist_part(parts, project['id'] + '-input', before)
+        elif before != expected_input:
+            raise h.HarnessError('configuration inputs changed between engines')
+        environment = h.clean_environment(runtime, case.environment)
+        value = observe(command, runtime, environment, case.timeout)
+        after = value.filesystem
+        effects = {name: after.get(name) for name in sorted(before.keys() | after.keys())
+                   if before.get(name) != after.get(name)}
+        value = dataclasses.replace(value, filesystem=effects)
+        errors = []
+        if not successful(value):
+            errors.append('configuration status/process bounds')
+        if value.stderr or not configuration_stdout_matches(profile, value.stdout):
+            errors.append('independent configuration stream bytes')
+        for name, digest in profile['output_sha256'].items():
+            result = effects.get('work/' + str(safe_name(name))) or {}
+            if result.get('type') != 'file' or result.get('sha256') != digest:
+                errors.append('independent configuration output: ' + name)
+        part = persist_part(parts, f"{project['id']}-{index}-configuration", raw_observation(value))
+        row['runs'].append({'binary': str(binary), 'command': command, 'parts': [part], 'errors': errors})
+        if expected_observation is None:
+            expected_observation = value
+        else:
+            row['differences'].append([h.differences(expected_observation, value)])
+    row['passed'] = not any(run['errors'] for run in row['runs']) and not any(
+        fields for pair in row['differences'] for fields in pair)
+    return row
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--oracle', type=Path, default=ROOT / '.tools/oracle/bin/make')
@@ -306,11 +362,14 @@ def main(argv=None):
                                                 'limit': limit, 'leftovers': leftovers})
                     if (status, limit, leftovers) != (0, None, False):
                         raise h.HarnessError('common configure preparation failed')
-                (fixture / 'empty.input').write_bytes(b'')
-                for path in fixture.rglob('*'):
-                    if path.is_file() and not path.is_symlink(): os.utime(path, ns=(SOURCE_TIME, SOURCE_TIME))
-                h.validate_fixture(fixture)
-                row = campaign(project, fixture, runtime, binaries, plan, parts)
+                if 'configuration' in project:
+                    row = configuration_campaign(project, fixture, runtime, binaries, parts)
+                else:
+                    (fixture / 'empty.input').write_bytes(b'')
+                    for path in fixture.rglob('*'):
+                        if path.is_file() and not path.is_symlink(): os.utime(path, ns=(SOURCE_TIME, SOURCE_TIME))
+                    h.validate_fixture(fixture)
+                    row = campaign(project, fixture, runtime, binaries, plan, parts)
                 row['preparation'] = preparation
                 report['projects'].append(row)
                 print(('PASS ' if row['passed'] else 'FAIL ') + project['id'], flush=True)

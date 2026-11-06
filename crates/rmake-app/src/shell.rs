@@ -8,9 +8,15 @@ use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
 use rmake_core::variables::MAX_OUTPUT;
 use rmake_linux::child::{CaptureSpawnError, Child};
 use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
+
+pub(crate) fn original_environment(name: &[u8]) -> Vec<u8> {
+    std::env::var_os(OsStr::from_bytes(name))
+        .unwrap_or_default()
+        .into_vec()
+}
 
 pub fn run(
     request: ShellRequest<'_>,
@@ -42,8 +48,8 @@ pub fn run(
                 command.env_remove(OsStr::from_bytes(name));
             }
             EnvironmentValue::Original => {
-                let value = std::env::var_os(OsStr::from_bytes(name)).unwrap_or_default();
-                command.env(OsStr::from_bytes(name), value);
+                let value = original_environment(name);
+                command.env(OsStr::from_bytes(name), OsStr::from_bytes(&value));
                 order.push(name.clone());
             }
         }

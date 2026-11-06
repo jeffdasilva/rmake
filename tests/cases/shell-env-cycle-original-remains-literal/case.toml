@@ -1,0 +1,15 @@
+id = "shell-env-cycle-original-remains-literal"
+requirement = "functions.shell"
+candidate = "required"
+description = "Observe an active recursive binding during shell environment expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[$OTHER $(info do-not-expand)]\n"
+stderr = ""
+
+[environment]
+K = "$OTHER $(info do-not-expand)"

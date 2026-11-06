@@ -1,0 +1,15 @@
+id = "shell-env-cycle-literal-alias"
+requirement = "functions.shell"
+candidate = "required"
+description = "Observe an active recursive binding during shell environment expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[seed]\n"
+stderr = ""
+
+[environment]
+K = "seed"

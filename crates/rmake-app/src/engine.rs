@@ -492,6 +492,7 @@ fn runtime_context<'a>(
     output: &'a mut dyn OutputReceiver,
 ) -> ExpansionContext<'a> {
     ExpansionContext::with_receiver(location, output)
+        .with_original_environment(crate::shell::original_environment)
         .with_native_runtime(crate::native::current())
         .with_evaluation_stack(rmake_linux::evaluation::adapter())
         .with_cancellation(rmake_linux::signals::cancellation())

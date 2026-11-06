@@ -259,6 +259,30 @@
         "after_hex": "23646566696e65205a5354445f56455253494f4e5f52454c454153452020380a",
         "fresh_smoke_stdout_hex": "312e352e370a5a7374616e64617264206d616b6520636f6d7061746962696c697479207769746e6573730a"
       }
+    },
+    {
+      "id": "busybox-1.37.0",
+      "target": "defconfig",
+      "configuration": {
+        "environment": {
+          "KCONFIG_NOTIMESTAMP": "1",
+          "SOURCE_DATE_EPOCH": "1727390000"
+        },
+        "stdout_anchor": "* Busybox Configuration\n",
+        "stdout_sha256": "c631d70ee83d68cc0812c42171038ea413b269c12735ea348ebb673a7d335967",
+        "output_sha256": {
+          ".config": "474fff392e218faf6854acb4fd017a9c9352875f96c9442e35bdb12cbd1d399f",
+          ".kernelrelease": "fbfda2117eb5b2ed303ae73dbc55f71c3080cf120fcf78aab3959d1502b9ded6"
+        }
+      },
+      "source_url": "https://busybox.net/downloads/busybox-1.37.0.tar.bz2",
+      "archive_sha256": "3311dff32e746499f4df0d5df04d7eb396382d7e108bb9250e7b519b837043a4",
+      "archive_suffix": ".tar.bz2",
+      "topdir": "busybox-1.37.0",
+      "license_file": "LICENSE",
+      "license_sha256": "bbfc9843646d483c334664f651c208b9839626891d8f17604db2146962f43548",
+      "source_ref": "1_37_0",
+      "license_note": "The upstream LICENSE is pinned by digest."
     }
   ],
   "profiles": [
