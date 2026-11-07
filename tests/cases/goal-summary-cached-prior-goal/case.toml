@@ -1,0 +1,12 @@
+id = "goal-summary-cached-prior-goal"
+requirement = "rules.explicit"
+candidate = "required"
+description = "Report a current later goal after its prerequisite ran as a separate earlier goal."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "first", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "first\nmake: 'later' is up to date.\n"
+stderr = ""

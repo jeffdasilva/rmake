@@ -61,7 +61,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 117 profiles. Leading `./` spellings share one target record and still appear
+run all 133 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -71,7 +71,7 @@ The overlap checks detected all twenty.
 
 ## Load limits
 
-The development and release gates include twelve held load profiles.
+The development and release gates include twenty-eight held load profiles.
 For a standalone run, add `--include-load` to compile the tracked shim
 with `cc` in the harness temporary directory. Use `--load-shim PATH` to
 reuse a compatible shim, such as the one built by `make test-load`.
@@ -82,8 +82,9 @@ deferral, a low-load overlap control, and a controlled load drop during
 token wait. A stopped optional remake retains its queued sibling while
 a required failure cancels the queue. The optional-stop ordinary goal
 records its secondary expansion before the queued sibling releases.
-Ordinary goal summaries for load-deferred commands have a separate
-attribution boundary.
+Ordinary goal profiles check file effects, successful and failed exits,
+ignored failures, and the summary for work dispatched outside a goal
+visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 

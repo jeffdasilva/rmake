@@ -270,10 +270,10 @@ id = "rules.explicit"
 title = "Explicit rules, defaults and update order"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 13
+candidate_required = 14
 reference = "https://www.gnu.org/software/make/manual/html_node/Rules.html"
-fixture_count = 13
-cases = ["rule-default-first", "rule-default-goal-override", "rule-explicit-requested-goal", "rule-prerequisite-order", "rule-shared-prerequisite-once", "rule-empty-forced-target", "rule-double-colon", "resolution-double-existing-unconditional", "resolution-double-both-missing", "resolution-double-prerequisite-union", "resolution-double-mixed-single-first", "resolution-double-mixed-double-first", "resolution-double-include-no-loop"]
+fixture_count = 14
+cases = ["rule-default-first", "rule-default-goal-override", "rule-explicit-requested-goal", "rule-prerequisite-order", "rule-shared-prerequisite-once", "rule-empty-forced-target", "rule-double-colon", "resolution-double-existing-unconditional", "resolution-double-both-missing", "resolution-double-prerequisite-union", "resolution-double-mixed-single-first", "resolution-double-mixed-double-first", "resolution-double-include-no-loop", "goal-summary-cached-prior-goal"]
 
 [[requirements]]
 id = "rules.implicit"
