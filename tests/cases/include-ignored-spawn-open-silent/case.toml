@@ -1,0 +1,12 @@
+id = "include-ignored-spawn-open-silent"
+requirement = "includes.remake"
+candidate = "required"
+description = "Required open reporting follows visibility of the ignored recipe error."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-s", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "ordinary\n"
+stderr = "make: ./missing-program: No such file or directory\n"
