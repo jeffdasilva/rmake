@@ -3121,7 +3121,6 @@ impl Engine {
                 && !modes.1
                 && !modes.2
                 && self.options.load_limit.is_none()
-                && !debug_before_remake.has(crate::debug::Mask::MAKEFILES)
                 && {
                     // Duplicate reads can replay a completed optional failure
                     // at a required locus. Keep their ordered path until the
