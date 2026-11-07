@@ -203,7 +203,13 @@ def main():
                 path = root / model['id']
                 if startup:
                     path.mkdir()
-                    (path / 'Makefile').write_bytes(b'all:\n')
+                    for name, contents in model.get('files', {'Makefile': 'all:\n'}).items():
+                        relative = Path(name)
+                        if relative.is_absolute() or not relative.parts or '..' in relative.parts:
+                            raise h.HarnessError('invalid startup fixture path')
+                        target = path / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(contents.encode())
                 else:
                     signal_case = fixtures.Cell(signal.Signals(model['signal']), 'parent')
                     fixtures.materialize(signal_case, path)

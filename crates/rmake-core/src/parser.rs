@@ -9,7 +9,8 @@
 pub use crate::diagnostic::Location;
 use crate::diagnostic::SourceName;
 use crate::diagnostic::{
-    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, IncludeError, Output,
+    Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, IncludeError, IncludeFailure,
+    Output,
 };
 use crate::messages::Message;
 use crate::reader::{Input, ParserReader, strip_comment};
@@ -4103,9 +4104,23 @@ impl Database {
                         location: location.clone(),
                         message: "rmake: include requires a makefile reader".into(),
                     })?;
+                    let result = match result {
+                        Ok(included) => Ok(included),
+                        Err(IncludeFailure::Deferred {
+                            resolved_name,
+                            detail,
+                        }) => Err((resolved_name, detail)),
+                        Err(IncludeFailure::Fatal(detail)) => {
+                            return Err(ParseError {
+                                unlocated: false,
+                                location,
+                                message: context.freeze_diagnostic(detail.into()),
+                            });
+                        }
+                    };
                     let file_identity = match &result {
                         Ok(included) => included.name.as_slice(),
-                        Err(error) => error.resolved_name.as_deref().unwrap_or(&path),
+                        Err((resolved_name, _)) => resolved_name.as_deref().unwrap_or(&path),
                     };
                     if let Some(history) = &self.database_history {
                         history.intern(file_identity);
@@ -4143,13 +4158,13 @@ impl Database {
                                 self.include_depth >= 128,
                             ));
                         }
-                        Err(error) => {
+                        Err((resolved_name, detail)) => {
                             self.makefiles.push(Makefile {
-                                name: error.resolved_name.unwrap_or(path),
+                                name: resolved_name.unwrap_or(path),
                                 optional,
                                 missing: true,
                                 location: Some(location),
-                                read_error: Some(error.detail),
+                                read_error: Some(detail),
                             });
                         }
                     }

@@ -14,10 +14,10 @@ pub use startup_exit::{Failure, NativeExit};
 
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
-use crate::makefiles::IncludeSearch;
+use crate::makefiles::{IncludeSearch, source_open_exhausted};
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
 use rmake_core::diagnostic::{
-    Diagnostic, ExpansionContext, IncludeError, Output, OutputReceiver, ScopeParent,
+    Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
 use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
@@ -2293,20 +2293,28 @@ impl Engine {
                     no_tilde: false,
                 },
             );
-            self.database.file_records.insert(name);
             let file = match self.include_search.borrow().read(name) {
                 Ok(file) => file,
-                Err(error) => {
+                Err(IncludeFailure::Deferred {
+                    resolved_name,
+                    detail,
+                }) => {
+                    self.database.file_records.insert(name);
                     self.database.makefiles.push(Makefile {
-                        name: error.resolved_name.unwrap_or_else(|| name.to_vec()),
+                        name: resolved_name.unwrap_or_else(|| name.to_vec()),
                         optional: true,
                         missing: true,
                         location: None,
-                        read_error: Some(error.detail),
+                        read_error: Some(detail),
                     });
                     continue;
                 }
+                Err(IncludeFailure::Fatal(detail)) => {
+                    self.fatal(None, &detail);
+                    return Err(());
+                }
             };
+            self.database.file_records.insert(name);
             found = true;
             self.database.makefiles.push(Makefile {
                 name: file.name.clone(),
@@ -2729,7 +2737,7 @@ impl Engine {
                         if rmake_linux::signals::pending().is_some() {
                             return 2;
                         }
-                        if matches!(err.raw_os_error(), Some(12 | 23 | 24)) {
+                        if source_open_exhausted(&err) {
                             self.fatal(None, os_error(&err).as_bytes());
                             return 2;
                         }
