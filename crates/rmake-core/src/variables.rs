@@ -121,6 +121,7 @@ pub enum Assignment {
 pub(crate) enum ConditionalFlagBinding {
     Ordinary,
     Global,
+    Current,
     Outer(usize),
 }
 
@@ -1077,27 +1078,31 @@ impl VariableStore {
     pub(crate) fn conditional_flag_binding(
         &self,
         canonical_flags_published: bool,
-    ) -> Option<ConditionalFlagBinding> {
+    ) -> ConditionalFlagBinding {
         let Some((layer, variable)) = self.lookup_from(b"MAKEFLAGS", 0) else {
-            return Some(if canonical_flags_published {
+            return if canonical_flags_published {
                 ConditionalFlagBinding::Ordinary
             } else {
                 ConditionalFlagBinding::Global
-            });
+            };
         };
         if self.global_layer(layer)
             && (!canonical_flags_published || variable.scope.special_makeflags.get())
         {
-            return Some(ConditionalFlagBinding::Global);
+            return ConditionalFlagBinding::Global;
         }
         if !variable.scope.special_makeflags.get() {
-            return Some(ConditionalFlagBinding::Ordinary);
+            return ConditionalFlagBinding::Ordinary;
         }
         let outer = layer > 0 && {
             let scope = &self.layers[layer - 1];
             scope.inherited || scope.file_locals
         };
-        outer.then_some(ConditionalFlagBinding::Outer(layer))
+        if outer {
+            ConditionalFlagBinding::Outer(layer)
+        } else {
+            ConditionalFlagBinding::Current
+        }
     }
 
     pub(crate) fn with_flag_destination(
@@ -1133,6 +1138,29 @@ impl VariableStore {
         }
     }
 
+    pub(crate) fn qualify_named_flags(
+        &self,
+        owner: ConditionalFlagBinding,
+        private: bool,
+        export: Option<bool>,
+    ) {
+        let name = b"MAKEFLAGS".as_slice();
+        let selected = match owner {
+            ConditionalFlagBinding::Current => self.lookup_from(name, 0),
+            ConditionalFlagBinding::Outer(layer) => self
+                .bindings_at_layer(layer)
+                .and_then(|set| set.get(name))
+                .map(|binding| (layer, binding)),
+            _ => None,
+        };
+        if let Some((layer, binding)) = selected {
+            binding.scope.set_target_qualifiers(private, export);
+            if let Some(declared) = self.declaration_for_flags(layer, name, binding) {
+                declared.scope.set_target_qualifiers(private, export);
+            }
+        }
+    }
+
     fn qualify_selected_binding(
         &self,
         layer: usize,
@@ -1142,19 +1170,28 @@ impl VariableStore {
         export: Option<bool>,
     ) {
         binding.scope.apply_assignment_qualifiers(private, export);
-        // A canonical flag value may replace a declaration in the same
-        // logical file table. Hiding it must hide the stored declaration too.
-        if binding.scope.flags_from_declaration
-            && let Some(declared) = self
-                .layers
-                .iter()
-                .skip(layer)
-                .take_while(|scope| !scope.file_locals)
-                .find(|scope| scope.target.is_some())
-                .and_then(|scope| scope.variables.get(name))
-        {
+        if let Some(declared) = self.declaration_for_flags(layer, name, binding) {
             declared.scope.apply_assignment_qualifiers(private, export);
         }
+    }
+
+    fn declaration_for_flags(
+        &self,
+        layer: usize,
+        name: &[u8],
+        binding: &Variable,
+    ) -> Option<&Variable> {
+        // A canonical flag value may replace a declaration in the same
+        // logical file table. Hiding it must hide the stored declaration too.
+        if !binding.scope.flags_from_declaration {
+            return None;
+        }
+        self.layers
+            .iter()
+            .skip(layer)
+            .take_while(|scope| !scope.file_locals)
+            .find(|scope| scope.target.is_some())
+            .and_then(|scope| scope.variables.get(name))
     }
 
     /// Read the shell status owned by this table rather than an ancestor.

@@ -2657,10 +2657,12 @@ impl Database {
         };
         let live_makeflags = spec.name == b"MAKEFLAGS" && context.has_makeflags();
         let flag_binding = if live_makeflags && spec.kind == Assignment::Conditional {
-            lookup_scope
-                .as_ref()
-                .unwrap_or(&self.variables)
-                .conditional_flag_binding(self.canonical_flags_published)
+            Some(
+                lookup_scope
+                    .as_ref()
+                    .unwrap_or(&self.variables)
+                    .conditional_flag_binding(self.canonical_flags_published),
+            )
         } else {
             None
         };
@@ -2941,10 +2943,10 @@ impl Database {
             {
                 let mut declarations = scope.context(&self.variables);
                 let replayed = self
-                    .replay_named_global_flags(
+                    .replay_named_flags(
                         target,
                         &mut declarations,
-                        assignment.origin,
+                        &assignment,
                         context.at(Some(location)),
                     )
                     .map_err(parse_error)?;
@@ -2952,10 +2954,12 @@ impl Database {
                     .target_scopes
                     .get_mut(target)
                     .expect("target declaration");
-                if replayed {
+                if let Some(owner) = replayed {
                     scope.retain_read_bindings(&declarations);
-                    self.variables
-                        .qualify_global_target_flags(assignment.private, assignment.export);
+                    if matches!(owner, ConditionalFlagBinding::Global) {
+                        self.variables
+                            .qualify_global_target_flags(assignment.private, assignment.export);
+                    }
                     self.publish_target_scope(target);
                     continue;
                 }
@@ -3061,26 +3065,32 @@ impl Database {
         Ok(has_targets)
     }
 
-    fn replay_named_global_flags(
+    fn replay_named_flags(
         &mut self,
         target: &[u8],
         declarations: &mut VariableStore,
-        origin: Origin,
+        assignment: &TargetAssignment<'_>,
         context: ExpansionContext<'_>,
-    ) -> Result<bool, ExpandError> {
+    ) -> Result<Option<ConditionalFlagBinding>, ExpandError> {
+        let active = self
+            .evaluation_scope
+            .as_ref()
+            .is_some_and(|scope| scope.is_file_read_context(target));
         self.with_target_read(target, declarations, context, |database, read, context| {
+            let owner = read.conditional_flag_binding(database.canonical_flags_published);
             if read.get(b"MAKEFLAGS").is_none()
-                || !matches!(
-                    read.conditional_flag_binding(database.canonical_flags_published),
-                    Some(ConditionalFlagBinding::Global)
-                )
+                || matches!(owner, ConditionalFlagBinding::Ordinary)
+                || (!active && !matches!(owner, ConditionalFlagBinding::Global))
             {
-                return Ok(false);
+                return Ok(None);
             }
+            let destination = (!matches!(owner, ConditionalFlagBinding::Current)).then_some(target);
             database.evaluation_scope = Some(std::mem::take(read));
-            let result = database.reset_assigned_flags(origin, Some(target), context);
+            let result = database.reset_assigned_flags(assignment.origin, destination, context);
             *read = database.evaluation_scope.take().expect("named flag scope");
-            result.map(|_| true)
+            result?;
+            read.qualify_named_flags(owner, assignment.private, assignment.export);
+            Ok(Some(owner))
         })
     }
 
