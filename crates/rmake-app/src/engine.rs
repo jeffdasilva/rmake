@@ -255,6 +255,13 @@ fn location_prefix(location: &Location) -> Vec<u8> {
     bytes
 }
 
+fn one_logical_recipe_slot(bytes: &[u8]) -> bool {
+    bytes
+        .split_inclusive(|&byte| byte == b'\n')
+        .filter_map(|line| line.strip_suffix(b"\n"))
+        .all(|line| line.iter().rev().take_while(|&&byte| byte == b'\\').count() % 2 == 1)
+}
+
 /// GNU exposes these recursive definitions even while reading makefiles and
 /// with -R. Their automatic origin also protects them from override/undefine.
 /// Keep the formulas, rather than precomputing paths: origin/flavor/value and
@@ -9350,9 +9357,25 @@ impl Engine {
         self.dispatch_output = output.clone();
         self.output.select(output.as_ref());
         let mut expanded = std::collections::VecDeque::new();
+        let first = &recipes[0];
+        // Runtime diagnostics count command slots from the first source line.
+        // An expanded inline declaration can still contain several raw commands
+        // in one stored recipe. Keep its locations until those slots are split.
+        let mut logical_locations = None;
         for (index, recipe) in recipes.iter().enumerate() {
+            let mut recipe = recipe.clone();
+            let line = first.location.line.saturating_add(index);
+            if recipe.location.line != line
+                && *logical_locations.get_or_insert_with(|| {
+                    !first.location.file.is_null()
+                        && one_logical_recipe_slot(&first.bytes)
+                        && recipes.iter().all(|recipe| recipe.prefix != b'\\')
+                })
+            {
+                recipe.location.line = line;
+            }
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
-                Ok(bytes) => expanded.push_back((index, bytes, recipe.clone())),
+                Ok(bytes) => expanded.push_back((index, bytes, recipe)),
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     return Execution::fatal(false);

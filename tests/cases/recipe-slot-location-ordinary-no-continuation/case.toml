@@ -1,0 +1,13 @@
+id = "recipe-slot-location-ordinary-no-continuation"
+requirement = "errors.recipes"
+candidate = "required"
+description = "Contiguous ordinary commands retain their locations."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "phase one\nmake: *** [Makefile:4: report] Error 7\n"
+stderr = ""

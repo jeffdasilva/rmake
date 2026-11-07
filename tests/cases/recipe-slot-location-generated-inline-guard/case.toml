@@ -1,0 +1,13 @@
+id = "recipe-slot-location-generated-inline-guard"
+requirement = "errors.recipes"
+candidate = "required"
+description = "A generated inline block with raw command separators retains its existing location."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "one\nmake: *** [Makefile:7: report] Error 7\n"
+stderr = ""
