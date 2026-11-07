@@ -1056,7 +1056,7 @@ pub struct Engine {
     initial_gnu_flags: Vec<u8>,
     intermediate_policy: crate::intermediates::Policy,
     intermediates: HashSet<Vec<u8>>,
-    created_intermediates: Vec<Vec<u8>>,
+    cleanup_candidates: Vec<Vec<u8>>,
     jobserver: Option<Jobserver>,
     unbounded_auth_jobs: bool,
     shuffle: crate::shuffle::Planner,
@@ -1623,7 +1623,7 @@ impl Engine {
             initial_gnu_flags: Vec::new(),
             intermediate_policy: crate::intermediates::Policy::default(),
             intermediates: HashSet::new(),
-            created_intermediates: Vec::new(),
+            cleanup_candidates: Vec::new(),
             jobserver: None,
             unbounded_auth_jobs: false,
             shuffle: crate::shuffle::Planner::new(shuffle),
@@ -3643,16 +3643,20 @@ impl Engine {
         if self.interrupt.is_some() && self.options.dry_run {
             return;
         }
-        if self.created_intermediates.is_empty() {
+        if self.cleanup_candidates.is_empty() {
             return;
         }
         if self.intermediate_policy.all_secondary || self.intermediate_policy.no_intermediates {
-            self.created_intermediates.clear();
+            self.cleanup_candidates.clear();
             return;
         }
-        let created: HashSet<_> = std::mem::take(&mut self.created_intermediates)
+        let created: HashSet<_> = std::mem::take(&mut self.cleanup_candidates)
             .into_iter()
+            .filter(|target| self.intermediate(target))
             .collect();
+        if created.is_empty() {
+            return;
+        }
         let ordered: Vec<_> = self
             .database
             .file_records
@@ -3663,6 +3667,7 @@ impl Engine {
         let mut line = Vec::new();
         for target in ordered {
             if self.special(b".SECONDARY", &target, true)
+                || self.database_secondary.contains(&target)
                 || self.special_for_rule(b".PRECIOUS", &target)
                 || self.special_for_rule(b".NOTINTERMEDIATE", &target)
             {
@@ -8678,8 +8683,11 @@ impl Engine {
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
                 outcome.fatal |= execution.status == Status::Fatal;
                 outcome.question_outdated |= execution.status == Status::Question;
-                if self.intermediate(target) && before.is_none() {
-                    self.created_intermediates.push(target.to_vec());
+                if self.intermediate(target)
+                    && before.is_none()
+                    && (!implicit_group || !outcome.fatal || outcome.ran)
+                {
+                    self.cleanup_candidates.push(target.to_vec());
                 }
                 if self.cleanup_target(target, before, phony, execution.cleanup) {
                     outcome.failed = true;
@@ -8844,6 +8852,10 @@ impl Engine {
                     owner.database_result = database_result;
                 }
                 continue;
+            }
+            if group.implicit && (!outcome.failed || outcome.ran) {
+                // Later implicit searches can mark an updated peer intermediate.
+                self.cleanup_candidates.push(peer.clone());
             }
             self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);

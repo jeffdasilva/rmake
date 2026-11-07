@@ -1,0 +1,10 @@
+id = "implicit-peer-cleanup-failed-group"
+requirement = "rules.implicit-peer-cleanup"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture."
+args = ["-rR", "--no-print-directory", "all"]
+
+[expected]
+exit_code = 2
+stdout = "rm unit.part unit.index\n"
+stderr = "make: *** [Makefile:6: unit.part] Error 7\n"

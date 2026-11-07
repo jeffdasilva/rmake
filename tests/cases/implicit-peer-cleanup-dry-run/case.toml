@@ -1,0 +1,10 @@
+id = "implicit-peer-cleanup-dry-run"
+requirement = "rules.implicit-peer-cleanup"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'part\\n' >unit.part\nprintf 'index\\n' >unit.index\ncat unit.part unit.index >unit.bundle\nrm unit.part unit.index\n"
+stderr = ""

@@ -1,0 +1,10 @@
+id = "implicit-peer-cleanup-touch"
+requirement = "rules.implicit-peer-cleanup"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture."
+args = ["-rR", "--no-print-directory", "-t", "all"]
+
+[expected]
+exit_code = 0
+stdout = "touch unit.part\ntouch unit.index\ntouch unit.bundle\n"
+stderr = ""
