@@ -1,0 +1,15 @@
+id = "named-conditional-makeflags-read-all-private-literal-environment-override"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Observe read-time named flag replay and export for the selected startup origin."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[environment override]/[ekrR --no-print-directory]/[-ekrR --no-print-directory]\nsibling=[environment override]/[ekrR --no-print-directory]/[-ekrR --no-print-directory]\nall=[environment override]/[ekrR --no-print-directory]/[-ekrR --no-print-directory]\nafter=[undefined]/[]/[-ekrR --no-print-directory]\n"
+stderr = ""
+
+[environment]
+MAKEFLAGS = "-e -k"

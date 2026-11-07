@@ -1,0 +1,15 @@
+id = "named-conditional-makeflags-read-all-private-unexport-literal-environment"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Observe read-time named flag replay and export for the selected startup origin."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[file]/[krR --no-print-directory]/[-krR --no-print-directory]\nsibling=[file]/[krR --no-print-directory]/[-krR --no-print-directory]\nall=[file]/[krR --no-print-directory]/[-krR --no-print-directory]\nafter=[undefined]/[]/[-krR --no-print-directory]\n"
+stderr = ""
+
+[environment]
+MAKEFLAGS = "-k"

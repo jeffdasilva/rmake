@@ -125,3 +125,16 @@ When replay publishes a current file's canonical flags, a conditional's
 selected before replay. Tests distinguish the current recipe's canonical
 value from the original global or ancestor binding, and check the shell
 and recipe environments of that file and its siblings.
+
+An explicit target's suppressed `MAKEFLAGS ?=` can select the special global
+binding. The setter then publishes canonical flags in the named file table
+before applying the declaration's modifiers to the global binding. The named
+file and its inheritors keep their canonical flags even when the global value
+becomes private. Export eligibility follows the canonical binding's origin,
+including environment override. Read-time and runtime fixtures cover names,
+includes, active children, retained parents and later siblings.
+
+Canonical root publication also marks the global binding. Removing it
+drops that mark, so a freshly recreated ordinary binding waits for the next
+canonical publication. Original controls cover this distinction before
+and after a named conditional.

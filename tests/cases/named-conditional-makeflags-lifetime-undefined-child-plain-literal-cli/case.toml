@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-lifetime-undefined-child-plain-literal-cli"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Distinguish missing, recreated, and protected canonical global flag bindings."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "after", "MAKEFLAGS=-k"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[file]/[krR --no-print-directory -- MAKEFLAGS=-k]/[-krR --no-print-directory]\nsibling=[command line]/[-k]/[-krR --no-print-directory]\nall=[command line]/[-k]/[-krR --no-print-directory]\nafter=[command line]/[-k]/[-krR --no-print-directory]\n"
+stderr = ""

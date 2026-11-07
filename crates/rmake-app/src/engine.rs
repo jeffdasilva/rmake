@@ -400,32 +400,12 @@ fn export_selected(
                             ))
                 })
         };
-        if globals
+        // A reset or private global no longer supplies export policy.
+        // Evaluate default eligibility from the visible target binding.
+        let ignore_global_policy = globals
             .get(name)
-            .is_some_and(|variable| variable.export_default_reset())
-        {
-            // A pattern conditional can explicitly reset an
-            // imported name's policy. Re-evaluate default
-            // eligibility from the selected binding instead
-            // of retaining the startup name-list decision.
-            return default_export();
-        }
-        if globals
-            .get(name)
-            .is_some_and(|variable| variable.is_private())
-        {
-            // A suppressed private conditional can mark the
-            // global binding private. Its export policy is then
-            // hidden too; export-all still applies independently
-            // to an unrelated visible target binding.
-            export_all
-                && automatic_export_name(name)
-                && environment.get(name).is_some_and(|variable| {
-                    !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                })
-        } else {
-            !unexports.contains(name) && default_export()
-        }
+            .is_some_and(|variable| variable.export_default_reset() || variable.is_private());
+        (ignore_global_policy || !unexports.contains(name)) && default_export()
     })
 }
 
@@ -1509,11 +1489,8 @@ impl Engine {
         }
         retain!(
             database
-                .variables
-                .define(
-                    b"MAKEFLAGS",
+                .define_canonical_makeflags(
                     &initial_flags,
-                    Assignment::Recursive,
                     runtime_options::origin(options.environment_override),
                 )
                 .map_err(StartupError::expansion)
@@ -1660,11 +1637,8 @@ impl Engine {
                     .map_err(|error| error.diagnostic())?;
                 engine
                     .database
-                    .variables
-                    .define(
-                        b"MAKEFLAGS",
+                    .define_canonical_makeflags(
                         &flags,
-                        Assignment::Recursive,
                         runtime_options::origin(engine.options.environment_override),
                     )
                     .map_err(|error| error.diagnostic())?;
@@ -2800,10 +2774,8 @@ impl Engine {
             {
                 runtime_flags.extend_from_slice(self.database.command_overrides_reference());
             }
-            if let Err(error) = self.database.variables.define(
-                b"MAKEFLAGS",
+            if let Err(error) = self.database.define_canonical_makeflags(
                 &runtime_flags,
-                Assignment::Recursive,
                 runtime_options::origin(self.options.environment_override),
             ) {
                 self.expansion_error(None, &error);
