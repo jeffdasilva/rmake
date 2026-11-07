@@ -1,0 +1,10 @@
+id = "parallel-goal-summary-order-existing-prereq-pipe"
+requirement = "diagnostics.parallel-goal-summary-order"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for parallel goal summary order."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "cached", "work"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'cached' is up to date.\nexpanded-work\nworked\n"
+stderr = ""
