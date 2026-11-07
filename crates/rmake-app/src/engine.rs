@@ -348,6 +348,7 @@ struct RequestedGoal {
     already_done: bool,
     initial: Outcome,
     awaiting_recipe: bool,
+    awaiting_group_peer: bool,
     started_command: bool,
 }
 
@@ -3673,11 +3674,17 @@ impl Engine {
                 self.report_goal(&goal, started_command, report);
             } else if self.parallel_graph() {
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
+                let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
+                    && self
+                        .active_peers
+                        .get(self.aliases.resolve(&goal))
+                        .is_some_and(|owner| self.ordinary_group_recipe_pending(owner));
                 requested.push(RequestedGoal {
                     name: goal,
                     already_done,
                     initial: outcome,
                     awaiting_recipe,
+                    awaiting_group_peer,
                     started_command,
                 });
             } else {
@@ -3720,12 +3727,16 @@ impl Engine {
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self.goal_recipe_waiting(&goal.name);
                     }
-                } else if goal.awaiting_recipe {
+                } else if goal.awaiting_recipe || goal.awaiting_group_peer {
                     if !self.pending(&goal.name) {
-                        first_goal = false;
-                        self.debug_completed_goal_visit(&goal.name);
+                        if goal.awaiting_recipe {
+                            first_goal = false;
+                        }
+                        self.debug_completed_goal_visit(&goal.name, goal.awaiting_group_peer);
                         goal.awaiting_recipe = false;
-                    } else if self.debug_pass != last_goal_pass
+                        goal.awaiting_group_peer = false;
+                    } else if goal.awaiting_recipe
+                        && self.debug_pass != last_goal_pass
                         && self.graph_abort.is_none()
                         && self.shutdown.get() == Shutdown::Running
                     {
@@ -3749,8 +3760,8 @@ impl Engine {
         for goal in requested {
             // Reaping the last job can end the pending-work loop before the
             // next scan. This is the final visit to those completed goals.
-            if goal.awaiting_recipe {
-                self.debug_completed_goal_visit(&goal.name);
+            if goal.awaiting_recipe || goal.awaiting_group_peer {
+                self.debug_completed_goal_visit(&goal.name, goal.awaiting_group_peer);
             }
             let outcome = self
                 .done
@@ -3981,7 +3992,15 @@ impl Engine {
                 .is_none_or(DoubleColonState::single_active_branch)
     }
 
-    fn debug_completed_goal_visit(&self, goal: &[u8]) {
+    fn ordinary_group_recipe_pending(&self, owner: &[u8]) -> bool {
+        self.parallel_jobs.contains_key(owner)
+            && self
+                .running_groups
+                .get(owner)
+                .is_some_and(|group| group.ordinary)
+    }
+
+    fn debug_completed_goal_visit(&mut self, goal: &[u8], grouped_peer: bool) {
         use crate::debug::{Event, Mask, emit};
 
         if !self.output.debug_mask().has(Mask::VERBOSE)
@@ -3991,7 +4010,7 @@ impl Engine {
             return;
         }
         let name = self.aliases.resolve(goal);
-        let Some(outcome) = self.done.get(name) else {
+        let Some(outcome) = self.done.get(name).copied() else {
             return;
         };
         if outcome.fatal
@@ -4002,6 +4021,10 @@ impl Engine {
         }
         // The goal chain reads the cached completion here. No rule, timestamp,
         // or prerequisite expansion is evaluated for this diagnostic visit.
+        if grouped_peer {
+            self.debug_cached_prerequisite_visit(goal, 0, outcome);
+            return;
+        }
         emit(&self.output, Event::Considering(name, 0));
         emit(
             &self.output,
@@ -7918,15 +7941,10 @@ impl Engine {
             && owner != target
         {
             let mut outcome = self.done.get(owner).copied().unwrap_or_default();
-            if parent.is_some()
-                && !self.remaking
+            if !self.remaking
                 && !traced_optional_failure
                 && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
-                && self.parallel_jobs.contains_key(owner)
-                && self
-                    .running_groups
-                    .get(owner)
-                    .is_some_and(|group| group.ordinary)
+                && self.ordinary_group_recipe_pending(owner)
             {
                 self.debug_cached_prerequisite_visit(target, depth, outcome);
             }
