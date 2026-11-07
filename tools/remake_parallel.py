@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
@@ -15,6 +15,8 @@ import tempfile
 import debug_output as debug
 from debug_output import h, reference_oracle
 from job_debug import proc_identity
+from job_debug_load import compile_fixture
+from load_limits import SOURCE as LOAD_SHIM_SOURCE
 
 
 SOURCES = debug.ROOT / 'tests/remake-parallel'
@@ -33,15 +35,28 @@ WAITING = b'make: *** Waiting for unfinished jobs....\n'
 REMAKE_ERROR = b"Makefile:2: Failed to remake makefile 'generated.gen'.\n"
 
 
+LOAD_HIGH = b'0 0 0 99/100 1\n'
+LOAD_LOW = b'0 0 0 0/100 1\n'
+
+
+@dataclass(frozen=True)
+class LoadProfile:
+    mode: str
+    at_release: bytes
+    trace: bytes
+
+
 @dataclass(frozen=True)
 class HeldModel:
     model: debug.Model
     overlap: bool
     before_second: bytes | None
     before_first: bytes = BEFORE_FIRST
+    before_second_stdout: bytes | None = None
+    load: LoadProfile | None = None
 
 
-def models(*, duplicate_reads: bool = False) -> list[HeldModel]:
+def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
     worker = (SOURCES / 'worker.py').read_bytes()
     markers = {f'{name}.{suffix}': content for name in WORKERS
                for suffix, content in (('started', b'started\n'), ('release', b'yes\n'),
@@ -106,8 +121,13 @@ def models(*, duplicate_reads: bool = False) -> list[HeldModel]:
             model = debug.Model(f'{mode}-{transport}', files, args, {'GNUMAKEFLAGS': ''}, expected,
                                 seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, not serial, before_second))
-    return (results + mixed_models(worker, markers) + immediate_launch_models(worker, markers)
-            + shared_failure_models(worker, markers) + duplicate_models(worker, markers))
+    results += mixed_models(worker, markers)
+    results += immediate_launch_models(worker, markers)
+    results += shared_failure_models(worker, markers)
+    results += duplicate_models(worker, markers)
+    if include_load:
+        results += load_models(worker, markers)
+    return results
 
 
 def mixed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
@@ -383,6 +403,72 @@ def alias_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
     return results
 
 
+def load_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    ordinary = ('.PHONY: all\n'
+                'all: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(TAIL)):\n')
+    ordinary_expansion = '.PHONY: all\n.SECONDEXPANSION:\nall: $$(file >>seen,ordinary---)\n'
+    left = 'left.gen: ; @$(file >>seen,expanded-left)python3 worker.py left include\n'
+    right = 'right.gen: ; @$(file >>seen,expanded-right)python3 worker.py right include\n'
+    independent = 'include left.gen right.gen\n' + left + right + ordinary
+    dynamic = ('include left.gen right.gen tail.gen\n' + left + right
+               + 'tail.gen: ; @$(file >>seen,expanded-tail)printf "TAIL := loaded\\n" > "$@"\n'
+               + ordinary)
+    blocked = (
+        'generated.gen: left right ; @$(error failed prerequisites must block this recipe)\n'
+        'left: ; @$(file >>seen,expanded-left)python3 worker.py left fail\n'
+        'right: ; @$(file >>seen,expanded-right)python3 worker.py right success\n'
+    )
+    expanded = BEFORE_FIRST + b'expanded-left\nexpanded-right\n'
+    after_left = expanded + b'left\n'
+    dynamic_expanded = expanded + b'expanded-tail\n'
+    expanded_goal = b'ordinary---\n'
+    right_effect = b'right\n'
+    loaded = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    restarted = right_effect + b'read-1\nordinary-loaded-loaded-\n'
+    ordinary_summary = b"make: Nothing to be done for 'all'.\n"
+    required_error = MISSING + b'make: *** [Makefile:4: left] Error 3\n'
+    left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
+    high = LoadProfile('normal', LOAD_HIGH, b'proc\n')
+    low = LoadProfile('normal', LOAD_LOW, b'proc\n')
+    drop = LoadProfile('drop-on-token-wait', LOAD_LOW, b'proc\ntoken-wait\n')
+    cases = (
+        ('queued-success', independent, (), False, LOAD_HIGH, high,
+         expanded, after_left, after_left + restarted, 0, b'', b'', {**markers, **loaded}),
+        ('low-success', independent, (), True, LOAD_LOW, low,
+         expanded, after_left, after_left + restarted, 0, b'', b'', {**markers, **loaded}),
+        ('dynamic-token-wait', dynamic, (), True, LOAD_HIGH, drop,
+         dynamic_expanded, dynamic_expanded + b'left\n',
+         dynamic_expanded + b'left\nright\nread-1\nordinary-loaded-loaded-loaded\n',
+         0, b'', b'', {**markers, **loaded, 'tail.gen': b'TAIL := loaded\n', 'load.input': LOAD_LOW}),
+        ('optional-stop', '-include generated.gen\n' + blocked + ordinary_expansion, (),
+         False, LOAD_HIGH, high, expanded, after_left + expanded_goal,
+         after_left + expanded_goal + right_effect, 0, b'left\n' + ordinary_summary, b'', markers),
+        ('optional-keep', '-include generated.gen\n' + blocked + ordinary_expansion, ('-k',),
+         False, LOAD_HIGH, high, expanded, after_left,
+         after_left + right_effect + expanded_goal, 0, b'left\n' + ordinary_summary, b'', markers),
+        ('required-stop', 'include generated.gen\n' + blocked + ordinary_expansion, (),
+         False, LOAD_HIGH, high, expanded, None, after_left, 2, b'left\n', required_error, left_markers),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for (name, source, flags, overlap, initial_load, load, before_first,
+             before_second, seen, status, stdout, stderr, updates) in cases:
+            files = {'Makefile': (header + source).encode(), 'worker.py': worker,
+                     'seen': ANCHOR, 'load.input': initial_load}
+            args = ('-rR', '--no-print-directory', '-j2', '-l2',
+                    f'--jobserver-style={transport}', *flags, 'all')
+            expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'load-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''},
+                                expected, seen, updates=updates,
+                                mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(model, overlap, before_second, before_first,
+                                     before_second_stdout=stdout if name == 'optional-stop' else None,
+                                     load=load))
+    return results
+
+
 def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
     workers = {}
     for token in (proc / 'task' / str(parent) / 'children').read_bytes().split():
@@ -420,8 +506,17 @@ def poll_wait(proc: Path) -> tuple[int | None, bool]:
 
 
 def execute(case: h.Case, runtime: Path, binary: Path,
-            wait_samples: set[tuple[str, int | None]] | None = None):
+            wait_samples: set[tuple[str, int | None]] | None = None, *,
+            load: LoadProfile | None = None, load_shim: Path | None = None):
     work = runtime / 'work'
+    trace = runtime / 'load.trace'
+    if load is not None:
+        if load_shim is None:
+            raise h.HarnessError('load profiles require a preload shim')
+        trace.unlink(missing_ok=True)
+        case = replace(case, environment={**case.environment, 'LD_PRELOAD': str(load_shim),
+                                          'RMAKE_TEST_LOAD': load.mode, 'RMAKE_LOAD_TRACE': str(trace),
+                                          'RMAKE_LOAD_AVERAGE': '100'})
     releases = []
     released = set()
     previous = None
@@ -447,11 +542,16 @@ def execute(case: h.Case, runtime: Path, binary: Path,
                 if (work / f'{name}.done').exists() or (work / f'{name}.release').exists():
                     raise h.HarnessError('remake worker escaped its release barrier')
             seen = (work / 'seen').read_bytes()
+            load_bytes = (work / 'load.input').read_bytes() if load is not None else b''
+            load_trace = trace.read_bytes() if load is not None and trace.exists() else b''
         except (FileNotFoundError, ProcessLookupError):
+            return
+        if (load is not None and load.mode == 'drop-on-token-wait' and not released
+                and load_trace and b'expanded-tail\n' in seen and 'right' not in workers):
             return
         # Let a serial baseline progress when it demonstrably waits on only one
         # child. The oracle and candidate still have to match the expected set.
-        signature = (sorted(workers.items()), channel, number, seen, stdout)
+        signature = (sorted(workers.items()), channel, number, seen, stdout, load_bytes, load_trace)
         if signature != previous:
             previous = signature
             return
@@ -463,6 +563,8 @@ def execute(case: h.Case, runtime: Path, binary: Path,
         releases.append({'name': name, 'parent': parent, 'workers': workers,
                          'wchan': channel, 'poll_syscall': number,
                          'seen_hex': seen.hex(), 'stdout_hex': stdout.hex()})
+        if load is not None:
+            releases[-1].update(load_hex=load_bytes.hex(), load_trace_hex=load_trace.hex())
         released.add(name)
 
     return h.execute(case, runtime, binary, observe=observe), releases
@@ -473,6 +575,12 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     if [release['name'] for release in releases] != order:
         return ['held release sequence']
     errors = []
+    if held.load is not None and any(
+        release.get('load_hex') != held.load.at_release.hex()
+        or release.get('load_trace_hex') != held.load.trace.hex()
+        for release in releases
+    ):
+        errors.append('load observation at release')
     first = releases[0]
     expected_first = list(WORKERS) if held.overlap else ['left']
     if sorted(first['workers']) != expected_first:
@@ -492,7 +600,9 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
         errors.append('right identity across releases')
     if second['seen_hex'] != held.before_second.hex():
         errors.append('file effects at second release')
-    stdout_after_left = b'left\n' if held.model.expected['stdout_template_hex'] else b''
+    stdout_after_left = held.before_second_stdout
+    if stdout_after_left is None:
+        stdout_after_left = b'left\n' if held.model.expected['stdout_template_hex'] else b''
     if second['stdout_hex'] != stdout_after_left.hex():
         errors.append('stdout at second release')
     return errors
@@ -507,13 +617,22 @@ def main() -> int:
     mode.add_argument('--candidate', type=Path)
     parser.add_argument('--duplicate-reads', action='store_true')
     parser.add_argument('--case', action='append', default=[])
+    load_options = parser.add_mutually_exclusive_group()
+    load_options.add_argument('--include-load', action='store_true',
+                              help='add load profiles and compile their tracked preload shim')
+    load_options.add_argument('--load-shim', type=Path,
+                              help='add load profiles using an existing preload shim')
     reports = parser.add_mutually_exclusive_group()
     reports.add_argument('--report', type=Path)
     reports.add_argument('--report-dir', type=Path)
     args = parser.parse_args()
     try:
         profile = reference_oracle.verify(args.oracle, args.oracle_profile)
-        available = models(duplicate_reads=args.duplicate_reads)
+        load_shim = args.load_shim.resolve(strict=True) if args.load_shim is not None else None
+        if load_shim is not None and not load_shim.is_file():
+            raise h.HarnessError('load shim must be a file')
+        available = models(duplicate_reads=args.duplicate_reads,
+                           include_load=args.include_load or load_shim is not None)
         unknown = set(args.case) - {held.model.id for held in available}
         if unknown:
             raise h.HarnessError('unknown remake cases: ' + ', '.join(sorted(unknown)))
@@ -522,16 +641,19 @@ def main() -> int:
         if args.candidate is not None:
             executables.append(args.candidate)
         records = []
+        load_build = None
         with tempfile.TemporaryDirectory(prefix='rmake-remake-parallel-') as scratch:
             root = Path(scratch)
             runtime = root / 'runtime'
             runtime.mkdir(mode=0o755)
+            if load_shim is None and any(held.load is not None for held in selected):
+                load_shim, load_build = compile_fixture(LOAD_SHIM_SOURCE, root)
             for held in selected:
                 model = held.model
                 case, filesystem = debug.prepare(model, root / model.id, runtime)
                 samples = [set() for _ in executables]
                 observations, releases = zip(*(
-                    execute(case, runtime, binary, waits)
+                    execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
@@ -555,6 +677,8 @@ def main() -> int:
                   'executables': [h.executable_identity(binary) for binary in executables],
                   'totals': {'cases': total, 'pass': passed, 'fail': total - passed},
                   'cases': records}
+        if load_build is not None:
+            report['load_shim_build'] = load_build
         report_path = args.report
         if args.report_dir is not None:
             args.report_dir.mkdir(parents=True, exist_ok=True)

@@ -3126,7 +3126,6 @@ impl Engine {
                 && !modes.0
                 && !modes.1
                 && !modes.2
-                && self.options.load_limit.is_none()
                 && !debug_before_remake.has(crate::debug::Mask::MAKEFILES);
             self.remaking = true;
             let mut changed = false;
@@ -4916,6 +4915,8 @@ impl Engine {
             if self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high() {
                 break;
             }
+            // A stopped optional traversal can leave an already-admitted
+            // recipe queued. Its reservation survives the owner's stop.
             let (target, identity) = self.load_waiting.pop().expect("nonempty waiting queue");
             self.complete_job((target, identity, None));
         }
@@ -5053,7 +5054,6 @@ impl Engine {
             Some(Err(_)) => Some(127),
             None => None,
         };
-        let queued = result.is_none();
         let error = match result {
             None => None,
             Some(Ok(status)) if status.success() => None,
@@ -5070,12 +5070,11 @@ impl Engine {
         if !job.waiting_load {
             job.continuation.flow.attempted(launched);
         }
-        let cancelled = queued && self.remake_stopped();
         let command_failed = error.is_some() && !job.ignore;
         if command_failed {
             self.note_group_recipe_failure(&target, &job.location);
         }
-        let mut failed = cancelled || command_failed;
+        let mut failed = command_failed;
         let remake = job.continuation.remake.as_ref();
         if let Some(error) = error
             && (job.ignore || !remake.is_some_and(|remake| remake.optional))
@@ -5197,7 +5196,7 @@ impl Engine {
         if !optional_failure {
             self.parallel_failed |= failed;
         }
-        outcome.ran = !cancelled;
+        outcome.ran = true;
         outcome.failed |= failed;
         if optional_failure && failed {
             if !self.options.keep_going

@@ -44,8 +44,7 @@ fails all twenty-six parallel profiles. The observer releases a single held
 child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
-Load limits, remake debug output, and the `-n`, `-q`,
-and `-t` modes still use the serial remake path. Each needs separate
+Remake debug output and the `-n`, `-q`, and `-t` modes still use the serial remake path. Each needs separate
 qualification before enabling parallel remakes for that input.
 
 ## Duplicate reads
@@ -69,3 +68,19 @@ target record even when it refers to the same physical file.
 The prototype at `0dc03fcaf` serialized the workers in all 20 initial
 duplicate-read cases and matched the final ordinary observations in ten.
 The overlap checks detected all twenty.
+
+## Load limits
+
+The development and release gates include twelve held load profiles.
+For a standalone run, add `--include-load` to compile the tracked shim
+with `cc` in the harness temporary directory. Use `--load-shim PATH` to
+reuse a compatible shim, such as the one built by `make test-load`.
+
+The load cases distinguish a recipe that has already reserved a job slot
+from one still unvisited in a stopped graph. They observe high-load
+deferral, a low-load overlap control, and a controlled load drop during
+token wait. A stopped optional remake retains its queued sibling while
+a required failure cancels the queue. The optional-stop ordinary goal
+records its secondary expansion before the queued sibling releases.
+Ordinary goal summaries for load-deferred commands have a separate
+attribution boundary.
