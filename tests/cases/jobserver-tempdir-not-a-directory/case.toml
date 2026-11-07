@@ -1,0 +1,10 @@
+id = "jobserver-tempdir-not-a-directory"
+requirement = "runtime.jobserver-temp-directory"
+candidate = "required"
+provenance = "Original rmake differential fixture for owned FIFO temporary-directory selection."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified fifo\n"
+stderr = "make: TMPDIR value regular: not a directory\nmake: using default temporary directory '/tmp'\n"
