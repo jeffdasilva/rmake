@@ -7341,6 +7341,22 @@ impl Engine {
         outcome.failed = true;
     }
 
+    fn show_retained_optional_failure(
+        &mut self,
+        target: &[u8],
+        parent: Option<&[u8]>,
+        cause: Option<Rc<FailedPrerequisite>>,
+    ) {
+        self.show_makefile_error();
+        if let Some(cause) = cause {
+            self.report_missing_rule(&cause.target, Some(&cause.parent));
+            self.optional_remake_failures
+                .remove(cause.target.as_slice());
+        } else {
+            self.report_missing_rule(target, parent);
+        }
+    }
+
     fn report_missing_rule(&self, target: &[u8], parent: Option<&[u8]>) {
         let keep = self.options.keep_going;
         let body = crate::messages::system(rmake_core::messages::Message::NoRule {
@@ -7561,14 +7577,7 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
-            self.show_makefile_error();
-            if let Some(cause) = cause {
-                self.report_missing_rule(&cause.target, Some(&cause.parent));
-                self.optional_remake_failures
-                    .remove(cause.target.as_slice());
-            } else {
-                self.report_missing_rule(target, parent.map(|parent| parent.target));
-            }
+            self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
         }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
@@ -8871,6 +8880,19 @@ impl Engine {
                 )
             } else {
                 let outcome = self.done.get(dependency).copied();
+                // A suspended required frame can first see a shared child's
+                // failed completion here, without entering the builder again.
+                if self.parallel_makefile_remakes
+                    && !self.optional_remake()
+                    && self.graph_abort.is_none()
+                    && self.shutdown.get() == Shutdown::Running
+                    && let Some(outcome) =
+                        outcome.filter(|outcome| outcome.failed && !outcome.fatal)
+                    && let Some(cause) = self.optional_remake_failures.remove(dependency)
+                {
+                    self.show_retained_optional_failure(dependency, Some(parent.target), cause);
+                    self.record_graph_failure(outcome);
+                }
                 if let Some(outcome) = outcome
                     && visit == PrerequisiteVisit::DebugReplay
                 {

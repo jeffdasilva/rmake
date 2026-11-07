@@ -102,7 +102,8 @@ def models() -> list[HeldModel]:
             model = debug.Model(f'{mode}-{transport}', files, args, {'GNUMAKEFLAGS': ''}, expected,
                                 seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, not serial, before_second))
-    return results + mixed_models(worker, markers) + immediate_launch_models(worker, markers)
+    return (results + mixed_models(worker, markers) + immediate_launch_models(worker, markers)
+            + shared_failure_models(worker, markers))
 
 
 def mixed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
@@ -221,6 +222,44 @@ def immediate_launch_models(worker: bytes, markers: dict[str, bytes]) -> list[He
                                 expected, seen, updates={**left_markers, **updates},
                                 mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, False, None, before_first))
+    return results
+
+
+def shared_failure_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = (
+        '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+        '-include unit.part\ninclude unit.index\n'
+        '.PHONY: all\nall: ; @$(file >>seen,goal):\n'
+    )
+    forbidden = ' shared ; @$(error failed dependencies must prevent this recipe)\n'
+    shared = 'shared: ; @python3 worker.py left fail\n'
+    open_error = b'Makefile:3: unit.index: No such file or directory\n'
+    needed = b"make: *** No rule to make target 'shared', needed by 'unit.index'."
+    separate = 'unit.part:' + forbidden + 'unit.index:' + forbidden
+    cases = (
+        ('implicit', header + '%.part %.index:' + forbidden + shared, (), open_error + needed + b'  Stop.\n'),
+        ('explicit', header + 'unit.part unit.index &:' + forbidden + shared, (), open_error + needed + b'  Stop.\n'),
+        ('double-colon', header + 'unit.part unit.index &::' + forbidden + shared, (), open_error + needed + b'  Stop.\n'),
+        ('separate', header + separate + shared, (), open_error + needed + b'  Stop.\n'),
+        ('keep-going', header + separate + shared, ('-k',), open_error + needed
+         + b"\nMakefile:3: Failed to remake makefile 'unit.index'.\n"),
+        ('required-owner', header.replace('-include unit.part\ninclude unit.index\n',
+                                          'include unit.part\n-include unit.index\n')
+         + separate + shared, ('-k',), b'make: *** [Makefile:8: shared] Error 3\n'
+         + b"Makefile:2: Failed to remake makefile 'unit.part'.\n"),
+    )
+    left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, source, flags, stderr in cases:
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
+            args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}', *flags, 'all')
+            expected = {'exit_code': 2, 'stdout_template_hex': b'left\n'.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'shared-failure-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''},
+                                expected, BEFORE_SECOND, updates=left_markers,
+                                mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(model, False, None))
     return results
 
 
