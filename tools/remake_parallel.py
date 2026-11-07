@@ -416,6 +416,14 @@ def settled_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldMo
         'left.gen: ; @python3 worker.py left include\n'
         'right.gen: ; @python3 worker.py right include\n'
     )
+    named_prerequisite = (
+        'include left.gen right.gen\n'
+        'ifeq ($(MAKE_RESTARTS),)\n'
+        'left.gen: named ; @:\n'
+        'endif\n'
+        'named: ; @python3 worker.py left include\n'
+        'right.gen: ; @python3 worker.py right include\n'
+    )
     required_failure = (
         'include generated.gen\n'
         'generated.gen: left right ; @$(error required failure must prevent this recipe)\n'
@@ -435,11 +443,17 @@ def settled_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldMo
         ('q', 1, b'', loaded_effects, {}),
         ('t', 0, b'touch result\n', restarted, {'result': b''}),
     )
+    named_stdout = {'n': b'python3 worker.py left include\n', 'q': b'', 't': b'touch named\n'}
     results = []
     for transport in ('pipe', 'fifo'):
         for mode, status, stdout, seen, updates in modes:
             cases = (
                 ('success', independent, (), status, stdout, b'', seen, {**loaded, **updates}),
+                ('explicit-goal', independent, ('./all',), status, stdout, b'', seen,
+                 {**loaded, **updates}),
+                ('named-prerequisite', named_prerequisite, ('named', 'all'), status,
+                 named_stdout[mode] + stdout, b'', seen,
+                 {**loaded, **updates, **({'named': b''} if mode == 't' else {})}),
                 ('required-stop', required_failure, (), 2, b'left\n', required_error + WAITING,
                  BEFORE_SECOND + b'right\nright-tail\n', {}),
                 ('required-keep', required_failure, ('-k',), 2, b'left\n', required_error + remake_error,
@@ -457,7 +471,7 @@ def settled_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldMo
                                     updates={**markers, **extra_files},
                                     mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                 results.append(HeldModel(model, True, BEFORE_SECOND,
-                                         before_second_stdout=b'' if name == 'success' else b'left\n'))
+                                         before_second_stdout=b'left\n' if name.startswith('required-') else b''))
     return results
 
 

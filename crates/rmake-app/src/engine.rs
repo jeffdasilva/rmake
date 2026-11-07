@@ -3141,8 +3141,7 @@ impl Engine {
             let ordinary_mode = modes.0 || modes.1 || modes.2;
             let remakes_can_overlap = !ordinary_mode
                 || (!debug_before_remake.has(Mask::MAKEFILES)
-                    && self.options.goals.is_empty()
-                    && !read_files.iter().any(|(file, skip)| !skip && file.optional));
+                    && self.ordinary_mode_remakes_settle(&read_files));
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.remaking = true;
@@ -3779,6 +3778,36 @@ impl Engine {
         } else {
             0
         }
+    }
+
+    fn ordinary_mode_remakes_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        let goals = &self.options.goals;
+        // Keep names that can be expanded or merged by directory search on
+        // the guarded path. CLI decoding already strips leading ./.
+        if !goals.is_empty()
+            && (self.database.has_vpaths()
+                || !self.vpath_dirs.is_empty()
+                || !self.gpath_dirs.is_empty()
+                || goals.iter().any(|goal| {
+                    goal.contains(&b'/')
+                        || goal.starts_with(b"~")
+                        || goal.starts_with(b"-l")
+                        || archive_parts(goal).is_some()
+                }))
+        {
+            return false;
+        }
+        read_files.iter().all(|(file, skip)| {
+            let name = without_dot_prefix(&file.name);
+            *skip
+                || (!file.optional
+                    && (goals.is_empty()
+                        || (!name.starts_with(b"-l")
+                            && archive_parts(name).is_none()
+                            && !goals.iter().any(|goal| goal.as_slice() == name))))
+        })
     }
 
     fn grouped_remake_comparison_times<'a>(
@@ -11592,6 +11621,46 @@ mod tests {
             let file = [b"$(".as_slice(), &[*base], b"F)"].concat();
             assert_eq!(variables.expand(&directory).unwrap(), b". dir dir .");
             assert_eq!(variables.expand(&file).unwrap(), b"bare one two bare");
+        }
+    }
+
+    #[test]
+    fn ordinary_mode_remakes_guard_a_named_source_after_cli_normalization() {
+        let launch = Engine::invocation(
+            ["-n", "./left.gen"].into_iter().map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let mut reads = [(
+            Makefile {
+                name: b"left.gen".to_vec(),
+                optional: false,
+                missing: true,
+                location: None,
+                read_error: None,
+            },
+            false,
+        )];
+
+        assert_eq!(engine.options.goals, [b"left.gen".to_vec()]);
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        reads[0].1 = true;
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+
+        reads[0].1 = false;
+        engine.options.goals = vec![b"named".to_vec(), b"all".to_vec()];
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.vpath_dirs.push(b"search".to_vec());
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        engine.vpath_dirs.clear();
+        for goal in ["dir/all", "~/all", "-lwidget", "archive.a(member)"] {
+            engine.options.goals = vec![goal.as_bytes().to_vec()];
+            assert!(!engine.ordinary_mode_remakes_settle(&reads));
         }
     }
 
