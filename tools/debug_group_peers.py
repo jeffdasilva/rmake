@@ -16,7 +16,7 @@ import tomllib
 import debug_output as debug
 from debug_output import h, reference_oracle
 from job_debug import proc_identity
-from remake_parallel import HeldModel, execute, release_errors
+from remake_parallel import HeldModel, WORKERS, execute, release_errors
 
 SOURCES = debug.ROOT / 'tests/debug-group-peers'
 CONTROLLER = b'Using jobserver controller '
@@ -68,7 +68,7 @@ def models() -> list[tuple[str, HeldModel]]:
             header = data['stdout_header'].format(controller=controller.decode()).encode()
             body = row['stdout'].encode().splitlines(keepends=True)
             cuts = row['release_lines']
-            if not 1 <= len(cuts) <= 2 or cuts != sorted(set(cuts)) or not 0 < cuts[0] <= cuts[-1] <= len(body):
+            if not 1 <= len(cuts) <= 2 or cuts != sorted(cuts) or not 0 < cuts[0] <= cuts[-1] <= len(body):
                 raise h.HarnessError('invalid grouped-peer release boundaries')
             prefixes = [header + b''.join(body[:lines]) for lines in cuts]
             files = {'Makefile': row['makefile'].encode(), 'worker.py': worker, 'seen': b'anchor\n'}
@@ -77,7 +77,10 @@ def models() -> list[tuple[str, HeldModel]]:
                 files['source'] = row['source'].encode()
                 times['source'] = 1_000_000_000_000_000_000
             overlap = len(prefixes) == 2
-            workers = ('left', 'right') if overlap else ('left',)
+            release_order = tuple(row.get('release_order', WORKERS))
+            if sorted(release_order) != list(WORKERS) or (not overlap and release_order != WORKERS):
+                raise h.HarnessError('invalid grouped-peer release order')
+            workers = release_order if overlap else release_order[:1]
             updates = {f'{name}.{suffix}': value for name in workers for suffix, value in (
                 ('started', b'started\n'), ('release', b'yes\n'), ('done', b'done\n'))}
             updates.update({name: value.encode() for name, value in row.get('outputs', {}).items()})
@@ -89,9 +92,11 @@ def models() -> list[tuple[str, HeldModel]]:
                  'stderr_template_hex': row['stderr'].encode().hex()},
                 row['seen'].encode(), updates=updates, mtimes_ns=times,
             )
-            result.append((style, HeldModel(model, overlap, b'anchor\nleft\n' if overlap else None,
+            before_second = b'anchor\n' + release_order[0].encode() + b'\n' if overlap else None
+            result.append((style, HeldModel(model, overlap, before_second,
                                             before_first=b'anchor\n', before_first_stdout=prefixes[0],
-                                            before_second_stdout=prefixes[1] if overlap else None)))
+                                            before_second_stdout=prefixes[1] if overlap else None,
+                                            release_order=release_order)))
     if not result or len({held.model.id for _, held in result}) != len(result):
         raise h.HarnessError('grouped-peer models must be nonempty and uniquely named')
     return result
@@ -123,7 +128,8 @@ def main() -> int:
             releases = []
             for binary in binaries:
                 controller = ControllerOutput(runtime, style)
-                observation, release = execute(case, runtime, binary, wait_stdout=controller.observe)
+                observation, release = execute(case, runtime, binary, wait_stdout=controller.observe,
+                                               release_order=held.release_order)
                 raw_stdout.append(observation.stdout.hex())
                 observed.append(replace(observation, stdout=controller.normalize(observation.stdout)))
                 releases.append(release)

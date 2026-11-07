@@ -57,6 +57,7 @@ class HeldModel:
     before_second_stdout: bytes | None = None
     load: LoadProfile | None = None
     before_first_stdout: bytes = b''
+    release_order: tuple[str, str] = WORKERS
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -735,7 +736,10 @@ def poll_wait(proc: Path, channel: str = '') -> tuple[int | None, bool]:
 def execute(case: h.Case, runtime: Path, binary: Path,
             wait_samples: set[tuple[str, int | None]] | None = None, *,
             load: LoadProfile | None = None, load_shim: Path | None = None,
-            wait_stdout: Callable[[Path, bytes], bytes] | None = None):
+            wait_stdout: Callable[[Path, bytes], bytes] | None = None,
+            release_order: tuple[str, str] = WORKERS):
+    if sorted(release_order) != list(WORKERS):
+        raise h.HarnessError('held release order must name both workers')
     work = runtime / 'work'
     trace = runtime / 'load.trace'
     if load is not None:
@@ -784,7 +788,7 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             previous = signature
             return
         release_stdout = wait_stdout(proc, stdout) if wait_stdout is not None else stdout
-        name = min(workers)
+        name = next(name for name in release_order if name in workers)
         temporary = work / f'{name}.release.tmp'
         temporary.write_bytes(b'yes\n')
         temporary.chmod(0o644)
@@ -802,7 +806,7 @@ def execute(case: h.Case, runtime: Path, binary: Path,
 
 
 def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
-    order = ['left'] if held.before_second is None else list(WORKERS)
+    order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     if [release['name'] for release in releases] != order:
         return ['held release sequence']
     errors = []
@@ -813,7 +817,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     ):
         errors.append('load observation at release')
     first = releases[0]
-    expected_first = list(WORKERS) if held.overlap else ['left']
+    expected_first = list(WORKERS) if held.overlap else order[:1]
     if sorted(first['workers']) != expected_first:
         errors.append('active workers at first release')
     if first['seen_hex'] != held.before_first.hex():
@@ -823,18 +827,20 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     if held.before_second is None:
         return errors
     second = releases[1]
-    if list(second['workers']) != ['right']:
+    survivor = order[1]
+    if list(second['workers']) != [survivor]:
         errors.append('active workers at second release')
     if first['parent'] != second['parent']:
         errors.append('parent identity at release')
-    if held.overlap and 'right' in first['workers'] and first['workers']['right'] != second['workers'].get('right'):
-        errors.append('right identity across releases')
+    if (held.overlap and survivor in first['workers']
+            and first['workers'][survivor] != second['workers'].get(survivor)):
+        errors.append('surviving worker identity across releases')
     if second['seen_hex'] != held.before_second.hex():
         errors.append('file effects at second release')
-    stdout_after_left = held.before_second_stdout
-    if stdout_after_left is None:
-        stdout_after_left = b'left\n' if held.model.expected['stdout_template_hex'] else b''
-    if second['stdout_hex'] != stdout_after_left.hex():
+    stdout_before_second = held.before_second_stdout
+    if stdout_before_second is None:
+        stdout_before_second = order[0].encode() + b'\n' if held.model.expected['stdout_template_hex'] else b''
+    if second['stdout_hex'] != stdout_before_second.hex():
         errors.append('stdout at second release')
     return errors
 
@@ -890,7 +896,8 @@ def main() -> int:
                 case, filesystem = debug.prepare(model, root / model.id, runtime)
                 samples = [set() for _ in executables]
                 observations, releases = zip(*(
-                    execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim)
+                    execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
+                            release_order=held.release_order)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
