@@ -1,0 +1,12 @@
+id = "conditional-makeflags-secondary-private-unexport-pattern"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Compare ordinary and canonical scoped flag bindings during conditional replay."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[file]/[-k]/[rR --no-print-directory]\nsibling=[file]/[-k]/[-k]\nparent=[file]/[rR --no-print-directory]/[rR --no-print-directory]\nafter=[file]/[rR --no-print-directory]/[rR --no-print-directory]\n"
+stderr = ""

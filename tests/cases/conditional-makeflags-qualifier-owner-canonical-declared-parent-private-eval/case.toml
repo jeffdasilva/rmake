@@ -1,0 +1,12 @@
+id = "conditional-makeflags-qualifier-owner-canonical-declared-parent-private-eval"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Observe the original qualifier owner after a conditional flag replay."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[krR --no-print-directory]/[krR --no-print-directory]\nsibling=[-k -k]/[-k -k]\nparent=[krR --no-print-directory]/[krR --no-print-directory]\nafter=[-k -k]/[-k -k]\n"
+stderr = ""

@@ -117,6 +117,13 @@ pub enum Assignment {
     Shell,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum ConditionalFlagBinding {
+    Ordinary,
+    Global,
+    Outer(usize),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Origin {
     Default,
@@ -159,7 +166,9 @@ pub struct Variable {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct ScopeMetadata {
-    private: PrivateFlag,
+    private: BindingFlag,
+    special_makeflags: BindingFlag,
+    flags_from_declaration: bool,
     export: ExportPolicy,
     export_default_reset: bool,
     export_if_set: bool,
@@ -185,12 +194,12 @@ impl ScopeMetadata {
     }
 }
 
-/// Shared file layers see qualifier changes on their existing binding.
+/// Shared file layers see metadata changes on their existing binding.
 /// Creating a separate binding still copies the current flag by value.
 #[derive(Debug, Default)]
-struct PrivateFlag(AtomicBool);
+struct BindingFlag(AtomicBool);
 
-impl PrivateFlag {
+impl BindingFlag {
     fn get(&self) -> bool {
         self.0.load(Ordering::Relaxed)
     }
@@ -200,19 +209,19 @@ impl PrivateFlag {
     }
 }
 
-impl Clone for PrivateFlag {
+impl Clone for BindingFlag {
     fn clone(&self) -> Self {
         Self(AtomicBool::new(self.get()))
     }
 }
 
-impl PartialEq for PrivateFlag {
+impl PartialEq for BindingFlag {
     fn eq(&self, other: &Self) -> bool {
         self.get() == other.get()
     }
 }
 
-impl Eq for PrivateFlag {}
+impl Eq for BindingFlag {}
 
 /// Environment preparation remembers inherited policy on the selected binding.
 /// Shared scope layers observe that metadata; real binding copies take a value
@@ -1022,25 +1031,89 @@ impl VariableStore {
         value: &[u8],
         origin: Origin,
     ) -> Result<(), ExpandError> {
+        let mark_makeflags = name == b"MAKEFLAGS";
         if self.file_locals
             && !self.variables.contains_key(name)
-            && let Some(old) = self
+            && let Some((layer, old)) = self
                 .layers
                 .iter()
                 .filter(|layer| !layer.global && !layer.inherited && !layer.pattern)
-                .find_map(|layer| layer.variables.get(name))
+                .find_map(|layer| layer.variables.get(name).map(|old| (layer, old)))
         {
             if old.origin > origin {
                 // The logical file table already owns this declaration even
                 // though its value lives in a separate immutable Rust layer.
                 // Priority rejection follows the attempted definition query.
                 self.database_definition_lookup(name);
+                if mark_makeflags {
+                    old.scope.special_makeflags.set(true);
+                }
                 return Ok(());
             }
-            let old = old.clone();
+            let mut old = old.clone();
+            if mark_makeflags {
+                old.scope.flags_from_declaration = layer.target.is_some();
+            }
             Arc::make_mut(&mut self.variables).insert(name, old);
         }
-        self.define(name, value, Assignment::Recursive, origin)
+        self.define(name, value, Assignment::Recursive, origin)?;
+        if mark_makeflags {
+            self.variables
+                .get(name)
+                .expect("runtime flag binding")
+                .scope
+                .special_makeflags
+                .set(true);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn conditional_flag_binding(&self) -> Option<ConditionalFlagBinding> {
+        let Some((layer, variable)) = self.lookup_from(b"MAKEFLAGS", 0) else {
+            return Some(ConditionalFlagBinding::Global);
+        };
+        if self.global_layer(layer) {
+            return Some(ConditionalFlagBinding::Global);
+        }
+        if !variable.scope.special_makeflags.get() {
+            return Some(ConditionalFlagBinding::Ordinary);
+        }
+        let outer = layer > 0 && {
+            let scope = &self.layers[layer - 1];
+            scope.inherited || scope.file_locals
+        };
+        outer.then_some(ConditionalFlagBinding::Outer(layer))
+    }
+
+    pub(crate) fn qualify_outer_flags(&self, layer: usize, private: bool, export: Option<bool>) {
+        let name = b"MAKEFLAGS".as_slice();
+        if let Some(binding) = self.bindings_at_layer(layer).and_then(|set| set.get(name)) {
+            self.qualify_selected_binding(layer, name, binding, private, export);
+        }
+    }
+
+    fn qualify_selected_binding(
+        &self,
+        layer: usize,
+        name: &[u8],
+        binding: &Variable,
+        private: bool,
+        export: Option<bool>,
+    ) {
+        binding.scope.apply_assignment_qualifiers(private, export);
+        // A canonical flag value may replace a declaration in the same
+        // logical file table. Hiding it must hide the stored declaration too.
+        if binding.scope.flags_from_declaration
+            && let Some(declared) = self
+                .layers
+                .iter()
+                .skip(layer)
+                .take_while(|scope| !scope.file_locals)
+                .find(|scope| scope.target.is_some())
+                .and_then(|scope| scope.variables.get(name))
+        {
+            declared.scope.apply_assignment_qualifiers(private, export);
+        }
     }
 
     /// Read the shell status owned by this table rather than an ancestor.
@@ -1118,7 +1191,7 @@ impl VariableStore {
         if self.global_layer(index) {
             return false;
         }
-        variable.scope.apply_assignment_qualifiers(private, export);
+        self.qualify_selected_binding(index, name, variable, private, export);
         true
     }
 

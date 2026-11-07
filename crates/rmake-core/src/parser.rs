@@ -14,8 +14,8 @@ use crate::diagnostic::{
 use crate::messages::Message;
 use crate::reader::{Input, ParserReader, strip_comment};
 use crate::variables::{
-    Assignment, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope,
-    VariableStore, reference_end,
+    Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
+    PatternVariable, TargetScope, VariableStore, reference_end,
 };
 use std::borrow::Cow;
 use std::cmp::Reverse;
@@ -2503,7 +2503,7 @@ impl Database {
         location: &Location,
         evaluation_location: &Location,
         context: &mut ExpansionContext<'_>,
-    ) -> Result<Vec<u8>, ParseError> {
+    ) -> Result<(Vec<u8>, Option<ConditionalFlagBinding>), ParseError> {
         let name = self.expand(spec.name, location, context)?;
         if name.is_empty() {
             return Err(ParseError::system(
@@ -2512,7 +2512,7 @@ impl Database {
                 context,
             ));
         }
-        self.define_expanded(
+        let binding = self.define_expanded(
             AssignmentSpec {
                 name: &name,
                 value: spec.value,
@@ -2523,7 +2523,7 @@ impl Database {
             evaluation_location,
             context,
         )?;
-        Ok(name)
+        Ok((name, binding))
     }
 
     /// Store a definition after its name expansion, without evaluating it again.
@@ -2534,8 +2534,8 @@ impl Database {
         location: &Location,
         evaluation_location: &Location,
         context: &mut ExpansionContext<'_>,
-    ) -> Result<(), ParseError> {
-        self.define_variable_with(
+    ) -> Result<Option<ConditionalFlagBinding>, ParseError> {
+        self.define_with_flag_binding(
             spec,
             origin,
             Some(location),
@@ -2559,15 +2559,26 @@ impl Database {
         spec: AssignmentSpec<'_>,
         origin: Origin,
         definition: Option<&Location>,
-        mut context: ExpansionContext<'_>,
+        context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
+        self.define_with_flag_binding(spec, origin, definition, context)
+            .map(|_| ())
+    }
+
+    fn define_with_flag_binding(
+        &mut self,
+        spec: AssignmentSpec<'_>,
+        origin: Origin,
+        definition: Option<&Location>,
+        mut context: ExpansionContext<'_>,
+    ) -> Result<Option<ConditionalFlagBinding>, ExpandError> {
         if spec.kind == Assignment::Conditional
             && self
                 .evaluation_bindings
                 .iter()
                 .any(|frame| frame.contains_key(spec.name))
         {
-            return Ok(());
+            return Ok(None);
         }
         let lookup_scope = if matches!(spec.kind, Assignment::Append | Assignment::Conditional) {
             self.evaluation_scope.as_mut().map(|scope| {
@@ -2578,21 +2589,24 @@ impl Database {
         } else {
             None
         };
-        let strip_flags = spec.name == b"MAKEFLAGS" && context.has_makeflags();
+        let live_makeflags = spec.name == b"MAKEFLAGS" && context.has_makeflags();
+        let flag_binding = if live_makeflags && spec.kind == Assignment::Conditional {
+            lookup_scope
+                .as_ref()
+                .and_then(VariableStore::conditional_flag_binding)
+        } else {
+            None
+        };
         let append_base = if spec.kind == Assignment::Append {
             lookup_scope.as_ref().and_then(|scope| {
                 scope
-                    .scoped_append(spec.name, strip_flags)
+                    .scoped_append(spec.name, live_makeflags)
                     .map(std::cell::RefCell::new)
             })
         } else {
             None
         };
-        if spec.name == b"MAKEFLAGS"
-            && spec.kind == Assignment::Append
-            && context.has_makeflags()
-            && !spec.value.is_empty()
-        {
+        if live_makeflags && spec.kind == Assignment::Append && !spec.value.is_empty() {
             self.variables.strip_makeflags_assignments(origin);
         }
         // Literal RHS bytes cannot invoke eval or read scoped bindings. Keep
@@ -2633,7 +2647,7 @@ impl Database {
                         && let Some(value) = self
                             .evaluation_scope
                             .as_ref()
-                            .and_then(|scope| scope.scoped_append(spec.name, strip_flags))
+                            .and_then(|scope| scope.scoped_append(spec.name, live_makeflags))
                     {
                         *base.borrow_mut() = value;
                     }
@@ -2645,10 +2659,13 @@ impl Database {
             result
         };
         result?;
-        if spec.name == b"MAKEFLAGS" && context.has_makeflags() {
+        // A conditional can return an ordinary file or pattern binding.
+        // The live setter runs only when that selected binding is special.
+        if live_makeflags && !matches!(flag_binding, Some(ConditionalFlagBinding::Ordinary)) {
             self.reset_assigned_flags(origin, context.reborrow())?;
+            return Ok(flag_binding);
         }
-        Ok(())
+        Ok(None)
     }
 
     /// An option payload is one assignment token, not a Makefile statement:
@@ -4279,7 +4296,7 @@ impl Database {
                     body.pop();
                 }
                 if let Some((name, kind)) = definition {
-                    self.define_expanded(
+                    let binding = self.define_expanded(
                         AssignmentSpec {
                             name: &name,
                             value: &body,
@@ -4293,7 +4310,7 @@ impl Database {
                         },
                         context,
                     )?;
-                    self.apply_assignment_qualifiers(name, kind, private, export);
+                    self.apply_assignment_qualifiers(name, kind, private, export, binding);
                 }
                 continue;
             }
@@ -4303,8 +4320,8 @@ impl Database {
             if let Some(spec) = variable_assignment {
                 self.finish_declaration(declaration, &location, context)?;
                 let kind = spec.kind;
-                let name = self.define(spec, origin, &location, &location, context)?;
-                self.apply_assignment_qualifiers(name, kind, private, export);
+                let (name, binding) = self.define(spec, origin, &location, &location, context)?;
+                self.apply_assignment_qualifiers(name, kind, private, export, binding);
                 continue;
             }
             if let Some(rest) = directive(variable_text, b"undefine") {
@@ -5197,13 +5214,23 @@ impl Database {
         kind: Assignment,
         private: bool,
         export: Option<bool>,
+        flag_binding: Option<ConditionalFlagBinding>,
     ) {
         if !private && export.is_none() {
+            return;
+        }
+        // Flag replay can publish a new current binding. Apply qualifiers to
+        // the outer binding selected before that publication.
+        if let Some(ConditionalFlagBinding::Outer(layer)) = flag_binding {
+            if let Some(scope) = &self.evaluation_scope {
+                scope.qualify_outer_flags(layer, private, export);
+            }
             return;
         }
         // A suppressed conditional can return an existing lexical or scoped binding.
         // A normal definition applies its modifiers to the global binding.
         if kind == Assignment::Conditional
+            && !matches!(flag_binding, Some(ConditionalFlagBinding::Global))
             && (self
                 .evaluation_bindings
                 .iter()

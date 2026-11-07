@@ -1,0 +1,12 @@
+id = "conditional-makeflags-qualifier-owner-canonical-own-export-include"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Observe the original qualifier owner after a conditional flag replay."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[krR --no-print-directory]/[krR --no-print-directory]\nsibling=[rR --no-print-directory -k]/[rR --no-print-directory -k]\nparent=[rR --no-print-directory -k]/[rR --no-print-directory -k]\nafter=[rR --no-print-directory -k]/[rR --no-print-directory -k]\n"
+stderr = ""
