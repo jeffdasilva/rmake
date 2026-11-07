@@ -1,0 +1,11 @@
+id = "serial-forced-query-ignored"
+requirement = "serial.runtime"
+candidate = "required"
+provenance = "Original independently asserted GNU Make 4.4.1 forced-query fixture."
+args = ["-rR", "--no-print-directory", "-q", "forced", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = "make: [Makefile:3: forced] Error 1 (ignored)\n"

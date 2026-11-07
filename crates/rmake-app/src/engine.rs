@@ -1067,6 +1067,7 @@ pub struct Engine {
     impossible_prerequisites: HashSet<Vec<u8>>,
     impossible_generation: u64,
     would_build: bool,
+    forced_query_stop: bool,
     parallel_jobs: ParallelJobs,
     aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
@@ -1638,6 +1639,7 @@ impl Engine {
             impossible_prerequisites: HashSet::new(),
             impossible_generation: 0,
             would_build: false,
+            forced_query_stop: false,
             parallel_jobs: ParallelJobs::default(),
             aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
@@ -3652,6 +3654,11 @@ impl Engine {
                 BuildVisit::Ordinary,
                 Some(&mut started_command),
             );
+            if self.forced_query_stop {
+                failed |= outcome.failed;
+                fatal |= outcome.fatal;
+                break;
+            }
             self.debug_double_colon_goal_prunes(&goal, outcome);
             let pending = self.pending(&goal);
             let outcome = if pending {
@@ -3695,7 +3702,9 @@ impl Engine {
             }
         }
         let mut last_goal_pass = self.debug_pass;
-        while requested.iter().any(|goal| self.pending(&goal.name)) {
+        'goal_passes: while !self.forced_query_stop
+            && requested.iter().any(|goal| self.pending(&goal.name))
+        {
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
@@ -3715,6 +3724,11 @@ impl Engine {
                         visit,
                         Some(&mut goal.started_command),
                     );
+                    if self.forced_query_stop {
+                        failed |= outcome.failed;
+                        fatal |= outcome.fatal;
+                        break 'goal_passes;
+                    }
                     if outcome.late_input_failed && !self.pending(&goal.name) {
                         failed |= outcome.failed;
                     }
@@ -3753,6 +3767,9 @@ impl Engine {
         }
         self.advance_debug_pass();
         for goal in requested {
+            if self.forced_query_stop {
+                break;
+            }
             // Reaping the last job can end the pending-work loop before the
             // next scan. Keep each grouped peer visit beside its own summary.
             if goal.awaiting_recipe || goal.awaiting_group_peer {
@@ -3776,6 +3793,7 @@ impl Engine {
             && rmake_linux::signals::pending().is_none()
             && jobserver_error.is_none()
             && !fatal
+            && !self.forced_query_stop
             && self.graph_abort != Some(Status::Fatal)
             && (!failed || self.options.keep_going)
         {
@@ -3791,7 +3809,7 @@ impl Engine {
             );
             return 2;
         }
-        if failed {
+        if failed && (!self.forced_query_stop || fatal) {
             2
         } else if self.would_build {
             1
@@ -9937,7 +9955,11 @@ impl Engine {
         // A stopping synchronous child failure exits before GNU's ordinary
         // update-return diagnostic. Keep-going updates retain that diagnostic.
         let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
-        if !self.parallel_jobs.contains_key(target) && !stopping_failure && !stopping_dependency {
+        if !self.parallel_jobs.contains_key(target)
+            && !stopping_failure
+            && !stopping_dependency
+            && !self.forced_query_stop
+        {
             if outcome.blocked || prerequisite_question {
                 crate::debug::emit(
                     &self.output,
@@ -11194,6 +11216,11 @@ impl Engine {
                 // command; ignored errors retain their ordinary handling.
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
                     self.would_build = true;
+                    // A physical child can end a stopping query from the
+                    // reaper, before the goal chain visits another target.
+                    self.forced_query_stop |= !self.remaking
+                        && !self.options.keep_going
+                        && !remake.as_ref().is_some_and(|remake| remake.optional);
                     return Execution::question(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                 }
