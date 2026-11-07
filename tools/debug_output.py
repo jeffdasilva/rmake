@@ -37,6 +37,7 @@ class Model:
     explicit_version_reference: bytes | None = None
     release_after: bytes | None = None
     release_sequence: tuple[tuple[str, bytes], ...] = ()
+    sequential_workers: bool = False
 
 
 def safe_relative(name: str) -> Path:
@@ -77,7 +78,8 @@ def _model_file(filename: str) -> list[Model]:
                     row.get('mtimes_ns', {}),
                     bytes.fromhex(row['oracle_explicit_version_hex']) if 'oracle_explicit_version_hex' in row else None,
                     bytes.fromhex(row['release_after_stdout_hex']) if 'release_after_stdout_hex' in row else None,
-                    tuple((name, bytes.fromhex(marker)) for name, marker in row.get('release_sequence', [])))
+                    tuple((name, bytes.fromhex(marker)) for name, marker in row.get('release_sequence', [])),
+                    row.get('sequential_workers', False))
               for row in data['models']]
     for model in result:
         stdout = bytes.fromhex(model.expected['stdout_template_hex'])
@@ -88,6 +90,10 @@ def _model_file(filename: str) -> list[Model]:
             or model.updates.get('started') != b'started\n' or model.updates.get('release') != b'yes\n'
         ):
             raise h.HarnessError('invalid held-worker release boundary')
+        if not isinstance(model.sequential_workers, bool) or (
+            model.sequential_workers and not model.release_sequence
+        ):
+            raise h.HarnessError('sequential workers require an ordered release sequence')
         if model.release_sequence:
             validate_release_sequence(model, stdout)
         uses_version = b'@EXPLICIT_VERSION@' in stdout
@@ -115,6 +121,7 @@ def models() -> list[Model]:
               + _model_file('mixed-active-group.toml') + _model_file('parallel-stop.toml')
               + _model_file('double-keep-going.toml') + _model_file('double-own-reap.toml')
               + _model_file('double-shared-prereq-reap.toml')
+              + _model_file('double-wait-reap.toml')
               + _model_file('notparallel-reap.toml') + _model_file('file-write-pass.toml')
               + _model_file('later-file-write.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):
@@ -298,8 +305,13 @@ def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.
         if released == len(sequence):
             return
         prefix, marker = sequence[released]
-        if marker not in stdout or not all((work / (name + 'started')).is_file() for name, _ in sequence[released:]):
+        expected_started = sequence[released:released + 1] if model.sequential_workers else sequence[released:]
+        if marker not in stdout or not all((work / (name + 'started')).is_file() for name, _ in expected_started):
             return
+        if model.sequential_workers and any(
+            (work / (name + 'started')).is_file() for name, _ in sequence[released + 1:]
+        ):
+            raise h.HarnessError('sequential worker started before its predecessor was released')
         if released and not (work / (sequence[released - 1][0] + 'done')).is_file():
             return
         if (work / (prefix + 'started')).read_bytes() != b'started\n' or (work / (prefix + 'done')).exists():
@@ -337,6 +349,7 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
                         'release_after_stdout_hex': model.release_after.hex() if model.release_after is not None else None,
                         **({'release_sequence': [[name, marker.hex()] for name, marker in model.release_sequence]}
                            if model.release_sequence else {}),
+                        **({'sequential_workers': True} if model.sequential_workers else {}),
                         'output': model.output, 'oracle_explicit_version_hex': model.explicit_version_reference.hex() if model.explicit_version_reference is not None else None, **judgment})
         print(('PASS ' if judgment['passed'] else 'FAIL ') + model.id, flush=True)
     return {'classification': 'Original static debug-output oracle qualification; zero ordinary-ledger or exception credit' if candidate is None else 'Original static debug-output differential profile; ordinary-ledger credit is separate',
