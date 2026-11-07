@@ -2966,6 +2966,7 @@ impl Engine {
                     (makefile.clone(), skip)
                 })
                 .collect();
+            let grouped_peer_times = self.grouped_remake_comparison_times(&read_files);
             if let Err(error) = self.publish_phase_makeflags(true) {
                 self.expansion_error(None, &error);
                 return 2;
@@ -3204,8 +3205,17 @@ impl Engine {
                     );
                     // Later remake recipes can still change this file.
                     if *refresh_timestamp {
+                        let before = grouped_peer_times
+                            .get(name)
+                            .copied()
+                            .filter(|_| {
+                                self.done
+                                    .get(name)
+                                    .is_some_and(|outcome| outcome.optional_group_peer_failure)
+                            })
+                            .or(*before);
                         let after = self.modified(&makefile.name);
-                        changed |= after.is_some() && after != *before;
+                        changed |= after.is_some() && after != before;
                         *refresh_timestamp = false;
                     }
                 }
@@ -3483,6 +3493,47 @@ impl Engine {
         } else {
             0
         }
+    }
+
+    fn grouped_remake_comparison_times<'a>(
+        &self,
+        read_files: &'a [(Makefile, bool)],
+    ) -> HashMap<&'a [u8], SystemTime> {
+        let mut times = HashMap::new();
+        if self.options.check_symlink_times
+            || !self.options.old_files.is_empty()
+            || !self.options.new_files.is_empty()
+        {
+            return times;
+        }
+        let mut earlier_optional_peers = HashSet::new();
+        for (file, skip) in read_files {
+            if *skip {
+                continue;
+            }
+            let name = file.name.as_slice();
+            if file.optional {
+                if let Some(group) = self
+                    .database
+                    .rules
+                    .get(name)
+                    .and_then(|rule| rule.group.as_ref())
+                {
+                    earlier_optional_peers.extend(group.targets.iter().map(Vec::as_slice));
+                }
+            } else if !file.missing
+                && earlier_optional_peers.contains(name)
+                && rmake_core::filenames::archive_parts(name).is_none()
+                && let Ok(metadata) = fs::metadata(os(name))
+                && metadata.is_file()
+                && let Ok(time) = metadata.modified()
+            {
+                // An earlier remake can rewrite this peer before its own visit.
+                // Keep the comparison separate from graph and database observations.
+                times.entry(name).or_insert(time);
+            }
+        }
+        times
     }
 
     fn debug_progress(&self) -> u64 {

@@ -1,0 +1,13 @@
+$(info read=$(or $(MAKE_RESTARTS),0))
+ifeq ($(MAKE_RESTARTS),)
+$(shell touch -t 200001010000 inventory.complete)
+endif
+.PHONY: report
+report: ; @printf "ordinary\n"
+-include inventory.part
+include inventory.complete
+$(shell touch -t 200201020304 inventory.complete)
+inventory.part inventory.complete &:
+	@printf "attempt %s/%s\n" "$@" "$(or $(MAKE_RESTARTS),0)"
+	@touch -t 200201020304 inventory.part inventory.complete
+	@exit 9

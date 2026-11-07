@@ -1,0 +1,13 @@
+id = "include-group-phase-timestamp-both"
+requirement = "includes.remake"
+candidate = "required"
+description = "Writing both grouped paths leaves the second read with nothing to remake."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-k", "-j1", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "read=0\nattempt inventory.part/0\nMakefile:8: Failed to remake makefile 'inventory.complete'.\nread=1\nordinary\n"
+stderr = ""
