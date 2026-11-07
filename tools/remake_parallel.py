@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 import json
 import os
@@ -657,7 +658,8 @@ def poll_wait(proc: Path, channel: str = '') -> tuple[int | None, bool]:
 
 def execute(case: h.Case, runtime: Path, binary: Path,
             wait_samples: set[tuple[str, int | None]] | None = None, *,
-            load: LoadProfile | None = None, load_shim: Path | None = None):
+            load: LoadProfile | None = None, load_shim: Path | None = None,
+            wait_stdout: Callable[[Path, bytes], bytes] | None = None):
     work = runtime / 'work'
     trace = runtime / 'load.trace'
     if load is not None:
@@ -705,6 +707,7 @@ def execute(case: h.Case, runtime: Path, binary: Path,
         if signature != previous:
             previous = signature
             return
+        release_stdout = wait_stdout(proc, stdout) if wait_stdout is not None else stdout
         name = min(workers)
         temporary = work / f'{name}.release.tmp'
         temporary.write_bytes(b'yes\n')
@@ -712,7 +715,9 @@ def execute(case: h.Case, runtime: Path, binary: Path,
         temporary.rename(work / f'{name}.release')
         releases.append({'name': name, 'parent': parent, 'workers': workers,
                          'wchan': channel, 'poll_syscall': number,
-                         'seen_hex': seen.hex(), 'stdout_hex': stdout.hex()})
+                         'seen_hex': seen.hex(), 'stdout_hex': release_stdout.hex()})
+        if wait_stdout is not None:
+            releases[-1]['stdout_raw_hex'] = stdout.hex()
         if load is not None:
             releases[-1].update(load_hex=load_bytes.hex(), load_trace_hex=load_trace.hex())
         released.add(name)

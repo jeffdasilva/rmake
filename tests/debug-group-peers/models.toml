@@ -1,0 +1,346 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+schema_version = 1
+stdout_header = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Using jobserver controller {controller}
+Updating makefiles....
+Updating goal targets....
+'''
+
+[[models]]
+id = "explicit-active-once"
+makefile = '''
+all: a b
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [10]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-active-repeat"
+makefile = '''
+all: a b ./b
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Pruning file 'b'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [11]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-active-other-parent"
+makefile = '''
+all: first second
+first: a b
+second: b
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'first'.
+  File 'first' does not exist.
+  Considering target file 'a'.
+   File 'a' does not exist.
+  Finished prerequisites of target file 'a'.
+  Must remake target 'a'.
+  Recipe of 'a' is being run.
+  Considering target file 'b'.
+  Still updating file 'b'.
+ The prerequisites of 'first' are being made.
+ Considering target file 'second'.
+  File 'second' does not exist.
+  Pruning file 'b'.
+ The prerequisites of 'second' are being made.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'first'.
+  File 'first' does not exist.
+  Considering target file 'a'.
+  File 'a' was considered already.
+  Considering target file 'b'.
+  File 'b' was considered already.
+ Finished prerequisites of target file 'first'.
+ Must remake target 'first'.
+ Successfully remade target file 'first'.
+ Considering target file 'second'.
+  File 'second' does not exist.
+  Pruning file 'b'.
+ Finished prerequisites of target file 'second'.
+ Must remake target 'second'.
+ Successfully remade target file 'second'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [17]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-active-keep"
+makefile = '''
+all: a b b
+a b &: ; @python3 worker.py left fail
+'''
+flags = ["-k"]
+exit_code = 2
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ Recently tried and failed to update file 'a'.
+ Considering target file 'b'.
+ Recently tried and failed to update file 'b'.
+ Pruning file 'b'.
+Finished prerequisites of target file 'all'.
+Giving up on target file 'all'.
+'''
+stderr = "make: *** [Makefile:2: a] Error 3\nmake: Target 'all' not remade because of errors.\n"
+release_lines = [11]
+seen = "anchor\nleft\n"
+
+[[models]]
+id = "explicit-active-stop"
+makefile = '''
+all: a b
+a b &: ; @python3 worker.py left fail
+'''
+flags = []
+exit_code = 2
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+The prerequisites of 'all' are being made.
+'''
+stderr = "make: *** [Makefile:2: a] Error 3\n"
+release_lines = [10]
+seen = "anchor\nleft\n"
+
+[[models]]
+id = "explicit-active-then-reap"
+makefile = '''
+all: a b b tail
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+ Still updating file 'tail'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [16, 26]
+seen = "anchor\nleft\nright\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "implicit-active-repeat"
+makefile = '''
+all: a.out a.peer a.peer
+%.out %.peer: source ; @python3 worker.py left implicit
+'''
+flags = []
+source = "fixed\n"
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+  File 'a.out' does not exist.
+  Considering target file 'source'.
+  Finished prerequisites of target file 'source'.
+  No need to remake target 'source'.
+ Finished prerequisites of target file 'a.out'.
+ Must remake target 'a.out'.
+ Recipe of 'a.out' is being run.
+ Considering target file 'a.peer'.
+ Still updating file 'a.peer'.
+ Pruning file 'a.peer'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+ File 'a.out' was considered already.
+ Considering target file 'a.peer'.
+ File 'a.peer' was considered already.
+ Pruning file 'a.peer'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [14]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a.out" = "updated\n"
+"a.peer" = "updated\n"
+
+[[models]]
+id = "implicit-active-keep"
+makefile = '''
+all: a.out a.peer a.peer
+%.out %.peer: source ; @python3 worker.py left fail
+'''
+flags = ["-k"]
+source = "fixed\n"
+exit_code = 2
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+  File 'a.out' does not exist.
+  Considering target file 'source'.
+  Finished prerequisites of target file 'source'.
+  No need to remake target 'source'.
+ Finished prerequisites of target file 'a.out'.
+ Must remake target 'a.out'.
+ Recipe of 'a.out' is being run.
+ Considering target file 'a.peer'.
+ Still updating file 'a.peer'.
+ Pruning file 'a.peer'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+ Recently tried and failed to update file 'a.out'.
+ Considering target file 'a.peer'.
+ Recently tried and failed to update file 'a.peer'.
+ Pruning file 'a.peer'.
+Finished prerequisites of target file 'all'.
+Giving up on target file 'all'.
+'''
+stderr = "make: *** [Makefile:2: a.out] Error 3\nmake: Target 'all' not remade because of errors.\n"
+release_lines = [14]
+seen = "anchor\nleft\n"
