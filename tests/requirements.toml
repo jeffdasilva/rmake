@@ -1781,8 +1781,8 @@ title = "Implicit and default recipes for synthetic double-colon entries"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 51
-fixture_count = 51
+candidate_required = 63
+fixture_count = 63
 cases = [
   "assumed-double-recipe-fresh-no-rule",
   "assumed-double-recipe-fresh-default",
@@ -1835,6 +1835,18 @@ cases = [
   "assumed-double-recipe-late-cached-pattern-viable-implicit-debug",
   "assumed-double-recipe-late-unvisited-no-rule-implicit-debug",
   "assumed-double-recipe-late-unvisited-pattern-absent-implicit-debug",
+  "assumed-double-operand-canonical-repeat",
+  "assumed-double-operand-canonical-then-dot",
+  "assumed-double-operand-dot-then-canonical",
+  "assumed-double-operand-dot-repeat",
+  "assumed-double-operand-inherited-canonical-then-cli-dot",
+  "assumed-double-operand-inherited-dot-then-cli-canonical",
+  "assumed-double-operand-restart-triple",
+  "assumed-double-operand-restart-cached-current-search",
+  "assumed-double-operand-restart-cached-missing-keep",
+  "assumed-double-operand-restart-cached-recipe-keep",
+  "assumed-double-operand-restart-unvisited-distinct-search",
+  "assumed-double-operand-fresh-missing-stop",
 ]
 
 [[requirements]]

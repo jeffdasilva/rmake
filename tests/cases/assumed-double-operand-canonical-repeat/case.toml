@@ -1,0 +1,11 @@
+id = "assumed-double-operand-canonical-repeat"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for ordered synthetic double-colon operands."
+args = ["-rR", "--no-print-directory", "-Wcached", "--what-if=cached", "gate", "cached", "result"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[]\ndeclared=[cached|primer]\ndefault=[cached|cached|]\nordinary\nmake: 'cached' is up to date.\nmake: 'result' is up to date.\n"
+stderr = ""

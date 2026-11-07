@@ -34,8 +34,14 @@ pattern rule or fall back to `.DEFAULT`. The selected recipe has its own
 automatic variables and prerequisites. Its inferred children enter the
 ordinary graph, and the declared rules retain their individual state. The
 models cover a fresh invocation, publication after a completed remake, and
-the first ordinary visit after publication. Repeated publication from
-differently spelled operands such as `cached` and `./cached` remains open.
+the first ordinary visit after publication. GNU compares each raw `-W`
+operand to the already prepared spellings before resolving it. Thus
+`-W cached -W ./cached` adds two synthetic branches, while the reverse
+order adds one. Each branch performs its own implicit search and uses the
+same initial comparison time. rmake currently schedules at most one
+synthetic branch for a query without `-k`.
+GNU can hang when an earlier goal has returned an out-of-date query result
+and a later double-colon chain has additional unvisited inputs.
 
 The optional owned table exists only when at least one operand is present.
 Its logical old/new values use checked SystemTime values outside the pinned
