@@ -321,6 +321,8 @@ struct Outcome {
     fatal: bool,
     question_outdated: bool,
     blocked: bool,
+    // An optional grouped recipe already supplied this peer's failure.
+    optional_group_peer_failure: bool,
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
@@ -3043,6 +3045,13 @@ impl Engine {
                 }
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
+                let deferred_peer_failure = !optional && !self.options.keep_going && {
+                    let identity = self.aliases.resolve(name);
+                    self.done
+                        .get(identity)
+                        .is_some_and(|outcome| outcome.optional_group_peer_failure)
+                        && !self.optional_remake_failures.contains_key(identity)
+                };
                 // Keep the existing snapshot for recorded rules. A makefile
                 // without a rule uses the timestamp of its first graph visit.
                 let mut before = if failed_opens.contains(name) {
@@ -3093,7 +3102,7 @@ impl Engine {
                                 refresh_timestamp,
                             },
                         );
-                    } else if !optional && self.options.keep_going {
+                    } else if !optional && (self.options.keep_going || deferred_peer_failure) {
                         failed_remakes.insert(name, (before, refresh_timestamp));
                     }
                 } else if !result.failed {
@@ -3109,7 +3118,12 @@ impl Engine {
                         changed |= self.modified(&makefile.name) != before;
                     }
                 }
-                if result.fatal || (result.failed && !optional && !self.options.keep_going) {
+                if result.fatal
+                    || (result.failed
+                        && !optional
+                        && !self.options.keep_going
+                        && !deferred_peer_failure)
+                {
                     // A stopping remake failure wins over any earlier update.
                     stopped = true;
                     break;
@@ -9042,6 +9056,8 @@ impl Engine {
             self.pending_rules.remove(&peer);
             let mut completed = outcome;
             completed.database_result = database_result;
+            completed.optional_group_peer_failure =
+                self.optional_remake && outcome.failed && !outcome.fatal;
             completed.search_after_update = false;
             completed.time = if phony {
                 None
