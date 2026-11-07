@@ -341,6 +341,7 @@ struct RequestedGoal {
 struct MakefileRemake {
     optional: bool,
     retain_failure: bool,
+    stopped: Option<Rc<Cell<bool>>>,
     open_error: Option<Rc<Cell<Option<PendingIncludeError>>>>,
 }
 
@@ -348,6 +349,13 @@ impl MakefileRemake {
     fn take_open_error(&self) -> Option<PendingIncludeError> {
         self.open_error.as_ref()?.take()
     }
+}
+
+struct PendingMakefileRemake<'a> {
+    file: &'a Makefile,
+    context: MakefileRemake,
+    before: Option<SystemTime>,
+    initial: Outcome,
 }
 
 struct OptionalMakefileFailure {
@@ -799,6 +807,7 @@ struct RecipeEnvironment {
 /// A dependency traversal can yield without holding a recipe slot. Only the
 /// interpreter owns these frames; effects and secondary expansion run once.
 struct RuleState {
+    remake: Option<MakefileRemake>,
     branch: Option<usize>,
     rule: Rule,
     group: Option<Box<GroupState>>,
@@ -888,6 +897,7 @@ enum PrerequisiteVisit {
 /// Double-colon branches remain sequential for one target, while their
 /// unfinished dependencies yield to unrelated targets in the enclosing graph.
 struct DoubleColonState {
+    remake: Option<MakefileRemake>,
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
@@ -1065,6 +1075,7 @@ pub struct Engine {
     shutdown: Cell<Shutdown>,
     shutdown_launch_failure: RefCell<Option<FailedOwner>>,
     remaking: bool,
+    parallel_makefile_remakes: bool,
     active_makefile_remake: Option<MakefileRemake>,
     // A missing cause here marks a direct, suppressed failure.
     optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
@@ -1634,6 +1645,7 @@ impl Engine {
             shutdown: Cell::new(Shutdown::Running),
             shutdown_launch_failure: RefCell::new(None),
             remaking: false,
+            parallel_makefile_remakes: false,
             active_makefile_remake: None,
             optional_remake_failures: HashMap::new(),
             vpath_dirs: Vec::new(),
@@ -1962,6 +1974,28 @@ impl Engine {
         // A valid platform signal operation never returns. The bootstrap
         // contract guard retains this host and fail-stops if it does.
         2
+    }
+
+    fn with_makefile_remake<T>(
+        &mut self,
+        remake: Option<MakefileRemake>,
+        visit: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        if remake.is_none() && self.active_makefile_remake.is_none() {
+            return visit(self);
+        }
+        let previous = std::mem::replace(&mut self.active_makefile_remake, remake);
+        let result = visit(self);
+        self.active_makefile_remake = previous;
+        result
+    }
+
+    fn remake_stop(&self) -> Option<&Rc<Cell<bool>>> {
+        self.active_makefile_remake.as_ref()?.stopped.as_ref()
+    }
+
+    fn remake_stopped(&self) -> bool {
+        self.remake_stop().is_some_and(|stopped| stopped.get())
     }
 
     fn optional_remake(&self) -> bool {
@@ -3054,10 +3088,27 @@ impl Engine {
             for &name in &failed_opens {
                 self.path_observations.insert(name.to_vec(), None);
             }
+            self.parallel_makefile_remakes = self.job_slots() > 1
+                && !modes.0
+                && !modes.1
+                && !modes.2
+                && self.options.load_limit.is_none()
+                && !debug_before_remake.has(crate::debug::Mask::MAKEFILES)
+                && {
+                    // Duplicate reads can replay a completed optional failure
+                    // at a required locus. Keep their ordered path until the
+                    // parallel scheduler can represent that dependency.
+                    let mut names = HashSet::new();
+                    read_files
+                        .iter()
+                        .filter(|(_, skip)| !skip)
+                        .all(|(file, _)| names.insert(file.name.as_slice()))
+                };
             self.remaking = true;
             let mut changed = false;
             let mut failed = false;
             let mut stopped = false;
+            let mut pending = Vec::new();
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3126,6 +3177,8 @@ impl Engine {
                 self.active_makefile_remake = Some(MakefileRemake {
                     optional,
                     retain_failure: optional,
+                    stopped: (optional && self.parallel_makefile_remakes)
+                        .then(|| Rc::new(Cell::new(false))),
                     open_error: if optional {
                         None
                     } else {
@@ -3133,6 +3186,9 @@ impl Engine {
                     },
                 });
                 let initial_time = before.is_none().then_some(&mut before);
+                if self.parallel_makefile_remakes {
+                    self.graph_epoch = self.graph_epoch.wrapping_add(1);
+                }
                 let result = self.build_recording_initial_time(
                     name,
                     None,
@@ -3141,7 +3197,19 @@ impl Engine {
                     BuildVisit::Ordinary,
                 );
                 let before = before.unwrap_or(result.time);
-                self.active_makefile_remake = None;
+                let context = self
+                    .active_makefile_remake
+                    .take()
+                    .expect("active makefile remake");
+                if self.parallel_makefile_remakes && self.pending(name) {
+                    pending.push(PendingMakefileRemake {
+                        file: makefile,
+                        context,
+                        before,
+                        initial: result,
+                    });
+                    continue;
+                }
                 failed |= result.failed && !optional;
                 if result.failed && !result.fatal {
                     // Without its own recipe run, the makefile keeps its cached time.
@@ -3177,6 +3245,47 @@ impl Engine {
                     break;
                 }
             }
+            if !stopped && !pending.is_empty() {
+                stopped = !self.wait_makefile_remakes(&mut pending);
+                if !stopped {
+                    for remake in pending {
+                        let name = remake.file.name.as_slice();
+                        let result = self
+                            .done
+                            .get(self.aliases.resolve(name))
+                            .copied()
+                            .unwrap_or(remake.initial);
+                        if result.failed {
+                            if !remake.file.optional {
+                                failed = true;
+                                if self.options.keep_going && !result.fatal {
+                                    failed_remakes.insert(
+                                        name,
+                                        (remake.before, result.ran && !result.blocked),
+                                    );
+                                } else {
+                                    stopped = true;
+                                }
+                            } else {
+                                stopped |= result.fatal;
+                            }
+                        } else {
+                            self.database_unchecked_times.borrow_mut().remove(name);
+                            if matches!(
+                                result.completion,
+                                CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+                            ) {
+                                changed |= self.modified(name) != remake.before;
+                            }
+                        }
+                    }
+                }
+            }
+            // Only a continuing ordinary build may overlap an already
+            // running sibling from a stopped optional remake.
+            if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
+                self.wait_all_jobs();
+            }
             (
                 self.options.dry_run,
                 self.options.question,
@@ -3185,6 +3294,7 @@ impl Engine {
             ) = modes;
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
+            self.parallel_makefile_remakes = false;
             if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
                 return 2;
@@ -3233,10 +3343,12 @@ impl Engine {
                 }
             }
             if changed {
+                self.wait_all_jobs();
                 self.remove_intermediates();
                 break 'makefiles true;
             }
             if failed {
+                self.wait_all_jobs();
                 self.remove_intermediates();
                 return 2;
             }
@@ -4132,7 +4244,7 @@ impl Engine {
     }
 
     fn job_slots(&self) -> usize {
-        if self.remaking
+        if (self.remaking && !self.parallel_makefile_remakes)
             || self.options.inherited_jobs
             || self
                 .database
@@ -4175,7 +4287,10 @@ impl Engine {
             // No polling delay is added to tokens returned by another process.
             self.child_events(true, Some(server.readiness()?))?;
             self.observe_interrupt();
-            if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
+            if self.graph_abort.is_some()
+                || self.remake_stopped()
+                || (self.parallel_failed && !self.options.keep_going)
+            {
                 return Ok(None);
             }
         }
@@ -4201,6 +4316,50 @@ impl Engine {
             && !self.options.dry_run
             && !self.options.question
             && !self.options.touch
+    }
+
+    fn wait_makefile_remakes(&mut self, requests: &mut [PendingMakefileRemake<'_>]) -> bool {
+        while requests
+            .iter()
+            .any(|request| self.pending(&request.file.name))
+        {
+            if self.shutdown.get() != Shutdown::Running {
+                return false;
+            }
+            self.advance_debug_pass();
+            self.graph_epoch = self.graph_epoch.wrapping_add(1);
+            let pass_epoch = self.graph_epoch;
+            for request in &mut *requests {
+                let name = &request.file.name;
+                if self.graph_pending(name) {
+                    request.initial =
+                        self.with_makefile_remake(Some(request.context.clone()), |engine| {
+                            engine.build_recording_initial_time(
+                                name,
+                                None,
+                                0,
+                                None,
+                                BuildVisit::Ordinary,
+                            )
+                        });
+                }
+                if self.shutdown.get() != Shutdown::Running {
+                    return false;
+                }
+            }
+            if self.graph_epoch == pass_epoch
+                && requests
+                    .iter()
+                    .any(|request| self.pending(&request.file.name))
+            {
+                if self.parallel_jobs.is_empty() {
+                    self.fatal(None, b"cannot advance pending makefile remakes");
+                    return false;
+                }
+                self.reap_job();
+            }
+        }
+        self.shutdown.get() == Shutdown::Running
     }
 
     fn wait_target(&mut self, target: &[u8]) {
@@ -4624,10 +4783,21 @@ impl Engine {
 
     fn complete_job(&mut self, (target, identity, result): JobResult) {
         self.graph_epoch = self.graph_epoch.wrapping_add(1);
-        let mut job = self
+        let job = self
             .parallel_jobs
             .remove(&target, identity)
             .expect("reserved parallel target");
+        self.with_makefile_remake(job.continuation.remake.clone(), |engine| {
+            engine.finish_parallel_job(target, job, result);
+        });
+    }
+
+    fn finish_parallel_job(
+        &mut self,
+        target: Vec<u8>,
+        mut job: ParallelJob,
+        result: Option<io::Result<std::process::ExitStatus>>,
+    ) {
         let output = job.continuation.output.clone();
         let debug_job = job.continuation.debug_job.clone();
         if let Some(result) = &result {
@@ -4664,6 +4834,7 @@ impl Engine {
             Some(Err(_)) => Some(127),
             None => None,
         };
+        let queued = result.is_none();
         let error = match result {
             None => None,
             Some(Ok(status)) if status.success() => None,
@@ -4680,7 +4851,8 @@ impl Engine {
         if !job.waiting_load {
             job.continuation.flow.attempted(launched);
         }
-        let mut failed = error.is_some() && !job.ignore;
+        let cancelled = queued && self.remake_stopped();
+        let mut failed = cancelled || (error.is_some() && !job.ignore);
         let remake = job.continuation.remake.as_ref();
         if failed {
             self.show_remake_open_error(remake);
@@ -4800,9 +4972,17 @@ impl Engine {
         {
             outcome.completion = CompletionTime::ArchiveUnknown;
         }
-        self.parallel_failed |= failed;
-        outcome.ran = true;
+        let optional_failure = self.optional_remake() && !outcome.fatal;
+        if !optional_failure {
+            self.parallel_failed |= failed;
+        }
+        outcome.ran = !cancelled;
         outcome.failed |= failed;
+        if optional_failure && failed {
+            self.optional_remake_failures
+                .entry(target.clone())
+                .or_default();
+        }
         self.record_graph_failure(outcome);
         if !self.parallel_jobs.contains_key(&target) {
             self.release_assumed_new(&target);
@@ -6883,6 +7063,12 @@ impl Engine {
         {
             return;
         }
+        if !outcome.fatal && self.optional_remake() {
+            if let Some(stopped) = self.remake_stop() {
+                stopped.set(true);
+            }
+            return;
+        }
         let status = if outcome.fatal {
             Status::Fatal
         } else {
@@ -6903,6 +7089,10 @@ impl Engine {
     }
 
     fn apply_graph_abort(&self, outcome: &mut Outcome) {
+        if self.remake_stopped() {
+            outcome.failed = true;
+            outcome.blocked = true;
+        }
         if let Some(status) = self.graph_abort {
             outcome.failed = true;
             outcome.fatal |= status == Status::Fatal;
@@ -7263,7 +7453,7 @@ impl Engine {
             }
             return outcome;
         }
-        if self.graph_abort.is_some() {
+        if self.graph_abort.is_some() || self.remake_stopped() {
             let mut outcome = Outcome::default();
             self.apply_graph_abort(&mut outcome);
             return outcome;
@@ -7424,6 +7614,7 @@ impl Engine {
             self.pending_double_colon.insert(
                 target.to_vec(),
                 DoubleColonState {
+                    remake: self.active_makefile_remake.clone(),
                     depth,
                     before,
                     phony,
@@ -7505,10 +7696,16 @@ impl Engine {
         {
             return state.combined;
         }
-        let mut state = self
+        let state = self
             .pending_double_colon
             .remove(target)
             .expect("pending double-colon continuation");
+        self.with_makefile_remake(state.remake.clone(), |engine| {
+            engine.resume_double_colon_state(target, state)
+        })
+    }
+
+    fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
         state.last_epoch = Some(self.graph_epoch);
         let mut replay_cached_after_recipe = false;
         loop {
@@ -7581,7 +7778,7 @@ impl Engine {
                 }
             }
             self.apply_graph_abort(&mut state.combined);
-            if self.graph_abort.is_some() {
+            if self.graph_abort.is_some() || self.remake_stopped() {
                 state.branches.clear();
             }
             let Some((ordinal, entry)) = state.branches.pop_front() else {
@@ -7925,6 +8122,7 @@ impl Engine {
             self.shuffle.order(target, rule.dependencies.len())
         };
         let state = RuleState {
+            remake: self.active_makefile_remake.clone(),
             branch,
             rule,
             group,
@@ -7985,10 +8183,16 @@ impl Engine {
         {
             return state.outcome;
         }
-        let mut state = self
+        let state = self
             .pending_rules
             .remove(target)
             .expect("pending rule frame");
+        self.with_makefile_remake(state.remake.clone(), |engine| {
+            engine.resume_rule_state(target, state)
+        })
+    }
+
+    fn resume_rule_state(&mut self, target: &[u8], mut state: RuleState) -> Outcome {
         // The cached prefix can publish its next goal pass before opening
         // a .WAIT barrier or finishing the dependency traversal.
         let can_replay_debug = !self.remaking
@@ -8029,7 +8233,7 @@ impl Engine {
         }
         state.last_epoch = Some(self.graph_epoch);
         self.apply_graph_abort(&mut state.outcome);
-        state.stopped |= self.graph_abort.is_some();
+        state.stopped |= self.graph_abort.is_some() || self.remake_stopped();
         self.visiting.insert(target.to_vec());
         let mut waiting = false;
         let previous_next = state.next;
@@ -8058,7 +8262,7 @@ impl Engine {
         } else {
             PrerequisiteVisit::Resume
         };
-        while !state.stopped && self.graph_abort.is_none() {
+        while !state.stopped && self.graph_abort.is_none() && !self.remake_stopped() {
             if state.next == state.rule.dependencies.len() {
                 let Some((peer, ordinal)) = state
                     .group
@@ -8359,6 +8563,31 @@ impl Engine {
         let occurrence = &state.rule.dependencies[index];
         let dependency = &occurrence.name;
         let parent = state.scope_parent(target);
+        if self.remake_stopped() {
+            // Settle the stopped owner's graph while retaining live recipes
+            // for the ordinary drain. Shared frames keep their own owner.
+            let resolved = self.aliases.resolve(dependency);
+            let owns_frame = self.remake_stop().is_some_and(|stop| {
+                let same_root = |remake: Option<&MakefileRemake>| {
+                    remake
+                        .and_then(|remake| remake.stopped.as_ref())
+                        .is_some_and(|other| Rc::ptr_eq(stop, other))
+                };
+                self.pending_rules
+                    .get(resolved)
+                    .is_some_and(|pending| same_root(pending.remake.as_ref()))
+                    || self
+                        .pending_double_colon
+                        .get(resolved)
+                        .is_some_and(|pending| same_root(pending.remake.as_ref()))
+            });
+            let outcome = if owns_frame {
+                self.build(dependency, Some(parent), state.depth + 1)
+            } else {
+                self.done.get(resolved).copied().unwrap_or_default()
+            };
+            return (outcome, false);
+        }
         let missing_middle = if first && self.intermediate(dependency) {
             match self.intermediate_time(dependency) {
                 Ok(time) => time.is_none(),
@@ -8597,7 +8826,9 @@ impl Engine {
             if dependency == b".WAIT" || dropped.contains(dependency) {
                 continue;
             }
-            self.wait_target(dependency);
+            if !self.remake_stopped() {
+                self.wait_target(dependency);
+            }
             let Some(child) = self.done.get(dependency).copied() else {
                 continue;
             };
@@ -9347,7 +9578,10 @@ impl Engine {
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
-        if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
+        if self.graph_abort.is_some()
+            || self.remake_stopped()
+            || (self.parallel_failed && !self.options.keep_going)
+        {
             return Execution::failure(false, Cleanup::None);
         }
         let mut variables = match self.rule_variables(target, branch) {
@@ -9401,7 +9635,10 @@ impl Engine {
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
-        if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
+        if self.graph_abort.is_some()
+            || self.remake_stopped()
+            || (self.parallel_failed && !self.options.keep_going)
+        {
             return Execution::failure(false, Cleanup::None);
         }
         let debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
@@ -9424,7 +9661,10 @@ impl Engine {
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
-        if self.graph_abort.is_some() || (self.parallel_failed && !self.options.keep_going) {
+        if self.graph_abort.is_some()
+            || self.remake_stopped()
+            || (self.parallel_failed && !self.options.keep_going)
+        {
             return Execution::failure(false, Cleanup::None);
         }
         if self.output.debug_mask().has(crate::debug::Mask::WHY) {
