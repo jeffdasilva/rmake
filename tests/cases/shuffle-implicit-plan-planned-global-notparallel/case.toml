@@ -1,0 +1,10 @@
+id = "shuffle-implicit-plan-planned-global-notparallel"
+requirement = "options.shuffle-implicit-plan"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for seeded implicit-plan traversal."
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345", "all.out"]
+
+[expected]
+exit_code = 0
+stdout = "leaf d01\nleaf d02\nleaf d03\nleaf d04\nleaf d05\nleaf d06\nleaf d07\nleaf d08\nleaf d09\nleaf d10\nleaf d11\nimplicit all.out [d01 d02 d03 d04 d05 d06 d07 d08 d09 d10 d11] []\n"
+stderr = ""

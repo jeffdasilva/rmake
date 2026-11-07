@@ -1,0 +1,10 @@
+id = "shuffle-implicit-plan-unvisited-remake-and-planned-default-restart"
+requirement = "options.shuffle-implicit-plan"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for seeded implicit-plan traversal."
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345"]
+
+[expected]
+exit_code = 0
+stdout = "remake-leaf d06\nremake-leaf d05\nremake-leaf d09\nremake-leaf d01\nremake-leaf d03\nremake-leaf d07\nremake-leaf d10\nremake-leaf d11\nremake-leaf d08\nremake-leaf d02\nremake-leaf d04\ninclude generated.mk\ngoal-leaf e5\ngoal-leaf e4\ngoal-leaf e11\ngoal-leaf e7\ngoal-leaf e1\ngoal-leaf e6\ngoal-leaf e10\ngoal-leaf e8\ngoal-leaf e9\ngoal-leaf e3\ngoal-leaf e2\ngoal all.out restart=1 generated=loaded\n"
+stderr = ""

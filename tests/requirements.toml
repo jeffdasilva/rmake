@@ -2358,3 +2358,37 @@ cases = [
   "jobserver-tempdir-fallback-after-invalid-make-tmpdir",
   "jobserver-tempdir-invalid-tmpdir-pipe-control",
 ]
+
+[[requirements]]
+id = "options.shuffle-implicit-plan"
+title = "Preserve seeded prerequisite order when implicit recipes add no prerequisites"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 23
+fixture_count = 23
+cases = [
+  "shuffle-implicit-plan-planned-explicit-recipe-only",
+  "shuffle-implicit-plan-planned-default-recipe-only",
+  "shuffle-implicit-plan-planned-generic-explicit",
+  "shuffle-implicit-plan-planned-two-goals",
+  "shuffle-implicit-plan-planned-seed-one",
+  "shuffle-implicit-plan-planned-reverse-control",
+  "shuffle-implicit-plan-planned-no-shuffle-control",
+  "shuffle-implicit-plan-planned-real-explicit-recipe",
+  "shuffle-implicit-plan-planned-fallback-default-recipe",
+  "shuffle-implicit-plan-planned-added-implicit-prereq",
+  "shuffle-implicit-plan-planned-added-implicit-order-only",
+  "shuffle-implicit-plan-planned-added-implicit-duplicate",
+  "shuffle-implicit-plan-planned-empty-pattern-secondary",
+  "shuffle-implicit-plan-planned-nested",
+  "shuffle-implicit-plan-newly-reachable-by-secondary",
+  "shuffle-implicit-plan-planned-global-notparallel",
+  "shuffle-implicit-plan-planned-target-notparallel",
+  "shuffle-implicit-plan-planned-explicit-wait",
+  "shuffle-implicit-plan-unvisited-include-remake",
+  "shuffle-implicit-plan-unvisited-remake-and-planned-restart",
+  "shuffle-implicit-plan-unvisited-remake-and-planned-default-restart",
+  "shuffle-implicit-plan-unvisited-include-remake-reverse-control",
+  "shuffle-implicit-plan-planned-implicit-chain-added",
+]
