@@ -1,0 +1,1 @@
+$(eval ifneq(left,right))

@@ -4877,13 +4877,18 @@ impl Database {
                 })
             });
             let Some(delimiter) = delimiter else {
-                return Err(ParseError::system(
-                    location,
-                    Message::MissingSeparator {
-                        tabs: line.bytes.starts_with(b"        "),
-                    },
-                    context,
-                ));
+                let message = if prefix == b'\t' && line.bytes.starts_with(b"        ") {
+                    Message::MissingSeparator { tabs: true }
+                } else if [b"ifeq".as_slice(), b"ifneq"].iter().any(|word| {
+                    text.strip_prefix(*word)
+                        .and_then(|suffix| suffix.first())
+                        .is_some_and(|byte| !matches!(*byte, b' ' | b'\t'))
+                }) {
+                    Message::MissingSeparatorConditional
+                } else {
+                    Message::MissingSeparator { tabs: false }
+                };
+                return Err(ParseError::system(location, message, context));
             };
             declaration.location = Some(location.clone());
             declaration.grouped = delimiter.grouped;

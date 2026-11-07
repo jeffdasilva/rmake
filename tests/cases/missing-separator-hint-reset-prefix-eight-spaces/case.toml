@@ -1,0 +1,10 @@
+id = "missing-separator-hint-reset-prefix-eight-spaces"
+requirement = "diagnostics.missing-separator-hints"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for parser separator hints."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:4: *** missing separator (did you mean TAB instead of 8 spaces?).  Stop.\n"

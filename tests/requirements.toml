@@ -2392,3 +2392,28 @@ cases = [
   "shuffle-implicit-plan-unvisited-include-remake-reverse-control",
   "shuffle-implicit-plan-planned-implicit-chain-added",
 ]
+
+[[requirements]]
+id = "diagnostics.missing-separator-hints"
+title = "Missing separator hints for the active recipe prefix and malformed conditionals"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 14
+fixture_count = 14
+cases = [
+  "missing-separator-hint-custom-prefix-eight-spaces",
+  "missing-separator-hint-reset-prefix-eight-spaces",
+  "missing-separator-hint-default-prefix-seven-spaces",
+  "missing-separator-hint-ifeq-joined",
+  "missing-separator-hint-ifneq-joined",
+  "missing-separator-hint-ifeq-word-suffix",
+  "missing-separator-hint-ifneq-leading-space",
+  "missing-separator-hint-ifeq-spaced-invalid",
+  "missing-separator-hint-eight-spaces-before-conditional",
+  "missing-separator-hint-custom-prefix-before-conditional",
+  "missing-separator-hint-expanded-conditional-text",
+  "missing-separator-hint-eval-conditional-text",
+  "missing-separator-hint-included-conditional-text",
+  "missing-separator-hint-valid-rule-and-custom-prefix",
+]
