@@ -1,0 +1,13 @@
+id = "grouped-peer-warning-locus-goal-unmodified"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A failed command leaves no peer warning when the owner did not change."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "dispatch\nmake: *** [Makefile:7: catalog.fragment] Error 9\n"
+stderr = ""

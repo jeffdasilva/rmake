@@ -1,0 +1,9 @@
+.PHONY: report
+report: catalog.fragment
+	@printf "ordinary\n"
+include catalog.fragment
+-include catalog.metadata
+%.fragment %.metadata:
+	@touch "$@"
+	@printf "dispatch\n"
+	@exit 9

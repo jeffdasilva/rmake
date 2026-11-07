@@ -1,0 +1,13 @@
+id = "grouped-peer-warning-locus-optional-source"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A deferred required include summary follows the optional group warning."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "dispatch\nMakefile:9: warning: pattern recipe did not update peer target 'catalog.metadata'.\nMakefile:5: Failed to remake makefile 'catalog.metadata'.\n"
+stderr = ""

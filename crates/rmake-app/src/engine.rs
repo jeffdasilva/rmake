@@ -4643,6 +4643,9 @@ impl Engine {
             job.continuation.flow.attempted(launched);
         }
         let mut failed = error.is_some() && !job.ignore;
+        if failed {
+            self.note_group_recipe_failure(&target, &job.location);
+        }
         if let Some(error) = error
             && (!job.ignore || !self.globally_silent())
         {
@@ -8980,6 +8983,15 @@ impl Engine {
         outcome
     }
 
+    fn note_group_recipe_failure(&mut self, target: &[u8], location: &Location) {
+        if let Some(group) = self.running_groups.get_mut(target)
+            && group.implicit
+        {
+            // A stopping command keeps its line for the peer warning.
+            group.location = Some(location.clone());
+        }
+    }
+
     fn finish_group(&mut self, target: &[u8], outcome: Outcome) {
         let Some(group) = self.running_groups.remove(target) else {
             return;
@@ -10180,6 +10192,7 @@ impl Engine {
             };
             if let Some(error) = error {
                 if !ignore {
+                    self.note_group_recipe_failure(target, &recipe.location);
                     self.show_makefile_error();
                 }
                 if (ignore || !self.optional_remake) && (!ignore || !self.globally_silent()) {
