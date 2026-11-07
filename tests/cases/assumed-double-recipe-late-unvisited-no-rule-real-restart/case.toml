@@ -1,0 +1,11 @@
+id = "assumed-double-recipe-late-unvisited-no-rule-real-restart"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for an assumed-new double-colon rule."
+args = ["-rR", "--no-print-directory", "-W", "cached", "gate", "cached", "result"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout = "read=[]\nread=[1]\nordinary\ndeclared=[cached|primer]\n"
+stderr = "make: *** No rule to make target 'cached'.  Stop.\n"

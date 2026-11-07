@@ -7565,12 +7565,6 @@ impl Engine {
                     }
                     Ok(None) => {}
                 }
-                emit(&self.output, Event::Finished(target, depth));
-                emit(
-                    &self.output,
-                    Event::DoubleWithoutPrerequisites(target, depth),
-                );
-                emit(&self.output, Event::MustRemake(target, depth));
                 if self.options.keep_going {
                     // Once the tail finishes, dependencies see its logical age.
                     // A same-pass visit returns the declared head's status.
@@ -7584,10 +7578,7 @@ impl Engine {
                     head.search_after_update = false;
                     self.done.insert(key, head);
                 }
-                self.fail_double_colon_input(target, &mut outcome);
-                if self.options.keep_going {
-                    emit(&self.output, Event::Failed(target, depth));
-                }
+                self.fail_double_colon_input(target, depth, &mut outcome);
             }
             CachedDoubleColonInput::Failed => {
                 emit(&self.output, Event::RecentlyFailed(target, depth));
@@ -7645,12 +7636,23 @@ impl Engine {
         self.resume_double_colon(target)
     }
 
-    fn fail_double_colon_input(&self, target: &[u8], outcome: &mut Outcome) {
+    fn fail_double_colon_input(&self, target: &[u8], depth: usize, outcome: &mut Outcome) {
+        use crate::debug::{Event, emit};
+
+        emit(&self.output, Event::Finished(target, depth));
+        emit(
+            &self.output,
+            Event::DoubleWithoutPrerequisites(target, depth),
+        );
+        emit(&self.output, Event::MustRemake(target, depth));
         if !self.optional_remake() {
             self.show_makefile_error();
             self.report_missing_rule(target, None);
         }
         outcome.failed = true;
+        if self.options.keep_going {
+            emit(&self.output, Event::Failed(target, depth));
+        }
     }
 
     fn show_retained_optional_failure(
@@ -8382,7 +8384,7 @@ impl Engine {
                 match self.synthetic_double_colon_recipe(target, state.depth) {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
-                        self.fail_double_colon_input(target, &mut state.combined);
+                        self.fail_double_colon_input(target, state.depth, &mut state.combined);
                         self.record_graph_failure(state.combined);
                         if !self.options.keep_going {
                             state.branches.clear();

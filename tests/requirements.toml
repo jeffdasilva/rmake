@@ -1781,8 +1781,8 @@ title = "Implicit and default recipes for synthetic double-colon entries"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 35
-fixture_count = 35
+candidate_required = 51
+fixture_count = 51
 cases = [
   "assumed-double-recipe-fresh-no-rule",
   "assumed-double-recipe-fresh-default",
@@ -1819,6 +1819,22 @@ cases = [
   "assumed-double-recipe-late-unvisited-pattern-viable-keep",
   "assumed-double-recipe-late-unvisited-pattern-absent-keep",
   "assumed-double-recipe-late-unvisited-pattern-absent-default-keep",
+  "assumed-double-recipe-late-cached-no-rule-real-restart",
+  "assumed-double-recipe-late-cached-default-real-restart",
+  "assumed-double-recipe-late-cached-pattern-empty-real-restart",
+  "assumed-double-recipe-late-cached-pattern-viable-real-restart",
+  "assumed-double-recipe-late-cached-pattern-absent-real-restart",
+  "assumed-double-recipe-late-cached-pattern-absent-default-real-restart",
+  "assumed-double-recipe-late-unvisited-no-rule-real-restart",
+  "assumed-double-recipe-late-unvisited-default-real-restart",
+  "assumed-double-recipe-late-unvisited-pattern-empty-real-restart",
+  "assumed-double-recipe-late-unvisited-pattern-viable-real-restart",
+  "assumed-double-recipe-late-unvisited-pattern-absent-real-restart",
+  "assumed-double-recipe-late-unvisited-pattern-absent-default-real-restart",
+  "assumed-double-recipe-fresh-no-rule-implicit-debug",
+  "assumed-double-recipe-late-cached-pattern-viable-implicit-debug",
+  "assumed-double-recipe-late-unvisited-no-rule-implicit-debug",
+  "assumed-double-recipe-late-unvisited-pattern-absent-implicit-debug",
 ]
 
 [[requirements]]
