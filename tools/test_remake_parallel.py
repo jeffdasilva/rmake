@@ -40,7 +40,7 @@ class PollWaitTests(unittest.TestCase):
         (self.proc / "stat").write_bytes(f"42 (make child)) {state} 12 12\n".encode())
         return remake_parallel.poll_wait(self.proc, channel)
 
-    def test_finite_pselect_requires_a_verified_sleep(self):
+    def test_pselect_requires_a_verified_sleep(self):
         channel = "poll_schedule_timeout.constprop.0"
         self.assertEqual(self.pselect(channel), (270, True))
         self.assertEqual(self.pselect("poll_schedule_timeout"), (270, True))
@@ -48,11 +48,11 @@ class PollWaitTests(unittest.TestCase):
         self.assertEqual(self.pselect(channel, state="R"), (270, False))
         self.assertEqual(self.pselect(channel, state="D"), (270, False))
 
-    def test_finite_pselect_requires_descriptors_and_a_timespec(self):
+    def test_pselect_requires_descriptors_and_accepts_both_timeouts(self):
         channel = "poll_schedule_timeout.constprop.0"
         self.assertEqual(self.pselect(channel, nfds="0x0"), (270, False))
         self.assertEqual(self.pselect(channel, descriptors="0x0"), (270, False))
-        self.assertEqual(self.pselect(channel, timeout="0x0"), (270, False))
+        self.assertEqual(self.pselect(channel, timeout="0x0"), (270, True))
         (self.proc / "stat").write_bytes(b"malformed\n")
         self.assertEqual(remake_parallel.poll_wait(self.proc, channel), (270, False))
 
