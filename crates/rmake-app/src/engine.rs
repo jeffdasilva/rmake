@@ -346,6 +346,7 @@ struct RequestedGoal {
     already_done: bool,
     initial: Outcome,
     awaiting_recipe: bool,
+    started_command: bool,
 }
 
 type SharedIncludeError = Rc<Cell<Option<PendingIncludeError>>>;
@@ -1044,6 +1045,7 @@ pub struct Engine {
     #[allow(clippy::box_collection)]
     debug_considered: Option<Box<HashSet<Vec<u8>>>>,
     recipe_reaps: u64,
+    commands_started: u64,
     debug_pass: u64,
     visiting: HashSet<Vec<u8>>,
     scope_parents: HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
@@ -1616,6 +1618,7 @@ impl Engine {
             done: HashMap::new(),
             debug_considered: None,
             recipe_reaps: 0,
+            commands_started: 0,
             debug_pass: 0,
             visiting: HashSet::new(),
             scope_parents: HashMap::new(),
@@ -3208,6 +3211,7 @@ impl Engine {
                                             0,
                                             None,
                                             BuildVisit::Ordinary,
+                                            None,
                                         );
                                     });
                                     true
@@ -3288,6 +3292,7 @@ impl Engine {
                     0,
                     initial_time,
                     BuildVisit::Ordinary,
+                    None,
                 );
                 let before = before.unwrap_or(result.time);
                 visit.insert((before, first_open_error));
@@ -3620,7 +3625,15 @@ impl Engine {
             if already_done && !self.parallel_graph() {
                 self.wait_target(&goal);
             }
-            let outcome = self.build(&goal, None, 0);
+            let mut started_command = false;
+            let outcome = self.build_recording_initial_time(
+                &goal,
+                None,
+                0,
+                None,
+                BuildVisit::Ordinary,
+                Some(&mut started_command),
+            );
             self.debug_double_colon_goal_prunes(&goal, outcome);
             let outcome = if !self.parallel_graph() && !self.pending(&goal) {
                 self.observe_updated(&goal, outcome)
@@ -3640,7 +3653,7 @@ impl Engine {
             }
             if let Some(report) = completed_report {
                 failed |= outcome.failed;
-                self.report_goal(&goal, already_done, report);
+                self.report_goal(&goal, started_command, report);
             } else if self.parallel_graph() {
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 requested.push(RequestedGoal {
@@ -3648,10 +3661,11 @@ impl Engine {
                     already_done,
                     initial: outcome,
                     awaiting_recipe,
+                    started_command,
                 });
             } else {
                 failed |= outcome.failed;
-                self.report_goal(&goal, already_done, outcome);
+                self.report_goal(&goal, started_command, outcome);
             }
             fatal |= outcome.fatal;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
@@ -3671,8 +3685,14 @@ impl Engine {
                     } else {
                         BuildVisit::Ordinary
                     };
-                    let outcome =
-                        self.build_recording_initial_time(&goal.name, None, 0, None, visit);
+                    let outcome = self.build_recording_initial_time(
+                        &goal.name,
+                        None,
+                        0,
+                        None,
+                        visit,
+                        Some(&mut goal.started_command),
+                    );
                     if self.debug_pass != last_goal_pass {
                         self.debug_double_colon_goal_prunes(&goal.name, outcome);
                     }
@@ -3720,7 +3740,7 @@ impl Engine {
             let outcome = self.observe_updated(&goal.name, outcome);
             failed |= outcome.failed;
             fatal |= outcome.fatal;
-            self.report_goal(&goal.name, goal.already_done, outcome);
+            self.report_goal(&goal.name, goal.started_command, outcome);
         }
         self.wait_all_jobs();
         failed |= self.parallel_failed;
@@ -3951,7 +3971,7 @@ impl Engine {
         }
     }
 
-    fn report_goal(&self, goal: &[u8], already_done: bool, outcome: Outcome) {
+    fn report_goal(&self, goal: &[u8], started_command: bool, outcome: Outcome) {
         if outcome.fatal {
             return;
         }
@@ -3966,7 +3986,7 @@ impl Engine {
                 self.report_blocked_goal(goal);
             }
         } else if !outcome.failed
-            && (!outcome.ran || already_done)
+            && !started_command
             && !self.options.question
             && !self.globally_silent()
         {
@@ -4568,6 +4588,7 @@ impl Engine {
                                 0,
                                 None,
                                 BuildVisit::Ordinary,
+                                None,
                             )
                         });
                 }
@@ -7570,7 +7591,7 @@ impl Engine {
         parent: Option<ScopeParent<&[u8]>>,
         depth: usize,
     ) -> Outcome {
-        self.build_recording_initial_time(target, parent, depth, None, BuildVisit::Ordinary)
+        self.build_recording_initial_time(target, parent, depth, None, BuildVisit::Ordinary, None)
     }
 
     fn build_recording_initial_time(
@@ -7580,6 +7601,7 @@ impl Engine {
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
         visit: BuildVisit,
+        goal_started_command: Option<&mut bool>,
     ) -> Outcome {
         let known_alias = self.aliases.contains(target);
         // Goal search preparation can observe a timestamp before the graph
@@ -7649,6 +7671,9 @@ impl Engine {
         } else {
             false
         };
+        // Count only dispatches after the scheduler's previsit reap and
+        // load check, even if that check starts this goal's queued recipe.
+        let commands_before = self.commands_started;
         let mut outcome = if archive_error {
             Outcome {
                 failed: true,
@@ -7665,6 +7690,9 @@ impl Engine {
                 visit,
             )
         };
+        if let Some(started) = goal_started_command {
+            *started |= self.commands_started != commands_before;
+        }
         if goal_clock {
             self.check_considered_goal_clock();
         }
@@ -9030,6 +9058,7 @@ impl Engine {
                     state.depth + 1,
                     None,
                     build_visit,
+                    None,
                 )
             } else {
                 let outcome = self.done.get(dependency).copied();
@@ -10444,6 +10473,7 @@ impl Engine {
             {
                 self.stdout(echo);
             }
+            self.commands_started = self.commands_started.wrapping_add(1);
             ran = true;
             if self.options.dry_run && !force {
                 continue;
@@ -10961,7 +10991,8 @@ impl Engine {
         Execution::success(ran).with_recursion(!flow.has_ordinary())
     }
 
-    fn touch_target(&self, target: &[u8]) -> Execution {
+    fn touch_target(&mut self, target: &[u8]) -> Execution {
+        self.commands_started = self.commands_started.wrapping_add(1);
         if !self.globally_silent() {
             self.stdout(&[b"touch ".as_slice(), target].concat());
         }

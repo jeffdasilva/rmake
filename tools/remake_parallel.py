@@ -129,6 +129,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += duplicate_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
+        results += load_goal_summary_models(worker, markers)
     return results
 
 
@@ -468,6 +469,51 @@ def load_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
             results.append(HeldModel(model, overlap, before_second, before_first,
                                      before_second_stdout=stdout if name == 'optional-stop' else None,
                                      load=load))
+    return results
+
+
+def load_goal_summary_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    left = ('$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            'left: ; @$(file >>seen,expanded-left)python3 worker.py left success\n')
+    right = '{target}: ; @{ignore}$(file >>seen,expanded-right)python3 worker.py right {action}\n'
+    phony = '.PHONY: all\n'
+    ordinary = right.format(target='all', ignore='', action='success') + phony
+    build_file = right.format(target='right.gen', ignore='', action='include')
+    ignored = right.format(target='all', ignore='-', action='fail') + phony
+    failing = right.format(target='all', ignore='', action='fail') + phony
+    nothing = b"make: Nothing to be done for 'all'.\n"
+    current = b"make: 'right.gen' is up to date.\n"
+    ignored_error = b'make: [Makefile:3: all] Error 4 (ignored)\n'
+    recipe_error = b'make: *** [Makefile:3: all] Error 4\n'
+    generated = {'right.gen': b'RIGHT := loaded\n'}
+    cases = (
+        ('deferred-phony', ordinary, 'all', False, (), 0, nothing, b'', {}),
+        ('deferred-file', build_file, 'right.gen', False, (), 0, current, b'', generated),
+        ('deferred-prerequisite', build_file + 'all: right.gen\n', 'all', False,
+         (), 0, nothing, b'', generated),
+        ('deferred-ignored', ignored, 'all', False, (), 0, b'right\n' + nothing, ignored_error, {}),
+        ('deferred-failed', failing, 'all', False, (), 2, b'right\n', recipe_error, {}),
+        ('deferred-failed-keep', failing, 'all', False, ('-k',), 2, b'right\n', recipe_error, {}),
+        ('immediate-phony', ordinary, 'all', True, (), 0, b'', b'', {}),
+        ('immediate-ignored', ignored, 'all', True, (), 0, b'right\n', ignored_error, {}),
+    )
+    expanded = BEFORE_FIRST + b'expanded-left\nexpanded-right\n'
+    before_second = expanded + b'left\n'
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, source, goal, overlap, flags, status, stdout, stderr, updates in cases:
+            load = LOAD_LOW if overlap else LOAD_HIGH
+            files = {'Makefile': (left + source).encode(), 'worker.py': worker,
+                     'seen': ANCHOR, 'load.input': load}
+            args = ('-rR', '--no-print-directory', '-j2', '-l2',
+                    f'--jobserver-style={transport}', *flags, 'left', goal)
+            expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'load-goal-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''},
+                                expected, before_second + b'right\n', updates={**markers, **updates},
+                                mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(model, overlap, before_second, expanded, before_second_stdout=b'',
+                                     load=LoadProfile('normal', load, b'proc\n')))
     return results
 
 
