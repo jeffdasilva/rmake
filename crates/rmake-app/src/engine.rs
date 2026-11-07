@@ -335,6 +335,14 @@ struct RequestedGoal {
     awaiting_recipe: bool,
 }
 
+/// State owned by one makefile update. Intermediate inspection can suppress
+/// the optional policy temporarily without discarding its retained error.
+struct MakefileRemake {
+    optional: bool,
+    retain_failure: bool,
+    open_error: Cell<Option<PendingIncludeError>>,
+}
+
 struct OptionalMakefileFailure {
     open_error: Option<PendingIncludeError>,
     before: Option<SystemTime>,
@@ -1048,8 +1056,7 @@ pub struct Engine {
     shutdown: Cell<Shutdown>,
     shutdown_launch_failure: RefCell<Option<FailedOwner>>,
     remaking: bool,
-    optional_remake: bool,
-    retain_remake_failure: bool,
+    active_makefile_remake: Option<MakefileRemake>,
     // A missing cause here marks a direct, suppressed failure.
     optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
     vpath_dirs: Vec<Vec<u8>>,
@@ -1061,7 +1068,6 @@ pub struct Engine {
     ignored_vpath: HashSet<Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     archive_completion_times: HashMap<Vec<u8>, ArchiveCompletion>,
-    makefile_error: RefCell<Option<PendingIncludeError>>,
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
     intermediate_policy: crate::intermediates::Policy,
@@ -1619,8 +1625,7 @@ impl Engine {
             shutdown: Cell::new(Shutdown::Running),
             shutdown_launch_failure: RefCell::new(None),
             remaking: false,
-            optional_remake: false,
-            retain_remake_failure: false,
+            active_makefile_remake: None,
             optional_remake_failures: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
@@ -1631,7 +1636,6 @@ impl Engine {
             ignored_vpath: HashSet::new(),
             archive_vpath_reads: RefCell::new(None),
             archive_completion_times: HashMap::new(),
-            makefile_error: RefCell::new(None),
             initial_flags,
             initial_gnu_flags: Vec::new(),
             intermediate_policy: crate::intermediates::Policy::default(),
@@ -1951,20 +1955,40 @@ impl Engine {
         2
     }
 
+    fn optional_remake(&self) -> bool {
+        self.active_makefile_remake
+            .as_ref()
+            .is_some_and(|remake| remake.optional)
+    }
+
+    fn retain_remake_failure(&self) -> bool {
+        self.active_makefile_remake
+            .as_ref()
+            .is_some_and(|remake| remake.retain_failure)
+    }
+
     fn show_makefile_error(&self) {
-        if let Some(error) = self.makefile_error.borrow_mut().take() {
-            // The ordinary remake complaint has fixed punctuation. Only the
-            // errno detail comes from the active libc messages locale.
-            let detail = error.bytes();
-            emit_output(
-                &self.output,
-                &self.program,
-                Output::Warning {
-                    location: error.location.as_ref(),
-                    message: &[error.name.as_slice(), b": ", &detail].concat(),
-                },
-            );
+        let error = self
+            .active_makefile_remake
+            .as_ref()
+            .and_then(|remake| remake.open_error.take());
+        if let Some(error) = error {
+            self.emit_makefile_error(&error);
         }
+    }
+
+    fn emit_makefile_error(&self, error: &PendingIncludeError) {
+        // The ordinary remake complaint has fixed punctuation. Only the
+        // errno detail comes from the active libc messages locale.
+        let detail = error.bytes();
+        emit_output(
+            &self.output,
+            &self.program,
+            Output::Warning {
+                location: error.location.as_ref(),
+                message: &[error.name.as_slice(), b": ", &detail].concat(),
+            },
+        );
     }
 
     fn stderr(&self, body: &[u8]) {
@@ -3090,10 +3114,11 @@ impl Engine {
                             detail: detail.clone(),
                         })
                 };
-                *self.makefile_error.borrow_mut() =
-                    if optional { None } else { pending_open_error() };
-                self.optional_remake = optional;
-                self.retain_remake_failure = optional;
+                self.active_makefile_remake = Some(MakefileRemake {
+                    optional,
+                    retain_failure: optional,
+                    open_error: Cell::new(if optional { None } else { pending_open_error() }),
+                });
                 let initial_time = before.is_none().then_some(&mut before);
                 let result = self.build_recording_initial_time(
                     name,
@@ -3103,9 +3128,7 @@ impl Engine {
                     BuildVisit::Ordinary,
                 );
                 let before = before.unwrap_or(result.time);
-                self.retain_remake_failure = false;
-                self.optional_remake = false;
-                self.makefile_error.borrow_mut().take();
+                self.active_makefile_remake = None;
                 failed |= result.failed && !optional;
                 if result.failed && !result.fatal {
                     // Without its own recipe run, the makefile keeps its cached time.
@@ -4030,13 +4053,18 @@ impl Engine {
             next += 1;
             // Inspection of a missing intermediate does not carry the
             // enclosing makefile's optional policy into its prerequisites.
-            let optional = std::mem::take(&mut self.optional_remake);
+            let optional = self
+                .active_makefile_remake
+                .as_mut()
+                .is_some_and(|remake| std::mem::take(&mut remake.optional));
             let Inspection {
                 outcome: mut child,
                 pending,
                 needs_rebuild,
             } = self.check_intermediate(&dep.name, child_parent, time, depth + 1);
-            self.optional_remake = optional;
+            if let Some(remake) = &mut self.active_makefile_remake {
+                remake.optional = optional;
+            }
             if optional && child.failed && !self.options.keep_going {
                 let mut shutdown = self.shutdown.get();
                 shutdown.drain();
@@ -4054,7 +4082,7 @@ impl Engine {
                 break;
             }
         }
-        if self.retain_remake_failure && result.blocked && !result.fatal && !waiting {
+        if self.retain_remake_failure() && result.blocked && !result.fatal && !waiting {
             self.remember_optional_prerequisite(target, &rule, None);
         }
         if dropped {
@@ -6906,8 +6934,9 @@ impl Engine {
         let Some(cause) = self.optional_remake_failures.get(name).cloned() else {
             return false;
         };
-        *self.makefile_error.borrow_mut() = open_error.take();
-        self.show_makefile_error();
+        if let Some(error) = open_error.take() {
+            self.emit_makefile_error(&error);
+        }
         let (target, parent) = cause.as_ref().map_or((name, None), |cause| {
             (cause.target.as_slice(), Some(cause.parent.as_slice()))
         });
@@ -7104,7 +7133,7 @@ impl Engine {
             outcome.failed = true;
             outcome.fatal = true;
         }
-        if self.optional_remake && outcome.failed && !outcome.fatal {
+        if self.optional_remake() && outcome.failed && !outcome.fatal {
             self.optional_remake_failures
                 .entry(target.to_vec())
                 .or_default();
@@ -7123,7 +7152,7 @@ impl Engine {
         visit: BuildVisit,
     ) -> Outcome {
         let mut traced_optional_failure = false;
-        if !self.optional_remake
+        if !self.optional_remake()
             && let Some(cause) = self.optional_remake_failures.remove(target)
         {
             // A later required visit exposes the original failure hidden by
@@ -7350,11 +7379,12 @@ impl Engine {
                 &self.output,
                 crate::debug::Event::MustRemake(target, debug_depth),
             );
-            if !self.optional_remake {
+            if !self.optional_remake() {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            if (self.optional_remake && depth == 0) || (!self.remaking && self.options.keep_going) {
+            if (self.optional_remake() && depth == 0) || (!self.remaking && self.options.keep_going)
+            {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
@@ -7558,7 +7588,7 @@ impl Engine {
             let Some(branch) = entry else {
                 // An input-only double-colon record has no declared rule or
                 // parent diagnostic locus. Process it in the same ordered queue.
-                if !self.optional_remake {
+                if !self.optional_remake() {
                     self.show_makefile_error();
                     self.report_missing_rule(target, None);
                 }
@@ -8581,7 +8611,7 @@ impl Engine {
                 }
             }
         }
-        if self.retain_remake_failure && outcome.blocked && !outcome.fatal {
+        if self.retain_remake_failure() && outcome.blocked && !outcome.fatal {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
@@ -8589,7 +8619,7 @@ impl Engine {
         let stopping_dependency = outcome.blocked
             && (outcome.fatal
                 || (!self.options.keep_going
-                    && !self.optional_remake
+                    && !self.optional_remake()
                     && (self.graph_abort.is_some() || !self.parallel_graph())));
         if !stopping_dependency {
             crate::debug::emit(
@@ -8886,7 +8916,7 @@ impl Engine {
                     outcome.fatal = true;
                 }
             } else if rule.record_only && !phony {
-                if !self.optional_remake {
+                if !self.optional_remake() {
                     self.show_makefile_error();
                     let parent = self
                         .scope_parents
@@ -10177,7 +10207,7 @@ impl Engine {
                 if !ignore {
                     self.show_makefile_error();
                 }
-                if (ignore || !self.optional_remake) && (!ignore || !self.globally_silent()) {
+                if (ignore || !self.optional_remake()) && (!ignore || !self.globally_silent()) {
                     let source = location_prefix(&recipe.location);
                     let ignored = if ignore {
                         crate::messages::system(rmake_core::messages::Message::Ignored)
