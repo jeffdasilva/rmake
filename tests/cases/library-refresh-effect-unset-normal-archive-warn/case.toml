@@ -1,0 +1,13 @@
+id = "library-refresh-effect-unset-normal-archive-warn"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Goal or library status after a recipe: library-effect-unset-normal-archive-warn"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c652027474e554d414b45464c414753270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520272e4c49425041545445524e53270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c6520272e4c49425041545445524e53270a696e707574733d5b2d6c7769646765745d0a"
+stderr_hex = ""

@@ -1,0 +1,13 @@
+id = "library-refresh-unruled-local-archive-false-false"
+requirement = "rules.libraries"
+candidate = "required"
+description = "Goal or library status after a recipe: library-unruled-local-archive-False-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420272d6c776964676574272c206e65656465642062792027616c6c272e202053746f702e0a"
+stderr_hex = ""

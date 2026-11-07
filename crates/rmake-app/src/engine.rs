@@ -2995,6 +2995,7 @@ impl Engine {
             }
             self.remaking = true;
             let mut changed = false;
+            let mut ran_remake_recipe = false;
             let mut failed = false;
             let mut stopped = false;
             let mut skipped_errors = Vec::new();
@@ -3075,6 +3076,7 @@ impl Engine {
                     BuildVisit::Ordinary,
                 );
                 let before = before.unwrap_or(result.time);
+                ran_remake_recipe |= result.ran;
                 self.retain_remake_failure = false;
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
@@ -3175,6 +3177,13 @@ impl Engine {
             if failed {
                 self.remove_intermediates();
                 return 2;
+            }
+            if ran_remake_recipe {
+                // Keep the cached outcomes and timestamps, but report ordinary
+                // goal activity only for recipes started in that phase.
+                for outcome in self.done.values_mut() {
+                    outcome.ran = false;
+                }
             }
             for module in crate::native::unloaded() {
                 let location = self.database.loaded_modules.get(&module).cloned();
@@ -5735,7 +5744,7 @@ impl Engine {
     fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
         !phony
             && !self.ignored_vpath.contains(target)
-            && self.vpath_searchable(target)
+            && (self.vpath_searchable(target) || target.starts_with(b"-l"))
             && (!(self.options.dry_run || self.options.question || self.options.touch)
                 || all_recursive)
     }
