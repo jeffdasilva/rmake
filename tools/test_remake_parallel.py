@@ -33,6 +33,29 @@ class PollWaitTests(unittest.TestCase):
         self.assertEqual(self.sample(271, "0x20"), (271, False))
         self.assertEqual(self.sample(0, "0xffffffff"), (0, False))
 
+    def pselect(self, channel, *, state="S", nfds="0x8", descriptors="0x20", timeout="0x70"):
+        (self.proc / "syscall").write_text(
+            f"270 {nfds} {descriptors} 0x0 0x0 {timeout} 0x90 0x100 0x200\n"
+        )
+        (self.proc / "stat").write_bytes(f"42 (make child)) {state} 12 12\n".encode())
+        return remake_parallel.poll_wait(self.proc, channel)
+
+    def test_finite_pselect_requires_a_verified_sleep(self):
+        channel = "poll_schedule_timeout.constprop.0"
+        self.assertEqual(self.pselect(channel), (270, True))
+        self.assertEqual(self.pselect("poll_schedule_timeout"), (270, True))
+        self.assertEqual(self.pselect("0"), (270, False))
+        self.assertEqual(self.pselect(channel, state="R"), (270, False))
+        self.assertEqual(self.pselect(channel, state="D"), (270, False))
+
+    def test_finite_pselect_requires_descriptors_and_a_timespec(self):
+        channel = "poll_schedule_timeout.constprop.0"
+        self.assertEqual(self.pselect(channel, nfds="0x0"), (270, False))
+        self.assertEqual(self.pselect(channel, descriptors="0x0"), (270, False))
+        self.assertEqual(self.pselect(channel, timeout="0x0"), (270, False))
+        (self.proc / "stat").write_bytes(b"malformed\n")
+        self.assertEqual(remake_parallel.poll_wait(self.proc, channel), (270, False))
+
     def test_exited_running_or_unavailable_process(self):
         self.assertEqual(remake_parallel.poll_wait(self.proc), (None, False))
         for value in ("running\n", "-1 0x100 0x200\n", "7 0 2 invalid 0 0 0 0 0\n"):

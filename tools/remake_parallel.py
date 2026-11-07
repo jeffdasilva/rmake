@@ -487,7 +487,7 @@ def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
     return workers
 
 
-def poll_wait(proc: Path) -> tuple[int | None, bool]:
+def poll_wait(proc: Path, channel: str = '') -> tuple[int | None, bool]:
     if not X86_64:
         return None, False
     try:
@@ -500,6 +500,14 @@ def poll_wait(proc: Path) -> tuple[int | None, bool]:
         # a pointer to a timespec, with NULL denoting an indefinite wait.
         blocking = ((number == 7 and argument & 0xffffffff != 0)
                     or (number == 271 and argument == 0))
+        if number == 270 and channel.split('.', 1)[0] == 'poll_schedule_timeout':
+            # pselect6 uses a timespec pointer. A finite pointer alone does
+            # not prove a wait, so also require a sleeping task with a
+            # descriptor set in the kernel's poll sleep path.
+            state = (proc / 'stat').read_bytes().rpartition(b') ')[2]
+            blocking = (state.startswith(b'S ') and int(fields[1], 0) > 0
+                        and any(int(value, 0) for value in fields[2:5])
+                        and int(fields[5], 0) != 0)
         return number, blocking
     except (OSError, ValueError):
         return None, False
@@ -528,7 +536,7 @@ def execute(case: h.Case, runtime: Path, binary: Path,
         proc = Path('/proc', str(parent))
         try:
             channel = (proc / 'wchan').read_text().strip()
-            number, blocked = (None, True) if channel in WAIT_CHANNELS else poll_wait(proc)
+            number, blocked = (None, True) if channel in WAIT_CHANNELS else poll_wait(proc, channel)
             if wait_samples is not None:
                 wait_samples.add((channel, number))
             if not blocked:
