@@ -45,3 +45,19 @@ without timing out.
 Duplicate reads, load limits, remake debug output, and the `-n`, `-q`,
 and `-t` modes still use the serial remake path. Each needs separate
 qualification before enabling parallel remakes for that input.
+
+## Remake debug traces
+
+The 27 opt-in profiles check the entire debug trace and the exact trace prefix
+visible at each worker release. They cover basic remake debugging with both
+jobserver transports and combined remake and verbose debugging with the pipe
+transport. Verbose FIFO output contains a live controller PID and is outside
+this exact fixture set.
+
+~~~sh
+python3 tools/remake_parallel.py --remake-debug --self-test
+python3 tools/remake_parallel.py --remake-debug --candidate target/debug/rmake
+~~~
+
+The standard developer gates keep their existing case selection while debug
+remakes are incomplete.
