@@ -344,3 +344,257 @@ Giving up on target file 'all'.
 stderr = "make: *** [Makefile:2: a.out] Error 3\nmake: Target 'all' not remade because of errors.\n"
 release_lines = [14]
 seen = "anchor\nleft\n"
+
+[[models]]
+id = "explicit-direct"
+makefile = '''
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+goals = ["a", "b"]
+exit_code = 0
+stdout = '''
+Considering target file 'a'.
+ File 'a' does not exist.
+Finished prerequisites of target file 'a'.
+Must remake target 'a'.
+Recipe of 'a' is being run.
+Considering target file 'b'.
+Still updating file 'b'.
+Considering target file 'a'.
+File 'a' was considered already.
+Considering target file 'b'.
+File 'b' was considered already.
+make: 'b' is up to date.
+'''
+stderr = ""
+release_lines = [7]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-direct-repeat"
+makefile = '''
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+goals = ["a", "b", "b"]
+exit_code = 0
+stdout = '''
+Considering target file 'a'.
+ File 'a' does not exist.
+Finished prerequisites of target file 'a'.
+Must remake target 'a'.
+Recipe of 'a' is being run.
+Considering target file 'b'.
+Still updating file 'b'.
+Pruning file 'b'.
+Considering target file 'a'.
+File 'a' was considered already.
+Considering target file 'b'.
+File 'b' was considered already.
+make: 'b' is up to date.
+Pruning file 'b'.
+make: 'b' is up to date.
+'''
+stderr = ""
+release_lines = [8]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "implicit-direct"
+makefile = '''
+%.out %.peer: source ; @python3 worker.py left implicit
+'''
+flags = []
+goals = ["a.out", "a.peer"]
+source = "fixed\n"
+exit_code = 0
+stdout = '''
+Considering target file 'a.out'.
+ File 'a.out' does not exist.
+ Considering target file 'source'.
+ Finished prerequisites of target file 'source'.
+ No need to remake target 'source'.
+Finished prerequisites of target file 'a.out'.
+Must remake target 'a.out'.
+Recipe of 'a.out' is being run.
+Considering target file 'a.peer'.
+Still updating file 'a.peer'.
+Considering target file 'a.out'.
+File 'a.out' was considered already.
+Considering target file 'a.peer'.
+File 'a.peer' was considered already.
+make: Nothing to be done for 'a.peer'.
+'''
+stderr = ""
+release_lines = [10]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a.out" = "updated\n"
+"a.peer" = "updated\n"
+
+[[models]]
+id = "explicit-direct-reverse"
+makefile = '''
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+goals = ["b", "a", "a"]
+exit_code = 0
+stdout = '''
+Considering target file 'b'.
+ File 'b' does not exist.
+Finished prerequisites of target file 'b'.
+Must remake target 'b'.
+Recipe of 'b' is being run.
+Considering target file 'a'.
+Still updating file 'a'.
+Pruning file 'a'.
+Considering target file 'b'.
+File 'b' was considered already.
+Considering target file 'a'.
+File 'a' was considered already.
+make: 'a' is up to date.
+Pruning file 'a'.
+make: 'a' is up to date.
+'''
+stderr = ""
+release_lines = [8]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-direct-fail-keep"
+makefile = '''
+a b &: ; @python3 worker.py left fail
+'''
+flags = ["-k"]
+goals = ["a", "b", "b"]
+exit_code = 2
+stdout = '''
+Considering target file 'a'.
+ File 'a' does not exist.
+Finished prerequisites of target file 'a'.
+Must remake target 'a'.
+Recipe of 'a' is being run.
+Considering target file 'b'.
+Still updating file 'b'.
+Pruning file 'b'.
+Considering target file 'a'.
+Recently tried and failed to update file 'a'.
+Considering target file 'b'.
+Recently tried and failed to update file 'b'.
+Pruning file 'b'.
+'''
+stderr = "make: *** [Makefile:1: a] Error 3\n"
+release_lines = [8]
+seen = "anchor\nleft\n"
+
+[[models]]
+id = "explicit-direct-fail-stop"
+makefile = '''
+a b &: ; @python3 worker.py left fail
+'''
+flags = []
+goals = ["a", "b", "b"]
+exit_code = 2
+stdout = '''
+Considering target file 'a'.
+ File 'a' does not exist.
+Finished prerequisites of target file 'a'.
+Must remake target 'a'.
+Recipe of 'a' is being run.
+Considering target file 'b'.
+Still updating file 'b'.
+Pruning file 'b'.
+'''
+stderr = "make: *** [Makefile:1: a] Error 3\n"
+release_lines = [8]
+seen = "anchor\nleft\n"
+
+[[models]]
+id = "implicit-direct-fail-keep"
+makefile = '''
+%.out %.peer: source ; @python3 worker.py left fail
+'''
+flags = ["-k"]
+goals = ["a.out", "a.peer", "a.peer"]
+source = "fixed\n"
+exit_code = 2
+stdout = '''
+Considering target file 'a.out'.
+ File 'a.out' does not exist.
+ Considering target file 'source'.
+ Finished prerequisites of target file 'source'.
+ No need to remake target 'source'.
+Finished prerequisites of target file 'a.out'.
+Must remake target 'a.out'.
+Recipe of 'a.out' is being run.
+Considering target file 'a.peer'.
+Still updating file 'a.peer'.
+Pruning file 'a.peer'.
+Considering target file 'a.out'.
+Recently tried and failed to update file 'a.out'.
+Considering target file 'a.peer'.
+Recently tried and failed to update file 'a.peer'.
+Pruning file 'a.peer'.
+'''
+stderr = "make: *** [Makefile:1: a.out] Error 3\n"
+release_lines = [11]
+seen = "anchor\nleft\n"
+
+[[models]]
+id = "explicit-prereq-and-direct"
+makefile = '''
+all: a b
+a b &: ; @python3 worker.py left explicit
+'''
+flags = []
+goals = ["all", "b", "b"]
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+The prerequisites of 'all' are being made.
+Pruning file 'b'.
+Pruning file 'b'.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+Pruning file 'b'.
+make: 'b' is up to date.
+Pruning file 'b'.
+make: 'b' is up to date.
+'''
+stderr = ""
+release_lines = [12]
+seen = "anchor\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"

@@ -84,7 +84,7 @@ def models() -> list[tuple[str, HeldModel]]:
             model = debug.Model(
                 row['id'] + '-' + style, files,
                 ('-rR', '--no-print-directory', '--debug=v', '-j2', f'--jobserver-style={style}',
-                 *row['flags'], 'all'), {},
+                 *row['flags'], *row.get('goals', ['all'])), {},
                 {'exit_code': row['exit_code'], 'stdout_template_hex': (header + b''.join(body)).hex(),
                  'stderr_template_hex': row['stderr'].encode().hex()},
                 row['seen'].encode(), updates=updates, mtimes_ns=times,
