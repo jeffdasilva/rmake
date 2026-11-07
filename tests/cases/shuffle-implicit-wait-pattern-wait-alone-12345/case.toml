@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
 id = "shuffle-implicit-wait-pattern-wait-alone-12345"
-requirement = "options.shuffle"
+requirement = "options.shuffle-pattern-wait"
 candidate = "required"
 args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345", "all.out"]
 timeout_seconds = 5
