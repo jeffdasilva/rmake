@@ -337,10 +337,17 @@ struct RequestedGoal {
 
 /// State owned by one makefile update. Intermediate inspection can suppress
 /// the optional policy temporarily without discarding its retained error.
+#[derive(Clone)]
 struct MakefileRemake {
     optional: bool,
     retain_failure: bool,
-    open_error: Cell<Option<PendingIncludeError>>,
+    open_error: Option<Rc<Cell<Option<PendingIncludeError>>>>,
+}
+
+impl MakefileRemake {
+    fn take_open_error(&self) -> Option<PendingIncludeError> {
+        self.open_error.as_ref()?.take()
+    }
 }
 
 struct OptionalMakefileFailure {
@@ -766,6 +773,8 @@ struct RecipeInputs<'a> {
 /// subsequent command configuration and exports are evaluated after completion.
 struct RecipeState {
     branch: Option<usize>,
+    // Snapshot the effective policy while sharing the root's one-shot error.
+    remake: Option<MakefileRemake>,
     output: Option<std::rc::Rc<crate::output::Buffer>>,
     expanded: std::collections::VecDeque<(usize, Vec<u8>, Recipe)>,
     variables: VariableStore,
@@ -1968,11 +1977,11 @@ impl Engine {
     }
 
     fn show_makefile_error(&self) {
-        let error = self
-            .active_makefile_remake
-            .as_ref()
-            .and_then(|remake| remake.open_error.take());
-        if let Some(error) = error {
+        self.show_remake_open_error(self.active_makefile_remake.as_ref());
+    }
+
+    fn show_remake_open_error(&self, remake: Option<&MakefileRemake>) {
+        if let Some(error) = remake.and_then(MakefileRemake::take_open_error) {
             self.emit_makefile_error(&error);
         }
     }
@@ -3117,7 +3126,11 @@ impl Engine {
                 self.active_makefile_remake = Some(MakefileRemake {
                     optional,
                     retain_failure: optional,
-                    open_error: Cell::new(if optional { None } else { pending_open_error() }),
+                    open_error: if optional {
+                        None
+                    } else {
+                        pending_open_error().map(|error| Rc::new(Cell::new(Some(error))))
+                    },
                 });
                 let initial_time = before.is_none().then_some(&mut before);
                 let result = self.build_recording_initial_time(
@@ -4668,7 +4681,12 @@ impl Engine {
             job.continuation.flow.attempted(launched);
         }
         let mut failed = error.is_some() && !job.ignore;
+        let remake = job.continuation.remake.as_ref();
+        if failed {
+            self.show_remake_open_error(remake);
+        }
         if let Some(error) = error
+            && (job.ignore || !remake.is_some_and(|remake| remake.optional))
             && (!job.ignore || !self.globally_silent())
         {
             let source = location_prefix(&job.location);
@@ -9453,6 +9471,7 @@ impl Engine {
         }
         let state = RecipeState {
             branch,
+            remake: self.active_makefile_remake.clone(),
             output,
             expanded,
             variables,
@@ -9586,6 +9605,7 @@ impl Engine {
     ) -> Execution {
         let RecipeState {
             branch,
+            remake,
             output,
             mut expanded,
             mut variables,
@@ -10102,6 +10122,7 @@ impl Engine {
                                 signal_cleaned: false,
                                 continuation: RecipeState {
                                     branch,
+                                    remake,
                                     output,
                                     expanded,
                                     variables: variables.clone(),
@@ -10205,9 +10226,11 @@ impl Engine {
             };
             if let Some(error) = error {
                 if !ignore {
-                    self.show_makefile_error();
+                    self.show_remake_open_error(remake.as_ref());
                 }
-                if (ignore || !self.optional_remake()) && (!ignore || !self.globally_silent()) {
+                if (ignore || !remake.as_ref().is_some_and(|remake| remake.optional))
+                    && (!ignore || !self.globally_silent())
+                {
                     let source = location_prefix(&recipe.location);
                     let ignored = if ignore {
                         crate::messages::system(rmake_core::messages::Message::Ignored)
