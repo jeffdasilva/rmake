@@ -1,0 +1,12 @@
+id = "intermediate-inspection-shuffle-implicit-7"
+requirement = "rules.intermediate-policy"
+candidate = "required"
+description = "Intermediate freshness and ordinary build traversal under shuffle."
+provenance = "Original rmake fixture derived from independent GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "--shuffle=7", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "one\ntwo\nthree\nrm t.middle\n"
+stderr = ""
