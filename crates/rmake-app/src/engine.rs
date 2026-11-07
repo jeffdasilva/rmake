@@ -323,6 +323,8 @@ struct Outcome {
     blocked: bool,
     // An optional grouped recipe already supplied this peer's failure.
     optional_group_peer_failure: bool,
+    // The cached declared head can remain successful after the tail fails.
+    late_input_failed: bool,
     // A real recipe invalidates its timestamp; a parent may search again.
     search_after_update: bool,
     completion: CompletionTime,
@@ -378,6 +380,7 @@ fn merge_child(outcome: &mut Outcome, child: Outcome) {
     outcome.failed |= child.failed;
     outcome.fatal |= child.fatal;
     outcome.blocked |= child.failed;
+    outcome.late_input_failed |= child.late_input_failed;
     outcome.question_outdated |= child.question_outdated;
 }
 
@@ -2912,7 +2915,7 @@ impl Engine {
                 .map(|file| file.name.clone())
                 .collect();
             if let Some(files) = &mut self.assumptions {
-                files.bind(&mut self.database);
+                files.bind(&mut self.database, restarts == 0);
             }
             self.output.select(None);
             if let Some(buffer) = self.reader_output.take() {
@@ -3215,6 +3218,9 @@ impl Engine {
             self.expansion_error(None, &error);
             return 2;
         }
+        if restarts != 0 {
+            self.publish_restarted_assumptions();
+        }
         self.unlink_stdin();
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
@@ -3329,7 +3335,21 @@ impl Engine {
             } else {
                 outcome
             };
-            if self.parallel_graph() {
+            let mut completed_report = None;
+            if self.options.keep_going && !outcome.fatal {
+                let name = self.aliases.resolve(&goal);
+                if self.visited_cached_double_colon_input(name) {
+                    // The goal summary uses the declared head, while the
+                    // first visit still reports the trailing input's failure.
+                    completed_report = self.done.get(name).copied();
+                } else if outcome.late_input_failed && !self.pending(&goal) {
+                    completed_report = Some(outcome);
+                }
+            }
+            if let Some(report) = completed_report {
+                failed |= outcome.failed;
+                self.report_goal(&goal, already_done, report);
+            } else if self.parallel_graph() {
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 requested.push(RequestedGoal {
                     name: goal,
@@ -3517,10 +3537,10 @@ impl Engine {
             .rules
             .get(name)
             .and_then(|rule| rule.double_colon.as_ref())
-            && branches.len() > 1
         {
             // Each extra goal entry returns to the same considered chain head.
-            for _ in &branches[1..] {
+            let count = branches.len() + usize::from(self.visited_cached_double_colon_input(name));
+            for _ in 1..count {
                 emit(&self.output, Event::Pruning(name, 0));
             }
         }
@@ -6924,6 +6944,72 @@ impl Engine {
         true
     }
 
+    fn complete_cached_double_colon_input(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+        mut outcome: Outcome,
+        input: assumptions::CachedDoubleColonInput,
+    ) -> Outcome {
+        use crate::debug::{Event, Mask, emit};
+        use assumptions::CachedDoubleColonInput;
+
+        if self.output.debug_mask().has(Mask::VERBOSE) {
+            let branches = self
+                .database
+                .rules
+                .get(target)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .map_or(0, Vec::len);
+            self.debug_completed_double_colon_prefix(target, branches, depth);
+        }
+        self.debug_consider(target, target, depth);
+        match input {
+            CachedDoubleColonInput::Unvisited(time) => {
+                emit(&self.output, Event::Finished(target, depth));
+                emit(
+                    &self.output,
+                    Event::DoubleWithoutPrerequisites(target, depth),
+                );
+                emit(&self.output, Event::MustRemake(target, depth));
+                if self.options.keep_going {
+                    // Once the tail finishes, dependencies see its logical age.
+                    // A same-pass visit returns the declared head's status.
+                    let key = target.to_vec();
+                    let mut head = self
+                        .database_branch_outcomes
+                        .get(&(key.clone(), 0))
+                        .copied()
+                        .unwrap_or(outcome);
+                    head.time = Some(time);
+                    head.search_after_update = false;
+                    self.done.insert(key, head);
+                }
+                self.fail_double_colon_input(target, &mut outcome);
+                if self.options.keep_going {
+                    emit(&self.output, Event::Failed(target, depth));
+                }
+            }
+            CachedDoubleColonInput::Failed => {
+                emit(&self.output, Event::RecentlyFailed(target, depth));
+                outcome.failed = true;
+            }
+        }
+        outcome.late_input_failed = true;
+        if !self.options.keep_going {
+            self.done.insert(target.to_vec(), outcome);
+        }
+        outcome
+    }
+
+    fn fail_double_colon_input(&self, target: &[u8], outcome: &mut Outcome) {
+        if !self.optional_remake {
+            self.show_makefile_error();
+            self.report_missing_rule(target, None);
+        }
+        outcome.failed = true;
+    }
+
     fn report_missing_rule(&self, target: &[u8], parent: Option<&[u8]>) {
         let keep = self.options.keep_going;
         let body = crate::messages::system(rmake_core::messages::Message::NoRule {
@@ -7167,6 +7253,18 @@ impl Engine {
                 self.remember_retained_scope_parent(target, parent);
             }
             let debug_depth = depth + usize::from(self.remaking);
+            if self.graph_abort.is_none()
+                && !outcome.fatal
+                && (self.options.keep_going || (!outcome.failed && !outcome.question_outdated))
+                && let Some(input) = self.visit_cached_double_colon_input(target)
+            {
+                return self.complete_cached_double_colon_input(
+                    target,
+                    debug_depth,
+                    outcome,
+                    input,
+                );
+            }
             let pruned = self
                 .debug_considered
                 .as_ref()
@@ -7525,6 +7623,7 @@ impl Engine {
                 state.combined.fatal |= result.fatal;
                 state.combined.blocked |= result.blocked;
                 state.combined.question_outdated |= result.question_outdated;
+                state.combined.late_input_failed |= result.late_input_failed;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
                 if result.database_result == DatabaseResult::Simulated {
@@ -7564,11 +7663,7 @@ impl Engine {
             let Some(branch) = entry else {
                 // An input-only double-colon record has no declared rule or
                 // parent diagnostic locus. Process it in the same ordered queue.
-                if !self.optional_remake {
-                    self.show_makefile_error();
-                    self.report_missing_rule(target, None);
-                }
-                state.combined.failed = true;
+                self.fail_double_colon_input(target, &mut state.combined);
                 self.record_graph_failure(state.combined);
                 if !self.options.keep_going {
                     state.branches.clear();
@@ -8374,7 +8469,11 @@ impl Engine {
                 .get(dependency)
                 .is_some_and(|child| child.completion == CompletionTime::ArchiveUnknown)
                 && rmake_core::filenames::archive_parts(dependency).is_some();
-            let child = if first || self.graph_pending(dependency) || unknown_archive {
+            let child = if first
+                || self.graph_pending(dependency)
+                || unknown_archive
+                || self.cached_double_colon_input_due(dependency)
+            {
                 let build_visit = if first && state.replay_cached_after_recipe {
                     BuildVisit::PrerequisiteAfterRecipe
                 } else if !first
@@ -8563,6 +8662,7 @@ impl Engine {
             outcome.failed |= child.failed;
             outcome.fatal |= child.fatal;
             outcome.blocked |= child.failed;
+            outcome.late_input_failed |= child.late_input_failed;
             outcome.question_outdated |= child.question_outdated;
             let order_only = !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale

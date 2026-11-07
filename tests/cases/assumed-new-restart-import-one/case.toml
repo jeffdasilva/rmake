@@ -1,0 +1,15 @@
+id = "assumed-new-restart-import-one"
+requirement = "options.assumed-new-restart"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 restart-phase differential fixture."
+args = ["-rR", "--no-print-directory", "-W", "trigger"]
+output = "merged"
+timeout_seconds = 10
+
+[environment]
+MAKE_RESTARTS = "1"
+
+[expected]
+exit_code = 0
+stdout = "read=1\ngoal=1\n"
+stderr = ""

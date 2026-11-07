@@ -6,10 +6,19 @@ use super::*;
 const OLD: u8 = 1;
 const NEW: u8 = 2;
 const DOUBLE_COLON: u8 = 4;
+pub(super) enum CachedDoubleColonInput {
+    Unvisited(SystemTime),
+    Failed,
+}
+
 pub(super) struct Files {
     entries: HashMap<Vec<u8>, u8>,
+    // These input-only records were published after their declared branches
+    // finished. Repeated visits in one goal pass prune to the declared head.
+    cached_double_colon_pass: HashMap<Vec<u8>, Option<u64>>,
     old: SystemTime,
     new: SystemTime,
+    new_active: bool,
 }
 impl Files {
     pub(super) fn from_options(options: &Options) -> Result<Option<Box<Self>>, &'static [u8]> {
@@ -33,18 +42,31 @@ impl Files {
                 *entries.entry(name).or_insert(0) |= bit;
             }
         }
-        Ok(Some(Box::new(Self { entries, old, new })))
+        Ok(Some(Box::new(Self {
+            entries,
+            cached_double_colon_pass: HashMap::new(),
+            old,
+            new,
+            new_active: true,
+        })))
     }
-    pub(super) fn bind(&mut self, database: &mut Database) {
+    pub(super) fn bind(&mut self, database: &mut Database, new_active: bool) {
+        self.new_active = new_active;
         for (name, bits) in &mut self.entries {
-            database.file_records.insert(name);
-            if database
-                .rules
-                .get(name)
-                .is_some_and(|rule| rule.double_colon.is_some())
-            {
-                *bits |= DOUBLE_COLON;
+            if !new_active && *bits & OLD == 0 {
+                continue;
             }
+            Self::bind_record(database, name, bits);
+        }
+    }
+    fn bind_record(database: &mut Database, name: &[u8], bits: &mut u8) {
+        database.file_records.insert(name);
+        if database
+            .rules
+            .get(name)
+            .is_some_and(|rule| rule.double_colon.is_some())
+        {
+            *bits |= DOUBLE_COLON;
         }
     }
     pub(super) fn is_old_time(&self, time: Option<SystemTime>) -> bool {
@@ -57,8 +79,10 @@ impl Files {
         self.entries.get(name).and_then(|bits| {
             if bits & DOUBLE_COLON != 0 {
                 None
+            } else if self.new_active && bits & NEW != 0 {
+                Some(self.new)
             } else {
-                Some(if bits & NEW != 0 { self.new } else { self.old })
+                (bits & OLD != 0).then_some(self.old)
             }
         })
     }
@@ -68,12 +92,16 @@ impl Files {
             .is_some_and(|bits| bits & OLD != 0 && bits & DOUBLE_COLON == 0)
     }
     fn has_new_double_colon_entry(&self, name: &[u8]) -> bool {
-        self.entries
-            .get(name)
-            .is_some_and(|bits| bits & (NEW | DOUBLE_COLON) == (NEW | DOUBLE_COLON))
+        self.new_active
+            && self
+                .entries
+                .get(name)
+                .is_some_and(|bits| bits & (NEW | DOUBLE_COLON) == (NEW | DOUBLE_COLON))
     }
     fn release_new(&mut self, name: &[u8]) {
-        if let Some(bits) = self.entries.get_mut(name) {
+        if self.new_active
+            && let Some(bits) = self.entries.get_mut(name)
+        {
             if *bits & DOUBLE_COLON != 0 {
                 return;
             }
@@ -85,6 +113,31 @@ impl Files {
     }
 }
 impl Engine {
+    pub(super) fn publish_restarted_assumptions(&mut self) {
+        let Some(files) = &mut self.assumptions else {
+            return;
+        };
+        files.new_active = true;
+        for (name, bits) in &mut files.entries {
+            if *bits & NEW == 0 {
+                continue;
+            }
+            Files::bind_record(&mut self.database, name, bits);
+            if *bits & DOUBLE_COLON != 0 {
+                if self.done.contains_key(name) {
+                    files.cached_double_colon_pass.insert(name.clone(), None);
+                }
+                continue;
+            }
+            self.path_observations.remove(name);
+            // The remake graph can already have updated this file. Retain
+            // its completed status and publish the new logical age.
+            if let Some(outcome) = self.done.get_mut(name) {
+                outcome.time = Some(files.new);
+            }
+        }
+    }
+
     pub(super) fn assumed_time(&self, name: &[u8]) -> Option<SystemTime> {
         self.assumptions.as_ref().and_then(|files| files.time(name))
     }
@@ -97,6 +150,33 @@ impl Engine {
         self.assumptions
             .as_ref()
             .is_some_and(|files| files.has_new_double_colon_entry(name))
+    }
+    pub(super) fn cached_double_colon_input_due(&self, name: &[u8]) -> bool {
+        self.assumptions
+            .as_ref()
+            .and_then(|files| files.cached_double_colon_pass.get(name))
+            .is_some_and(|pass| *pass != Some(self.debug_pass))
+    }
+    pub(super) fn visit_cached_double_colon_input(
+        &mut self,
+        name: &[u8],
+    ) -> Option<CachedDoubleColonInput> {
+        let files = self.assumptions.as_mut()?;
+        let considered = files.cached_double_colon_pass.get_mut(name)?;
+        if *considered == Some(self.debug_pass) {
+            return None;
+        }
+        Some(if considered.replace(self.debug_pass).is_some() {
+            CachedDoubleColonInput::Failed
+        } else {
+            CachedDoubleColonInput::Unvisited(files.new)
+        })
+    }
+    pub(super) fn visited_cached_double_colon_input(&self, name: &[u8]) -> bool {
+        self.assumptions
+            .as_ref()
+            .and_then(|files| files.cached_double_colon_pass.get(name))
+            .is_some_and(Option::is_some)
     }
     pub(super) fn release_assumed_new(&mut self, name: &[u8]) {
         if let Some(files) = &mut self.assumptions {
@@ -153,7 +233,7 @@ mod tests {
         let mut files = files(&["-odep", "-Wdep", "-oold"]);
         let mut database = Database::default();
         database.read(b"dep::;\nold::;\n", b"Makefile").unwrap();
-        files.bind(&mut database);
+        files.bind(&mut database, true);
         assert_eq!(files.time(b"dep"), None);
         assert!(!files.ignores_rules(b"dep"));
         assert!(!files.ignores_rules(b"old"));

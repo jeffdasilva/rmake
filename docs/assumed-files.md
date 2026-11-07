@@ -18,7 +18,20 @@ These are invocation inputs. Initial inherited MAKEFLAGS/GNUMAKEFLAGS values
 participate, whereas additions while reading, command-line `--eval`, ordinary
 command-variable MAKEFLAGS bindings and recipe-time flag changes do not add
 assumed files. Neither file switch is exported automatically to a recursive
-make. A restart reconstructs the original invocation and its assumptions.
+make. A restart reconstructs the original invocation. It applies old-file
+assumptions during makefile remaking and publishes what-if records for normal
+goals afterward. The initial invocation, including an imported restart counter
+of zero, applies both during remaking. Late publication updates a completed
+file's logical timestamp and retains its cached update status. A cached
+double-colon chain still visits its newly published input record in the
+ordinary goal phase. With keep-going, a same-pass visit can see the declared
+head's success and the tail's logical time. A later pass observes the tail
+failure.
+
+The restart cases cover normal goals, non-executing modes, imported counters
+and ordered double-colon visits. Rule resolution for a synthetic input with a
+pattern or `.DEFAULT` recipe remains open, as does repeated publication from
+differently spelled operands such as `cached` and `./cached`.
 
 The optional owned table exists only when at least one operand is present.
 Its logical old/new values use checked SystemTime values outside the pinned
@@ -37,7 +50,7 @@ dependents use the observed physical age. Nineteen original fixtures cover
 these distinctions, including selective search, query, dry-run, symlink times
 and an aliased archive member.
 
-Makefile remaking uses the same invocation policy. Existing double-colon
+Makefile remaking uses the active invocation assumptions. Existing double-colon
 branches keep their physical times and declared rules: `-o` does not suppress
 them. A what-if double-colon operand adds a trailing input-only record. Its
 missing-rule error occurs in queue order, after preceding updates; a non-keep

@@ -1,0 +1,15 @@
+id = "assumed-new-restart-old-and-new-same-record-zero"
+requirement = "options.assumed-new-restart"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 restart-phase differential fixture."
+args = ["-rR", "--no-print-directory", "-o", "preserve", "-W", "preserve"]
+output = "merged"
+timeout_seconds = 10
+
+[environment]
+MAKE_RESTARTS = "0"
+
+[expected]
+exit_code = 0
+stdout = "read=0\nunexpected fragment recipe\nread=1\ngoal=1\n"
+stderr = ""

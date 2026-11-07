@@ -1,0 +1,15 @@
+id = "assumed-new-restart-double-keep-reverse-parallel"
+requirement = "options.assumed-new-restart"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 restart-phase differential fixture."
+args = ["-rR", "--no-print-directory", "-W", "cached", "-k", "-j2", "result", "cached", "next"]
+output = "merged"
+timeout_seconds = 10
+
+[environment]
+MAKE_RESTARTS = "2"
+
+[expected]
+exit_code = 2
+stdout = "read=2\ncached=2\nmake: *** No rule to make target 'cached'.\nmake: Target 'result' not remade because of errors.\nmake: 'cached' is up to date.\nnext\n"
+stderr = ""
