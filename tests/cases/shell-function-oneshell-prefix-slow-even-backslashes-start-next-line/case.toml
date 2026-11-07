@@ -1,0 +1,11 @@
+id = "shell-function-oneshell-prefix-slow-even-backslashes-start-next-line"
+requirement = "functions.shell-oneshell-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Slow even backslashes start next line."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "676f743d5b66697273745c207461696c5d0a7374617475733d5b305d0a6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a"
+stderr_hex = ""

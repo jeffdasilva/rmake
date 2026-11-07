@@ -6,6 +6,7 @@
 //! verified job.c references with an independently authored state model.
 
 use crate::process::{Invocation, prepare as prepare_ordinary, prepare_oneshell_flags};
+use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawScript {
@@ -73,6 +74,22 @@ pub fn prefixes(mut input: &[u8]) -> (&[u8], Prefixes) {
 /// of .RECIPEPREFIX. Call before echo, including dry-run; do not call twice.
 pub fn transform(command: &[u8], shell: &[u8], recipe_prefix: u8) -> Vec<u8> {
     internal_prefixes(command, recipe_prefix, bourne_compatible(shell))
+}
+
+/// Only the slow shell-function constructor removes Bourne line modifiers.
+pub(crate) fn shell_function_body<'a>(command: &'a [u8], shell: &[u8]) -> Cow<'a, [u8]> {
+    if !bourne_compatible(shell) {
+        return Cow::Borrowed(command);
+    }
+    let command = prefixes(command).0;
+    if command
+        .windows(2)
+        .any(|pair| pair[0] == b'\n' && blank_or_modifier(pair[1]))
+    {
+        Cow::Owned(internal_prefixes(command, b'\t', true))
+    } else {
+        Cow::Borrowed(command)
+    }
 }
 
 /// An execution plan for the already-transformed script. The residual offset
@@ -244,6 +261,10 @@ pub fn unsafe_configuration(shell: &[u8], flags: &[u8]) -> bool {
     quote.is_some()
 }
 
+fn blank_or_modifier(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t' | b'@' | b'-' | b'+')
+}
+
 fn internal_prefixes(command: &[u8], recipe_prefix: u8, bourne: bool) -> Vec<u8> {
     let mut output = Vec::with_capacity(command.len());
     let mut index = 0;
@@ -258,7 +279,7 @@ fn internal_prefixes(command: &[u8], recipe_prefix: u8, bourne: bool) -> Vec<u8>
             if bourne {
                 while command
                     .get(index)
-                    .is_some_and(|byte| matches!(byte, b' ' | b'\t' | b'@' | b'-' | b'+'))
+                    .is_some_and(|&byte| blank_or_modifier(byte))
                 {
                     index += 1;
                 }

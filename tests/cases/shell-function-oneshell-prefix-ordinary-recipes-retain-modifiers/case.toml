@@ -1,0 +1,11 @@
+id = "shell-function-oneshell-prefix-ordinary-recipes-retain-modifiers"
+requirement = "functions.shell-oneshell-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+description = "Ordinary recipes retain modifiers."
+provenance = "Independently authored Makefile and exact expectations qualified against GNU Make 4.4.1."
+
+[expected]
+exit_code = 0
+stdout_hex = "6f6e650a74776f0a"
+stderr_hex = ""
