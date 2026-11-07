@@ -1,0 +1,11 @@
+id = "serial-query-first-verdict-missing-later"
+requirement = "serial.runtime"
+candidate = "required"
+provenance = "Original GNU Make 4.4.1 query verdict-order fixture."
+args = ["-rR", "--no-print-directory", "-q", "-k", "query", "missing", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "evaluated-query\nvisited-after\n"
+stderr = "make: *** No rule to make target 'missing'.\n"

@@ -327,6 +327,8 @@ struct Outcome {
     failed: bool,
     fatal: bool,
     question_outdated: bool,
+    // Direct goals observe completed double-colon branches separately.
+    first_branch_verdict: Option<Status>,
     blocked: bool,
     // A failed dispatch in an optional parallel remake can precede more visits.
     deferred_spawn_failure: bool,
@@ -341,6 +343,27 @@ struct Outcome {
     debug_time_changed: bool,
     // A serial peer completed with its owner before its own diagnostic visit.
     debug_serial_group_peer: bool,
+}
+
+impl Outcome {
+    fn terminal_verdict(self) -> Option<Status> {
+        if self.failed {
+            Some(Status::Failure)
+        } else {
+            self.question_outdated.then_some(Status::Question)
+        }
+    }
+
+    fn goal_verdict(self) -> Option<Status> {
+        self.first_branch_verdict
+            .or_else(|| self.terminal_verdict())
+    }
+
+    fn retain_branch_verdict(&mut self, branch: Self) {
+        self.first_branch_verdict = self
+            .first_branch_verdict
+            .or_else(|| branch.terminal_verdict());
+    }
 }
 
 struct RequestedGoal {
@@ -3643,6 +3666,8 @@ impl Engine {
         }
         let mut failed = false;
         let mut fatal = false;
+        let mut first_goal_verdict = None;
+        let mut stopped_on_failure = false;
         let mut requested = Vec::new();
         for goal in goals {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -3685,10 +3710,7 @@ impl Engine {
                     completed_report = Some(outcome);
                 }
             }
-            if let Some(report) = completed_report {
-                failed |= outcome.failed;
-                self.report_goal(&goal, started_command, report);
-            } else if self.parallel_graph() && pending {
+            if completed_report.is_none() && self.parallel_graph() && pending {
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
                     && self.ordinary_group_peer_pending(&goal);
@@ -3702,10 +3724,12 @@ impl Engine {
                 });
             } else {
                 failed |= outcome.failed;
-                self.report_goal(&goal, started_command, outcome);
+                first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
             }
             fatal |= outcome.fatal;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
+                stopped_on_failure = true;
                 break;
             }
         }
@@ -3739,6 +3763,7 @@ impl Engine {
                     }
                     if outcome.late_input_failed && !self.pending(&goal.name) {
                         failed |= outcome.failed;
+                        first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
                     }
                     if self.debug_pass != last_goal_pass {
                         self.debug_double_colon_goal_prunes(&goal.name, outcome);
@@ -3791,6 +3816,7 @@ impl Engine {
             let outcome = self.observe_updated(&goal.name, outcome);
             failed |= outcome.failed;
             fatal |= outcome.fatal;
+            first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
             self.report_goal(&goal.name, goal.started_command, outcome);
         }
         self.wait_all_jobs();
@@ -3817,9 +3843,16 @@ impl Engine {
             );
             return 2;
         }
-        if failed && (!self.forced_query_stop || fatal) {
+        // Keep-going retains the first observed query or failure while still
+        // visiting other goals. An invocation-wide stop takes precedence.
+        let query_first = first_goal_verdict == Some(Status::Question)
+            && !stopped_on_failure
+            && !fatal
+            && !self.parallel_failed
+            && self.graph_abort.is_none();
+        if failed && (!self.forced_query_stop || fatal) && !query_first {
             2
-        } else if self.would_build {
+        } else if self.would_build || query_first {
             1
         } else {
             0
@@ -8426,6 +8459,7 @@ impl Engine {
                     .synthetic_tail
                     .as_ref()
                     .and_then(|tail| tail.assumed_time);
+                state.combined.retain_branch_verdict(result);
                 state.combined.time = assumed_time.filter(|_| !result.ran).or(result.time);
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
@@ -8511,6 +8545,10 @@ impl Engine {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
                         self.fail_double_colon_input(target, state.depth, &mut state.combined);
+                        state
+                            .combined
+                            .first_branch_verdict
+                            .get_or_insert(Status::Failure);
                         self.record_graph_failure(state.combined);
                         if !self.options.keep_going {
                             state.branches.clear();
@@ -8530,6 +8568,7 @@ impl Engine {
                     // Commands executed for a previous goal must not suppress
                     // this goal's up-to-date diagnostic.
                     result.ran = false;
+                    state.combined.retain_branch_verdict(result);
                     merge_child(&mut state.combined, result);
                     state.combined.time = if state.phony {
                         None

@@ -1,0 +1,11 @@
+id = "serial-query-first-verdict-fatal-override"
+requirement = "serial.runtime"
+candidate = "required"
+provenance = "Original GNU Make 4.4.1 query verdict-order fixture."
+args = ["-rR", "--no-print-directory", "-q", "-k", "query", "fatal", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "evaluated-query\n"
+stderr = "Makefile:2: *** fixture fatal.  Stop.\n"

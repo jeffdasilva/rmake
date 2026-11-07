@@ -1,0 +1,11 @@
+id = "serial-query-first-verdict-after-restart"
+requirement = "serial.runtime"
+candidate = "required"
+provenance = "Original GNU Make 4.4.1 query verdict-order fixture."
+args = ["-rR", "--no-print-directory", "-q", "-k", "branch", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "restart=[]\nrestart=[1]\nevaluated-branch\nforced-failure\nvisited-after\n"
+stderr = "make: *** [Makefile:9: branch] Error 7\n"
