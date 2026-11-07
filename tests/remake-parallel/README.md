@@ -1,11 +1,12 @@
 # Parallel makefile remakes
 
-These 30 original profiles hold real recipe children until the harness observes
+These original profiles hold real recipe children until the harness observes
 the make process waiting. Each release records the live children, their parent
 PID and start times, and the file effects already visible. Both named workers
 must be held at the first release in a parallel profile. The second release
 must observe the same right worker. The serial controls require one live
-worker at each release.
+worker at each release. The immediate launch profiles hold one worker while
+another recipe fails to start.
 
 The success profiles compare independent required and optional include
 remakes, serial `-j1`, and global `.NOTPARALLEL`. Both generated makefiles must
@@ -13,8 +14,10 @@ be loaded after one restart. The failure profiles hold two prerequisites of one
 included makefile and compare the exact diagnostics, output, and order of
 ordinary goal effects. Separate mixed-root profiles distinguish the child’s
 error policy from the traversal’s current source-open diagnostic and cover
-declaration order and a successful restart after an optional failure. Each
-profile runs with the pipe and FIFO jobserver.
+declaration order and a successful restart after an optional failure. The
+immediate launch profiles cover ignored errors, optional prerequisite ordering,
+an explicit wait barrier, and required failure draining. Each parallel profile
+runs with the pipe and FIFO jobserver.
 
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
