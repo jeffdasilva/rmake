@@ -39,11 +39,13 @@ class HeldModel:
     before_first: bytes = BEFORE_FIRST
 
 
-def models() -> list[HeldModel]:
+def models(*, duplicate_reads: bool = False) -> list[HeldModel]:
     worker = (SOURCES / 'worker.py').read_bytes()
     markers = {f'{name}.{suffix}': content for name in WORKERS
                for suffix, content in (('started', b'started\n'), ('release', b'yes\n'),
                                        ('done', b'done\n'))}
+    if duplicate_reads:
+        return duplicate_models(worker, markers)
     results = []
     for transport in ('pipe', 'fifo'):
         for mode in ('required-success', 'optional-success', 'serial-success',
@@ -103,7 +105,7 @@ def models() -> list[HeldModel]:
                                 seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, not serial, before_second))
     return (results + mixed_models(worker, markers) + immediate_launch_models(worker, markers)
-            + shared_failure_models(worker, markers))
+            + shared_failure_models(worker, markers) + duplicate_models(worker, markers))
 
 
 def mixed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
@@ -263,6 +265,122 @@ def shared_failure_models(worker: bytes, markers: dict[str, bytes]) -> list[Held
     return results
 
 
+def duplicate_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    required = 'include left.gen\n'
+    optional = '-include left.gen\n'
+    right = 'include right.gen\n'
+    first_error = b'Makefile:2: left.gen: No such file or directory\n'
+    second_error = b'Makefile:3: left.gen: No such file or directory\n'
+    left_error = b'make: *** [Makefile:7: left.gen] Error 3\n'
+    missing = b"make: *** No rule to make target 'left.gen'."
+    nested_missing = b"make: *** No rule to make target 'left-step', needed by 'left.gen'."
+    cases = (
+        ('success-required', required + required + right, b''),
+        ('success-optional-required', optional + required + right, b''),
+        ('success-optional-only', optional + optional + right, b''),
+        ('fail-optional-required', optional + required + right,
+         first_error + missing + b'  Stop.\n' + WAITING),
+        ('fail-optional-required-keep', optional + required + right,
+         first_error + missing + b"\nMakefile:3: Failed to remake makefile 'left.gen'.\n"),
+        ('fail-optional-required-with-right-first', right + optional + required,
+         second_error + missing + b'  Stop.\n' + WAITING),
+        ('fail-required-optional-with-right-first', right + required + optional,
+         left_error + WAITING),
+        ('fail-required-required-with-right-first', right + required + required,
+         second_error + left_error + WAITING),
+        ('fail-optional-required-nested', optional + required + right,
+         first_error + nested_missing + b'  Stop.\n' + WAITING),
+        ('fail-optional-only', optional + optional + right, b''),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, directives, stderr in cases:
+            success = name.startswith('success-')
+            source = (
+                '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                + directives +
+                '.PHONY: all force\n'
+                'all: ; @$(file >>seen,goal-$(words $(filter left.gen,$(MAKEFILE_LIST)))-$(LEFT)-$(RIGHT)):\n'
+            )
+            inputs = {'worker.py': worker, 'seen': ANCHOR}
+            updates = markers.copy()
+            if success:
+                source += (
+                    'left.gen: ; @python3 worker.py left include\n'
+                    'right.gen: ; @python3 worker.py right include\n'
+                )
+                updates.update({'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'})
+                seen = BEFORE_SECOND + b'right\nread-1\ngoal-2-loaded-loaded\n'
+                stdout, status = b'', 0
+            else:
+                if name.endswith('-nested'):
+                    source += (
+                        'left.gen: left-step ; @$(error failed prerequisite escaped)\n'
+                        'left-step: ; @python3 worker.py left fail\n'
+                    )
+                else:
+                    source += 'left.gen: ; @python3 worker.py left fail\n'
+                source += 'right.gen: force ; @python3 worker.py right hold\n'
+                inputs['right.gen'] = b'RIGHT := loaded\n'
+                seen = BEFORE_SECOND + b'right\n'
+                status = 2 if stderr else 0
+                if not status:
+                    seen += b'goal-0--loaded\n'
+                stdout = b'left\n'
+            inputs['Makefile'] = source.encode()
+            args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}')
+            args += ('-k', 'all') if name.endswith('-keep') else ('all',)
+            expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'duplicate-{name}-{transport}', inputs, args, {'GNUMAKEFLAGS': ''},
+                                expected, seen, updates=updates, mtimes_ns=dict.fromkeys(inputs, INPUT_TIME))
+            results.append(HeldModel(model, True, BEFORE_SECOND))
+    return results + alias_models(worker, markers)
+
+
+def alias_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    create_left = 'left.gen: ; @python3 worker.py left include\n'
+    cases = (
+        ('normalized-success', 'include ./left.gen\ninclude ././left.gen\ninclude right.gen\n',
+         create_left + 'right.gen: ; @python3 worker.py right include\n', {},
+         {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'},
+         b'read-1\nlist-Makefile left.gen left.gen right.gen\n', b''),
+        ('normalized-optional-required-fail', '-include ./left.gen\ninclude left.gen\ninclude right.gen\n',
+         'left.gen: ; @python3 worker.py left fail\nright.gen: force ; @python3 worker.py right hold\n',
+         {'right.gen': b'# existing right\n'}, {}, b'',
+         b'Makefile:2: left.gen: No such file or directory\n'
+         b"make: *** No rule to make target 'left.gen'.  Stop.\n" + WAITING),
+        ('dot-dot-distinct-records', 'include left.gen\ninclude aliases/../left.gen\n',
+         create_left + 'aliases/../left.gen: ; @python3 worker.py right hold\n',
+         {'aliases/anchor': b'parent remains reachable\n'}, {'left.gen': b'LEFT := loaded\n'},
+         b'read-1\nlist-Makefile left.gen aliases/../left.gen\n', b''),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, includes, recipes, seeds, generated, after_remake, stderr in cases:
+            source = (
+                '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                + includes
+                + '.PHONY: all force\n'
+                'all: ; @$(file >>seen,list-$(MAKEFILE_LIST)):\n'
+                + recipes
+            )
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR, **seeds}
+            args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}', 'all')
+            expected = {
+                'exit_code': 2 if stderr else 0,
+                'stdout_template_hex': b'left\n'.hex() if stderr else '',
+                'stderr_template_hex': stderr.hex(),
+            }
+            model = debug.Model(
+                f'duplicate-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''}, expected,
+                BEFORE_SECOND + b'right\n' + after_remake,
+                updates={**markers, **generated}, mtimes_ns=dict.fromkeys(files, INPUT_TIME),
+            )
+            results.append(HeldModel(model, True, BEFORE_SECOND))
+    return results
+
+
 def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
     workers = {}
     for token in (proc / 'task' / str(parent) / 'children').read_bytes().split():
@@ -362,12 +480,13 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--self-test', action='store_true')
     mode.add_argument('--candidate', type=Path)
+    parser.add_argument('--duplicate-reads', action='store_true')
     parser.add_argument('--case', action='append', default=[])
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
     try:
         profile = reference_oracle.verify(args.oracle, args.oracle_profile)
-        available = models()
+        available = models(duplicate_reads=args.duplicate_reads)
         unknown = set(args.case) - {held.model.id for held in available}
         if unknown:
             raise h.HarnessError('unknown remake cases: ' + ', '.join(sorted(unknown)))

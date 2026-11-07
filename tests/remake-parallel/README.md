@@ -42,6 +42,28 @@ fails all twenty-six parallel profiles. The observer releases a single held
 child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
-Duplicate reads, load limits, remake debug output, and the `-n`, `-q`,
+Load limits, remake debug output, and the `-n`, `-q`,
 and `-t` modes still use the serial remake path. Each needs separate
 qualification before enabling parallel remakes for that input.
+
+## Duplicate reads
+
+The standalone duplicate-read suite requires independent recipe overlap even
+when two include directives name the same file. It tests which read occurrence
+selects the source error, whether an optional failure becomes visible at a
+later required visit, and whether a successful remake leaves both read
+occurrences visible after restart. Both jobserver transports are covered.
+
+~~~sh
+python3 tools/remake_parallel.py --duplicate-reads --self-test
+python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmake
+~~~
+
+The selector runs 26 duplicate-read profiles separately. The default runs all
+78 profiles. Leading `./` spellings share one target record and still appear
+twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
+target record even when it refers to the same physical file.
+
+The prototype at `0dc03fcaf` serialized the workers in all 20 initial
+duplicate-read cases and matched the final ordinary observations in ten.
+The overlap checks detected all twenty.

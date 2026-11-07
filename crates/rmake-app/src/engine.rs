@@ -369,6 +369,7 @@ impl MakefileRemake {
 struct PendingMakefileRemake<'a> {
     file: &'a Makefile,
     context: MakefileRemake,
+    duplicate: bool,
     active: bool,
     initial: Outcome,
 }
@@ -2008,6 +2009,11 @@ impl Engine {
             .is_some_and(|remake| remake.retain_failure)
     }
 
+    fn has_optional_remake_failure(&self, name: &[u8]) -> bool {
+        self.optional_remake_failures
+            .contains_key(self.aliases.resolve(name))
+    }
+
     fn cached_optional_group_peer_failure(&self, name: &[u8]) -> bool {
         let identity = self.aliases.resolve(name);
         self.done
@@ -3121,17 +3127,7 @@ impl Engine {
                 && !modes.1
                 && !modes.2
                 && self.options.load_limit.is_none()
-                && !debug_before_remake.has(crate::debug::Mask::MAKEFILES)
-                && {
-                    // Duplicate reads can replay a completed optional failure
-                    // at a required locus. Keep their ordered path until the
-                    // parallel scheduler can represent that dependency.
-                    let mut names = HashSet::new();
-                    read_files
-                        .iter()
-                        .filter(|(_, skip)| !skip)
-                        .all(|(file, _)| names.insert(file.name.as_slice()))
-                };
+                && !debug_before_remake.has(crate::debug::Mask::MAKEFILES);
             self.remaking = true;
             let mut changed = false;
             let mut ran_remake_recipe = false;
@@ -3142,7 +3138,8 @@ impl Engine {
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
-            let mut visited_times = HashMap::new();
+            let mut visited =
+                HashMap::<&[u8], (Option<SystemTime>, Option<SharedIncludeError>)>::new();
             let mut optional_remake_failed = false;
             let required_names: HashSet<_> = read_files
                 .iter()
@@ -3164,26 +3161,69 @@ impl Engine {
                     continue;
                 }
                 let name = makefile.name.as_slice();
-                let std::collections::hash_map::Entry::Vacant(visit_time) =
-                    visited_times.entry(name)
-                else {
-                    if !makefile.optional
-                        && let Some(failure) = optional_failures.get_mut(name)
-                    {
-                        if self.replay_makefile_failure(name, &mut failure.open_error)
-                            && !self.options.keep_going
+                let visit = match visited.entry(name) {
+                    std::collections::hash_map::Entry::Vacant(visit) => visit,
+                    std::collections::hash_map::Entry::Occupied(first) => {
+                        let context = self.parallel_makefile_remakes.then(|| MakefileRemake {
+                            optional: makefile.optional,
+                            retain_failure: false,
+                            stopped: None,
+                            // The diagnostic uses the first read's saved error,
+                            // selected by the current occurrence's policy.
+                            open_error: if makefile.optional {
+                                None
+                            } else {
+                                first.get().1.clone()
+                            },
+                        });
+                        if let Some(context) = &context {
+                            self.remake_error_cursor = context.open_error.clone();
+                            if self.pending(name) {
+                                pending.push(PendingMakefileRemake {
+                                    file: makefile,
+                                    context: context.clone(),
+                                    duplicate: true,
+                                    active: true,
+                                    initial: Outcome::default(),
+                                });
+                                continue;
+                            }
+                        }
+                        if !makefile.optional
+                            && let Some(failure) = optional_failures.get_mut(name)
                         {
-                            self.remove_intermediates();
-                            return 2;
+                            let replayed = if let Some(context) = context {
+                                if self.has_optional_remake_failure(name) {
+                                    self.graph_epoch = self.graph_epoch.wrapping_add(1);
+                                    self.with_makefile_remake(Some(context), |engine| {
+                                        engine.build_recording_initial_time(
+                                            name,
+                                            None,
+                                            0,
+                                            None,
+                                            BuildVisit::Ordinary,
+                                        );
+                                    });
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                self.replay_makefile_failure(name, &mut failure.open_error)
+                            };
+                            if replayed && !self.options.keep_going {
+                                stopped = true;
+                                break;
+                            }
+                            failed = true;
+                            if self.options.keep_going {
+                                failed_remakes
+                                    .entry(name)
+                                    .or_insert((failure.before, failure.refresh_timestamp));
+                            }
                         }
-                        failed = true;
-                        if self.options.keep_going {
-                            failed_remakes
-                                .entry(name)
-                                .or_insert((failure.before, failure.refresh_timestamp));
-                        }
+                        continue;
                     }
-                    continue;
                 };
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
@@ -3211,6 +3251,12 @@ impl Engine {
                             detail: detail.clone(),
                         })
                 };
+                let first_open_error =
+                    if !optional || (self.parallel_makefile_remakes && may_replay) {
+                        pending_open_error().map(|error| Rc::new(Cell::new(Some(error))))
+                    } else {
+                        None
+                    };
                 self.active_makefile_remake = Some(MakefileRemake {
                     optional,
                     retain_failure: optional,
@@ -3219,7 +3265,7 @@ impl Engine {
                     open_error: if optional {
                         None
                     } else {
-                        pending_open_error().map(|error| Rc::new(Cell::new(Some(error))))
+                        first_open_error.clone()
                     },
                 });
                 let initial_time = before.is_none().then_some(&mut before);
@@ -3238,7 +3284,7 @@ impl Engine {
                     BuildVisit::Ordinary,
                 );
                 let before = before.unwrap_or(result.time);
-                visit_time.insert(before);
+                visit.insert((before, first_open_error));
                 ran_remake_recipe |= result.ran;
                 let context = self
                     .active_makefile_remake
@@ -3248,6 +3294,7 @@ impl Engine {
                     pending.push(PendingMakefileRemake {
                         file: makefile,
                         context,
+                        duplicate: false,
                         active: true,
                         initial: result,
                     });
@@ -3303,12 +3350,15 @@ impl Engine {
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
-                        let before = visited_times[name];
+                        let before = visited[name].0;
                         let result = self
                             .done
                             .get(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
+                        if remake.duplicate && (remake.file.optional || !result.failed) {
+                            continue;
+                        }
                         ran_remake_recipe |= result.ran;
                         optional_remake_failed |= result.failed && remake.file.optional;
                         if result.failed {
@@ -3384,7 +3434,7 @@ impl Engine {
                     if optional_remake_failed
                         && !*skip
                         && !failed_remakes.contains_key(name)
-                        && let Some(&before) = visited_times.get(name)
+                        && let Some(&(before, _)) = visited.get(name)
                         && let Some(outcome) = self.done.get(self.aliases.resolve(name))
                         && outcome.optional_group_peer_failure
                     {
@@ -4496,7 +4546,14 @@ impl Engine {
             for request in requests.iter_mut().filter(|request| request.active) {
                 let name = &request.file.name;
                 self.remake_error_cursor = request.context.open_error.clone();
-                if self.graph_pending(name) {
+                let needs_visit = if request.duplicate {
+                    !request.file.optional
+                        && !self.pending(name)
+                        && self.has_optional_remake_failure(name)
+                } else {
+                    self.graph_pending(name)
+                };
+                if needs_visit {
                     request.initial =
                         self.with_makefile_remake(Some(request.context.clone()), |engine| {
                             engine.build_recording_initial_time(
