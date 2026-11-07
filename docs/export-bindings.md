@@ -40,6 +40,10 @@ In a target-scoped `eval` or include, an assignment's export policy follows
 the assigned global binding. This includes multiline `define` and appends
 whose value reads the target scope. A suppressed `?=` updates the existing
 selected binding's policy, as does a bare export or unexport name list.
+A `private` qualifier on a suppressed conditional also belongs to that
+binding. For example, a child's evaluated `private X ?=` can make its
+parent's existing `X` private. Subsequent child reads then use the next
+visible ancestor or global definition.
 When a lexical binding is selected, the conditional leaves other frames and
 any global definition alone. A shell environment uses private lexical bindings
 from its innermost frame and skips them in outer frames.

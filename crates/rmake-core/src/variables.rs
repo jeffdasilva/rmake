@@ -168,6 +168,15 @@ struct ScopeMetadata {
 }
 
 impl ScopeMetadata {
+    fn apply_assignment_qualifiers(&self, private: bool, export: Option<bool>) {
+        if private {
+            self.private.set(true);
+        }
+        if export.is_some() {
+            self.export.set(export);
+        }
+    }
+
     fn set_target_qualifiers(&self, private: bool, export: Option<bool>) {
         self.private.set(private);
         if export.is_some() {
@@ -1097,19 +1106,19 @@ impl VariableStore {
         }
     }
 
-    pub(crate) fn set_scoped_export_policy(&self, name: &[u8], export: bool) -> bool {
+    pub(crate) fn apply_scoped_assignment_qualifiers(
+        &self,
+        name: &[u8],
+        private: bool,
+        export: Option<bool>,
+    ) -> bool {
         let Some((index, variable)) = self.lookup_from(name, 0) else {
             return false;
         };
-        let global = if index == 0 {
-            !self.scoped
-        } else {
-            self.layers[index - 1].global
-        };
-        if global {
+        if self.global_layer(index) {
             return false;
         }
-        variable.scope.export.set(Some(export));
+        variable.scope.apply_assignment_qualifiers(private, export);
         true
     }
 
@@ -2901,12 +2910,7 @@ impl LocalFrame {
         let Some(variable) = self.get(name) else {
             return false;
         };
-        if private {
-            variable.scope.private.set(true);
-        }
-        if export.is_some() {
-            variable.scope.export.set(export);
-        }
+        variable.scope.apply_assignment_qualifiers(private, export);
         true
     }
 
@@ -8462,10 +8466,10 @@ mod environment_order_tests {
             )
             .unwrap();
         let current = globals.with_target_scopes(&[&target]);
-        assert!(current.set_scoped_export_policy(b"C", false));
+        assert!(current.apply_scoped_assignment_qualifiers(b"C", false, Some(false)));
         assert_eq!(current.resolve_export_policy(b"C"), Some(false));
         assert_eq!(globals.resolve_export_policy(b"C"), Some(true));
-        assert!(!globals.set_scoped_export_policy(b"C", false));
+        assert!(!globals.apply_scoped_assignment_qualifiers(b"C", false, Some(false)));
         assert_eq!(globals.resolve_export_policy(b"C"), Some(true));
     }
 
