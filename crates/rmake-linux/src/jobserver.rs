@@ -438,11 +438,13 @@ impl Jobserver {
     }
 
     fn create_fifo() -> Result<Self, CreationError> {
-        let directory = std::env::temp_dir();
-        let directory = if directory.is_absolute() {
-            directory
+        let selected = crate::temporary::initialize().directory();
+        let absolute;
+        let directory = if selected.is_absolute() {
+            selected
         } else {
-            std::env::current_dir()?.join(directory)
+            absolute = std::env::current_dir()?.join(selected);
+            &absolute
         };
         for _ in 0..100 {
             let generation = NEXT_FIFO.fetch_add(1, Ordering::Relaxed);
@@ -471,7 +473,7 @@ impl Jobserver {
                     opened,
                 }) if generation == 0
                     && error.raw_os_error() == Some(EMFILE)
-                    && unpublished_fifo_is_owned(&directory, &path, &identity, opened) =>
+                    && unpublished_fifo_is_owned(directory, &path, &identity, opened) =>
                 {
                     // The initializer reports the failure while its last
                     // descriptor is still occupied. Transfer that owned reader

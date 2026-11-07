@@ -1,0 +1,10 @@
+id = "jobserver-tempdir-make-tmpdir-priority"
+requirement = "runtime.jobserver-temp-directory"
+candidate = "required"
+provenance = "Original rmake differential fixture for owned FIFO temporary-directory selection."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified fifo\n"
+stderr = ""

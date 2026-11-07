@@ -2341,3 +2341,20 @@ cases = [
   "parallel-goal-summary-order-double-pipe",
   "parallel-goal-summary-order-double-fifo",
 ]
+
+[[requirements]]
+id = "runtime.jobserver-temp-directory"
+title = "Validated temporary directories for owned FIFO jobservers"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 6
+fixture_count = 6
+cases = [
+  "jobserver-tempdir-invalid-tmpdir",
+  "jobserver-tempdir-invalid-both",
+  "jobserver-tempdir-not-a-directory",
+  "jobserver-tempdir-make-tmpdir-priority",
+  "jobserver-tempdir-fallback-after-invalid-make-tmpdir",
+  "jobserver-tempdir-invalid-tmpdir-pipe-control",
+]
