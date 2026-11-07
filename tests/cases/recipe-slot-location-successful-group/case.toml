@@ -1,0 +1,13 @@
+id = "recipe-slot-location-successful-group"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A successful implicit group keeps the first warning line."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "phase one\nMakefile:4: warning: pattern recipe did not update peer target 'task.index'.\n"
+stderr = ""

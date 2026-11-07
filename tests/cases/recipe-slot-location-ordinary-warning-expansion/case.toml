@@ -1,0 +1,13 @@
+id = "recipe-slot-location-ordinary-warning-expansion"
+requirement = "errors.recipes"
+candidate = "required"
+description = "Eager expansion and execution share the logical command location."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "Makefile:4: command expansion\nphase one\nmake: *** [Makefile:5: report] Error 7\n"
+stderr = ""
