@@ -1,0 +1,13 @@
+id = "grouped-peer-warning-locus-goal-ignored"
+requirement = "rules.grouped"
+candidate = "required"
+description = "An ignored command error retains the first recipe line for the peer warning."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "dispatch\nmake: [Makefile:7: catalog.fragment] Error 9 (ignored)\nMakefile:5: warning: pattern recipe did not update peer target 'catalog.metadata'.\nordinary\n"
+stderr = ""

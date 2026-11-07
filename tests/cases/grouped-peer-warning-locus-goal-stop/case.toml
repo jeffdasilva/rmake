@@ -1,0 +1,13 @@
+id = "grouped-peer-warning-locus-goal-stop"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A stopping implicit group command supplies the missing-peer warning location."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "dispatch\nmake: *** [Makefile:7: catalog.fragment] Error 9\nMakefile:7: warning: pattern recipe did not update peer target 'catalog.metadata'.\n"
+stderr = ""
