@@ -1,0 +1,11 @@
+id = "assumed-double-query-tail-one-current"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for finite GNU Make 4.4.1 synthetic queries."
+args = ["-rR", "--no-print-directory", "-q", "-Wcached", "cached"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "search-old\n"
+stderr = ""
