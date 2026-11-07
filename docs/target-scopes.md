@@ -78,6 +78,13 @@ unvisited destination. The caller's live locals remain available for the nested
 read, and shell writes return to the same caller. Four fixtures cover reads,
 writeback, and multi-file nesting.
 
+A target-specific `?=` read during evaluation uses the file's active or
+retained variable context. An existing inherited or activated pattern
+binding suppresses the right-hand side. That binding receives the privacy
+flag and any explicit export policy, so later reads of its owner see the
+same qualifiers. Reading a declaration on an unvisited file preserves the
+initial lookup and leaves its pattern variables unactivated.
+
 Recursive exports expanded for a recipe child use the same retained file
 contexts as recipe text and shell capture. This applies to builtin `eval`
 and to a native function that calls `gmk_eval`. The selected file keeps the

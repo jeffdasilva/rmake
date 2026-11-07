@@ -1,0 +1,12 @@
+id = "scope-conditional-owner-unvisited-pattern-control"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Check which target variable binding receives qualifiers after a suppressed conditional."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "later.t", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[global]/[]\nsibling=[global]/[]\nlater=[pattern]/[]\nafter=[global]/[]\n"
+stderr = ""

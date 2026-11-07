@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use crate::database::TableHistory;
@@ -159,13 +159,51 @@ pub struct Variable {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct ScopeMetadata {
-    private: bool,
+    private: PrivateFlag,
     export: ExportPolicy,
     export_default_reset: bool,
     export_if_set: bool,
     append_outer: bool,
     variable_names: bool,
 }
+
+impl ScopeMetadata {
+    fn set_target_qualifiers(&self, private: bool, export: Option<bool>) {
+        self.private.set(private);
+        if export.is_some() {
+            self.export.set(export);
+        }
+    }
+}
+
+/// Shared file layers see qualifier changes on their existing binding.
+/// Creating a separate binding still copies the current flag by value.
+#[derive(Debug, Default)]
+struct PrivateFlag(AtomicBool);
+
+impl PrivateFlag {
+    fn get(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    fn set(&self, value: bool) {
+        self.0.store(value, Ordering::Relaxed);
+    }
+}
+
+impl Clone for PrivateFlag {
+    fn clone(&self) -> Self {
+        Self(AtomicBool::new(self.get()))
+    }
+}
+
+impl PartialEq for PrivateFlag {
+    fn eq(&self, other: &Self) -> bool {
+        self.get() == other.get()
+    }
+}
+
+impl Eq for PrivateFlag {}
 
 /// Environment preparation remembers inherited policy on the selected binding.
 /// Shared scope layers observe that metadata; real binding copies take a value
@@ -242,7 +280,7 @@ impl Variable {
     }
 
     pub fn is_private(&self) -> bool {
-        self.scope.private
+        self.scope.private.get()
     }
 
     pub fn export_policy(&self) -> Option<bool> {
@@ -832,7 +870,7 @@ impl VariableStore {
             if values
                 .values
                 .get(name)
-                .is_some_and(|value| !inherited || !value.scope.private)
+                .is_some_and(|value| !inherited || !value.scope.private.get())
             {
                 break;
             }
@@ -866,7 +904,7 @@ impl VariableStore {
                 previous = None;
             }
             if let Some(value) = variables.values.get(name)
-                && (!inherited || !value.scope.private)
+                && (!inherited || !value.scope.private.get())
             {
                 return Some((index, value));
             }
@@ -1069,6 +1107,26 @@ impl VariableStore {
         true
     }
 
+    pub(crate) fn qualify_ancestor_or_pattern(
+        &self,
+        name: &[u8],
+        private: bool,
+        export: Option<bool>,
+    ) -> bool {
+        let Some((index, variable)) = self.lookup_from(name, 0) else {
+            return false;
+        };
+        if index == 0 {
+            return false;
+        }
+        let layer = &self.layers[index - 1];
+        if layer.global || !(layer.inherited || layer.pattern) {
+            return false;
+        }
+        variable.scope.set_target_qualifiers(private, export);
+        true
+    }
+
     /// GNU has not selected a base for relative abspath words during initial
     /// flag and argument expansion. Absolute words remain lexical operations.
     pub fn set_startup_directory_pending(&mut self) {
@@ -1193,7 +1251,7 @@ impl VariableStore {
     ) -> Option<(usize, &Variable)> {
         if start == 0
             && let Some(value) = self.variables.get(name)
-            && (local_private || !value.scope.private)
+            && (local_private || !value.scope.private.get())
         {
             return Some((0, value));
         }
@@ -1203,7 +1261,7 @@ impl VariableStore {
             .skip(start.saturating_sub(1))
             .find_map(|(index, layer)| {
                 let value = layer.variables.get(name)?;
-                ((local_private && !layer.inherited) || !value.scope.private)
+                ((local_private && !layer.inherited) || !value.scope.private.get())
                     .then_some((index + 1, value))
             })
     }
@@ -1268,7 +1326,7 @@ impl VariableStore {
     /// Qualifiers can change metadata without replacing a binding's value.
     pub fn set_private(&mut self, name: &[u8], private: bool) {
         if let Some(variable) = Arc::make_mut(&mut self.variables).get_mut(name) {
-            variable.scope.private = private;
+            variable.scope.private.set(private);
         }
     }
 
@@ -2639,7 +2697,7 @@ impl TargetScope {
             Arc::make_mut(&mut scope.variables).get_mut(name)
         };
         if let Some(variable) = variable {
-            variable.scope.private = prepared.private;
+            variable.scope.private.set(prepared.private);
             variable.scope.export.set(prepared.export);
             variable.scope.export_default_reset = aliases_global && prepared.export.is_none();
         }
@@ -2726,10 +2784,7 @@ impl TargetScope {
                 Arc::make_mut(&mut globals.variables).get_mut(name)
             };
             if let Some(variable) = variable {
-                variable.scope.private = private;
-                if export.is_some() {
-                    variable.scope.export.set(export);
-                }
+                variable.scope.set_target_qualifiers(private, export);
             }
             return Ok(false);
         }
@@ -2748,10 +2803,7 @@ impl TargetScope {
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
         variable.scope.append_outer =
             assignment == Assignment::Append && (variable.scope.append_outer || append_outer);
-        variable.scope.private = private;
-        if export.is_some() {
-            variable.scope.export.set(export);
-        }
+        variable.scope.set_target_qualifiers(private, export);
         let lookup_origin = variable.origin != Origin::Override;
         self.variables = scope.variables;
         Ok(lookup_origin)

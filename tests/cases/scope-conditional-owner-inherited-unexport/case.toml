@@ -1,0 +1,12 @@
+id = "scope-conditional-owner-inherited-unexport"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Check which target variable binding receives qualifiers after a suppressed conditional."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[parent]/[]\nsibling=[parent]/[]\nafter=[global]/[global]\n"
+stderr = ""
