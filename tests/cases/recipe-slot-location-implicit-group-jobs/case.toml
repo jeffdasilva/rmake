@@ -1,0 +1,13 @@
+id = "recipe-slot-location-implicit-group-jobs"
+requirement = "rules.grouped"
+candidate = "required"
+description = "The failed parallel command and implicit peer warning share a logical location."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "phase one\nmake: *** [Makefile:6: task.part] Error 7\nMakefile:6: warning: pattern recipe did not update peer target 'task.index'.\n"
+stderr = ""

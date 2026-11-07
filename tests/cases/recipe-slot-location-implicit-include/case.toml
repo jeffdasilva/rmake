@@ -1,0 +1,13 @@
+id = "recipe-slot-location-implicit-include"
+requirement = "rules.grouped"
+candidate = "required"
+description = "The optional implicit group warns at the failed logical command."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "phase one\nMakefile:7: warning: pattern recipe did not update peer target 'task.index'.\nmake: *** No rule to make target 'task.part', needed by 'report'.  Stop.\n"
+stderr = ""

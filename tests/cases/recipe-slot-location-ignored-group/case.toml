@@ -1,0 +1,13 @@
+id = "recipe-slot-location-ignored-group"
+requirement = "rules.grouped"
+candidate = "required"
+description = "An ignored error uses its slot while the peer warning keeps the first line."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "phase one\nmake: [Makefile:6: task.part] Error 7 (ignored)\nMakefile:4: warning: pattern recipe did not update peer target 'task.index'.\n"
+stderr = ""
