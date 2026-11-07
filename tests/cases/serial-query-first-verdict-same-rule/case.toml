@@ -1,0 +1,11 @@
+id = "serial-query-first-verdict-same-rule"
+requirement = "serial.runtime"
+candidate = "required"
+provenance = "Original GNU Make 4.4.1 query verdict-order fixture."
+args = ["-rR", "--no-print-directory", "-q", "-k", "wrapper", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "evaluated-query\nforced-failure\nvisited-after\n"
+stderr = "make: *** [Makefile:2: bad] Error 7\n"
