@@ -1,0 +1,13 @@
+id = "include-group-peer-failure-optional-later"
+requirement = "includes.remake"
+candidate = "required"
+description = "A later optional remake runs before the deferred peer summary."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "build"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "617474656d707420636174616c6f672e63616368650a7461696c20617474656d707465640a4d616b6566696c653a343a204661696c656420746f2072656d616b65206d616b6566696c652027636174616c6f672e646570272e0a"
+stderr_hex = ""

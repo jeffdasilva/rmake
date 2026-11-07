@@ -1,0 +1,13 @@
+id = "include-group-peer-failure-required-later"
+requirement = "includes.remake"
+candidate = "required"
+description = "A later stopping required remake suppresses deferred summaries."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "build"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "617474656d707420636174616c6f672e63616368650a7461696c20617474656d707465640a4d616b6566696c653a353a207461696c2e6465703a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a393a207461696c2e6465705d204572726f7220380a"
+stderr_hex = ""
