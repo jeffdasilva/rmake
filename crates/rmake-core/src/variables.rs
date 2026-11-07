@@ -3809,7 +3809,7 @@ impl Expansion<'_, '_> {
             return Err(ExpandError::Unsupported(b"!=".to_vec()));
         }
         let command = self.expand(input)?;
-        self.shell(&command)
+        self.shell(&command, false)
     }
 
     fn shell_export_expanding(&self, name: &[u8], layer: usize) -> bool {
@@ -3943,7 +3943,7 @@ impl Expansion<'_, '_> {
         Ok(environment)
     }
 
-    fn shell(&mut self, command: &[u8]) -> Result<Vec<u8>, ExpandError> {
+    fn shell(&mut self, command: &[u8], trim_newlines: bool) -> Result<Vec<u8>, ExpandError> {
         if matches!(self.store, StoreAccess::Read(_)) {
             return Err(ExpandError::Unsupported(b"shell".to_vec()));
         }
@@ -4024,7 +4024,7 @@ impl Expansion<'_, '_> {
             });
             index += 1;
         }
-        // Strip only folded trailing newlines, retaining literal trailing spaces.
+        // An assignment drops one trailing newline. The shell function drops all of them.
         let mut end = result
             .stdout
             .iter()
@@ -4036,6 +4036,9 @@ impl Expansion<'_, '_> {
             end -= 1;
             if end > 0 && result.stdout[end - 1] == b'\r' {
                 end -= 1;
+            }
+            if !trim_newlines {
+                break;
             }
         }
         output.truncate(output.len().saturating_sub(folded));
@@ -4168,15 +4171,14 @@ impl Expansion<'_, '_> {
     }
 
     fn eager_builtin(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
-        if matches!(name, b"word" | b"wordlist") {
-            let minimum = if name == b"word" { 2 } else { 3 };
-            if args.len() < minimum {
-                return Err(too_few_arguments(name, args.len()));
-            }
+        if let Some((minimum, _)) = arity(name)
+            && args.len() < minimum
+        {
+            return Err(too_few_arguments(name, args.len()));
         }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
-            b"shell" => self.shell(first),
+            b"shell" => self.shell(first, true),
 
             b"wildcard" => {
                 let session = self.store.begin_filename_session(first.contains(&b'~'));
@@ -4543,21 +4545,10 @@ pub(crate) fn evaluation_error(error: crate::parser::ParseError) -> ExpandError 
     original.preserve_frozen(diagnostic)
 }
 
-fn invalid(function: &[u8], message: &'static str) -> ExpandError {
-    ExpandError::InvalidArguments {
-        function: function.to_vec(),
-        message,
-    }
-}
-
 fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
-    if matches!(function, b"intcmp" | b"file" | b"word" | b"wordlist") {
-        ExpandError::InsufficientArguments {
-            function: function.to_vec(),
-            count,
-        }
-    } else {
-        invalid(function, "too few arguments")
+    ExpandError::InsufficientArguments {
+        function: function.to_vec(),
+        count,
     }
 }
 

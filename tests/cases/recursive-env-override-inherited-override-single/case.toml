@@ -1,0 +1,15 @@
+id = "recursive-env-override-inherited-override-single"
+requirement = "recursion.environment"
+candidate = "required"
+description = "Recursive command-variable origins survive environment override when GNU propagates them."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["--no-print-directory", "V=cli", "all"]
+timeout_seconds = 8
+
+[environment]
+MAKEFLAGS = "-e"
+
+[expected]
+exit_code = 0
+stdout = "parent command line:[cli]\nchild command line:[cli]\n"
+stderr = ""

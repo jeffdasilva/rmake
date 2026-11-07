@@ -428,9 +428,7 @@ impl Expansion<'_, '_> {
                             - trim_function_start(&source.bytes()[end..]).len();
                         let argument = source.slice(start..source.bytes().len());
                         let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum)?;
-                        if ranges.len() < minimum
-                            && !matches!(name.as_slice(), b"word" | b"wordlist")
-                        {
+                        if ranges.len() < minimum && lazy(&name) {
                             return Err(too_few_arguments(&name, ranges.len()));
                         }
                         let args = ranges.into_iter().map(|r| argument.slice(r)).collect();

@@ -9573,12 +9573,14 @@ impl Engine {
                         if name == b"MFLAGS" {
                             inherited_mflags = variable.origin() == Origin::Environment;
                         }
-                        // Imported environment values are recursive when referenced
-                        // by make syntax, but are passed back to children verbatim.
-                        if matches!(
-                            variable.origin(),
-                            Origin::Environment | Origin::EnvironmentOverride
-                        ) {
+                        // Imported values are exported verbatim. MAKEFLAGS still
+                        // expands its command-variable reference under -e.
+                        if name != b"MAKEFLAGS"
+                            && matches!(
+                                variable.origin(),
+                                Origin::Environment | Origin::EnvironmentOverride
+                            )
+                        {
                             child.env(os(name), OsString::from_vec(variable.raw_value().to_vec()));
                             emitted_order.push(name.clone());
                             continue;
