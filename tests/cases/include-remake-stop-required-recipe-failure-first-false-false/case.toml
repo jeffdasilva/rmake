@@ -1,0 +1,13 @@
+id = "include-remake-stop-required-recipe-failure-first-false-false"
+requirement = "includes.remake"
+candidate = "required"
+description = "Stop or continue remake before restart for required-recipe-failure-first-False-False"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-f", "Makefile", "default"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "72656164205b5d0a6661696c696e67205b5d0a4d616b6566696c653a343a206661696c65642e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a31313a206661696c65642e6d6b5d204572726f7220350a"
+stderr_hex = ""

@@ -1,0 +1,13 @@
+id = "include-remake-stop-required-child-failure-first-false-true"
+requirement = "includes.remake"
+candidate = "required"
+description = "Stop or continue remake before restart for required-child-failure-first-False-True"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-f", "Makefile", "-j2", "default"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout_hex = "72656164205b5d0a4d616b6566696c653a343a206661696c65642e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027616273656e74272c206e656564656420627920276661696c65642e6d6b272e202053746f702e0a"
+stderr_hex = ""
