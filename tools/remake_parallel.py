@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import tomllib
 
 import debug_output as debug
 from debug_output import h, reference_oracle
@@ -54,6 +55,7 @@ class HeldModel:
     before_first: bytes = BEFORE_FIRST
     before_second_stdout: bytes | None = None
     load: LoadProfile | None = None
+    before_first_stdout: bytes = b''
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -469,6 +471,32 @@ def load_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
     return results
 
 
+def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
+    data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
+    if data.get('schema_version') != 1:
+        raise h.HarnessError('unsupported remake debug model schema')
+    by_id = {held.model.id: held for held in held_models}
+    selected = []
+    seen = set()
+    for row in data['profiles']:
+        name, flag = row['case'], row['flag']
+        held = by_id.get(name)
+        if (held is None or held.before_second is None or (name, flag) in seen
+                or flag not in ('m', 'm,v') or (flag == 'm,v' and not name.endswith('-pipe'))):
+            raise h.HarnessError('invalid remake debug model')
+        seen.add((name, flag))
+        stdout = row['stdout'].encode()
+        first, second = row['release_prefixes']
+        if not 0 < first <= second <= len(stdout) or b'@BIN@' in stdout[:second]:
+            raise h.HarnessError('invalid remake debug release prefixes')
+        args = (*held.model.args[:-1], f'--debug={flag}', held.model.args[-1])
+        model = replace(held.model, id=f'remake-debug-{name}-{flag.replace(",", "")}', args=args,
+                        expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
+        selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
+                                before_second_stdout=stdout[:second]))
+    return selected
+
+
 def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
     workers = {}
     for token in (proc / 'task' / str(parent) / 'children').read_bytes().split():
@@ -594,7 +622,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
         errors.append('active workers at first release')
     if first['seen_hex'] != held.before_first.hex():
         errors.append('file effects at first release')
-    if first['stdout_hex']:
+    if first['stdout_hex'] != held.before_first_stdout.hex():
         errors.append('stdout at first release')
     if held.before_second is None:
         return errors
@@ -622,7 +650,10 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--self-test', action='store_true')
     mode.add_argument('--candidate', type=Path)
-    parser.add_argument('--duplicate-reads', action='store_true')
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument('--duplicate-reads', action='store_true')
+    selection.add_argument('--remake-debug', action='store_true',
+                           help='select only the remake-phase debug profiles')
     parser.add_argument('--case', action='append', default=[])
     load_options = parser.add_mutually_exclusive_group()
     load_options.add_argument('--include-load', action='store_true',
@@ -640,6 +671,9 @@ def main() -> int:
             raise h.HarnessError('load shim must be a file')
         available = models(duplicate_reads=args.duplicate_reads,
                            include_load=args.include_load or load_shim is not None)
+        if not args.duplicate_reads:
+            debug_profiles = remake_debug_models(available)
+            available = debug_profiles if args.remake_debug else available + debug_profiles
         unknown = set(args.case) - {held.model.id for held in available}
         if unknown:
             raise h.HarnessError('unknown remake cases: ' + ', '.join(sorted(unknown)))
