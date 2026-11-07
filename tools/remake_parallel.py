@@ -101,6 +101,61 @@ def models() -> list[HeldModel]:
             model = debug.Model(f'{mode}-{transport}', files, args, {'GNUMAKEFLAGS': ''}, expected,
                                 seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, not serial, before_second))
+    return results + mixed_models(worker, markers)
+
+
+def mixed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    left_error = b'make: *** [Makefile:6: left.gen] Error 3\n'
+    right_error = b'make: *** [Makefile:7: right.gen] Error 4\n'
+    right_open_error = b'Makefile:3: right.gen: No such file or directory\n'
+    left_open_error = b'Makefile:3: left.gen: No such file or directory\n'
+    left_remake_error = b"Makefile:2: Failed to remake makefile 'left.gen'.\n"
+    cases = (
+        ('optional-first-failure', '-include left.gen\ninclude right.gen\n',
+         right_open_error + right_error),
+        ('required-first-failure', 'include left.gen\n-include right.gen\n',
+         left_error + WAITING),
+        ('optional-first-restart', '-include left.gen\ninclude right.gen\n', b''),
+        ('required-pair', 'include left.gen\ninclude right.gen\n',
+         right_open_error + left_error + WAITING + right_error),
+        ('required-pair-reversed', 'include right.gen\ninclude left.gen\n',
+         left_open_error + left_error + WAITING + right_error),
+        ('optional-declaration-first', '-include right.gen\ninclude left.gen\n',
+         left_open_error + left_error + WAITING),
+        ('required-optional-keep', 'include left.gen\n-include right.gen\n',
+         left_error + left_remake_error),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, directives, stderr in cases:
+            restart = name.endswith('restart')
+            source = (
+                '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                + directives +
+                '.PHONY: all\n'
+                'all: ; @$(file >>seen,goal-$(RIGHT)):\n'
+            )
+            if restart:
+                source += 'ifeq ($(MAKE_RESTARTS),)\n'
+            source += 'left.gen: ; @python3 worker.py left fail\n'
+            updates = markers.copy()
+            if restart:
+                source += 'right.gen: ; @python3 worker.py right include\nendif\n'
+                updates['right.gen'] = b'RIGHT := loaded\n'
+                seen = BEFORE_SECOND + b'right\nread-1\ngoal-loaded\n'
+                stdout, status = b'left\n', 0
+            else:
+                source += 'right.gen: ; @python3 worker.py right fail\n'
+                seen = BEFORE_SECOND + b'right\n'
+                stdout, status = b'left\nright\n', 2
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
+            args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}')
+            args += ('-k', 'all') if name.endswith('keep') else ('all',)
+            expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'mixed-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''},
+                                expected, seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(model, True, BEFORE_SECOND))
     return results
 
 

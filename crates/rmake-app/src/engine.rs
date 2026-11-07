@@ -335,6 +335,8 @@ struct RequestedGoal {
     awaiting_recipe: bool,
 }
 
+type SharedIncludeError = Rc<Cell<Option<PendingIncludeError>>>;
+
 /// State owned by one makefile update. Intermediate inspection can suppress
 /// the optional policy temporarily without discarding its retained error.
 #[derive(Clone)]
@@ -342,7 +344,7 @@ struct MakefileRemake {
     optional: bool,
     retain_failure: bool,
     stopped: Option<Rc<Cell<bool>>>,
-    open_error: Option<Rc<Cell<Option<PendingIncludeError>>>>,
+    open_error: Option<SharedIncludeError>,
 }
 
 impl MakefileRemake {
@@ -354,6 +356,7 @@ impl MakefileRemake {
 struct PendingMakefileRemake<'a> {
     file: &'a Makefile,
     context: MakefileRemake,
+    active: bool,
     before: Option<SystemTime>,
     initial: Outcome,
 }
@@ -1077,6 +1080,9 @@ pub struct Engine {
     remaking: bool,
     parallel_makefile_remakes: bool,
     active_makefile_remake: Option<MakefileRemake>,
+    // A child owns its failure policy, but source-open diagnostics follow the
+    // last root visited by the remake traversal.
+    remake_error_cursor: Option<SharedIncludeError>,
     // A missing cause here marks a direct, suppressed failure.
     optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
     vpath_dirs: Vec<Vec<u8>>,
@@ -1647,6 +1653,7 @@ impl Engine {
             remaking: false,
             parallel_makefile_remakes: false,
             active_makefile_remake: None,
+            remake_error_cursor: None,
             optional_remake_failures: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
@@ -3109,6 +3116,7 @@ impl Engine {
             let mut failed = false;
             let mut stopped = false;
             let mut pending = Vec::new();
+            let initial_reaps = self.recipe_reaps;
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3187,6 +3195,10 @@ impl Engine {
                 });
                 let initial_time = before.is_none().then_some(&mut before);
                 if self.parallel_makefile_remakes {
+                    self.remake_error_cursor = self
+                        .active_makefile_remake
+                        .as_ref()
+                        .and_then(|remake| remake.open_error.clone());
                     self.graph_epoch = self.graph_epoch.wrapping_add(1);
                 }
                 let result = self.build_recording_initial_time(
@@ -3205,6 +3217,7 @@ impl Engine {
                     pending.push(PendingMakefileRemake {
                         file: makefile,
                         context,
+                        active: true,
                         before,
                         initial: result,
                     });
@@ -3246,7 +3259,7 @@ impl Engine {
                 }
             }
             if !stopped && !pending.is_empty() {
-                stopped = !self.wait_makefile_remakes(&mut pending);
+                stopped = !self.wait_makefile_remakes(&mut pending, initial_reaps);
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -3295,6 +3308,7 @@ impl Engine {
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
             self.parallel_makefile_remakes = false;
+            self.remake_error_cursor = None;
             if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
                 return 2;
@@ -4318,19 +4332,32 @@ impl Engine {
             && !self.options.touch
     }
 
-    fn wait_makefile_remakes(&mut self, requests: &mut [PendingMakefileRemake<'_>]) -> bool {
-        while requests
-            .iter()
-            .any(|request| self.pending(&request.file.name))
-        {
+    fn wait_makefile_remakes(
+        &mut self,
+        requests: &mut [PendingMakefileRemake<'_>],
+        mut last_reaps: u64,
+    ) -> bool {
+        while requests.iter().any(|request| request.active) {
             if self.shutdown.get() != Shutdown::Running {
                 return false;
             }
+            // Reap against the previous pass's cursor. A pass with no newly
+            // completed commands waits before changing which root is current.
+            self.poll_jobs();
+            if self.recipe_reaps == last_reaps && !self.parallel_jobs.is_empty() {
+                self.reap_job();
+                self.poll_jobs();
+            }
+            if self.shutdown.get() != Shutdown::Running {
+                return false;
+            }
+            last_reaps = self.recipe_reaps;
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
-            for request in &mut *requests {
+            for request in requests.iter_mut().filter(|request| request.active) {
                 let name = &request.file.name;
+                self.remake_error_cursor = request.context.open_error.clone();
                 if self.graph_pending(name) {
                     request.initial =
                         self.with_makefile_remake(Some(request.context.clone()), |engine| {
@@ -4343,23 +4370,20 @@ impl Engine {
                             )
                         });
                 }
+                request.active = self.pending(name);
                 if self.shutdown.get() != Shutdown::Running {
                     return false;
                 }
             }
             if self.graph_epoch == pass_epoch
-                && requests
-                    .iter()
-                    .any(|request| self.pending(&request.file.name))
+                && self.parallel_jobs.is_empty()
+                && requests.iter().any(|request| request.active)
             {
-                if self.parallel_jobs.is_empty() {
-                    self.fatal(None, b"cannot advance pending makefile remakes");
-                    return false;
-                }
-                self.reap_job();
+                self.fatal(None, b"cannot advance pending makefile remakes");
+                return false;
             }
         }
-        self.shutdown.get() == Shutdown::Running
+        true
     }
 
     fn wait_target(&mut self, target: &[u8]) {
@@ -4854,13 +4878,17 @@ impl Engine {
         let cancelled = queued && self.remake_stopped();
         let mut failed = cancelled || (error.is_some() && !job.ignore);
         let remake = job.continuation.remake.as_ref();
-        if failed {
-            self.show_remake_open_error(remake);
-        }
         if let Some(error) = error
             && (job.ignore || !remake.is_some_and(|remake| remake.optional))
             && (!job.ignore || !self.globally_silent())
         {
+            if let Some(error) = self
+                .remake_error_cursor
+                .as_ref()
+                .and_then(|pending| pending.take())
+            {
+                self.emit_makefile_error(&error);
+            }
             let source = location_prefix(&job.location);
             let ignored = if job.ignore {
                 crate::messages::system(rmake_core::messages::Message::Ignored)
