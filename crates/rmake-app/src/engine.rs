@@ -339,6 +339,8 @@ struct Outcome {
     completion: CompletionTime,
     database_result: DatabaseResult,
     debug_time_changed: bool,
+    // A serial peer completed with its owner before its own diagnostic visit.
+    debug_serial_group_peer: bool,
 }
 
 struct RequestedGoal {
@@ -7825,7 +7827,9 @@ impl Engine {
                     debug_depth,
                     outcome.failed,
                 ) {
-                    if visit == BuildVisit::PrerequisiteAfterRecipe {
+                    if visit == BuildVisit::PrerequisiteAfterRecipe
+                        || outcome.debug_serial_group_peer
+                    {
                         self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
                     } else {
                         crate::debug::emit(
@@ -9763,6 +9767,11 @@ impl Engine {
             && !self.options.touch
             && !outcome.failed
             && outcome.completion.preserves();
+        let debug_serial_group_peer = !self.remaking
+            && self.active_makefile_remake.is_none()
+            && !self.parallel_graph()
+            && !outcome.question_outdated
+            && !outcome.fatal;
         for (peer, before, phony) in group.members.into_iter().rev() {
             let database_result =
                 if observe_dry_group && !phony && (!group.implicit || peer != target) {
@@ -9790,6 +9799,7 @@ impl Engine {
             self.pending_rules.remove(&peer);
             let mut completed = cached;
             completed.database_result = database_result;
+            completed.debug_serial_group_peer = debug_serial_group_peer;
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
             completed.search_after_update = false;
