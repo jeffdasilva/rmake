@@ -244,6 +244,7 @@ pub struct ShellRequest<'a> {
     /// active recursive export. Interpretation performs no implicit OS reads.
     pub environment: &'a [(Vec<u8>, EnvironmentValue)],
     pub original_shell: Option<&'a [u8]>,
+    pub one_shell: bool,
 }
 
 pub struct ShellResult {

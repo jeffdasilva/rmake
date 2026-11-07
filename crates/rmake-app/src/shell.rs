@@ -25,8 +25,13 @@ pub fn run(
     output: &crate::output::Controller,
     jobserver: Option<&rmake_linux::jobserver::Jobserver>,
 ) -> Result<ShellResult, Vec<u8>> {
-    let invocation =
-        crate::process::prepare(request.command, request.shell, request.flags, request.ifs);
+    let invocation = crate::process::prepare_shell_function(
+        request.command,
+        request.shell,
+        request.flags,
+        request.ifs,
+        request.one_shell,
+    );
     let (program, args) = match invocation {
         crate::process::Invocation::Direct { program, args }
         | crate::process::Invocation::Shell { program, args } => (program, args),

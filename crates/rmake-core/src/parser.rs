@@ -4765,6 +4765,13 @@ impl Database {
                         message: err.diagnostic(),
                     })?;
             }
+            if declaration
+                .targets
+                .iter()
+                .any(|target| target == b".ONESHELL")
+            {
+                self.variables.enable_oneshell();
+            }
             if !self.posix && declaration.targets.iter().any(|target| target == b".POSIX") {
                 self.posix = true;
                 for (name, value) in [

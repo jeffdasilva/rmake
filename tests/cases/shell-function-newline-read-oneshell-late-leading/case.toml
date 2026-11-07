@@ -1,0 +1,12 @@
+id = "shell-function-newline-read-oneshell-late-leading"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell-function newline bytes and one-shell activation follow GNU command selection."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "result=[] status=[127]\nmake: 'all' is up to date.\n"
+stderr = "make: \n./capture: No such file or directory\n"

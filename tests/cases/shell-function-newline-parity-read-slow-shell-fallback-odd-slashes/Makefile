@@ -1,0 +1,3 @@
+SHELL := /bin/bash
+$(info result=[$(shell $(file <raw))] status=[$(.SHELLSTATUS)])
+all: ;

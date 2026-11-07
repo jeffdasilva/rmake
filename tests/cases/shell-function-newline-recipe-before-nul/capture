@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+import os
+import sys
+from pathlib import Path
+
+line = "[" + "][".join(os.fsencode(arg).hex() for arg in sys.argv[1:]) + "]"
+with Path("seen").open("ab") as output:
+    output.write(line.encode() + bytes((10,)))
+print(line)

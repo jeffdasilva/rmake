@@ -1,0 +1,12 @@
+id = "shell-function-newline-phase-export-expansion-activates-after-command-selection"
+requirement = "functions.shell"
+candidate = "required"
+description = "One-shell activation follows the shell command selection phase."
+provenance = "Original rmake fixture; independently authored against pinned GNU behavior."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 6
+
+[expected]
+exit_code = 0
+stdout = "first=[4142]\nsecond=[410a42]\nmake: Nothing to be done for 'all'.\n"
+stderr = ""
