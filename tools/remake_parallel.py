@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -23,6 +24,7 @@ BEFORE_SECOND = BEFORE_FIRST + b'left\n'
 INPUT_TIME = 1_000_000_000_000_000_000
 WORKERS = ('left', 'right')
 WAIT_CHANNELS = {'core_sys_select', 'do_wait', '__x64_sys_poll'}
+X86_64 = os.uname().machine == 'x86_64'
 
 MISSING = b'Makefile:2: generated.gen: No such file or directory\n'
 LEFT_ERROR = b'make: *** [Makefile:7: left] Error 3\n'
@@ -281,7 +283,26 @@ def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
     return workers
 
 
-def execute(case: h.Case, runtime: Path, binary: Path):
+def poll_wait(proc: Path) -> tuple[int | None, bool]:
+    if not X86_64:
+        return None, False
+    try:
+        fields = (proc / 'syscall').read_text().split()
+        if len(fields) != 9:
+            return None, False
+        number = int(fields[0])
+        argument = int(fields[3], 0)
+        # Linux x86-64 poll takes a signed millisecond timeout. ppoll takes
+        # a pointer to a timespec, with NULL denoting an indefinite wait.
+        blocking = ((number == 7 and argument & 0xffffffff != 0)
+                    or (number == 271 and argument == 0))
+        return number, blocking
+    except (OSError, ValueError):
+        return None, False
+
+
+def execute(case: h.Case, runtime: Path, binary: Path,
+            wait_samples: set[tuple[str, int | None]] | None = None):
     work = runtime / 'work'
     releases = []
     released = set()
@@ -294,7 +315,10 @@ def execute(case: h.Case, runtime: Path, binary: Path):
         proc = Path('/proc', str(parent))
         try:
             channel = (proc / 'wchan').read_text().strip()
-            if channel not in WAIT_CHANNELS:
+            number, blocked = (None, True) if channel in WAIT_CHANNELS else poll_wait(proc)
+            if wait_samples is not None:
+                wait_samples.add((channel, number))
+            if not blocked:
                 return
             workers = active_workers(parent, proc)
             if not workers or released.intersection(workers):
@@ -309,7 +333,7 @@ def execute(case: h.Case, runtime: Path, binary: Path):
             return
         # Let a serial baseline progress when it demonstrably waits on only one
         # child. The oracle and candidate still have to match the expected set.
-        signature = (sorted(workers.items()), channel, seen, stdout)
+        signature = (sorted(workers.items()), channel, number, seen, stdout)
         if signature != previous:
             previous = signature
             return
@@ -319,7 +343,8 @@ def execute(case: h.Case, runtime: Path, binary: Path):
         temporary.chmod(0o644)
         temporary.rename(work / f'{name}.release')
         releases.append({'name': name, 'parent': parent, 'workers': workers,
-                         'wchan': channel, 'seen_hex': seen.hex(), 'stdout_hex': stdout.hex()})
+                         'wchan': channel, 'poll_syscall': number,
+                         'seen_hex': seen.hex(), 'stdout_hex': stdout.hex()})
         released.add(name)
 
     return h.execute(case, runtime, binary, observe=observe), releases
@@ -363,7 +388,9 @@ def main() -> int:
     mode.add_argument('--self-test', action='store_true')
     mode.add_argument('--candidate', type=Path)
     parser.add_argument('--case', action='append', default=[])
-    parser.add_argument('--report', type=Path)
+    reports = parser.add_mutually_exclusive_group()
+    reports.add_argument('--report', type=Path)
+    reports.add_argument('--report-dir', type=Path)
     args = parser.parse_args()
     try:
         profile = reference_oracle.verify(args.oracle, args.oracle_profile)
@@ -383,10 +410,17 @@ def main() -> int:
             for held in selected:
                 model = held.model
                 case, filesystem = debug.prepare(model, root / model.id, runtime)
-                observations, releases = zip(*(execute(case, runtime, binary) for binary in executables))
+                samples = [set() for _ in executables]
+                observations, releases = zip(*(
+                    execute(case, runtime, binary, waits)
+                    for binary, waits in zip(executables, samples, strict=True)
+                ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
                 errors = [release_errors(held, release) for release in releases]
+                wait_samples = [sorted(waits, key=lambda pair: (pair[0], pair[1] or -1))
+                                for waits in samples]
                 record.update(id=model.id, releases=releases, release_errors=errors,
+                              wait_samples=wait_samples,
                               passed=record['passed'] and not any(errors))
                 records.append(record)
                 if record['passed']:
@@ -395,17 +429,22 @@ def main() -> int:
                     print('FAIL', model.id,
                           {key: record[key] for key in (
                               'expected_errors', 'filesystem_errors', 'oracle_repeat_differences',
-                              'candidate_differences', 'release_errors')}, flush=True)
+                              'candidate_differences', 'release_errors', 'wait_samples')}, flush=True)
         total = len(records)
         passed = sum(record['passed'] for record in records)
         report = {'oracle_profile': profile['profile_id'],
                   'executables': [h.executable_identity(binary) for binary in executables],
                   'totals': {'cases': total, 'pass': passed, 'fail': total - passed},
                   'cases': records}
-        if args.report is not None:
-            with args.report.open('x', encoding='utf-8') as output:
+        report_path = args.report
+        if args.report_dir is not None:
+            args.report_dir.mkdir(parents=True, exist_ok=True)
+            report_path = Path(tempfile.mkdtemp(prefix='run-', dir=args.report_dir)) / 'report.json'
+        if report_path is not None:
+            with report_path.open('x', encoding='utf-8') as output:
                 json.dump(report, output, indent=2)
                 output.write('\n')
+            print(f'Report: {report_path}')
         print(f'Parallel makefile remakes: {passed}/{total} passed')
         return int(passed != total)
     except (h.HarnessError, reference_oracle.OracleError, OSError) as error:

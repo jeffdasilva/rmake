@@ -720,10 +720,10 @@ test-debug-reap-race-release: release oracle-verify
 	$(PYTHON) tools/debug_reap_race.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report-dir artifacts/debug-reap-race/optimized
 
 test-remake-parallel: build oracle-verify
-	$(PYTHON) tools/remake_parallel.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" $(if $(REMAKE_PARALLEL_CASE),--case "$(REMAKE_PARALLEL_CASE)")
+	$(PYTHON) tools/remake_parallel.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report-dir artifacts/remake-parallel/development $(if $(REMAKE_PARALLEL_CASE),--case "$(REMAKE_PARALLEL_CASE)")
 
 test-remake-parallel-release: release oracle-verify
-	$(PYTHON) tools/remake_parallel.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" $(if $(REMAKE_PARALLEL_CASE),--case "$(REMAKE_PARALLEL_CASE)")
+	$(PYTHON) tools/remake_parallel.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report-dir artifacts/remake-parallel/optimized $(if $(REMAKE_PARALLEL_CASE),--case "$(REMAKE_PARALLEL_CASE)")
 
 test-debug-traversal: build oracle-verify
 	$(PYTHON) tools/debug_traversal.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/debug-traversal/development.json $(if $(DEBUG_TRAVERSAL_CASE),--case "$(DEBUG_TRAVERSAL_CASE)")
