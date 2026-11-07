@@ -1,0 +1,11 @@
+id = "serial-forced-query-nested"
+requirement = "serial.runtime"
+candidate = "required"
+provenance = "Original independently asserted GNU Make 4.4.1 forced-query fixture."
+args = ["-rR", "--no-print-directory", "-q", "outer", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""
