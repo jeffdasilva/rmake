@@ -945,6 +945,7 @@ struct GroupSegment {
 
 struct GroupRun {
     branch: Option<usize>,
+    ordinary: bool,
     implicit: bool,
     location: Option<Location>,
     before: Option<SystemTime>,
@@ -7904,6 +7905,18 @@ impl Engine {
             && owner != target
         {
             let mut outcome = self.done.get(owner).copied().unwrap_or_default();
+            if parent.is_some()
+                && !self.remaking
+                && !traced_optional_failure
+                && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
+                && self.parallel_jobs.contains_key(owner)
+                && self
+                    .running_groups
+                    .get(owner)
+                    .is_some_and(|group| group.ordinary)
+            {
+                self.debug_cached_prerequisite_visit(target, depth, outcome);
+            }
             outcome.time = self.modified(target);
             return outcome;
         }
@@ -8683,6 +8696,7 @@ impl Engine {
                         .any(|dependency| dependency.name == b".WAIT"),
                 run: GroupRun {
                     branch: rule.grouped_double_id(),
+                    ordinary: !self.remaking && self.active_makefile_remake.is_none(),
                     implicit: rule.implicit_pattern.is_some(),
                     location: rule.recipe_location.clone(),
                     before,
