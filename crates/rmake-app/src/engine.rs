@@ -3298,7 +3298,7 @@ impl Engine {
                 }
             }
             if !stopped && !pending.is_empty() {
-                stopped = !self.wait_makefile_remakes(&mut pending, initial_reaps);
+                stopped = !self.wait_makefile_remakes(&mut pending, &visited_times, initial_reaps);
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -3758,8 +3758,7 @@ impl Engine {
     fn debug_consider(&mut self, target: &[u8], name: &[u8], depth: usize) {
         use crate::debug::{Event, Mask, emit};
 
-        if self.output.debug_mask().has(Mask::VERBOSE) && (!self.remaking || !self.parallel_graph())
-        {
+        if self.output.debug_mask().has(Mask::VERBOSE) {
             self.debug_considered
                 .get_or_insert_default()
                 .insert(target.to_vec());
@@ -4472,9 +4471,10 @@ impl Engine {
     fn wait_makefile_remakes(
         &mut self,
         requests: &mut [PendingMakefileRemake<'_>],
+        visited_times: &HashMap<&[u8], Option<SystemTime>>,
         mut last_reaps: u64,
     ) -> bool {
-        while requests.iter().any(|request| request.active) {
+        'passes: while requests.iter().any(|request| request.active) {
             if self.shutdown.get() != Shutdown::Running {
                 return false;
             }
@@ -4493,9 +4493,10 @@ impl Engine {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
-                let name = &request.file.name;
+                let name = request.file.name.as_slice();
                 self.remake_error_cursor = request.context.open_error.clone();
-                if self.graph_pending(name) {
+                let graph_pending = self.graph_pending(name);
+                if graph_pending {
                     request.initial =
                         self.with_makefile_remake(Some(request.context.clone()), |engine| {
                             engine.build_recording_initial_time(
@@ -4510,6 +4511,28 @@ impl Engine {
                 request.active = self.pending(name);
                 if self.shutdown.get() != Shutdown::Running {
                     return false;
+                }
+                let outcome = self
+                    .done
+                    .get(self.aliases.resolve(name))
+                    .copied()
+                    .unwrap_or(request.initial);
+                if !graph_pending {
+                    self.debug_cached_prerequisite_visit(name, 1, outcome);
+                }
+                if !request.active
+                    && request.file.optional
+                    && !outcome.failed
+                    && !outcome.question_outdated
+                    && matches!(
+                        outcome.completion,
+                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+                    )
+                    && outcome.time != visited_times[name]
+                {
+                    // An updated optional root ends this pass. Remaining roots
+                    // are revisited after the next child event.
+                    continue 'passes;
                 }
             }
             if self.graph_epoch == pass_epoch
@@ -8453,7 +8476,10 @@ impl Engine {
     fn resume_rule_state(&mut self, target: &[u8], mut state: RuleState) -> Outcome {
         // The cached prefix can publish its next goal pass before opening
         // a .WAIT barrier or finishing the dependency traversal.
-        let can_replay_debug = !self.remaking
+        let remake_verbose = self.remaking
+            && self.parallel_makefile_remakes
+            && self.output.debug_mask().has(crate::debug::Mask::VERBOSE);
+        let can_replay_debug = (!self.remaking || remake_verbose)
             && state.waited_for_prerequisites
             && (state.visited_prerequisites()
                 || state.visited_group_prerequisites()
@@ -8470,15 +8496,19 @@ impl Engine {
         state.replay_cached_after_recipe = (state.replay_cached_after_recipe
             && state.last_debug_pass == self.debug_pass)
             || (replay_debug
+                && !self.remaking
                 && (state.branch.is_some()
                     || state.group.as_ref().is_some_and(|group| group.run.implicit))
                 && state.waiting_at_barrier());
         state.last_debug_pass = self.debug_pass;
+        let debug_depth = state.depth + usize::from(self.remaking);
         if replay_debug {
-            if let Some(ordinal) = state.branch {
-                self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
+            if let Some(ordinal) = state.branch
+                && !self.remaking
+            {
+                self.debug_completed_double_colon_prefix(target, ordinal, debug_depth);
             }
-            self.debug_consider(target, target, state.depth);
+            self.debug_consider(target, target, debug_depth);
         }
         if state.last_epoch.is_some()
             && state.before.is_none()
@@ -8486,7 +8516,7 @@ impl Engine {
         {
             crate::debug::emit(
                 &self.output,
-                crate::debug::Event::Missing(target, state.depth + usize::from(self.remaking) + 1),
+                crate::debug::Event::Missing(target, debug_depth + 1),
             );
         }
         state.last_epoch = Some(self.graph_epoch);
@@ -8513,7 +8543,7 @@ impl Engine {
         let mut segment_index = 0;
         if group_frontier {
             state.next = 0;
-            state.replay_cached_after_recipe |= replay_debug;
+            state.replay_cached_after_recipe |= replay_debug && !self.remaking;
         }
         let mut resume_visit = if replay_debug {
             PrerequisiteVisit::DebugReplay
@@ -8605,7 +8635,7 @@ impl Engine {
                         {
                             self.debug_cached_prerequisite_visit(
                                 dependency,
-                                state.depth + 1,
+                                debug_depth + 1,
                                 outcome,
                             );
                         }
@@ -8760,6 +8790,15 @@ impl Engine {
                     self.visit_prerequisite(target, &mut state, index, resume_visit);
                 merge_child(&mut state.outcome, child);
                 waiting |= pending;
+                if self.remaking
+                    && resume_visit == PrerequisiteVisit::DebugReplay
+                    && child.failed
+                    && self.remake_stopped()
+                {
+                    // A stopped optional parent reports through its first
+                    // failed child while later frames still settle internally.
+                    resume_visit = PrerequisiteVisit::Resume;
+                }
             }
         }
         if !waiting {
@@ -8790,10 +8829,7 @@ impl Engine {
                 state.waited_for_prerequisites = true;
                 crate::debug::emit(
                     &self.output,
-                    crate::debug::Event::PrerequisitesRunning(
-                        target,
-                        state.depth + usize::from(self.remaking),
-                    ),
+                    crate::debug::Event::PrerequisitesRunning(target, debug_depth),
                 );
             }
             self.visiting.remove(target);
@@ -8844,7 +8880,11 @@ impl Engine {
             let outcome = if owns_frame {
                 self.build(dependency, Some(parent), state.depth + 1)
             } else {
-                self.done.get(resolved).copied().unwrap_or_default()
+                let outcome = self.done.get(resolved).copied().unwrap_or_default();
+                if self.remaking && outcome.failed && visit == PrerequisiteVisit::DebugReplay {
+                    self.debug_cached_prerequisite_visit(dependency, state.depth + 2, outcome);
+                }
+                outcome
             };
             return (outcome, false);
         }
@@ -8946,7 +8986,11 @@ impl Engine {
                 if let Some(outcome) = outcome
                     && visit == PrerequisiteVisit::DebugReplay
                 {
-                    self.debug_cached_prerequisite_visit(dependency, state.depth + 1, outcome);
+                    self.debug_cached_prerequisite_visit(
+                        dependency,
+                        state.depth + usize::from(self.remaking) + 1,
+                        outcome,
+                    );
                 }
                 outcome.unwrap_or_default()
             };
