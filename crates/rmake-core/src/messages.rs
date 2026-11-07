@@ -47,6 +47,8 @@ pub enum MessageId {
     NothingToBeDone,
     UpToDate,
     LowResolutionTime,
+    FutureFileTime,
+    ClockSkew,
     CircularDependency,
     MissingTargetPattern,
     MultipleTargetPatterns,
@@ -69,7 +71,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 59] = [
+    pub const ALL: [Self; 61] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -110,6 +112,8 @@ impl MessageId {
         Self::NothingToBeDone,
         Self::UpToDate,
         Self::LowResolutionTime,
+        Self::FutureFileTime,
+        Self::ClockSkew,
         Self::CircularDependency,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
@@ -229,6 +233,11 @@ impl MessageId {
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
             Self::UpToDate => Message::UpToDate(b"target"),
             Self::LowResolutionTime => Message::LowResolutionTime(b"target"),
+            Self::FutureFileTime => Message::FutureFileTime {
+                name: b"target",
+                seconds: b"1.5",
+            },
+            Self::ClockSkew => Message::ClockSkew,
             Self::CircularDependency => Message::CircularDependency {
                 target: b"target",
                 prerequisite: b"input",
@@ -315,6 +324,8 @@ impl MessageId {
             Self::LowResolutionTime => {
                 c"*** Warning: .LOW_RESOLUTION_TIME file '%s' has a high resolution time stamp"
             }
+            Self::FutureFileTime => c"Warning: File '%s' has modification time %s s in the future",
+            Self::ClockSkew => c"warning:  Clock skew detected.  Your build may be incomplete.",
             Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
@@ -455,6 +466,11 @@ pub enum Message<'a> {
     NothingToBeDone(&'a [u8]),
     UpToDate(&'a [u8]),
     LowResolutionTime(&'a [u8]),
+    FutureFileTime {
+        name: &'a [u8],
+        seconds: &'a [u8],
+    },
+    ClockSkew,
     CircularDependency {
         target: &'a [u8],
         prerequisite: &'a [u8],
@@ -563,6 +579,8 @@ impl<'a> Message<'a> {
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
             Self::UpToDate(_) => MessageId::UpToDate,
             Self::LowResolutionTime(_) => MessageId::LowResolutionTime,
+            Self::FutureFileTime { .. } => MessageId::FutureFileTime,
+            Self::ClockSkew => MessageId::ClockSkew,
             Self::CircularDependency { .. } => MessageId::CircularDependency,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
@@ -603,6 +621,7 @@ impl<'a> Message<'a> {
             | Self::EmptyVariableName
             | Self::MissingEndef
             | Self::UnterminatedReference
+            | Self::ClockSkew
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
             | Self::TargetPatternWithoutPercent
@@ -638,6 +657,10 @@ impl<'a> Message<'a> {
             Self::NativeArgumentCount { count, name, .. } => {
                 push(Argument::Unsigned(u64::from(count)));
                 push(Argument::Bytes(name));
+            }
+            Self::FutureFileTime { name, seconds } => {
+                push(Argument::Bytes(name));
+                push(Argument::Bytes(seconds));
             }
             Self::CircularDependency {
                 target,

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
-//! Formatting for observations already owned by the host. No filesystem I/O.
-use std::ffi::{c_char, c_int, c_long};
+//! Linux wall-clock observations and timestamp formatting.
+use std::ffi::{c_char, c_int, c_long, c_ulong};
 use std::io;
 use std::mem::MaybeUninit;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[repr(C)]
 struct Calendar {
@@ -23,6 +23,8 @@ struct Calendar {
 }
 
 unsafe extern "C" {
+    fn rmake_realtime(seconds: *mut i64, nanos: *mut u32) -> u32;
+    fn snprintf(buffer: *mut c_char, length: usize, format: *const c_char, ...) -> c_int;
     fn time(destination: *mut c_long) -> c_long;
     fn localtime_r(seconds: *const c_long, calendar: *mut Calendar) -> *mut Calendar;
     fn ctime_r(seconds: *const c_long, buffer: *mut c_char) -> *mut c_char;
@@ -50,6 +52,50 @@ fn timestamp(time: SystemTime) -> io::Result<(c_long, u32)> {
     c_long::try_from(seconds)
         .map(|seconds| (seconds, nanos))
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "timestamp outside libc range"))
+}
+
+/// Read the wall clock together with the precision of the working Linux source.
+pub fn realtime() -> Option<(SystemTime, Duration)> {
+    let mut seconds = 0;
+    let mut nanos = 0;
+    // SAFETY: the C adapter only writes through the two live scalar pointers.
+    let resolution = unsafe { rmake_realtime(&mut seconds, &mut nanos) };
+    if resolution == 0 || nanos >= 1_000_000_000 {
+        return None;
+    }
+    let whole = Duration::from_secs(seconds.unsigned_abs());
+    let time = if seconds < 0 {
+        UNIX_EPOCH.checked_sub(whole)
+    } else {
+        UNIX_EPOCH.checked_add(whole)
+    }?
+    .checked_add(Duration::from_nanos(u64::from(nanos)))?;
+    Some((time, Duration::from_nanos(u64::from(resolution))))
+}
+
+/// Format a future offset with the Linux reference's precision and numeric locale.
+pub fn future_offset(file: SystemTime, now: SystemTime) -> Option<Vec<u8>> {
+    let (file_seconds, file_nanos) = timestamp(file).ok()?;
+    let (now_seconds, now_nanos) = timestamp(now).ok()?;
+    let seconds = i128::from(file_seconds) - i128::from(now_seconds);
+    let nanos = i64::from(file_nanos) - i64::from(now_nanos);
+    let distance = seconds as f64 + nanos as f64 / 1e9;
+    if distance >= 100.0 && distance < c_ulong::MAX as f64 {
+        return Some((distance as c_ulong).to_string().into_bytes());
+    }
+    let mut buffer = [0_u8; 100];
+    // SAFETY: one floating argument matches the fixed format and the buffer is
+    // writable for its full declared length.
+    let length = unsafe {
+        snprintf(
+            buffer.as_mut_ptr().cast(),
+            buffer.len(),
+            c"%.2g".as_ptr(),
+            distance,
+        )
+    };
+    let length = usize::try_from(length).ok()?;
+    (length < buffer.len()).then(|| buffer[..length].to_vec())
 }
 
 /// Observe the libc wall-clock second used by the Linux reference.

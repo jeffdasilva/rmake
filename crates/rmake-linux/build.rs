@@ -7,6 +7,7 @@ fn main() {
     println!("cargo:rerun-if-changed=restart.c");
     println!("cargo:rerun-if-changed=spawn.c");
     println!("cargo:rerun-if-changed=source_error.c");
+    println!("cargo:rerun-if-changed=clock.c");
     let mut native = cc::Build::new();
     if std::env::var_os("CARGO_FEATURE_GUILE").is_some() {
         native.define("RMAKE_GUILE_DISPATCH", None);
@@ -17,6 +18,7 @@ fn main() {
         .file("restart.c")
         .file("spawn.c")
         .file("source_error.c")
+        .file("clock.c")
         .flag_if_supported("-std=c11")
         .warnings(true)
         .warnings_into_errors(true)
