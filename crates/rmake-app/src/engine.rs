@@ -1132,6 +1132,8 @@ pub struct Engine {
     initial_flags: Vec<u8>,
     initial_gnu_flags: Vec<u8>,
     intermediate_policy: crate::intermediates::Policy,
+    #[allow(clippy::box_collection)]
+    phony_names: Option<Box<HashSet<Vec<u8>>>>,
     intermediates: HashSet<Vec<u8>>,
     cleanup_candidates: Vec<Vec<u8>>,
     jobserver: Option<Jobserver>,
@@ -1701,6 +1703,7 @@ impl Engine {
             initial_flags,
             initial_gnu_flags: Vec::new(),
             intermediate_policy: crate::intermediates::Policy::default(),
+            phony_names: None,
             intermediates: HashSet::new(),
             cleanup_candidates: Vec::new(),
             jobserver: None,
@@ -3095,6 +3098,7 @@ impl Engine {
             if self.interrupt.is_some() {
                 return 2;
             }
+            self.capture_phony_names();
             crate::debug::emit(&self.output, crate::debug::Event::UpdatingMakefiles);
             // The published stdin input survives restarts without a remake goal.
             let stdin_name = self.options.temp_stdin_file.map(|index| {
@@ -4192,7 +4196,42 @@ impl Engine {
         }
     }
 
+    // Reader headers are frozen and hidden extras have been snapped. The
+    // live rule remains authoritative after a runtime update or alias.
+    fn capture_phony_names(&mut self) {
+        const MIN_NAMES: usize = 64;
+        self.phony_names = None;
+        let Some(rule) = self
+            .database
+            .rules
+            .get(b".PHONY".as_slice())
+            .filter(|rule| rule.dependencies.len() >= MIN_NAMES)
+        else {
+            return;
+        };
+        let names = rule.dependencies.iter().filter(|dep| !dep.hidden);
+        let count = names.clone().count();
+        if count >= MIN_NAMES {
+            let mut indexed = HashSet::with_capacity(count);
+            indexed.extend(names.map(|dep| dep.name.clone()));
+            self.phony_names = Some(Box::new(indexed));
+        }
+    }
+
+    fn invalidate_phony_names(&mut self, target: &[u8]) {
+        if target == b".PHONY" {
+            self.phony_names = None;
+        }
+    }
+
     fn special(&self, special: &[u8], target: &[u8], empty_means_all: bool) -> bool {
+        if let Some(names) = &self.phony_names
+            && special == b".PHONY"
+            && !empty_means_all
+            && self.aliases.is_empty()
+        {
+            return names.contains(target);
+        }
         if let Some(names) = self.intermediate_policy.named(special) {
             return (empty_means_all
                 && special == b".SECONDARY"
@@ -5584,6 +5623,8 @@ impl Engine {
         let merged = self.database.explicit_names.contains(to)
             || self.database.target_scopes.contains_key(to)
             || self.options.goals.iter().any(|goal| goal == to);
+        self.invalidate_phony_names(from);
+        self.invalidate_phony_names(to);
         let source = self.database.rules.remove(from);
         if let Some(mut source) = source {
             if let Some(destination) = self.database.rules.get_mut(to) {
@@ -6531,6 +6572,7 @@ impl Engine {
             && let Some(mut rule) = self.default_update_rule(target, debug_depth, graph_visit)
         {
             rule.dependencies = existing.map_or_else(Vec::new, |rule| rule.dependencies);
+            self.invalidate_phony_names(target);
             self.database.rules.insert(target.to_vec(), rule);
         }
         true
@@ -6684,6 +6726,7 @@ impl Engine {
             if detached {
                 detached_rule = Some(rule);
             } else {
+                self.invalidate_phony_names(&name);
                 self.database.rules.insert(name, rule);
             }
         }
@@ -7912,6 +7955,7 @@ impl Engine {
         visit: BuildVisit,
         goal_started_command: Option<&mut bool>,
     ) -> Outcome {
+        self.invalidate_phony_names(target);
         let known_alias = self.aliases.contains(target);
         // Goal search preparation can observe a timestamp before the graph
         // visit. Its warning belongs after that goal's consideration line.
@@ -8621,6 +8665,7 @@ impl Engine {
         ordinal: usize,
         name: &[u8],
     ) {
+        self.invalidate_phony_names(owner);
         if let Some(root) = self.database.rules.get_mut(owner) {
             let rule = if let Some(id) = branch {
                 root.double_colon.as_mut().and_then(|branches| {
@@ -8643,6 +8688,7 @@ impl Engine {
     /// double-colon branches for their own expansion and command contexts.
     fn store_inspected_rule(&mut self, target: &[u8], double_colon: bool, rule: Rule) {
         if double_colon {
+            self.invalidate_phony_names(target);
             if let Some(first) = self
                 .database
                 .rules
@@ -8658,6 +8704,7 @@ impl Engine {
     }
 
     fn store_expanded_rule(&mut self, target: &[u8], rule: Rule) {
+        self.invalidate_phony_names(target);
         if let Some(id) = rule.grouped_double_id() {
             let ordinal = rule.grouped_double_ordinal();
             if let Some(branch) = self
@@ -11989,6 +12036,107 @@ mod tests {
             assert_eq!(variables.expand(&directory).unwrap(), b". dir dir .");
             assert_eq!(variables.expand(&file).unwrap(), b"bare one two bare");
         }
+    }
+
+    fn engine_with_large_phony_rule() -> Engine {
+        let launch = Engine::invocation(
+            ["-rR"].into_iter().map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let dependencies = (0..64)
+            .map(|index| Dependency {
+                name: format!("goal-{index:04}").into_bytes(),
+                order_only: false,
+                hidden: false,
+            })
+            .collect();
+        engine.database.rules.insert(
+            b".PHONY".to_vec(),
+            Rule {
+                dependencies,
+                ..Rule::default()
+            },
+        );
+        engine.database.freeze_rules();
+        engine
+    }
+
+    #[test]
+    fn large_phony_index_ignores_hidden_names_and_uses_live_aliases() {
+        let mut engine = engine_with_large_phony_rule();
+        let rule = engine.database.rules.get_mut(b".PHONY".as_slice()).unwrap();
+        let last = rule.dependencies.pop().unwrap();
+        rule.dependencies.push(Dependency {
+            name: b"hidden".to_vec(),
+            order_only: false,
+            hidden: true,
+        });
+        engine.capture_phony_names();
+        assert!(engine.phony_names.is_none());
+
+        engine
+            .database
+            .rules
+            .get_mut(b".PHONY".as_slice())
+            .unwrap()
+            .dependencies
+            .push(last);
+        engine.capture_phony_names();
+        assert_eq!(engine.phony_names.as_ref().unwrap().len(), 64);
+        assert!(engine.special(b".PHONY", b"goal-0000", false));
+        assert!(engine.special(b".PHONY", b"goal-0063", false));
+        assert!(!engine.special(b".PHONY", b"hidden", false));
+        assert!(!engine.special(b".PHONY", b"ordinary", false));
+
+        engine.aliases.insert(b"goal-0000", b"renamed", false);
+        assert!(!engine.special(b".PHONY", b"goal-0000", false));
+        assert!(engine.special(b".PHONY", b"renamed", false));
+    }
+
+    #[test]
+    fn large_phony_index_yields_to_runtime_rule_changes_and_literal_visits() {
+        let mut engine = engine_with_large_phony_rule();
+        engine.capture_phony_names();
+        let rule = Rule {
+            dependencies: vec![Dependency {
+                name: b"inferred".to_vec(),
+                order_only: true,
+                hidden: false,
+            }],
+            ..Rule::default()
+        };
+        engine.install_implicit_plan(
+            b".PHONY",
+            vec![ImplicitSelection {
+                name: b".PHONY".to_vec(),
+                rule,
+                explicit_names: Vec::new(),
+                intermediate_names: Vec::new(),
+                prepared_scope: None,
+            }],
+            false,
+        );
+        assert!(engine.phony_names.is_none());
+        assert!(engine.special(b".PHONY", b"inferred", false));
+        assert!(engine.special(b".PHONY", b"goal-0000", false));
+
+        engine.capture_phony_names();
+        assert!(engine.phony_names.is_some());
+        engine.drop_group_dependency(b".PHONY", None, 0, b"goal-0000");
+        assert!(engine.phony_names.is_none());
+        assert!(!engine.special(b".PHONY", b"goal-0000", false));
+
+        engine.capture_phony_names();
+        assert!(engine.phony_names.is_some());
+        engine.done.insert(b".PHONY".to_vec(), Outcome::default());
+        assert!(!engine.build(b".PHONY", None, 0).failed);
+        assert!(engine.phony_names.is_none());
     }
 
     #[test]
