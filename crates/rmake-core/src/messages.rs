@@ -10,6 +10,7 @@ pub enum MessageId {
     Stop,
     MissingSeparator,
     MissingSeparatorTabs,
+    MissingSeparatorConditional,
     UnterminatedFunction,
     IntcmpFirst,
     IntcmpSecond,
@@ -71,10 +72,11 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 61] = [
+    pub const ALL: [Self; 62] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
+        Self::MissingSeparatorConditional,
         Self::UnterminatedFunction,
         Self::IntcmpFirst,
         Self::IntcmpSecond,
@@ -140,6 +142,7 @@ impl MessageId {
             Self::MissingSeparator | Self::MissingSeparatorTabs => Message::MissingSeparator {
                 tabs: self == Self::MissingSeparatorTabs,
             },
+            Self::MissingSeparatorConditional => Message::MissingSeparatorConditional,
             Self::UnterminatedFunction => Message::UnterminatedFunction {
                 name: b"function",
                 close: b')',
@@ -281,6 +284,9 @@ impl MessageId {
             Self::MissingSeparatorTabs => {
                 c"missing separator (did you mean TAB instead of 8 spaces?)"
             }
+            Self::MissingSeparatorConditional => {
+                c"missing separator (ifeq/ifneq must be followed by whitespace)"
+            }
             Self::UnterminatedFunction => c"unterminated call to function '%s': missing '%c'",
             Self::IntcmpFirst => c"non-numeric first argument to 'intcmp' function: '%s'",
             Self::IntcmpSecond => c"non-numeric second argument to 'intcmp' function: '%s'",
@@ -406,6 +412,7 @@ pub enum Message<'a> {
     MissingSeparator {
         tabs: bool,
     },
+    MissingSeparatorConditional,
     UnterminatedFunction {
         name: &'a [u8],
         close: u8,
@@ -507,6 +514,7 @@ impl<'a> Message<'a> {
             Self::Stop => MessageId::Stop,
             Self::MissingSeparator { tabs: false } => MessageId::MissingSeparator,
             Self::MissingSeparator { tabs: true } => MessageId::MissingSeparatorTabs,
+            Self::MissingSeparatorConditional => MessageId::MissingSeparatorConditional,
             Self::UnterminatedFunction { .. } => MessageId::UnterminatedFunction,
             Self::InvalidIntcmp {
                 second: false,
@@ -612,6 +620,7 @@ impl<'a> Message<'a> {
         match self {
             Self::Stop
             | Self::MissingSeparator { .. }
+            | Self::MissingSeparatorConditional
             | Self::Ignored
             | Self::NoTargets { .. }
             | Self::MultipleDefaultGoals

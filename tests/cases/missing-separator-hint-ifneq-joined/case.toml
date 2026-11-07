@@ -1,0 +1,10 @@
+id = "missing-separator-hint-ifneq-joined"
+requirement = "diagnostics.missing-separator-hints"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for parser separator hints."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:1: *** missing separator (ifeq/ifneq must be followed by whitespace).  Stop.\n"

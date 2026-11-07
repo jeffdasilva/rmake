@@ -1,0 +1,4 @@
+.RECIPEPREFIX := >
+.RECIPEPREFIX :=
+all:
+        stray

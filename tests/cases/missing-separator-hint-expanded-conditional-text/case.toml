@@ -1,0 +1,10 @@
+id = "missing-separator-hint-expanded-conditional-text"
+requirement = "diagnostics.missing-separator-hints"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for parser separator hints."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "Makefile:2: *** missing separator.  Stop.\n"

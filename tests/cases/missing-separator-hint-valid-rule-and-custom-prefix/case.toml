@@ -1,0 +1,10 @@
+id = "missing-separator-hint-valid-rule-and-custom-prefix"
+requirement = "diagnostics.missing-separator-hints"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for parser separator hints."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "valid\n"
+stderr = ""
