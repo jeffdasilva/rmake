@@ -44,9 +44,8 @@ fails all twenty-six parallel profiles. The observer releases a single held
 child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
-Load limits, remake debug output, and the `-n`, `-q`,
-and `-t` modes still use the serial remake path. Each needs separate
-qualification before enabling parallel remakes for that input.
+Load limits, the `-n`, `-q`, and `-t` modes, and remake debug combinations
+beyond those covered below still use the serial remake path.
 
 ## Duplicate reads
 
@@ -62,10 +61,26 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The default runs all
-78 profiles. Leading `./` spellings share one target record and still appear
+105 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
 The prototype at `0dc03fcaf` serialized the workers in all 20 initial
 duplicate-read cases and matched the final ordinary observations in ten.
 The overlap checks detected all twenty.
+
+## Remake debug traces
+
+The 27 debug profiles check the entire debug trace and the exact trace prefix
+visible at each worker release. They cover basic remake debugging with both
+jobserver transports and combined remake and verbose debugging with the pipe
+transport. Verbose FIFO output contains a live controller PID and is outside
+this exact fixture set.
+
+~~~sh
+python3 tools/remake_parallel.py --remake-debug --self-test
+python3 tools/remake_parallel.py --remake-debug --candidate target/debug/rmake
+~~~
+
+The standard developer gates include these profiles. The selector runs
+only the debug profiles.
