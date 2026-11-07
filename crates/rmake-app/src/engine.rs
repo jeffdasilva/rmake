@@ -6852,7 +6852,7 @@ impl Engine {
                 let mut plan = Vec::new();
                 let mut explicit_names = Vec::new();
                 let mut intermediate_names = Vec::new();
-                let mut dependencies = Vec::new();
+                let mut dependencies: Vec<Dependency> = Vec::new();
                 let mut valid = true;
                 let mut order_only = false;
                 let mut stem_set = false;
@@ -6864,6 +6864,12 @@ impl Engine {
                         candidate.rule.secondary.as_ref().is_some_and(|clauses| {
                             clauses.iter().any(|clause| clause.index == index)
                         });
+                    if dependencies
+                        .last()
+                        .is_some_and(|dependency| dependency.order_only != occurrence.order_only)
+                    {
+                        Self::trim_implicit_waits(&mut dependencies);
+                    }
                     let mut words = rmake_core::implicit::Words::new(&occurrence.name);
                     let mut immediate = Some(occurrence.name.as_slice());
                     while let Some(part) = if deferred {
@@ -7175,6 +7181,8 @@ impl Engine {
                         );
                     }
                     let mut selected = candidate.rule.clone();
+                    // A pattern barrier cannot cross into the target's explicit prerequisites.
+                    Self::trim_implicit_waits(&mut dependencies);
                     selected.dependencies = dependencies;
                     selected.secondary = None;
                     plan.push(ImplicitSelection {
@@ -7368,11 +7376,23 @@ impl Engine {
             for name in rmake_core::filenames::sequence(text) {
                 result.extend(self.implicit_filename(&name, role, directory)?);
             }
+            // Each secondary-expanded word and its order-only partition
+            // are parsed separately. A marker cannot escape either.
+            Self::trim_implicit_waits(&mut result);
         }
         if order.is_some() {
             *order_only = true;
         }
         Ok(result)
+    }
+
+    fn trim_implicit_waits(dependencies: &mut Vec<Dependency>) {
+        while dependencies
+            .last()
+            .is_some_and(|dependency| dependency.name == b".WAIT")
+        {
+            dependencies.pop();
+        }
     }
 
     fn expand_dependencies(

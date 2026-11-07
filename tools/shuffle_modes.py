@@ -12,7 +12,9 @@ import re
 import tempfile
 
 import conformance as h
+import debug_output as debug
 import oracle
+from remake_parallel import HeldModel, execute, release_errors
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (b'$(file >seen,anchor)\n'
@@ -56,6 +58,46 @@ def validate(observation, zero):
     return seed
 
 
+
+def pattern_wait_cases(reference, candidate, root):
+    worker = (ROOT / 'tests/remake-parallel/worker.py').read_bytes()
+    anchor = b'anchor\n'
+    models = (
+        ('trailing', 'd01', 'p1 .WAIT', '', b'd01\n', b'd01\nleft\n'),
+        ('between', 'd01', 'p1 .WAIT p2', '', b'', b'left\np2\nd01\n'),
+        ('explicit', 'p1 .WAIT p2 d01', '', '', b'', b'left\np2\nd01\n'),
+        ('order-only-transition', 'd01', 'p1 .WAIT | p2', '', b'p2\nd01\n', b'p2\nd01\nleft\n'),
+        ('split-secondary', 'd01', 'p1 $$(LATE) p2', '.WAIT', b'p2\nd01\n', b'p2\nd01\nleft\n'),
+        ('whole-secondary', 'd01', '$$(LATE)', 'p1 .WAIT p2', b'', b'left\np2\nd01\n'),
+    )
+    records = []
+    runtime = root / 'observation'
+    for (name, explicit, pattern, late, held_effects, effects), transport in itertools.product(
+            models, ('pipe', 'fifo')):
+        ident = 'pattern-wait-' + name + '-' + transport
+        prefix = f'.SECONDEXPANSION:\nLATE = {late}\n' if late else ''
+        makefile = (prefix + f'all.out: {explicit}\n%.out: {pattern} ; @$(file >>seen,goal):\n'
+                    'p1: ; @python3 worker.py left observe\np2 d01: ; @$(file >>seen,$@):\n')
+        model = debug.Model(
+            ident, {'Makefile': makefile.encode(), 'worker.py': worker, 'seen': anchor},
+            ('-rR', '--no-print-directory', '--shuffle=none', '-j2',
+             f'--jobserver-style={transport}', 'all.out'), {},
+            {'exit_code': 0, 'stdout_template_hex': '', 'stderr_template_hex': ''},
+            anchor + effects + b'goal\n',
+            updates={'left.started': b'started\n', 'left.release': b'yes\n', 'left.done': b'done\n'},
+        )
+        held = HeldModel(model, overlap=False, before_second=None, before_first=anchor + held_effects)
+        case, filesystem = debug.prepare(model, root / ident, runtime)
+        observations, releases = zip(*(execute(case, runtime, binary) for binary in (
+            reference, reference, candidate)))
+        result = debug.assess(model, case, runtime, filesystem, list(observations))
+        errors = [release_errors(held, release) for release in releases]
+        result.update(id=ident, releases=releases, release_errors=errors,
+                      passed=result['passed'] and not any(errors))
+        records.append(result)
+    return records
+
+
 def run(reference, candidate, report):
     records = []
     with tempfile.TemporaryDirectory(prefix='rmake-shuffle-random-') as directory:
@@ -93,12 +135,16 @@ def run(reference, candidate, report):
                         entry['replay'] = h.observation_json(replayed)
                     observations.append(entry)
                 records.append(dict(id=case.id, engine=engine, observations=observations))
+        barriers = pattern_wait_cases(reference, candidate, root)
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(dict(
         classification='Narrow semantic random/zero-seed checks; zero exact-conformance or safety-exception credit.',
         identities={str(binary): h.sha256_file(binary) for binary in (reference, candidate)},
-        source_hex=SOURCE.hex(), records=records), indent=2) + '\n')
+        source_hex=SOURCE.hex(), records=records, pattern_wait=barriers), indent=2) + '\n')
     print(f'shuffle modes: {len(records)} engine cells, repeated bounded observations and nonzero-seed replay pass')
+    passed = sum(result['passed'] for result in barriers)
+    print(f'implicit pattern barriers: {passed}/{len(barriers)} held profiles passed')
+    return int(passed != len(barriers))
 
 
 def main():
@@ -108,8 +154,8 @@ def main():
     parser.add_argument('--report', type=Path, default=ROOT / 'artifacts/shuffle-modes/report.json')
     args = parser.parse_args()
     oracle.verify(args.oracle.resolve())
-    run(args.oracle.resolve(), args.candidate.resolve(), args.report)
+    return run(args.oracle.resolve(), args.candidate.resolve(), args.report)
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
