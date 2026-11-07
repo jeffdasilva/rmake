@@ -5,7 +5,9 @@ the make process waiting. Each release records the live children, their parent
 PID and start times, and the file effects already visible. Both named workers
 must be held at the first release in a parallel profile. The second release
 must observe the same right worker. The serial controls require one live
-worker at each release. The immediate launch profiles hold one worker while
+worker at each release. On Linux x86-64, the observer also recognizes a
+blocking poll syscall when a kernel exposes a different wait-channel symbol.
+The immediate launch profiles hold one worker while
 another recipe fails to start.
 
 The success profiles compare independent required and optional include
