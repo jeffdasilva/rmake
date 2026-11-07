@@ -3727,16 +3727,12 @@ impl Engine {
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self.goal_recipe_waiting(&goal.name);
                     }
-                } else if goal.awaiting_recipe || goal.awaiting_group_peer {
+                } else if goal.awaiting_recipe {
                     if !self.pending(&goal.name) {
-                        if goal.awaiting_recipe {
-                            first_goal = false;
-                        }
-                        self.debug_completed_goal_visit(&goal.name, goal.awaiting_group_peer);
+                        first_goal = false;
+                        self.debug_completed_goal_visit(&goal.name, false);
                         goal.awaiting_recipe = false;
-                        goal.awaiting_group_peer = false;
-                    } else if goal.awaiting_recipe
-                        && self.debug_pass != last_goal_pass
+                    } else if self.debug_pass != last_goal_pass
                         && self.graph_abort.is_none()
                         && self.shutdown.get() == Shutdown::Running
                     {
@@ -3759,7 +3755,7 @@ impl Engine {
         self.advance_debug_pass();
         for goal in requested {
             // Reaping the last job can end the pending-work loop before the
-            // next scan. This is the final visit to those completed goals.
+            // next scan. Keep each grouped peer visit beside its own summary.
             if goal.awaiting_recipe || goal.awaiting_group_peer {
                 self.debug_completed_goal_visit(&goal.name, goal.awaiting_group_peer);
             }
