@@ -34,3 +34,21 @@ while parallel makefile remakes are incomplete. The merged debug baseline
 `d1171e8f1` passes the four serial controls and fails all twenty-six parallel
 profiles. The observer releases a single genuinely held child when the engine
 waits serially so those mismatches can be diagnosed without timing out.
+
+## Duplicate reads
+
+The standalone duplicate-read suite requires independent recipe overlap even
+when two include directives name the same file. It tests which read occurrence
+selects the source error, whether an optional failure becomes visible at a
+later required visit, and whether a successful remake leaves both read
+occurrences visible after restart. Both jobserver transports are covered.
+
+~~~sh
+python3 tools/remake_parallel.py --duplicate-reads --self-test
+python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmake
+~~~
+
+The selector runs the 20 duplicate-read profiles separately. The default
+continues to run the 30 ordinary profiles. The prototype at 0dc03fcaf
+serialized the workers in all duplicate-read cases and matched the final
+ordinary observations in ten. The overlap checks detected all twenty.
