@@ -70,3 +70,11 @@ errors still fail, as the injected permission-error control checks. All ten
 child profiles use the same observer, and their expected output, status,
 ordering, and file effects stay unchanged. Both 64-case runs and 24 repeats
 of the affected case passed after the correction.
+
+The four goal-own-wait models hold a prerequisite worker and then the goal's
+own worker. A recipe expansion writes a file after either a `.WAIT` barrier or
+a target-specific `.NOTPARALLEL` barrier. GNU reports that the goal is still
+updating before its recipe finishes. The info-only control leaves the debug
+pass unchanged, and the nested-goal control retains the prerequisite trace.
+Each model compares complete streams, status, the ordered file effects, and
+child cleanup.
