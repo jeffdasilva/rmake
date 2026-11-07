@@ -598,3 +598,522 @@ seen = "anchor\nleft\n"
 [models.outputs]
 "a" = "updated\n"
 "b" = "updated\n"
+
+[[models]]
+id = "explicit-replay-once"
+makefile = '''
+all: a b tail
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ Still updating file 'a'.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [15, 24]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "explicit-replay-repeat"
+makefile = '''
+all: a b b tail
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ Still updating file 'a'.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [16, 26]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "explicit-replay-other-parent"
+makefile = '''
+all: first second tail
+first: a b
+second: b
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'first'.
+  File 'first' does not exist.
+  Considering target file 'a'.
+   File 'a' does not exist.
+  Finished prerequisites of target file 'a'.
+  Must remake target 'a'.
+  Recipe of 'a' is being run.
+  Considering target file 'b'.
+  Still updating file 'b'.
+ The prerequisites of 'first' are being made.
+ Considering target file 'second'.
+  File 'second' does not exist.
+  Pruning file 'b'.
+ The prerequisites of 'second' are being made.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'first'.
+  File 'first' does not exist.
+  Considering target file 'a'.
+  Still updating file 'a'.
+  Considering target file 'b'.
+  Still updating file 'b'.
+ The prerequisites of 'first' are being made.
+ Considering target file 'second'.
+  File 'second' does not exist.
+  Pruning file 'b'.
+ The prerequisites of 'second' are being made.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'first'.
+  File 'first' does not exist.
+  Considering target file 'a'.
+  File 'a' was considered already.
+  Considering target file 'b'.
+  File 'b' was considered already.
+ Finished prerequisites of target file 'first'.
+ Must remake target 'first'.
+ Successfully remade target file 'first'.
+ Considering target file 'second'.
+  File 'second' does not exist.
+  Pruning file 'b'.
+ Finished prerequisites of target file 'second'.
+ Must remake target 'second'.
+ Successfully remade target file 'second'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [22, 38]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "implicit-replay-repeat"
+makefile = '''
+all: a.out a.peer a.peer tail
+%.out %.peer: source ; @python3 worker.py left implicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+source = "fixed\n"
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+  File 'a.out' does not exist.
+  Considering target file 'source'.
+  Finished prerequisites of target file 'source'.
+  No need to remake target 'source'.
+ Finished prerequisites of target file 'a.out'.
+ Must remake target 'a.out'.
+ Recipe of 'a.out' is being run.
+ Considering target file 'a.peer'.
+ Still updating file 'a.peer'.
+ Pruning file 'a.peer'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+ Still updating file 'a.out'.
+ Considering target file 'a.peer'.
+ Still updating file 'a.peer'.
+ Pruning file 'a.peer'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a.out'.
+ File 'a.out' was considered already.
+ Considering target file 'a.peer'.
+ File 'a.peer' was considered already.
+ Pruning file 'a.peer'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+stderr = ""
+release_lines = [19, 29]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a.out" = "updated\n"
+"a.peer" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "explicit-replay-tail-fail-keep"
+makefile = '''
+all: a b b tail
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right fail
+'''
+flags = ["-k"]
+exit_code = 2
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ Still updating file 'a'.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+ Recently tried and failed to update file 'tail'.
+The prerequisites of 'all' are being made.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+ Recently tried and failed to update file 'tail'.
+Finished prerequisites of target file 'all'.
+Giving up on target file 'all'.
+'''
+stderr = "make: *** [Makefile:3: tail] Error 3\nmake: Target 'all' not remade because of errors.\n"
+release_lines = [16, 26]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-replay-tail-fail-stop"
+makefile = '''
+all: a b b tail
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right fail
+'''
+flags = []
+exit_code = 2
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Pruning file 'b'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+'''
+stderr = "make: *** [Makefile:3: tail] Error 3\nmake: *** Waiting for unfinished jobs....\n"
+release_lines = [16, 16]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+
+[[models]]
+id = "explicit-replay-direct"
+makefile = '''
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+goals = ["a", "b", "b", "tail"]
+exit_code = 0
+stdout = '''
+Considering target file 'a'.
+ File 'a' does not exist.
+Finished prerequisites of target file 'a'.
+Must remake target 'a'.
+Recipe of 'a' is being run.
+Considering target file 'b'.
+Still updating file 'b'.
+Pruning file 'b'.
+Considering target file 'tail'.
+ File 'tail' does not exist.
+Finished prerequisites of target file 'tail'.
+Must remake target 'tail'.
+Recipe of 'tail' is being run.
+Considering target file 'a'.
+Still updating file 'a'.
+Considering target file 'b'.
+Still updating file 'b'.
+Pruning file 'b'.
+Considering target file 'tail'.
+File 'tail' was considered already.
+Considering target file 'a'.
+File 'a' was considered already.
+Considering target file 'b'.
+File 'b' was considered already.
+make: 'b' is up to date.
+Pruning file 'b'.
+make: 'b' is up to date.
+'''
+stderr = ""
+release_lines = [13, 20]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "implicit-replay-direct"
+makefile = '''
+%.out %.peer: source ; @python3 worker.py left implicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+goals = ["a.out", "a.peer", "a.peer", "tail"]
+source = "fixed\n"
+exit_code = 0
+stdout = '''
+Considering target file 'a.out'.
+ File 'a.out' does not exist.
+ Considering target file 'source'.
+ Finished prerequisites of target file 'source'.
+ No need to remake target 'source'.
+Finished prerequisites of target file 'a.out'.
+Must remake target 'a.out'.
+Recipe of 'a.out' is being run.
+Considering target file 'a.peer'.
+Still updating file 'a.peer'.
+Pruning file 'a.peer'.
+Considering target file 'tail'.
+ File 'tail' does not exist.
+Finished prerequisites of target file 'tail'.
+Must remake target 'tail'.
+Recipe of 'tail' is being run.
+Considering target file 'a.out'.
+Still updating file 'a.out'.
+Considering target file 'a.peer'.
+Still updating file 'a.peer'.
+Pruning file 'a.peer'.
+Considering target file 'tail'.
+File 'tail' was considered already.
+Considering target file 'a.out'.
+File 'a.out' was considered already.
+Considering target file 'a.peer'.
+File 'a.peer' was considered already.
+make: Nothing to be done for 'a.peer'.
+Pruning file 'a.peer'.
+make: Nothing to be done for 'a.peer'.
+'''
+stderr = ""
+release_lines = [16, 23]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a.out" = "updated\n"
+"a.peer" = "updated\n"
+"tail" = "updated\n"
+
+[[models]]
+id = "explicit-replay-mixed"
+makefile = '''
+all: a b tail
+a b &: ; @python3 worker.py left explicit
+tail: ; @python3 worker.py right right
+'''
+flags = []
+goals = ["all", "b", "b"]
+exit_code = 0
+stdout = '''
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+  File 'a' does not exist.
+ Finished prerequisites of target file 'a'.
+ Must remake target 'a'.
+ Recipe of 'a' is being run.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Considering target file 'tail'.
+  File 'tail' does not exist.
+ Finished prerequisites of target file 'tail'.
+ Must remake target 'tail'.
+ Recipe of 'tail' is being run.
+The prerequisites of 'all' are being made.
+Pruning file 'b'.
+Pruning file 'b'.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ Still updating file 'a'.
+ Considering target file 'b'.
+ Still updating file 'b'.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+The prerequisites of 'all' are being made.
+Pruning file 'b'.
+Pruning file 'b'.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'a'.
+ File 'a' was considered already.
+ Considering target file 'b'.
+ File 'b' was considered already.
+ Considering target file 'tail'.
+ File 'tail' was considered already.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+Pruning file 'b'.
+make: 'b' is up to date.
+Pruning file 'b'.
+make: 'b' is up to date.
+'''
+stderr = ""
+release_lines = [17, 28]
+release_order = ["right", "left"]
+seen = "anchor\nright\nleft\n"
+
+[models.outputs]
+"a" = "updated\n"
+"b" = "updated\n"
+"tail" = "updated\n"

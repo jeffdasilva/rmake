@@ -3676,10 +3676,7 @@ impl Engine {
             } else if self.parallel_graph() && pending {
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
-                    && self
-                        .active_peers
-                        .get(self.aliases.resolve(&goal))
-                        .is_some_and(|owner| self.ordinary_group_recipe_pending(owner));
+                    && self.ordinary_group_peer_pending(&goal);
                 requested.push(RequestedGoal {
                     name: goal,
                     already_done,
@@ -3728,18 +3725,19 @@ impl Engine {
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self.goal_recipe_waiting(&goal.name);
                     }
-                } else if goal.awaiting_recipe {
-                    if !self.pending(&goal.name) {
-                        first_goal = false;
-                        self.debug_completed_goal_visit(&goal.name, false);
-                        goal.awaiting_recipe = false;
-                    } else if self.debug_pass != last_goal_pass
-                        && self.graph_abort.is_none()
-                        && self.shutdown.get() == Shutdown::Running
-                    {
-                        // Progress can trigger a new visit while the goal's recipe runs.
-                        self.debug_cached_prerequisite_visit(&goal.name, 0, goal.initial);
-                    }
+                } else if goal.awaiting_recipe && !self.pending(&goal.name) {
+                    first_goal = false;
+                    self.debug_completed_goal_visit(&goal.name, false);
+                    goal.awaiting_recipe = false;
+                } else if self.debug_pass != last_goal_pass
+                    && self.graph_abort.is_none()
+                    && self.shutdown.get() == Shutdown::Running
+                    && (goal.awaiting_recipe
+                        || (goal.awaiting_group_peer
+                            && self.ordinary_group_peer_pending(&goal.name)))
+                {
+                    // Progress can trigger a new visit while the goal or its group runs.
+                    self.debug_cached_prerequisite_visit(&goal.name, 0, goal.initial);
                 }
             }
             last_goal_pass = self.debug_pass;
@@ -4021,6 +4019,12 @@ impl Engine {
                 .pending_double_colon
                 .get(name)
                 .is_none_or(DoubleColonState::single_active_branch)
+    }
+
+    fn ordinary_group_peer_pending(&self, peer: &[u8]) -> bool {
+        self.active_peers
+            .get(self.aliases.resolve(peer))
+            .is_some_and(|owner| self.ordinary_group_recipe_pending(owner))
     }
 
     fn ordinary_group_recipe_pending(&self, owner: &[u8]) -> bool {
@@ -9369,8 +9373,12 @@ impl Engine {
                     self.show_retained_optional_failure(dependency, Some(parent.target), cause);
                     self.record_graph_failure(outcome);
                 }
-                if let Some(outcome) = outcome
-                    && visit == PrerequisiteVisit::DebugReplay
+                if visit == PrerequisiteVisit::DebugReplay
+                    && let Some(outcome) = outcome.or_else(|| {
+                        // A running peer has no cached outcome until its owner finishes.
+                        (!self.remaking && self.ordinary_group_peer_pending(dependency))
+                            .then(Outcome::default)
+                    })
                 {
                     self.debug_cached_prerequisite_visit(
                         dependency,
