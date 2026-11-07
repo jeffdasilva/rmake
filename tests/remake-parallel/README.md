@@ -29,8 +29,13 @@ must match those requirements as well. To share the pinned oracle with a
 sparse source checkout, pass its executable with `--oracle` and its profile
 with `--oracle-profile`.
 
-This gate stays outside `make check`, release checks, self-hosting, and CI
-while parallel makefile remakes are incomplete. The merged debug baseline
-`d1171e8f1` passes the four serial controls and fails all twenty-six parallel
-profiles. The observer releases a single genuinely held child when the engine
-waits serially so those mismatches can be diagnosed without timing out.
+Run `make test-remake-parallel` or `make test-remake-parallel-release`
+to use the developer gates. Set `REMAKE_PARALLEL_CASE` to select one profile.
+The merged debug baseline `d1171e8f1` passes the four serial controls and
+fails all twenty-six parallel profiles. The observer releases a single held
+child when the engine waits serially so those mismatches can be diagnosed
+without timing out.
+
+Duplicate reads, load limits, remake debug output, and the `-n`, `-q`,
+and `-t` modes still use the serial remake path. Each needs separate
+qualification before enabling parallel remakes for that input.
