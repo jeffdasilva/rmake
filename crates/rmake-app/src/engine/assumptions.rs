@@ -164,8 +164,15 @@ impl Engine {
             .assumptions
             .as_ref()
             .map_or(0, |files| files.new_double_colon_entry_count(name));
-        if count > 1 && self.options.question && !self.options.keep_going {
-            // Retain single-tail scheduling for stopping queries.
+        if count > 1
+            && self.options.question
+            && !self.options.keep_going
+            && (self.remaking
+                || self.active_makefile_remake.is_some()
+                || self.options.goals.len() > 1)
+        {
+            // A single ordinary goal can search later entries until its first
+            // query verdict. Keep the cap during remakes and multi-goal queries.
             1
         } else {
             count

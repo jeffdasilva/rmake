@@ -1781,8 +1781,8 @@ title = "Implicit and default recipes for synthetic double-colon entries"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 63
-fixture_count = 63
+candidate_required = 72
+fixture_count = 72
 cases = [
   "assumed-double-recipe-fresh-no-rule",
   "assumed-double-recipe-fresh-default",
@@ -1847,6 +1847,15 @@ cases = [
   "assumed-double-operand-restart-cached-recipe-keep",
   "assumed-double-operand-restart-unvisited-distinct-search",
   "assumed-double-operand-fresh-missing-stop",
+  "assumed-double-query-tail-one-current",
+  "assumed-double-query-tail-explicit",
+  "assumed-double-query-tail-default",
+  "assumed-double-query-tail-nested",
+  "assumed-double-query-tail-three-stop",
+  "assumed-double-query-tail-restart-unvisited",
+  "assumed-double-query-tail-restart-cached",
+  "assumed-double-query-tail-keep-going",
+  "assumed-double-query-tail-live-keep-going",
 ]
 
 [[requirements]]

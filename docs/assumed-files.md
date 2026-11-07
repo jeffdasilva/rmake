@@ -38,8 +38,10 @@ the first ordinary visit after publication. GNU compares each raw `-W`
 operand to the already prepared spellings before resolving it. Thus
 `-W cached -W ./cached` adds two synthetic branches, while the reverse
 order adds one. Each branch performs its own implicit search and uses the
-same initial comparison time. rmake currently schedules at most one
-synthetic branch for a query without `-k`.
+same initial comparison time. A stopping query with one ordinary goal can
+search multiple synthetic branches. The first out-of-date result stops that
+chain. Stopping queries during makefile remakes or with multiple requested
+goals still use at most one synthetic branch.
 GNU can hang when an earlier goal has returned an out-of-date query result
 and a later double-colon chain has additional unvisited inputs.
 
