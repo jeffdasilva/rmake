@@ -1,0 +1,1285 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+# Original GNU Make 4.4.1 differential Makefiles. Offsets are nanoseconds from 1600000000.
+
+[[cases]]
+id = "ordinary"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "first-only"
+makefile = '''
+all: first second
+	@printf "ran\n"
+'''
+inputs = { "first" = 2000000000, "second" = 4000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'first' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "target-up-to-date"
+makefile = '''
+future: prereq
+	@printf "ran\n"
+'''
+inputs = { "future" = 2000000000, "prereq" = -5000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: 'future' is up to date.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "future-main"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = -5000000000 }
+main_time = 2000000000
+exit_code = 0
+output = '''
+make: Warning: File 'Makefile' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "future-main-no-goals"
+makefile = '''
+only := definition
+'''
+main_time = 2000000000
+exit_code = 2
+output = '''
+make: Warning: File 'Makefile' has modification time 1.6 s in the future
+make: *** No targets.  Stop.
+'''
+
+[[cases]]
+id = "phony-main"
+makefile = '''
+.PHONY: Makefile
+all: future
+	@printf "ran\n"
+'''
+args = ["all"]
+main_time = 2000000000
+exit_code = 2
+output = '''
+make: *** No rule to make target 'future', needed by 'all'.  Stop.
+'''
+
+[[cases]]
+id = "no-future"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = -5000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "at-clock"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 400000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "one-nanosecond"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 400000001 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1e-09 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "cross-second-small"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 1000000001 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 0.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "fractional"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 410340001 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 0.01 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "scientific"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 400000034 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 3.4e-08 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "rounds-hundred"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 100388000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1e+02 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "truncates-hundred"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 100988000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 100 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "long-future"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 1000000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 999 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "dry-run"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-n"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+printf "ran\n"
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "question"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-q"]
+inputs = { "future" = 2000000000 }
+exit_code = 1
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "touch"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-t"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+touch all
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "silent"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-s"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "old-assumption"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-o", "future"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "new-assumption"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-W", "future"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "new-double-colon"
+makefile = '''
+all: future
+	@printf "ran\n"
+future:: gate
+	@printf "ran\n"
+'''
+args = ["-W", "future"]
+inputs = { "future" = 2000000000, "gate" = -5000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** No rule to make target 'future'.  Stop.
+'''
+
+[[cases]]
+id = "phony-physical"
+makefile = '''
+.PHONY: future
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "future-missing-rule"
+makefile = '''
+all: future absent
+	@printf "ran\n"
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** No rule to make target 'absent', needed by 'all'.  Stop.
+'''
+
+[[cases]]
+id = "future-failed-child"
+makefile = '''
+all: future
+	@exit 7
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** [Makefile:2: all] Error 7
+'''
+
+[[cases]]
+id = "future-failed-parallel"
+makefile = '''
+all: future
+	@exit 7
+'''
+args = ["-j2"]
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** [Makefile:2: all] Error 7
+'''
+
+[[cases]]
+id = "future-failed-keep-going"
+makefile = '''
+all: future
+	@exit 7
+'''
+args = ["-k"]
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** [Makefile:2: all] Error 7
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "future-fatal-expansion"
+makefile = '''
+all: future
+	@$(error abort)
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+Makefile:2: *** abort.  Stop.
+'''
+
+[[cases]]
+id = "future-fatal-implicit-expansion"
+makefile = '''
+.SECONDEXPANSION:
+all: future
+	@printf "ran\n"
+future: $$(error abort)
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** abort.  Stop.
+'''
+
+[[cases]]
+id = "future-recipe-generated"
+makefile = '''
+all: generated
+	@printf "ran\n"
+generated:
+	@touch -d @1600000002 $@
+'''
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "future-recipe-generated-vpath"
+makefile = '''
+VPATH := search
+all: generated
+	@printf "ran\n"
+generated:
+	@touch -d @1600000002 $@
+'''
+inputs = { "search/anchor" = -5000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "future-existing-generated"
+makefile = '''
+all: future
+	@printf "ran\n"
+future: gate
+	@touch -d @1600000003 $@
+'''
+inputs = { "future" = -5000000000, "gate" = -1000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "future-late-side-effect"
+makefile = '''
+all: build late
+	@printf "ran\n"
+build:
+	@touch -d @1600000002 late
+'''
+exit_code = 0
+output = '''
+make: Warning: File 'late' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "vpath"
+makefile = '''
+VPATH := search
+all: future
+	@printf "ran\n"
+'''
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "vpath-dot"
+makefile = '''
+VPATH := ./search
+all: future
+	@printf "ran\n"
+'''
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "gpath"
+makefile = '''
+VPATH := search
+GPATH := search
+all: future
+	@printf "ran\n"
+'''
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "gpath-dot"
+makefile = '''
+VPATH := ./search
+GPATH := ./search
+all: future
+	@printf "ran\n"
+'''
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "vpath-existing-destination"
+makefile = '''
+VPATH := search
+all: future
+	@printf "ran\n"
+search/future: ;
+'''
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'search/future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "library-local"
+makefile = '''
+.LIBPATTERNS := lib%.so
+all: -lclock
+	@printf "ran\n"
+'''
+inputs = { "libclock.so" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File '-lclock' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "library-vpath"
+makefile = '''
+VPATH := search
+.LIBPATTERNS := lib%.so
+all: -lclock
+	@printf "ran\n"
+'''
+inputs = { "search/libclock.so" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File '-lclock' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "low-resolution"
+makefile = '''
+.LOW_RESOLUTION_TIME: future
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 1412000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1 s in the future
+make: *** Warning: .LOW_RESOLUTION_TIME file 'future' has a high resolution time stamp
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "lazy-intermediate"
+makefile = '''
+.SECONDARY: future
+all: output
+output: future
+	@printf "ran\n"
+'''
+inputs = { "output" = -5000000000, "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-container"
+makefile = '''
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "pack.a" = [3000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'pack.a' has modification time 2.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-member"
+makefile = '''
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "pack.a" = [-5000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'pack.a(unit.o)' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-searched-container"
+makefile = '''
+VPATH := search
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "search/pack.a" = [2000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'pack.a' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-searched-member"
+makefile = '''
+VPATH := search
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "search/pack.a" = [-5000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'pack.a(unit.o)' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-standalone-member"
+makefile = '''
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "pack.a" = [-5000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"], "unit.o" = 3000000000 }
+exit_code = 2
+output = '''
+make: *** No rule to make target 'pack.a(unit.o)', needed by 'all'.  Stop.
+'''
+
+[[cases]]
+id = "future-include"
+makefile = '''
+include fragment.mk
+all: future
+	@printf "ran\n"
+'''
+inputs = { "fragment.mk" = 2000000000, "future" = -5000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'fragment.mk' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "restart-clears-warning"
+makefile = '''
+$(info phase=$(MAKE_RESTARTS))
+include fragment.mk
+all:
+	@printf "ran\n"
+ifeq ($(MAKE_RESTARTS),)
+fragment.mk: future
+	printf "# refreshed\n" >$@
+	@touch -d @1599999999 $@
+endif
+'''
+inputs = { "future" = 2000000000, "fragment.mk" = -5000000000 }
+exit_code = 0
+output = '''
+phase=
+make: Warning: File 'future' has modification time 1.6 s in the future
+printf "# refreshed\n" >fragment.mk
+phase=1
+ran
+'''
+
+[[cases]]
+id = "restart-new-warning"
+makefile = '''
+$(info phase=$(MAKE_RESTARTS))
+include fragment.mk
+all: goal
+	@printf "ran\n"
+ifeq ($(MAKE_RESTARTS),)
+fragment.mk: future
+	printf "# refreshed\n" >$@
+	@touch -d @1599999999 $@
+endif
+'''
+inputs = { "future" = 2000000000, "fragment.mk" = -5000000000, "goal" = 3000000000 }
+exit_code = 0
+output = '''
+phase=
+make: Warning: File 'future' has modification time 1.6 s in the future
+printf "# refreshed\n" >fragment.mk
+phase=1
+make: Warning: File 'goal' has modification time 2.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "future-intermediate-cleanup"
+makefile = '''
+all: future result.final
+%.final: %.temp
+	@cp $< $@
+%.temp:
+	@touch $@
+.INTERMEDIATE: result.temp
+'''
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: warning:  Clock skew detected.  Your build may be incomplete.
+rm result.temp
+'''
+
+[[cases]]
+id = "output-sync"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-j2", "--output-sync=target"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "debug-local-prerequisite"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["--debug=v"]
+inputs = { "future" = 2000000000 }
+exit_code = 0
+output = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Updating makefiles....
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+make: Warning: File 'future' has modification time 1.6 s in the future
+ Considering target file 'future'.
+ Finished prerequisites of target file 'future'.
+ No need to remake target 'future'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+ran
+Successfully remade target file 'all'.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "debug-local-goal"
+makefile = '''
+future: prereq
+	@printf "ran\n"
+'''
+args = ["--debug=v"]
+inputs = { "future" = 2000000000, "prereq" = -5000000000 }
+exit_code = 0
+output = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Updating makefiles....
+Updating goal targets....
+Considering target file 'future'.
+make: Warning: File 'future' has modification time 1.6 s in the future
+ Considering target file 'prereq'.
+ Finished prerequisites of target file 'prereq'.
+ No need to remake target 'prereq'.
+Finished prerequisites of target file 'future'.
+ Prerequisite 'prereq' is older than target 'future'.
+No need to remake target 'future'.
+make: 'future' is up to date.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "debug-vpath-prerequisite"
+makefile = '''
+VPATH := search
+all: future
+'''
+args = ["--debug=v"]
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Updating makefiles....
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+make: Warning: File 'future' has modification time 1.6 s in the future
+ Considering target file 'future'.
+ Finished prerequisites of target file 'future'.
+ No need to remake target 'future'; using VPATH name 'search/future'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "debug-vpath-local-goal"
+makefile = '''
+VPATH := search
+future: prereq
+	@printf "ran\n"
+'''
+args = ["--debug=v"]
+inputs = { "future" = 2000000000, "prereq" = -5000000000 }
+exit_code = 0
+output = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Updating makefiles....
+Updating goal targets....
+Considering target file 'future'.
+make: Warning: File 'future' has modification time 1.6 s in the future
+ Considering target file 'prereq'.
+ Finished prerequisites of target file 'prereq'.
+ No need to remake target 'prereq'.
+Finished prerequisites of target file 'future'.
+ Prerequisite 'prereq' is older than target 'future'.
+No need to remake target 'future'.
+make: 'future' is up to date.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "debug-vpath-remote-goal"
+makefile = '''
+VPATH := search
+future: prereq
+	@printf "ran\n"
+'''
+args = ["--debug=v"]
+inputs = { "search/future" = 2000000000, "prereq" = -5000000000 }
+exit_code = 0
+output = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Updating makefiles....
+Updating goal targets....
+Considering target file 'future'.
+make: Warning: File 'future' has modification time 1.6 s in the future
+ Considering target file 'prereq'.
+ Finished prerequisites of target file 'prereq'.
+ No need to remake target 'prereq'.
+Finished prerequisites of target file 'future'.
+ Prerequisite 'prereq' is older than target 'future'.
+No need to remake target 'future'; using VPATH name 'search/future'.
+make: 'search/future' is up to date.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "debug-archive-goal"
+makefile = '''
+pack.a(unit.o): ;
+'''
+args = ["--debug=v"]
+inputs = { "pack.a" = [3000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Updating makefiles....
+Updating goal targets....
+Considering target file 'pack.a(unit.o)'.
+make: Warning: File 'pack.a' has modification time 2.6 s in the future
+Finished prerequisites of target file 'pack.a(unit.o)'.
+No need to remake target 'pack.a(unit.o)'.
+make: 'pack.a(unit.o)' is up to date.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "gpath-declared"
+makefile = '''
+VPATH := search
+GPATH := search
+all: future
+	@printf "ran\n"
+search/future: ;
+'''
+inputs = { "search/future" = 2000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'search/future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-gpath-container"
+makefile = '''
+VPATH := search
+GPATH := search
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "search/pack.a" = [2000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'search/pack.a' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-gpath-member"
+makefile = '''
+VPATH := search
+GPATH := search
+all: pack.a(unit.o)
+	@printf "ran\n"
+'''
+inputs = { "search/pack.a" = [-5000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'search/pack.a(unit.o)' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "archive-generated-container"
+makefile = '''
+all: pack.a(unit.o)
+	@printf "ran\n"
+pack.a(unit.o):
+	@cp payload pack.a; touch -d @1600000003 pack.a
+'''
+inputs = { "payload" = [-5000000000, "213c617263683e0a756e69742e6f2f202020202020202020313630303030303030322020302020202020302020202020313030363434202032202020202020202020600a610a"] }
+exit_code = 0
+output = '''
+make: Warning: File 'pack.a' has modification time 2.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "future-absent-keep-going"
+makefile = '''
+all: future absent
+	@printf "ran\n"
+'''
+args = ["-k"]
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+make: *** No rule to make target 'absent', needed by 'all'.
+make: Target 'all' not remade because of errors.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "future-fatal-keep-going"
+makefile = '''
+all: future
+	@$(error abort)
+'''
+args = ["-k"]
+inputs = { "future" = 2000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+Makefile:2: *** abort.  Stop.
+'''
+
+[[cases]]
+id = "future-include-remake-fatal"
+makefile = '''
+include fragment.mk
+all: future
+	@printf "ran\n"
+fragment.mk: late
+	@$(error abort)
+'''
+inputs = { "late" = 2000000000, "future" = -5000000000 }
+exit_code = 2
+output = '''
+make: Warning: File 'late' has modification time 1.6 s in the future
+Makefile:5: *** abort.  Stop.
+'''
+
+[[cases]]
+id = "microsecond-clock-window"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 400000999 }
+clock = "microseconds"
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "microsecond-clock-boundary"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 400001000 }
+clock = "microseconds"
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1e-06 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "second-clock-window"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 999999999 }
+clock = "seconds"
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "second-clock-boundary"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "future" = 1000000000 }
+clock = "seconds"
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "clock-step-forward"
+makefile = '''
+all: change future
+	@printf "ran\n"
+change: ; @touch clock-change
+'''
+inputs = { "future" = 2000000000 }
+clock = "step-forward"
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "clock-step-backward"
+makefile = '''
+all: change future
+	@printf "ran\n"
+change: ; @touch clock-change
+'''
+inputs = { "future" = -5000000000 }
+clock = "step-backward"
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "symlink-reference-time"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "referent" = 2000000000 }
+symlinks = { "future" = ["referent", -5000000000] }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "symlink-local-time-default"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+inputs = { "referent" = -5000000000 }
+symlinks = { "future" = ["referent", 2000000000] }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "symlink-local-time-with-L"
+makefile = '''
+all: future
+	@printf "ran\n"
+'''
+args = ["-L"]
+inputs = { "referent" = -5000000000 }
+symlinks = { "future" = ["referent", 2000000000] }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "symlink-remote-time-with-L"
+makefile = '''
+VPATH := search
+all: future
+	@printf "ran\n"
+'''
+args = ["-L"]
+inputs = { "search/referent" = -5000000000 }
+symlinks = { "search/future" = ["referent", 2000000000] }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "clock-cached-for-ordinary-files"
+makefile = '''
+all: input-00 input-01 input-02 input-03 input-04 input-05 input-06 input-07 input-08 input-09 input-10 input-11
+'''
+inputs = { "input-00" = -5000000000, "input-01" = -5000000000, "input-02" = -5000000000, "input-03" = -5000000000, "input-04" = -5000000000, "input-05" = -5000000000, "input-06" = -5000000000, "input-07" = -5000000000, "input-08" = -5000000000, "input-09" = -5000000000, "input-10" = -5000000000, "input-11" = -5000000000, "clock-events" = -5000000000 }
+clock_reads = 1
+exit_code = 0
+output = '''
+make: Nothing to be done for 'all'.
+'''
+
+[[cases]]
+id = "clock-cached-before-warning"
+makefile = '''
+all: input-00 input-01 input-02 input-03 input-04 input-05 input-06 input-07 input-08 input-09 input-10 input-11
+'''
+inputs = { "input-00" = -5000000000, "input-01" = -5000000000, "input-02" = -5000000000, "input-03" = -5000000000, "input-04" = -5000000000, "input-05" = -5000000000, "input-06" = -5000000000, "input-07" = -5000000000, "input-08" = 2000000000, "input-09" = -5000000000, "input-10" = -5000000000, "input-11" = -5000000000, "clock-events" = -5000000000 }
+clock_reads = 2
+exit_code = 0
+output = '''
+make: Warning: File 'input-08' has modification time 1.6 s in the future
+make: Nothing to be done for 'all'.
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
+
+[[cases]]
+id = "vpath-updated-destination"
+makefile = '''
+VPATH := search
+all: search/future next
+search/future: ; @touch -d @1600000002 $@
+next: future
+	@printf "ran\n"
+'''
+inputs = { "search/anchor" = -5000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "gpath-updated-destination"
+makefile = '''
+VPATH := search
+GPATH := search
+all: search/future next
+search/future: ; @touch -d @1600000002 $@
+next: future
+	@printf "ran\n"
+'''
+inputs = { "search/anchor" = -5000000000 }
+exit_code = 0
+output = '''
+ran
+'''
+
+[[cases]]
+id = "vpath-unupdated-side-effect"
+makefile = '''
+VPATH := search
+all: change future
+	@printf "ran\n"
+change: ; @touch -d @1600000002 search/future
+'''
+inputs = { "search/anchor" = -5000000000 }
+exit_code = 0
+output = '''
+make: Warning: File 'future' has modification time 1.6 s in the future
+ran
+make: warning:  Clock skew detected.  Your build may be incomplete.
+'''
