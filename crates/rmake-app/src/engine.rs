@@ -2941,6 +2941,10 @@ impl Engine {
             // A later successful read of the same file replaces that state.
             let mut failed_opens = HashSet::new();
             for (file, _) in &read_files {
+                if file.missing && file.location.is_some() && file.read_error.is_none() {
+                    // A failed native load still takes its timestamp from the filesystem.
+                    continue;
+                }
                 if file.missing && self.assumed_time(&file.name).is_none() {
                     failed_opens.insert(file.name.as_slice());
                 } else {
