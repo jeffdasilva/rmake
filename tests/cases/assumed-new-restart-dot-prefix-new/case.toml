@@ -1,0 +1,15 @@
+id = "assumed-new-restart-dot-prefix-new"
+requirement = "options.assumed-new-restart"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 restart-phase differential fixture."
+args = ["-rR", "--no-print-directory", "-W", "./trigger"]
+output = "merged"
+timeout_seconds = 10
+
+[environment]
+MAKE_RESTARTS = "2"
+
+[expected]
+exit_code = 0
+stdout = "read=2\ngoal=2\n"
+stderr = ""

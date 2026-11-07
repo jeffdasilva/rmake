@@ -1,0 +1,15 @@
+id = "assumed-new-restart-missing-record-zero"
+requirement = "options.assumed-new-restart"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 restart-phase differential fixture."
+args = ["-rR", "--no-print-directory", "-W", "unentered"]
+output = "merged"
+timeout_seconds = 10
+
+[environment]
+MAKE_RESTARTS = "0"
+
+[expected]
+exit_code = 2
+stdout = "read=0\nremake=0\nread=1\nmake: *** No rule to make target 'unentered', needed by 'all'.  Stop.\n"
+stderr = ""

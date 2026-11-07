@@ -1733,6 +1733,49 @@ reference = "docs/eval-allocation-profiles.md"
 cases = ["profile-nested-evals-0", "profile-nested-evals-32", "profile-nested-evals-96"]
 
 [[requirements]]
+id = "options.assumed-new-restart"
+title = "Assumed-new file publication across makefile restarts"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 32
+fixture_count = 32
+cases = [
+  "assumed-new-restart-fresh-invocation",
+  "assumed-new-restart-import-zero",
+  "assumed-new-restart-import-one",
+  "assumed-new-restart-import-two",
+  "assumed-new-restart-import-leading-zero",
+  "assumed-new-restart-no-assumption-control",
+  "assumed-new-restart-restarted-dry-run",
+  "assumed-new-restart-restarted-query",
+  "assumed-new-restart-restarted-touch",
+  "assumed-new-restart-restarted-parallel",
+  "assumed-new-restart-restarted-explicit-goal",
+  "assumed-new-restart-missing-record-unpublished",
+  "assumed-new-restart-missing-record-zero",
+  "assumed-new-restart-unvisited-missing-record-late",
+  "assumed-new-restart-vpath-missing-record-unpublished",
+  "assumed-new-restart-dot-prefix-new",
+  "assumed-new-restart-cached-refresh",
+  "assumed-new-restart-cached-already-current",
+  "assumed-new-restart-cached-direct-goal",
+  "assumed-new-restart-cached-no-assumption-silent",
+  "assumed-new-restart-old-and-new",
+  "assumed-new-restart-old-and-new-same-record",
+  "assumed-new-restart-old-and-new-same-record-zero",
+  "assumed-new-restart-duplicate-new",
+  "assumed-new-restart-double-current",
+  "assumed-new-restart-double-refresh",
+  "assumed-new-restart-double-direct-refresh",
+  "assumed-new-restart-double-not-in-remake",
+  "assumed-new-restart-double-remake-only",
+  "assumed-new-restart-double-keep-direct",
+  "assumed-new-restart-double-keep-reverse-parallel",
+  "assumed-new-restart-double-keep-later-pass",
+]
+
+[[requirements]]
 id = "options.assumed-files"
 title = "Invocation-only old and what-if file records"
 status = "fixture-ready"
