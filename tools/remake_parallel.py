@@ -335,6 +335,49 @@ def duplicate_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel
             model = debug.Model(f'duplicate-{name}-{transport}', inputs, args, {'GNUMAKEFLAGS': ''},
                                 expected, seen, updates=updates, mtimes_ns=dict.fromkeys(inputs, INPUT_TIME))
             results.append(HeldModel(model, True, BEFORE_SECOND))
+    return results + alias_models(worker, markers)
+
+
+def alias_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    create_left = 'left.gen: ; @python3 worker.py left include\n'
+    cases = (
+        ('normalized-success', 'include ./left.gen\ninclude ././left.gen\ninclude right.gen\n',
+         create_left + 'right.gen: ; @python3 worker.py right include\n', {},
+         {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'},
+         b'read-1\nlist-Makefile left.gen left.gen right.gen\n', b''),
+        ('normalized-optional-required-fail', '-include ./left.gen\ninclude left.gen\ninclude right.gen\n',
+         'left.gen: ; @python3 worker.py left fail\nright.gen: force ; @python3 worker.py right hold\n',
+         {'right.gen': b'# existing right\n'}, {}, b'',
+         b'Makefile:2: left.gen: No such file or directory\n'
+         b"make: *** No rule to make target 'left.gen'.  Stop.\n" + WAITING),
+        ('dot-dot-distinct-records', 'include left.gen\ninclude aliases/../left.gen\n',
+         create_left + 'aliases/../left.gen: ; @python3 worker.py right hold\n',
+         {'aliases/anchor': b'parent remains reachable\n'}, {'left.gen': b'LEFT := loaded\n'},
+         b'read-1\nlist-Makefile left.gen aliases/../left.gen\n', b''),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, includes, recipes, seeds, generated, after_remake, stderr in cases:
+            source = (
+                '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                + includes
+                + '.PHONY: all force\n'
+                'all: ; @$(file >>seen,list-$(MAKEFILE_LIST)):\n'
+                + recipes
+            )
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR, **seeds}
+            args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}', 'all')
+            expected = {
+                'exit_code': 2 if stderr else 0,
+                'stdout_template_hex': b'left\n'.hex() if stderr else '',
+                'stderr_template_hex': stderr.hex(),
+            }
+            model = debug.Model(
+                f'duplicate-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''}, expected,
+                BEFORE_SECOND + b'right\n' + after_remake,
+                updates={**markers, **generated}, mtimes_ns=dict.fromkeys(files, INPUT_TIME),
+            )
+            results.append(HeldModel(model, True, BEFORE_SECOND))
     return results
 
 

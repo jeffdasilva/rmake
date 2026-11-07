@@ -59,7 +59,11 @@ python3 tools/remake_parallel.py --duplicate-reads --self-test
 python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmake
 ~~~
 
-The selector runs the 20 duplicate-read profiles separately. The default
-runs all 72 profiles. The prototype at 0dc03fcaf
-serialized the workers in all duplicate-read cases and matched the final
-ordinary observations in ten. The overlap checks detected all twenty.
+The selector runs 26 duplicate-read profiles separately. The default runs all
+78 profiles. Leading `./` spellings share one target record and still appear
+twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
+target record even when it refers to the same physical file.
+
+The prototype at `0dc03fcaf` serialized the workers in all 20 initial
+duplicate-read cases and matched the final ordinary observations in ten.
+The overlap checks detected all twenty.
