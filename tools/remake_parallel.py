@@ -129,6 +129,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += shared_failure_models(worker, markers)
     results += duplicate_models(worker, markers)
     results += settled_mode_models(worker, markers)
+    results += inert_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
@@ -473,6 +474,81 @@ def settled_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldMo
                                     mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                 results.append(HeldModel(model, True, BEFORE_SECOND,
                                          before_second_stdout=b'left\n' if name.startswith('required-') else b''))
+    return results
+
+
+def inert_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    ordinary = ('all: result\n'
+                'result: ; @$(file >>seen,ordinary-$(OPTIONAL))printf "ordinary\\n" > "$@"\n')
+    optional = '-include optional.gen\n'
+    independent = (
+        'include left.gen right.gen\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen: ; @python3 worker.py right include\n'
+    )
+    controlled = (
+        'include left.gen right.gen gate.gen\n{directive}'
+        'ifeq ($(MAKE_RESTARTS),)\n'
+        'left.gen: primer ; @python3 worker.py left {action}\n'
+        'right.gen: primer ; @python3 worker.py right success\n'
+        'gate.gen: primer ; @$(file >>seen,gate-expanded):\n'
+        'endif\n'
+    )
+    generated = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    old_optional = {'optional.gen': b'OPTIONAL := old\n'}
+    new_optional = {'optional.gen': b'OPTIONAL := new\n'}
+    required = {'left.gen': b'# left current\n', 'right.gen': b'# right current\n',
+                'gate.gen': b'# gate current\n', 'primer': b'primer\n'}
+    changed = {'left.gen': b'# changed\n'}
+    expanded_gate = BEFORE_FIRST + b'gate-expanded\n'
+    cases = (
+        ('present', 'Makefile', optional + independent, old_optional, generated,
+         BEFORE_FIRST, True, b'old'),
+        ('missing', 'Makefile', optional + independent, {}, generated,
+         BEFORE_FIRST, True, b''),
+        ('worker-write', 'Makefile', controlled.format(directive=optional, action='write-optional'),
+         required, new_optional, expanded_gate, False, b''),
+        ('parse-write-after-read', 'Makefile',
+         controlled.format(directive=optional + '$(file >optional.gen,OPTIONAL := new)\n', action='success'),
+         {**required, **old_optional}, new_optional, expanded_gate, False, b'old'),
+        ('worker-write-restart', 'Makefile',
+         controlled.format(directive=optional, action='write-optional-restart'),
+         required, {**changed, **new_optional}, expanded_gate, True, b'new'),
+        ('fallback-write-restart', 'preload.mk',
+         controlled.format(directive='', action='write-fallback-restart'),
+         required, {**changed, 'Makefile': b'OPTIONAL := new\n'}, expanded_gate, True, b'new'),
+    )
+    modes = (
+        ('n', 0, b'printf "ordinary\\n" > "result"\n', {}),
+        ('q', 1, b'', {}),
+        ('t', 0, b'touch result\n', {'result': b''}),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, reader, source, initial, updates, checkpoint, restart, value in cases:
+            files = {reader: (header + source + ordinary).encode(), 'worker.py': worker,
+                     'seen': ANCHOR, **initial}
+            times = dict.fromkeys(files, INPUT_TIME)
+            if 'primer' in files:
+                times['primer'] += 2_000_000_000
+            environment = {'GNUMAKEFLAGS': ''}
+            if reader == 'preload.mk':
+                environment['MAKEFILES'] = reader
+            before_second = checkpoint + b'left\n'
+            seen = before_second + b'right\n'
+            if restart:
+                seen += b'read-1\n'
+            for mode, status, stdout, ordinary_updates in modes:
+                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                        '-' + mode, 'all')
+                expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                            'stderr_template_hex': ''}
+                effects = seen if mode == 't' else seen + b'ordinary-' + value + b'\n'
+                model = debug.Model(f'inert-optional-mode-{name}-{mode}-{transport}', files, args,
+                                    environment, expected, effects,
+                                    updates={**markers, **updates, **ordinary_updates}, mtimes_ns=times)
+                results.append(HeldModel(model, True, before_second, checkpoint, before_second_stdout=b''))
     return results
 
 

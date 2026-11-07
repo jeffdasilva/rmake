@@ -3821,14 +3821,48 @@ impl Engine {
         {
             return false;
         }
+        if read_files.iter().any(|(file, skip)| file.optional && !skip)
+            && !self.optional_mode_sources_have_no_rules(read_files)
+        {
+            return false;
+        }
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
-                || (!file.optional
-                    && (goals.is_empty()
-                        || (!name.starts_with(b"-l")
-                            && archive_parts(name).is_none()
-                            && !goals.iter().any(|goal| goal.as_slice() == name))))
+                || goals.is_empty()
+                || (!name.starts_with(b"-l")
+                    && archive_parts(name).is_none()
+                    && !goals.iter().any(|goal| goal.as_slice() == name))
+        })
+    }
+
+    fn optional_mode_sources_have_no_rules(&self, read_files: &[(Makefile, bool)]) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        // The frozen rule table rules out dispatch by an optional source.
+        // A physical write can still affect the next reader after a restart.
+        if !self.options.no_rules
+            || self.options.check_symlink_times
+            || self.assumptions.is_some()
+            || !self.options.include_directories.is_empty()
+            || self.database.has_vpaths()
+            || !self.vpath_dirs.is_empty()
+            || !self.gpath_dirs.is_empty()
+            || !self.database.database_implicit_rules().is_empty()
+            || self.database.rules.contains_key(b".DEFAULT".as_slice())
+        {
+            return false;
+        }
+        let mut names = HashSet::new();
+        read_files.iter().all(|(file, skip)| {
+            let name = without_dot_prefix(&file.name);
+            *skip
+                || (!name.contains(&b'/')
+                    && !name.starts_with(b"~")
+                    && !name.starts_with(b"-l")
+                    && archive_parts(name).is_none()
+                    && names.insert(name)
+                    && (!file.optional || !self.database.rules.contains_key(name)))
         })
     }
 
@@ -11892,6 +11926,45 @@ mod tests {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
             assert!(!engine.ordinary_mode_remakes_settle(&reads));
         }
+    }
+
+    #[test]
+    fn ordinary_mode_optional_sources_require_unique_rule_free_names() {
+        let launch = Engine::invocation(
+            ["-r", "-n", "all"].into_iter().map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let source = Makefile {
+            name: b"optional.gen".to_vec(),
+            optional: true,
+            missing: true,
+            location: None,
+            read_error: None,
+        };
+        let mut reads = vec![(source.clone(), false)];
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+
+        let mut alias = source.clone();
+        alias.name = b"./optional.gen".to_vec();
+        alias.optional = false;
+        reads.push((alias, false));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        reads.pop();
+
+        engine.vpath_dirs.push(b"search".to_vec());
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        engine.vpath_dirs.clear();
+        engine
+            .database
+            .read(b"optional.gen: prerequisite\n", b"Makefile")
+            .unwrap();
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
     }
 
     #[test]

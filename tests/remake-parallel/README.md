@@ -45,7 +45,7 @@ child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
 The serial remake path remains for broader debug combinations and makefile
-debug with load limits. With `-n`, `-q`, or `-t`, an eligible optional source,
+debug with load limits. With `-n`, `-q`, or `-t`, an optional source that can start work,
 a command-line goal that names a read makefile, or makefile debug also
 selects the serial path.
 
@@ -63,7 +63,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 163 profiles. Leading `./` spellings share one target record and still appear
+run all 199 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -114,3 +114,10 @@ The held profiles require both children to overlap and the ordinary mode
 to take effect after a successful restart. The
 required-failure profiles check that the sibling finishes its second command
 in normal execution mode for both stopping and keep-going failures.
+
+The optional-source controls cover rule-free present and missing includes,
+reader-time and worker writes, and an absent default source created before
+a required remake triggers a restart. Admission requires disabled built-ins,
+an empty implicit rule inventory, and unique simple read identities without
+search or assumed ages. Only a real remake triggers a new reader pass for
+these controls.

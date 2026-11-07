@@ -26,6 +26,14 @@ if mode == 'include':
     output = Path(name + '.gen')
     output.write_bytes((name.upper() + ' := loaded\n').encode())
     os.utime(output, ns=(1_000_000_001_000_000_000, 1_000_000_001_000_000_000))
+if mode in ('write-optional', 'write-optional-restart', 'write-fallback-restart'):
+    optional = Path('Makefile' if mode == 'write-fallback-restart' else 'optional.gen')
+    optional.write_bytes(b'OPTIONAL := new\n')
+    os.utime(optional, ns=(1_000_000_004_000_000_000,) * 2)
+    if mode.endswith('-restart'):
+        required = Path(name + '.gen')
+        required.write_bytes(b'# changed\n')
+        os.utime(required, ns=(1_000_000_005_000_000_000,) * 2)
 Path(name + '.done').write_bytes(b'done\n')
 if mode == 'fail':
     print(name, flush=True)
