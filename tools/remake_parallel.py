@@ -127,6 +127,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += immediate_launch_models(worker, markers)
     results += shared_failure_models(worker, markers)
     results += duplicate_models(worker, markers)
+    results += settled_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
@@ -403,6 +404,60 @@ def alias_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
                 updates={**markers, **generated}, mtimes_ns=dict.fromkeys(files, INPUT_TIME),
             )
             results.append(HeldModel(model, True, BEFORE_SECOND))
+    return results
+
+
+def settled_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    ordinary = ('all: result\n'
+                'result: ; @$(file >>seen,expanded-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n')
+    independent = (
+        'include left.gen right.gen\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen: ; @python3 worker.py right include\n'
+    )
+    required_failure = (
+        'include generated.gen\n'
+        'generated.gen: left right ; @$(error required failure must prevent this recipe)\n'
+        'left: ; @python3 worker.py left fail\n'
+        'right:\n'
+        '\t@python3 worker.py right success\n'
+        '\t@printf "right-tail\\n" >> seen\n'
+    )
+    required_error = (b'Makefile:3: generated.gen: No such file or directory\n'
+                      b'make: *** [Makefile:5: left] Error 3\n')
+    remake_error = b"Makefile:3: Failed to remake makefile 'generated.gen'.\n"
+    loaded = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    restarted = BEFORE_SECOND + b'right\nread-1\n'
+    loaded_effects = restarted + b'expanded-loaded-loaded\n'
+    modes = (
+        ('n', 0, b'printf "ordinary\\n" > "result"\n', loaded_effects, {}),
+        ('q', 1, b'', loaded_effects, {}),
+        ('t', 0, b'touch result\n', restarted, {'result': b''}),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for mode, status, stdout, seen, updates in modes:
+            cases = (
+                ('success', independent, (), status, stdout, b'', seen, {**loaded, **updates}),
+                ('required-stop', required_failure, (), 2, b'left\n', required_error + WAITING,
+                 BEFORE_SECOND + b'right\nright-tail\n', {}),
+                ('required-keep', required_failure, ('-k',), 2, b'left\n', required_error + remake_error,
+                 BEFORE_SECOND + b'right\nright-tail\n', {}),
+            )
+            for name, source, flags, exit_code, out, err, effects, extra_files in cases:
+                files = {'Makefile': (header + source + ordinary).encode(),
+                         'worker.py': worker, 'seen': ANCHOR}
+                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                        '-' + mode, *flags)
+                expected = {'exit_code': exit_code, 'stdout_template_hex': out.hex(),
+                            'stderr_template_hex': err.hex()}
+                model = debug.Model(f'settled-mode-{name}-{mode}-{transport}', files, args,
+                                    {'GNUMAKEFLAGS': ''}, expected, effects,
+                                    updates={**markers, **extra_files},
+                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(HeldModel(model, True, BEFORE_SECOND,
+                                         before_second_stdout=b'' if name == 'success' else b'left\n'))
     return results
 
 

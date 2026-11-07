@@ -3136,8 +3136,15 @@ impl Engine {
                         .is_some_and(|server| !server.auth().starts_with(b"fifo:")));
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (self.options.load_limit.is_none() && qualified_remake_debug);
+            // Required makefiles settle before the ordinary mode resumes.
+            // An explicit goal can also name a makefile and use that mode.
+            let ordinary_mode = modes.0 || modes.1 || modes.2;
+            let remakes_can_overlap = !ordinary_mode
+                || (!debug_before_remake.has(Mask::MAKEFILES)
+                    && self.options.goals.is_empty()
+                    && !read_files.iter().any(|(file, skip)| !skip && file.optional));
             self.parallel_makefile_remakes =
-                self.job_slots() > 1 && !modes.0 && !modes.1 && !modes.2 && parallel_remake_debug;
+                self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.remaking = true;
             let mut changed = false;
             let mut ran_remake_recipe = false;
