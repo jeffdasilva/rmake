@@ -903,6 +903,7 @@ enum PrerequisiteVisit {
 /// unfinished dependencies yield to unrelated targets in the enclosing graph.
 struct DoubleColonState {
     remake: Option<MakefileRemake>,
+    late_recipe: Option<Box<LateDoubleColonRecipe>>,
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
@@ -911,6 +912,11 @@ struct DoubleColonState {
     last_epoch: Option<u64>,
     combined: Outcome,
     awaiting_recipe: bool,
+}
+
+struct LateDoubleColonRecipe {
+    time: SystemTime,
+    head: Outcome,
 }
 
 impl DoubleColonState {
@@ -3628,8 +3634,10 @@ impl Engine {
         let mut requested = Vec::new();
         for goal in goals {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
-            let already_done =
-                self.done.contains_key(self.aliases.resolve(&goal)) || self.pending(&goal);
+            let name = self.aliases.resolve(&goal);
+            let already_done = (self.done.contains_key(name)
+                && !self.cached_double_colon_input_due(name))
+                || self.pending(&goal);
             if already_done && !self.parallel_graph() {
                 self.wait_target(&goal);
             }
@@ -6383,27 +6391,9 @@ impl Engine {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
             rule => rule.cloned(),
         };
-        let mut budget = 100_000;
-        let plan = if self.terminal_prerequisites.contains(target) {
-            None
-        } else {
-            self.database_implicit.insert(target.to_vec());
-            crate::debug::emit(
-                &self.output,
-                crate::debug::Event::Looking(target, debug_depth + 1),
-            );
-            match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
-                Ok(plan) => plan,
-                Err(error) => {
-                    self.expansion_error(None, &error);
-                    return false;
-                }
-            }
-        };
-        if plan.is_none() && budget == 0 {
-            self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
+        let Ok(plan) = self.plan_implicit_update(target, debug_depth, true) else {
             return false;
-        }
+        };
         if plan.is_none()
             && existing.is_none()
             && self
@@ -6415,134 +6405,201 @@ impl Engine {
             self.database_secondary.insert(target.to_vec());
         }
         if let Some(plan) = plan {
-            // Recursive searches return unentered intermediate records. Commit
-            // each accepted child's input list when its parent installs it;
-            // the parent's candidate inputs are processed in reverse order.
-            let inferred: HashMap<_, _> = plan
-                .iter()
-                .map(|selection| (selection.name.as_slice(), &selection.rule))
-                .collect();
-            for selection in &plan {
-                let group = selection.rule.group.as_ref();
-                for dependency in selection.rule.dependencies.iter().rev() {
-                    if let Some(child) = inferred.get(dependency.name.as_slice()) {
+            let _ = self.install_implicit_plan(target, plan, false);
+        } else if existing.as_ref().is_none_or(|rule| rule.record_only)
+            && let Some(mut rule) = self.default_update_rule(target, debug_depth, graph_visit)
+        {
+            rule.dependencies = existing.map_or_else(Vec::new, |rule| rule.dependencies);
+            self.database.rules.insert(target.to_vec(), rule);
+        }
+        true
+    }
+
+    fn plan_implicit_update(
+        &mut self,
+        target: &[u8],
+        debug_depth: usize,
+        record_attempt: bool,
+    ) -> Result<Option<Vec<ImplicitSelection>>, ()> {
+        if self.terminal_prerequisites.contains(target) {
+            return Ok(None);
+        }
+        if record_attempt {
+            self.database_implicit.insert(target.to_vec());
+        }
+        crate::debug::emit(
+            &self.output,
+            crate::debug::Event::Looking(target, debug_depth + 1),
+        );
+        let mut budget = 100_000;
+        match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
+            Ok(None) if budget == 0 => {
+                self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
+                Err(())
+            }
+            Ok(plan) => Ok(plan),
+            Err(error) => {
+                self.expansion_error(None, &error);
+                Err(())
+            }
+        }
+    }
+
+    /// The synthetic double-colon input owns its selected root rule. Child
+    /// selections still enter the normal graph with their prepared state.
+    fn install_implicit_plan(
+        &mut self,
+        target: &[u8],
+        plan: Vec<ImplicitSelection>,
+        detach_root: bool,
+    ) -> Option<Rule> {
+        let mut detached_rule = None;
+        // Recursive searches return unentered intermediate records. Commit
+        // each accepted child's input list when its parent installs it;
+        // the parent's candidate inputs are processed in reverse order.
+        let inferred: HashMap<_, _> = plan
+            .iter()
+            .map(|selection| (selection.name.as_slice(), &selection.rule))
+            .collect();
+        for selection in &plan {
+            let group = selection.rule.group.as_ref();
+            for dependency in selection.rule.dependencies.iter().rev() {
+                if let Some(child) = inferred.get(dependency.name.as_slice()) {
+                    self.database.file_records.insert(&dependency.name);
+                    for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
+                        self.database.file_records.insert(&input.name);
+                    }
+                } else if selection.name == target && dependency.name != b".WAIT" {
+                    if group.is_some() {
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(&dependency.name);
+                        }
+                        self.database
+                            .file_records
+                            .enter_prerequisite(&dependency.name);
+                    } else {
                         self.database.file_records.insert(&dependency.name);
-                        for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
-                            self.database.file_records.insert(&input.name);
-                        }
-                    } else if selection.name == target && dependency.name != b".WAIT" {
-                        if group.is_some() {
-                            if let Some(history) = self.database.database_history() {
-                                history.intern(&dependency.name);
-                            }
-                            self.database
-                                .file_records
-                                .enter_prerequisite(&dependency.name);
-                        } else {
-                            self.database.file_records.insert(&dependency.name);
-                        }
                     }
                 }
-                if let Some(group) = group {
-                    if let Some(history) = self.database.database_history() {
-                        if let Some(stem) = &selection.rule.stem {
-                            history.intern(stem);
+            }
+            if let Some(group) = group {
+                if let Some(history) = self.database.database_history() {
+                    if let Some(stem) = &selection.rule.stem {
+                        history.intern(stem);
+                    }
+                    if let Some(pattern) = &selection.rule.implicit_pattern {
+                        history.record_file_lookup(pattern);
+                    }
+                }
+                for (peer, pattern) in &group.implicit_peer_patterns {
+                    if peer != &selection.name {
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(peer);
                         }
-                        if let Some(pattern) = &selection.rule.implicit_pattern {
+                        self.database.file_records.insert(peer);
+                        if let Some(history) = self.database.database_history() {
                             history.record_file_lookup(pattern);
                         }
                     }
-                    for (peer, pattern) in &group.implicit_peer_patterns {
-                        if peer != &selection.name {
-                            if let Some(history) = self.database.database_history() {
-                                history.intern(peer);
-                            }
-                            self.database.file_records.insert(peer);
-                            if let Some(history) = self.database.database_history() {
-                                history.record_file_lookup(pattern);
-                            }
-                        }
+                }
+            }
+        }
+        for selection in &plan {
+            self.database
+                .explicit_names
+                .extend(selection.explicit_names.iter().cloned());
+        }
+        for selection in plan {
+            let ImplicitSelection {
+                name,
+                mut rule,
+                prepared_scope,
+                explicit_names: _,
+                intermediate_names,
+            } = selection;
+            if rule.terminal {
+                // Accepting a terminal rule bars implicit search when
+                // visiting its prerequisites. Explicit recipes and the
+                // ordinary default-recipe check still apply.
+                for dependency in &rule.dependencies {
+                    if dependency.name != b".WAIT" {
+                        self.terminal_prerequisites.insert(dependency.name.clone());
+                        self.database_implicit.insert(dependency.name.clone());
                     }
                 }
             }
-            for selection in &plan {
-                self.database
-                    .explicit_names
-                    .extend(selection.explicit_names.iter().cloned());
+            // A selected implicit rule promotes its file to a target,
+            // including recipes converted from undeclared builtin records.
+            rule.record_only = false;
+            let detached = detach_root && name == target;
+            if !detached && let Some(scope) = prepared_scope {
+                self.implicit_scopes.insert(name.clone(), *scope);
             }
-            for selection in plan {
-                let ImplicitSelection {
-                    name,
-                    mut rule,
-                    prepared_scope,
-                    explicit_names: _,
-                    intermediate_names,
-                } = selection;
-                if rule.terminal {
-                    // Accepting a terminal rule bars implicit search when
-                    // visiting its prerequisites. Explicit recipes and the
-                    // ordinary default-recipe check still apply.
-                    for dependency in &rule.dependencies {
-                        if dependency.name != b".WAIT" {
-                            self.terminal_prerequisites.insert(dependency.name.clone());
-                            self.database_implicit.insert(dependency.name.clone());
-                        }
-                    }
+            if let Some(group) = &rule.group {
+                for (peer, pattern) in &group.implicit_peer_patterns {
+                    let precious = self.special(b".PRECIOUS", pattern, false);
+                    let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
+                    let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
+                    flags.0 |= precious;
+                    flags.1 |= notintermediate;
                 }
-                // A selected implicit rule promotes its file to a target,
-                // including recipes converted from undeclared builtin records.
-                rule.record_only = false;
-                if let Some(scope) = prepared_scope {
-                    self.implicit_scopes.insert(name.clone(), *scope);
-                }
-                if let Some(group) = &rule.group {
-                    for (peer, pattern) in &group.implicit_peer_patterns {
-                        let precious = self.special(b".PRECIOUS", pattern, false);
-                        let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
-                        let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
-                        flags.0 |= precious;
-                        flags.1 |= notintermediate;
-                    }
-                }
-                if let Some(explicit) = self.database.rules.get(&name) {
-                    rule.append_prerequisites(explicit);
-                }
-                if name != target
-                    && !self.database.explicit_names.contains(&name)
-                    && !self.options.goals.contains(&name)
-                {
-                    self.intermediates.insert(name.clone());
-                }
-                self.intermediates.extend(intermediate_names);
-                if self.shuffle.enabled() {
-                    let disabled = self.special(b".NOTPARALLEL", b"", true);
-                    self.shuffle
-                        .regenerate(&name, &rule, &self.database, disabled);
-                }
+            }
+            if !detached && let Some(explicit) = self.database.rules.get(&name) {
+                rule.append_prerequisites(explicit);
+            }
+            if name != target
+                && !self.database.explicit_names.contains(&name)
+                && !self.options.goals.contains(&name)
+            {
+                self.intermediates.insert(name.clone());
+            }
+            self.intermediates.extend(intermediate_names);
+            if self.shuffle.enabled() {
+                let disabled = self.special(b".NOTPARALLEL", b"", true);
+                self.shuffle
+                    .regenerate(&name, &rule, &self.database, disabled);
+            }
+            if detached {
+                detached_rule = Some(rule);
+            } else {
                 self.database.rules.insert(name, rule);
             }
-        } else if existing.as_ref().is_none_or(|rule| rule.record_only)
-            && let Some(default) = self.database.rules.get(b".DEFAULT".as_slice())
-            && default.recipes.is_some()
-        {
-            let event = if graph_visit {
-                crate::debug::Event::UsingDefaultRecipe(target, debug_depth + 1)
-            } else {
-                crate::debug::Event::UsingDefaultCommands(target, debug_depth + 1)
-            };
-            crate::debug::emit(&self.output, event);
-            self.database.rules.insert(
-                target.to_vec(),
-                Rule {
-                    recipes: default.recipes.clone(),
-                    recipe_location: default.recipe_location.clone(),
-                    default_recipe: true,
-                    dependencies: existing.map_or_else(Vec::new, |rule| rule.dependencies),
-                    ..Rule::default()
-                },
-            );
         }
-        true
+        detached_rule
+    }
+
+    fn default_update_rule(
+        &self,
+        target: &[u8],
+        debug_depth: usize,
+        graph_visit: bool,
+    ) -> Option<Rule> {
+        let default = self.database.rules.get(b".DEFAULT".as_slice())?;
+        let recipes = default.recipes.clone()?;
+        let event = if graph_visit {
+            crate::debug::Event::UsingDefaultRecipe(target, debug_depth + 1)
+        } else {
+            crate::debug::Event::UsingDefaultCommands(target, debug_depth + 1)
+        };
+        crate::debug::emit(&self.output, event);
+        Some(Rule {
+            recipes: Some(recipes),
+            recipe_location: default.recipe_location.clone(),
+            default_recipe: true,
+            ..Rule::default()
+        })
+    }
+
+    fn synthetic_double_colon_recipe(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+    ) -> Result<Option<Rule>, ()> {
+        let depth = depth + usize::from(self.remaking);
+        Ok(match self.plan_implicit_update(target, depth, false)? {
+            Some(plan) => self.install_implicit_plan(target, plan, true),
+            None => self.default_update_rule(target, depth, true),
+        })
     }
 
     /// Search is transactional: a rejected branch never installs rules or marks
@@ -7492,6 +7549,19 @@ impl Engine {
         self.debug_consider(target, target, depth);
         match input {
             CachedDoubleColonInput::Unvisited(time) => {
+                match self.synthetic_double_colon_recipe(target, depth) {
+                    Ok(Some(rule)) => {
+                        return self
+                            .start_late_double_colon_recipe(target, depth, time, outcome, rule);
+                    }
+                    Err(()) => {
+                        outcome.failed = true;
+                        outcome.fatal = true;
+                        self.done.insert(target.to_vec(), outcome);
+                        return outcome;
+                    }
+                    Ok(None) => {}
+                }
                 emit(&self.output, Event::Finished(target, depth));
                 emit(
                     &self.output,
@@ -7526,6 +7596,47 @@ impl Engine {
             self.done.insert(target.to_vec(), outcome);
         }
         outcome
+    }
+
+    fn start_late_double_colon_recipe(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+        time: SystemTime,
+        head: Outcome,
+        rule: Rule,
+    ) -> Outcome {
+        let ordinal = self
+            .database
+            .rules
+            .get(target)
+            .and_then(|rule| rule.double_colon.as_ref())
+            .map_or(0, Vec::len);
+        let before = self.modified(target);
+        let phony = self.special(b".PHONY", target, false);
+        self.done.remove(target);
+        self.pending_double_colon.insert(
+            target.to_vec(),
+            DoubleColonState {
+                remake: self.active_makefile_remake.clone(),
+                late_recipe: Some(Box::new(LateDoubleColonRecipe { time, head })),
+                depth,
+                before,
+                phony,
+                branches: std::collections::VecDeque::from([(ordinal, Some(rule))]),
+                active: None,
+                last_epoch: None,
+                awaiting_recipe: false,
+                combined: Outcome {
+                    time: Some(time),
+                    ran: false,
+                    search_after_update: false,
+                    completion: CompletionTime::Preserve,
+                    ..head
+                },
+            },
+        );
+        self.resume_double_colon(target)
     }
 
     fn fail_double_colon_input(&self, target: &[u8], outcome: &mut Outcome) {
@@ -8030,6 +8141,7 @@ impl Engine {
                 target.to_vec(),
                 DoubleColonState {
                     remake: self.active_makefile_remake.clone(),
+                    late_recipe: None,
                     depth,
                     before,
                     phony,
@@ -8173,7 +8285,13 @@ impl Engine {
                         .entry((target.to_vec(), ordinal))
                         .or_insert(result);
                 }
-                state.combined.time = result.time;
+                state.combined.time = if let Some(late) = &state.late_recipe
+                    && !result.ran
+                {
+                    Some(late.time)
+                } else {
+                    result.time
+                };
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
                 state.combined.fatal |= result.fatal;
@@ -8212,19 +8330,47 @@ impl Engine {
                 };
                 state.combined.debug_time_changed =
                     self.output.debug_mask().has(crate::debug::Mask::BASIC)
-                        && state.before != state.combined.time;
+                        && state
+                            .late_recipe
+                            .as_ref()
+                            .map(|late| late.time)
+                            .or(state.before)
+                            != state.combined.time;
+                if let Some(late) = state.late_recipe {
+                    if !state.combined.failed {
+                        self.forget_cached_double_colon_input(target);
+                    } else if self.options.keep_going && !state.combined.fatal {
+                        let mut head = late.head;
+                        head.time = state.combined.time;
+                        head.search_after_update = false;
+                        self.done.insert(target.to_vec(), head);
+                        state.combined.late_input_failed = true;
+                        return state.combined;
+                    }
+                }
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
-            let Some(branch) = entry else {
-                // An input-only double-colon record has no declared rule or
-                // parent diagnostic locus. Process it in the same ordered queue.
-                self.fail_double_colon_input(target, &mut state.combined);
-                self.record_graph_failure(state.combined);
-                if !self.options.keep_going {
-                    state.branches.clear();
+            let branch = if let Some(branch) = entry {
+                branch
+            } else {
+                match self.synthetic_double_colon_recipe(target, state.depth) {
+                    Ok(Some(rule)) => rule,
+                    Ok(None) => {
+                        self.fail_double_colon_input(target, &mut state.combined);
+                        self.record_graph_failure(state.combined);
+                        if !self.options.keep_going {
+                            state.branches.clear();
+                        }
+                        continue;
+                    }
+                    Err(()) => {
+                        state.combined.failed = true;
+                        state.combined.fatal = true;
+                        state.branches.clear();
+                        continue;
+                    }
                 }
-                continue;
             };
             if let Some(id) = branch.grouped_double_id() {
                 if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
@@ -8250,13 +8396,18 @@ impl Engine {
                 }
             }
             // The target visit announced the first declaration.
-            if ordinal != 0 && !self.remaking {
+            if ordinal != 0 && !self.remaking && state.late_recipe.is_none() {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Considering(target, state.depth),
                 );
             }
-            let comparison = self.comparison_time(target, state.before);
+            let before = state
+                .late_recipe
+                .as_ref()
+                .map(|late| late.time)
+                .or(state.before);
+            let comparison = self.comparison_time(target, before);
             self.build_rule(
                 target,
                 state.depth,

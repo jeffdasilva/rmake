@@ -1776,6 +1776,40 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-recipes"
+title = "Implicit and default recipes for synthetic double-colon entries"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 23
+fixture_count = 23
+cases = [
+  "assumed-double-recipe-fresh-no-rule",
+  "assumed-double-recipe-fresh-default",
+  "assumed-double-recipe-fresh-pattern-empty",
+  "assumed-double-recipe-fresh-pattern-viable",
+  "assumed-double-recipe-fresh-pattern-absent",
+  "assumed-double-recipe-fresh-pattern-absent-default",
+  "assumed-double-recipe-late-cached-no-rule",
+  "assumed-double-recipe-late-cached-default",
+  "assumed-double-recipe-late-cached-pattern-empty",
+  "assumed-double-recipe-late-cached-pattern-viable",
+  "assumed-double-recipe-late-cached-pattern-absent",
+  "assumed-double-recipe-late-cached-pattern-absent-default",
+  "assumed-double-recipe-late-unvisited-no-rule",
+  "assumed-double-recipe-late-unvisited-default",
+  "assumed-double-recipe-late-unvisited-pattern-empty",
+  "assumed-double-recipe-late-unvisited-pattern-viable",
+  "assumed-double-recipe-late-unvisited-pattern-absent",
+  "assumed-double-recipe-late-unvisited-pattern-absent-default",
+  "assumed-double-recipe-fresh-head-current-pattern-viable",
+  "assumed-double-recipe-late-unvisited-head-current-pattern-viable",
+  "assumed-double-recipe-fresh-pattern-absent-inferred-child",
+  "assumed-double-recipe-late-cached-pattern-absent-inferred-child",
+  "assumed-double-recipe-late-unvisited-pattern-absent-inferred-child",
+]
+
+[[requirements]]
 id = "options.assumed-files"
 title = "Invocation-only old and what-if file records"
 status = "fixture-ready"

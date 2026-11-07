@@ -172,7 +172,20 @@ impl Engine {
             CachedDoubleColonInput::Unvisited(files.new)
         })
     }
+    pub(super) fn forget_cached_double_colon_input(&mut self, name: &[u8]) {
+        if let Some(files) = &mut self.assumptions {
+            files.cached_double_colon_pass.remove(name);
+        }
+    }
+
     pub(super) fn visited_cached_double_colon_input(&self, name: &[u8]) -> bool {
+        if self
+            .pending_double_colon
+            .get(name)
+            .is_some_and(|state| state.late_recipe.is_some())
+        {
+            return false;
+        }
         self.assumptions
             .as_ref()
             .and_then(|files| files.cached_double_colon_pass.get(name))

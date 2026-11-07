@@ -1,0 +1,14 @@
+id = "assumed-double-recipe-late-cached-pattern-viable"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for a synthetic double-colon rule."
+args = ["-rR", "--no-print-directory", "-W", "cached", "gate", "cached", "result"]
+timeout_seconds = 8
+
+[environment]
+MAKE_RESTARTS = "2"
+
+[expected]
+exit_code = 0
+stdout = "read=[2]\ndeclared=[cached|primer]\nordinary\nmake: 'cached' is up to date.\nresult=[cached|cached]\n"
+stderr = ""
