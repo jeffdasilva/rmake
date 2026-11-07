@@ -29,9 +29,13 @@ head's success and the tail's logical time. A later pass observes the tail
 failure.
 
 The restart cases cover normal goals, non-executing modes, imported counters
-and ordered double-colon visits. Rule resolution for a synthetic input with a
-pattern or `.DEFAULT` recipe remains open, as does repeated publication from
-differently spelled operands such as `cached` and `./cached`.
+and ordered double-colon visits. A synthetic double-colon entry can select a
+pattern rule or fall back to `.DEFAULT`. The selected recipe has its own
+automatic variables and prerequisites. Its inferred children enter the
+ordinary graph, and the declared rules retain their individual state. The
+models cover a fresh invocation, publication after a completed remake, and
+the first ordinary visit after publication. Repeated publication from
+differently spelled operands such as `cached` and `./cached` remains open.
 
 The optional owned table exists only when at least one operand is present.
 Its logical old/new values use checked SystemTime values outside the pinned

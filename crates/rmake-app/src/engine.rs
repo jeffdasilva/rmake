@@ -903,7 +903,7 @@ enum PrerequisiteVisit {
 /// unfinished dependencies yield to unrelated targets in the enclosing graph.
 struct DoubleColonState {
     remake: Option<MakefileRemake>,
-    late_recipe: Option<Box<LateDoubleColonRecipe>>,
+    synthetic_tail: Option<Box<SyntheticDoubleColonTail>>,
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
@@ -914,8 +914,8 @@ struct DoubleColonState {
     awaiting_recipe: bool,
 }
 
-struct LateDoubleColonRecipe {
-    time: SystemTime,
+struct SyntheticDoubleColonTail {
+    assumed_time: Option<SystemTime>,
     head: Outcome,
 }
 
@@ -3709,6 +3709,9 @@ impl Engine {
                         visit,
                         Some(&mut goal.started_command),
                     );
+                    if outcome.late_input_failed && !self.pending(&goal.name) {
+                        failed |= outcome.failed;
+                    }
                     if self.debug_pass != last_goal_pass {
                         self.debug_double_colon_goal_prunes(&goal.name, outcome);
                     }
@@ -7619,7 +7622,10 @@ impl Engine {
             target.to_vec(),
             DoubleColonState {
                 remake: self.active_makefile_remake.clone(),
-                late_recipe: Some(Box::new(LateDoubleColonRecipe { time, head })),
+                synthetic_tail: Some(Box::new(SyntheticDoubleColonTail {
+                    assumed_time: Some(time),
+                    head,
+                })),
                 depth,
                 before,
                 phony,
@@ -8141,7 +8147,7 @@ impl Engine {
                 target.to_vec(),
                 DoubleColonState {
                     remake: self.active_makefile_remake.clone(),
-                    late_recipe: None,
+                    synthetic_tail: None,
                     depth,
                     before,
                     phony,
@@ -8158,6 +8164,9 @@ impl Engine {
             let outcome = self.resume_double_colon(target);
             if !self.parallel_graph() {
                 self.wait_target(target);
+                if outcome.late_input_failed {
+                    return outcome;
+                }
                 return self.done.get(target).copied().unwrap_or(outcome);
             }
             return outcome;
@@ -8285,13 +8294,11 @@ impl Engine {
                         .entry((target.to_vec(), ordinal))
                         .or_insert(result);
                 }
-                state.combined.time = if let Some(late) = &state.late_recipe
-                    && !result.ran
-                {
-                    Some(late.time)
-                } else {
-                    result.time
-                };
+                let assumed_time = state
+                    .synthetic_tail
+                    .as_ref()
+                    .and_then(|tail| tail.assumed_time);
+                state.combined.time = assumed_time.filter(|_| !result.ran).or(result.time);
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
                 state.combined.fatal |= result.fatal;
@@ -8331,19 +8338,22 @@ impl Engine {
                 state.combined.debug_time_changed =
                     self.output.debug_mask().has(crate::debug::Mask::BASIC)
                         && state
-                            .late_recipe
+                            .synthetic_tail
                             .as_ref()
-                            .map(|late| late.time)
+                            .and_then(|tail| tail.assumed_time)
                             .or(state.before)
                             != state.combined.time;
-                if let Some(late) = state.late_recipe {
+                if let Some(tail) = state.synthetic_tail {
                     if !state.combined.failed {
-                        self.forget_cached_double_colon_input(target);
+                        if tail.assumed_time.is_some() {
+                            self.forget_cached_double_colon_input(target);
+                        }
                     } else if self.options.keep_going && !state.combined.fatal {
-                        let mut head = late.head;
+                        let mut head = tail.head;
                         head.time = state.combined.time;
                         head.search_after_update = false;
                         self.done.insert(target.to_vec(), head);
+                        self.remember_failed_double_colon_input(target);
                         state.combined.late_input_failed = true;
                         return state.combined;
                     }
@@ -8354,6 +8364,21 @@ impl Engine {
             let branch = if let Some(branch) = entry {
                 branch
             } else {
+                if state.synthetic_tail.is_none()
+                    && !self.remaking
+                    && self.options.keep_going
+                    && !state.combined.failed
+                {
+                    let head = self
+                        .database_branch_outcomes
+                        .get(&(target.to_vec(), 0))
+                        .copied()
+                        .unwrap_or(state.combined);
+                    state.synthetic_tail = Some(Box::new(SyntheticDoubleColonTail {
+                        assumed_time: None,
+                        head,
+                    }));
+                }
                 match self.synthetic_double_colon_recipe(target, state.depth) {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
@@ -8396,17 +8421,17 @@ impl Engine {
                 }
             }
             // The target visit announced the first declaration.
-            if ordinal != 0 && !self.remaking && state.late_recipe.is_none() {
+            let assumed_time = state
+                .synthetic_tail
+                .as_ref()
+                .and_then(|tail| tail.assumed_time);
+            if ordinal != 0 && !self.remaking && assumed_time.is_none() {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Considering(target, state.depth),
                 );
             }
-            let before = state
-                .late_recipe
-                .as_ref()
-                .map(|late| late.time)
-                .or(state.before);
+            let before = assumed_time.or(state.before);
             let comparison = self.comparison_time(target, before);
             self.build_rule(
                 target,
