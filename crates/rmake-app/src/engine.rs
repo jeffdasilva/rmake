@@ -3345,10 +3345,18 @@ impl Engine {
                     if !goal.already_done && !goal.awaiting_recipe {
                         goal.awaiting_recipe = self.goal_recipe_waiting(&goal.name);
                     }
-                } else if goal.awaiting_recipe && !self.pending(&goal.name) {
-                    first_goal = false;
-                    self.debug_completed_goal_visit(&goal.name);
-                    goal.awaiting_recipe = false;
+                } else if goal.awaiting_recipe {
+                    if !self.pending(&goal.name) {
+                        first_goal = false;
+                        self.debug_completed_goal_visit(&goal.name);
+                        goal.awaiting_recipe = false;
+                    } else if self.debug_pass != last_goal_pass
+                        && self.graph_abort.is_none()
+                        && self.shutdown.get() == Shutdown::Running
+                    {
+                        // Progress can trigger a new visit while the goal's recipe runs.
+                        self.debug_cached_prerequisite_visit(&goal.name, 0, goal.initial);
+                    }
                 }
             }
             last_goal_pass = self.debug_pass;
