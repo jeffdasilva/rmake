@@ -1,0 +1,13 @@
+id = "include-late-group-failure-present-failure-stop"
+requirement = "includes.remake"
+candidate = "required"
+description = "A present required include receives a late grouped failure without keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "read 0\nattempt inventory.part/0\nMakefile:4: Failed to remake makefile 'inventory.complete'.\n"
+stderr = ""

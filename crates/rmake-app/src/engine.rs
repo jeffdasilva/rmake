@@ -3006,7 +3006,8 @@ impl Engine {
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
-            let mut seen = HashSet::new();
+            let mut visited_times = HashMap::new();
+            let mut optional_remake_failed = false;
             let required_names: HashSet<_> = read_files
                 .iter()
                 .filter(|(file, _)| !file.optional)
@@ -3027,7 +3028,9 @@ impl Engine {
                     continue;
                 }
                 let name = makefile.name.as_slice();
-                if !seen.insert(name) {
+                let std::collections::hash_map::Entry::Vacant(visit_time) =
+                    visited_times.entry(name)
+                else {
                     if !makefile.optional
                         && let Some(failure) = optional_failures.get_mut(name)
                     {
@@ -3045,7 +3048,7 @@ impl Engine {
                         }
                     }
                     continue;
-                }
+                };
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
                 let deferred_peer_failure = !optional && !self.options.keep_going && {
@@ -3088,11 +3091,13 @@ impl Engine {
                     BuildVisit::Ordinary,
                 );
                 let before = before.unwrap_or(result.time);
+                visit_time.insert(before);
                 ran_remake_recipe |= result.ran;
                 self.retain_remake_failure = false;
                 self.optional_remake = false;
                 self.makefile_error.borrow_mut().take();
                 failed |= result.failed && !optional;
+                optional_remake_failed |= result.failed && optional;
                 if result.failed && !result.fatal {
                     // Without its own recipe run, the makefile keeps its cached time.
                     let refresh_timestamp = result.ran && !result.blocked;
@@ -3162,11 +3167,22 @@ impl Engine {
                 );
             }
             // Build each name once, then report at every required read locus.
-            if !failed_remakes.is_empty() {
-                for (makefile, _) in read_files.iter().filter(|(file, _)| !file.optional) {
-                    let Some((before, refresh_timestamp)) =
-                        failed_remakes.get_mut(makefile.name.as_slice())
-                    else {
+            if !failed_remakes.is_empty() || optional_remake_failed {
+                for (makefile, skip) in read_files.iter().filter(|(file, _)| !file.optional) {
+                    let name = makefile.name.as_slice();
+                    // A later optional group can replace an earlier required
+                    // peer's successful outcome before the remake phase ends.
+                    if optional_remake_failed
+                        && !*skip
+                        && !failed_remakes.contains_key(name)
+                        && let Some(&before) = visited_times.get(name)
+                        && let Some(outcome) = self.done.get(self.aliases.resolve(name))
+                        && outcome.optional_group_peer_failure
+                    {
+                        failed = true;
+                        failed_remakes.insert(name, (before, outcome.ran && !outcome.blocked));
+                    }
+                    let Some((before, refresh_timestamp)) = failed_remakes.get_mut(name) else {
                         continue;
                     };
                     emit_output(
