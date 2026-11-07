@@ -44,8 +44,9 @@ fails all twenty-six parallel profiles. The observer releases a single held
 child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
-The serial remake path remains for the `-n`, `-q`, and `-t` modes, broader debug
-combinations, and makefile debug with load limits.
+The serial remake path remains for broader debug combinations and makefile
+debug with load limits. With `-n`, `-q`, or `-t`, an explicit command-line
+goal, an eligible optional source, or makefile debug also selects the serial path.
 
 ## Duplicate reads
 
@@ -61,7 +62,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 133 profiles. Leading `./` spellings share one target record and still appear
+run all 151 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -101,3 +102,11 @@ python3 tools/remake_parallel.py --remake-debug --candidate target/debug/rmake
 
 The standard developer gates include these profiles. The selector runs
 only the debug profiles and does not build the load shim.
+
+## Dry-run, question, and touch
+
+Default-goal invocations can run required makefile remakes in parallel under
+`-n`, `-q`, and `-t`. The held profiles require both children to overlap
+and the ordinary mode to take effect after a successful restart. The
+required-failure profiles check that the sibling finishes its second command
+in normal execution mode for both stopping and keep-going failures.
