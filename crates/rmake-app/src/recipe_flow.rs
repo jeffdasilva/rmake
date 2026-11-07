@@ -35,6 +35,8 @@ pub struct Execution {
     pub ran: bool,
     /// The recipe was handed off as a running or load-queued job.
     pub pending: bool,
+    /// A nonignored recipe command failed before starting a child.
+    pub launch_failed: bool,
     pub status: Status,
     pub cleanup: Cleanup,
     /// At completion, every logical recipe line is recursive after prefix scanning.
@@ -66,8 +68,7 @@ impl Execution {
             ran,
             status: Status::Failure,
             cleanup,
-            pending: false,
-            all_recursive: false,
+            ..Self::default()
         }
     }
 
@@ -76,8 +77,7 @@ impl Execution {
             ran,
             status: Status::Fatal,
             cleanup: Cleanup::None,
-            pending: false,
-            all_recursive: false,
+            ..Self::default()
         }
     }
 
@@ -86,8 +86,7 @@ impl Execution {
             ran,
             status: Status::Question,
             cleanup,
-            pending: false,
-            all_recursive: false,
+            ..Self::default()
         }
     }
 }
