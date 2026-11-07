@@ -1,0 +1,10 @@
+id = "parallel-goal-summary-order-no-recipe-fifo"
+requirement = "diagnostics.parallel-goal-summary-order"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for parallel goal summary order."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=fifo", "cached", "work"]
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'cached'.\nexpanded-work\nworked\n"
+stderr = ""

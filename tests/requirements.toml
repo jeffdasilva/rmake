@@ -2320,3 +2320,24 @@ candidate_required = 6
 fixture_count = 6
 reference = "docs/rule-quoted-semicolons.md"
 cases = ["empty-inline-cross-empty-expanded-inline-archive-runs-raw-tail", "empty-inline-cross-empty-expanded-inline-assignment-runs-raw-tail", "empty-inline-cross-empty-expanded-inline-fatal-raw-tail", "empty-inline-cross-empty-expanded-inline-runs-raw-tail", "empty-inline-cross-empty-physical-inline-keeps-raw-tail-lazy", "empty-inline-cross-empty-raw-colon-keeps-raw-tail-lazy"]
+
+[[requirements]]
+id = "diagnostics.parallel-goal-summary-order"
+title = "Ordered summaries for settled parallel goals"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 10
+fixture_count = 10
+cases = [
+  "parallel-goal-summary-order-up-to-date-pipe",
+  "parallel-goal-summary-order-up-to-date-fifo",
+  "parallel-goal-summary-order-no-recipe-pipe",
+  "parallel-goal-summary-order-no-recipe-fifo",
+  "parallel-goal-summary-order-phony-current-pipe",
+  "parallel-goal-summary-order-phony-current-fifo",
+  "parallel-goal-summary-order-existing-prereq-pipe",
+  "parallel-goal-summary-order-existing-prereq-fifo",
+  "parallel-goal-summary-order-double-pipe",
+  "parallel-goal-summary-order-double-fifo",
+]

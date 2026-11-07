@@ -3653,10 +3653,11 @@ impl Engine {
                 Some(&mut started_command),
             );
             self.debug_double_colon_goal_prunes(&goal, outcome);
-            let outcome = if !self.parallel_graph() && !self.pending(&goal) {
-                self.observe_updated(&goal, outcome)
-            } else {
+            let pending = self.pending(&goal);
+            let outcome = if pending {
                 outcome
+            } else {
+                self.observe_updated(&goal, outcome)
             };
             let mut completed_report = None;
             if self.options.keep_going && !outcome.fatal {
@@ -3665,14 +3666,14 @@ impl Engine {
                     // The goal summary uses the declared head, while the
                     // first visit still reports the trailing input's failure.
                     completed_report = self.done.get(name).copied();
-                } else if outcome.late_input_failed && !self.pending(&goal) {
+                } else if outcome.late_input_failed && !pending {
                     completed_report = Some(outcome);
                 }
             }
             if let Some(report) = completed_report {
                 failed |= outcome.failed;
                 self.report_goal(&goal, started_command, report);
-            } else if self.parallel_graph() {
+            } else if self.parallel_graph() && pending {
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
                     && self
