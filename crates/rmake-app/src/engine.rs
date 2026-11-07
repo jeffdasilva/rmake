@@ -987,6 +987,7 @@ pub struct Engine {
     database: Database,
     database_dumped: Cell<bool>,
     database_implicit: HashSet<Vec<u8>>,
+    terminal_prerequisites: HashSet<Vec<u8>>,
     database_contexts: HashMap<Vec<u8>, VariableStore>,
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
@@ -1047,6 +1048,7 @@ pub struct Engine {
     aliases: Aliases,
     path_observations: HashMap<Vec<u8>, PathObservation>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
+    ignored_vpath: HashSet<Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
     archive_completion_times: HashMap<Vec<u8>, ArchiveCompletion>,
     makefile_error: RefCell<Option<PendingIncludeError>>,
@@ -1556,6 +1558,7 @@ impl Engine {
             database,
             database_dumped: Cell::new(false),
             database_implicit: HashSet::new(),
+            terminal_prerequisites: HashSet::new(),
             database_contexts: HashMap::new(),
             database_branch_contexts: HashMap::new(),
             database_branch_outcomes: HashMap::new(),
@@ -1612,6 +1615,7 @@ impl Engine {
             aliases: Aliases::default(),
             path_observations: HashMap::new(),
             resolved_names: HashMap::new(),
+            ignored_vpath: HashSet::new(),
             archive_vpath_reads: RefCell::new(None),
             archive_completion_times: HashMap::new(),
             makefile_error: RefCell::new(None),
@@ -4992,8 +4996,10 @@ impl Engine {
         }
         for flags in [
             &mut self.database_implicit,
+            &mut self.terminal_prerequisites,
             &mut self.database_secondary,
             &mut self.database_remake_started,
+            &mut self.ignored_vpath,
         ] {
             if flags.remove(from) {
                 flags.insert(to.to_vec());
@@ -5411,6 +5417,9 @@ impl Engine {
         if let Some(time) = self.modified(target) {
             return Ok(Some((None, Some(time))));
         }
+        if self.ignored_vpath.contains(target) {
+            return Ok(None);
+        }
         let searched = self.searched_file(target)?;
         if searched.is_some() || !target.starts_with(b"-l") || self.makefile_names.contains(target)
         {
@@ -5587,6 +5596,7 @@ impl Engine {
 
     fn update_search_pending(&self, target: &[u8], phony: bool, all_recursive: bool) -> bool {
         !phony
+            && !self.ignored_vpath.contains(target)
             && self.vpath_searchable(target)
             && (!(self.options.dry_run || self.options.question || self.options.touch)
                 || all_recursive)
@@ -5673,20 +5683,23 @@ impl Engine {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
             rule => rule.cloned(),
         };
-        self.database_implicit.insert(target.to_vec());
         let mut budget = 100_000;
-        crate::debug::emit(
-            &self.output,
-            crate::debug::Event::Looking(target, debug_depth + 1),
-        );
-        let plan =
+        let plan = if self.terminal_prerequisites.contains(target) {
+            None
+        } else {
+            self.database_implicit.insert(target.to_vec());
+            crate::debug::emit(
+                &self.output,
+                crate::debug::Event::Looking(target, debug_depth + 1),
+            );
             match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
                 Ok(plan) => plan,
                 Err(error) => {
                     self.expansion_error(None, &error);
                     return false;
                 }
-            };
+            }
+        };
         if plan.is_none() && budget == 0 {
             self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
             return false;
@@ -5765,6 +5778,17 @@ impl Engine {
                     explicit_names: _,
                     intermediate_names,
                 } = selection;
+                if rule.terminal {
+                    // Accepting a terminal rule bars implicit search when
+                    // visiting its prerequisites. Explicit recipes and the
+                    // ordinary default-recipe check still apply.
+                    for dependency in &rule.dependencies {
+                        if dependency.name != b".WAIT" {
+                            self.terminal_prerequisites.insert(dependency.name.clone());
+                            self.database_implicit.insert(dependency.name.clone());
+                        }
+                    }
+                }
                 // A selected implicit rule promotes its file to a target,
                 // including recipes converted from undeclared builtin records.
                 rule.record_only = false;
@@ -8508,6 +8532,9 @@ impl Engine {
                     .map(Vec::from)
                     .collect();
                 if let Some(discarded) = self.resolved_names.remove(target) {
+                    // A rebuild has selected the local name permanently for
+                    // this file. A missing result must stay missing.
+                    self.ignored_vpath.insert(target.to_vec());
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::IgnoringVpath(&discarded),
