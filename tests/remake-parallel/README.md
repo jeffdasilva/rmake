@@ -16,8 +16,11 @@ ordinary goal effects. Separate mixed-root profiles distinguish the child’s
 error policy from the traversal’s current source-open diagnostic and cover
 declaration order and a successful restart after an optional failure. The
 immediate launch profiles cover ignored errors, optional prerequisite ordering,
-an explicit wait barrier, and required failure draining. Each parallel profile
-runs with the pipe and FIFO jobserver.
+an explicit wait barrier, and required failure draining. Shared failure profiles
+hold the prerequisite first launched by an optional remake and check the
+required frame's diagnostic after its completion. Separate, implicit grouped,
+explicit grouped, and grouped double-colon targets all exercise this path.
+Each parallel profile runs with the pipe and FIFO jobserver.
 
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
