@@ -540,8 +540,19 @@ impl<'a> ExpansionContext<'a> {
         &mut self,
         database: &mut crate::parser::Database,
         origin: crate::variables::Origin,
+        value: Vec<u8>,
+        encoded_overrides: bool,
+    ) -> Result<(), crate::variables::ExpandError> {
+        self.update_makeflags_in(database, origin, value, encoded_overrides, None)
+    }
+
+    pub(crate) fn update_makeflags_in(
+        &mut self,
+        database: &mut crate::parser::Database,
+        origin: crate::variables::Origin,
         mut value: Vec<u8>,
         encoded_overrides: bool,
+        named_target: Option<&[u8]>,
     ) -> Result<(), crate::variables::ExpandError> {
         use crate::variables::{Assignment, ExpandError};
         if self.makeflags.is_none() {
@@ -702,7 +713,7 @@ impl<'a> ExpansionContext<'a> {
             result.origin = metadata.origin;
             result.environment_override = metadata.environment_override;
         }
-        database.update_mflags(&result.value, result.environment_override)?;
+        database.update_mflags(&result.value, result.environment_override, named_target)?;
         if result.eval_reference {
             result.value.extend_from_slice(b" $(-*-eval-flags-*-)");
         }
@@ -719,8 +730,9 @@ impl<'a> ExpansionContext<'a> {
             result.value.extend_from_slice(overrides_reference);
         }
         variables.set_environment_override(result.environment_override);
-        variables.define_runtime_metadata(b"MAKEFLAGS", &result.value, result.origin)?;
-        Ok(())
+        variables.with_flag_destination(named_target, |variables| {
+            variables.define_runtime_metadata(b"MAKEFLAGS", &result.value, result.origin)
+        })
     }
 
     /// Drive an owned decoder without retaining a host borrow across effects.

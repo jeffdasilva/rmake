@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-sibling-foo-global-private-export-include"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Replay a selected global flag binding in the explicitly named target scope."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "parent", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[]/[]\nsibling=[rR --no-print-directory]/[]\nparent=[]/[]\nafter=[]/[]\n"
+stderr = ""

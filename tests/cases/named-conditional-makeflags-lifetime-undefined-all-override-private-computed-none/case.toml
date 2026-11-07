@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-lifetime-undefined-all-override-private-computed-none"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Distinguish missing, recreated, and protected canonical global flag bindings."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[file]/[rR --no-print-directory]/[-rR --no-print-directory]\nsibling=[file]/[rR --no-print-directory]/[-rR --no-print-directory]\nall=[override]/[-s]/[-rR --no-print-directory]\nafter=[file]/[rR --no-print-directory]/[-rR --no-print-directory]\n"
+stderr = ""

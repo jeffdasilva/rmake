@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-lifetime-reborn-child-private-unexport-computed-none"
+requirement = "runtime.flags"
+candidate = "required"
+description = "Distinguish missing, recreated, and protected canonical global flag bindings."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "all", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child=[undefined]/[]/[-krR --no-print-directory]\nsibling=[undefined]/[]/[-krR --no-print-directory]\nall=[undefined]/[]/[-krR --no-print-directory]\nafter=[undefined]/[]/[-krR --no-print-directory]\n"
+stderr = ""

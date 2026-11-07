@@ -1068,11 +1068,26 @@ impl VariableStore {
         Ok(())
     }
 
-    pub(crate) fn conditional_flag_binding(&self) -> Option<ConditionalFlagBinding> {
+    pub(crate) fn has_special_makeflags(&self) -> bool {
+        self.variables
+            .get(b"MAKEFLAGS".as_slice())
+            .is_some_and(|binding| binding.scope.special_makeflags.get())
+    }
+
+    pub(crate) fn conditional_flag_binding(
+        &self,
+        canonical_flags_published: bool,
+    ) -> Option<ConditionalFlagBinding> {
         let Some((layer, variable)) = self.lookup_from(b"MAKEFLAGS", 0) else {
-            return Some(ConditionalFlagBinding::Global);
+            return Some(if canonical_flags_published {
+                ConditionalFlagBinding::Ordinary
+            } else {
+                ConditionalFlagBinding::Global
+            });
         };
-        if self.global_layer(layer) {
+        if self.global_layer(layer)
+            && (!canonical_flags_published || variable.scope.special_makeflags.get())
+        {
             return Some(ConditionalFlagBinding::Global);
         }
         if !variable.scope.special_makeflags.get() {
@@ -1083,6 +1098,32 @@ impl VariableStore {
             scope.inherited || scope.file_locals
         };
         outer.then_some(ConditionalFlagBinding::Outer(layer))
+    }
+
+    pub(crate) fn with_flag_destination(
+        &mut self,
+        named_target: Option<&[u8]>,
+        define: impl FnOnce(&mut Self) -> Result<(), ExpandError>,
+    ) -> Result<(), ExpandError> {
+        let Some(layer) = self.current_file_declarations(named_target) else {
+            return define(self);
+        };
+        // Named declarations publish into the file's shared table. Its
+        // inheritors can refresh it without replacing their automatic locals.
+        let mut declarations = Self {
+            variables: Arc::clone(&layer.variables),
+            environment_override: self.environment_override,
+            ..Self::default()
+        };
+        let result = define(&mut declarations);
+        self.layers.make_mut()[0].variables = declarations.variables;
+        result
+    }
+
+    pub(crate) fn qualify_global_target_flags(&mut self, private: bool, export: Option<bool>) {
+        if let Some(binding) = Arc::make_mut(&mut self.variables).get_mut(b"MAKEFLAGS".as_slice()) {
+            binding.scope.set_target_qualifiers(private, export);
+        }
     }
 
     pub(crate) fn qualify_outer_flags(&self, layer: usize, private: bool, export: Option<bool>) {

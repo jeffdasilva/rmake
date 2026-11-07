@@ -478,6 +478,7 @@ pub struct Database {
     filename_scratch: Option<Vec<u8>>,
     filename_session_depth: usize,
     runtime_metadata_live: bool,
+    canonical_flags_published: bool,
     /// Global bindings being expanded for an environment vector. Target-local
     /// bindings do not refer to the global object removed by undefine.
     pub(crate) exporting: Vec<Vec<u8>>,
@@ -2658,7 +2659,8 @@ impl Database {
         let flag_binding = if live_makeflags && spec.kind == Assignment::Conditional {
             lookup_scope
                 .as_ref()
-                .and_then(VariableStore::conditional_flag_binding)
+                .unwrap_or(&self.variables)
+                .conditional_flag_binding(self.canonical_flags_published)
         } else {
             None
         };
@@ -2726,8 +2728,14 @@ impl Database {
         result?;
         // A conditional can return an ordinary file or pattern binding.
         // The live setter runs only when that selected binding is special.
-        if live_makeflags && !matches!(flag_binding, Some(ConditionalFlagBinding::Ordinary)) {
-            self.reset_assigned_flags(origin, context.reborrow())?;
+        let replay_flags = live_makeflags
+            && if spec.kind == Assignment::Conditional {
+                !matches!(flag_binding, Some(ConditionalFlagBinding::Ordinary))
+            } else {
+                !self.canonical_flags_published || self.variables.has_special_makeflags()
+            };
+        if replay_flags {
+            self.reset_assigned_flags(origin, None, context.reborrow())?;
             return Ok(flag_binding);
         }
         Ok(None)
@@ -2765,21 +2773,36 @@ impl Database {
         Ok(Some(name))
     }
 
+    pub fn define_canonical_makeflags(
+        &mut self,
+        flags: &[u8],
+        origin: Origin,
+    ) -> Result<(), ExpandError> {
+        self.variables
+            .define_runtime_metadata(b"MAKEFLAGS", flags, origin)?;
+        self.canonical_flags_published = true;
+        Ok(())
+    }
+
     pub(crate) fn update_mflags(
         &mut self,
         flags: &[u8],
         environment_override: bool,
+        named_target: Option<&[u8]>,
     ) -> Result<(), ExpandError> {
-        if let Some(scope) = &mut self.evaluation_scope {
-            scope.update_mflags(flags, environment_override)
-        } else {
-            self.variables.update_mflags(flags, environment_override)
-        }
+        let variables = self
+            .evaluation_scope
+            .as_mut()
+            .unwrap_or(&mut self.variables);
+        variables.with_flag_destination(named_target, |variables| {
+            variables.update_mflags(flags, environment_override)
+        })
     }
 
     fn reset_assigned_flags(
         &mut self,
         origin: Origin,
+        named_target: Option<&[u8]>,
         mut context: ExpansionContext<'_>,
     ) -> Result<(), ExpandError> {
         let encoded_overrides = self
@@ -2787,7 +2810,7 @@ impl Database {
             .get(b"MAKEFLAGS")
             .is_some_and(|variable| Self::has_command_overrides_reference(variable.raw_value()));
         let value = self.expand_with(b"$(MAKEFLAGS)", context.reborrow())?;
-        context.update_makeflags(self, origin, value, encoded_overrides)
+        context.update_makeflags_in(self, origin, value, encoded_overrides, named_target)
     }
 
     fn define_target_assignments(
@@ -2902,8 +2925,44 @@ impl Database {
                     context,
                 ));
             }
+            let parse_error = |error: ExpandError| ParseError {
+                unlocated: error.is_unlocated(),
+                location: error
+                    .diagnostic_location(Some(location))
+                    .unwrap_or(location)
+                    .clone(),
+                message: error.diagnostic(),
+            };
             let rhs = assignment.spec.value;
             let kind = assignment.spec.kind;
+            let scope = if kind == Assignment::Conditional
+                && name == b"MAKEFLAGS"
+                && context.has_makeflags()
+            {
+                let mut declarations = scope.context(&self.variables);
+                let replayed = self
+                    .replay_named_global_flags(
+                        target,
+                        &mut declarations,
+                        assignment.origin,
+                        context.at(Some(location)),
+                    )
+                    .map_err(parse_error)?;
+                let scope = self
+                    .target_scopes
+                    .get_mut(target)
+                    .expect("target declaration");
+                if replayed {
+                    scope.retain_read_bindings(&declarations);
+                    self.variables
+                        .qualify_global_target_flags(assignment.private, assignment.export);
+                    self.publish_target_scope(target);
+                    continue;
+                }
+                scope
+            } else {
+                scope
+            };
             let scope = if kind == Assignment::Conditional
                 && (self.evaluation_scope.is_some()
                     || self.target_read.is_some()
@@ -2976,14 +3035,6 @@ impl Database {
                     |_, scope, bytes, _, context| scope.expand_mut_with(bytes, context),
                 )
             };
-            let parse_error = |error: ExpandError| ParseError {
-                unlocated: error.is_unlocated(),
-                location: error
-                    .diagnostic_location(Some(location))
-                    .unwrap_or(location)
-                    .clone(),
-                message: error.diagnostic(),
-            };
             let lookup_origin = result.map_err(parse_error)?;
             self.publish_target_scope(target);
             if lookup_origin
@@ -3008,6 +3059,29 @@ impl Database {
             }
         }
         Ok(has_targets)
+    }
+
+    fn replay_named_global_flags(
+        &mut self,
+        target: &[u8],
+        declarations: &mut VariableStore,
+        origin: Origin,
+        context: ExpansionContext<'_>,
+    ) -> Result<bool, ExpandError> {
+        self.with_target_read(target, declarations, context, |database, read, context| {
+            if read.get(b"MAKEFLAGS").is_none()
+                || !matches!(
+                    read.conditional_flag_binding(database.canonical_flags_published),
+                    Some(ConditionalFlagBinding::Global)
+                )
+            {
+                return Ok(false);
+            }
+            database.evaluation_scope = Some(std::mem::take(read));
+            let result = database.reset_assigned_flags(origin, Some(target), context);
+            *read = database.evaluation_scope.take().expect("named flag scope");
+            result.map(|_| true)
+        })
     }
 
     fn publish_target_scope(&mut self, target: &[u8]) {
@@ -3172,8 +3246,28 @@ impl Database {
         scope: &mut VariableStore,
         bytes: &[u8],
         shell: bool,
-        mut context: ExpansionContext<'_>,
+        context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
+        self.with_target_read(target, scope, context, |database, read, context| {
+            if shell {
+                crate::variables::shell_scoped_database(database, read, bytes, context)
+            } else {
+                crate::variables::expand_scoped_database::<false>(database, read, bytes, context)
+            }
+        })
+    }
+
+    fn with_target_read<T>(
+        &mut self,
+        target: &[u8],
+        scope: &mut VariableStore,
+        mut context: ExpansionContext<'_>,
+        read_target: impl FnOnce(
+            &mut Self,
+            &mut VariableStore,
+            ExpansionContext<'_>,
+        ) -> Result<T, ExpandError>,
+    ) -> Result<T, ExpandError> {
         let owns_reader_lexical = self.target_read.is_none() && self.evaluation_scope.is_none();
         let global_lexical = if let Some(read) = &self.target_read {
             read.global_lexical.clone()
@@ -3210,11 +3304,7 @@ impl Database {
             global_lexical,
         });
         let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
-        let result = if shell {
-            crate::variables::shell_scoped_database(self, read, bytes, context.reborrow())
-        } else {
-            crate::variables::expand_scoped_database::<false>(self, read, bytes, context.reborrow())
-        };
+        let result = read_target(self, read, context.reborrow());
         if let Some((owner, read)) = file_read {
             scope.retain_target_read_declarations(&read);
             match owner {

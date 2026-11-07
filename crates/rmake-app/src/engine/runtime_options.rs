@@ -738,12 +738,8 @@ impl Engine {
         {
             flags.extend_from_slice(self.database.command_overrides_reference());
         }
-        self.database.variables.define(
-            b"MAKEFLAGS",
-            &flags,
-            Assignment::Recursive,
-            origin(self.options.environment_override),
-        )?;
+        self.database
+            .define_canonical_makeflags(&flags, origin(self.options.environment_override))?;
         self.initial_flags = flags;
         let active_debug = self.output.debug_mask();
         self.flag_state.refresh(&self.options);
