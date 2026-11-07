@@ -1752,13 +1752,16 @@ impl VariableStore {
                 if table.contains(name) {
                     return;
                 }
-                let variable = frame.get(name).expect("lexical environment binding");
+                let Some(variable) = frame.environment_binding(name, index + 1 == lexical.len())
+                else {
+                    return;
+                };
                 if variable.export_policy().is_none() {
                     // Resolve outer policy before expanding any environment value.
                     let policy = lexical[..index]
                         .iter()
                         .rev()
-                        .filter_map(|scope| scope.get(name))
+                        .filter_map(|scope| scope.environment_binding(name, false))
                         .find_map(Variable::export_policy)
                         .or_else(|| {
                             self.export_policy_for(name, false, || {
@@ -2880,11 +2883,30 @@ impl LocalFrame {
         self.values.get(name).map(|binding| &binding.variable)
     }
 
+    fn environment_binding(&self, name: &[u8], local: bool) -> Option<&Variable> {
+        self.get(name)
+            .filter(|variable| local || !variable.is_private())
+    }
+
     pub(crate) fn set_export_policy(&self, name: &[u8], export: bool) -> bool {
+        self.apply_assignment_qualifiers(name, false, Some(export))
+    }
+
+    pub(crate) fn apply_assignment_qualifiers(
+        &self,
+        name: &[u8],
+        private: bool,
+        export: Option<bool>,
+    ) -> bool {
         let Some(variable) = self.get(name) else {
             return false;
         };
-        variable.scope.export.set(Some(export));
+        if private {
+            variable.scope.private.set(true);
+        }
+        if export.is_some() {
+            variable.scope.export.set(export);
+        }
         true
     }
 
@@ -3271,6 +3293,14 @@ impl Expansion<'_, '_> {
 
     fn lexical_binding(&self, name: &[u8]) -> Option<&Variable> {
         self.bindings.iter().rev().find_map(|scope| scope.get(name))
+    }
+
+    fn lexical_environment_binding(&self, name: &[u8]) -> Option<&Variable> {
+        self.bindings
+            .iter()
+            .rev()
+            .enumerate()
+            .find_map(|(index, frame)| frame.environment_binding(name, index == 0))
     }
 
     fn lookup(&self, name: &[u8]) -> Option<&Variable> {
@@ -3838,14 +3868,14 @@ impl Expansion<'_, '_> {
                     })
             });
         names.retain(|name| {
-            self.lexical_binding(name).is_some()
+            self.lexical_environment_binding(name).is_some()
                 || snapshot
                     .lookup_from_visible(name, 0, local_private)
                     .is_some()
         });
         let mut environment = Vec::new();
         for name in names {
-            if let Some(variable) = self.lexical_binding(&name) {
+            if let Some(variable) = self.lexical_environment_binding(&name) {
                 let value = if variable.export_policy().unwrap_or_else(|| {
                     Self::shell_export_default(&name, variable.origin, export_all)
                 }) {
