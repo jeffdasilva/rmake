@@ -35,7 +35,8 @@ REMAKE_ERROR = b"Makefile:2: Failed to remake makefile 'generated.gen'.\n"
 class HeldModel:
     model: debug.Model
     overlap: bool
-    before_second: bytes
+    before_second: bytes | None
+    before_first: bytes = BEFORE_FIRST
 
 
 def models() -> list[HeldModel]:
@@ -101,7 +102,7 @@ def models() -> list[HeldModel]:
             model = debug.Model(f'{mode}-{transport}', files, args, {'GNUMAKEFLAGS': ''}, expected,
                                 seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, not serial, before_second))
-    return results + mixed_models(worker, markers)
+    return results + mixed_models(worker, markers) + immediate_launch_models(worker, markers)
 
 
 def mixed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
@@ -156,6 +157,70 @@ def mixed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
             model = debug.Model(f'mixed-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''},
                                 expected, seen, updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, True, BEFORE_SECOND))
+    return results
+
+
+def immediate_launch_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = ('$(file >>seen,read-$(MAKE_RESTARTS))\n'
+              '.PHONY: all\n'
+              'all: ; @$(file >>seen,goal):\n')
+    spawn_error = b'make: ./missing-program: No such file or directory\n'
+    failure = 'missing: ; @./missing-program\n'
+    cases = (
+        ('ignored-required', (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            'include left.gen\ninclude right.gen\n'
+            '.PHONY: all\nall: ; @$(file >>seen,goal):\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            'left.gen: ; @python3 worker.py left include\n'
+            'right.gen:\n\t-@./missing-program\n'
+            '\t@printf "RIGHT := loaded\\n" > "$@"\nendif\n'
+        ), 0, b'', spawn_error
+            + b'Makefile:3: right.gen: No such file or directory\n'
+            + b'make: [Makefile:9: right.gen] Error 127 (ignored)\n',
+         BEFORE_FIRST, BEFORE_SECOND + b'read-1\ngoal\n',
+         {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}),
+        ('optional-continues', header + (
+            '-include generated.gen\n'
+            'generated.gen: left missing third ; @$(error failed dependencies must prevent this recipe)\n'
+            'left: ; @python3 worker.py left fail\n'
+            'third: ; @$(file >>seen,third):\n'
+        ) + failure, 0, b'left\n', spawn_error, BEFORE_FIRST + b'third\n',
+         BEFORE_FIRST + b'third\nleft\ngoal\n', {}),
+        ('optional-no-rule', header + (
+            '-include generated.gen\n'
+            'generated.gen: left missing third ; @$(error failed dependencies must prevent this recipe)\n'
+            'left: ; @python3 worker.py left success\n'
+            'third: ; @$(file >>seen,third):\n'
+        ), 0, b'', b'', BEFORE_FIRST, BEFORE_SECOND + b'goal\n', {}),
+        ('optional-wait', header + (
+            '-include generated.gen\n'
+            'generated.gen: left missing .WAIT third ; @$(error failed dependencies must prevent this recipe)\n'
+            'left: ; @python3 worker.py left success\n'
+            'third: ; @$(file >>seen,third):\n'
+        ) + failure, 0, b'', spawn_error, BEFORE_FIRST, BEFORE_SECOND + b'goal\n', {}),
+        ('required-drains', (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '-include left.gen\ninclude right.gen\n'
+            '.PHONY: all\nall: ; @$(file >>seen,goal):\n'
+            'left.gen: ; @python3 worker.py left include\n'
+            'right.gen: ; @./missing-program\n'
+        ), 2, b'', spawn_error + b'Makefile:3: right.gen: No such file or directory\n'
+            + b'make: *** [Makefile:7: right.gen] Error 127\n' + WAITING,
+         BEFORE_FIRST, BEFORE_SECOND, {'left.gen': b'LEFT := loaded\n'}),
+    )
+    left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, source, status, stdout, stderr, before_first, seen, updates in cases:
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
+            args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}', 'all')
+            expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'immediate-{name}-{transport}', files, args, {'GNUMAKEFLAGS': ''},
+                                expected, seen, updates={**left_markers, **updates},
+                                mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(model, False, None, before_first))
     return results
 
 
@@ -222,22 +287,32 @@ def execute(case: h.Case, runtime: Path, binary: Path):
 
 
 def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
-    if [release['name'] for release in releases] != list(WORKERS):
+    order = ['left'] if held.before_second is None else list(WORKERS)
+    if [release['name'] for release in releases] != order:
         return ['held release sequence']
     errors = []
-    first, second = releases
+    first = releases[0]
     expected_first = list(WORKERS) if held.overlap else ['left']
-    if sorted(first['workers']) != expected_first or list(second['workers']) != ['right']:
-        errors.append('active workers at release')
+    if sorted(first['workers']) != expected_first:
+        errors.append('active workers at first release')
+    if first['seen_hex'] != held.before_first.hex():
+        errors.append('file effects at first release')
+    if first['stdout_hex']:
+        errors.append('stdout at first release')
+    if held.before_second is None:
+        return errors
+    second = releases[1]
+    if list(second['workers']) != ['right']:
+        errors.append('active workers at second release')
     if first['parent'] != second['parent']:
         errors.append('parent identity at release')
     if held.overlap and 'right' in first['workers'] and first['workers']['right'] != second['workers'].get('right'):
         errors.append('right identity across releases')
-    if first['seen_hex'] != BEFORE_FIRST.hex() or second['seen_hex'] != held.before_second.hex():
-        errors.append('file effects at release')
+    if second['seen_hex'] != held.before_second.hex():
+        errors.append('file effects at second release')
     stdout_after_left = b'left\n' if held.model.expected['stdout_template_hex'] else b''
-    if first['stdout_hex'] or second['stdout_hex'] != stdout_after_left.hex():
-        errors.append('stdout at release')
+    if second['stdout_hex'] != stdout_after_left.hex():
+        errors.append('stdout at second release')
     return errors
 
 

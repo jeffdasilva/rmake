@@ -328,6 +328,8 @@ struct Outcome {
     fatal: bool,
     question_outdated: bool,
     blocked: bool,
+    // A failed dispatch in an optional parallel remake can precede more visits.
+    deferred_spawn_failure: bool,
     // An optional grouped recipe already supplied this peer's failure.
     optional_group_peer_failure: bool,
     // The cached declared head can remain successful after the tail fails.
@@ -408,6 +410,10 @@ struct Inspection {
 }
 
 fn merge_child(outcome: &mut Outcome, child: Outcome) {
+    if child.failed {
+        outcome.deferred_spawn_failure =
+            child.deferred_spawn_failure && (!outcome.failed || outcome.deferred_spawn_failure);
+    }
     outcome.ran |= child.ran;
     outcome.failed |= child.failed;
     outcome.fatal |= child.fatal;
@@ -2026,6 +2032,20 @@ impl Engine {
     fn show_remake_open_error(&self, remake: Option<&MakefileRemake>) {
         if let Some(error) = remake.and_then(MakefileRemake::take_open_error) {
             self.emit_makefile_error(&error);
+        }
+    }
+
+    fn show_recipe_makefile_error(&self, remake: Option<&MakefileRemake>) {
+        if self.parallel_makefile_remakes {
+            if let Some(error) = self
+                .remake_error_cursor
+                .as_ref()
+                .and_then(|pending| pending.take())
+            {
+                self.emit_makefile_error(&error);
+            }
+        } else {
+            self.show_remake_open_error(remake);
         }
     }
 
@@ -4953,13 +4973,7 @@ impl Engine {
             && (job.ignore || !remake.is_some_and(|remake| remake.optional))
             && (!job.ignore || !self.globally_silent())
         {
-            if let Some(error) = self
-                .remake_error_cursor
-                .as_ref()
-                .and_then(|pending| pending.take())
-            {
-                self.emit_makefile_error(&error);
-            }
+            self.show_recipe_makefile_error(remake);
             let source = location_prefix(&job.location);
             let ignored = if job.ignore {
                 crate::messages::system(rmake_core::messages::Message::Ignored)
@@ -5078,6 +5092,13 @@ impl Engine {
         outcome.ran = !cancelled;
         outcome.failed |= failed;
         if optional_failure && failed {
+            if !self.options.keep_going
+                && self.parallel_graph()
+                && let Some(stopped) = self.remake_stop()
+            {
+                // A reaped job can stop its optional owner's traversal early.
+                stopped.set(true);
+            }
             self.optional_remake_failures
                 .entry(target.clone())
                 .or_default();
@@ -7164,9 +7185,8 @@ impl Engine {
             return;
         }
         if !outcome.fatal && self.optional_remake() {
-            if let Some(stopped) = self.remake_stop() {
-                stopped.set(true);
-            }
+            // Synchronous failures settle their prerequisite frame in order.
+            // Only a job completion can stop the whole optional owner early.
             return;
         }
         let status = if outcome.fatal {
@@ -8658,8 +8678,10 @@ impl Engine {
             if state.serial_phase && !scan_group {
                 state.serial_dependency = Some(index);
             }
+            let deferred = child.deferred_spawn_failure && self.optional_remake();
             if child.fatal
-                || ((child.failed || child.question_outdated) && !self.options.keep_going)
+                || (((child.failed && !deferred) || child.question_outdated)
+                    && !self.options.keep_going)
             {
                 state.stopped = true;
             }
@@ -9015,12 +9037,7 @@ impl Engine {
             let Some(child) = self.done.get(dependency).copied() else {
                 continue;
             };
-            outcome.ran |= child.ran;
-            outcome.failed |= child.failed;
-            outcome.fatal |= child.fatal;
-            outcome.blocked |= child.failed;
-            outcome.late_input_failed |= child.late_input_failed;
-            outcome.question_outdated |= child.question_outdated;
+            merge_child(&mut outcome, child);
             let order_only = !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale
                 .as_ref()
@@ -9335,6 +9352,9 @@ impl Engine {
                 }
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
+                outcome.deferred_spawn_failure = execution.launch_failed
+                    && self.parallel_makefile_remakes
+                    && self.optional_remake();
                 outcome.failed |= matches!(execution.status, Status::Failure | Status::Fatal);
                 outcome.fatal |= execution.status == Status::Fatal;
                 outcome.question_outdated |= execution.status == Status::Question;
@@ -10679,11 +10699,11 @@ impl Engine {
             if let Some(error) = error {
                 if !ignore {
                     self.note_group_recipe_failure(target, &recipe.location);
-                    self.show_remake_open_error(remake.as_ref());
                 }
                 if (ignore || !remake.as_ref().is_some_and(|remake| remake.optional))
                     && (!ignore || !self.globally_silent())
                 {
+                    self.show_recipe_makefile_error(remake.as_ref());
                     let source = location_prefix(&recipe.location);
                     let ignored = if ignore {
                         crate::messages::system(rmake_core::messages::Message::Ignored)
@@ -10714,8 +10734,10 @@ impl Engine {
                 }
                 if !ignore {
                     self.output.select(None);
-                    return Execution::failure(ran, failure_cleanup)
+                    let mut execution = Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
+                    execution.launch_failed = !launched;
+                    return execution;
                 }
             }
             self.output.select(None);
