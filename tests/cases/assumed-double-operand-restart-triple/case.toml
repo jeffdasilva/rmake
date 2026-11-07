@@ -1,0 +1,14 @@
+id = "assumed-double-operand-restart-triple"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for ordered synthetic double-colon operands."
+args = ["-rR", "--no-print-directory", "-W./cached", "-W././cached", "gate", "cached", "result"]
+timeout_seconds = 5
+
+[environment]
+MAKEFLAGS = "-Wcached"
+
+[expected]
+exit_code = 0
+stdout = "read=[]\nread=[1]\ndeclared=[cached|primer]\nordinary\ndefault=[cached|cached|]\ndefault=[cached|cached|]\ndefault=[cached|cached|]\nmake: 'result' is up to date.\n"
+stderr = ""

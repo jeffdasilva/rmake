@@ -4,15 +4,20 @@
 //! Invocation-only logical file ages. They never become filesystem timestamps.
 use super::*;
 const OLD: u8 = 1;
-const NEW: u8 = 2;
 const DOUBLE_COLON: u8 = 4;
 pub(super) enum CachedDoubleColonInput {
     Unvisited(SystemTime),
     Failed,
 }
 
+#[derive(Default)]
+struct Entry {
+    bits: u8,
+    new_count: usize,
+}
+
 pub(super) struct Files {
-    entries: HashMap<Vec<u8>, u8>,
+    entries: HashMap<Vec<u8>, Entry>,
     // These input-only records were published after their declared branches
     // finished, or failed after an ordinary visit. Repeated visits in one
     // goal pass prune to the declared head.
@@ -35,12 +40,17 @@ impl Files {
         let new = SystemTime::UNIX_EPOCH
             .checked_add(span)
             .ok_or(b"rmake: assumed-file timestamp range unavailable".as_slice())?;
-        let mut entries = HashMap::new();
-        for (paths, bit) in [(&options.old_files, OLD), (&options.new_files, NEW)] {
+        let mut entries: HashMap<_, Entry> = HashMap::new();
+        for (paths, new) in [(&options.old_files, false), (&options.new_files, true)] {
             for path in paths {
                 let name =
                     rmake_core::filenames::without_dot_prefix(path.as_os_str().as_bytes()).to_vec();
-                *entries.entry(name).or_insert(0) |= bit;
+                let entry = entries.entry(name).or_default();
+                if new {
+                    entry.new_count += 1;
+                } else {
+                    entry.bits |= OLD;
+                }
             }
         }
         Ok(Some(Box::new(Self {
@@ -53,11 +63,11 @@ impl Files {
     }
     pub(super) fn bind(&mut self, database: &mut Database, new_active: bool) {
         self.new_active = new_active;
-        for (name, bits) in &mut self.entries {
-            if !new_active && *bits & OLD == 0 {
+        for (name, entry) in &mut self.entries {
+            if !new_active && entry.bits & OLD == 0 {
                 continue;
             }
-            Self::bind_record(database, name, bits);
+            Self::bind_record(database, name, &mut entry.bits);
         }
     }
     fn bind_record(database: &mut Database, name: &[u8], bits: &mut u8) {
@@ -77,37 +87,39 @@ impl Files {
         time == Some(self.new)
     }
     fn time(&self, name: &[u8]) -> Option<SystemTime> {
-        self.entries.get(name).and_then(|bits| {
-            if bits & DOUBLE_COLON != 0 {
+        self.entries.get(name).and_then(|entry| {
+            if entry.bits & DOUBLE_COLON != 0 {
                 None
-            } else if self.new_active && bits & NEW != 0 {
+            } else if self.new_active && entry.new_count != 0 {
                 Some(self.new)
             } else {
-                (bits & OLD != 0).then_some(self.old)
+                (entry.bits & OLD != 0).then_some(self.old)
             }
         })
     }
     fn ignores_rules(&self, name: &[u8]) -> bool {
         self.entries
             .get(name)
-            .is_some_and(|bits| bits & OLD != 0 && bits & DOUBLE_COLON == 0)
+            .is_some_and(|entry| entry.bits & OLD != 0 && entry.bits & DOUBLE_COLON == 0)
     }
-    fn has_new_double_colon_entry(&self, name: &[u8]) -> bool {
-        self.new_active
-            && self
-                .entries
-                .get(name)
-                .is_some_and(|bits| bits & (NEW | DOUBLE_COLON) == (NEW | DOUBLE_COLON))
+    fn new_double_colon_entry_count(&self, name: &[u8]) -> usize {
+        self.entries.get(name).map_or(0, |entry| {
+            if self.new_active && entry.bits & DOUBLE_COLON != 0 {
+                entry.new_count
+            } else {
+                0
+            }
+        })
     }
     fn release_new(&mut self, name: &[u8]) {
         if self.new_active
-            && let Some(bits) = self.entries.get_mut(name)
+            && let Some(entry) = self.entries.get_mut(name)
         {
-            if *bits & DOUBLE_COLON != 0 {
+            if entry.bits & DOUBLE_COLON != 0 {
                 return;
             }
-            *bits &= !NEW;
-            if *bits == 0 {
+            entry.new_count = 0;
+            if entry.bits == 0 {
                 self.entries.remove(name);
             }
         }
@@ -119,12 +131,12 @@ impl Engine {
             return;
         };
         files.new_active = true;
-        for (name, bits) in &mut files.entries {
-            if *bits & NEW == 0 {
+        for (name, entry) in &mut files.entries {
+            if entry.new_count == 0 {
                 continue;
             }
-            Files::bind_record(&mut self.database, name, bits);
-            if *bits & DOUBLE_COLON != 0 {
+            Files::bind_record(&mut self.database, name, &mut entry.bits);
+            if entry.bits & DOUBLE_COLON != 0 {
                 if self.done.contains_key(name) {
                     files.cached_double_colon_pass.insert(name.clone(), None);
                 }
@@ -147,10 +159,17 @@ impl Engine {
             .as_ref()
             .is_some_and(|files| files.ignores_rules(name))
     }
-    pub(super) fn new_double_colon_entry(&self, name: &[u8]) -> bool {
-        self.assumptions
+    pub(super) fn new_double_colon_entry_count(&self, name: &[u8]) -> usize {
+        let count = self
+            .assumptions
             .as_ref()
-            .is_some_and(|files| files.has_new_double_colon_entry(name))
+            .map_or(0, |files| files.new_double_colon_entry_count(name));
+        if count > 1 && self.options.question && !self.options.keep_going {
+            // Retain single-tail scheduling for stopping queries.
+            1
+        } else {
+            count
+        }
     }
     pub(super) fn cached_double_colon_input_due(&self, name: &[u8]) -> bool {
         self.assumptions
@@ -251,18 +270,18 @@ mod tests {
     }
 
     #[test]
-    fn double_colon_records_keep_real_times_rules_and_the_new_input_tail() {
-        let mut files = files(&["-odep", "-Wdep", "-oold"]);
+    fn double_colon_records_keep_real_times_rules_and_the_new_input_tails() {
+        let mut files = files(&["-odep", "-Wdep", "-W./dep", "-oold"]);
         let mut database = Database::default();
         database.read(b"dep::;\nold::;\n", b"Makefile").unwrap();
         files.bind(&mut database, true);
         assert_eq!(files.time(b"dep"), None);
         assert!(!files.ignores_rules(b"dep"));
         assert!(!files.ignores_rules(b"old"));
-        assert!(files.has_new_double_colon_entry(b"dep"));
-        assert!(!files.has_new_double_colon_entry(b"old"));
+        assert_eq!(files.new_double_colon_entry_count(b"dep"), 2);
+        assert_eq!(files.new_double_colon_entry_count(b"old"), 0);
         files.release_new(b"dep");
-        assert!(files.has_new_double_colon_entry(b"dep"));
+        assert_eq!(files.new_double_colon_entry_count(b"dep"), 2);
         assert_eq!(
             database.rules[b"dep".as_slice()]
                 .double_colon

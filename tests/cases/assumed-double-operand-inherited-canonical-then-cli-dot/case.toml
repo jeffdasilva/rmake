@@ -1,0 +1,14 @@
+id = "assumed-double-operand-inherited-canonical-then-cli-dot"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for ordered synthetic double-colon operands."
+args = ["-rR", "--no-print-directory", "-W./cached", "gate", "cached", "result"]
+timeout_seconds = 5
+
+[environment]
+MAKEFLAGS = "-Wcached"
+
+[expected]
+exit_code = 0
+stdout = "read=[]\ndeclared=[cached|primer]\ndefault=[cached|cached|]\ndefault=[cached|cached|]\nordinary\nmake: 'cached' is up to date.\nmake: 'result' is up to date.\n"
+stderr = ""

@@ -1,0 +1,11 @@
+id = "assumed-double-operand-restart-cached-missing-keep"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for ordered synthetic double-colon operands."
+args = ["-rR", "--no-print-directory", "-k", "-Wcached", "-W./cached", "gate", "cached", "result"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "read=[]\nread=[1]\ndeclared=[cached|primer]\nordinary\nmake: 'cached' is up to date.\nresult=[cached|cached]\n"
+stderr = "make: *** No rule to make target 'cached'.\nmake: *** No rule to make target 'cached'.\n"

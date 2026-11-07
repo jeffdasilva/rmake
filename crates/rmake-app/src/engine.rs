@@ -7553,10 +7553,18 @@ impl Engine {
         self.debug_consider(target, target, depth);
         match input {
             CachedDoubleColonInput::Unvisited(time) => {
+                if self.new_double_colon_entry_count(target) > 1 {
+                    return self.start_late_double_colon_recipe(target, depth, time, outcome, None);
+                }
                 match self.synthetic_double_colon_recipe(target, depth) {
                     Ok(Some(rule)) => {
-                        return self
-                            .start_late_double_colon_recipe(target, depth, time, outcome, rule);
+                        return self.start_late_double_colon_recipe(
+                            target,
+                            depth,
+                            time,
+                            outcome,
+                            Some(rule),
+                        );
                     }
                     Err(()) => {
                         outcome.failed = true;
@@ -7599,7 +7607,7 @@ impl Engine {
         depth: usize,
         time: SystemTime,
         head: Outcome,
-        rule: Rule,
+        first_rule: Option<Rule>,
     ) -> Outcome {
         let ordinal = self
             .database
@@ -7607,6 +7615,11 @@ impl Engine {
             .get(target)
             .and_then(|rule| rule.double_colon.as_ref())
             .map_or(0, Vec::len);
+        let count = self.new_double_colon_entry_count(target);
+        let mut branches = std::collections::VecDeque::from([(ordinal, first_rule)]);
+        for offset in 1..count {
+            branches.push_back((ordinal + offset, None));
+        }
         let before = self.modified(target);
         let phony = self.special(b".PHONY", target, false);
         self.done.remove(target);
@@ -7621,7 +7634,7 @@ impl Engine {
                 depth,
                 before,
                 phony,
-                branches: std::collections::VecDeque::from([(ordinal, Some(rule))]),
+                branches,
                 active: None,
                 last_epoch: None,
                 awaiting_recipe: false,
@@ -8155,7 +8168,7 @@ impl Engine {
         if let Some(branches) = rule.double_colon.take() {
             let mut branches: std::collections::VecDeque<_> =
                 branches.into_iter().map(Some).enumerate().collect();
-            if self.new_double_colon_entry(target) {
+            for _ in 0..self.new_double_colon_entry_count(target) {
                 branches.push_back((branches.len(), None));
             }
             self.pending_double_colon.insert(

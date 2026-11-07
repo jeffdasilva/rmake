@@ -1,0 +1,11 @@
+id = "assumed-double-operand-restart-cached-current-search"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for ordered synthetic double-colon operands."
+args = ["-rR", "--no-print-directory", "-Wcached", "-W./cached", "gate", "cached", "result"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read=[]\nread=[1]\ndeclared=[cached|primer]\nordinary\nmake: 'cached' is up to date.\nresult=[cached|cached]\n"
+stderr = ""

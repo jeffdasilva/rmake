@@ -677,9 +677,18 @@ impl State {
                 }
                 crate::cli::Argument::NewFile(index) => {
                     let raw = options.new_files[index].as_os_str().as_bytes();
-                    options.new_files[index] = self.path(program, raw)?;
-                    if let Some(history) = self.database.database_history() {
-                        history.intern(options.new_files[index].as_os_str().as_bytes());
+                    // Compare the incoming spelling against the already
+                    // prepared operands before resolving this path.
+                    if options.new_files[..index]
+                        .iter()
+                        .any(|path| path.as_os_str().as_bytes() == raw)
+                    {
+                        options.new_files.pop();
+                    } else {
+                        options.new_files[index] = self.path(program, raw)?;
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(options.new_files[index].as_os_str().as_bytes());
+                        }
                     }
                 }
                 crate::cli::Argument::Goal(index) => {
