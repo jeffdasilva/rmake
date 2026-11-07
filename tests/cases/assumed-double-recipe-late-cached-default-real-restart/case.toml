@@ -1,0 +1,11 @@
+id = "assumed-double-recipe-late-cached-default-real-restart"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for an assumed-new double-colon rule."
+args = ["-rR", "--no-print-directory", "-W", "cached", "gate", "cached", "result"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "read=[]\nread=[1]\ndeclared=[cached|primer]\nordinary\ndefault=[cached|cached|]\nmake: 'result' is up to date.\n"
+stderr = ""

@@ -14,7 +14,8 @@ pub(super) enum CachedDoubleColonInput {
 pub(super) struct Files {
     entries: HashMap<Vec<u8>, u8>,
     // These input-only records were published after their declared branches
-    // finished. Repeated visits in one goal pass prune to the declared head.
+    // finished, or failed after an ordinary visit. Repeated visits in one
+    // goal pass prune to the declared head.
     cached_double_colon_pass: HashMap<Vec<u8>, Option<u64>>,
     old: SystemTime,
     new: SystemTime,
@@ -172,7 +173,28 @@ impl Engine {
             CachedDoubleColonInput::Unvisited(files.new)
         })
     }
+    pub(super) fn forget_cached_double_colon_input(&mut self, name: &[u8]) {
+        if let Some(files) = &mut self.assumptions {
+            files.cached_double_colon_pass.remove(name);
+        }
+    }
+
+    pub(super) fn remember_failed_double_colon_input(&mut self, name: &[u8]) {
+        if let Some(files) = &mut self.assumptions {
+            files
+                .cached_double_colon_pass
+                .insert(name.to_vec(), Some(self.debug_pass));
+        }
+    }
+
     pub(super) fn visited_cached_double_colon_input(&self, name: &[u8]) -> bool {
+        if self
+            .pending_double_colon
+            .get(name)
+            .is_some_and(|state| state.synthetic_tail.is_some())
+        {
+            return false;
+        }
         self.assumptions
             .as_ref()
             .and_then(|files| files.cached_double_colon_pass.get(name))

@@ -1,0 +1,11 @@
+id = "assumed-double-recipe-fresh-pattern-absent"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for a synthetic double-colon rule."
+args = ["-rR", "--no-print-directory", "-W", "cached", "gate", "cached", "result"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 2
+stdout = "read=[]\ndeclared=[cached|primer]\n"
+stderr = "make: *** No rule to make target 'cached'.  Stop.\n"
