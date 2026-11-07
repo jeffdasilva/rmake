@@ -1,0 +1,13 @@
+id = "include-late-group-failure-partial-stop"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required recipe that stops before its peer prevents a restart."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "read 0\nattempt inventory.complete/0\nMakefile:4: inventory.complete: No such file or directory\nmake: *** [Makefile:9: inventory.complete] Error 9\nMakefile:9: warning: pattern recipe did not update peer target 'inventory.part'.\n"
+stderr = ""

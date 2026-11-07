@@ -1,0 +1,13 @@
+id = "include-late-group-failure-present-only-optional"
+requirement = "includes.remake"
+candidate = "required"
+description = "A late grouped failure stays optional when both inputs are optional."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-k", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "read 0\nattempt inventory.part/0\nordinary\n"
+stderr = ""

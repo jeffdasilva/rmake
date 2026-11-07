@@ -1,0 +1,13 @@
+id = "include-late-group-failure-restart-peer-write"
+requirement = "includes.remake"
+candidate = "required"
+description = "A late failed peer changes the required include and triggers a second restart."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-k", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "read 0\nattempt inventory.complete/0\nMakefile:4: inventory.complete: No such file or directory\nmake: *** [Makefile:10: inventory.complete] Error 9\nMakefile:10: warning: pattern recipe did not update peer target 'inventory.part'.\nMakefile:4: Failed to remake makefile 'inventory.complete'.\nread 1\nattempt inventory.part/1\nMakefile:4: Failed to remake makefile 'inventory.complete'.\nread 2\nordinary\n"
+stderr = ""

@@ -1,0 +1,13 @@
+id = "include-late-group-failure-partial-optional"
+requirement = "includes.remake"
+candidate = "required"
+description = "An optional first peer leaves the missing required include on the first pass."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-k", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "read 0\nattempt inventory.part/0\nMakefile:9: warning: pattern recipe did not update peer target 'inventory.complete'.\nMakefile:5: Failed to remake makefile 'inventory.complete'.\n"
+stderr = ""

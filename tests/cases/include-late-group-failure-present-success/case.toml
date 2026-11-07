@@ -1,0 +1,13 @@
+id = "include-late-group-failure-present-success"
+requirement = "includes.remake"
+candidate = "required"
+description = "A successful optional grouped remake restarts before the ordinary goal."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-k", "report"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "read 0\nattempt inventory.part/0\nread 1\nordinary\n"
+stderr = ""
