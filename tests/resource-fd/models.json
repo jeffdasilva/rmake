@@ -102,6 +102,143 @@
       "stdout_hex": "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a",
       "stderr_hex": "",
       "status": 0
+    },
+    {
+      "id": "source-open-fdlimit-required",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info reader-root)\ninclude entry.mk\n$(info after-root)\nall: ; @:\n",
+        "entry.mk": "$(info reader-entry)\ninclude middle.mk\n$(info after-entry)\n",
+        "middle.mk": "# nested source\n$(info reader-middle)\ninclude leaf.mk\n$(info after-middle)\n",
+        "leaf.mk": "$(info reader-leaf)\n"
+      },
+      "stdout_hex": "7265616465722d726f6f740a7265616465722d656e7472790a7265616465722d6d6964646c650a",
+      "stderr_hex": "6d6964646c652e6d6b3a333a202a2a2a20546f6f206d616e79206f70656e2066696c65732e202053746f702e0a",
+      "status": 2
+    },
+    {
+      "id": "source-open-fdlimit-optional",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info reader-root)\ninclude entry.mk\n$(info after-root)\nall: ; @:\n",
+        "entry.mk": "$(info reader-entry)\ninclude middle.mk\n$(info after-entry)\n",
+        "middle.mk": "# nested source\n$(info reader-middle)\n-include leaf.mk\n$(info after-middle)\n",
+        "leaf.mk": "$(info reader-leaf)\n"
+      },
+      "stdout_hex": "7265616465722d726f6f740a7265616465722d656e7472790a7265616465722d6d6964646c650a",
+      "stderr_hex": "6d6964646c652e6d6b3a333a202a2a2a20546f6f206d616e79206f70656e2066696c65732e202053746f702e0a",
+      "status": 2
+    },
+    {
+      "id": "source-open-fdlimit-self",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info parent)\ninclude recurse.mk\n$(info after-parent)\nall: ; @:\n",
+        "recurse.mk": "$(info nested)\ninclude ./recurse.mk\n$(info after-nested)\n"
+      },
+      "stdout_hex": "706172656e740a6e65737465640a6e65737465640a",
+      "stderr_hex": "726563757273652e6d6b3a323a202a2a2a20546f6f206d616e79206f70656e2066696c65732e202053746f702e0a",
+      "status": 2
+    },
+    {
+      "id": "source-open-fdlimit-read-siblings",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info begin)\ninclude one.mk two.mk three.mk four.mk five.mk\n$(info end)\nall: ; @:\n",
+        "one.mk": "$(info one)\n",
+        "two.mk": "$(info two)\n",
+        "three.mk": "$(info three)\n",
+        "four.mk": "$(info four)\n",
+        "five.mk": "$(info five)\n"
+      },
+      "stdout_hex": "626567696e0a6f6e650a74776f0a74687265650a666f75720a666976650a656e640a",
+      "stderr_hex": "",
+      "status": 0
+    },
+    {
+      "id": "source-open-fdlimit-roomy-chain",
+      "nofile": 7,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info reader-root)\ninclude entry.mk\n$(info after-root)\nall: ; @:\n",
+        "entry.mk": "$(info reader-entry)\ninclude middle.mk\n$(info after-entry)\n",
+        "middle.mk": "# nested source\n$(info reader-middle)\ninclude leaf.mk\n$(info after-middle)\n",
+        "leaf.mk": "$(info reader-leaf)\n"
+      },
+      "stdout_hex": "7265616465722d726f6f740a7265616465722d656e7472790a7265616465722d6d6964646c650a7265616465722d6c6561660a61667465722d6d6964646c650a61667465722d656e7472790a61667465722d726f6f740a",
+      "stderr_hex": "",
+      "status": 0
+    },
+    {
+      "id": "source-open-fdlimit-read-error",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info before-read)\n-include directory.mk\n$(info after-read)\nall: ; @:\n",
+        "directory.mk/keep": ""
+      },
+      "stdout_hex": "6265666f72652d726561640a",
+      "stderr_hex": "6d616b653a202a2a2a206469726563746f72792e6d6b3a2049732061206469726563746f72792e202053746f702e0a",
+      "status": 2
+    },
+    {
+      "id": "source-open-fdlimit-fallback-missing",
+      "nofile": 6,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-I-",
+        "-Isearch",
+        "all"
+      ],
+      "files": {
+        "Makefile": "$(info before-search)\n-include absent.mk\n$(info after-search)\nall: ; @:\n",
+        "search/keep": ""
+      },
+      "stdout_hex": "6265666f72652d7365617263680a61667465722d7365617263680a",
+      "stderr_hex": "",
+      "status": 0
     }
   ]
 }

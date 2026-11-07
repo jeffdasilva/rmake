@@ -137,12 +137,19 @@ impl IncludeSearch {
     }
 }
 
+pub(crate) fn source_open_exhausted(error: &io::Error) -> bool {
+    matches!(error.raw_os_error(), Some(12 | 23 | 24)) // ENOMEM, ENFILE, EMFILE
+}
+
 fn open_failure(resolved_name: Option<Vec<u8>>, error: io::Error) -> IncludeFailure {
+    if resolved_name.is_none() && source_open_exhausted(&error) {
+        return IncludeFailure::Fatal(rmake_linux::filesystem::source_error_detail(&error));
+    }
     let detail = match error.raw_os_error() {
         Some(code) => IncludeError::Errno(code),
         None => IncludeError::Bytes(rmake_linux::filesystem::source_error_detail(&error)),
     };
-    IncludeFailure {
+    IncludeFailure::Deferred {
         resolved_name,
         detail,
     }
@@ -204,5 +211,34 @@ mod spelling_tests {
         assert_eq!(selected, b"./hdir\xff/inc///");
         let argument = prepare_argument_with(raw, || Ok(b"./hdir\xff".to_vec())).unwrap();
         assert_eq!(argument.as_os_str().as_bytes(), b"hdir\xff/inc///");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_initial_source_open_exhaustion_is_fatal() {
+        for errno in [12, 23, 24] {
+            assert!(matches!(
+                open_failure(None, io::Error::from_raw_os_error(errno)),
+                IncludeFailure::Fatal(detail) if !detail.is_empty()
+            ));
+            assert!(matches!(
+                open_failure(Some(b"search/part.mk".to_vec()), io::Error::from_raw_os_error(errno)),
+                IncludeFailure::Deferred {
+                    resolved_name: Some(path),
+                    detail: IncludeError::Errno(code),
+                } if path.as_slice() == b"search/part.mk" && code == errno
+            ));
+        }
+        assert!(matches!(
+            open_failure(None, io::Error::from_raw_os_error(2)),
+            IncludeFailure::Deferred {
+                resolved_name: None,
+                detail: IncludeError::Errno(2)
+            }
+        ));
     }
 }

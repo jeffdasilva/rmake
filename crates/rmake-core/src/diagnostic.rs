@@ -201,11 +201,14 @@ pub struct IncludedFile {
     pub input: crate::reader::Input,
 }
 
-/// Retain the failed search candidate and OS error number until remake reports
-/// it. Host adapters can also supply arbitrary, untranslated detail bytes.
-pub struct IncludeFailure {
-    pub resolved_name: Option<Vec<u8>>,
-    pub detail: IncludeError,
+pub enum IncludeFailure {
+    /// Retain the failed search candidate and error until remake reports it.
+    Deferred {
+        resolved_name: Option<Vec<u8>>,
+        detail: IncludeError,
+    },
+    /// The reader must stop at the directive that opened this source.
+    Fatal(Vec<u8>),
 }
 
 #[derive(Clone, Debug)]
@@ -216,7 +219,7 @@ pub enum IncludeError {
 
 impl From<Vec<u8>> for IncludeFailure {
     fn from(detail: Vec<u8>) -> Self {
-        Self {
+        Self::Deferred {
             resolved_name: None,
             detail: IncludeError::Bytes(detail),
         }
