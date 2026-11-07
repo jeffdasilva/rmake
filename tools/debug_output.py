@@ -122,6 +122,7 @@ def models() -> list[Model]:
               + _model_file('double-keep-going.toml') + _model_file('double-own-reap.toml')
               + _model_file('double-shared-prereq-reap.toml')
               + _model_file('double-wait-reap.toml')
+              + _model_file('grouped-wait-frontiers.toml')
               + _model_file('notparallel-reap.toml') + _model_file('file-write-pass.toml')
               + _model_file('later-file-write.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):

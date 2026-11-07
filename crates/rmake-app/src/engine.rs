@@ -892,6 +892,8 @@ struct GroupState {
     recipe_rule: Rule,
     peer_segments: Vec<(usize, Vec<u8>, usize)>,
     peer_targets: std::collections::VecDeque<(Vec<u8>, usize)>,
+    // Dependency-order ranges skipped at blocked peer barriers.
+    wait_frontiers: Vec<std::ops::Range<usize>>,
     run: GroupRun,
 }
 
@@ -7603,6 +7605,7 @@ impl Engine {
                 recipe_rule: rule.clone(),
                 peer_segments: vec![(0, target.to_vec(), rule.grouped_double_ordinal())],
                 peer_targets,
+                wait_frontiers: Vec::new(),
                 run: GroupRun {
                     branch: rule.grouped_double_id(),
                     implicit: rule.implicit_pattern.is_some(),
@@ -7737,6 +7740,18 @@ impl Engine {
         state.stopped |= self.graph_abort.is_some();
         self.visiting.insert(target.to_vec());
         let mut waiting = false;
+        let previous_next = state.next;
+        let previous_frontiers = state
+            .group
+            .as_mut()
+            .map(|group| std::mem::take(&mut group.wait_frontiers))
+            .unwrap_or_default();
+        let mut group_frontier = !previous_frontiers.is_empty();
+        let mut group_waiting = false;
+        if group_frontier {
+            state.next = 0;
+            state.replay_cached_after_recipe |= replay_debug;
+        }
         let mut resume_visit = if replay_debug {
             PrerequisiteVisit::DebugReplay
         } else {
@@ -7858,6 +7873,28 @@ impl Engine {
             let occurrence = &state.rule.dependencies[index];
             let dependency = &occurrence.name;
             if dependency == b".WAIT" {
+                if !self.remaking
+                    && state.rule.grouped_double_id().is_some()
+                    && self.parallel_graph()
+                    && let Some(group) = state.group.as_mut()
+                {
+                    if group_waiting {
+                        // Defer this segment's tail while other peers can still
+                        // reach their own prerequisite barrier.
+                        let end = group
+                            .peer_segments
+                            .iter()
+                            .map(|(start, _, _)| *start)
+                            .find(|start| *start > state.next)
+                            .unwrap_or(state.rule.dependencies.len());
+                        group.wait_frontiers.push(state.next..end);
+                        state.next = end;
+                        group_frontier = true;
+                    } else {
+                        state.next += 1;
+                    }
+                    continue;
+                }
                 // Only the first prefix scan is a visit in this goal pass.
                 let visit = std::mem::replace(&mut resume_visit, PrerequisiteVisit::Resume);
                 for position in 0..state.next {
@@ -7880,8 +7917,16 @@ impl Engine {
                 }
                 continue;
             }
+            let visited = !previous_frontiers.is_empty()
+                && state.next < previous_next
+                && !previous_frontiers
+                    .iter()
+                    .any(|range| range.contains(&state.next));
             state.next += 1;
-            if self.visiting.contains(dependency) {
+            if visited && state.dropped.contains(dependency) {
+                continue;
+            }
+            if !visited && self.visiting.contains(dependency) {
                 if self.shuffle.enabled() {
                     state
                         .presentation_drops
@@ -7906,8 +7951,13 @@ impl Engine {
                 state.dropped.insert(dependency.clone());
                 continue;
             }
-            let (child, _) =
-                self.visit_prerequisite(target, &mut state, index, PrerequisiteVisit::First);
+            let visit = if visited {
+                resume_visit
+            } else {
+                PrerequisiteVisit::First
+            };
+            let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
+            group_waiting |= pending;
             merge_child(&mut state.outcome, child);
             if state.serial_phase {
                 state.serial_dependency = Some(index);
@@ -7920,15 +7970,20 @@ impl Engine {
         }
         // Revisit suspended children in traversal order without replaying the
         // parent's dependency expansion, circular diagnostics or scope setup.
-        for position in 0..state.next {
-            let index = state.order.get(position).copied().unwrap_or(position);
-            let dependency = &state.rule.dependencies[index].name;
-            if dependency == b".WAIT" || state.dropped.contains(dependency) {
-                continue;
+        if group_frontier {
+            waiting |= group_waiting;
+        } else {
+            for position in 0..state.next {
+                let index = state.order.get(position).copied().unwrap_or(position);
+                let dependency = &state.rule.dependencies[index].name;
+                if dependency == b".WAIT" || state.dropped.contains(dependency) {
+                    continue;
+                }
+                let (child, pending) =
+                    self.visit_prerequisite(target, &mut state, index, resume_visit);
+                merge_child(&mut state.outcome, child);
+                waiting |= pending;
             }
-            let (child, pending) = self.visit_prerequisite(target, &mut state, index, resume_visit);
-            merge_child(&mut state.outcome, child);
-            waiting |= pending;
         }
         if !waiting {
             // Staleness only needs an immutable membership test, so repeated
