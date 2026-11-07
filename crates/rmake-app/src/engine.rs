@@ -3917,33 +3917,23 @@ impl Engine {
         };
         let mut stale = self.options.always;
         let mut waiting = false;
-        let serial = self.special(b".NOTPARALLEL", target, false);
         self.visiting.insert(target.to_vec());
+        // Freshness follows declaration order, even when later builds are
+        // shuffled.
         let mut next = 0;
-        let mut order = self.shuffle.order(target, rule.dependencies.len());
         let mut dropped = false;
         while next < rule.dependencies.len() {
-            let index = order.get(next).copied().unwrap_or(next);
-            let dep = &rule.dependencies[index];
+            let dep = &rule.dependencies[next];
+            // A freshness inspection visits inputs across prerequisite
+            // barriers. The actual rebuild still uses the normal scheduler.
             if dep.name == b".WAIT" {
-                if waiting {
-                    break;
-                }
                 next += 1;
                 continue;
             }
             if self.visiting.contains(&dep.name) {
                 self.warn_circular_dependency(target, &dep.name);
-                rule.dependencies.remove(index);
-                self.shuffle.discard(target, index);
-                if !order.is_empty() {
-                    order.retain(|i| *i != index);
-                    for i in &mut order {
-                        if *i > index {
-                            *i -= 1;
-                        }
-                    }
-                }
+                rule.dependencies.remove(next);
+                self.shuffle.discard(target, next);
                 dropped = true;
                 continue;
             }
@@ -3970,7 +3960,7 @@ impl Engine {
             if !pending {
                 stale |= !dep.order_only && needs_rebuild;
             }
-            if child.fatal || (child.failed && !self.options.keep_going) || (serial && pending) {
+            if child.fatal || (child.failed && !self.options.keep_going) {
                 break;
             }
         }
