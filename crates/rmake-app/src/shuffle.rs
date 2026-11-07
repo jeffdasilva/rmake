@@ -104,6 +104,11 @@ impl Planner {
     pub fn enabled(&self) -> bool {
         self.0.is_some()
     }
+    pub fn has_plan(&self, name: &[u8]) -> bool {
+        self.0
+            .as_ref()
+            .is_some_and(|state| state.orders.contains_key(name))
+    }
     pub fn suffix(&self) -> &[u8] {
         self.0.as_ref().map_or(b"", |s| &s.suffix)
     }

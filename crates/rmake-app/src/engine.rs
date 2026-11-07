@@ -6611,6 +6611,7 @@ impl Engine {
             // A selected implicit rule promotes its file to a target,
             // including recipes converted from undeclared builtin records.
             rule.record_only = false;
+            let adds_prerequisites = !rule.dependencies.is_empty();
             let detached = detach_root && name == target;
             if !detached && let Some(scope) = prepared_scope {
                 self.implicit_scopes.insert(name.clone(), *scope);
@@ -6634,7 +6635,7 @@ impl Engine {
                 self.intermediates.insert(name.clone());
             }
             self.intermediates.extend(intermediate_names);
-            if self.shuffle.enabled() {
+            if self.shuffle.enabled() && (adds_prerequisites || !self.shuffle.has_plan(&name)) {
                 let disabled = self.special(b".NOTPARALLEL", b"", true);
                 self.shuffle
                     .regenerate(&name, &rule, &self.database, disabled);

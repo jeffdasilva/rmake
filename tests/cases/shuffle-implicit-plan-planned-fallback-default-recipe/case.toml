@@ -1,0 +1,10 @@
+id = "shuffle-implicit-plan-planned-fallback-default-recipe"
+requirement = "options.shuffle-implicit-plan"
+candidate = "required"
+provenance = "Original rmake GNU Make 4.4.1 differential fixture for seeded implicit-plan traversal."
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345", "all.out"]
+
+[expected]
+exit_code = 0
+stdout = "leaf d05\nleaf d04\nleaf d11\nleaf d07\nleaf d01\nleaf d06\nleaf d10\nleaf d08\nleaf d09\nleaf d03\nleaf d02\n"
+stderr = ""
