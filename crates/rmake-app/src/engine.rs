@@ -7517,15 +7517,18 @@ impl Engine {
         debug_depth: usize,
         graph_visit: bool,
     ) -> bool {
-        let existing = match self.database.rules.get(target) {
+        // Keep prerequisites for default-recipe fallback before search can
+        // run effects. Declared rules do not use that fallback.
+        let (had_rule, default_dependencies) = match self.database.rules.get(target) {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
-            rule => rule.cloned(),
+            Some(rule) => (true, rule.record_only.then(|| rule.dependencies.clone())),
+            None => (false, Some(Vec::new())),
         };
         let Ok(plan) = self.plan_implicit_update(target, debug_depth, true) else {
             return false;
         };
         if plan.is_none()
-            && existing.is_none()
+            && !had_rule
             && self
                 .database_times
                 .borrow()
@@ -7536,10 +7539,10 @@ impl Engine {
         }
         if let Some(plan) = plan {
             let _ = self.install_implicit_plan(target, plan, false);
-        } else if existing.as_ref().is_none_or(|rule| rule.record_only)
+        } else if let Some(dependencies) = default_dependencies
             && let Some(mut rule) = self.default_update_rule(target, debug_depth, graph_visit)
         {
-            rule.dependencies = existing.map_or_else(Vec::new, |rule| rule.dependencies);
+            rule.dependencies = dependencies;
             self.invalidate_phony_names(target);
             self.database.rules.insert(target.to_vec(), rule);
         }
