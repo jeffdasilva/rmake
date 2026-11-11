@@ -4594,15 +4594,20 @@ impl Expansion<'_, '_> {
                 Ok(output)
             }
             b"join" => {
-                let left: Vec<_> = words(first).collect();
-                let right: Vec<_> = words(&args[1]).collect();
+                let mut right = words(&args[1]);
                 let mut output = Vec::new();
-                for index in 0..left.len().max(right.len()) {
-                    if index != 0 {
+                for left_word in words(first) {
+                    if !output.is_empty() {
                         push(&mut output, b" ")?;
                     }
-                    push(&mut output, left.get(index).copied().unwrap_or_default())?;
-                    push(&mut output, right.get(index).copied().unwrap_or_default())?;
+                    push(&mut output, left_word)?;
+                    push(&mut output, right.next().unwrap_or_default())?;
+                }
+                for right_word in right {
+                    if !output.is_empty() {
+                        push(&mut output, b" ")?;
+                    }
+                    push(&mut output, right_word)?;
                 }
                 Ok(output)
             }
