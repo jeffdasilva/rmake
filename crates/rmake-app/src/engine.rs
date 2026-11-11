@@ -20,7 +20,9 @@ use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
 use rmake_core::messages::Message;
-use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
+use rmake_core::parser::{
+    Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, trim, words,
+};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
 };
@@ -11680,13 +11682,22 @@ impl Engine {
             let Some(first) = recipes.first() else {
                 return Execution::success(false);
             };
-            let script = crate::oneshell::collect(recipes.iter().map(Recipe::execution_bytes));
+            let script =
+                crate::oneshell::collect(recipes.iter().map(|recipe| recipe.bytes.as_slice()));
+            // A make reference can cross recipe slots in the collected script.
+            let bytes = if recipes.iter().any(Recipe::has_physical_continuation)
+                && script.bytes.contains(&b'$')
+            {
+                rmake_core::reader::fold_recipe_reference_continuations(&script.bytes)
+            } else {
+                script.bytes
+            };
             combined = [Recipe {
-                bytes: script.bytes,
+                bytes,
                 location: first.location.clone(),
                 prefix: first.prefix,
                 builtin: first.builtin,
-                continued_inline: false,
+                source: RecipeSource::Ordinary,
             }];
             (combined.as_slice(), script.has_commands, script.recursive)
         } else {
@@ -11777,7 +11788,7 @@ impl Engine {
                 location: source.location.clone(),
                 prefix: source.prefix,
                 builtin: source.builtin,
-                continued_inline: false,
+                source: RecipeSource::Ordinary,
             };
             let line = first.location.line.saturating_add(index);
             if recipe.location.line != line
@@ -11791,7 +11802,11 @@ impl Engine {
             }
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
                 Ok(mut bytes) => {
-                    if source.continued_inline {
+                    // A single source line can also gain recipe prefixes
+                    // during expansion.
+                    if source.has_physical_continuation()
+                        || (bytes.contains(&b'\n') && (one_shell || !source.bytes.contains(&b'\n')))
+                    {
                         rmake_core::reader::strip_recipe_continuation_prefix(
                             &mut bytes,
                             source.prefix,
@@ -12179,7 +12194,7 @@ impl Engine {
                 ) {
                     continue;
                 }
-                transformed = crate::oneshell::transform(command, shell, recipe.prefix);
+                transformed = crate::oneshell::transform(command, shell);
                 command = &transformed;
                 ordinary_invocation = None;
             } else {

@@ -1,0 +1,1 @@
+$(eval $(file <eval.txt))

@@ -14,7 +14,8 @@ use crate::diagnostic::{
 };
 use crate::messages::Message;
 use crate::reader::{
-    Input, ParserLine, ParserReader, has_comment, inline_recipe_continuations, strip_comment,
+    Input, ParserLine, ParserReader, fold_recipe_reference_continuations, has_comment,
+    strip_comment, strip_recipe_continuation_prefix,
 };
 use crate::variables::{
     Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
@@ -161,24 +162,45 @@ pub struct Recipe {
     pub prefix: u8,
     /// Installed declarative defaults, independent of source-name spelling.
     pub builtin: bool,
-    /// Physical inline bodies retain their source spelling for the database.
-    pub continued_inline: bool,
+    pub source: RecipeSource,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecipeSource {
+    Ordinary,
+    InlineContinuation,
+    PrefixedContinuation,
 }
 
 impl Recipe {
-    /// Fold make references and remove physical continuation prefixes on demand.
+    pub fn has_physical_continuation(&self) -> bool {
+        self.source != RecipeSource::Ordinary
+    }
+
+    /// Prepare a logical command for runtime source-slot accounting.
     pub fn execution_bytes(&self) -> Cow<'_, [u8]> {
-        self.inline_bytes(Some(self.prefix))
+        match self.source {
+            RecipeSource::Ordinary => Cow::Borrowed(&self.bytes),
+            RecipeSource::InlineContinuation => {
+                let mut bytes = fold_recipe_reference_continuations(&self.bytes);
+                // Preserve a dollar for make expansion when it starts the line.
+                if self.prefix != b'$' {
+                    strip_recipe_continuation_prefix(&mut bytes, self.prefix);
+                }
+                Cow::Owned(bytes)
+            }
+            RecipeSource::PrefixedContinuation => {
+                let mut bytes = self.bytes.clone();
+                strip_recipe_continuation_prefix(&mut bytes, self.prefix);
+                Cow::Owned(bytes)
+            }
+        }
     }
 
     /// Keep physical prefixes through expansion so generated prefixes count too.
     pub fn expansion_source(&self) -> Cow<'_, [u8]> {
-        self.inline_bytes(None)
-    }
-
-    fn inline_bytes(&self, prefix: Option<u8>) -> Cow<'_, [u8]> {
-        if self.continued_inline {
-            Cow::Owned(inline_recipe_continuations(&self.bytes, prefix))
+        if self.has_physical_continuation() {
+            Cow::Owned(fold_recipe_reference_continuations(&self.bytes))
         } else {
             Cow::Borrowed(&self.bytes)
         }
@@ -4459,6 +4481,7 @@ impl Database {
             let Some(ParserLine {
                 logical: mut line,
                 leading_prefix,
+                prefixed_continuation,
                 continued_source,
             }) = reader
                 .next_line(prefix, declaration.has_recipe_context(), active)
@@ -4530,7 +4553,11 @@ impl Database {
                             location,
                             prefix,
                             builtin: false,
-                            continued_inline: false,
+                            source: if prefixed_continuation {
+                                RecipeSource::PrefixedContinuation
+                            } else {
+                                RecipeSource::Ordinary
+                            },
                         },
                     );
                 }
@@ -5295,11 +5322,18 @@ impl Database {
             let recipe = source_inline
                 .map(|i| {
                     let command = &source[i + 1..];
-                    let continued_inline = continued_source.is_some() && command.contains(&b'\n');
-                    (command.to_vec(), continued_inline)
+                    let source = if continued_source.is_some() && command.contains(&b'\n') {
+                        RecipeSource::InlineContinuation
+                    } else {
+                        RecipeSource::Ordinary
+                    };
+                    (command.to_vec(), source)
                 })
-                .or_else(|| expanded_inline.map(|i| (expanded_line[i + 1..].to_vec(), false)));
-            if let Some((bytes, continued_inline)) = recipe {
+                .or_else(|| {
+                    expanded_inline
+                        .map(|i| (expanded_line[i + 1..].to_vec(), RecipeSource::Ordinary))
+                });
+            if let Some((bytes, source)) = recipe {
                 self.add_recipe(
                     declaration,
                     Recipe {
@@ -5307,7 +5341,7 @@ impl Database {
                         location,
                         prefix,
                         builtin: false,
-                        continued_inline,
+                        source,
                     },
                 );
             }

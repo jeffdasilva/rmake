@@ -95,11 +95,11 @@ impl<'a> ParserReader<'a> {
         &mut self,
         prefix: u8,
         rule: bool,
-        retain_inline: bool,
+        retain_source: bool,
     ) -> Result<Option<ParserLine>, Vec<u8>> {
         match self {
-            Self::Memory(r) => Ok(r.next_source_line(prefix, rule, retain_inline)),
-            Self::Stream(r) => r.next_line(prefix, rule, retain_inline),
+            Self::Memory(r) => Ok(r.next_source_line(prefix, rule, retain_source)),
+            Self::Stream(r) => r.next_line(prefix, rule, retain_source),
         }
     }
     pub(crate) fn finish(&mut self) {
@@ -136,7 +136,7 @@ impl StreamReader {
         &mut self,
         prefix: u8,
         rule: bool,
-        retain_inline: bool,
+        retain_source: bool,
     ) -> Result<Option<ParserLine>, Vec<u8>> {
         self.nul_warnings = 0;
         let line = self.next_line;
@@ -195,9 +195,10 @@ impl StreamReader {
             lines = 1;
         }
         self.next_line += lines;
-        if !raw.windows(2).any(|p| p == b"\\\n") {
-            let leading_prefix = super::LeadingPrefix::new(&raw, prefix);
-            let recipe = rule && leading_prefix.raw;
+        let leading_prefix = super::LeadingPrefix::new(&raw, prefix);
+        let recipe = rule && leading_prefix.raw;
+        let continued = raw.windows(2).any(|pair| pair == b"\\\n");
+        if !continued || (retain_source && recipe) {
             return Ok(Some(ParserLine {
                 logical: LogicalLine {
                     bytes: raw,
@@ -206,6 +207,7 @@ impl StreamReader {
                     recipe,
                 },
                 leading_prefix,
+                prefixed_continuation: retain_source && recipe && continued,
                 continued_source: None,
             }));
         }
@@ -221,11 +223,12 @@ impl StreamReader {
                     recipe: false,
                 },
                 leading_prefix: super::LeadingPrefix::default(),
+                prefixed_continuation: false,
                 continued_source: None,
             });
         folded.logical.line = line;
         folded.logical.end_line = self.next_line - 1;
-        if retain_inline && !folded.logical.recipe && raw.contains(&b';') {
+        if retain_source && !folded.logical.recipe && raw.contains(&b';') {
             folded.continued_source = Some(raw);
         }
         Ok(Some(folded))
@@ -251,6 +254,10 @@ mod tests {
             b"A=x\\\r\n y\n",
             b"all: ; @printf x\\\r\n\t y\r\n",
             b"all: ; @printf x\\\n",
+            b"\t@printf x\\\n\t\t y\n",
+            b"\t@printf x\\\r\n\t y\r\n",
+            b"\t@printf x\\\n",
+            b"\t@printf x\\\n\t y\n# sentinel\0\n",
         ] {
             for posix in [false, true] {
                 for rule in [false, true] {

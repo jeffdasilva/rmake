@@ -1,0 +1,12 @@
+id = "prefixed-physical-continuation-database-unvisited-custom-prefix"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Physical prefixed recipe continuations, raw source display, or a neighboring control."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3e20407072696e746620273c25733e5c6e272022242866696c65203e73686f756c642d6e6f742d65786973742c57524f4e47296c656674205c0a3e3e7269676874220a"
+stderr_hex = ""

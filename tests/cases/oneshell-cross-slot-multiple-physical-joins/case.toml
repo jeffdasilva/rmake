@@ -1,0 +1,12 @@
+id = "oneshell-cross-slot-multiple-physical-joins"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Make references spanning one-shell recipe lines preserve GNU continuation folding."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e6420746869726420666f757274680a7072696e746620273c25733e5c6e272027656e64270a"
+stderr_hex = ""

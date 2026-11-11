@@ -2060,6 +2060,29 @@ mod tests {
     }
 
     #[test]
+    fn prefixed_recipe_printing_retains_raw_continuation_prefixes() {
+        let mut database = Database::default();
+        database
+            .read(
+                b"all:\n\t@printf '$(info left \\\n\t right)' \\\n\t\tdata\n",
+                b"Makefile",
+            )
+            .unwrap();
+        let rule = &database.rules[b"all".as_slice()];
+        let recipes = rule.recipes.as_ref().unwrap();
+        assert_eq!(
+            recipes[0].expansion_source().as_ref(),
+            b"@printf '$(info left right)' \\\n\t\tdata"
+        );
+        let mut output = Vec::new();
+        write_recipes(&mut output, recipes, rule.recipe_location.as_ref()).unwrap();
+        assert_eq!(
+            output,
+            b"#  recipe to execute (from 'Makefile', line 2):\n\t@printf '$(info left \\\n\t right)' \\\n\t\tdata\n"
+        );
+    }
+
+    #[test]
     fn file_records_retain_target_declarations_and_recipe_prefix_transitions() {
         let mut database = Database::default();
         database.read(

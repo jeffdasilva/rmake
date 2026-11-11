@@ -1,0 +1,12 @@
+id = "oneshell-physical-continuation-inline-angle-expansion-config"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "One-shell continuation prefix removal and Bourne modifier handling."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5245434950450a434f4e4649470a7072696e746620273c25733e5c6e2720276c656674205c0a7269676874270a7072696e746620273c25733e5c6e27207461696c0a"
+stderr_hex = ""
