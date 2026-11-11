@@ -211,6 +211,7 @@ static SCM render_number_or_symbol;
 static SCM render_character;
 static SCM check_printable_string;
 static SCM finish_conversion;
+static SCM lookup_scalar_error;
 static atomic_int guile_entered;
 static atomic_uint leading_evaluations;
 int rg_guile_leading_evaluator_active(void) {
@@ -235,7 +236,7 @@ static SCM scalar_text(SCM value) {
     }
     /* Use Guile's ordinary exception machinery; the public and component
      * entry points deliberately choose different outer error consumers. */
-    return scm_call_2(scm_c_public_ref("guile","error"),
+    return scm_call_2(scm_call_0(lookup_scalar_error),
                       scm_from_locale_string("Unknown object:"),value);
 }
 static SCM convert_scalar(SCM value) {
@@ -325,6 +326,9 @@ static void define_module(void *unused) {
         "(lambda (value) (string-every char-set:printing value))");
     // Guile resolves the lexical references when the closure first uses
     // them. Keep that resolution and select join before reverse can run.
+    // Resolve error on the first failed scalar conversion. Guile retains
+    // the selected module variable, including subsequent changes to its value.
+    lookup_scalar_error = scm_c_eval_string("(lambda () error)");
     finish_conversion = scm_c_eval_string(
         "(lambda (parts)"
         "  (let* ((join-procedure string-join)"
