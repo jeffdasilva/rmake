@@ -3256,13 +3256,14 @@ impl Engine {
                 && read_files.iter().any(|(file, skip)| {
                     let name = rmake_core::filenames::without_dot_prefix(&file.name);
                     !*skip
-                        && file.location.is_none()
                         && self.is_makefile_goal(name, named_sources.as_ref())
-                        && self
-                            .database
-                            .rules
-                            .get(name)
-                            .is_some_and(|rule| !rule.dependencies.is_empty())
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            !rule.dependencies.is_empty()
+                                && (file.location.is_none()
+                                    || rule.recipes.as_ref().is_some_and(|recipes| {
+                                        matches!(recipes.as_slice(), [recipe] if !recipe_is_recursive(recipe))
+                                    }))
+                        })
                 });
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
