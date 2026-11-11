@@ -93,16 +93,58 @@ class DownloadTests(unittest.TestCase):
             transport.assert_called_once()
             sleep.assert_not_called()
 
-    def test_transport_retries_stop_after_three_attempts(self):
+    def test_pinned_archive_failover_verifies_mirror_before_publication(self):
+        expected = b"verified reference archive"
+        unavailable = urllib.error.URLError(OSError(errno.ENETUNREACH, "network unreachable"))
+        for data in (expected, b"unexpected mirror data"):
+            with self.subTest(data=data), tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+                    oracle.urllib.request, "build_opener") as opener, mock.patch.object(oracle.time, "sleep") as sleep:
+                cache = Path(temporary)
+                transport = opener.return_value.open
+                transport.side_effect = [unavailable] * 3 + [self.Response(data)]
+                config = self.configuration(expected)
+                if data == expected:
+                    path = oracle.download_archive(config, cache)
+                    self.assertEqual(path.read_bytes(), expected)
+                    self.assertEqual(list(cache.iterdir()), [path])
+                else:
+                    with self.assertRaisesRegex(oracle.OracleError, "SHA256 mismatch"):
+                        oracle.download_archive(config, cache)
+                    self.assertEqual(list(cache.iterdir()), [])
+                self.assertEqual([call.args[0].full_url for call in transport.call_args_list],
+                                 [oracle.GNU_MAKE_ARCHIVE] * 3 + [oracle.GNU_MAKE_MIRROR])
+                self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+
+    def test_transport_retries_stop_after_three_attempts_per_source(self):
+        sources_by_primary = (
+            (self.Response.url,),
+            (oracle.GNU_MAKE_ARCHIVE, oracle.GNU_MAKE_MIRROR),
+        )
+        for sources in sources_by_primary:
+            with self.subTest(primary=sources[0]), tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+                    oracle.urllib.request, "build_opener") as opener, mock.patch.object(oracle.time, "sleep") as sleep:
+                cache = Path(temporary)
+                transport = opener.return_value.open
+                transport.side_effect = TimeoutError("pinned source timed out")
+                config = self.configuration(b"verified")
+                config["archive"]["url"] = sources[0]
+                with self.assertRaisesRegex(oracle.OracleError, "archive download failed"):
+                    oracle.download_archive(config, cache)
+                self.assertEqual([call.args[0].full_url for call in transport.call_args_list],
+                                 [source for source in sources for _ in range(3)])
+                self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)] * len(sources))
+                self.assertEqual(list(cache.iterdir()), [])
+
+    def test_pinned_source_certificate_failure_is_terminal(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
                 oracle.urllib.request, "build_opener") as opener, mock.patch.object(oracle.time, "sleep") as sleep:
             cache = Path(temporary)
             transport = opener.return_value.open
-            transport.side_effect = TimeoutError("pinned source timed out")
-            with self.assertRaisesRegex(oracle.OracleError, "archive download failed"):
+            transport.side_effect = urllib.error.URLError(ssl.SSLCertVerificationError("bad certificate"))
+            with self.assertRaisesRegex(oracle.OracleError, "bad certificate"):
                 oracle.download_archive(self.configuration(b"verified"), cache)
-            self.assertEqual(transport.call_count, 3)
-            self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+            transport.assert_called_once()
+            sleep.assert_not_called()
             self.assertEqual(list(cache.iterdir()), [])
 
 
