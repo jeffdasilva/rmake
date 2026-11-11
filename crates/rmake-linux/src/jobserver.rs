@@ -4,7 +4,7 @@
 //! Linux FIFO/pipe jobserver effects. The interpreter retains each acquired
 //! byte for one complete recipe. Dropping its permit returns that same byte.
 
-use std::ffi::{CString, c_char, c_int, c_uint, c_void};
+use std::ffi::{CString, OsStr, c_char, c_int, c_uint, c_void};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
@@ -453,6 +453,10 @@ impl Jobserver {
             } else {
                 format!("GMfifo{}-{generation}", std::process::id())
             };
+            // Keep the selected spelling on the wire, including relative
+            // components and any slashes preceding the separator. Resource
+            // cleanup still needs the absolute path if the process changes cwd.
+            let spelling = [selected.as_os_str().as_bytes(), b"/", name.as_bytes()].concat();
             let path = directory.join(name);
             let name = CString::new(path.as_os_str().as_bytes())
                 .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
@@ -465,7 +469,7 @@ impl Jobserver {
                 return Err(error.into());
             }
             let identity = fs::symlink_metadata(&path)?;
-            match Self::open_fifo(&path, true) {
+            match Self::open_fifo(&path, Some(OsStr::from_bytes(&spelling))) {
                 Ok(server) => return Ok(server),
                 Err(FifoOpenError::Writer {
                     error,
@@ -500,7 +504,7 @@ impl Jobserver {
         Err(io::Error::from(io::ErrorKind::AlreadyExists).into())
     }
 
-    fn open_fifo(path: &Path, owned: bool) -> Result<Self, FifoOpenError> {
+    fn open_fifo(path: &Path, owned_spelling: Option<&OsStr>) -> Result<Self, FifoOpenError> {
         let reader = OpenOptions::new()
             .read(true)
             .write(true)
@@ -522,7 +526,8 @@ impl Jobserver {
                 });
             }
         };
-        let auth = [b"fifo:".as_slice(), path.as_os_str().as_bytes()].concat();
+        let spelling = owned_spelling.unwrap_or(path.as_os_str());
+        let auth = [b"fifo:".as_slice(), spelling.as_bytes()].concat();
         Ok(Self(Arc::new(Inner {
             reader: Endpoint::Owned(reader),
             writer: Endpoint::Owned(writer),
@@ -532,7 +537,7 @@ impl Jobserver {
             compact_pipe: false,
             auth,
             owned_slots: None,
-            created: owned.then(|| (path.to_owned(), metadata.dev(), metadata.ino())),
+            created: owned_spelling.map(|_| (path.to_owned(), metadata.dev(), metadata.ino())),
             error: Mutex::new(None),
         })))
     }
@@ -573,7 +578,7 @@ impl Jobserver {
 
     pub fn join(auth: &[u8]) -> Result<Self, JoinError> {
         if let Some(path) = auth.strip_prefix(b"fifo:") {
-            return Self::open_fifo(Path::new(std::ffi::OsStr::from_bytes(path)), false)
+            return Self::open_fifo(Path::new(OsStr::from_bytes(path)), None)
                 .map_err(|error| JoinError::Unavailable(error.into_io_error()));
         }
         let (read, rest) = authentication_fd(auth).ok_or(JoinError::Malformed)?;

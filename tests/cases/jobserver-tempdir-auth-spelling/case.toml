@@ -1,0 +1,10 @@
+id = "jobserver-tempdir-auth-spelling"
+requirement = "runtime.jobserver-temp-directory"
+candidate = "required"
+provenance = "Original rmake differential fixture for FIFO auth spelling, recursive lookup, and cleanup."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified owner\nverified peer\nverified unavailable\nverified warnings\nverified owner\nverified peer\n"
+stderr = ""

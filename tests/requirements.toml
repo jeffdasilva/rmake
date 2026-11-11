@@ -2380,8 +2380,8 @@ title = "Validated temporary directories for owned FIFO jobservers"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/m3-m6-audit.md"
-candidate_required = 6
-fixture_count = 6
+candidate_required = 7
+fixture_count = 7
 cases = [
   "jobserver-tempdir-invalid-tmpdir",
   "jobserver-tempdir-invalid-both",
@@ -2389,6 +2389,7 @@ cases = [
   "jobserver-tempdir-make-tmpdir-priority",
   "jobserver-tempdir-fallback-after-invalid-make-tmpdir",
   "jobserver-tempdir-invalid-tmpdir-pipe-control",
+  "jobserver-tempdir-auth-spelling",
 ]
 
 [[requirements]]
