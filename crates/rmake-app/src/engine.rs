@@ -3245,11 +3245,16 @@ impl Engine {
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
+            let named_sources = if ordinary_mode {
+                self.index_named_remake_sources(&read_files)
+            } else {
+                None
+            };
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (debug_before_remake.bits() == remake_debug_bits
                         && self.direct_debug_remake_sources(&read_files)))
-                    && self.ordinary_mode_remakes_settle(&read_files));
+                    && self.ordinary_mode_remakes_settle(&read_files, named_sources.as_ref()));
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.remaking = true;
@@ -3287,9 +3292,10 @@ impl Engine {
                 }
                 let name = makefile.name.as_slice();
                 let named_source = ordinary_mode
-                    && self.options.goals.iter().any(|goal| {
-                        goal.as_slice() == rmake_core::filenames::without_dot_prefix(name)
-                    });
+                    && self.is_makefile_goal(
+                        rmake_core::filenames::without_dot_prefix(name),
+                        named_sources.as_ref(),
+                    );
                 let visit_modes = if named_source {
                     modes
                 } else {
@@ -4082,7 +4088,43 @@ impl Engine {
         }
     }
 
-    fn ordinary_mode_remakes_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
+    fn index_named_remake_sources<'files>(
+        &self,
+        read_files: &'files [(Makefile, bool)],
+    ) -> Option<HashSet<&'files [u8]>> {
+        // A short list is cheap to scan, especially the single-goal case.
+        if read_files.len() < 16 || self.options.goals.len() < 32 {
+            return None;
+        }
+        let goals: HashSet<_> = self.options.goals.iter().map(Vec::as_slice).collect();
+        // Keep only source-name borrows so runtime option updates can still
+        // take ownership of the original goal vector while remakes run.
+        Some(
+            read_files
+                .iter()
+                .filter(|(_, skip)| !skip)
+                .map(|(file, _)| rmake_core::filenames::without_dot_prefix(&file.name))
+                .filter(|name| goals.contains(name))
+                .collect(),
+        )
+    }
+
+    fn is_makefile_goal(&self, name: &[u8], indexed: Option<&HashSet<&[u8]>>) -> bool {
+        if let Some(indexed) = indexed {
+            indexed.contains(name)
+        } else {
+            self.options
+                .goals
+                .iter()
+                .any(|goal| goal.as_slice() == name)
+        }
+    }
+
+    fn ordinary_mode_remakes_settle(
+        &self,
+        read_files: &[(Makefile, bool)],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         let goals = &self.options.goals;
@@ -4113,7 +4155,7 @@ impl Engine {
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
-                    && (!goals.iter().any(|goal| goal.as_slice() == name)
+                    && (!self.is_makefile_goal(name, named_sources)
                         || (named.insert(name) && self.simple_named_include_remake(file, name))))
         })
     }
@@ -12675,20 +12717,60 @@ mod tests {
         )];
 
         assert_eq!(engine.options.goals, [b"left.gen".to_vec()]);
-        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         reads[0].1 = true;
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
 
         reads[0].1 = false;
         engine.options.goals = vec![b"named".to_vec(), b"all".to_vec()];
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
         engine.vpath_dirs.push(b"search".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         engine.vpath_dirs.clear();
         for goal in ["dir/all", "~/all", "-lwidget", "archive.a(member)"] {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
-            assert!(!engine.ordinary_mode_remakes_settle(&reads));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         }
+    }
+
+    #[test]
+    fn indexed_makefile_goals_preserve_normalized_byte_names() {
+        let mut args = vec![
+            OsString::from("-n"),
+            OsString::from_vec(b"./left-\xff.gen".to_vec()),
+        ];
+        args.extend((0..32).map(|index| OsString::from(format!("goal-{index}"))));
+        let launch = Engine::invocation(args, b"rmake", OsStr::new("rmake"), None, None).unwrap();
+        let engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let mut reads: Vec<_> = (0..16)
+            .map(|index| {
+                (
+                    Makefile {
+                        name: format!("other-{index}.gen").into_bytes(),
+                        optional: false,
+                        missing: false,
+                        location: None,
+                        read_error: None,
+                    },
+                    false,
+                )
+            })
+            .collect();
+        reads[0].0.name = b"./left-\xff.gen".to_vec();
+        reads[1].0.name = b"left-\xff.gen".to_vec();
+        reads[2].0.name = b"goal-0".to_vec();
+        reads[2].1 = true;
+
+        assert!(engine.index_named_remake_sources(&reads[..1]).is_none());
+        let indexed = engine.index_named_remake_sources(&reads).unwrap();
+        assert_eq!(indexed, HashSet::from([b"left-\xff.gen".as_slice()]));
+        assert!(engine.is_makefile_goal(b"left-\xff.gen", Some(&indexed)));
+        assert!(!engine.is_makefile_goal(b"other-3.gen", Some(&indexed)));
+        assert_eq!(
+            engine.ordinary_mode_remakes_settle(&reads, Some(&indexed)),
+            engine.ordinary_mode_remakes_settle(&reads, None),
+        );
     }
 
     #[test]
@@ -12711,36 +12793,36 @@ mod tests {
             read_error: None,
         };
         let mut reads = vec![(source.clone(), false)];
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
         engine.options.no_rules = false;
-        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         engine.options.no_rules = true;
 
         let mut alias = source.clone();
         alias.name = b"./optional.gen".to_vec();
         alias.optional = false;
         reads.push((alias, false));
-        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         reads.pop();
 
         engine.vpath_dirs.push(b"search".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         engine.vpath_dirs.clear();
         engine
             .database
             .read(b"optional.gen: ; @:\n", b"Makefile")
             .unwrap();
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
         engine.options.no_rules = false;
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
         engine.options.no_rules = true;
         engine
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")
             .unwrap();
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
         engine.options.load_limit = Some(1.0);
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
         let mut required = source;
         required.name = b"required.gen".to_vec();
         required.optional = false;
@@ -12749,9 +12831,9 @@ mod tests {
             .read(b"required.gen: ; @:\n", b"Makefile")
             .unwrap();
         reads.push((required, false));
-        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         engine.options.load_limit = None;
-        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
     }
 
     #[test]
