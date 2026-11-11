@@ -19,7 +19,7 @@ use crate::variables::{
     PatternVariable, TargetScope, VariableStore, reference_end,
 };
 use std::borrow::Cow;
-use std::cell::OnceCell;
+use std::cell::{Cell, OnceCell};
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -519,6 +519,7 @@ pub struct Database {
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
     implicit_rule_shadow: OnceCell<Option<Vec<bool>>>,
     implicit_rule_suffixes: OnceCell<Option<ImplicitRuleSuffixes>>,
+    implicit_rule_index_visits: Cell<u8>,
     vpaths: Vec<Vpath>,
     include_depth: usize,
     next_group_id: usize,
@@ -897,6 +898,7 @@ impl Database {
     pub(crate) fn invalidate_implicit_rule_indexes(&mut self) {
         self.implicit_rule_shadow.take();
         self.implicit_rule_suffixes.take();
+        self.implicit_rule_index_visits.set(0);
     }
 
     fn compile_implicit_rule_suffixes(&self) -> Option<ImplicitRuleSuffixes> {
@@ -913,11 +915,27 @@ impl Database {
         Some(suffixes)
     }
 
+    fn use_implicit_rule_indexes(&self) -> bool {
+        let count = self.implicit_rules.len();
+        if count >= 128 {
+            return true;
+        }
+        if count < 64 {
+            return false;
+        }
+        // Stock builtins and other medium tables amortize the indexes only
+        // when the invocation makes repeated searches.
+        const WARMUP: u8 = 16;
+        let visits = self.implicit_rule_index_visits.get();
+        if visits == WARMUP {
+            return true;
+        }
+        self.implicit_rule_index_visits.set(visits + 1);
+        false
+    }
+
     fn implicit_rule_indices(&self, target: &[u8]) -> Option<ImplicitRuleIndices<'_>> {
         let count = self.implicit_rules.len();
-        if count < 128 {
-            return None;
-        }
         let suffixes = self
             .implicit_rule_suffixes
             .get_or_init(|| self.compile_implicit_rule_suffixes())
@@ -971,9 +989,8 @@ impl Database {
         } else {
             crate::implicit::directory_prefix(target)
         };
-        // Large tables benefit when many candidate matches would otherwise
-        // rescan the remaining declarations for replacements.
-        let shadow_cache = (self.implicit_rules.len() >= 128).then_some(&self.implicit_rule_shadow);
+        let use_indexes = self.use_implicit_rule_indexes();
+        let shadow_cache = use_indexes.then_some(&self.implicit_rule_shadow);
         let mut visit = |(index, (pattern, rule)): (usize, &(Pattern, Rule))| {
             let identity = rule
                 .group
@@ -1101,7 +1118,7 @@ impl Database {
                 });
             }
         };
-        if let Some(indices) = self.implicit_rule_indices(target) {
+        if use_indexes && let Some(indices) = self.implicit_rule_indices(target) {
             for index in indices {
                 visit((index, &self.implicit_rules[index]));
             }
@@ -6802,6 +6819,43 @@ mod tests {
             recipes(&indexed),
             [b" @group".to_vec(), b" @fallback".to_vec()]
         );
+    }
+
+    #[test]
+    fn medium_implicit_rule_indexes_warm_up_and_reset_after_edits() {
+        use std::fmt::Write;
+
+        let mut source = String::from("%.warm: seed ; @before\n");
+        for index in 0..64 {
+            writeln!(source, "ignored{index}%.unused: ;").unwrap();
+        }
+        let mut database = Database::default();
+        database.read(source.as_bytes(), b"rules").unwrap();
+        let recipes = |database: &Database| {
+            database
+                .implicit_candidates(b"unit.warm")
+                .into_iter()
+                .map(|candidate| candidate.rule.recipes.unwrap()[0].bytes.clone())
+                .collect::<Vec<_>>()
+        };
+
+        for _ in 0..16 {
+            assert_eq!(recipes(&database), [b" @before".to_vec()]);
+        }
+        assert!(database.implicit_rule_suffixes.get().is_none());
+        assert!(database.implicit_rule_shadow.get().is_none());
+
+        assert_eq!(recipes(&database), [b" @before".to_vec()]);
+        assert!(matches!(
+            database.implicit_rule_suffixes.get(),
+            Some(Some(_))
+        ));
+        assert!(matches!(database.implicit_rule_shadow.get(), Some(Some(_))));
+
+        database.read(b"%.warm: seed ; @after\n", b"edit").unwrap();
+        assert_eq!(recipes(&database), [b" @after".to_vec()]);
+        assert!(database.implicit_rule_suffixes.get().is_none());
+        assert!(database.implicit_rule_shadow.get().is_none());
     }
 
     #[test]
