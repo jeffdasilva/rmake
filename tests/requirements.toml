@@ -1263,6 +1263,26 @@ fixture_count = 49
 cases = ["runtime-child-signal-1-j1-failure", "runtime-child-signal-1-j1-ignored", "runtime-child-signal-1-j1-silent-ignored", "runtime-child-signal-1-j2-failure", "runtime-child-signal-1-j2-ignored", "runtime-child-signal-1-j2-silent-ignored", "runtime-child-signal-2-j1-failure", "runtime-child-signal-2-j1-ignored", "runtime-child-signal-2-j1-silent-ignored", "runtime-child-signal-2-j2-failure", "runtime-child-signal-2-j2-ignored", "runtime-child-signal-2-j2-silent-ignored", "runtime-child-signal-3-j1-failure", "runtime-child-signal-3-j1-ignored", "runtime-child-signal-3-j1-silent-ignored", "runtime-child-signal-3-j2-failure", "runtime-child-signal-3-j2-ignored", "runtime-child-signal-3-j2-silent-ignored", "runtime-child-signal-13-j1-failure", "runtime-child-signal-13-j1-ignored", "runtime-child-signal-13-j1-silent-ignored", "runtime-child-signal-13-j2-failure", "runtime-child-signal-13-j2-ignored", "runtime-child-signal-13-j2-silent-ignored", "runtime-child-signal-15-j1-failure", "runtime-child-signal-15-j1-ignored", "runtime-child-signal-15-j1-silent-ignored", "runtime-child-signal-15-j2-failure", "runtime-child-signal-15-j2-ignored", "runtime-child-signal-15-j2-silent-ignored", "runtime-child-signal-24-j1-failure", "runtime-child-signal-24-j1-ignored", "runtime-child-signal-24-j1-silent-ignored", "runtime-child-signal-24-j2-failure", "runtime-child-signal-24-j2-ignored", "runtime-child-signal-24-j2-silent-ignored", "runtime-child-signal-25-j1-failure", "runtime-child-signal-25-j1-ignored", "runtime-child-signal-25-j1-silent-ignored", "runtime-child-signal-25-j2-failure", "runtime-child-signal-25-j2-ignored", "runtime-child-signal-25-j2-silent-ignored", "runtime-inherited-ignore-hup", "runtime-inherited-ignore-int", "runtime-inherited-ignore-quit", "runtime-inherited-ignore-pipe", "runtime-inherited-ignore-term", "runtime-inherited-ignore-xcpu", "runtime-inherited-ignore-xfsz"]
 
 [[requirements]]
+id = "runtime.output-mutex-relative-auth"
+title = "Named output synchronization mutex spelling and recursive lookup"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["output-mutex-relative-auth"]
+
+[[requirements]]
+id = "runtime.output-sync-temp-creation-failure"
+title = "Recover from failed output synchronization temporary file creation"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["output-sync-temp-creation-failure"]
+
+[[requirements]]
 id = "runtime.output-sync-verbose-mutex"
 title = "Verbose publication of the named output-sync mutex"
 status = "fixture-ready"
