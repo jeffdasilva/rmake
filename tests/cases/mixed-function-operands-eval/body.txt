@@ -1,0 +1,1 @@
+VALUE := $(if ,${subst x,;,x},safe)

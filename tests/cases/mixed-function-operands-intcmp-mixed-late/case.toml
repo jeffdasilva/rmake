@@ -1,0 +1,12 @@
+id = "mixed-function-operands-intcmp-mixed-late"
+requirement = "functions.argument-delimiters"
+candidate = "required"
+description = "Function operand boundaries with mixed reference delimiters."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b6c6573735d0a"
+stderr_hex = ""

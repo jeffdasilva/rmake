@@ -66,6 +66,16 @@ fixture_count = 38
 cases = ["function-and-final-value", "function-and-short-circuit", "function-call-arguments", "function-call-nested", "function-foreach", "function-foreach-restores", "function-if-false-lazy", "function-if-true-lazy", "function-or-empty", "function-or-short-circuit", "span-let-empty-tail-eager-effects", "span-let-one-name-empty-list-effects", "span-let-tail-byte-preservation", "whitespace-all-c-whitespace-foreach-list", "whitespace-all-c-whitespace-foreach-variable-name", "whitespace-all-c-whitespace-let-extra-tail", "whitespace-all-c-whitespace-let-names-values", "whitespace-and-expanded-vt-retained", "whitespace-and-later-vt-trimmed", "whitespace-and-or-raw-argument-edge-trim", "whitespace-call-foreach-vt-eager-late-body", "whitespace-call-if-vt-condition-trimmed", "whitespace-expanded-vt-if-is-nonempty", "whitespace-foreach-first-vt-delimited-name", "whitespace-if-all-c-raw-trimmed", "whitespace-if-expanded-c-whitespace-retained", "whitespace-let-last-empty-ignores-trailing-whitespace", "whitespace-let-more-names-than-words", "whitespace-let-nested-restores-binding", "whitespace-let-no-names-still-evaluates-list", "whitespace-let-one-name-trims-leading-preserves-tail", "whitespace-let-tail-preserves-trailing-separators", "whitespace-literal-vt-and-or-trimmed", "whitespace-literal-vt-if-lazy", "whitespace-literal-vt-if-trims-edges", "whitespace-or-expanded-vt-shortcircuit", "whitespace-or-later-vt-trimmed", "whitespace-raw-byte-control-foreach"]
 
 [[requirements]]
+id = "functions.argument-delimiters"
+title = "Function argument delimiters"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 29
+reference = "https://www.gnu.org/software/make/manual/html_node/Syntax-of-Functions.html"
+fixture_count = 29
+cases = ["mixed-function-operands-if-paren-mixed-false", "mixed-function-operands-if-brace-mixed-false", "mixed-function-operands-if-paren-mixed-true", "mixed-function-operands-if-brace-mixed-true", "mixed-function-operands-if-same-paren-control", "mixed-function-operands-if-same-brace-control", "mixed-function-operands-if-false-effect", "mixed-function-operands-if-true-plain-opposite-delimiter", "mixed-function-operands-or-mixed-leading", "mixed-function-operands-or-unclosed-unused", "mixed-function-operands-and-unclosed-unused", "mixed-function-operands-or-mixed-short-circuit-control", "mixed-function-operands-or-mixed-late-effect", "mixed-function-operands-and-same-delimiter-control", "mixed-function-operands-eager-mixed-direct", "mixed-function-operands-eager-mixed-embedded", "mixed-function-operands-eager-first-side-effect", "mixed-function-operands-eager-brace-mixed-direct", "mixed-function-operands-eager-final-direct-control", "mixed-function-operands-eager-final-embedded-control", "mixed-function-operands-eager-max-one-control", "mixed-function-operands-call-mixed", "mixed-function-operands-call-same-control", "mixed-function-operands-foreach-mixed-name", "mixed-function-operands-foreach-mixed-tail-control", "mixed-function-operands-let-mixed-leading", "mixed-function-operands-intcmp-mixed-late", "mixed-function-operands-eval", "mixed-function-operands-rule-prerequisite"]
+
+[[requirements]]
 id = "functions.diagnostics"
 title = "Expansion-time information and warnings"
 status = "fixture-ready"

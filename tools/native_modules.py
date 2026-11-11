@@ -92,6 +92,10 @@ def models() -> list[Model]:
         ('call-native', b'$(call probe_args,one,two)', b'argc=2[one][two]'),
     ):
         add(ident, expression, expected)
+    add('mixed-brace-raw-arguments', b'$(probe_raw ${subst x,y,x},tail)', b'argc=2[${subst x][y,x},tail]')
+    add('mixed-paren-raw-arguments', b'${probe_raw $(subst x,y,x),tail}', b'argc=2[$(subst x][y,x),tail]')
+    add('same-delimiter-raw-arguments', b'$(probe_raw $(subst x,y,x),tail)', b'argc=2[$(subst x,y,x)][tail]')
+    add('mixed-final-eager-arguments', b'$(probe_pair first,${subst x,y,x})', b'argc=2[first][y]')
     add('call-lazy', b'$(call probe_raw,$(file >>seen,argument)one,two)', b'argc=2[one][two]', seen=b'anchor\nbefore\nargument\n')
     add('registered-during-expansion', b'$(probe_install )$(created hello)', b'installedargc=1[hello]')
     add('function-over-variable', b'$(probe_args)|$(probe_args x)', b'variable|argc=1[x]', preamble=b'probe_args := variable\n')
