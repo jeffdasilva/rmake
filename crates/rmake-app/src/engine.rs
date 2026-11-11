@@ -5515,9 +5515,25 @@ impl Engine {
                 })
                 && self.parallel_jobs.values().any(|job| !job.waiting_load)
             {
+                // Revisit an optional named touch only after a blocking reap
+                // completes a recipe. Revisiting between commands can apply
+                // touch mode to the final command of an ordinary sibling.
+                let finish_recipe = wait_for_completed_job
+                    || (self.options.load_limit.is_none()
+                        && requests.iter().any(|request| {
+                            request.active
+                                && request.file.optional
+                                && request.modes.touch
+                                && !request.modes.dry_run
+                                && !request.modes.question
+                                && self
+                                    .parallel_jobs
+                                    .contains_key(self.aliases.resolve(&request.file.name))
+                        }));
                 self.reap_job();
-                while wait_for_completed_job
+                while finish_recipe
                     && self.parallel_jobs.len() >= previous_jobs
+                    && self.parallel_jobs.values().any(|job| !job.waiting_load)
                     && self.shutdown.get() == Shutdown::Running
                     && self.graph_abort.is_none()
                     && !self.forced_query_stop
