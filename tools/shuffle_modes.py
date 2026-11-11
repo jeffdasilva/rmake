@@ -62,25 +62,31 @@ def validate(observation, zero):
 def pattern_wait_cases(reference, candidate, root):
     worker = (ROOT / 'tests/remake-parallel/worker.py').read_bytes()
     anchor = b'anchor\n'
+    leaves = ' '.join(f'd{index:02}' for index in range(1, 12))
     models = (
-        ('trailing', 'd01', 'p1 .WAIT', '', b'd01\n', b'd01\nleft\n'),
-        ('between', 'd01', 'p1 .WAIT p2', '', b'', b'left\np2\nd01\n'),
-        ('explicit', 'p1 .WAIT p2 d01', '', '', b'', b'left\np2\nd01\n'),
-        ('order-only-transition', 'd01', 'p1 .WAIT | p2', '', b'p2\nd01\n', b'p2\nd01\nleft\n'),
-        ('split-secondary', 'd01', 'p1 $$(LATE) p2', '.WAIT', b'p2\nd01\n', b'p2\nd01\nleft\n'),
-        ('whole-secondary', 'd01', '$$(LATE)', 'p1 .WAIT p2', b'', b'left\np2\nd01\n'),
+        ('trailing', 'none', 'd01', 'p1 .WAIT', '', b'd01\n', b'd01\nleft\n'),
+        ('between', 'none', 'd01', 'p1 .WAIT p2', '', b'', b'left\np2\nd01\n'),
+        ('explicit', 'none', 'p1 .WAIT p2 d01', '', '', b'', b'left\np2\nd01\n'),
+        ('order-only-transition', 'none', 'd01', 'p1 .WAIT | p2', '', b'p2\nd01\n', b'p2\nd01\nleft\n'),
+        ('split-secondary', 'none', 'd01', 'p1 $$(LATE) p2', '.WAIT', b'p2\nd01\n', b'p2\nd01\nleft\n'),
+        ('whole-secondary', 'none', 'd01', '$$(LATE)', 'p1 .WAIT p2', b'', b'left\np2\nd01\n'),
+        ('retain-seeded', '12345', leaves, 'p1 .WAIT p2', '', b'',
+         b'left\np2\nd05\nd04\nd11\nd07\nd01\nd06\nd10\nd08\nd09\nd03\nd02\n'),
+        ('retain-reverse', 'reverse', leaves, 'p1 .WAIT p2', '', b'',
+         b'left\np2\nd11\nd10\nd09\nd08\nd07\nd06\nd05\nd04\nd03\nd02\nd01\n'),
     )
     records = []
     runtime = root / 'observation'
-    for (name, explicit, pattern, late, held_effects, effects), transport in itertools.product(
+    for (name, seed, explicit, pattern, late, held_effects, effects), transport in itertools.product(
             models, ('pipe', 'fifo')):
         ident = 'pattern-wait-' + name + '-' + transport
         prefix = f'.SECONDEXPANSION:\nLATE = {late}\n' if late else ''
+        declared_leaves = ' '.join(name for name in explicit.split() if name.startswith('d'))
         makefile = (prefix + f'all.out: {explicit}\n%.out: {pattern} ; @$(file >>seen,goal):\n'
-                    'p1: ; @python3 worker.py left observe\np2 d01: ; @$(file >>seen,$@):\n')
+                    f'p1: ; @python3 worker.py left observe\np2 {declared_leaves}: ; @$(file >>seen,$@):\n')
         model = debug.Model(
             ident, {'Makefile': makefile.encode(), 'worker.py': worker, 'seen': anchor},
-            ('-rR', '--no-print-directory', '--shuffle=none', '-j2',
+            ('-rR', '--no-print-directory', f'--shuffle={seed}', '-j2',
              f'--jobserver-style={transport}', 'all.out'), {},
             {'exit_code': 0, 'stdout_template_hex': '', 'stderr_template_hex': ''},
             anchor + effects + b'goal\n',

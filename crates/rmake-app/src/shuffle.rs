@@ -135,12 +135,34 @@ impl Planner {
             .cloned()
             .unwrap_or_default()
     }
-    pub fn regenerate(&mut self, name: &[u8], rule: &Rule, database: &Database, disabled: bool) {
+    pub fn regenerate(
+        &mut self,
+        name: &[u8],
+        rule: &Rule,
+        database: &Database,
+        disabled: bool,
+        implicit_prefix: usize,
+    ) {
         let Some(state) = self.0.as_mut().filter(|_| !disabled) else {
             return;
         };
         state.reseed();
-        let order = state.rule_indices(name, rule, database);
+        let order = if implicit_prefix != 0
+            && let Some(previous) = state.orders.get(name)
+            && !previous.is_empty()
+            && previous.len() == rule.dependencies.len() - implicit_prefix
+            && rule.dependencies[..implicit_prefix]
+                .iter()
+                .any(|dep| dep.name == b".WAIT")
+        {
+            // The new barrier blocks reshuffling the combined list. Visit the
+            // implicit prefix in declaration order, then follow the old plan.
+            (0..implicit_prefix)
+                .chain(previous.iter().map(|index| index + implicit_prefix))
+                .collect()
+        } else {
+            state.rule_indices(name, rule, database)
+        };
         state.orders.insert(name.to_vec(), order);
         state.walk(children(rule), database);
     }

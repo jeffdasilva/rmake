@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "shuffle-pattern-wait-plan-genuine-barrier-unplanned-include"
+requirement = "options.shuffle-pattern-wait-plan"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345", "all"]
+timeout_seconds = 5
+output = "separate"
+description = "Original effective implicit barrier and retained explicit shuffle plan model."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations."
+
+[expected]
+exit_code = 0
+stdout = "remake p1\nremake p2\nremake d01\nremake d02\nremake d03\nremake d04\nremake d05\nremake d06\nremake d07\nremake d08\nremake d09\nremake d10\nremake d11\nrestart=1\n"
+stderr = ""

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "shuffle-pattern-wait-plan-secondary-expansion-between-12345"
+requirement = "options.shuffle-pattern-wait-plan"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345", "all.out"]
+timeout_seconds = 5
+output = "separate"
+description = "Original effective implicit barrier and retained explicit shuffle plan model."
+provenance = "Independent model qualified against two bounded pinned GNU Make 4.4.1 observations."
+
+[expected]
+exit_code = 0
+stdout = "leaf p1\nleaf p2\nleaf d05\nleaf d04\nleaf d11\nleaf d07\nleaf d01\nleaf d06\nleaf d10\nleaf d08\nleaf d09\nleaf d03\nleaf d02\nrecipe all.out first=p1 all=p1 p2 d01 d02 d03 d04 d05 d06 d07 d08 d09 d10 d11 repeated=p1 p2 d01 d02 d03 d04 d05 d06 d07 d08 d09 d10 d11 order=\n"
+stderr = ""
