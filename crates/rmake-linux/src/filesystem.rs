@@ -138,6 +138,10 @@ fn execute_with<O>(
             }))
         }
         FilesystemEffect::DirectoryName(path) => wildcard.directory_name(path),
+        FilesystemEffect::InvalidateDirectoryCache => {
+            wildcard.invalidate();
+            Ok(Vec::new())
+        }
         FilesystemEffect::Realpath(path) => {
             // GNU's Linux profile uses PATH_MAX-sized input/output buffers and
             // verifies the resolved path still exists. Failures omit this word.
