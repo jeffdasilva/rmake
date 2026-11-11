@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,175 profiles. Leading `./` spellings share one target record and
+run all 1,281 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -117,6 +117,12 @@ jobserver transports, and a restart after an optional group fails.
 Sixty-six required named include profiles record secondary expansion before
 and after a restart. They cover first, middle and final include visits,
 ordinary and forced recipes, repeated reads, and both jobserver transports.
+
+One hundred optional named include profiles record deferred prerequisite
+effects and restart order, including repeated reads and the mode of a child
+reaped after a duplicate touch. Six more write a file during an earlier
+include's recipe expansion and check that this progress keeps the next pass
+from blocking before starting another worker.
 
 The named primary makefile profiles hold both include workers under `-n`,
 `-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
