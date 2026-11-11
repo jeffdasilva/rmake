@@ -220,6 +220,7 @@ fn authentication_fd(bytes: &[u8]) -> Option<(c_int, &[u8])> {
 pub struct CreationError {
     pub operation: &'static str,
     pub error: io::Error,
+    pub fifo_creation_path: Option<Vec<u8>>,
     _unpublished_reader: Option<File>,
 }
 
@@ -228,6 +229,7 @@ impl From<io::Error> for CreationError {
         Self {
             operation: "jobserver",
             error,
+            fifo_creation_path: None,
             _unpublished_reader: None,
         }
     }
@@ -365,6 +367,7 @@ impl Jobserver {
                 return Err(CreationError {
                     operation: "creating jobs pipe",
                     error: io::Error::last_os_error(),
+                    fifo_creation_path: None,
                     _unpublished_reader: None,
                 });
             }
@@ -463,10 +466,15 @@ impl Jobserver {
             // mkfifo never replaces an existing file. The name is NUL-terminated.
             if unsafe { mkfifo(name.as_ptr(), 0o600) } < 0 {
                 let error = io::Error::last_os_error();
-                if error.kind() == io::ErrorKind::AlreadyExists {
+                if generation != 0 && error.kind() == io::ErrorKind::AlreadyExists {
                     continue;
                 }
-                return Err(error.into());
+                return Err(CreationError {
+                    operation: "jobserver mkfifo",
+                    error,
+                    fifo_creation_path: Some(spelling),
+                    _unpublished_reader: None,
+                });
             }
             let identity = fs::symlink_metadata(&path)?;
             match Self::open_fifo(&path, Some(OsStr::from_bytes(&spelling))) {
@@ -485,6 +493,7 @@ impl Jobserver {
                     return Err(CreationError {
                         operation: "init jobserver pipe",
                         error: io::Error::from_raw_os_error(EBADF),
+                        fifo_creation_path: None,
                         _unpublished_reader: Some(reader),
                     });
                 }
