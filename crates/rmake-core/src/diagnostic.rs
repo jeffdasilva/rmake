@@ -162,6 +162,8 @@ pub enum FilesystemEffect<'a> {
     /// Register a directory's cached identity/open state without enumerating
     /// its entries. VPATH construction performs this during actual reading.
     DirectoryName(&'a [u8]),
+    /// A registered native callback may change directory contents.
+    InvalidateDirectoryCache,
     Realpath(&'a [u8]),
     ReadFile(&'a [u8]),
     WriteFile {
@@ -1110,6 +1112,10 @@ impl<'a> ExpansionContext<'a> {
             return Some(Err(b"interrupted".to_vec()));
         }
         self.shell.as_mut().map(|receiver| receiver(request))
+    }
+
+    pub(crate) fn has_filesystem(&self) -> bool {
+        self.filesystem.is_some()
     }
 
     pub fn perform_filesystem(
