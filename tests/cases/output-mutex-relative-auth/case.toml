@@ -1,0 +1,10 @@
+id = "output-mutex-relative-auth"
+requirement = "runtime.output-mutex-relative-auth"
+candidate = "required"
+provenance = "Original rmake differential fixture for named output synchronization mutex path spelling and ownership."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified relative\nverified absolute\n"
+stderr = ""

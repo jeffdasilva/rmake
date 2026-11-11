@@ -176,8 +176,15 @@ pub struct Coordination {
 impl Coordination {
     pub fn create() -> io::Result<Self> {
         let temp = Temporary::new(true)?;
-        let path = &temp.named.as_ref().expect("named mutex").0;
-        let authentication = [b"fnm:".as_slice(), path.as_os_str().as_bytes()].concat();
+        let filename = temp
+            .named
+            .as_ref()
+            .and_then(|(path, _, _)| path.file_name())
+            .expect("named mutex filename");
+        // The owner retains an absolute cleanup path. Descendants receive
+        // the selected spelling and resolve it in their own directories.
+        let spelling = directory().join(filename);
+        let authentication = [b"fnm:".as_slice(), spelling.as_os_str().as_bytes()].concat();
         Ok(Self {
             file: None,
             owner: Some(temp),
