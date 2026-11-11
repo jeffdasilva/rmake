@@ -1,0 +1,78 @@
+id = "debug-remake-double-colon-stale-existing-verbose"
+requirement = "includes.serial-double-colon-remakes"
+candidate = "required"
+provenance = "Original serial double-colon source remake fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout_template = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'fragment.mk' (search path) (no ~ expansion)...
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'fragment.mk'.
+  Considering target file 'left'.
+  Finished prerequisites of target file 'left'.
+  No need to remake target 'left'.
+ Finished prerequisites of target file 'fragment.mk'.
+  Prerequisite 'left' is newer than target 'fragment.mk'.
+ Must remake target 'fragment.mk'.
+ Successfully remade target file 'fragment.mk'.
+ Considering target file 'fragment.mk'.
+  Considering target file 'right'.
+  Finished prerequisites of target file 'right'.
+  No need to remake target 'right'.
+ Finished prerequisites of target file 'fragment.mk'.
+  Prerequisite 'right' is newer than target 'fragment.mk'.
+ Must remake target 'fragment.mk'.
+ Successfully remade target file 'fragment.mk'.
+ Pruning file 'fragment.mk'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j1 --debug=m,v -k all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'fragment.mk' (search path) (no ~ expansion)...
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'fragment.mk'.
+  Considering target file 'left'.
+  Finished prerequisites of target file 'left'.
+  No need to remake target 'left'.
+ Finished prerequisites of target file 'fragment.mk'.
+  Prerequisite 'left' is older than target 'fragment.mk'.
+ No need to remake target 'fragment.mk'.
+ Considering target file 'fragment.mk'.
+  Considering target file 'right'.
+  Finished prerequisites of target file 'right'.
+  No need to remake target 'right'.
+ Finished prerequisites of target file 'fragment.mk'.
+  Prerequisite 'right' is older than target 'fragment.mk'.
+ No need to remake target 'fragment.mk'.
+ Pruning file 'fragment.mk'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+ordinary=left:right
+Successfully remade target file 'all'.
+'''

@@ -41,6 +41,7 @@ MAX_CHILDREN = 128
 CASE_KEYS = {"id", "requirement", "candidate", "args", "args_hex", "timeout_seconds",
              "environment", "expected", "output", "description", "provenance"}
 ENV_PROTECTED = {"PATH", "HOME", "TMPDIR", "PWD", "OLDPWD", "LC_ALL", "LANG", "TZ"}
+STDOUT_EXPECTATIONS = {"stdout", "stdout_hex", "stdout_template"}
 
 
 class HarnessError(Exception):
@@ -158,7 +159,7 @@ def load_case(path: Path) -> Case:
             raise HarnessError(f"invalid or reserved environment entry {key}: {manifest}")
     expected = data.get("expected", {})
     if not isinstance(expected, dict) or set(expected) - {
-            "exit_code", "stdout", "stderr", "stdout_hex", "stderr_hex"}:
+            "exit_code", "stderr", "stderr_hex", *STDOUT_EXPECTATIONS}:
         raise HarnessError(f"invalid expected table: {manifest}")
     for key, value in expected.items():
         if key == "exit_code":
@@ -168,9 +169,12 @@ def load_case(path: Path) -> Case:
             raise HarnessError(f"expected {key} must be a string: {manifest}")
         elif key.endswith("_hex") and not re.fullmatch(r"(?:[0-9A-Fa-f]{2})*", value):
             raise HarnessError(f"expected {key} must contain even-length ASCII hexadecimal: {manifest}")
-    for stream in ("stdout", "stderr"):
-        if stream in expected and stream + "_hex" in expected:
-            raise HarnessError(f"expected {stream} and {stream}_hex are mutually exclusive: {manifest}")
+    if "stdout_template" in expected and "@BIN@" not in expected["stdout_template"]:
+        raise HarnessError(f"expected stdout_template must contain @BIN@: {manifest}")
+    if len(STDOUT_EXPECTATIONS.intersection(expected)) > 1:
+        raise HarnessError(f"expected stdout representations are mutually exclusive: {manifest}")
+    if "stderr" in expected and "stderr_hex" in expected:
+        raise HarnessError(f"expected stderr and stderr_hex are mutually exclusive: {manifest}")
     output = data.get("output", "separate")
     if output not in ("separate", "merged"):
         raise HarnessError(f"output must be separate or merged: {manifest}")
@@ -434,14 +438,19 @@ def differences(reference: Observation, candidate: Observation) -> list[str]:
     return mismatch
 
 
-def expectation_errors(case: Case, observation: Observation) -> list[str]:
+def expectation_errors(case: Case, observation: Observation, *, root: Path | None = None) -> list[str]:
     errors = []
     if observation.limit is not None:
         errors.append(f"oracle hit {observation.limit} limit")
     if observation.leftover_processes:
         errors.append("oracle left background processes")
     for name, expected in case.expected.items():
-        if name.endswith("_hex"):
+        if name == "stdout_template":
+            if root is None:
+                raise HarnessError("stdout_template requires the execution workspace")
+            actual = observation.stdout
+            expected = expected.encode("utf-8").replace(b"@BIN@", os.fsencode(root / "bin" / "make"))
+        elif name.endswith("_hex"):
             actual = getattr(observation, name[:-4])
             expected = bytes.fromhex(expected)
         else:
@@ -545,7 +554,7 @@ def main(argv: list[str] | None = None) -> int:
                 for case in cases:
                     reference = execute(case, root, oracle)
                     observed = execute(case, root, candidate)
-                    expected_errors = expectation_errors(case, reference)
+                    expected_errors = expectation_errors(case, reference, root=root)
                     mismatch = differences(reference, observed)
                     if expected_errors or reference.limit or observed.limit or reference.leftover_processes or observed.leftover_processes:
                         status = "FAIL"

@@ -132,12 +132,15 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += settled_mode_models(worker, markers)
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
+    results += grouped_optional_mode_models(worker, markers)
     results += named_source_mode_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
+    results += primary_named_mode_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
+        results += load_build_mode_models(results, markers)
     return results
 
 
@@ -614,6 +617,67 @@ def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> lis
     return results
 
 
+def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    ordinary = ('all: result\n'
+                'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(PEER))'
+                'printf "ordinary\\n" > "$@"\n')
+    optional = '-include left.gen peer.gen\ninclude right.gen\n'
+    required_peer = '-include left.gen\ninclude peer.gen right.gen\n'
+    cases = (
+        ('optional-peers', optional, False, False, False, b''),
+        ('required-peer', required_peer, False, False, False, b''),
+        ('right-first', 'include right.gen\n-include left.gen peer.gen\n',
+         False, False, False, b''),
+        ('optional-existing-peer', optional, False, True, False, b''),
+        ('required-existing-peer', required_peer, False, True, False, b''),
+        ('optional-failure', optional, True, False, False, b''),
+        ('optional-failure-keep', optional, True, False, True, b''),
+        ('required-peer-failure-keep', required_peer, True, False, True,
+         b"Makefile:5: Failed to remake makefile 'peer.gen'.\n"),
+    )
+    modes = (
+        ('n', 0, b'printf "ordinary\\n" > "result"\n', {}),
+        ('q', 1, b'', {}),
+        ('t', 0, b'touch result\n', {'result': b''}),
+    )
+    loaded = {'left.gen': b'LEFT := loaded\n', 'peer.gen': b'PEER := loaded\n',
+              'right.gen': b'RIGHT := loaded\n'}
+    restarted = BEFORE_SECOND + b'right\nread-1\n'
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, reads, failed, present, keep, stderr in cases:
+            if failed:
+                reads = 'ifeq ($(MAKE_RESTARTS),)\n' + reads + 'else\ninclude right.gen\nendif\n'
+                recipe = 'left.gen peer.gen &: ; @python3 worker.py left fail\n'
+                prefix = b'left\n'
+                value = b'--loaded-'
+                updates = {'right.gen': loaded['right.gen']}
+            else:
+                recipe = ('left.gen peer.gen &: ; @python3 worker.py left include\n'
+                          '\t@printf "PEER := loaded\\n" > peer.gen\n')
+                prefix = b''
+                value = b'-loaded-loaded-loaded'
+                updates = loaded
+            source = header + reads + recipe + 'right.gen: ; @python3 worker.py right include\n' + ordinary
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
+            if present:
+                files['peer.gen'] = b'PEER := initial\n'
+            for mode, status, stdout, ordinary_updates in modes:
+                flags = ('-k',) if keep else ()
+                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                        '-' + mode, *flags, 'all')
+                expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
+                            'stderr_template_hex': stderr.hex()}
+                seen = restarted if mode == 't' else restarted + b'ordinary' + value + b'\n'
+                ident = f'grouped-optional-mode-{name}-{mode}-{transport}'
+                model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                    updates={**markers, **updates, **ordinary_updates},
+                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(HeldModel(model, True, BEFORE_SECOND, before_second_stdout=prefix))
+    return results
+
+
 def named_source_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
     header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
     rules = (
@@ -723,6 +787,67 @@ def parallel_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list
                                 updates={**markers, 'right.gen': generated['right.gen']},
                                 mtimes_ns=dict.fromkeys(failed, INPUT_TIME))
             results.append(HeldModel(model, True, second, first, before_second_stdout=b'left\n'))
+    return results
+
+
+def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    source = (
+        '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+        'include left.gen right.gen\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen:\n'
+        '\t@python3 worker.py right include\n'
+        '\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        'all: result\n'
+        'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    primary_rule = 'Makefile: primer ; @printf "# remade\\n" >> "$@"\n'
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\ntail\n'
+    restarted = completed + b'read-1\n'
+    loaded = restarted + b'ordinary-loaded-loaded\n'
+    generated = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    current = b"make: 'Makefile' is up to date.\n"
+    unruled = b"make: Nothing to be done for 'Makefile'.\n"
+    dry_remake = b'printf "# remade\\n" >> "Makefile"\n'
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for discovery, slots in (('explicit', 3), ('explicit', 2), ('default', 3)):
+            for age in ('current', 'stale', 'unruled'):
+                if age == 'unruled' and (discovery, slots) != ('explicit', 3):
+                    continue
+                ruled = age != 'unruled'
+                stale = age == 'stale'
+                makefile = source + primary_rule if ruled else source
+                files = {'Makefile': makefile.encode(), 'worker.py': worker, 'seen': ANCHOR}
+                if ruled:
+                    files['primer'] = b'primer\n'
+                times = dict.fromkeys(files, INPUT_TIME)
+                if ruled:
+                    times['primer'] += 2_000_000_000 if stale else -2_000_000_000
+                summary = current if ruled else unruled
+                dry_prefix = dry_remake if stale else b''
+                touch_prefix = b'touch Makefile\n' if stale else b''
+                cases = (
+                    ('n', 0, dry_prefix, dry_prefix + summary + ordinary, loaded, {}),
+                    ('q', 1, b'', b'', completed + b'ordinary--\n' if stale else loaded, {}),
+                    ('t', 0, touch_prefix, summary + b'touch result\n', restarted, {'result': b''}),
+                )
+                for mode, status, prefix, suffix, seen, updates in cases:
+                    args = ('-rR', '--no-print-directory', f'-j{slots}', f'--jobserver-style={transport}',
+                            '-' + mode)
+                    if discovery == 'explicit':
+                        args += ('-f', './Makefile')
+                    args += ('./Makefile', 'all')
+                    expected = {'exit_code': status, 'stdout_template_hex': (prefix + suffix).hex(),
+                                'stderr_template_hex': ''}
+                    ident = f'primary-named-mode-{discovery}-{age}-{mode}-{transport}-{slots}-slots'
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates={**markers, **generated, **updates}, mtimes_ns=times)
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=prefix, before_first_stdout=prefix))
     return results
 
 
@@ -869,6 +994,61 @@ def load_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
             results.append(HeldModel(model, overlap, before_second, before_first,
                                      before_second_stdout=stdout if name == 'optional-stop' else None,
                                      load=load))
+    return results
+
+
+def load_build_mode_models(available: list[HeldModel], markers: dict[str, bytes]) -> list[HeldModel]:
+    left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
+    dry_worker = b'python3 worker.py right success\n'
+    touch_worker = b'touch right\ntouch right\n'
+    high = LoadProfile('normal', LOAD_HIGH, b'proc\n')
+    low = LoadProfile('normal', LOAD_LOW, b'proc\n')
+    results = []
+    for held in available:
+        model = held.model
+        if model.id.startswith('carried-optional-mode-') and model.id.endswith('-none'):
+            shape, tail, mode, transport, _ = model.id.removeprefix('carried-optional-mode-').split('-')
+            files = {**model.files, 'load.input': LOAD_HIGH}
+            args = ('-l2', *model.args)
+            ident = f'load-carried-mode-{shape}-{tail}-{mode}-{transport}'
+            if shape == 'keep':
+                queued = replace(model, id=ident + '-high', files=files, args=args,
+                                 mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(replace(held, model=queued, overlap=False, load=high))
+                continue
+
+            before = held.before_first + b'left\n'
+            stdout = b'left\n'
+            if mode == 'n':
+                stdout += dry_worker
+                if tail == 'tail':
+                    stdout += b'printf "right-tail\\n" >> seen\n'
+                stdout += b'printf "ordinary\\n" > "result"\n'
+            if mode == 't':
+                stdout += touch_worker + b'touch result\n'
+            updates = {**left_markers, **({'right': b'', 'result': b''} if mode == 't' else {})}
+            expected = {**model.expected, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
+            queued = replace(model, id=ident + '-high', files=files, args=args, updates=updates,
+                             expected=expected, seen=before if mode == 't' else before + b'ordinary\n',
+                             mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(queued, False, None, held.before_first, load=high))
+            if tail == 'tail':
+                files = {**model.files, 'load.input': LOAD_LOW}
+                overlapping = replace(model, id=ident + '-low', files=files, args=args,
+                                      mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(replace(held, model=overlapping, load=low))
+        elif model.id.startswith('load-optional-stop-'):
+            # A goal with only secondary-expansion effects does not inherit
+            # the queued optional recipe's question result.
+            summary = b"make: Nothing to be done for 'all'.\n"
+            modes = (('n', dry_worker + summary), ('q', b''), ('t', touch_worker + summary))
+            for mode, stdout in modes:
+                expected = {**model.expected, 'stdout_template_hex': (b'left\n' + stdout).hex()}
+                ident = model.id.replace('load-optional-stop-', 'load-optional-build-mode-') + '-' + mode
+                queued = replace(model, id=ident, args=('-' + mode, *model.args), expected=expected,
+                                 updates={**left_markers, **({'right': b''} if mode == 't' else {})},
+                                 seen=held.before_second)
+                results.append(HeldModel(queued, False, None, held.before_first, load=high))
     return results
 
 

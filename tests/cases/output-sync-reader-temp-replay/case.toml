@@ -1,0 +1,10 @@
+id = "output-sync-reader-temp-replay"
+requirement = "runtime.output-sync-reader-temp-replay"
+candidate = "required"
+provenance = "Original rmake differential fixture for post-read output synchronization replay after a reader stdout spool creation failure."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified line parallel\nverified target parallel\nverified line serial\nverified target serial\nverified line working\nverified target working\nverified target mode off\n"
+stderr = ""

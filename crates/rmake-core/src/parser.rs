@@ -2001,7 +2001,15 @@ impl Database {
         bytes: &'a [u8],
         context: &mut ExpansionContext<'_>,
     ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
-        self.prepared_filenames::<true>(bytes, context)
+        self.prepared_filenames::<true>(bytes, context, true)
+    }
+
+    pub fn secondary_prerequisite_filenames<'a>(
+        &mut self,
+        bytes: &'a [u8],
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
+        self.prepared_filenames::<true>(bytes, context, false)
     }
 
     // Module setup symbols use parentheses, so load filenames bypass archive
@@ -2010,6 +2018,7 @@ impl Database {
         &mut self,
         bytes: &'a [u8],
         context: &mut ExpansionContext<'_>,
+        intern_wait: bool,
     ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a, ARCHIVES>, ExpandError> {
         let scan = bytes
             .iter()
@@ -2076,11 +2085,16 @@ impl Database {
             if let Some(history) = &database_history {
                 if let Some(names) = &names {
                     for name in names {
-                        history.intern(name);
+                        if intern_wait || name != b".WAIT" {
+                            history.intern(name);
+                        }
                     }
                 } else {
                     for name in crate::filenames::words(bytes) {
-                        history.intern(crate::filenames::without_dot_prefix(&name));
+                        let name = crate::filenames::without_dot_prefix(&name);
+                        if intern_wait || name != b".WAIT" {
+                            history.intern(name);
+                        }
                     }
                 }
             }
@@ -3748,6 +3762,21 @@ impl Database {
         self.export_all
     }
 
+    fn notparallel_prerequisites(&self) -> Option<&[Dependency]> {
+        let rule = self.rules.get(b".NOTPARALLEL".as_slice())?;
+        let head = rule
+            .double_colon
+            .as_ref()
+            .and_then(|branches| branches.first())
+            .unwrap_or(rule);
+        Some(&head.dependencies)
+    }
+
+    pub fn globally_serial(&self) -> bool {
+        self.notparallel_prerequisites()
+            .is_some_and(|prerequisites| prerequisites.iter().all(|dependency| dependency.hidden))
+    }
+
     /// After the initial dependency snapshot, global setup expansions share
     /// recipe expansion's restriction on introducing new rules. A fresh
     /// database on Makefile restart restores the reader phase.
@@ -3764,10 +3793,9 @@ impl Database {
             });
             self.export_all |= named || phony;
             let serial_targets: HashSet<_> = self
-                .rules
-                .get(b".NOTPARALLEL".as_slice())
+                .notparallel_prerequisites()
                 .into_iter()
-                .flat_map(|rule| &rule.dependencies)
+                .flatten()
                 .filter(|dependency| !dependency.hidden && dependency.name != b".WAIT")
                 .map(|dependency| dependency.name.clone())
                 .collect();
@@ -4768,7 +4796,7 @@ impl Database {
                 let expanded =
                     self.expand(directive(text, keyword).unwrap(), &location, context)?;
                 let paths = self
-                    .prepared_filenames::<false>(&expanded, &mut context.at(Some(&location)))
+                    .prepared_filenames::<false>(&expanded, &mut context.at(Some(&location)), true)
                     .map_err(|error| ParseError {
                         unlocated: error.is_unlocated(),
                         location: error

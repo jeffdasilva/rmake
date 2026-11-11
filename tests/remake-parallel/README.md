@@ -45,11 +45,12 @@ child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
 The serial remake path remains for broader debug combinations and makefile
-debug with load limits. With `-n`, `-q`, or `-t`, grouped or double-colon
-optional sources and optional sources with prerequisites under a load
-limit use the serial path. Makefile debug and explicitly requested primary
-makefiles also use the serial path. An included makefile named as a goal
-uses the requested mode for its visit.
+debug with load limits. With `-n`, `-q`, or `-t`, grouped optional
+sources use the serial path when they have prerequisites or a load
+limit. Double-colon optional sources also use the serial path. A
+load-limited optional source with prerequisites uses that path
+when another read source has a rule. A makefile named as a goal uses the
+requested mode for its visit.
 
 ## Duplicate reads
 
@@ -65,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 353 profiles. Leading `./` spellings share one target record and still appear
+run all 505 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -92,7 +93,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 27 debug profiles check the entire debug trace and the exact trace prefix
+The 53 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. Verbose FIFO output contains a live controller PID and is outside
@@ -107,6 +108,12 @@ The standard developer gates include these profiles. The selector runs
 only the debug profiles and does not build the load shim.
 
 ## Dry-run, question, and touch
+
+The named primary makefile profiles hold both include workers under `-n`,
+`-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
+three job slots, and both jobserver transports. A current source, a source
+made stale by an existing prerequisite, and an unruled source exercise the
+summary, restart, and ordinary-goal effects independently.
 
 Default goals and simple explicit goals can run required makefile remakes
 in parallel under `-n`, `-q`, and `-t`. The explicit controls cover leading
@@ -153,3 +160,20 @@ a later worker failure.
 Two additional query cases use an ordinary recipe expansion without a file
 write. They require the unfinished-jobs diagnostic while the last optional
 remake worker is still held.
+
+Basic remake debugging also covers direct named and unnamed sources under
+dry-run, question, and touch. The 26 profiles check both release prefixes
+and the complete trace, including optional failures with built-ins and a
+named query followed by a keep-going failure.
+
+The 36 build-mode load cases hold workers under both jobserver transports.
+At high load, a stopped optional remake leaves its prepared sibling queued
+until dry-run, question, or touch takes effect. Keep-going launches that
+worker during the remake. Low-load controls compare an already running
+sibling. A goal with only secondary-expansion effects checks its own
+question result after the queued optional worker is considered.
+
+The 48 grouped optional profiles verify direct grouped recipes with
+dry-run, question, and touch. They cover missing and present peers,
+required peers, both read orders, and optional failures followed by a
+restart from the independent required include.

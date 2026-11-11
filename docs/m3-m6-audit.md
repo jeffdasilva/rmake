@@ -94,7 +94,7 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The [held remake gate](../tests/remake-parallel/README.md) covers 353
+The [held remake gate](../tests/remake-parallel/README.md) covers 379
 profiles. It includes optional recipes with built-ins, named include goals
 under dry-run, question and touch modes, and workers that finish after a
 stopping optional remake. The held controls verify the handoff with both
@@ -110,5 +110,6 @@ keep-going. Further grouped and live-option combinations remain open.
 
 FIFO and named output mutex publication preserve relative path bytes.
 The output gates qualify recursive directory changes and a selection of
-temporary-file creation failures. Line and target synchronization with
-reader output before a failed temporary-file creation still need coverage.
+temporary-file creation failures. Line and target synchronization also
+cover one reader stdout emission before a temporary-file creation failure
+and the post-read retry. Further reader-output combinations remain open.

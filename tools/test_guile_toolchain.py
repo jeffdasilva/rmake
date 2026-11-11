@@ -66,7 +66,8 @@ class GuileToolchainTests(unittest.TestCase):
               patch.object(g.oracle.time, 'sleep') as sleep,
               patch.object(g, 'run') as verify):
             root = Path(tmp)
-            lock = {'release_url': 'https://example.com/InRelease',
+            release_url = g.oracle.UBUNTU_ARCHIVE + 'dists/noble/InRelease'
+            lock = {'release_url': release_url,
                     'release_sha256': g.digest(b'verified release')}
             transport = network.return_value.open
             transport.side_effect = [stalled, io.BytesIO(b'wrong release')]
@@ -74,6 +75,7 @@ class GuileToolchainTests(unittest.TestCase):
                 g.authenticate(lock, root)
             self.assertFalse((root / 'provenance/noble-InRelease').exists())
             self.assertEqual(transport.call_count, 2)
+            self.assertTrue(all(call.args == (release_url,) for call in transport.call_args_list))
             sleep.assert_called_once_with(1)
             verify.assert_not_called()
 

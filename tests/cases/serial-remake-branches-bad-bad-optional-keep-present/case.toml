@@ -1,0 +1,11 @@
+id = "serial-remake-branches-bad-bad-optional-keep-present"
+requirement = "includes.serial-double-colon-failures"
+candidate = "required"
+provenance = "Original serial double-colon source failure fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nBAD\nALL:old\n"
+stderr = "make: *** No rule to make target 'bad', needed by 'inc.mk'.\nmake: *** No rule to make target 'bad', needed by 'inc.mk'.\n"

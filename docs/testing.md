@@ -38,6 +38,10 @@ For example, `args_hex = ["2d7252", "4e414d453dff"]` passes `-rR` and a
 NUL is rejected because Linux argv cannot contain it. This keeps raw-byte probes
 replayable without lossy Unicode conversion.
 
+Fixtures with GNU restart traces may use `stdout_template` in place of
+`stdout` or `stdout_hex`. The runner expands `@BIN@` to the exact executable
+alias for that invocation. Both captured streams still compare byte for byte.
+
 The runner creates separate isolated environments with identical absolute paths,
 for example `/work/case` and `/opt/test/bin/make`. It mounts the appropriate
 executable at the latter path; never use different workspace prefixes and then

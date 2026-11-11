@@ -1,0 +1,11 @@
+id = "debug-double-colon-branch-missing-existing-file-control"
+requirement = "diagnostics.double-colon-branch-missing"
+candidate = "required"
+provenance = "Original GNU Make 4.4.1 double-colon diagnostic fixture."
+args = ["-rR", "--no-print-directory", "-q", "-k", "--debug=v"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\nFinished prerequisites of target file 'all'.\nTarget 'all' is double-colon and has no prerequisites.\nMust remake target 'all'.\nfirst\nTarget file 'all' needs to be remade under -q.\nConsidering target file 'all'.\nFinished prerequisites of target file 'all'.\nTarget 'all' is double-colon and has no prerequisites.\nMust remake target 'all'.\nsecond\nTarget file 'all' needs to be remade under -q.\nPruning file 'all'.\n"
+stderr = ""

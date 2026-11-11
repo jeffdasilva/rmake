@@ -874,7 +874,14 @@ impl Engine {
                 return Err(());
             }
         }
-        if !changed {
+        // The unchanged flag shortcut still replays line/target buffering
+        // after a reader stdout spool failed to create its temporary file.
+        let retry_reader = !changed
+            && self
+                .reader_output
+                .as_ref()
+                .is_some_and(|buffer| buffer.failed_to_buffer_stdout());
+        if !changed && !retry_reader {
             return Ok(());
         }
         if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs)
@@ -919,7 +926,7 @@ impl Engine {
             if let Some(buffer) = self.reader_output.take() {
                 buffer.dump();
             }
-        } else if self.reader_output.is_none() {
+        } else if self.reader_output.is_none() || retry_reader {
             self.reader_output = self.output.make_buffer();
             self.output.select(self.reader_output.as_ref());
         }

@@ -87,3 +87,186 @@ MAKEFLAGS += -p
 '''
 records = ["all: n z n | n gate n gate"]
 flags = ["-t"]
+
+[[case]]
+id = "secondary-direct"
+makefile = '''
+.SECONDEXPANSION:
+N := n z
+all: $$(N) ; @$(file >>seen,all):
+'''
+records = ["all: n z"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-wait"
+makefile = '''
+.SECONDEXPANSION:
+N := n .WAIT z
+all: $$(N) ; @$(file >>seen,all):
+'''
+records = ["all: n .WAIT z"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-order-only-wait"
+makefile = '''
+.SECONDEXPANSION:
+N := n | .WAIT z gate
+all: $$(N) ; @$(file >>seen,all):
+'''
+records = ["all: n | .WAIT z gate"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-mixed-declarations"
+makefile = '''
+.SECONDEXPANSION:
+N := z gate
+all: n
+all: $$(N) ; @$(file >>seen,all):
+'''
+records = ["all: z gate n"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-empty"
+makefile = '''
+.SECONDEXPANSION:
+all: $$(N) ; @$(file >>seen,all):
+'''
+records = ["all:"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-unvisited"
+makefile = '''
+.SECONDEXPANSION:
+N := z gate
+all: n ; @$(file >>seen,all):
+unused: $$(N)
+'''
+records = ["unused: $(N)", "all: n"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-branches"
+makefile = '''
+.SECONDEXPANSION:
+N := n z
+M := gate
+all:: $$(N) ; @$(file >>seen,head):
+all:: $$(M) ; @$(file >>seen,tail):
+'''
+records = ["all:: n z", "all:: gate"]
+seen_hex = "686561640a7461696c0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-question-stops-before-second-branch"
+makefile = '''
+.SECONDEXPANSION:
+N := n z
+M := gate
+all:: $$(N) ; @$(file >>seen,head):
+all:: $$(M) ; @$(file >>seen,tail):
+'''
+records = ["all:: n z", "all:: $(M)"]
+seen_hex = "686561640a"
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "secondary-recipe-role-promotion"
+makefile = '''
+.SECONDEXPANSION:
+N := n | n z
+all: $$(N) ; @$(file >>seen,$^|$|):
+'''
+records = ["all: n n | z"]
+seen_hex = "6e7c7a0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-up-to-date-roles"
+makefile = '''
+.SECONDEXPANSION:
+N := n | n z
+all: $$(N) ; @$(file >>seen,$^|$|):
+'''
+records = ["all: n | n z"]
+flags = ["-p"]
+existing = true
+
+[[case]]
+id = "secondary-dry-run"
+makefile = '''
+.SECONDEXPANSION:
+N := n .WAIT z
+all: $$(N) ; @$(file >>seen,all):
+'''
+records = ["all: n .WAIT z"]
+seen_hex = "616c6c0a"
+flags = ["-p", "-n"]
+
+[[case]]
+id = "secondary-late-option"
+makefile = '''
+.SECONDEXPANSION:
+N := n .WAIT z
+all: $$(N) ; @$(eval MAKEFLAGS += -p)$(file >>seen,all):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: n .WAIT z"]
+seen_hex = "616c6c0a"
+
+[[case]]
+id = "secondary-multiple-deferred-clauses"
+makefile = '''
+.SECONDEXPANSION:
+N := n
+M := z .WAIT gate
+all: $$(N)
+all: $$(M) $$+ ; @$(file >>seen,$^):
+'''
+records = ["all: z .WAIT gate n"]
+seen_hex = "7a2067617465206e0a"
+flags = ["-p"]
+
+[[case]]
+id = "secondary-shuffle-keeps-declaration-order"
+makefile = '''
+.SECONDEXPANSION:
+N := n .WAIT z gate
+all: $$(N) ; @$(file >>seen,$^):
+'''
+records = ["all: n .WAIT z gate"]
+seen_hex = "6e207a20676174650a"
+flags = ["-p", "--shuffle=reverse", "-j1"]
+
+[[case]]
+id = "secondary-touch-keeps-roles"
+makefile = '''
+.SECONDEXPANSION:
+.PHONY: all
+N := n | n z
+all: $$(N) ; @$(file >>seen,$^):
+'''
+records = ["all: n | n z"]
+flags = ["-p", "-t"]
+
+[[case]]
+id = "secondary-waits-stop-at-partition-boundaries"
+makefile = '''
+.SECONDEXPANSION:
+N := n .WAIT | .WAIT z gate .WAIT
+all: $$(N) ; @$(file >>seen,$^):
+'''
+records = ["all: n | .WAIT z gate"]
+seen_hex = "6e0a"
+flags = ["-p"]

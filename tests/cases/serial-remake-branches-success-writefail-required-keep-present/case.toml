@@ -1,0 +1,11 @@
+id = "serial-remake-branches-success-writefail-required-keep-present"
+requirement = "includes.serial-double-colon-failures"
+candidate = "required"
+provenance = "Original serial double-colon source failure fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nCREATE1\nWRITEFAIL\nREAD:1\nALL:failed\n"
+stderr = "make: *** [Makefile:9: inc.mk] Error 7\n"

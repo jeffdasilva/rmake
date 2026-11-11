@@ -108,6 +108,32 @@ class ManifestTests(unittest.TestCase):
         self.write('[expected]\nstdout = "ok"\nstderr_hex = "ff"\n')
         runner.load_case(self.case)
 
+    def test_stdout_template_requires_a_single_expected_stdout_representation(self):
+        self.write('[expected]\nstdout_template = "missing token"\n')
+        with self.assertRaisesRegex(runner.HarnessError, "must contain @BIN@"):
+            runner.load_case(self.case)
+        for key in ("stdout", "stdout_hex"):
+            self.write(f'[expected]\nstdout_template = "@BIN@"\n{key} = ""\n')
+            with self.subTest(key=key), self.assertRaisesRegex(runner.HarnessError, "mutually exclusive"):
+                runner.load_case(self.case)
+
+    def test_stdout_template_uses_only_the_exact_workspace_alias(self):
+        self.write('[expected]\nstdout_template = "Re-executing[1]: @BIN@ all\\n"\n')
+        case = runner.load_case(self.case)
+        root = self.case.parent / "workspace"
+        expected = f"Re-executing[1]: {root / 'bin' / 'make'} all\n".encode()
+        observation = runner.Observation(expected, b"", 0, None, {})
+        self.assertEqual(runner.expectation_errors(case, observation, root=root), [])
+        self.assertEqual(
+            runner.expectation_errors(case, observation, root=root / "different"),
+            ["oracle disagrees with expected.stdout_template"],
+        )
+        with self.assertRaisesRegex(runner.HarnessError, "requires the execution workspace"):
+            runner.expectation_errors(case, observation)
+        self.write('[expected]\nstdout = "@BIN@"\n')
+        literal = runner.Observation(b"@BIN@", b"", 0, None, {})
+        self.assertEqual(runner.expectation_errors(runner.load_case(self.case), literal, root=root), [])
+
     def test_unknown_fields_and_invalid_values(self):
         for extra in ('typo = true\n', 'timeout_seconds = 0\n', 'timeout_seconds = true\n',
                       'timeout_seconds = nan\n', 'args = "all"\n', 'args = [1]\n',
