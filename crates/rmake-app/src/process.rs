@@ -55,20 +55,10 @@ fn prepare_in_mode(
     ifs: Option<&[u8]>,
     mode: Mode,
 ) -> Invocation {
-    if shell == b"/bin/sh"
-        && matches!(flags, b"-c" | b"-ec")
-        && ifs.is_none_or(|value| {
-            value
-                .iter()
-                .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
-        })
-        && let Some(split) = split_words(command, mode)
-        && split
-            .words
-            .first()
-            .is_some_and(|program| !requires_shell(program))
+    if let Some(words) = direct_words(command, shell, flags, ifs, mode)
+        && !words.is_empty()
     {
-        return direct_command(split.words);
+        return direct_command(words);
     }
     if mode == Mode::ShellFunction && command.contains(&b'\n') {
         return shell_invocation(&fold_unescaped_newlines(command), shell, flags);
@@ -78,6 +68,43 @@ fn prepare_in_mode(
         return shell_invocation(&command, shell, flags);
     }
     shell_invocation(command, shell, flags)
+}
+
+fn direct_words(
+    command: &[u8],
+    shell: &[u8],
+    flags: &[u8],
+    ifs: Option<&[u8]>,
+    mode: Mode,
+) -> Option<Vec<Vec<u8>>> {
+    if shell != b"/bin/sh"
+        || !matches!(flags, b"-c" | b"-ec")
+        || ifs.is_some_and(|value| {
+            value
+                .iter()
+                .any(|byte| !matches!(byte, b' ' | b'\t' | b'\n'))
+        })
+    {
+        return None;
+    }
+    let words = split_words(command, mode)?.words;
+    words
+        .first()
+        .is_none_or(|program| !requires_shell(program))
+        .then_some(words)
+}
+
+/// The direct lexer can consume a continuation without finding any arguments.
+/// An unescaped newline in an entire .ONESHELL script still requires a shell.
+pub(crate) fn empty_oneshell_continuation(
+    command: &[u8],
+    shell: &[u8],
+    flags: &[u8],
+    ifs: Option<&[u8]>,
+) -> bool {
+    command.first() == Some(&b'\\')
+        && direct_words(command, shell, flags, ifs, Mode::Recipe)
+            .is_some_and(|words| words.is_empty())
 }
 
 fn direct_command(mut words: Vec<Vec<u8>>) -> Invocation {
@@ -97,7 +124,8 @@ pub(crate) fn prepare_oneshell_flags(flags: &[u8]) -> Option<Invocation> {
 }
 
 pub struct PreparedLine {
-    pub invocation: Invocation,
+    /// No invocation when the direct lexer consumes an empty command.
+    pub invocation: Option<Invocation>,
     /// The visible command ends here; the separator itself is not echoed.
     pub end: usize,
     /// Remaining commands reuse the same already-expanded logical recipe.
@@ -114,21 +142,26 @@ pub fn prepare_line(
     flags: &[u8],
     ifs: Option<&[u8]>,
 ) -> PreparedLine {
-    if !command.contains(&b'\n') {
-        return PreparedLine {
-            invocation: prepare(command, shell, flags, ifs),
-            end: command.len(),
-            next: None,
-        };
-    }
-    let direct_end = command_boundary(command, true);
-    let (invocation, end) = match prepare(&command[..direct_end], shell, flags, ifs) {
-        direct @ Invocation::Direct { .. } => (direct, direct_end),
-        Invocation::Shell { .. } => {
-            let end = command_boundary(command, false);
-            (shell_invocation(&command[..end], shell, flags), end)
-        }
+    let direct_end = if command.contains(&b'\n') {
+        command_boundary(command, true)
+    } else {
+        command.len()
     };
+    let (invocation, end) =
+        match direct_words(&command[..direct_end], shell, flags, ifs, Mode::Recipe) {
+            Some(words) => (
+                (!words.is_empty()).then(|| direct_command(words)),
+                direct_end,
+            ),
+            None => {
+                let end = if direct_end == command.len() {
+                    direct_end
+                } else {
+                    command_boundary(command, false)
+                };
+                (Some(shell_invocation(&command[..end], shell, flags)), end)
+            }
+        };
     PreparedLine {
         invocation,
         end,
@@ -499,7 +532,7 @@ mod tests {
         assert_eq!(&command[..line.end], b"printf '%s' 'first");
         assert_eq!(&command[line.next.unwrap()..], b"second'");
         assert!(
-            matches!(line.invocation, Invocation::Shell { args, .. } if args.last().unwrap() == b"printf '%s' 'first")
+            matches!(line.invocation, Some(Invocation::Shell { args, .. }) if args.last().unwrap() == b"printf '%s' 'first")
         );
     }
 
@@ -508,7 +541,7 @@ mod tests {
         let command = b"printf one\\\\\ntwo";
         let direct = prepare_line(command, b"/bin/sh", b"-c", None);
         assert_eq!(&command[..direct.end], b"printf one\\\\");
-        assert!(matches!(direct.invocation, Invocation::Direct { .. }));
+        assert!(matches!(direct.invocation, Some(Invocation::Direct { .. })));
         let shell = prepare_line(command, b"/bin/bash", b"-c", None);
         assert_eq!(shell.end, command.len());
         assert_eq!(shell.next, None);

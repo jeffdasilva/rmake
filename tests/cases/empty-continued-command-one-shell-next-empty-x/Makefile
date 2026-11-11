@@ -1,0 +1,4 @@
+.ONESHELL:
+artifact: ; \
+  $(MISSING_COMMAND_PART)
+	$(MISSING_COMMAND_PART)

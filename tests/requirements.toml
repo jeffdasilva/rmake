@@ -2995,3 +2995,14 @@ reference = "docs/output-sync.md"
 candidate_required = 1
 fixture_count = 1
 cases = ["output-sync-reader-restart-temp-replay"]
+
+
+[[requirements]]
+id = "process.empty-continued-command"
+title = "Empty argv after recipe continuation processing"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 59
+reference = "https://www.gnu.org/software/make/manual/html_node/Splitting-Recipe-Lines.html"
+fixture_count = 59
+cases = ["empty-continued-command-colon-n", "empty-continued-command-colon-q", "empty-continued-command-colon-x", "empty-continued-command-configuration-effects-n", "empty-continued-command-configuration-effects-q", "empty-continued-command-configuration-effects-x", "empty-continued-command-custom-prefix-n", "empty-continued-command-custom-prefix-q", "empty-continued-command-custom-prefix-x", "empty-continued-command-forced-silent-n", "empty-continued-command-forced-silent-q", "empty-continued-command-forced-silent-x", "empty-continued-command-generated-escape-n", "empty-continued-command-generated-escape-q", "empty-continued-command-ifs-n", "empty-continued-command-ifs-q", "empty-continued-command-ifs-x", "empty-continued-command-inline-n", "empty-continued-command-inline-q", "empty-continued-command-inline-t", "empty-continued-command-inline-x", "empty-continued-command-next-command-n", "empty-continued-command-next-command-q", "empty-continued-command-next-command-t", "empty-continued-command-next-command-x", "empty-continued-command-next-empty-n", "empty-continued-command-next-empty-q", "empty-continued-command-next-empty-t", "empty-continued-command-next-empty-x", "empty-continued-command-one-shell-n", "empty-continued-command-one-shell-next-command-n", "empty-continued-command-one-shell-next-command-q", "empty-continued-command-one-shell-next-command-x", "empty-continued-command-one-shell-next-empty-n", "empty-continued-command-one-shell-next-empty-q", "empty-continued-command-one-shell-next-empty-x", "empty-continued-command-one-shell-other-shell-n", "empty-continued-command-one-shell-other-shell-q", "empty-continued-command-one-shell-other-shell-x", "empty-continued-command-one-shell-q", "empty-continued-command-one-shell-t", "empty-continued-command-one-shell-x", "empty-continued-command-other-shell-n", "empty-continued-command-other-shell-q", "empty-continued-command-other-shell-x", "empty-continued-command-physical-n", "empty-continued-command-physical-next-command-n", "empty-continued-command-physical-next-command-q", "empty-continued-command-physical-q", "empty-continued-command-physical-t", "empty-continued-command-physical-x", "empty-continued-command-posix-n", "empty-continued-command-posix-q", "empty-continued-command-posix-x", "empty-continued-command-quoted-empty-argument-n", "empty-continued-command-quoted-empty-argument-q", "empty-continued-command-slow-flags-n", "empty-continued-command-slow-flags-q", "empty-continued-command-slow-flags-x"]

@@ -11920,6 +11920,14 @@ impl Engine {
             let transformed;
             let ordinary_invocation;
             if one_shell {
+                if crate::process::empty_oneshell_continuation(
+                    command,
+                    shell,
+                    &flags,
+                    ifs.as_deref(),
+                ) {
+                    continue;
+                }
                 transformed = crate::oneshell::transform(command, shell, recipe.prefix);
                 command = &transformed;
                 ordinary_invocation = None;
@@ -11929,10 +11937,13 @@ impl Engine {
                     expanded.push_front((index, command[next..].to_vec(), recipe.clone()));
                 }
                 command = &command[..line.end];
-                ordinary_invocation = Some(line.invocation);
+                let Some(invocation) = line.invocation else {
+                    continue;
+                };
                 if command.is_empty() {
                     continue;
                 }
+                ordinary_invocation = Some(invocation);
             }
             if self.options.question && !force {
                 if self.remaking || !self.optional_remake() {

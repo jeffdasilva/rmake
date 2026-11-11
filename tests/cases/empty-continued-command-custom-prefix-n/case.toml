@@ -1,0 +1,11 @@
+id = "empty-continued-command-custom-prefix-n"
+requirement = "process.empty-continued-command"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-n", "artifact"]
+description = "An escaped continuation and its shell configuration under empty-continued-command-custom-prefix-n."
+provenance = "Original rmake fixture authored from independent GNU Make 4.4.1 observations; no upstream source or fixture copied."
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a202761727469666163742720697320757020746f20646174652e0a"
+stderr_hex = ""
