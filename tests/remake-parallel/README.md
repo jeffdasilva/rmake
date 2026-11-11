@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,640 profiles. Leading `./` spellings share one target record and
+run all 1,648 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -185,7 +185,10 @@ question profiles check both child completion orders. A right-first completion
 runs the remaining right recipe and loads both includes after restart.
 A named-first completion skips that remaining recipe and deletes the
 incomplete right include. Earlier question results suppress the pass
-transition in both ordinary and keep-going controls.
+transition in both ordinary and keep-going controls. Saturated dry-run
+profiles also check both orders, with and without secondary expansion
+and repeated reads. A right-first completion runs the right recipe tail
+and a named-first completion prints it.
 Named primary secondary expansion records the automatic target and restart
 counter exactly once per visit, including while earlier workers are held.
 

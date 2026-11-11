@@ -1207,13 +1207,14 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                             updates=updates, mtimes_ns=times)
                         held = HeldModel(model, True, second, first,
                                          before_second_stdout=second_out, before_first_stdout=first_out)
-                        ordered_completion = policy == 'optional' and saturated and mode in ('q', 't')
-                        if ordered_completion:
-                            held = order_named_completion(held)
-                        results.append(held)
+                        ordered_completion = policy == 'optional' and saturated
                         expansion_point = first if position == 'last' else BEFORE_FIRST
+                        direct = order_named_completion(held) if ordered_completion else held
+                        results.append(direct)
                         if slots == 2:
-                            results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
+                            results.append(named_secondary_variant(direct, expansion_point, b'named.gen'))
+                        if ordered_completion and mode == 'n':
+                            results.extend(right_first_dry_run_models(held, expansion_point))
                         if slots == 3:
                             source_with_primer = source.replace(b'named.gen: ;', b'named.gen: primer ;')
                             with_primer = {**files, 'Makefile': source_with_primer, 'primer': b'base input\n'}
@@ -1229,6 +1230,8 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
                             repeated = replace(held, model=duplicate)
+                            if ordered_completion and mode == 'n':
+                                results.extend(right_first_dry_run_models(repeated, expansion_point))
                             if ordered_completion:
                                 repeated = order_named_completion(repeated)
                             if policy == 'optional' and mode == 'q' and saturated:
@@ -1282,9 +1285,30 @@ def order_named_completion(held: HeldModel, *, right_first: bool = False) -> Hel
              'Makefile': makefile.replace(named_recipe, named_command),
              'worker.py': worker.replace(worker_anchor, worker_replacement),
              'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
+    echoed_recipe = named_recipe.removeprefix(b'+@').replace(b'$@', b'named.gen') + b'\n'
+    echoed_command = named_command.removeprefix(b'+@') + b'\n'
+    stdout = bytes.fromhex(model.expected['stdout_template_hex'])
+    expected = {**model.expected,
+                'stdout_template_hex': stdout.replace(echoed_recipe, echoed_command).hex()}
     model = replace(model, files=files, mtimes_ns={**model.mtimes_ns, 'named_reap.py': INPUT_TIME},
-                    environment={**model.environment, 'PYTHONDONTWRITEBYTECODE': '1'})
-    return replace(held, model=model)
+                    environment={**model.environment, 'PYTHONDONTWRITEBYTECODE': '1'},
+                    expected=expected)
+    assert held.before_second_stdout is not None
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(echoed_recipe, echoed_command),
+                   before_second_stdout=held.before_second_stdout.replace(echoed_recipe, echoed_command))
+
+
+def right_first_dry_run_models(held: HeldModel, expansion_point: bytes) -> tuple[HeldModel, HeldModel]:
+    model = held.model
+    tail = b'printf "tail\\n" >> seen\n'
+    stdout = bytes.fromhex(model.expected['stdout_template_hex'])
+    assert stdout.count(tail) == model.seen.count(b'right\n') == 1
+    expected = {**model.expected, 'stdout_template_hex': stdout.replace(tail, b'').hex()}
+    model = replace(model, id=model.id + '-right-first', expected=expected,
+                    seen=model.seen.replace(b'right\n', b'right\ntail\n'))
+    ordered = order_named_completion(replace(held, model=model), right_first=True)
+    return ordered, named_secondary_variant(ordered, expansion_point, b'named.gen')
 
 
 def earlier_named_question(held: HeldModel, original: debug.Model, *, keep_going: bool) -> HeldModel:
