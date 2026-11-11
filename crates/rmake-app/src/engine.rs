@@ -4553,7 +4553,12 @@ impl Engine {
                                                 || (file.optional
                                                     && rule.secondary.is_some()
                                                     && self.is_makefile_goal(name, named_sources)
-                                                    && self.simple_named_remake(file, name, &[], false)))
+                                                    && self.simple_named_remake(
+                                                        file,
+                                                        name,
+                                                        &[],
+                                                        false,
+                                                    )))
                                     })
                             })
                     }
