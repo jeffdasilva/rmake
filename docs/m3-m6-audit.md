@@ -94,9 +94,9 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 1,956 profiles on Linux FIFO and pipe jobservers.
-It includes 358 remake-debug and 164 controlled load profiles. Ninety traces
-authenticate the FIFO controller path. The gate covers direct grouped optional
+The held remake gate covers 1,992 profiles on Linux FIFO and pipe jobservers.
+It includes 386 remake-debug and 192 controlled load profiles. The gate authenticates 104 FIFO
+controller traces. The gate covers direct grouped optional
 recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
@@ -115,14 +115,15 @@ cover direct single-line remakes and required includes named as goals under
 dry-run, question and touch. Held shuffle cases verify ordinary goal order
 separately from remake order. Basic load debug profiles cover child admission
 and trace boundaries with and without an active build mode. The load gate
-checks optional prerequisite recipes that continue across a blocking reap.
+checks normal verbose admission and optional prerequisite recipes that
+continue across a blocking reap.
 Combined question
 and touch controls check optional touch effects and the restart verdict.
 Directory-qualified sources, expanded identities, and
 combined load, grouped-remake, and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,429 case manifests and 227 requirements.
+The ordinary inventory contains 30,477 case manifests and 227 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
 visits for repeated required makefiles and failed or unchanged optional
 declarations have independent expectations for exit status, streams, and file effects.
