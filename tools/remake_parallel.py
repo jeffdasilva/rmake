@@ -2053,11 +2053,16 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         by_id[held.model.id] = held
     selected = []
     seen = set()
+    has_load_profiles = any(held.load is not None for held in held_models)
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
         fifo = row.get('fifo', False)
+        requires_load = row.get('requires_load', False)
+        if requires_load is True and not has_load_profiles:
+            continue
         held = by_id.get(name)
-        if (held is None or held.before_second is None or (name, flag) in seen
+        if (held is None or (name, flag) in seen or not isinstance(requires_load, bool)
+                or (held.load is not None) != requires_load
                 or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
                 or (fifo and flag != 'm,v')
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
@@ -2066,19 +2071,21 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         stdout = row['stdout'].encode()
         prefixes = row['release_prefixes']
         primary = held.before_primary is not None
-        if (len(prefixes) != (3 if primary else 2) or prefixes != sorted(prefixes)
+        count = 1 + int(held.before_second is not None) + int(primary)
+        if (len(prefixes) != count or prefixes != sorted(prefixes)
                 or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)
                 or b'@BIN@' in stdout[:prefixes[-1]]):
             raise h.HarnessError('invalid remake debug release prefixes')
         if primary and any(not stdout[:end].endswith(barrier)
                            for end, barrier in zip(prefixes, PRIMARY_BARRIERS, strict=True)):
             raise h.HarnessError('invalid named primary debug release barrier')
-        first, second = prefixes[-2:]
+        first = prefixes[int(primary)]
+        second = prefixes[-1] if held.before_second is not None else None
         args = (*held.model.args[:-1], f'--debug={flag}', held.model.args[-1])
         model = replace(held.model, id=f'remake-debug-{name}-{flag.replace(",", "")}', args=args,
                         expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
-                                before_second_stdout=stdout[:second],
+                                before_second_stdout=stdout[:second] if second is not None else None,
                                 before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
         if fifo:
             # Keep the same expected trace around the separately verified live path.
@@ -2091,7 +2098,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                                  expected={**model.expected, 'stdout_template_hex': fifo_stdout.hex()})
             selected.append(replace(held, model=fifo_model, fifo_controller=True,
                                     before_first_stdout=fifo_stdout[:first],
-                                    before_second_stdout=fifo_stdout[:second],
+                                    before_second_stdout=fifo_stdout[:second] if second is not None else None,
                                     before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b''))
     return selected
 
