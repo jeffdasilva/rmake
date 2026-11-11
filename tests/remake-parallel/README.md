@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,013 profiles. Leading `./` spellings share one target record and
+run all 1,073 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -108,6 +108,11 @@ The standard developer gates include these profiles. The selector runs
 only the debug profiles and does not build the load shim.
 
 ## Dry-run, question, and touch
+
+Sixty named primary profiles check explicit `.WAIT` barriers with local
+files and with earlier required includes. Both jobserver transports cover
+dry-run, question and touch, including the order of effects and the contents
+of automatic prerequisite variables around the barrier.
 
 The named primary makefile profiles hold both include workers under `-n`,
 `-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or

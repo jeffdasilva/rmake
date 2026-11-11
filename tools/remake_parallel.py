@@ -142,6 +142,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_named_implicit_models(worker, markers)
     results += named_include_file_prerequisite_models(worker, markers)
     results += primary_shared_include_models(worker, markers)
+    results += primary_named_wait_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -1335,6 +1336,94 @@ def primary_shared_include_models(worker: bytes, markers: dict[str, bytes]) -> l
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, True, second, first, before_second_stdout=second_out))
+    return results
+
+
+def primary_named_wait_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    include = b'include left.gen right.gen\n'
+    rules = (
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    recipe = b' ; @printf "# remade %s/%s\\n" "$^" "$|" >> "$@"\n'
+    command = b'printf "# remade %s/%s\\n" '
+    current = b"make: 'Makefile' is up to date.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    tail = b'printf "tail\\n" >> seen\n'
+    touch_primary = b'touch Makefile\n'
+    touch_result = current + b'touch result\n'
+    touch_left = b'touch left.gen\n'
+    touch_right = b'touch right.gen\ntouch right.gen\n'
+    deletion = b"make: *** Deleting file 'right.gen'\n"
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    generated_left = {**markers, 'left.gen': b'LEFT := loaded\n'}
+    generated_both = {**generated_left, 'right.gen': b'RIGHT := loaded\n'}
+    shapes = (
+        ('local-normal', b'older .WAIT primer', False, b'older primer', False),
+        ('local-order-only', b'| older .WAIT primer', False, b'', False),
+        ('local-later', b'older .WAIT primer', True, b'older primer', False),
+        ('shared-left-right', b'left.gen .WAIT right.gen', True, b'left.gen right.gen', True),
+        ('shared-right-left', b'right.gen .WAIT left.gen', True, b'right.gen left.gen', True),
+        ('shared-left-file', b'left.gen .WAIT primer', True, b'left.gen primer', True),
+        ('shared-file-right', b'older .WAIT right.gen', True, b'older right.gen', True),
+    )
+    results = []
+    for name, prerequisites, later, normal, shared in shapes:
+        source = header + (b'' if later else include) + b'Makefile: ' + prerequisites + recipe + rules
+        files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
+                 'older': b'older\n', 'primer': b'primer\n'}
+        if later:
+            files['earlier.mk'] = include
+        append = command + b'"' + normal + b'" "" >> "Makefile"\n'
+        completed = second + (b'right\n' if shared else b'right\ntail\n')
+        restarted = completed + b'read-1\n'
+        loaded = restarted + b'ordinary-loaded-loaded\n'
+        for newer in ((False,) if shared else (False, True)):
+            times = dict.fromkeys(files, INPUT_TIME)
+            times['older'] -= 2_000_000_000
+            times['primer'] += 500_000_000 if newer else -1_000_000_000
+            stale = newer and bool(normal)
+            if shared:
+                early = name == 'shared-left-file'
+                dry = (append + tail if early else tail + append) + append
+                touched = touch_left + (touch_primary + touch_right if early else touch_right + touch_primary)
+                cases = (
+                    ('n', 0, b'', append if early else b'', dry + current + ordinary,
+                     b'', loaded, generated_both),
+                    ('q', 1, b'', b'', b'', deletion, completed + b'ordinary--\n', generated_left),
+                    ('t', 0, b'', touch_left + (touch_primary if early else b''),
+                     touched + touch_result, b'', restarted, {**generated_both, 'result': b''}),
+                )
+            else:
+                dry = append if stale else b''
+                touched = touch_primary if stale else b''
+                cases = (
+                    ('n', 0, dry, dry, dry * 2 + current + ordinary, b'', loaded, generated_both),
+                    ('q', 1, b'', b'', b'', b'',
+                     completed + b'ordinary--\n' if stale else loaded, generated_both),
+                    ('t', 0, touched, touched, touched + touch_result,
+                     b'', restarted, {**generated_both, 'result': b''}),
+                )
+            for mode, status, first_out, second_out, stdout, stderr, seen, updates in cases:
+                for transport in ('pipe', 'fifo'):
+                    args = ('-rR', '--no-print-directory', '-j3', f'--jobserver-style={transport}', '-' + mode)
+                    if later:
+                        args += ('-f', 'earlier.mk')
+                    args += ('-f', './Makefile', './Makefile', 'all')
+                    age = 'newer' if newer else 'older'
+                    ident = f'primary-named-wait-{name}-{mode}-{transport}-{age}'
+                    expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                'stderr_template_hex': stderr.hex()}
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates=updates, mtimes_ns=times)
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=second_out, before_first_stdout=first_out))
     return results
 
 

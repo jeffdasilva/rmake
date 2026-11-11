@@ -4342,6 +4342,10 @@ impl Engine {
                             && rule.dependencies.iter().enumerate().all(|(index, dep)| {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
+                                    || (primary
+                                        && rule.secondary.is_none()
+                                        && !dep.hidden
+                                        && dep.name == b".WAIT")
                                     || self.simple_named_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
