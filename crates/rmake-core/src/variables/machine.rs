@@ -883,8 +883,10 @@ impl Expansion<'_, '_> {
                 let value = m.value();
                 if let Some(names) = names {
                     let names: Vec<_> = words(&names).collect();
-                    let mut spans = word_spans(&value);
-                    if names.len() > 1 && word_spans(&value).next().is_none() {
+                    let mut spans = word_spans(&value).peekable();
+                    // A zero-length value list binds every name to empty.
+                    // A nonempty all-blank list hits GNU's invalid token path.
+                    if names.len() > 1 && !value.is_empty() && spans.peek().is_none() {
                         return Err(ExpandError::Safety(crate::safety::SafetyError::EmptyLet));
                     }
                     let mut frame = LocalFrame::new(None);

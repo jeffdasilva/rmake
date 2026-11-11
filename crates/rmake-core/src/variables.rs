@@ -6221,6 +6221,7 @@ mod tests {
             b"[first\tsecond \r]"
         );
         assert_eq!(expand(b"$(let ,ignored,body)"), b"body");
+        assert_eq!(expand(b"$(let a b c,,[$(a)][$(b)][$(c)])"), b"[][][]");
         // The approved exception returns an error before evaluating the body.
         assert_eq!(
             VariableStore::new().expand(b"$(let a b, \t\x0b,[$(a)][$(b)])"),
@@ -6238,7 +6239,7 @@ mod tests {
             }
         };
         let result = store.expand_mut_with(
-            b"$(let $(info names)a b,$(info values),$(info body)BAD)",
+            b"$(let $(info names)a b,$(info values)  ,$(info body)BAD)",
             ExpansionContext::new(None, &mut output),
         );
         assert_eq!(
