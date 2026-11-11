@@ -116,6 +116,7 @@ pub trait OutputReceiver {
     fn warns_undefined(&self) -> bool {
         false
     }
+    fn set_undefined_warnings(&mut self, _enabled: bool) {}
 }
 
 impl<F: FnMut(Output<'_>)> OutputReceiver for F {
@@ -141,6 +142,9 @@ impl OutputReceiver for WarningOutput<'_> {
     }
     fn warns_undefined(&self) -> bool {
         self.enabled.get()
+    }
+    fn set_undefined_warnings(&mut self, enabled: bool) {
+        self.enabled.set(enabled);
     }
 }
 
@@ -1029,6 +1033,20 @@ impl<'a> ExpansionContext<'a> {
         self.output
             .as_ref()
             .is_some_and(|output| output.warns_undefined())
+    }
+
+    /// Temporarily replace the current policy and return the prior value.
+    pub fn replace_undefined_warnings(&mut self, enabled: bool) -> bool {
+        let previous = self.warns_undefined();
+        if previous != enabled {
+            if let Some(flags) = &mut self.makeflags {
+                flags.set_warning_policy(enabled);
+            }
+            if let Some(output) = &mut self.output {
+                output.set_undefined_warnings(enabled);
+            }
+        }
+        previous
     }
 
     pub fn with_cancellation(mut self, cancellation: &'a std::sync::atomic::AtomicBool) -> Self {

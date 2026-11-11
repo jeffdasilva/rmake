@@ -4350,7 +4350,10 @@ impl Expansion<'_, '_> {
                         }
                         if pattern.starts_with(b"~") {
                             let expanded = if pattern.len() == 1 || pattern[1] == b'/' {
-                                let home = self.variable(b"HOME")?;
+                                let warnings = self.context.replace_undefined_warnings(false);
+                                let home = self.variable(b"HOME");
+                                self.context.replace_undefined_warnings(warnings);
+                                let home = home?;
                                 let suffix = self.store.filename_suffix(&pattern);
                                 if home.is_empty() {
                                     let mut expanded =

@@ -18,9 +18,14 @@ use std::path::PathBuf;
 pub fn expand_preload_name(
     name: &[u8],
     variables: &mut VariableStore,
-    context: ExpansionContext<'_>,
+    mut context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
-    expand_tilde_with(name, || variables.expand_mut_with(b"$(HOME)", context))
+    expand_tilde_with(name, || {
+        let warnings = context.replace_undefined_warnings(false);
+        let result = variables.expand_mut_with(b"$(HOME)", context.reborrow());
+        context.replace_undefined_warnings(warnings);
+        result
+    })
 }
 
 /// Observe the bindings at this argument's position, before later command-line

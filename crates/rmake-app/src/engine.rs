@@ -774,6 +774,9 @@ impl OutputReceiver for RuntimeOutput<'_> {
     fn warns_undefined(&self) -> bool {
         self.warnings.get()
     }
+    fn set_undefined_warnings(&mut self, enabled: bool) {
+        self.warnings.set(enabled);
+    }
     fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
         crate::debug::reader(self.controller, event);
     }

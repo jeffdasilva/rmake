@@ -2000,7 +2000,9 @@ impl Database {
         let home = if name.len() == 1 || name[1] == b'/' {
             let session = self.begin_filename_session(true);
             self.write_filename(name, 0);
+            let warnings = context.replace_undefined_warnings(false);
             let result = self.expand_variable_with(b"HOME", context.reborrow());
+            context.replace_undefined_warnings(warnings);
             observed = Some(self.filename_suffix(name));
             self.end_filename_session(session);
             result.map_err(|error| {
