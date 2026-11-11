@@ -93,7 +93,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 113 debug profiles check the entire debug trace and the exact trace prefix
+The 116 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. Verbose FIFO output contains a live controller PID and is outside
@@ -104,9 +104,10 @@ python3 tools/remake_parallel.py --remake-debug --self-test
 python3 tools/remake_parallel.py --remake-debug --candidate target/debug/rmake
 ~~~
 
-A fast forced recipe on a later stale primary can finish before the harness
-observes a pending pass. The held remake and basic debug gates continue
-to cover those inputs.
+The forced stale primary profiles hold a third worker under `-n`, `-q`, and
+`-t`. The observer releases the primary after its pending trace, then releases
+the earlier includes after the trace records primary and left completion.
+Each release checks that the other workers are still held.
 
 The standard developer gates include these profiles. The selector runs
 only the debug profiles and does not build the load shim.

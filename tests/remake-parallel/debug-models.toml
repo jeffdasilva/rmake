@@ -4679,3 +4679,314 @@ Finished prerequisites of target file 'all'.
 Must remake target 'all'.
 Successfully remade target file 'all'.
 '''
+
+[[profiles]]
+case = "later-primary-named-mode-held-forced-stale-n-pipe-3-slots"
+flag = "m,v"
+release_prefixes = [1670, 1890, 2040]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'earlier.mk'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'earlier.mk'.
+ Finished prerequisites of target file 'earlier.mk'.
+ No need to remake target 'earlier.mk'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'Makefile'.
+  Considering target file 'primer'.
+  Finished prerequisites of target file 'primer'.
+  No need to remake target 'primer'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'primer' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+python3 worker.py primary append-primary
+ Recipe of 'Makefile' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'Makefile'.
+ Still updating file 'Makefile'.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j3 --jobserver-style=pipe -n -f earlier.mk -f Makefile ./Makefile --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'earlier.mk'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'earlier.mk'.
+ Finished prerequisites of target file 'earlier.mk'.
+ No need to remake target 'earlier.mk'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'Makefile'.
+  Considering target file 'primer'.
+  Finished prerequisites of target file 'primer'.
+  No need to remake target 'primer'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'primer' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+Updating goal targets....
+Considering target file 'Makefile'.
+File 'Makefile' was considered already.
+make: 'Makefile' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'result'.
+  File 'result' does not exist.
+ Finished prerequisites of target file 'result'.
+ Must remake target 'result'.
+printf "ordinary\n" > "result"
+ Successfully remade target file 'result'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "later-primary-named-mode-held-forced-stale-q-pipe-3-slots"
+flag = "m,v"
+release_prefixes = [1629, 1849, 1999]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'earlier.mk'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'earlier.mk'.
+ Finished prerequisites of target file 'earlier.mk'.
+ No need to remake target 'earlier.mk'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'Makefile'.
+  Considering target file 'primer'.
+  Finished prerequisites of target file 'primer'.
+  No need to remake target 'primer'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'primer' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+ Recipe of 'Makefile' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'Makefile'.
+ Still updating file 'Makefile'.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j3 --jobserver-style=pipe -q -f earlier.mk -f Makefile ./Makefile --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'earlier.mk'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'earlier.mk'.
+ Finished prerequisites of target file 'earlier.mk'.
+ No need to remake target 'earlier.mk'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'Makefile'.
+  Considering target file 'primer'.
+  Finished prerequisites of target file 'primer'.
+  No need to remake target 'primer'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'primer' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+Updating goal targets....
+Considering target file 'Makefile'.
+File 'Makefile' was considered already.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'result'.
+  File 'result' does not exist.
+ Finished prerequisites of target file 'result'.
+ Must remake target 'result'.
+ Target file 'result' needs to be remade under -q.
+Finished prerequisites of target file 'all'.
+Giving up on target file 'all'.
+'''
+
+[[profiles]]
+case = "later-primary-named-mode-held-forced-stale-t-pipe-3-slots"
+flag = "m,v"
+release_prefixes = [1629, 1849, 2014]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'earlier.mk'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'earlier.mk'.
+ Finished prerequisites of target file 'earlier.mk'.
+ No need to remake target 'earlier.mk'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'Makefile'.
+  Considering target file 'primer'.
+  Finished prerequisites of target file 'primer'.
+  No need to remake target 'primer'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'primer' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+ Recipe of 'Makefile' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'Makefile'.
+ Still updating file 'Makefile'.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+touch left.gen
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j3 --jobserver-style=pipe -t -f earlier.mk -f Makefile ./Makefile --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'earlier.mk'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'Makefile'...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'earlier.mk'.
+ Finished prerequisites of target file 'earlier.mk'.
+ No need to remake target 'earlier.mk'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'Makefile'.
+  Considering target file 'primer'.
+  Finished prerequisites of target file 'primer'.
+  No need to remake target 'primer'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'primer' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+Updating goal targets....
+Considering target file 'Makefile'.
+File 'Makefile' was considered already.
+make: 'Makefile' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+ Considering target file 'result'.
+  File 'result' does not exist.
+ Finished prerequisites of target file 'result'.
+ Must remake target 'result'.
+touch result
+ Successfully remade target file 'result'.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
