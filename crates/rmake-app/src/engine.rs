@@ -20,7 +20,9 @@ use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
 use rmake_core::messages::Message;
-use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
+use rmake_core::parser::{
+    Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, trim, words,
+};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
 };
@@ -11449,7 +11451,7 @@ impl Engine {
                 location: first.location.clone(),
                 prefix: first.prefix,
                 builtin: first.builtin,
-                continued_inline: false,
+                source: RecipeSource::Ordinary,
             }];
             (combined.as_slice(), script.has_commands, script.recursive)
         } else {
@@ -11540,7 +11542,7 @@ impl Engine {
                 location: source.location.clone(),
                 prefix: source.prefix,
                 builtin: source.builtin,
-                continued_inline: false,
+                source: RecipeSource::Ordinary,
             };
             let line = first.location.line.saturating_add(index);
             if recipe.location.line != line
@@ -11554,11 +11556,10 @@ impl Engine {
             }
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
                 Ok(mut bytes) => {
-                    // A single physical line can gain recipe prefixes from
-                    // expansion. The reader removes prefixes from continued
-                    // prefixed source lines, and .ONESHELL handles its script
-                    // prefixes separately.
-                    if source.continued_inline
+                    // A single source line can also gain recipe prefixes
+                    // during expansion. One-shell scripts handle them in
+                    // script preparation.
+                    if source.has_physical_continuation()
                         || (!one_shell && bytes.contains(&b'\n') && !source.bytes.contains(&b'\n'))
                     {
                         rmake_core::reader::strip_recipe_continuation_prefix(

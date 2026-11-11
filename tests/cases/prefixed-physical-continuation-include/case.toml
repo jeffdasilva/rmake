@@ -1,0 +1,12 @@
+id = "prefixed-physical-continuation-include"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Physical prefixed recipe continuations, raw source display, or a neighboring control."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c6c656674205c0a72696768743e0a"
+stderr_hex = ""
