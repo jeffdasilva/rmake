@@ -141,6 +141,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
     results += named_include_file_prerequisite_models(worker, markers)
+    results += primary_shared_include_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -1223,6 +1224,61 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, not split_pass, second, first,
                                              before_second_stdout=second_out, before_first_stdout=first_out))
+    return results
+
+
+def primary_shared_include_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    rules = (
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\n'
+    restarted = completed + b'read-1\n'
+    loaded = restarted + b'ordinary-loaded-loaded\n'
+    append = b'printf "# remade\\n" >> "Makefile"\n'
+    tail = b'printf "tail\\n" >> seen\n'
+    current = b"make: 'Makefile' is up to date.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    deletion = b"make: *** Deleting file 'right.gen'\n"
+    left_touch = b'touch left.gen\n'
+    right_touch = b'touch right.gen\ntouch right.gen\n'
+    primary_touch = b'touch Makefile\n'
+    left = {**markers, 'left.gen': b'LEFT := loaded\n'}
+    both = {**left, 'right.gen': b'RIGHT := loaded\n'}
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for slots, dotted in ((2, False), (3, False), (3, True)):
+            include = b'include ./left.gen ./right.gen\n' if dotted else b'include left.gen right.gen\n'
+            for dependency in WORKERS:
+                on_left = dependency == 'left'
+                primary = f'Makefile: {dependency}.gen ; @printf "# remade\\n" >> "$@"\n'.encode()
+                files = {'Makefile': header + primary + rules, 'earlier.mk': include,
+                         'worker.py': worker, 'seen': ANCHOR}
+                dry = append + tail if on_left else tail + append
+                touched = left_touch + (primary_touch + right_touch if on_left else right_touch + primary_touch)
+                cases = (
+                    ('n', 0, dry + append + current + ordinary, b'', loaded, both, append if on_left else b''),
+                    ('q', 1, b'', deletion, completed + b'ordinary--\n', left, b''),
+                    ('t', 0, touched + current + b'touch result\n', b'', restarted,
+                     {**both, 'result': b''}, left_touch + (primary_touch if on_left else b'')),
+                )
+                for mode, status, stdout, stderr, seen, updates, second_out in cases:
+                    args = ('-rR', '--no-print-directory', f'-j{slots}', f'--jobserver-style={transport}',
+                            '-' + mode, '-f', 'earlier.mk', '-f', './Makefile', './Makefile', 'all')
+                    spelling = 'dot' if dotted else 'plain'
+                    ident = f'primary-shared-include-{dependency}-{mode}-{transport}-{slots}-slots-{spelling}'
+                    expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                'stderr_template_hex': stderr.hex()}
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                    results.append(HeldModel(model, True, second, first, before_second_stdout=second_out))
     return results
 
 
