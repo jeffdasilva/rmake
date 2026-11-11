@@ -100,10 +100,10 @@ visit. A low-load control starts both children during their visits.
 The 304 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
-transport. The FIFO suite includes thirty named primary, eight normal remake,
-and thirteen duplicate-read profiles. It checks the controller path against
-the observed make PID and retains the raw trace before comparing the remaining
-bytes.
+transport. Ninety traces authenticate the FIFO controller path against the
+observed make PID and retain the raw trace before comparing the remaining
+bytes. The FIFO coverage includes named primary, direct, normal remake and
+duplicate-read profiles.
 
 ~~~sh
 python3 tools/remake_parallel.py --remake-debug --self-test

@@ -94,8 +94,10 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 1,001 profiles using both Linux jobserver
-transports. It includes direct grouped optional recipes, stopped optional
+The held remake gate covers 1,852 profiles on Linux FIFO and pipe jobservers.
+It includes 304 remake-debug and 92 controlled load profiles. Ninety traces
+authenticate the FIFO controller path. The gate covers direct grouped optional
+recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
 explicit primary cases include existing normal and order-only prerequisites,
@@ -108,12 +110,15 @@ applicable rule or a prerequisite already running as an earlier include.
 Named includes with file prerequisites exercise optional immediate pass boundaries.
 Repeated required named includes share one remake record. Plain subdirectory
 goals overlap leaf-named required and optional makefile remakes. Named primary
-controls cover basic and scoped verbose traces. Directory-qualified sources,
-expanded identities, and combined load, grouped-remake, and debug paths need
-broader coverage.
+controls cover basic and scoped verbose traces. Additional verbose profiles
+cover direct single-line remakes and required includes named as goals under
+dry-run, question and touch. Held shuffle cases verify ordinary goal order
+separately from remake order. Basic load debug profiles cover child admission
+and trace boundaries. Directory-qualified sources, expanded identities, and
+combined load, grouped-remake, and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,298 case manifests and 226 requirements.
+The ordinary inventory contains 30,321 case manifests and 226 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
 visits for repeated required makefiles and failed or unchanged optional
 declarations have independent expectations for exit status, streams, and file effects.
