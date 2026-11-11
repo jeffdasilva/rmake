@@ -7,6 +7,8 @@ use crate::cli::DirectoryChoice;
 use rmake_linux::output::{Coordination, Spool};
 use std::cell::{Cell, Ref, RefCell};
 use std::io::{self, Write};
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::rc::{Rc, Weak};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -331,7 +333,27 @@ impl Controller {
                 }
             }
         } else {
-            Coordination::create()?
+            match Coordination::create() {
+                Ok(provider) => provider,
+                Err(error) => {
+                    let Some(path) = error.creation_path else {
+                        return Err(error.error);
+                    };
+                    // Reporting a failed named lock can itself require a
+                    // reader spool. If that fails, report its diagnostic and
+                    // the suppression requested by both output attempts.
+                    let suppressed = self.current().is_some_and(|buffer| {
+                        buffer.prepare();
+                        !buffer.enabled()
+                    });
+                    if suppressed {
+                        self.warn_spool_unavailable();
+                    } else {
+                        self.write_option_notice(&temporary_creation_message(&path, &error.error));
+                    }
+                    return Ok(None);
+                }
+            }
         };
         let auth = provider.authentication().to_vec();
         self.select_mutex(provider);
@@ -347,10 +369,35 @@ impl Controller {
             &[self.0.program.borrow().as_slice(), b": ", bytes, b"\n"].concat(),
         );
     }
+    fn warn_spool_unavailable(&self) {
+        let key = c"cannot open output-sync lock file, suppressing output-sync.";
+        let message =
+            rmake_linux::messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
+        self.warning(&message);
+    }
     fn disable(&self) {
         self.0.mode.set(Mode::None);
         self.clear();
     }
+}
+
+fn temporary_creation_message(path: &Path, error: &io::Error) -> Vec<u8> {
+    use rmake_core::messages::Argument::Bytes;
+    let path = path.as_os_str().as_bytes();
+    let detail = rmake_linux::filesystem::source_error_detail(error);
+    rmake_linux::messages::render_format(
+        c"cannot create temporary file %s: %s",
+        &[Bytes(path), Bytes(&detail)],
+    )
+    .unwrap_or_else(|_| {
+        [
+            b"cannot create temporary file ".as_slice(),
+            path,
+            b": ",
+            &detail,
+        ]
+        .concat()
+    })
 }
 
 /// The process owns final output across constructor errors and logical rereads.
@@ -420,11 +467,14 @@ impl Buffer {
             Ok(spool) => {
                 self.spool.replace(Some(spool));
             }
-            Err(_) => {
+            Err(error) => {
                 self.failed.set(true);
                 self.enabled.set(false);
-                self.controller
-                    .warning(b"cannot open output-sync lock file, suppressing output-sync.");
+                if let Some(path) = error.creation_path {
+                    self.controller
+                        .warning(&temporary_creation_message(&path, &error.error));
+                }
+                self.controller.warn_spool_unavailable();
                 self.controller.disable();
             }
         }

@@ -1273,6 +1273,16 @@ fixture_count = 1
 cases = ["output-mutex-relative-auth"]
 
 [[requirements]]
+id = "runtime.output-sync-temp-creation-failure"
+title = "Recover from failed output synchronization temporary file creation"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["output-sync-temp-creation-failure"]
+
+[[requirements]]
 id = "runtime.output-sync-verbose-mutex"
 title = "Verbose publication of the named output-sync mutex"
 status = "fixture-ready"
