@@ -2468,3 +2468,22 @@ cases = [
   "parallel-query-forced-stop-drains-tail",
   "parallel-query-child-query-continuation-cleanup",
 ]
+
+[[requirements]]
+id = "runtime.parallel-forced-modes"
+title = "Ordinary parallel recipes under dry-run, touch, and query combinations"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/forced-touch.md"
+candidate_required = 8
+fixture_count = 8
+cases = [
+  "parallel-forced-mode-dry-fifo",
+  "parallel-forced-mode-dry-target-sync-pipe",
+  "parallel-forced-mode-touch-fifo",
+  "parallel-forced-mode-touch-twice-pipe",
+  "parallel-forced-mode-dry-touch-pipe",
+  "parallel-forced-mode-dry-query-pipe",
+  "parallel-forced-mode-touch-query-fifo",
+  "parallel-forced-mode-all-flags-fifo",
+]

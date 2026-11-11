@@ -155,6 +155,22 @@ exits 1, and unchanged-target deletion after a child reaches an unforced
 continuation. Exact verbose output and the broader synthetic double-colon,
 grouped, and combined-mode cases remain separate acceptance work.
 
+## Parallel dry-run and touch execution
+
+Ordinary `-n` and `-t` keep the available recipe slots for forced lines. Each
+running child retains the remaining recipe and its slot. When the child
+finishes, dry-run can echo a nonforced line without launching it, touch mode
+can skip the line and touch at completion, and query mode can stop the
+recipe before a later forced line. Completion keeps the synthetic timestamp
+for a simulated update and observes the filesystem for a recipe consisting
+entirely of forced commands.
+
+Eight held-prerequisite fixtures exercise these paths with both local
+jobserver transports. They check target-synchronized dry-run output, repeated
+touches after a skipped final command, and the `-nt`, `-nq`, `-qt`, and
+`-nqt` combinations. Each fixture compares status, output, and the retained
+files with GNU Make.
+
 ## Reference provenance
 
 The first 20 committed fixtures predate source inspection. The additional 16

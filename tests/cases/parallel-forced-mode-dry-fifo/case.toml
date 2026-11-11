@@ -1,0 +1,11 @@
+id = "parallel-forced-mode-dry-fifo"
+requirement = "runtime.parallel-forced-modes"
+candidate = "required"
+provenance = "Original held-recipe fixture tested against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j2", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "printf 'held\\n' >ready; until test -f release; do sleep 0.01; done\nuntil test -f ready; do sleep 0.01; done; : >release\nprintf 'forbidden\\n' >skipped\nprintf 'tail\\n'\ntail\nprintf 'parent\\n' >forbidden-parent\n"
+stderr = ""

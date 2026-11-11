@@ -4784,9 +4784,8 @@ impl Engine {
 
     fn parallel_graph(&self) -> bool {
         self.job_slots() > 1
-            && !self.options.dry_run
-            && !self.options.touch
-            && (!self.remaking || !self.options.question)
+            && (!self.remaking
+                || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
     fn wait_makefile_remakes(
@@ -5497,7 +5496,8 @@ impl Engine {
             }
         }
         let pending = self.parallel_jobs.contains_key(&target);
-        if self.options.question && !pending {
+        let mode = self.options.dry_run || self.options.question || self.options.touch;
+        if mode && !pending {
             outcome.completion = if all_recursive {
                 CompletionTime::Refresh
             } else if job.phony {
@@ -5505,11 +5505,23 @@ impl Engine {
             } else {
                 CompletionTime::AssumeNew
             };
+            if self.options.dry_run
+                && !self.options.question
+                && !self.options.touch
+                && !failed
+                && outcome.completion == CompletionTime::AssumeNew
+                && self
+                    .running_groups
+                    .get(&target)
+                    .is_none_or(|group| group.implicit)
+            {
+                outcome.database_result = DatabaseResult::Simulated;
+            }
         }
         // Inspect archive metadata only after the last command exits. A child
         // may temporarily leave a partial header while updating its archive.
         if !failed
-            && (!self.options.question || outcome.completion == CompletionTime::Refresh)
+            && (!mode || outcome.completion == CompletionTime::Refresh)
             && !pending
             && self.archive_metadata_error(&target, false)
         {
@@ -5552,8 +5564,7 @@ impl Engine {
         } else {
             self.modified(&target)
         };
-        outcome.search_after_update =
-            self.update_search_pending(&target, job.phony, !self.options.question || all_recursive);
+        outcome.search_after_update = self.update_search_pending(&target, job.phony, all_recursive);
         if !job.phony && !pending {
             self.database_unchecked_times
                 .borrow_mut()
