@@ -4445,8 +4445,11 @@ impl Database {
             }
             // Assignment values may contain semicolons. Rule inline recipes
             // retain shell comments, so comment stripping happens separately.
-            let normal = strip_comment(&line.bytes);
-            let text = assignment_start(&normal);
+            let normal = line
+                .bytes
+                .contains(&b'#')
+                .then(|| strip_comment(&line.bytes));
+            let text = assignment_start(normal.as_deref().unwrap_or(&line.bytes));
             if text.is_empty() {
                 continue;
             }
