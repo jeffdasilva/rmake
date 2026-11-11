@@ -198,6 +198,18 @@ def models():
                 unopened_peer, flags=(), status=2, group_records=3, group_members='b a a',
                 not_updated=('a:: other',), failed=group_failures,
                 stderr='make: *** [Makefile:2: b] Error 1\n')
+    inherited_scope = '.SECONDEXPANSION:\nN := input\na b &:: $$(N) ; @:\nall: N := older\n'
+    yield Model('group-double-secondary-parent-scope', inherited_scope + 'all: a b ; @:\n',
+                ('all',), (('a:: older', MISSING), ('b:: input', MISSING)), flags=())
+    yield Model('group-double-secondary-parent-scope-reverse', inherited_scope + 'all: b a ; @:\n',
+                ('all',), (('a:: input', MISSING), ('b:: older', MISSING)), flags=())
+    unscoped = '.SECONDEXPANSION:\nN := older .WAIT input\na b &:: $$(N) ; @:\nall: a b ; @:\n'
+    yield Model('group-double-secondary-parent-lookup-count', unscoped, ('all',),
+                (('a:: older .WAIT input', MISSING), ('b:: older .WAIT input', MISSING)), flags=())
+    child_scope = (inherited_scope.replace('older', 'child') + 'all: OUT := actual\nall: a b ; @:\n'
+                   + "child: ; @printf '%s\\n' $(OUT) > seen; touch -d @1600000005.123456789 seen\n")
+    yield Model('group-double-secondary-child-owner-scope', child_scope, ('all',),
+                (('a:: child', MISSING), ('b:: input', MISSING)), flags=(), actual=('seen',))
     yield Model('group-double-forced-physical', 'a b &:: input ; +@' + FORCE_GROUP + '\n',
                 ('a',), (('a:: input', FORCED), ('b:: input', FORCED)), (FORCE_GROUP,), actual=('a', 'b'))
     yield Model('group-double-question-without-start', first, ('a',),
