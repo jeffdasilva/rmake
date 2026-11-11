@@ -1982,6 +1982,30 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.shuffle-pattern-wait-plan"
+title = "Preserve explicit shuffle plans behind effective implicit WAIT barriers"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 13
+fixture_count = 13
+cases = [
+  "shuffle-pattern-wait-plan-explicit-order-only-suffix-12345",
+  "shuffle-pattern-wait-plan-genuine-barrier-explicit-secondary",
+  "shuffle-pattern-wait-plan-genuine-barrier-new-child-reverse",
+  "shuffle-pattern-wait-plan-genuine-barrier-new-child-seeded",
+  "shuffle-pattern-wait-plan-genuine-barrier-unplanned-include",
+  "shuffle-pattern-wait-plan-order-only-pattern-before-12345",
+  "shuffle-pattern-wait-plan-pattern-no-wait-added-control-12345",
+  "shuffle-pattern-wait-plan-pattern-wait-before-one-12345",
+  "shuffle-pattern-wait-plan-pattern-wait-between-and-after-12345",
+  "shuffle-pattern-wait-plan-pattern-wait-between-reverse",
+  "shuffle-pattern-wait-plan-secondary-expansion-between-12345",
+  "shuffle-pattern-wait-plan-secondary-expansion-to-order-only-12345",
+  "shuffle-pattern-wait-plan-wait-before-first-order-only-12345",
+]
+
+[[requirements]]
 id = "resolution.implicit-prerequisite-spelling"
 title = "Raw implicit prerequisite spelling and unchanged literal preparation"
 status = "fixture-ready"
@@ -2497,3 +2521,66 @@ candidate_required = 6
 fixture_count = 6
 reference = "tests/remake-parallel/README.md"
 cases = ["named-main-makefile-dry", "named-main-makefile-query", "named-main-makefile-touch", "named-include-query-first-required", "named-include-query-last-required", "named-include-query-optional-dependency"]
+
+[[requirements]]
+id = "parallel.targeted-notparallel-waits"
+title = "Targeted NOTPARALLEL barriers attach to declared prerequisites"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 52
+fixture_count = 52
+cases = [
+  "targeted-notparallel-grouped-single-waits-both-deferred-reverse",
+  "targeted-notparallel-grouped-single-waits-both-deferred-seeded",
+  "targeted-notparallel-grouped-single-waits-both-static",
+  "targeted-notparallel-grouped-single-waits-implicit-one-declared",
+  "targeted-notparallel-grouped-single-waits-implicit-only",
+  "targeted-notparallel-grouped-single-waits-named-peer-disjoint",
+  "targeted-notparallel-grouped-single-waits-named-peer-goal",
+  "targeted-notparallel-grouped-single-waits-named-trigger-disjoint",
+  "targeted-notparallel-grouped-single-waits-order-only",
+  "targeted-notparallel-grouped-single-waits-peer-only",
+  "targeted-notparallel-grouped-single-waits-three-peers",
+  "targeted-notparallel-grouped-single-waits-trigger-only",
+  "targeted-notparallel-grouped-double-waits-both-deferred-reverse",
+  "targeted-notparallel-grouped-double-waits-both-deferred-seeded",
+  "targeted-notparallel-grouped-double-waits-both-targeted-explicit-wait",
+  "targeted-notparallel-grouped-double-waits-both-targeted-order-only",
+  "targeted-notparallel-grouped-double-waits-both-targeted-static",
+  "targeted-notparallel-grouped-double-waits-head-deferred-reverse",
+  "targeted-notparallel-grouped-double-waits-head-deferred-seeded",
+  "targeted-notparallel-grouped-double-waits-peer-only-targeted",
+  "targeted-notparallel-grouped-double-waits-tail-deferred-reverse",
+  "targeted-notparallel-grouped-double-waits-tail-deferred-seeded",
+  "targeted-notparallel-grouped-double-waits-targeted-peer-as-goal",
+  "targeted-notparallel-grouped-double-waits-trigger-only-targeted",
+  "targeted-notparallel-double-waits-both-deferred-reverse",
+  "targeted-notparallel-double-waits-both-deferred-seeded",
+  "targeted-notparallel-double-waits-extra-prerequisites",
+  "targeted-notparallel-double-waits-head-deferred-reverse",
+  "targeted-notparallel-double-waits-head-deferred-seeded",
+  "targeted-notparallel-double-waits-head-order-only-barrier",
+  "targeted-notparallel-double-waits-static-head-deferred",
+  "targeted-notparallel-double-waits-tail-deferred-reverse",
+  "targeted-notparallel-double-waits-tail-deferred-seeded",
+  "targeted-notparallel-double-waits-tail-explicit-wait",
+  "targeted-notparallel-waits-explicit-one-deferred-line",
+  "targeted-notparallel-waits-explicit-static-pattern-deferred-line",
+  "targeted-notparallel-waits-explicit-two-deferred-lines",
+  "targeted-notparallel-waits-explicit-wait-and-targeted-wait",
+  "targeted-notparallel-waits-implicit-deferred-after-immediate",
+  "targeted-notparallel-waits-implicit-deferred-before-immediate",
+  "targeted-notparallel-waits-implicit-empty-after-immediate",
+  "targeted-notparallel-waits-implicit-empty-before-immediate",
+  "targeted-notparallel-waits-implicit-extra-prerequisites",
+  "targeted-notparallel-waits-implicit-ineffective-pattern-wait-from-late-word",
+  "targeted-notparallel-waits-implicit-no-original-dependencies",
+  "targeted-notparallel-waits-implicit-one-deferred-line",
+  "targeted-notparallel-waits-implicit-one-deferred-line-seeded",
+  "targeted-notparallel-waits-implicit-order-only-barriers",
+  "targeted-notparallel-waits-implicit-single-original-dependency",
+  "targeted-notparallel-waits-implicit-trailing-pattern-wait-before-order-only",
+  "targeted-notparallel-waits-implicit-two-original-dependencies",
+  "targeted-notparallel-waits-implicit-with-original-true-pattern-wait",
+]

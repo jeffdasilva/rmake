@@ -135,12 +135,34 @@ impl Planner {
             .cloned()
             .unwrap_or_default()
     }
-    pub fn regenerate(&mut self, name: &[u8], rule: &Rule, database: &Database, disabled: bool) {
+    pub fn regenerate(
+        &mut self,
+        name: &[u8],
+        rule: &Rule,
+        database: &Database,
+        disabled: bool,
+        implicit_prefix: usize,
+    ) {
         let Some(state) = self.0.as_mut().filter(|_| !disabled) else {
             return;
         };
         state.reseed();
-        let order = state.rule_indices(name, rule, database);
+        let order = if implicit_prefix != 0
+            && let Some(previous) = state.orders.get(name)
+            && !previous.is_empty()
+            && previous.len() == rule.dependencies.len() - implicit_prefix
+            && rule.dependencies[..implicit_prefix]
+                .iter()
+                .any(|dep| dep.name == b".WAIT")
+        {
+            // The new barrier blocks reshuffling the combined list. Visit the
+            // implicit prefix in declaration order, then follow the old plan.
+            (0..implicit_prefix)
+                .chain(previous.iter().map(|index| index + implicit_prefix))
+                .collect()
+        } else {
+            state.rule_indices(rule)
+        };
         state.orders.insert(name.to_vec(), order);
         state.walk(children(rule), database);
     }
@@ -190,24 +212,16 @@ impl Enabled {
         }
         order
     }
-    fn rule_indices(&mut self, name: &[u8], rule: &Rule, db: &Database) -> Vec<usize> {
+    fn rule_indices(&mut self, rule: &Rule) -> Vec<usize> {
         let count = rule
             .dependencies
             .iter()
-            .filter(|d| d.name != b".WAIT")
-            .count();
-        let targeted = count > 1
-            && db
-                .rules
-                .get(b".NOTPARALLEL".as_slice())
-                .is_some_and(|r| r.dependencies.iter().any(|d| d.name == name));
-        let wait = rule
-            .dependencies
+            .rposition(|dependency| dependency.name != b".WAIT")
+            .map_or(0, |last| last + 1);
+        if rule.dependencies[..count]
             .iter()
-            .rev()
-            .skip_while(|d| d.name == b".WAIT")
-            .any(|d| d.name == b".WAIT");
-        if targeted || wait {
+            .any(|dependency| dependency.name == b".WAIT")
+        {
             return Vec::new();
         }
         let mut order = self.indices(count);
@@ -233,7 +247,7 @@ impl Enabled {
                     .and_then(|branches| branches.first())
                     .unwrap_or(r)
             });
-            let order = rule.map_or_else(Vec::new, |r| self.rule_indices(name, r, db));
+            let order = rule.map_or_else(Vec::new, |rule| self.rule_indices(rule));
             self.orders.insert(name.to_vec(), order);
             if let Some(rule) = rule {
                 stack.extend(children(rule).rev());
