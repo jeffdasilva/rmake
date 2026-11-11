@@ -2536,3 +2536,31 @@ cases = [
   "targeted-notparallel-waits-implicit-two-original-dependencies",
   "targeted-notparallel-waits-implicit-with-original-true-pattern-wait",
 ]
+
+[[requirements]]
+id = "rules.wait-declaration-boundaries"
+title = "WAIT marker lifetime across explicit declarations and prerequisite partitions"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 17
+fixture_count = 17
+cases = [
+  "wait-declaration-boundaries-deferred-trailing-before-next",
+  "wait-declaration-boundaries-deferred-trailing-before-order-only",
+  "wait-declaration-boundaries-deferred-trailing-order-only-before-next",
+  "wait-declaration-boundaries-duplicate-effective-markers",
+  "wait-declaration-boundaries-explicit-trailing-before-deferred",
+  "wait-declaration-boundaries-leading-in-next-declaration",
+  "wait-declaration-boundaries-leading-order-only",
+  "wait-declaration-boundaries-marker-only-declaration",
+  "wait-declaration-boundaries-single-deferred-effective-marker",
+  "wait-declaration-boundaries-static-pattern-trailing",
+  "wait-declaration-boundaries-targeted-marker-only-before-deferred",
+  "wait-declaration-boundaries-targeted-trailing-before-deferred",
+  "wait-declaration-boundaries-targeted-trailing-before-immediate",
+  "wait-declaration-boundaries-trailing-before-next-declaration",
+  "wait-declaration-boundaries-trailing-before-order-only",
+  "wait-declaration-boundaries-trailing-order-only-before-next",
+  "wait-declaration-boundaries-two-trailing-markers",
+]
