@@ -55,7 +55,7 @@ pub enum CaptureSpawnError {
 }
 
 impl CapturePipe {
-    fn new() -> io::Result<Self> {
+    pub fn new() -> io::Result<Self> {
         let (reader, writer) = io::pipe()?;
         Ok(Self {
             // Keep any occupied standard slots until the spawn attempt has
@@ -191,18 +191,7 @@ impl Child {
         }
         image
             .spawn_inherited(command, arg0, stdio, wire)
-            .map(|result| {
-                result.and_then(|pid| {
-                    if pid <= 0 {
-                        return Err(io::Error::other("spawn did not return an owned child"));
-                    }
-                    Ok(Self::with_pid(
-                        Process::Spawned { pid, status: None },
-                        pid,
-                        retain_pidfd,
-                    ))
-                })
-            })
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, retain_pidfd)))
     }
 
     pub fn spawn_capture_ordered(
@@ -217,15 +206,15 @@ impl Child {
             None => capture.insert(CapturePipe::new().map_err(CaptureSpawnError::Prepare)?),
         };
         let writer = pipe.writer.as_raw_fd();
-        let stderr = stderr.map(|file| file.as_raw_fd());
-        if writer != 1 || stderr.is_some() {
+        let stderr_fd = stderr.map(|file| file.as_raw_fd());
+        if writer != 1 || stderr_fd.is_some() {
             // SAFETY: capture and the borrowed spool own both sources while
             // this command spawns synchronously. Copy stdout first: when the
             // capture writer occupies fd 2, installing stderr would replace it.
             unsafe {
                 command.pre_exec(move || {
                     set_capture_stream(writer, 1)?;
-                    if let Some(file) = stderr {
+                    if let Some(file) = stderr_fd {
                         set_capture_stream(file, 2)?;
                     }
                     Ok(())
@@ -235,12 +224,36 @@ impl Child {
         image
             .configure_exec(&mut command, arg0)
             .map_err(CaptureSpawnError::Prepare)?;
-        let child = command.spawn().map_err(CaptureSpawnError::Launch)?;
+        let child = match command.spawn() {
+            Ok(child) => Self::from_std(child),
+            Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => {
+                // The std fork-status socket can exhaust the remaining
+                // descriptors even though the capture pair already exists.
+                let out = (writer != 1).then(|| pipe.writer.as_fd());
+                let err = stderr.filter(|fd| fd.as_raw_fd() != 2);
+                image
+                    .spawn_inherited(&command, arg0, [None, out, err], None)
+                    .unwrap_or(Err(error))
+                    .and_then(|pid| Self::from_spawned_pid(pid, true))
+                    .map_err(CaptureSpawnError::Launch)?
+            }
+            Err(error) => return Err(CaptureSpawnError::Launch(error)),
+        };
         let CapturePipe { reader, writer } = capture.take().expect("capture pipe exists");
         drop(writer);
-        let child = Self::from_std(child);
         let stdout = prepare_capture_reader(reader).map_err(CaptureSpawnError::Prepare)?;
         Ok((child, stdout))
+    }
+
+    fn from_spawned_pid(pid: c_int, retain_pidfd: bool) -> io::Result<Self> {
+        if pid <= 0 {
+            return Err(io::Error::other("spawn did not return an owned child"));
+        }
+        Ok(Self::with_pid(
+            Process::Spawned { pid, status: None },
+            pid,
+            retain_pidfd,
+        ))
     }
 
     fn from_std(child: std::process::Child) -> Self {

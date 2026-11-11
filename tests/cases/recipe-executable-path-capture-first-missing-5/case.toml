@@ -1,0 +1,12 @@
+id = "recipe-executable-path-capture-first-missing-5"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "Shell capture ordering under a Linux file-descriptor limit."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273743d5b5d207374617475733d5b5d0a"
+stderr_hex = "436170747572652e6d6b3a313a20706970653a20546f6f206d616e79206f70656e2066696c65730a"

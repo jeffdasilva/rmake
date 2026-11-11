@@ -1,0 +1,11 @@
+id = "recipe-executable-path-shell-function-missing-interpreter"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "artifact"]
+description = "Linux executable selection for recipe-executable-path-shell-function-missing-interpreter."
+provenance = "Original fixture and expectations independently derived from pinned GNU Make 4.4.1 observations."
+
+[expected]
+exit_code = 0
+stdout_hex = "6368696c643d5b5d0a7374617475733d3132370a"
+stderr_hex = "6d616b653a2072756e6e65723a204e6f20737563682066696c65206f72206469726563746f72790a"

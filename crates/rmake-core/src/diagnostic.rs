@@ -253,6 +253,7 @@ pub struct ShellRequest<'a> {
     /// active recursive export. Interpretation performs no implicit OS reads.
     pub environment: &'a [(Vec<u8>, EnvironmentValue)],
     pub original_shell: Option<&'a [u8]>,
+    pub reading_location: Option<&'a Location>,
     pub one_shell: bool,
     pub service_workers: Option<&'a mut ShellWorkers<'a>>,
 }
@@ -261,7 +262,8 @@ pub type ShellWorkers<'a> = dyn FnMut() -> Result<(), crate::variables::ExpandEr
 
 pub struct ShellResult {
     pub stdout: Vec<u8>,
-    pub status: i32,
+    /// A capture pipe failure leaves .SHELLSTATUS unchanged.
+    pub status: Option<i32>,
 }
 
 type ShellReceiver<'a> =

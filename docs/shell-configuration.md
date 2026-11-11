@@ -135,3 +135,20 @@ command slot contributes no query result, echo, or process. Ordinary recipes
 can still run later slots. A quoted empty argument and a shell command such as
 `:` still count as commands, as does continuation-only input routed through a
 nondefault shell or flags. Touch mode retains its target update.
+
+## Linux executable search
+
+The child environment determines the executable search path. The launcher
+selects the first executable entry that is a non-directory, then attempts the
+launch. If that executable names an interpreter that is missing, the launch
+fails there. An executable text file with no recognized format instead runs
+through `/bin/sh` with its selected path and original arguments. When no
+executable qualifies, the last access error other than `ENOENT` determines
+the diagnostic. A quoted empty program name has no current-directory match.
+
+Shell capture opens its pipe before executable selection. A failed lookup or
+launch retains the pipe ends for the interpreter's lifetime. A pipe allocation
+failure reports the active source location and preserves the previous
+`.SHELLSTATUS`. Under descriptor pressure, the POSIX spawn backend can launch
+with the capture pipe already in place, avoiding an additional fork-status
+socket. The signal wake pipe still affects the remaining descriptor budget.

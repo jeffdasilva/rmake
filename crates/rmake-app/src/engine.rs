@@ -620,7 +620,11 @@ fn runtime_context<'a>(
         .with_cancellation(rmake_linux::signals::cancellation())
 }
 
-fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
+pub(crate) fn emit_output(
+    controller: &crate::output::Controller,
+    program: &[u8],
+    output: Output<'_>,
+) {
     if let Output::SystemWarning { location, message } = output {
         let message = crate::messages::system(message.message());
         return emit_output(
@@ -12999,79 +13003,78 @@ fn signal_status(status: std::process::ExitStatus) -> String {
     message
 }
 
-/// Keep the exact executable that returned ENOEXEC. Re-searching using file mode
-/// bits is incorrect: an earlier PATH entry can have an execute bit yet deny the
-/// current user execution. Only the kernel's actual exec result decides that.
-pub(crate) fn launch_child<T>(
+/// Select the first executable non-directory in the child's PATH before
+/// spawning it. An exec failure for that file is a launch failure, even when
+/// the same program name is executable in a later PATH directory.
+fn recipe_program(program: &[u8], template: &Command) -> io::Result<std::path::PathBuf> {
+    use rmake_linux::process::executable;
+
+    if program.contains(&b'/') {
+        let path = std::path::PathBuf::from(os(program));
+        executable(&path)?;
+        return Ok(path);
+    }
+
+    let path = template
+        .get_envs()
+        .find(|(key, _)| *key == "PATH")
+        .and_then(|(_, value)| value)
+        .unwrap_or_else(|| OsStr::new("/bin:/usr/bin"));
+    let mut failure = io::Error::from_raw_os_error(2);
+    for directory in std::env::split_paths(path) {
+        let local = directory.as_os_str().is_empty() || directory.as_os_str() == ".";
+        // The local PATH component tests the bare name before prepending ./
+        // for launch. A quoted empty argv[0] therefore finds no local file.
+        if local && program.is_empty() {
+            continue;
+        }
+        let candidate = if local {
+            std::path::Path::new(".").join(os(program))
+        } else {
+            directory.join(os(program))
+        };
+        match executable(&candidate) {
+            Ok(()) => return Ok(candidate),
+            Err(error) if error.raw_os_error() != Some(2) => failure = error,
+            Err(_) => {}
+        }
+    }
+    Err(failure)
+}
+
+fn launch_child<T>(
     program: &[u8],
     template: &Command,
     order: &[Vec<u8>],
     original_shell: Option<&[u8]>,
-    mut run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
+    run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
 ) -> io::Result<T> {
-    let paths = if program.contains(&b'/') {
-        vec![std::path::PathBuf::from(os(program))]
-    } else {
-        let path = template
-            .get_envs()
-            .find(|(key, _)| *key == "PATH")
-            .and_then(|(_, value)| value.map(OsStr::to_owned))
-            .unwrap_or_else(|| "/bin:/usr/bin".into());
-        std::env::split_paths(&path)
-            .map(|directory| {
-                let directory = if directory.as_os_str().is_empty() {
-                    std::path::PathBuf::from(".")
-                } else {
-                    directory
-                };
-                directory.join(os(program))
-            })
-            .collect()
-    };
     let environment =
         rmake_linux::environment::Image::from_command(template, order, original_shell)?;
-    let mut denied = None;
-    let mut missing = io::Error::from_raw_os_error(2);
-    for path in &paths {
-        let mut command = Command::new(path);
-        command.arg0(os(program)).args(template.get_args());
-        rmake_linux::signals::configure_child(&mut command);
-        match run(command, &environment, program) {
-            // Linux ENOEXEC: interpret the attempted file through /bin/sh,
-            // preserving args/environment but not the recipe's -e/-c flags.
-            Err(error) if error.raw_os_error() == Some(8) => {
-                let mut shell = Command::new("/bin/sh");
-                shell.arg(path).args(template.get_args());
-                rmake_linux::signals::configure_child(&mut shell);
-                return run(shell, &environment, b"/bin/sh");
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                // A failed fork has not checked the executable yet. Recover
-                // the lookup diagnostic without retrying the child launch.
-                let mut lookup = io::Error::from_raw_os_error(2);
-                for candidate in &paths {
-                    match rmake_linux::process::executable(candidate) {
-                        Ok(()) => return Err(error),
-                        Err(error) if error.raw_os_error() != Some(2) => lookup = error,
-                        Err(_) => {}
-                    }
-                }
-                return Err(lookup);
-            }
-            Err(error)
-                if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>
-            {
-                denied = Some(error)
-            }
-            Err(error)
-                if !program.contains(&b'/') && matches!(error.raw_os_error(), Some(2 | 20)) =>
-            {
-                missing = error
-            }
-            result => return result,
+    launch_child_with_environment(program, template, &environment, run)
+}
+
+pub(crate) fn launch_child_with_environment<T>(
+    program: &[u8],
+    template: &Command,
+    environment: &rmake_linux::environment::Image,
+    mut run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
+) -> io::Result<T> {
+    let path = recipe_program(program, template)?;
+    let mut command = Command::new(&path);
+    command.arg0(os(program)).args(template.get_args());
+    rmake_linux::signals::configure_child(&mut command);
+    match run(command, environment, program) {
+        Err(error) if error.raw_os_error() == Some(8) => {
+            // Interpret the selected file through /bin/sh with its original
+            // arguments and environment.
+            let mut shell = Command::new("/bin/sh");
+            shell.arg(path).args(template.get_args());
+            rmake_linux::signals::configure_child(&mut shell);
+            run(shell, environment, b"/bin/sh")
         }
+        result => result,
     }
-    Err(denied.unwrap_or(missing))
 }
 
 #[cfg(feature = "test-support")]
@@ -13112,15 +13115,23 @@ mod tests {
 
     #[test]
     fn process_pressure_lookup_does_not_retry_the_launch() {
-        let mut command = Command::new("unavailable");
-        command.env("PATH", "/dev/null:/dev/null");
+        let mut missing = Command::new("unavailable");
+        missing.env("PATH", "/dev/null:/dev/null");
+        let result = launch_child::<()>(b"unavailable", &missing, &[], None, |_, _, _| {
+            panic!("lookup failure must not attempt a launch");
+        });
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(20));
+
+        let mut available = Command::new("true");
+        available.env("PATH", "/dev/null:/bin:/usr/bin");
         let mut attempts = 0;
-        let result = launch_child(b"unavailable", &command, &[], None, |_, _, _| {
+        let result = launch_child(b"true", &available, &[], None, |command, _, _| {
+            assert_eq!(command.get_program(), "/bin/true");
             attempts += 1;
             Err::<(), _>(io::Error::from_raw_os_error(11))
         });
         assert_eq!(attempts, 1);
-        assert_eq!(result.unwrap_err().raw_os_error(), Some(20));
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(11));
     }
 
     #[test]

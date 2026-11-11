@@ -1,0 +1,11 @@
+id = "recipe-executable-path-search-fallback-trailing-slashes"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "artifact"]
+description = "Linux executable selection for recipe-executable-path-search-fallback-trailing-slashes."
+provenance = "Original fixture and expectations independently derived from pinned GNU Make 4.4.1 observations."
+
+[expected]
+exit_code = 0
+stdout_hex = "72756e6e6572204f4b0a66616c6c6261636b3a612f2f72756e6e65723a4f4b0a"
+stderr_hex = ""
