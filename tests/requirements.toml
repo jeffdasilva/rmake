@@ -1283,6 +1283,16 @@ fixture_count = 1
 cases = ["output-sync-temp-creation-failure"]
 
 [[requirements]]
+id = "runtime.output-sync-reader-temp-replay"
+title = "Post-read output synchronization after reader stdout spool creation fails"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["output-sync-reader-temp-replay"]
+
+[[requirements]]
 id = "runtime.output-sync-verbose-mutex"
 title = "Verbose publication of the named output-sync mutex"
 status = "fixture-ready"

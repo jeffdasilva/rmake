@@ -236,7 +236,7 @@ impl Controller {
             controller: self.clone(),
             enabled: Cell::new(enabled),
             spool: RefCell::new(None),
-            failed: Cell::new(false),
+            failure: Cell::new(None),
             owner: RefCell::new(None),
             reaped: Cell::new(false),
         })
@@ -343,7 +343,7 @@ impl Controller {
                     // reader spool. If that fails, report its diagnostic and
                     // the suppression requested by both output attempts.
                     let suppressed = self.current().is_some_and(|buffer| {
-                        buffer.prepare();
+                        buffer.prepare(false);
                         !buffer.enabled()
                     });
                     if suppressed {
@@ -423,11 +423,17 @@ pub struct Owner {
     reaped: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SpoolFailure {
+    Terminal,
+    TemporaryFileDuringStdout,
+}
+
 pub struct Buffer {
     controller: Controller,
     enabled: Cell<bool>,
     spool: RefCell<Option<Spool>>,
-    failed: Cell<bool>,
+    failure: Cell<Option<SpoolFailure>>,
     owner: RefCell<Option<Owner>>,
     reaped: Cell<bool>,
 }
@@ -459,8 +465,11 @@ impl Buffer {
     pub fn set_enabled(&self, enabled: bool) {
         self.enabled.set(enabled);
     }
-    fn prepare(&self) {
-        if self.failed.get() || self.spool.borrow().is_some() {
+    pub(crate) fn failed_to_buffer_stdout(&self) -> bool {
+        self.failure.get() == Some(SpoolFailure::TemporaryFileDuringStdout)
+    }
+    fn prepare(&self, writing_stdout: bool) {
+        if self.failure.get().is_some() || self.spool.borrow().is_some() {
             return;
         }
         match Spool::new() {
@@ -468,7 +477,12 @@ impl Buffer {
                 self.spool.replace(Some(spool));
             }
             Err(error) => {
-                self.failed.set(true);
+                let failure = if writing_stdout && error.creation_path.is_some() {
+                    SpoolFailure::TemporaryFileDuringStdout
+                } else {
+                    SpoolFailure::Terminal
+                };
+                self.failure.set(Some(failure));
                 self.enabled.set(false);
                 if let Some(path) = error.creation_path {
                     self.controller
@@ -480,7 +494,7 @@ impl Buffer {
         }
     }
     pub fn write(&self, error: bool, bytes: &[u8]) {
-        self.prepare();
+        self.prepare(!error);
         if let Some(spool) = self.spool.borrow().as_ref() {
             let _ = spool.write(error, bytes);
         } else {
@@ -491,7 +505,7 @@ impl Buffer {
         if !self.enabled() {
             return None;
         }
-        self.prepare();
+        self.prepare(false);
         Ref::filter_map(self.spool.borrow(), Option::as_ref).ok()
     }
     pub fn configure_child(&self, child: &mut std::process::Command) -> io::Result<()> {
