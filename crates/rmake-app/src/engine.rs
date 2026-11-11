@@ -9480,10 +9480,8 @@ impl Engine {
                         }
                     })
                     .unwrap_or_default();
-                let peer_parent = self.scope_parents.get(target).cloned().flatten();
-                self.scope_parents
-                    .entry(peer.clone())
-                    .or_insert(peer_parent);
+                // Expanding a grouped peer uses its own scope. Only the
+                // prerequisites visited below inherit the recipe owner's scope.
                 if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule, peer_branch) {
                     self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
                     state.outcome.failed = true;

@@ -111,6 +111,10 @@ def models():
     yield Model('group-query-one-goal', query, ('a',),
                 (('a: input', MISSING), ('b: input', UNCHECKED)), flags=('-q',), status=1)
 
+    inherited_scope = '.SECONDEXPANSION:\nN := input\na b &: $$(N) ; @:\nall: N := older\nall: a b ; @:\n'
+    yield Model('group-secondary-parent-scope', inherited_scope, ('all',),
+                (('a: older', MISSING), ('b: input', MISSING)), flags=())
+
 
 def fixture(model, path):
     path.mkdir()
