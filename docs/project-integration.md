@@ -21,7 +21,7 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes eleven profiles across eight projects. `INTEGRATION_CASE` selects an
+executes thirteen profiles across eight projects. `INTEGRATION_CASE` selects an
 exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
@@ -63,6 +63,12 @@ independently expected results containing their different version strings. Silen
 parallel recipe completion order as a deterministic stream, and all observed
 stream bytes remain required. The upstream source and its MIT notice are
 pinned by digest. No patched source or system installation is required.
+
+The separate `lua-5.4.9-parallel-fifo` profile uses four job slots and the
+FIFO jobserver through the same recursive Linux target. Both profiles retain
+the original compiler, deterministic archive flags, watched outputs, and
+fresh and rebuilt executable checks. Each requires an exact silent build,
+no-op, and header rebuild.
 
 The GNU gzip profile freezes a common preparation from the release's
 `configure`, using its generated Automake files. The serial `all` build
@@ -114,7 +120,7 @@ scratch `lib/zstd.h` rebuilds the executable and changes its version output.
 Both versions compress and decompress the same independent input.
 [Official Zstandard release](https://github.com/facebook/zstd/releases/tag/v1.5.7)
 
-These ten Linux/GCC profiles are counted separately from ordinary curated
+These thirteen Linux/GCC profiles are counted separately from ordinary curated
 Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its
