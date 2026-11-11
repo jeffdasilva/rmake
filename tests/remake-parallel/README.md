@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 2,010 profiles. Leading `./` spellings share one target record and
+run all 2,046 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -98,10 +98,10 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 404 debug profiles check the entire debug trace and the exact trace prefix
+The 440 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
-transport. The 113 authenticated FIFO traces check the controller path against the
+transport. The 131 authenticated FIFO traces check the controller path against the
 observed make PID and retain the raw trace before comparing the remaining
 bytes. The FIFO coverage includes named primary, direct, normal remake and
 duplicate-read profiles.
@@ -127,11 +127,13 @@ is checked under dry-run, question and touch with both transports.
 
 The standard developer gates include these profiles. The selector runs
 the debug profiles that do not require the load shim. Add `--include-load`
-to include 82 basic and 46 verbose makefile traces with controlled load
+to include 82 basic and 82 verbose makefile traces with controlled load
 and held workers. Eighteen of the verbose traces cover dry-run, question,
 and touch for direct includes under high, low, and falling load on both
 transports. These cases use unique read sources and explicit leaf
-recipes. FIFO cases verify the live controller path.
+recipes. Another 36 traces check stopped and keep-going optional include
+remakes with a carried recipe or a later command under controlled load.
+FIFO cases verify the live controller path.
 The required keep-going FIFO case waits for the cached right prerequisite
 trace before releasing the second worker.
 The named primary traces cover existing prerequisites, built-in prerequisite
