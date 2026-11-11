@@ -1,0 +1,10 @@
+id = "serial-remake-debug-return-optional-stop-failed-prerequisite-touch"
+requirement = "debug.serial-makefile-failure-return"
+candidate = "required"
+provenance = "Original serial makefile-remake debug regression verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m", "-t", "all"]
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nREAD:\nUpdating makefiles....\n  File 'inc.mk' does not exist.\n   File 'bad' does not exist.\n  Must remake target 'bad'.\nBAD\n  Failed to remake target file 'bad'.\n"
+stderr = "make: *** No rule to make target 'bad', needed by 'inc.mk'.  Stop.\n"

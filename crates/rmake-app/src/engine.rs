@@ -317,6 +317,7 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     ObservedGroup,
+    ObservedGroupOwner,
     RecipeUnstarted,
 }
 
@@ -4149,14 +4150,15 @@ impl Engine {
             return false;
         }
         let mut named = HashSet::new();
-        read_files.iter().all(|(file, skip)| {
+        read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources)
-                        || (named.insert(name) && self.simple_named_remake(file, name))))
+                        || (named.insert(name)
+                            && self.simple_named_remake(file, name, index == 0))))
         })
     }
 
@@ -4172,7 +4174,7 @@ impl Engine {
         })
     }
 
-    fn simple_named_remake(&self, file: &Makefile, name: &[u8]) -> bool {
+    fn simple_named_remake(&self, file: &Makefile, name: &[u8], first: bool) -> bool {
         use rmake_core::filenames::archive_parts;
 
         let primary = file.location.is_none();
@@ -4196,7 +4198,6 @@ impl Engine {
                             && no_recipe_fallback
                             && rule.dependencies.iter().all(|dep| {
                                 !dep.hidden
-                                    && !dep.order_only
                                     && dep.name != b".WAIT"
                                     && !dep.name.contains(&b'/')
                                     && !dep.name.starts_with(b"~")
@@ -4208,7 +4209,10 @@ impl Engine {
                                         .is_ok_and(|metadata| metadata.is_file())
                             })))
                     && rule.recipes.as_ref().is_some_and(|recipes| {
-                        recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                        // Forced lines can run synchronously under a named
+                        // mode. Admit them before any other source can queue work.
+                        (primary && first)
+                            || recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
                     })
             })
     }
@@ -8846,7 +8850,9 @@ impl Engine {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            if (self.optional_remake() && depth == 0) || (!self.remaking && self.options.keep_going)
+            let serial_remake = self.remaking && !self.parallel_makefile_remakes;
+            if (self.optional_remake() && (depth == 0 || serial_remake))
+                || (self.options.keep_going && (!self.remaking || serial_remake))
             {
                 crate::debug::emit(
                     &self.output,
@@ -9051,8 +9057,11 @@ impl Engine {
                 state.combined.late_input_failed |= result.late_input_failed;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
-                if result.database_result == DatabaseResult::Simulated {
-                    state.combined.database_result = DatabaseResult::Simulated;
+                if matches!(
+                    result.database_result,
+                    DatabaseResult::Simulated | DatabaseResult::ObservedGroupOwner
+                ) {
+                    state.combined.database_result = result.database_result;
                 }
                 self.record_graph_failure(result);
                 state.active = None;
@@ -9089,7 +9098,10 @@ impl Engine {
             let Some((ordinal, entry)) = state.branches.pop_front() else {
                 // A real recipe refreshes the shared time even if another
                 // branch simulated its recipe during the same update.
-                if state.combined.completion != CompletionTime::AssumeNew {
+                if state.combined.completion >= CompletionTime::Refresh
+                    || (state.combined.completion != CompletionTime::AssumeNew
+                        && state.combined.database_result == DatabaseResult::Simulated)
+                {
                     state.combined.database_result = DatabaseResult::Outcome;
                 }
                 state.combined.time = if state.phony {
@@ -10636,9 +10648,14 @@ impl Engine {
                 self.database_secondary.insert(target.to_vec());
             }
         }
-        // A stopping synchronous child failure exits before GNU's ordinary
-        // update-return diagnostic. Keep-going updates retain that diagnostic.
-        let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
+        // A suppressed serial makefile failure returns to the updater, so it
+        // emits the same completion trace as a keep-going failure.
+        let optional_serial_remake = self.remaking
+            && !self.parallel_makefile_remakes
+            && self.optional_remake()
+            && !outcome.fatal;
+        let stopping_failure =
+            debug_remake && outcome.failed && !self.options.keep_going && !optional_serial_remake;
         if !self.parallel_jobs.contains_key(target)
             && !stopping_failure
             && !stopping_dependency
@@ -10690,9 +10707,36 @@ impl Engine {
             return;
         };
         let cached = self.cached_recipe_outcome(outcome);
+        // A query can inspect an expanded recipe without starting it. Only
+        // its owner has a verdict in that case, so peers can still be goals.
+        let unstarted_query = group.ordinary
+            && outcome.question_outdated
+            && outcome.completion == CompletionTime::Preserve;
         if let Some(id) = group.branch {
             self.active_group_branches.remove(&id);
-            self.completed_group_branches.insert(id, cached);
+            if !unstarted_query {
+                self.completed_group_branches.insert(id, cached);
+            }
+            if self.output.database_requested()
+                && self.options.dry_run
+                && !self.options.question
+                && !self.options.touch
+                && !outcome.failed
+                && outcome.completion == CompletionTime::AssumeNew
+                && self
+                    .database
+                    .rules
+                    .get(target)
+                    .and_then(|rule| rule.double_colon.as_ref())
+                    .is_some_and(|branches| branches.iter().any(|rule| rule.group.is_none()))
+            {
+                // The grouped completion includes the owner in its physical
+                // refresh, replacing any preceding standalone dry-run time.
+                self.modified(target);
+                if let Some(owner) = self.done.get_mut(target) {
+                    owner.database_result = DatabaseResult::ObservedGroupOwner;
+                }
+            }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
                 for (peer, _, phony) in group.members {
                     if peer == target && !outcome.failed {
@@ -10759,11 +10803,14 @@ impl Engine {
                 }
                 continue;
             }
+            self.active_peers.remove(&peer);
+            if unstarted_query {
+                continue;
+            }
             if group.implicit && (!outcome.failed || outcome.ran) {
                 // Later implicit searches can mark an updated peer intermediate.
                 self.cleanup_candidates.push(peer.clone());
             }
-            self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);
             let mut completed = cached;
             completed.database_result = database_result;
