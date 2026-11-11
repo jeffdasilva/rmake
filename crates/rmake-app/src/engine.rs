@@ -11554,7 +11554,13 @@ impl Engine {
             }
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
                 Ok(mut bytes) => {
-                    if source.continued_inline {
+                    // A single physical line can gain recipe prefixes from
+                    // expansion. The reader removes prefixes from continued
+                    // prefixed source lines, and .ONESHELL handles its script
+                    // prefixes separately.
+                    if source.continued_inline
+                        || (!one_shell && bytes.contains(&b'\n') && !source.bytes.contains(&b'\n'))
+                    {
                         rmake_core::reader::strip_recipe_continuation_prefix(
                             &mut bytes,
                             source.prefix,

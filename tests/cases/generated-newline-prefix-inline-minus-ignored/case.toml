@@ -1,0 +1,12 @@
+id = "generated-newline-prefix-inline-minus-ignored"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Recipe prefixes in expansion-generated newlines and adjacent ordinary or one-shell controls."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c66697273743e0a"
+stderr_hex = "6d616b653a205b4d616b6566696c653a363a20616c6c5d204572726f722031202869676e6f726564290a"
