@@ -1,0 +1,11 @@
+id = "parallel-query-direct-query-file-effect"
+requirement = "runtime.parallel-query"
+candidate = "required"
+provenance = "Original held-recipe fixture informed by GNU Make 4.4.1 observations and the upstream behavior study."
+args = ["-rR", "--no-print-directory", "-j2", "-q", "held", "query", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "held\nafter\nfinished\n"
+stderr = ""

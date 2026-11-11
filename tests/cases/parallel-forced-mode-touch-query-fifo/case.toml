@@ -1,0 +1,11 @@
+id = "parallel-forced-mode-touch-query-fifo"
+requirement = "runtime.parallel-forced-modes"
+candidate = "required"
+provenance = "Original held-recipe fixture tested against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j2", "-qt", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

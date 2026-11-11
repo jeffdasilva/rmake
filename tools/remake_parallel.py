@@ -790,6 +790,19 @@ def carried_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
                                         mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, True, second, first,
                                              before_second_stdout=before_second_stdout))
+                    if name == 'stop-tail' and mode == 'q' and not sync:
+                        # Expansion output identifies the final query visit
+                        # without advancing the file-effect cursor.
+                        info = b'ordinary-query-visited\n'
+                        info_files = {**files, 'Makefile': files['Makefile'].replace(
+                            b'$(file >>seen,ordinary)', b'$(info ordinary-query-visited)')}
+                        info_model = replace(
+                            model, id=f'{ident}-without-file-write', files=info_files,
+                            expected={**expected, 'stdout_template_hex': (stdout + info).hex()},
+                            seen=seen.replace(b'ordinary\n', b''))
+                        results.append(HeldModel(
+                            info_model, True, second.removesuffix(b'ordinary\n'), first,
+                            before_second_stdout=before_second_stdout + info))
     return results
 
 

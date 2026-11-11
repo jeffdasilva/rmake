@@ -764,6 +764,7 @@ struct ParallelJob {
     program: Vec<u8>,
     location: Location,
     ignore: bool,
+    recursive: bool,
     before: Option<SystemTime>,
     phony: bool,
     continuation: RecipeState,
@@ -3730,7 +3731,9 @@ impl Engine {
         let mut first_goal_verdict = None;
         let mut stopped_on_failure = false;
         let mut requested = Vec::new();
-        for goal in goals {
+        let initial_goal_generation = self.filesystem.borrow().generation();
+        let goal_count = goals.len();
+        for (index, goal) in goals.into_iter().enumerate() {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let name = self.aliases.resolve(&goal);
             let already_done = (self.done.contains_key(name)
@@ -3772,6 +3775,11 @@ impl Engine {
                 }
             }
             if completed_report.is_none() && self.parallel_graph() && pending {
+                if self.options.question {
+                    // An earlier double-colon branch can have reported a
+                    // verdict before a later branch finishes its recipe.
+                    first_goal_verdict = first_goal_verdict.or(outcome.first_branch_verdict);
+                }
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
                     && self.ordinary_group_peer_pending(&goal);
@@ -3785,8 +3793,33 @@ impl Engine {
                 });
             } else {
                 failed |= outcome.failed;
+                let first_question = first_goal_verdict.is_none()
+                    && outcome.goal_verdict() == Some(Status::Question);
                 first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
                 self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
+                if first_question
+                    && !self.options.keep_going
+                    && self.parallel_graph()
+                    && (index + 1 < goal_count
+                        || requested.iter().any(|goal| self.pending(&goal.name)))
+                {
+                    // A first query verdict ends the pass. If goals remain
+                    // and no child or file effect advanced it, wait before
+                    // visiting them. Otherwise only the final job drain runs.
+                    if self.filesystem.borrow().generation() == initial_goal_generation
+                        && !self.parallel_jobs.is_empty()
+                    {
+                        self.reap_job();
+                    }
+                    self.poll_jobs();
+                    if self.forced_query_stop || self.graph_abort.is_some() {
+                        stopped_on_failure = self.graph_abort.is_some();
+                        break;
+                    }
+                    for prior in &requested {
+                        self.debug_cached_prerequisite_visit(&prior.name, 0, prior.initial);
+                    }
+                }
             }
             fatal |= outcome.fatal;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
@@ -3822,7 +3855,12 @@ impl Engine {
                         fatal |= outcome.fatal;
                         break 'goal_passes;
                     }
-                    if outcome.late_input_failed && !self.pending(&goal.name) {
+                    if self.options.question {
+                        first_goal_verdict = first_goal_verdict.or(outcome.first_branch_verdict);
+                    }
+                    if !self.pending(&goal.name)
+                        && (outcome.late_input_failed || self.options.question)
+                    {
                         failed |= outcome.failed;
                         first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
                     }
@@ -3837,6 +3875,11 @@ impl Engine {
                     first_goal = false;
                     self.debug_completed_goal_visit(&goal.name, false);
                     goal.awaiting_recipe = false;
+                    if self.options.question
+                        && let Some(outcome) = self.done.get(self.aliases.resolve(&goal.name))
+                    {
+                        first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                    }
                 } else if self.debug_pass != last_goal_pass
                     && self.graph_abort.is_none()
                     && self.shutdown.get() == Shutdown::Running
@@ -3892,6 +3935,7 @@ impl Engine {
         }
         self.wait_all_jobs();
         failed |= self.parallel_failed;
+        fatal |= self.graph_abort == Some(Status::Fatal);
         let jobserver_error = self.jobserver.as_ref().and_then(Jobserver::take_error);
         if matches!(self.clock_skew.get(), ClockSkew::Detected)
             && self.interrupt.is_none()
@@ -3919,7 +3963,6 @@ impl Engine {
         let query_first = first_goal_verdict == Some(Status::Question)
             && !stopped_on_failure
             && !fatal
-            && !self.parallel_failed
             && self.graph_abort.is_none();
         if failed && (!self.forced_query_stop || fatal) && !query_first {
             2
@@ -4820,6 +4863,7 @@ impl Engine {
             self.child_events(true, Some(server.readiness()?))?;
             self.observe_interrupt();
             if self.graph_abort.is_some()
+                || self.forced_query_stop
                 || self.remake_stopped()
                 || (self.parallel_failed && !self.options.keep_going)
             {
@@ -4845,9 +4889,8 @@ impl Engine {
 
     fn parallel_graph(&self) -> bool {
         self.job_slots() > 1
-            && !self.options.dry_run
-            && !self.options.question
-            && !self.options.touch
+            && (!self.remaking
+                || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
     fn wait_makefile_remakes(
@@ -5252,7 +5295,10 @@ impl Engine {
     }
 
     fn start_load_waiting(&mut self) {
-        if self.graph_abort.is_some() || self.shutdown.get() != Shutdown::Running {
+        if self.graph_abort.is_some()
+            || self.forced_query_stop
+            || self.shutdown.get() != Shutdown::Running
+        {
             while let Some((target, identity)) = self.load_waiting.pop() {
                 let job = self
                     .parallel_jobs
@@ -5292,6 +5338,20 @@ impl Engine {
                     self.fatal(None, os_error(&error).as_bytes());
                     return;
                 }
+            }
+        }
+    }
+
+    fn forced_query_completed(&mut self) {
+        self.would_build = true;
+        if !self.remaking
+            && !self.options.keep_going
+            && !self.optional_remake()
+            && self.graph_abort.is_none()
+        {
+            self.forced_query_stop = true;
+            if self.parallel_jobs.values().any(|job| !job.waiting_load) {
+                self.notice_waiting_for_jobs();
             }
         }
     }
@@ -5410,9 +5470,11 @@ impl Engine {
             Some(Err(_)) => Some(127),
             None => None,
         };
+        let command_question =
+            self.options.question && job.recursive && !job.ignore && error_code == Some(1);
         let error = match result {
             None => None,
-            Some(Ok(status)) if status.success() => None,
+            Some(Ok(status)) if status.success() || command_question => None,
             Some(Ok(status)) => Some(
                 status
                     .code()
@@ -5470,7 +5532,7 @@ impl Engine {
             self.output.select(None);
         }
         let mut cleanup_fatal = false;
-        if failed && launched && !job.signal_cleaned {
+        if (failed || command_question) && launched && !job.signal_cleaned {
             cleanup_fatal = self.cleanup_target(
                 &target,
                 job.before,
@@ -5506,11 +5568,18 @@ impl Engine {
         }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
-        let completed_permit = if !failed {
+        let mut all_recursive = !job.continuation.flow.has_ordinary();
+        let completed_permit = if command_question {
+            outcome.question_outdated = true;
+            failed |= cleanup_fatal;
+            job.continuation.permit.take()
+        } else if !failed {
             let (execution, permit) =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
             failed |= matches!(execution.status, Status::Failure | Status::Fatal);
             outcome.fatal |= execution.status == Status::Fatal;
+            outcome.question_outdated |= execution.status == Status::Question;
+            all_recursive = execution.all_recursive;
             if self.cleanup_target(&target, job.before, job.phony, execution.cleanup) {
                 failed = true;
                 outcome.fatal = true;
@@ -5532,10 +5601,34 @@ impl Engine {
                 buffer.dump();
             }
         }
+        let pending = self.parallel_jobs.contains_key(&target);
+        let mode = self.options.dry_run || self.options.question || self.options.touch;
+        if mode && !pending {
+            outcome.completion = if all_recursive {
+                CompletionTime::Refresh
+            } else if job.phony {
+                CompletionTime::AssumeNewPhony
+            } else {
+                CompletionTime::AssumeNew
+            };
+            if self.options.dry_run
+                && !self.options.question
+                && !self.options.touch
+                && !failed
+                && outcome.completion == CompletionTime::AssumeNew
+                && self
+                    .running_groups
+                    .get(&target)
+                    .is_none_or(|group| group.implicit)
+            {
+                outcome.database_result = DatabaseResult::Simulated;
+            }
+        }
         // Inspect archive metadata only after the last command exits. A child
         // may temporarily leave a partial header while updating its archive.
         if !failed
-            && !self.parallel_jobs.contains_key(&target)
+            && (!mode || outcome.completion == CompletionTime::Refresh)
+            && !pending
             && self.archive_metadata_error(&target, false)
         {
             failed = true;
@@ -5567,25 +5660,25 @@ impl Engine {
                 .or_default();
         }
         self.record_graph_failure(outcome);
-        if !self.parallel_jobs.contains_key(&target) {
+        if !pending && !outcome.completion.preserves() {
             self.release_assumed_new(&target);
         }
         outcome.time = if job.phony {
             None
-        } else if self.parallel_jobs.contains_key(&target) {
+        } else if pending || outcome.completion.preserves() {
             outcome.time
         } else {
             self.modified(&target)
         };
-        outcome.search_after_update = self.update_search_pending(&target, job.phony, true);
-        if !job.phony && !self.parallel_jobs.contains_key(&target) {
+        outcome.search_after_update = self.update_search_pending(&target, job.phony, all_recursive);
+        if !job.phony && !pending {
             self.database_unchecked_times
                 .borrow_mut()
                 .insert(target.clone());
         }
         let cached = self.cached_recipe_outcome(outcome);
         self.done.insert(target.clone(), cached);
-        if !self.parallel_jobs.contains_key(&target) {
+        if !pending {
             self.finish_group(&target, outcome);
         }
         if !outcome.fatal {
@@ -5594,6 +5687,9 @@ impl Engine {
         self.finish_debug_job(debug_job.as_ref());
         self.reuse_implicit_job_slot(!outcome.fatal);
         self.job_debug.live(self.output.debug_mask());
+        if command_question {
+            self.forced_query_completed();
+        }
     }
 
     fn gpath_match(&self, original: &[u8], resolved: &[u8]) -> bool {
@@ -8103,6 +8199,12 @@ impl Engine {
         if !cached_wait || self.shutdown.get() != Shutdown::Running {
             self.poll_jobs();
         }
+        if self.forced_query_stop {
+            return Outcome {
+                question_outdated: true,
+                ..Outcome::default()
+            };
+        }
         if visit == BuildVisit::GoalPassStart {
             // The existing first poll can observe an already waitable child
             // before this pass starts visiting its goals.
@@ -10560,12 +10662,12 @@ impl Engine {
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
-        let parallel = self.job_slots() > 1
-            && !self.options.dry_run
-            && !self.options.question
-            && !self.options.touch;
+        let parallel = self.parallel_graph();
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
+        }
+        if self.forced_query_stop {
+            return Execution::question(false, Cleanup::None);
         }
         if self.graph_abort.is_some()
             || self.remake_stopped()
@@ -10640,7 +10742,7 @@ impl Engine {
                 .values()
                 .any(|job| job.continuation.remake.is_some());
         if parallel || live_remake {
-            while self.parallel_jobs.len() >= self.job_slots() {
+            while !self.forced_query_stop && self.parallel_jobs.len() >= self.job_slots() {
                 self.reap_job();
             }
         } else {
@@ -10648,6 +10750,9 @@ impl Engine {
         }
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
+        }
+        if self.forced_query_stop {
+            return Execution::question(false, Cleanup::None);
         }
         if self.graph_abort.is_some()
             || self.remake_stopped()
@@ -10674,6 +10779,9 @@ impl Engine {
         };
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
+        }
+        if self.forced_query_stop {
+            return Execution::question(false, Cleanup::None);
         }
         if self.graph_abort.is_some()
             || self.remake_stopped()
@@ -10748,6 +10856,7 @@ impl Engine {
                     program: Vec::new(),
                     location: recipes[0].location.clone(),
                     ignore: false,
+                    recursive: false,
                     before,
                     phony,
                     continuation: state,
@@ -11369,6 +11478,7 @@ impl Engine {
                                 program,
                                 location: recipe.location.clone(),
                                 ignore,
+                                recursive: force,
                                 before,
                                 phony,
                                 stdin_owner,
@@ -11459,12 +11569,7 @@ impl Engine {
                 // query mode. GNU applies that convention to every forced
                 // command; ignored errors retain their ordinary handling.
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
-                    self.would_build = true;
-                    // A physical child can end a stopping query from the
-                    // reaper, before the goal chain visits another target.
-                    self.forced_query_stop |= !self.remaking
-                        && !self.options.keep_going
-                        && !remake.as_ref().is_some_and(|remake| remake.optional);
+                    self.forced_query_completed();
                     return Execution::question(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                 }
