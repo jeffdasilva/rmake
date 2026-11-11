@@ -991,10 +991,20 @@ def primary_named_group_models(worker: bytes, markers: dict[str, bytes]) -> list
     loaded = completed + b'read-1\nordinary-loaded-loaded\n'
     generated = {**markers, 'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
     ordinary = b'printf "ordinary\\n" > "result"\n'
+    def record_expansions(seen: bytes) -> bytes:
+        first_read = BEFORE_FIRST + b'secondary-Makefile-\nsecondary-peer.out-\n'
+        reread = b'read-1\nsecondary-Makefile-1\nsecondary-peer.out-1\n'
+        return seen.replace(BEFORE_FIRST, first_read, 1).replace(b'read-1\n', reread, 1)
+
     results = []
     for order, targets in (('primary-first', b'Makefile peer.out'),
                            ('peer-first', b'peer.out Makefile')):
         source = header + targets + b' &: primer ; @' + command + rules
+        secondary_source = (
+            b'.SECONDEXPANSION:\nINPUT := primer\n' + source.replace(
+                b' &: primer ;',
+                b' &: $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ;', 1)
+        )
         for age, peer_exists, stale in (('current', True, False), ('stale', True, True),
                                         ('missing-peer', False, False)):
             files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
@@ -1026,9 +1036,15 @@ def primary_named_group_models(worker: bytes, markers: dict[str, bytes]) -> list
                                     'stderr_template_hex': ''}
                         model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected,
                                             seen, updates=generated, mtimes_ns=times)
-                        results.append(HeldModel(model, True, second, first,
-                                                 before_second_stdout=prefix,
-                                                 before_first_stdout=prefix))
+                        held = HeldModel(model, True, second, first,
+                                         before_second_stdout=prefix, before_first_stdout=prefix)
+                        results.append(held)
+                        secondary = replace(model, id=ident + '-secondary',
+                                            files={**files, 'Makefile': secondary_source},
+                                            seen=record_expansions(seen))
+                        results.append(replace(held, model=secondary,
+                                               before_first=record_expansions(first),
+                                               before_second=record_expansions(second)))
     return results
 
 
