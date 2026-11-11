@@ -13,7 +13,9 @@ use crate::diagnostic::{
     Output,
 };
 use crate::messages::Message;
-use crate::reader::{Input, ParserReader, has_comment, strip_comment};
+use crate::reader::{
+    Input, ParserLine, ParserReader, has_comment, inline_recipe_continuations, strip_comment,
+};
 use crate::variables::{
     Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
     PatternVariable, TargetScope, VariableStore, reference_end,
@@ -4426,8 +4428,13 @@ impl Database {
             if evaluated_at == Some(1) && reader.skip_eval_bom() {
                 context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
             }
-            let Some((mut line, leading_prefix)) = reader
-                .next_line(prefix, declaration.has_recipe_context())
+            let active = conditions.last().is_none_or(|c| c.active);
+            let Some(ParserLine {
+                logical: mut line,
+                leading_prefix,
+                continued_source,
+            }) = reader
+                .next_line(prefix, declaration.has_recipe_context(), active)
                 .map_err(|message| source_read_error_at(source_name.clone(), message, context))?
             else {
                 if !conditions.is_empty() {
@@ -4487,7 +4494,6 @@ impl Database {
                     Diagnostic::system(Message::NulReaderWarning),
                 );
             }
-            let active = conditions.last().is_none_or(|c| c.active);
             if line.recipe {
                 if active && !declaration.ignore_recipes {
                     self.add_recipe(
@@ -4651,12 +4657,11 @@ impl Database {
                             source_name.as_option(),
                         ));
                     }
-                    let Some((part, _)) =
-                        reader
-                            .next_line(prefix, ignored_rule_context)
-                            .map_err(|message| {
-                                source_read_error_at(source_name.clone(), message, context)
-                            })?
+                    let Some(ParserLine { logical: part, .. }) = reader
+                        .next_line(prefix, ignored_rule_context, false)
+                        .map_err(|message| {
+                            source_read_error_at(source_name.clone(), message, context)
+                        })?
                     else {
                         if !active {
                             // Ignored definitions are skipped by the outer
@@ -5082,8 +5087,9 @@ impl Database {
                 declaration.ignore_recipes = true;
                 continue;
             }
+            let source = continued_source.as_deref().unwrap_or(&line.bytes);
             let source_inline =
-                separator::<true>(&line.bytes, b';').filter(|i| !has_comment(&line.bytes[..*i]));
+                separator::<true>(source, b';').filter(|i| !has_comment(&source[..*i]));
             let tail = match expanded_recipe_tail {
                 Some(tail) => tail,
                 None => self.expand(
@@ -5259,7 +5265,14 @@ impl Database {
                 double_colon: delimiter.double_colon,
             });
             let recipe = source_inline
-                .map(|i| line.bytes[i + 1..].to_vec())
+                .map(|i| {
+                    let command = &source[i + 1..];
+                    if continued_source.is_some() {
+                        inline_recipe_continuations(command, prefix)
+                    } else {
+                        command.to_vec()
+                    }
+                })
                 .or_else(|| expanded_inline.map(|i| expanded_line[i + 1..].to_vec()));
             if let Some(bytes) = recipe {
                 self.add_recipe(
