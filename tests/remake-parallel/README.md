@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,706 profiles. Leading `./` spellings share one target record and
+run all 1,790 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -97,7 +97,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 198 debug profiles check the entire debug trace and the exact trace prefix
+The 258 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. The FIFO suite includes thirty named primary, eight normal remake,
@@ -114,6 +114,11 @@ The forced stale primary profiles hold a third worker under `-n`, `-q`, and
 `-t`. The observer releases the primary after its pending trace, then releases
 the earlier includes after the trace records primary and left completion.
 Each release checks that the other workers are still held.
+
+Sixty further verbose profiles cover dry-run, question and touch with no
+makefile named as a goal and no multi-line remake recipe. Twenty-four
+underlying cases compare the file effects of a single-line recipe that
+writes a file or completes a shell command before the first child wait.
 
 The standard developer gates include these profiles. The selector runs
 only the debug profiles and does not build the load shim.
