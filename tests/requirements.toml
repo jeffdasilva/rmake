@@ -2449,3 +2449,19 @@ cases = [
   "missing-separator-hint-included-conditional-text",
   "missing-separator-hint-valid-rule-and-custom-prefix",
 ]
+
+[[requirements]]
+id = "diagnostics.double-colon-branch-missing"
+title = "Report the initial missing target for each visited double-colon declaration"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 5
+fixture_count = 5
+cases = [
+  "debug-double-colon-branch-missing-query-verbose",
+  "debug-double-colon-branch-missing-nested-dry-run",
+  "debug-double-colon-branch-missing-prior-branch-created-file",
+  "debug-double-colon-branch-missing-touch",
+  "debug-double-colon-branch-missing-existing-file-control",
+]

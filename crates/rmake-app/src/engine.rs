@@ -8567,6 +8567,7 @@ impl Engine {
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
+            let declared = entry.is_some();
             let branch = if let Some(branch) = entry {
                 branch
             } else {
@@ -8641,6 +8642,13 @@ impl Engine {
                     &self.output,
                     crate::debug::Event::Considering(target, state.depth),
                 );
+                // A declared branch keeps the chain's initial observation.
+                if declared && state.before.is_none() {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::Missing(target, state.depth + 1),
+                    );
+                }
             }
             let before = assumed_time.or(state.before);
             let comparison = self.comparison_time(target, before);

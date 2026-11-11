@@ -163,3 +163,11 @@ and after any jobserver controller line. Four original named-lock cases
 cover active target synchronization, serial spool drain, a live `MAKEFLAGS`
 selection, and the quiet BASIC control. The selected Guile gate also checks
 this ordering while a recipe expands a missing file through `gmk-expand`.
+
+## Missing targets in double-colon declarations
+
+The basic and verbose debug streams report an initially missing target
+when each declared double-colon branch is visited. Later branches retain
+that observation even when an earlier branch creates the file. Five
+fixtures exercise query, dry-run, touch, normal execution, and an
+initially present target.
