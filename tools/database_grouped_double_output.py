@@ -47,6 +47,8 @@ class Model:
     group_records: int = 2
     not_updated: tuple[str, ...] = ()
     group_members: str = 'b a'
+    failed: tuple[str, ...] = ()
+    stderr: str = ''
 
 
 def models():
@@ -163,6 +165,39 @@ def models():
     yield Model('group-double-repeated-owner-forced', 'a a b &:: input ; +@' + FORCE_GROUP + '\n',
                 ('a',), tuple((row, FORCED) for row, _ in a_group), (FORCE_GROUP,),
                 actual=('a', 'b'), group_records=3, group_members='b a a')
+    standalone_no_effect = 'a:: other ; @:\n'
+    unopened_peer = (('a:: other', MISSING), ('a:: input', MISSING), ('a:: input', UNCHECKED),
+                     ('b:: input', MISSING))
+    yield Model('group-double-repeated-peer-normal', standalone_no_effect + repeat_no_effect, ('b',),
+                unopened_peer, flags=(), group_records=3, group_members='b a a',
+                not_updated=('a:: other',))
+    observed_during_expansion = 'a a b &:: input ; @' + change_peer + ':\n'
+    yield Model('group-double-repeated-peer-expansion-time', standalone_no_effect + observed_during_expansion,
+                ('b',), (('a:: other', FORCED), ('a:: input', FORCED), ('a:: input', ORIGINAL),
+                         ('b:: input', ORIGINAL)), original=(('a', EXISTING), ('b', EXISTING)),
+                flags=(), actual=('a',), group_records=3, group_members='b a a', not_updated=('a:: other',))
+    force_repeated = 'a a b &:: input ; +@' + FORCE_GROUP + '\n'
+    for original, last_time in [((), UNCHECKED), ((('a', EXISTING), ('b', EXISTING)), ORIGINAL)]:
+        variant = 'existing' if original else 'missing'
+        yield Model(f'group-double-repeated-peer-forced-{variant}', standalone_no_effect + force_repeated,
+                    ('b',), (('a:: other', FORCED), ('a:: input', FORCED), ('a:: input', last_time),
+                             ('b:: input', FORCED)), (FORCE_GROUP,), original=original, actual=('a', 'b'),
+                    group_records=3, group_members='b a a', not_updated=('a:: other',))
+    failed_group = 'a a b &:: input ; @false\n'
+    group_failures = ('a:: input', 'b:: input')
+    yield Model('group-double-repeated-owner-failed', failed_group, ('a',), a_group, flags=(), status=2,
+                group_records=3, group_members='b a a', failed=group_failures,
+                stderr='make: *** [Makefile:1: a] Error 1\n')
+    yield Model('group-double-repeated-owner-failed-after-standalone',
+                standalone_no_effect + failed_group, ('a',),
+                tuple((row, ORIGINAL) for row in ('a:: other', *(row for row, _ in a_group))),
+                flags=(), status=2, original=(('a', EXISTING), ('b', EXISTING)),
+                group_records=3, group_members='b a a', failed=group_failures,
+                stderr='make: *** [Makefile:2: a] Error 1\n')
+    yield Model('group-double-repeated-peer-failed', standalone_no_effect + failed_group, ('b',),
+                unopened_peer, flags=(), status=2, group_records=3, group_members='b a a',
+                not_updated=('a:: other',), failed=group_failures,
+                stderr='make: *** [Makefile:2: b] Error 1\n')
     yield Model('group-double-forced-physical', 'a b &:: input ; +@' + FORCE_GROUP + '\n',
                 ('a',), (('a:: input', FORCED), ('b:: input', FORCED)), (FORCE_GROUP,), actual=('a', 'b'))
     yield Model('group-double-question-without-start', first, ('a',),
@@ -271,8 +306,10 @@ def check_stdout(model, output, start, end):
             marker = b'#  File has been updated.' if updated else b'#  File has not been updated.'
             if marker not in body:
                 raise h.HarnessError(f'{rule} occurrence {ordinal} did not have the expected update state')
-            if updated and model.status == 0 and b'#  Successfully updated.' not in body:
-                raise h.HarnessError(f'{rule} occurrence {ordinal} expected a successful branch result')
+            if updated and (model.status == 0 or model.failed):
+                marker = b'#  Failed to be updated.' if rule in model.failed else b'#  Successfully updated.'
+                if marker not in body:
+                    raise h.HarnessError(f'{rule} occurrence {ordinal} expected {marker.decode()}')
     membership = re.findall(rb'(?m)^#  Also makes: (.*)$', section)
     expected_membership = [model.group_members.encode()] * model.group_records
     if membership != expected_membership:
@@ -309,7 +346,7 @@ def run(model, case, runtime, engine):
               'limit': limit, 'leftovers': leftovers, 'filesystem': filesystem, 'expected_filesystem': expected,
               'physical_mtime_ns': times, 'expected_mtime_ns': expected_times, 'libc_window': [start, end]}
     try:
-        if (status, err, limit, leftovers, filesystem, times) != (model.status, b'', None, False, expected, expected_times):
+        if (status, err, limit, leftovers, filesystem, times) != (model.status, model.stderr.encode(), None, False, expected, expected_times):
             raise h.HarnessError('unexpected status, streams, process bound or physical file effect')
         result['comparison_sha256'] = hashlib.sha256(check_stdout(model, out, start, end)).hexdigest()
     except (h.HarnessError, ValueError) as error:
