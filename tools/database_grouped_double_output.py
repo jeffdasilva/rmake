@@ -62,6 +62,29 @@ def models():
     yield Model('group-double-mixed-standalone', first + ordinary, ('a',),
                 (('a:: input', SYNTHETIC), ('a:: other', SYNTHETIC), ('b:: input', MISSING)),
                 (SKIP.replace('$@', 'a'), SECOND.replace('$@', 'a')))
+    early = ordinary + first
+    commands = (SECOND.replace('$@', 'a'), SKIP.replace('$@', 'a'))
+    yield Model('group-double-mixed-owner-physical-missing', early, ('a',),
+                (('a:: other', MISSING), *missing), commands)
+    yield Model('group-double-mixed-owner-physical-present', early, ('a',),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('b:: input', MISSING)),
+                commands, original=(('a', EXISTING),))
+    yield Model('group-double-mixed-owner-physical-both-goals', early, ('a', 'b'),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('b:: input', ORIGINAL)),
+                commands, original=(('a', EXISTING), ('b', EXISTING)))
+    second_owner = 'b:: other ; @' + SECOND + '\n'
+    yield Model('group-double-mixed-owner-physical-peer', second_owner + first, ('b',),
+                (('b:: other', MISSING), *missing),
+                (SECOND.replace('$@', 'b'), SKIP.replace('$@', 'b')))
+    current_tail = 'a:: older ; @' + SECOND + '\n'
+    yield Model('group-double-mixed-owner-physical-current-tail', early + current_tail, ('a',),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('a:: older', ORIGINAL), ('b:: input', ORIGINAL)),
+                commands, original=(('a', EXISTING), ('b', EXISTING)))
+    current_group = 'a b &:: older ; @' + SKIP + '\n'
+    yield Model('group-double-mixed-owner-current-group', ordinary + current_group, ('a',),
+                (('a:: other', SYNTHETIC), ('a:: older', SYNTHETIC), ('b:: older', ORIGINAL)),
+                (SECOND.replace('$@', 'a'),), original=(('a', EXISTING), ('b', EXISTING)),
+                not_updated=('b:: older',))
     yield Model('group-double-forced-physical', 'a b &:: input ; +@' + FORCE_GROUP + '\n',
                 ('a',), (('a:: input', FORCED), ('b:: input', FORCED)), (FORCE_GROUP,), actual=('a', 'b'))
     yield Model('group-double-question-without-start', first, ('a',),
