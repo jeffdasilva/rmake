@@ -361,6 +361,23 @@
       "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e20706f0a4d616b696e6720616c6c20696e20646f630a"
     },
     {
+      "id": "patch-2.8-parallel-fifo",
+      "project": "patch-2.8",
+      "args": [
+        "-j4",
+        "--jobserver-style=fifo",
+        "--output-sync=recurse",
+        "--no-print-directory",
+        "-s",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
+      ],
+      "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e207372630a4d616b696e6720616c6c20696e2074657374730a"
+    },
+    {
       "id": "busybox-1.37.0-executable",
       "project": "busybox-1.37.0",
       "args": [

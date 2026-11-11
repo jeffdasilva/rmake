@@ -21,7 +21,7 @@ after stripping date or PID fields. The C locale and explicit compiler/archive/
 linker flags make the selected inputs reproducible without masking make output.
 
 `make bootstrap` includes source verification/download. `make test-integration`
-executes eleven profiles across eight projects. `INTEGRATION_CASE` selects an
+executes thirteen profiles across eight projects. `INTEGRATION_CASE` selects an
 exact manifest ID.
 `check`, `ci`, optimized acceptance and a selected rmake-driven self-host flow
 include the new gate. Existing GitHub development/optimized jobs execute it and
@@ -87,6 +87,11 @@ original serial `all` target through `lib`, `src`, and `tests`. It watches
 version definition, and the fresh and rebuilt binaries must report their
 respective versions and apply a unified diff with the expected result.
 
+The same pinned archive runs with four FIFO jobserver slots and recursive
+output synchronization. The build, no-op, and header rebuild each announce
+the original `lib`, `src`, and `tests` directory visits. Each run also
+checks the watched timestamps and independently verifies the patched file.
+
 The official archive SHA-256 is
 `308a4983ff324521b9b21310bfc2398ca861798f02307c79eb99bb0e0d2bf980`.
 The detached signature was verified against release signer fingerprint
@@ -114,7 +119,7 @@ scratch `lib/zstd.h` rebuilds the executable and changes its version output.
 Both versions compress and decompress the same independent input.
 [Official Zstandard release](https://github.com/facebook/zstd/releases/tag/v1.5.7)
 
-These ten Linux/GCC profiles are counted separately from ordinary curated
+These thirteen Linux/GCC profiles are counted separately from ordinary curated
 Makefiles. Broader toolchain, project, jobserver, and output profiles remain
 part of M6. General performance parity remains unproven. Persistent caching
 and its correctness proof remain M8 work; the test harness caches only its
