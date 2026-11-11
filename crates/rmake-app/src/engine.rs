@@ -3236,9 +3236,7 @@ impl Engine {
             let remake_debug_bits = Mask::BASIC.bits() | Mask::MAKEFILES.bits();
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
-                    && self.jobserver.as_ref().is_some_and(|server| {
-                        modes.active() || !server.auth().starts_with(b"fifo:")
-                    }));
+                    && self.jobserver.is_some());
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (self.options.load_limit.is_none() && qualified_remake_debug);
             // Required makefiles settle before the ordinary mode resumes.
@@ -3343,6 +3341,7 @@ impl Engine {
                         if let Some(context) = &context {
                             self.remake_error_cursor = context.open_error.clone();
                             if self.pending(name) {
+                                self.debug_cached_prerequisite_visit(name, 1, Outcome::default());
                                 pending.push(PendingMakefileRemake {
                                     modes: visit_modes,
                                     file: makefile,
@@ -3428,6 +3427,13 @@ impl Engine {
                                     );
                                 }
                             }
+                        } else if context.is_some() {
+                            let cached = self
+                                .done
+                                .get(self.aliases.resolve(name))
+                                .copied()
+                                .unwrap_or_default();
+                            self.debug_cached_prerequisite_visit(name, 1, cached);
                         }
                         continue;
                     }
@@ -5419,6 +5425,7 @@ impl Engine {
         mut last_reaps: Option<u64>,
     ) -> bool {
         let wait_for_completed_job = last_reaps.is_none();
+        let mut incomplete_debug_pass = false;
         'passes: while requests.iter().any(|request| request.active) {
             if self.shutdown.get() != Shutdown::Running {
                 return false;
@@ -5451,7 +5458,13 @@ impl Engine {
                 return false;
             }
             last_reaps = Some(self.recipe_reaps);
-            self.advance_debug_pass();
+            if std::mem::take(&mut incomplete_debug_pass) {
+                // An optional root can end a pass before the considered set
+                // advances, even if a child finishes before the next visit.
+                self.debug_pass = self.debug_progress();
+            } else {
+                self.advance_debug_pass();
+            }
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
@@ -5520,6 +5533,7 @@ impl Engine {
                 {
                     // An updated optional root ends this pass. Remaining roots
                     // are revisited after the next child event.
+                    incomplete_debug_pass = true;
                     continue 'passes;
                 }
             }
@@ -8915,9 +8929,10 @@ impl Engine {
             }
             if !traced_optional_failure
                 && self.remaking
-                && !self.parallel_makefile_remakes
-                && self.options.keep_going
-                && parent.is_some()
+                && ((self.parallel_makefile_remakes && parent.is_none())
+                    || (!self.parallel_makefile_remakes
+                        && self.options.keep_going
+                        && parent.is_some()))
                 && self
                     .done
                     .get(target)

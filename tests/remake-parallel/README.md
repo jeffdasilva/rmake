@@ -65,8 +65,12 @@ python3 tools/remake_parallel.py --duplicate-reads --self-test
 python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmake
 ~~~
 
+Twenty-six verbose profiles check the repeated read's cached visits, including
+required failure replay and the considered state after an early optional pass.
+Both jobserver transports are covered.
+
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,394 profiles. Leading `./` spellings share one target record and
+run all 1,420 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -93,7 +97,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 164 debug profiles check the entire debug trace and the exact trace prefix
+The 190 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. Thirty named primary verbose profiles also run with FIFO. The
