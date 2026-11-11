@@ -139,6 +139,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
+    results += named_include_file_prerequisite_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -1025,8 +1026,15 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                     'stderr_template_hex': stderr.hex()}
                         model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, effects,
                                             updates=updates, mtimes_ns=times)
-                        results.append(HeldModel(model, True, second, first,
-                                                 before_second_stdout=second_out, before_first_stdout=first_out))
+                        held = HeldModel(model, True, second, first,
+                                         before_second_stdout=second_out, before_first_stdout=first_out)
+                        results.append(held)
+                        if slots == 3:
+                            source_with_primer = source.replace(b'named.gen: ;', b'named.gen: primer ;')
+                            with_primer = {**files, 'Makefile': source_with_primer, 'primer': b'base input\n'}
+                            prerequisite = replace(model, id=ident + '-prerequisite', files=with_primer,
+                                                   mtimes_ns={**times, 'primer': INPUT_TIME})
+                            results.append(replace(held, model=prerequisite))
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1110,6 +1118,70 @@ def primary_named_implicit_models(worker: bytes, markers: dict[str, bytes]) -> l
                                         updates={**generated, **updates}, mtimes_ns=times)
                     results.append(HeldModel(model, True, second, first,
                                              before_second_stdout=prefix, before_first_stdout=prefix))
+    return results
+
+
+def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    rules = (
+        'named.gen: primer ; @printf "NAMED := loaded\\n" > "$@"\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen:\n'
+        '\t@python3 worker.py right include\n'
+        '\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        'all: result\n'
+        'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(NAMED))printf "ordinary\\n" > "$@"\n'
+    )
+    command = b'printf "NAMED := loaded\\n" > "named.gen"\n'
+    summary = b"make: 'named.gen' is up to date.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    touch_named = b'touch named.gen\n'
+    missing = b"make: *** No rule to make target 'named.gen'.  Stop.\n"
+    generated = {**markers, 'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for directive in ('include', '-include'):
+            optional = directive == '-include'
+            policy = 'optional' if optional else 'required'
+            for position, order in (
+                ('first', 'named.gen left.gen right.gen'),
+                ('middle', 'left.gen named.gen right.gen'),
+                ('last', 'left.gen right.gen named.gen'),
+            ):
+                source = (header + f'{directive} {order}\n' + rules).encode()
+                files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR, 'primer': b'base input\n'}
+                for mode in 'nqt':
+                    split_pass = optional and position == 'middle' and mode != 'q'
+                    first = BEFORE_FIRST if split_pass else BEFORE_FIRST + b'tail-expanded\n'
+                    second = first + (b'left\ntail-expanded\n' if split_pass else b'left\n')
+                    completed = second + b'right\ntail\n'
+                    stderr = first_out = second_out = b''
+                    status = 0
+                    updates = generated
+                    if mode == 'n':
+                        first_out = second_out = command
+                        stdout = command + command + summary + ordinary
+                        seen = completed + b'read-1\nordinary-loaded-loaded-\n'
+                    elif mode == 'q':
+                        status = 2 if optional else 1
+                        stderr = missing if optional else b''
+                        stdout = b''
+                        seen = completed if optional else completed + b'ordinary---\n'
+                    else:
+                        first_out = touch_named
+                        second_out = touch_named + (b'touch left.gen\n' if split_pass else b'')
+                        stdout = second_out + summary + b'touch result\n'
+                        seen = completed + b'read-1\n'
+                        updates = {**generated, 'named.gen': b'', 'result': b''}
+                    args = ('-rR', '--no-print-directory', '-j3', f'--jobserver-style={transport}',
+                            '-' + mode, './named.gen', 'all')
+                    ident = f'named-include-file-prerequisite-{policy}-{position}-{mode}-{transport}'
+                    expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                'stderr_template_hex': stderr.hex()}
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                    results.append(HeldModel(model, not split_pass, second, first,
+                                             before_second_stdout=second_out, before_first_stdout=first_out))
     return results
 
 
