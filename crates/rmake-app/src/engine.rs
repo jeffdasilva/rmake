@@ -7723,7 +7723,7 @@ impl Engine {
             return Ok(());
         };
         let grouped_double = rule.grouped_double_id().is_some();
-        let mut variables = self.rule_variables(target, branch.filter(|_| !grouped_double))?;
+        let mut variables = self.rule_variables(target, branch)?;
         // GNU attributes secondary-expansion messages to the selected recipe,
         // including for prerequisite clauses read from other files.
         rule.prerequisite_location = rule.recipe_location.clone();
@@ -7748,7 +7748,7 @@ impl Engine {
                 rule.dependencies.len()
             };
             let stem = clause.stem.as_deref().or(rule.stem.as_deref());
-            if stem.is_none() && !grouped_double && !explicit_stem_prepared {
+            if stem.is_none() && !explicit_stem_prepared {
                 self.record_explicit_stem_lookup();
                 explicit_stem_prepared = true;
             }
@@ -7837,19 +7837,17 @@ impl Engine {
             let retain_shell_status = !grouped_double && branch.is_none_or(|ordinal| ordinal == 0);
             context.retain_runtime_metadata(&variables, retain_shell_status);
         }
-        if !grouped_double {
-            // The recipe can read the prepared table, and a later branch can
-            // read the head's table. Prerequisites use the target context.
-            self.retain_database_context(target, branch, &variables);
-            // Grouped rules publish their expanded dependency lists directly.
-            // Their recipe still needs to know if expansion prepared the stem.
-            self.retain_expanded_prerequisites(
-                target,
-                branch,
-                rule.group.is_none().then_some(rule.dependencies.as_slice()),
-                explicit_stem_prepared,
-            );
-        }
+        // The recipe can read the prepared table, and a later branch can
+        // read the head's table. Prerequisites use the target context.
+        self.retain_database_context(target, branch, &variables);
+        // Grouped rules publish their expanded dependency lists directly.
+        // Their recipe still needs to know if expansion prepared the stem.
+        self.retain_expanded_prerequisites(
+            target,
+            branch,
+            rule.group.is_none().then_some(rule.dependencies.as_slice()),
+            explicit_stem_prepared,
+        );
         if self.shuffle.enabled() {
             let disabled = self.special(b".NOTPARALLEL", b"", true);
             self.shuffle
@@ -9413,27 +9411,29 @@ impl Engine {
                 else {
                     break;
                 };
-                let mut peer_rule = self
+                let (mut peer_rule, peer_branch) = self
                     .database
                     .rules
                     .get(&peer)
                     .and_then(|root| {
                         if let Some(id) = state.rule.grouped_double_id() {
-                            root.double_colon.as_ref()?.iter().find(|branch| {
-                                branch.grouped_double_id() == Some(id)
-                                    && branch.grouped_double_ordinal() == ordinal
-                            })
+                            root.double_colon.as_ref()?.iter().enumerate().find_map(
+                                |(branch_index, branch)| {
+                                    (branch.grouped_double_id() == Some(id)
+                                        && branch.grouped_double_ordinal() == ordinal)
+                                        .then(|| (branch.clone(), Some(branch_index)))
+                                },
+                            )
                         } else {
-                            Some(root)
+                            Some((root.clone(), None))
                         }
                     })
-                    .cloned()
                     .unwrap_or_default();
                 let peer_parent = self.scope_parents.get(target).cloned().flatten();
                 self.scope_parents
                     .entry(peer.clone())
                     .or_insert(peer_parent);
-                if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule, None) {
+                if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule, peer_branch) {
                     self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
                     state.outcome.failed = true;
                     state.outcome.fatal = true;
