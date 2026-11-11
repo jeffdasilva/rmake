@@ -153,6 +153,7 @@ pub const DEFAULT_SUFFIXES: &[u8] = b".out .a .ln .o .c .cc .C .cpp .p .f .F .m 
 
 #[derive(Clone, Debug)]
 pub struct Recipe {
+    /// Stored command text used by the database printer.
     pub bytes: Vec<u8>,
     pub location: Location,
     /// Remember the prefix used to read this recipe; .ONESHELL needs it after
@@ -160,6 +161,19 @@ pub struct Recipe {
     pub prefix: u8,
     /// Installed declarative defaults, independent of source-name spelling.
     pub builtin: bool,
+    /// Physical inline bodies retain their source spelling for the database.
+    pub continued_inline: bool,
+}
+
+impl Recipe {
+    /// Fold make references and remove physical continuation prefixes on demand.
+    pub fn execution_bytes(&self) -> Cow<'_, [u8]> {
+        if self.continued_inline {
+            Cow::Owned(inline_recipe_continuations(&self.bytes, self.prefix))
+        } else {
+            Cow::Borrowed(&self.bytes)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -4503,6 +4517,7 @@ impl Database {
                             location,
                             prefix,
                             builtin: false,
+                            continued_inline: false,
                         },
                     );
                 }
@@ -5267,14 +5282,11 @@ impl Database {
             let recipe = source_inline
                 .map(|i| {
                     let command = &source[i + 1..];
-                    if continued_source.is_some() {
-                        inline_recipe_continuations(command, prefix)
-                    } else {
-                        command.to_vec()
-                    }
+                    let continued_inline = continued_source.is_some() && command.contains(&b'\n');
+                    (command.to_vec(), continued_inline)
                 })
-                .or_else(|| expanded_inline.map(|i| expanded_line[i + 1..].to_vec()));
-            if let Some(bytes) = recipe {
+                .or_else(|| expanded_inline.map(|i| (expanded_line[i + 1..].to_vec(), false)));
+            if let Some((bytes, continued_inline)) = recipe {
                 self.add_recipe(
                     declaration,
                     Recipe {
@@ -5282,6 +5294,7 @@ impl Database {
                         location,
                         prefix,
                         builtin: false,
+                        continued_inline,
                     },
                 );
             }

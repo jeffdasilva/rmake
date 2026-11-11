@@ -11678,13 +11678,13 @@ impl Engine {
             let Some(first) = recipes.first() else {
                 return Execution::success(false);
             };
-            let script =
-                crate::oneshell::collect(recipes.iter().map(|recipe| recipe.bytes.as_slice()));
+            let script = crate::oneshell::collect(recipes.iter().map(Recipe::execution_bytes));
             combined = [Recipe {
                 bytes: script.bytes,
                 location: first.location.clone(),
                 prefix: first.prefix,
                 builtin: first.builtin,
+                continued_inline: false,
             }];
             (combined.as_slice(), script.has_commands, script.recursive)
         } else {
@@ -11770,12 +11770,18 @@ impl Engine {
         // in one stored recipe. Keep its locations until those slots are split.
         let mut logical_locations = None;
         for (index, recipe) in recipes.iter().enumerate() {
-            let mut recipe = recipe.clone();
+            let mut recipe = Recipe {
+                bytes: recipe.execution_bytes().into_owned(),
+                location: recipe.location.clone(),
+                prefix: recipe.prefix,
+                builtin: recipe.builtin,
+                continued_inline: false,
+            };
             let line = first.location.line.saturating_add(index);
             if recipe.location.line != line
                 && *logical_locations.get_or_insert_with(|| {
                     !first.location.file.is_null()
-                        && one_logical_recipe_slot(&first.bytes)
+                        && one_logical_recipe_slot(&first.execution_bytes())
                         && recipes.iter().all(|recipe| recipe.prefix != b'\\')
                 })
             {

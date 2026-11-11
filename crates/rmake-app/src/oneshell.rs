@@ -27,13 +27,13 @@ pub struct Prefixes {
 /// Inputs are reader/parser logical recipe bodies with their initial recipe
 /// prefix already removed. Preserve empty entries and continuation newlines.
 /// The caller retains the first recipe's source location and parse-time prefix.
-pub fn collect<'a>(lines: impl IntoIterator<Item = &'a [u8]>) -> RawScript {
+pub fn collect(lines: impl IntoIterator<Item = impl AsRef<[u8]>>) -> RawScript {
     let mut bytes = Vec::new();
     for (index, line) in lines.into_iter().enumerate() {
         if index != 0 {
             bytes.push(b'\n');
         }
-        bytes.extend_from_slice(line);
+        bytes.extend_from_slice(line.as_ref());
     }
     let has_commands = bytes
         .iter()
