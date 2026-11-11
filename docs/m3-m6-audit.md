@@ -110,5 +110,6 @@ keep-going. Further grouped and live-option combinations remain open.
 
 FIFO and named output mutex publication preserve relative path bytes.
 The output gates qualify recursive directory changes and a selection of
-temporary-file creation failures. Line and target synchronization with
-reader output before a failed temporary-file creation still need coverage.
+temporary-file creation failures. Line and target synchronization also
+cover one reader stdout emission before a temporary-file creation failure
+and the post-read retry. Further reader-output combinations remain open.
