@@ -1370,7 +1370,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         name, flag = row['case'], row['flag']
         held = by_id.get(name)
         if (held is None or held.before_second is None or (name, flag) in seen
-                or flag not in ('m', 'm,v') or (flag == 'm,v' and not name.endswith('-pipe'))):
+                or flag not in ('m', 'm,v')
+                or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
         stdout = row['stdout'].encode()

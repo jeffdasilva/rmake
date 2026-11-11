@@ -3261,9 +3261,28 @@ impl Engine {
             } else {
                 None
             };
+            let verbose_mode_remakes = ordinary_mode
+                && qualified_remake_debug
+                && debug_before_remake.has(Mask::VERBOSE)
+                && self.no_remake_recipe_fallback()
+                && read_files
+                    .iter()
+                    .all(|(file, skip)| *skip || !file.optional)
+                && read_files.iter().any(|(file, skip)| {
+                    let name = rmake_core::filenames::without_dot_prefix(&file.name);
+                    !*skip
+                        && file.location.is_none()
+                        && self.is_makefile_goal(name, named_sources.as_ref())
+                        && self
+                            .database
+                            .rules
+                            .get(name)
+                            .is_some_and(|rule| !rule.dependencies.is_empty())
+                });
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
-                    || (debug_before_remake.bits() == remake_debug_bits
+                    || ((debug_before_remake.bits() == remake_debug_bits
+                        || verbose_mode_remakes)
                         && self
                             .qualified_debug_remake_sources(&read_files, named_sources.as_ref())))
                     && self.ordinary_mode_remakes_settle(&read_files, named_sources.as_ref()));
@@ -3618,7 +3637,12 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                stopped = !self.wait_makefile_remakes(&mut pending, &visited, initial_reaps);
+                let last_reaps = if verbose_mode_remakes {
+                    None
+                } else {
+                    Some(initial_reaps)
+                };
+                stopped = !self.wait_makefile_remakes(&mut pending, &visited, last_reaps);
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -5201,25 +5225,41 @@ impl Engine {
         &mut self,
         requests: &mut [PendingMakefileRemake<'_>],
         visited: &MakefileVisits<'_>,
-        mut last_reaps: u64,
+        mut last_reaps: Option<u64>,
     ) -> bool {
+        let wait_for_completed_job = last_reaps.is_none();
         'passes: while requests.iter().any(|request| request.active) {
             if self.shutdown.get() != Shutdown::Running {
                 return false;
             }
             // Reap against the previous pass's cursor. A pass with no newly
             // completed commands waits before changing which root is current.
+            let previous_jobs = self.parallel_jobs.len();
+            let wait = Some(self.recipe_reaps) == last_reaps;
             self.poll_jobs();
-            if self.recipe_reaps == last_reaps
+            if wait
+                && (if wait_for_completed_job {
+                    self.parallel_jobs.len() >= previous_jobs
+                } else {
+                    Some(self.recipe_reaps) == last_reaps
+                })
                 && self.parallel_jobs.values().any(|job| !job.waiting_load)
             {
                 self.reap_job();
+                while wait_for_completed_job
+                    && self.parallel_jobs.len() >= previous_jobs
+                    && self.shutdown.get() == Shutdown::Running
+                    && self.graph_abort.is_none()
+                    && !self.forced_query_stop
+                {
+                    self.reap_job();
+                }
                 self.poll_jobs();
             }
             if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
             }
-            last_reaps = self.recipe_reaps;
+            last_reaps = Some(self.recipe_reaps);
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
@@ -5257,7 +5297,15 @@ impl Engine {
                     .copied()
                     .unwrap_or(request.initial);
                 if !needs_visit {
-                    self.debug_cached_prerequisite_visit(name, 1, outcome);
+                    if wait_for_completed_job && outcome.question_outdated && !request.active {
+                        self.debug_consider(name, name, 1);
+                        crate::debug::emit(
+                            &self.output,
+                            crate::debug::Event::RecentlyFailed(name, 1),
+                        );
+                    } else {
+                        self.debug_cached_prerequisite_visit(name, 1, outcome);
+                    }
                 }
                 if !request.active
                     && request.file.optional
@@ -8782,6 +8830,22 @@ impl Engine {
                     {
                         self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
                     } else {
+                        let mask = self.output.debug_mask();
+                        if depth == 0
+                            && !self.remaking
+                            && !outcome.failed
+                            && mask.has(crate::debug::Mask::MAKEFILES)
+                            && mask.has(crate::debug::Mask::VERBOSE)
+                            && MakefileModes::from_options(&self.options).active()
+                            && self.no_remake_recipe_fallback()
+                            && self.makefile_names.contains(target)
+                            && self.is_makefile_goal(target, None)
+                        {
+                            crate::debug::emit(
+                                &self.output,
+                                crate::debug::Event::Considering(considering_name, debug_depth),
+                            );
+                        }
                         crate::debug::emit(
                             &self.output,
                             crate::debug::Event::Already(target, debug_depth),
