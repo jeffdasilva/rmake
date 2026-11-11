@@ -1572,9 +1572,17 @@ def primary_named_wait_models(worker: bytes, markers: dict[str, bytes]) -> list[
         ('shared-left-file', b'left.gen .WAIT primer', True, b'left.gen primer', True),
         ('shared-file-right', b'older .WAIT right.gen', True, b'older right.gen', True),
     )
+    def record_secondary(seen: bytes, point: bytes) -> bytes:
+        return seen.replace(point, point + b'secondary-Makefile-\n', 1).replace(
+            b'read-1\n', b'read-1\nsecondary-Makefile-1\n', 1)
+
     results = []
     for name, prerequisites, later, normal, shared in shapes:
         source = header + (b'' if later else include) + b'Makefile: ' + prerequisites + recipe + rules
+        deferred_clause = (b'.SECONDEXPANSION:\n'
+                           b'Makefile: $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS))\n')
+        secondary_source = source.replace(b'Makefile: ', deferred_clause + b'Makefile: ', 1)
+        expansion_point = first if later else BEFORE_FIRST
         files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
                  'older': b'older\n', 'primer': b'primer\n'}
         if later:
@@ -1621,8 +1629,15 @@ def primary_named_wait_models(worker: bytes, markers: dict[str, bytes]) -> list[
                                 'stderr_template_hex': stderr.hex()}
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates=updates, mtimes_ns=times)
-                    results.append(HeldModel(model, True, second, first,
-                                             before_second_stdout=second_out, before_first_stdout=first_out))
+                    held = HeldModel(model, True, second, first,
+                                     before_second_stdout=second_out, before_first_stdout=first_out)
+                    results.append(held)
+                    secondary = replace(model, id=ident + '-secondary',
+                                        files={**files, 'Makefile': secondary_source},
+                                        seen=record_secondary(seen, expansion_point))
+                    results.append(replace(held, model=secondary,
+                                           before_first=record_secondary(first, expansion_point),
+                                           before_second=record_secondary(second, expansion_point)))
     return results
 
 

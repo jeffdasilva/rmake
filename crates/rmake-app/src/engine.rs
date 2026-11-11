@@ -4436,7 +4436,6 @@ impl Engine {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
                                     || (primary
-                                        && rule.secondary.is_none()
                                         && rule.group.is_none()
                                         && !dep.hidden
                                         && dep.name == b".WAIT")
