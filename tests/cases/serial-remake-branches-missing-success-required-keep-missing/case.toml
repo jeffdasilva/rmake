@@ -1,0 +1,11 @@
+id = "serial-remake-branches-missing-success-required-keep-missing"
+requirement = "includes.serial-double-colon-failures"
+candidate = "required"
+provenance = "Original serial double-colon source failure fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nCREATE2\nREAD:1\nALL:tail\n"
+stderr = "Makefile:2: inc.mk: No such file or directory\nmake: *** No rule to make target 'missing', needed by 'inc.mk'.\nMakefile:2: Failed to remake makefile 'inc.mk'.\n"

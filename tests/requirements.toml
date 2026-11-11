@@ -2481,3 +2481,51 @@ cases = [
   "debug-remake-double-colon-missing-stub-basic",
   "debug-remake-double-colon-missing-optional-stub-verbose",
 ]
+
+[[requirements]]
+id = "includes.serial-double-colon-failures"
+title = "Serial double-colon makefile failure ownership and restart recovery"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 37
+fixture_count = 37
+cases = [
+  "serial-remake-branches-bad-bad-optional-keep-present",
+  "serial-remake-branches-bad-success-optional-keep-missing",
+  "serial-remake-branches-bad-success-optional-stop-missing",
+  "serial-remake-branches-bad-success-optional-stop-present",
+  "serial-remake-branches-bad-success-required-keep-missing",
+  "serial-remake-branches-bad-success-required-keep-present",
+  "serial-remake-branches-bad-success-required-stop-missing",
+  "serial-remake-branches-bad2-bad-optional-keep-present",
+  "serial-remake-branches-debug-m-bad-success-required-keep-missing",
+  "serial-remake-branches-debug-m-bad-success-required-keep-present",
+  "serial-remake-branches-debug-mv-success-bad-required-keep-missing",
+  "serial-remake-branches-debug-mv-success-bad-required-keep-present",
+  "serial-remake-branches-dependent-bad-success-optional-keep-missing",
+  "serial-remake-branches-dependent-nothing-bad-optional-keep-missing",
+  "serial-remake-branches-dependent-nothing-bad-optional-keep-present",
+  "serial-remake-branches-duplicate-bad-success-optional-keep-missing",
+  "serial-remake-branches-duplicate-bad-success-optional-keep-present",
+  "serial-remake-branches-duplicate-writefail-success-optional-keep-missing",
+  "serial-remake-branches-missing-success-optional-keep-present",
+  "serial-remake-branches-missing-success-required-keep-missing",
+  "serial-remake-branches-nothing-bad-required-keep-present",
+  "serial-remake-branches-success-bad-optional-keep-missing",
+  "serial-remake-branches-success-bad-optional-keep-present",
+  "serial-remake-branches-success-bad-optional-stop-missing",
+  "serial-remake-branches-success-bad-optional-stop-present",
+  "serial-remake-branches-success-bad-required-keep-missing",
+  "serial-remake-branches-success-bad-required-keep-present",
+  "serial-remake-branches-success-bad-required-stop-present",
+  "serial-remake-branches-success-missing-optional-keep-missing",
+  "serial-remake-branches-success-missing-required-keep-present",
+  "serial-remake-branches-success-writefail-optional-keep-missing",
+  "serial-remake-branches-success-writefail-required-keep-present",
+  "serial-remake-branches-three-bad-bad-optional-keep-present",
+  "serial-remake-branches-three-bad-success-optional-keep-missing",
+  "serial-remake-branches-three-writefail-success-optional-keep-present",
+  "serial-remake-branches-writefail-success-optional-keep-missing",
+  "serial-remake-branches-writefail-success-optional-stop-present",
+]

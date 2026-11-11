@@ -1,0 +1,11 @@
+id = "serial-remake-branches-dependent-nothing-bad-optional-keep-missing"
+requirement = "includes.serial-double-colon-failures"
+candidate = "required"
+provenance = "Original serial double-colon source failure fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nNOTHING\nBAD\n"
+stderr = "make: *** [Makefile:12: bad] Error 3\nmake: Target 'all' not remade because of errors.\n"
