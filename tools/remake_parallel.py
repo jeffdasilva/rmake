@@ -1077,9 +1077,9 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             prerequisite = replace(model, id=ident + '-prerequisite', files=with_primer,
                                                    mtimes_ns={**times, 'primer': INPUT_TIME})
                             results.append(replace(held, model=prerequisite))
-                        if directive == 'include' and position == 'last':
-                            duplicate_source = source.replace(b'include left.gen right.gen named.gen\n',
-                                                              b'include left.gen right.gen named.gen ./named.gen\n', 1)
+                        if position == 'last':
+                            duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
+                                                              f'{directive} {order} ./named.gen\n'.encode(), 1)
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
                             results.append(replace(held, model=duplicate))
@@ -1230,20 +1230,28 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, not split_pass, second, first,
                                              before_second_stdout=second_out, before_first_stdout=first_out))
-                    if not optional:
-                        duplicate_source = source.replace(f'include {order}\n'.encode(),
-                                                          f'include {order} ./named.gen\n'.encode(), 1)
-                        duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
-                        duplicate_files = {'Makefile': duplicate_source, 'worker.py': worker, 'seen': ANCHOR}
-                        for slots in (2, 3):
-                            duplicate_args = (*args[:2], f'-j{slots}', *args[3:])
-                            duplicate = replace(model, args=duplicate_args, files=duplicate_files,
-                                                id=f'duplicate-named-include-{position}-{mode}-{transport}-{slots}-slots',
-                                                mtimes_ns=dict.fromkeys(duplicate_files, INPUT_TIME))
-                            waits_for_slot = mode == 'n' and position == 'last' and slots == 2
-                            results.append(HeldModel(duplicate, True, second, first,
-                                                     before_second_stdout=second_out,
-                                                     before_first_stdout=b'' if waits_for_slot else first_out))
+                    duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
+                                                      f'{directive} {order} ./named.gen\n'.encode(), 1)
+                    duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
+                    duplicate_files = {'Makefile': duplicate_source, 'worker.py': worker, 'seen': ANCHOR}
+                    touches_earlier = optional and position == 'last' and mode == 't'
+                    duplicate_second = second_out + b'touch left.gen\n' if touches_earlier else second_out
+                    duplicate_expected = expected
+                    if touches_earlier:
+                        duplicate_stdout = duplicate_second + stdout[len(second_out):]
+                        duplicate_expected = {**expected, 'stdout_template_hex': duplicate_stdout.hex()}
+                    for slots in (2, 3):
+                        duplicate_args = (*args[:2], f'-j{slots}', *args[3:])
+                        duplicate_ident = f'duplicate-named-include-{position}-{mode}-{transport}-{slots}-slots'
+                        if optional:
+                            duplicate_ident += '-optional'
+                        duplicate = replace(model, args=duplicate_args, files=duplicate_files,
+                                            id=duplicate_ident, expected=duplicate_expected,
+                                            mtimes_ns=dict.fromkeys(duplicate_files, INPUT_TIME))
+                        waits_for_slot = mode == 'n' and position == 'last' and slots == 2
+                        results.append(HeldModel(duplicate, not split_pass, second, first,
+                                                 before_second_stdout=duplicate_second,
+                                                 before_first_stdout=b'' if waits_for_slot else first_out))
     return results
 
 
