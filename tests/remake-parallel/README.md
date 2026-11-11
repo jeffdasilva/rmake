@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,884 profiles. Leading `./` spellings share one target record and
+run all 1,920 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -80,7 +80,8 @@ The overlap checks detected all twenty.
 
 ## Load limits
 
-The development and release gates include twenty-eight held load profiles.
+The development and release gates include 82 held load profiles in addition
+to the debug variants.
 For a standalone run, add `--include-load` to compile the tracked shim
 with `cc` in the harness temporary directory. Use `--load-shim PATH` to
 reuse a compatible shim, such as the one built by `make test-load`.
@@ -97,7 +98,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 304 debug profiles check the entire debug trace and the exact trace prefix
+The 322 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. Ninety traces authenticate the FIFO controller path against the
@@ -126,7 +127,7 @@ is checked under dry-run, question and touch with both transports.
 
 The standard developer gates include these profiles. The selector runs
 the debug profiles that do not require the load shim. Add `--include-load`
-to include 28 basic makefile traces with controlled load and held workers.
+to include 46 basic makefile traces with controlled load and held workers.
 The named primary traces cover existing prerequisites, built-in prerequisite
 recipes, and a forced primary recipe while an earlier include is running.
 Pipe profiles also check verbose reconsideration after a recipe with several
@@ -281,6 +282,11 @@ until dry-run, question, or touch takes effect. Keep-going launches that
 worker during the remake. Low-load controls compare an already running
 sibling. A goal with only secondary-expansion effects checks its own
 question result after the queued optional worker is considered.
+
+Eighteen direct-include profiles also check each build mode at high and low
+load and through a controlled load drop while waiting for a job token. The
+same eighteen makefiles run with basic remake debugging to compare the
+complete trace and its worker release prefixes.
 
 The 48 grouped optional profiles verify direct grouped recipes with
 dry-run, question, and touch. They cover missing and present peers,

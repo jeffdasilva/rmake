@@ -11084,3 +11084,621 @@ Must remake target 'left'.
 Must remake target 'all'.
 right
 '''
+
+[[profiles]]
+case = "load-queued-success-pipe-n"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -n --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+:
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-queued-success-pipe-q"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -q --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-queued-success-pipe-t"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -t --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+'''
+
+[[profiles]]
+case = "load-low-success-pipe-n"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -n --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+:
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-low-success-pipe-q"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -q --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-low-success-pipe-t"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -t --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+'''
+
+[[profiles]]
+case = "load-dynamic-token-wait-pipe-n"
+flag = "m"
+requires_load = true
+release_prefixes = [544, 544]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'tail.gen' does not exist.
+ Must remake target 'tail.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -n --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+:
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-dynamic-token-wait-pipe-q"
+flag = "m"
+requires_load = true
+release_prefixes = [544, 544]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'tail.gen' does not exist.
+ Must remake target 'tail.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -q --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-dynamic-token-wait-pipe-t"
+flag = "m"
+requires_load = true
+release_prefixes = [544, 544]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'tail.gen' does not exist.
+ Must remake target 'tail.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=pipe -t --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+'''
+
+[[profiles]]
+case = "load-queued-success-fifo-n"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -n --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+:
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-queued-success-fifo-q"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -q --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-queued-success-fifo-t"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -t --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+'''
+
+[[profiles]]
+case = "load-low-success-fifo-n"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -n --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+:
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-low-success-fifo-q"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -q --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-low-success-fifo-t"
+flag = "m"
+requires_load = true
+release_prefixes = [478, 478]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -t --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+'''
+
+[[profiles]]
+case = "load-dynamic-token-wait-fifo-n"
+flag = "m"
+requires_load = true
+release_prefixes = [544, 544]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'tail.gen' does not exist.
+ Must remake target 'tail.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -n --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+:
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-dynamic-token-wait-fifo-q"
+flag = "m"
+requires_load = true
+release_prefixes = [544, 544]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'tail.gen' does not exist.
+ Must remake target 'tail.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -q --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-dynamic-token-wait-fifo-t"
+flag = "m"
+requires_load = true
+release_prefixes = [544, 544]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'tail.gen' does not exist.
+ Must remake target 'tail.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 -l2 --jobserver-style=fifo -t --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+make: Nothing to be done for 'all'.
+'''
