@@ -177,7 +177,7 @@ impl Recipe {
         self.source != RecipeSource::Ordinary
     }
 
-    /// Prepare existing one-shell inputs before collecting their script.
+    /// Prepare a logical command for runtime source-slot accounting.
     pub fn execution_bytes(&self) -> Cow<'_, [u8]> {
         match self.source {
             RecipeSource::Ordinary => Cow::Borrowed(&self.bytes),

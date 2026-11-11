@@ -69,11 +69,14 @@ pub fn prefixes(mut input: &[u8]) -> (&[u8], Prefixes) {
     }
 }
 
-/// Transform an expanded body after `prefixes` has removed first-line make
-/// modifiers. The prefix belongs to the recipe when parsed, not the final value
-/// of .RECIPEPREFIX. Call before echo, including dry-run; do not call twice.
-pub fn transform(command: &[u8], shell: &[u8], recipe_prefix: u8) -> Vec<u8> {
-    internal_prefixes(command, recipe_prefix, bourne_compatible(shell))
+/// Remove interior make modifiers for a Bourne shell after the recipe
+/// prefixes and first-line modifiers have been consumed.
+pub fn transform<'a>(command: &'a [u8], shell: &[u8]) -> Cow<'a, [u8]> {
+    if bourne_compatible(shell) {
+        Cow::Owned(internal_modifiers(command))
+    } else {
+        Cow::Borrowed(command)
+    }
 }
 
 /// Only the slow shell-function constructor removes Bourne line modifiers.
@@ -86,7 +89,7 @@ pub(crate) fn shell_function_body<'a>(command: &'a [u8], shell: &[u8]) -> Cow<'a
         .windows(2)
         .any(|pair| pair[0] == b'\n' && blank_or_modifier(pair[1]))
     {
-        Cow::Owned(internal_prefixes(command, b'\t', true))
+        Cow::Owned(internal_modifiers(command))
     } else {
         Cow::Borrowed(command)
     }
@@ -130,7 +133,7 @@ pub fn prepare_script(
                 // preparation. Make modifiers on that body are consumed too.
                 // This affects argv bytes even though no interpreter runs here.
                 if let Some(body) = args.last_mut() {
-                    *body = transform(prefixes(body).0, b"/bin/sh", b'\t');
+                    *body = transform(prefixes(body).0, b"/bin/sh").into_owned();
                 }
                 (program, args)
             }
@@ -265,7 +268,7 @@ fn blank_or_modifier(byte: u8) -> bool {
     matches!(byte, b' ' | b'\t' | b'@' | b'-' | b'+')
 }
 
-fn internal_prefixes(command: &[u8], recipe_prefix: u8, bourne: bool) -> Vec<u8> {
+fn internal_modifiers(command: &[u8]) -> Vec<u8> {
     let mut output = Vec::with_capacity(command.len());
     let mut index = 0;
     let mut backslashes = 0;
@@ -273,16 +276,11 @@ fn internal_prefixes(command: &[u8], recipe_prefix: u8, bourne: bool) -> Vec<u8>
         output.push(byte);
         index += 1;
         if byte == b'\n' && backslashes % 2 == 0 {
-            if command.get(index) == Some(&recipe_prefix) {
+            while command
+                .get(index)
+                .is_some_and(|&byte| blank_or_modifier(byte))
+            {
                 index += 1;
-            }
-            if bourne {
-                while command
-                    .get(index)
-                    .is_some_and(|&byte| blank_or_modifier(byte))
-                {
-                    index += 1;
-                }
             }
         }
         backslashes = if byte == b'\\' { backslashes + 1 } else { 0 };
@@ -341,7 +339,9 @@ mod tests {
     }
 
     fn shell(command: &[u8], executable: &[u8], prefix: u8) -> Prepared {
-        let echo = transform(command, executable, prefix);
+        let mut command = command.to_vec();
+        rmake_core::reader::strip_recipe_continuation_prefix(&mut command, prefix);
+        let echo = transform(&command, executable).into_owned();
         let invocation = prepare(&echo, executable, b"-c", None);
         Prepared { echo, invocation }
     }
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn empty_shell_keeps_internal_modifiers_and_remains_the_executable() {
         let command = b"first\n\t@second\n-+third";
-        let transformed = transform(command, b"", b'\t');
+        let transformed = shell(command, b"", b'\t').echo;
         assert_eq!(transformed, b"first\n@second\n-+third");
         for flags in [b"".as_slice(), b"-c", b"./wrapper"] {
             let mut args = Vec::new();
@@ -516,7 +516,7 @@ mod tests {
             let mut expected = b"first ".to_vec();
             expected.extend(std::iter::repeat_n(b'\\', count));
             expected.extend_from_slice(if count % 2 == 1 {
-                b"\n\t@second"
+                b"\n@second"
             } else {
                 b"\nsecond"
             });
@@ -528,7 +528,7 @@ mod tests {
     #[test]
     fn continuation_keeps_additional_prefix_for_custom_shell_too() {
         assert_eq!(
-            shell(b"first \\\n>@second\n>@third", b"./other", b'>').echo,
+            shell(b"first \\\n>>@second\n>@third", b"./other", b'>').echo,
             b"first \\\n>@second\n@third"
         );
     }

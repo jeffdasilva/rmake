@@ -11445,7 +11445,7 @@ impl Engine {
             let Some(first) = recipes.first() else {
                 return Execution::success(false);
             };
-            let script = crate::oneshell::collect(recipes.iter().map(Recipe::execution_bytes));
+            let script = crate::oneshell::collect(recipes.iter().map(Recipe::expansion_source));
             combined = [Recipe {
                 bytes: script.bytes,
                 location: first.location.clone(),
@@ -11557,10 +11557,9 @@ impl Engine {
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
                 Ok(mut bytes) => {
                     // A single source line can also gain recipe prefixes
-                    // during expansion. One-shell scripts handle them in
-                    // script preparation.
+                    // during expansion.
                     if source.has_physical_continuation()
-                        || (!one_shell && bytes.contains(&b'\n') && !source.bytes.contains(&b'\n'))
+                        || (bytes.contains(&b'\n') && (one_shell || !source.bytes.contains(&b'\n')))
                     {
                         rmake_core::reader::strip_recipe_continuation_prefix(
                             &mut bytes,
@@ -11941,7 +11940,7 @@ impl Engine {
             let transformed;
             let ordinary_invocation;
             if one_shell {
-                transformed = crate::oneshell::transform(command, shell, recipe.prefix);
+                transformed = crate::oneshell::transform(command, shell);
                 command = &transformed;
                 ordinary_invocation = None;
             } else {
