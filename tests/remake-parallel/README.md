@@ -123,6 +123,9 @@ writes and restarts. A line-synchronized control checks the held stdout bytes.
 Forced named include profiles cover three read positions for required and
 optional sources. A forced command exiting one under `-q` drains the earlier
 workers and ends the remake pass without expanding the ordinary goal.
+Primary makefile cases with built-ins enabled hold both workers while a C
+prerequisite or user pattern rule is simulated or touched. They also cover
+an existing primary with no applicable rule and one found by implicit search.
 
 Default goals and simple explicit goals can run required makefile remakes
 in parallel under `-n`, `-q`, and `-t`. The explicit controls cover leading

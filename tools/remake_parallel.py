@@ -138,6 +138,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_named_mode_models(worker, markers)
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
+    results += primary_named_implicit_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -1037,6 +1038,78 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                 completed, updates={**markers, 'left.gen': b'LEFT := loaded\n'},
                                 mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, True, second, first, before_second_stdout=b''))
+    return results
+
+
+def primary_named_implicit_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = (
+        b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+        b'include left.gen right.gen\n'
+    )
+    rules = (
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    primary = b'Makefile: primer ; @printf "# remade\\n" >> "$@"\n'
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\ntail\n'
+    restarted = completed + b'read-1\n'
+    loaded = restarted + b'ordinary-loaded-loaded\n'
+    current = b"make: 'Makefile' is up to date.\n"
+    no_rule = b"make: Nothing to be done for 'Makefile'.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    append = b'printf "# remade\\n" >> "Makefile"\n'
+    touch = b'touch Makefile\n'
+    primer = {'primer': b'primer\n'}
+    cases = (
+        ('leaf', primary, primer, append, touch, (False, True)),
+        ('builtin-prerequisite', primary, {**primer, 'primer.c': b'int main(void) { return 0; }\n'},
+         b'cc     primer.c   -o primer\n' + append, b'touch primer\n' + touch, (False, True)),
+        ('pattern-prerequisite', b'%mer: %mer.source ; @cp "$<" "$@"\n' + primary,
+         {**primer, 'primer.source': b'rebuilt\n'}, b'cp "primer.source" "primer"\n' + append,
+         b'touch primer\n' + touch, (False, True)),
+        ('unruled', b'', {}, b'', b'', (False,)),
+        ('implicit-primary', b'%akefile: %.template ; @cp "$<" "$@"\n',
+         {'M.template': b'# newer template\n'}, b'cp "M.template" "Makefile"\n', touch, (False,)),
+    )
+    generated = {**markers, 'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, primary_rule, extra, dry_command, touch_command, ages in cases:
+            files = {'Makefile': header + primary_rule + rules, 'worker.py': worker, 'seen': ANCHOR,
+                     **extra}
+            summary = no_rule if name == 'unruled' else current
+            for stale_primer in ages:
+                times = dict.fromkeys(files, INPUT_TIME)
+                if 'primer' in files:
+                    times['primer'] += 2_000_000_000 if stale_primer else -2_000_000_000
+                implicit_inputs = extra.keys() - {'primer'}
+                for filename in implicit_inputs:
+                    times[filename] += 3_000_000_000
+                stale = stale_primer or bool(implicit_inputs)
+                dry_prefix = dry_command if stale else b''
+                touch_prefix = touch_command if stale else b''
+                modes = (
+                    ('n', 0, dry_prefix, dry_prefix + summary + ordinary, loaded, {}),
+                    ('q', 1, b'', b'', completed + b'ordinary--\n' if stale else loaded, {}),
+                    ('t', 0, touch_prefix, summary + b'touch result\n', restarted, {'result': b''}),
+                )
+                for mode, status, prefix, suffix, seen, updates in modes:
+                    args = ('--no-print-directory', '-j3', f'--jobserver-style={transport}',
+                            '-' + mode, '-f', './Makefile', './Makefile', 'all')
+                    age = 'newer-primer' if stale_primer else 'older-or-absent-primer'
+                    ident = f'primary-named-implicit-{name}-{age}-{mode}-{transport}'
+                    expected = {'exit_code': status, 'stdout_template_hex': (prefix + suffix).hex(),
+                                'stderr_template_hex': ''}
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates={**generated, **updates}, mtimes_ns=times)
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=prefix, before_first_stdout=prefix))
     return results
 
 
