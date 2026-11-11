@@ -66,6 +66,7 @@ class HeldModel:
     before_primary: bytes | None = None
     before_primary_stdout: bytes = b''
     fifo_controller: bool = False
+    second_stdout_barrier: bytes | None = None
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -2143,6 +2144,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
         fifo = row.get('fifo', False)
+        fifo_second_barrier = row.get('fifo_second_stdout_barrier')
         requires_load = row.get('requires_load', False)
         if requires_load is True and not has_load_profiles:
             continue
@@ -2151,6 +2153,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (held.load is not None) != requires_load
                 or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
                 or (fifo and flag != 'm,v')
+                or (fifo_second_barrier is not None and not fifo)
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
@@ -2178,6 +2181,11 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
             if '-pipe' not in name or b'Using jobserver controller 3,4\n' not in stdout[:first]:
                 raise h.HarnessError('FIFO debug model requires a pipe controller trace')
             fifo_stdout = stdout.replace(b'--jobserver-style=pipe', b'--jobserver-style=fifo')
+            if fifo_second_barrier is not None:
+                if (not isinstance(fifo_second_barrier, str) or not fifo_second_barrier
+                        or second is None or not fifo_stdout[:second].endswith(fifo_second_barrier.encode())):
+                    raise h.HarnessError('invalid FIFO second release trace barrier')
+                fifo_second_barrier = fifo_second_barrier.encode()
             fifo_args = tuple('--jobserver-style=fifo' if arg == '--jobserver-style=pipe' else arg
                               for arg in args)
             fifo_model = replace(model, id=model.id.replace('-pipe', '-fifo'), args=fifo_args,
@@ -2185,7 +2193,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
             selected.append(replace(held, model=fifo_model, fifo_controller=True,
                                     before_first_stdout=fifo_stdout[:first],
                                     before_second_stdout=fifo_stdout[:second] if second is not None else None,
-                                    before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b''))
+                                    before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b'',
+                                    second_stdout_barrier=fifo_second_barrier))
     return selected
 
 
@@ -2237,7 +2246,8 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             wait_samples: set[tuple[str, int | None]] | None = None, *,
             load: LoadProfile | None = None, load_shim: Path | None = None,
             wait_stdout: Callable[[Path, bytes], bytes] | None = None,
-            release_order: tuple[str, str] = WORKERS, hold_primary: bool = False):
+            release_order: tuple[str, str] = WORKERS, hold_primary: bool = False,
+            second_stdout_barrier: bytes | None = None):
     if sorted(release_order) != list(WORKERS):
         raise h.HarnessError('held release order must name both workers')
     order = ('primary', *release_order) if hold_primary else release_order
@@ -2260,6 +2270,9 @@ def execute(case: h.Case, runtime: Path, binary: Path,
         if phase == len(order):
             return
         if hold_primary and not stdout.endswith(PRIMARY_BARRIERS[phase]):
+            return
+        if (second_stdout_barrier is not None and phase == len(order) - 1
+                and not stdout.endswith(second_stdout_barrier)):
             return
         proc = Path('/proc', str(parent))
         try:
@@ -2440,7 +2453,8 @@ def main() -> int:
                 samples = [set() for _ in executables]
                 observations, releases = zip(*(
                     execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
-                            release_order=held.release_order, hold_primary=held.before_primary is not None)
+                            release_order=held.release_order, hold_primary=held.before_primary is not None,
+                            second_stdout_barrier=held.second_stdout_barrier)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
                 raw_observations, raw_releases = observations, releases

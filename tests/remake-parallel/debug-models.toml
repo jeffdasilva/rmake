@@ -947,6 +947,11 @@ right
 case = "required-keep-pipe"
 flag = "m,v"
 fifo = true
+fifo_second_stdout_barrier = '''
+   Still updating file 'right'.
+  The prerequisites of 'joined' are being made.
+ The prerequisites of 'generated.gen' are being made.
+'''
 release_prefixes = [1216, 1628]
 stdout = '''
 GNU Make 4.4.1

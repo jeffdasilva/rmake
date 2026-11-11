@@ -130,6 +130,8 @@ the debug profiles that do not require the load shim. Add `--include-load`
 to include 82 basic and 28 verbose makefile traces with controlled load
 and held workers. The normal verbose cases use unique read sources and
 explicit leaf recipes. FIFO cases verify the live controller path.
+The required keep-going FIFO case waits for the cached right prerequisite
+trace before releasing the second worker.
 The named primary traces cover existing prerequisites, built-in prerequisite
 recipes, and a forced primary recipe while an earlier include is running.
 Pipe profiles also check verbose reconsideration after a recipe with several
