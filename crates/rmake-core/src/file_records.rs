@@ -37,8 +37,12 @@ impl FileRecords {
     }
 
     fn position(&self, name: &[u8]) -> (usize, bool) {
+        self.position_hashed(name, fingerprint(name))
+    }
+
+    fn position_hashed(&self, name: &[u8], fingerprint: u32) -> (usize, bool) {
         let mask = self.slots.len() - 1;
-        let mut position = fingerprint(name) as usize & mask;
+        let mut position = fingerprint as usize & mask;
         let mut deleted = None;
         loop {
             match self.slots[position].as_deref() {
@@ -63,11 +67,16 @@ impl FileRecords {
         if name.is_empty() {
             return;
         }
+        let fingerprint = fingerprint(name);
         if let Some(history) = &self.database_history {
-            history.record_file_lookup(name);
+            history.record_file_lookup_hashed(name, fingerprint);
         }
-        if !self.contains(name) {
-            self.insert(name);
+        let (position, found) = self.position_hashed(name, fingerprint);
+        if !found {
+            if let Some(history) = &self.database_history {
+                history.record_file_enter_hashed(name, fingerprint);
+            }
+            self.insert_at(name, position);
         }
     }
 
@@ -89,13 +98,17 @@ impl FileRecords {
         if name.is_empty() {
             return;
         }
+        let fingerprint = fingerprint(name);
         if let Some(history) = &self.database_history {
-            history.record_file_enter(name);
+            history.record_file_enter_hashed(name, fingerprint);
         }
-        let (position, found) = self.position(name);
-        if found {
-            return;
+        let (position, found) = self.position_hashed(name, fingerprint);
+        if !found {
+            self.insert_at(name, position);
         }
+    }
+
+    fn insert_at(&mut self, name: &[u8], position: usize) {
         if self.slots[position].is_none() {
             self.empty -= 1;
         }
