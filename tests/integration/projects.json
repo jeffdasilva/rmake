@@ -361,6 +361,22 @@
       "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e20706f0a4d616b696e6720616c6c20696e20646f630a"
     },
     {
+      "id": "lua-5.4.9-parallel-fifo",
+      "project": "lua-5.4.9",
+      "args": [
+        "-j4",
+        "--jobserver-style=fifo",
+        "--output-sync=recurse",
+        "--no-print-directory",
+        "-s",
+        "CC=/usr/bin/cc -std=gnu99",
+        "MYCFLAGS=-O1 -g0",
+        "MYLDFLAGS=-Wl,--build-id=none",
+        "AR=ar rcsD"
+      ],
+      "expected_build_stdout_hex": ""
+    },
+    {
       "id": "busybox-1.37.0-executable",
       "project": "busybox-1.37.0",
       "args": [
