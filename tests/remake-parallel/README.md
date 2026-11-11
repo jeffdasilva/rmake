@@ -65,7 +65,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 651 profiles. Leading `./` spellings share one target record and still appear
+run all 723 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -90,6 +90,10 @@ workers and ends the remake pass without expanding the ordinary goal.
 Primary makefile cases with built-ins enabled hold both workers while a C
 prerequisite or user pattern rule is simulated or touched. They also cover
 an existing primary with no applicable rule and one found by implicit search.
+Named includes with an existing file prerequisite cover forced and simulated
+recipes. An optional named include between two workers can finish a dry-run
+or touch pass before the second worker starts. The held cases verify both
+the completed worker's mode and the subsequent restart.
 
 ## Load limits
 

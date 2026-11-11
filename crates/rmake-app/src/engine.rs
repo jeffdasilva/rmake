@@ -3242,6 +3242,7 @@ impl Engine {
             let mut stopped = false;
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
+            let mut pass_reaps = initial_reaps;
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3253,7 +3254,7 @@ impl Engine {
                 .filter(|(file, _)| !file.optional)
                 .map(|(file, _)| file.name.as_slice())
                 .collect();
-            for (makefile, skip) in &read_files {
+            for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
                 self.database_remake_started.insert(makefile.name.clone());
                 if *skip {
                     if !makefile.optional
@@ -3461,11 +3462,41 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    if visit_modes.check_update(result) {
-                        changed |= self.modified(&makefile.name) != before;
+                    let physically_changed =
+                        visit_modes.check_update(result) && self.modified(&makefile.name) != before;
+                    changed |= physically_changed;
+                    let simulated_change =
+                        visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
+                    if self.parallel_makefile_remakes
+                        && optional
+                        && visit_modes.active()
+                        && !result.question_outdated
+                        && (physically_changed || simulated_change)
+                        && !pending.is_empty()
+                        && read_files[source_index + 1..]
+                            .iter()
+                            .any(|(_, skip)| !*skip)
+                    {
+                        // An immediate optional update ends this visit pass.
+                        // A previous worker can complete under the named mode
+                        // before the next unvisited source starts.
+                        self.poll_jobs();
+                        if self.recipe_reaps == pass_reaps && !self.parallel_jobs.is_empty() {
+                            let previous_jobs = self.parallel_jobs.len();
+                            while self.parallel_jobs.len() >= previous_jobs
+                                && self.shutdown.get() == Shutdown::Running
+                                && self.graph_abort.is_none()
+                            {
+                                self.reap_job();
+                            }
+                            self.poll_jobs();
+                        }
+                        pass_reaps = self.recipe_reaps;
+                        self.advance_debug_pass();
                     }
                 }
-                if result.fatal
+                if self.forced_query_stop
+                    || result.fatal
                     || (result.failed
                         && !optional
                         && !self.options.keep_going
@@ -3489,7 +3520,7 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                stopped = !self.wait_makefile_remakes(&mut pending, &visited, initial_reaps);
+                stopped = !self.wait_makefile_remakes(&mut pending, &visited, pass_reaps);
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -4074,17 +4105,16 @@ impl Engine {
         {
             return false;
         }
-        let primary_without_default_recipe =
-            primary && !self.database.rules.contains_key(b".DEFAULT".as_slice());
+        let no_default_recipe = !self.database.rules.contains_key(b".DEFAULT".as_slice());
         self.database
             .rules
             .get(name)
-            .map_or(primary_without_default_recipe, |rule| {
+            .map_or(primary && no_default_recipe, |rule| {
                 rule.secondary.is_none()
                     && rule.group.is_none()
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
-                        || (primary_without_default_recipe
+                        || (no_default_recipe
                             && rule.dependencies.iter().all(|dep| {
                                 !dep.hidden
                                     && dep.name != b".WAIT"
