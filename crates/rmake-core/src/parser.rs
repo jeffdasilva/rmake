@@ -4442,7 +4442,7 @@ impl Database {
                     &mut self.warnings,
                     context,
                     location.clone(),
-                    "warning: NUL character seen; rest of line ignored".into(),
+                    Diagnostic::system(Message::NulReaderWarning),
                 );
             }
             let active = conditions.last().is_none_or(|c| c.active);
@@ -4590,6 +4590,8 @@ impl Database {
                 let mut body = Vec::new();
                 let mut depth = 1;
                 let mut warning_line = location.line;
+                let ignored_rule_context = !active && declaration.has_recipe_context();
+                let ignored_eval_bom = !active && evaluated_at == Some(1);
                 loop {
                     if context.is_cancelled() {
                         return Err(ParseError {
@@ -4598,9 +4600,15 @@ impl Database {
                             message: "interrupted".into(),
                         });
                     }
-                    let Some((part, _)) = reader.next_line(prefix, false).map_err(|message| {
-                        source_read_error_at(source_name.clone(), message, context)
-                    })?
+                    if ignored_eval_bom {
+                        reader.skip_eval_bom();
+                    }
+                    let Some((part, _)) =
+                        reader
+                            .next_line(prefix, ignored_rule_context)
+                            .map_err(|message| {
+                                source_read_error_at(source_name.clone(), message, context)
+                            })?
                     else {
                         if !active {
                             // Ignored definitions are skipped by the outer
@@ -4624,7 +4632,7 @@ impl Database {
                                 file: source_name.clone(),
                                 line: if active { warning_line } else { part.line },
                             },
-                            "warning: NUL character seen; rest of line ignored".into(),
+                            Diagnostic::system(Message::NulReaderWarning),
                         );
                     }
                     warning_line += part.end_line - part.line + 1;
@@ -4633,8 +4641,7 @@ impl Database {
                         // Ignored definitions have no nesting counter: the
                         // first standalone endef resumes conditional reading.
                         let normal = strip_comment(&part.bytes);
-                        if (part.bytes.first() != Some(&prefix)
-                            || !declaration.has_recipe_context())
+                        if !part.recipe
                             && directive(assignment_start(&normal), b"endef")
                                 .is_some_and(|rest| rest.is_empty())
                         {

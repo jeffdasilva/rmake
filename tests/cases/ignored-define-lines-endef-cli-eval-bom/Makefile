@@ -1,0 +1,2 @@
+$(info after)
+all: ; @:
