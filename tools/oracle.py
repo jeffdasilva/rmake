@@ -152,6 +152,8 @@ def verify_archive(path: Path, expected: str) -> None:
 
 
 DOWNLOAD_ERRORS = (OSError, http.client.IncompleteRead)
+UBUNTU_ARCHIVE = "https://archive.ubuntu.com/ubuntu/"
+UBUNTU_ARCHIVE_ALTERNATE = "https://mirrors.kernel.org/ubuntu/"
 
 
 def transient_download_error(error: BaseException) -> bool:
@@ -176,6 +178,19 @@ def retry_download(attempt):
                 raise
             time.sleep(delay)
     raise AssertionError("three attempts must return or raise")
+
+
+def retry_ubuntu_archive_download(url, attempt):
+    """Use an Ubuntu-listed archive mirror after a transport failure."""
+    try:
+        return retry_download(lambda: attempt(url))
+    except DOWNLOAD_ERRORS as error:
+        reason = error.reason if isinstance(error, urllib.error.URLError) else error
+        unresolved = isinstance(reason, socket.gaierror) and reason.errno == socket.EAI_NONAME
+        if not url.startswith(UBUNTU_ARCHIVE) or not (unresolved or transient_download_error(error)):
+            raise
+        alternate = UBUNTU_ARCHIVE_ALTERNATE + url.removeprefix(UBUNTU_ARCHIVE)
+        return retry_download(lambda: attempt(alternate))
 
 
 def download_archive(config: dict, directory: Path) -> Path:

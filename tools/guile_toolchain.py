@@ -92,12 +92,12 @@ def download_bytes(url, limit):
         raise ProfileError('invalid pinned profile download')
     opener = urllib.request.build_opener(HttpsOnly())
 
-    def attempt():
-        with opener.open(url, timeout=30) as response:
+    def attempt(candidate):
+        with opener.open(candidate, timeout=30) as response:
             return response.read(limit + 1)
 
     try:
-        return oracle.retry_download(attempt)
+        return oracle.retry_ubuntu_archive_download(url, attempt)
     except oracle.DOWNLOAD_ERRORS as error:
         raise ProfileError(f'Guile profile download failed for {url}: {error}') from error
 
@@ -157,7 +157,7 @@ def validate_package(record, fields):
     expected = {'Package': record['name'], 'Version': record['version'],
                 'Architecture': record['architecture'], 'SHA256': record['sha256'],
                 'Size': str(record['size']),
-                'Filename': record['url'].removeprefix('https://archive.ubuntu.com/ubuntu/')}
+                'Filename': record['url'].removeprefix(oracle.UBUNTU_ARCHIVE)}
     if any(fields.get(key) != value for key, value in expected.items()):
         raise ProfileError('locked package differs from authenticated index: ' + record['name'])
 
@@ -201,7 +201,7 @@ def authenticate(lock, destination):
             packed_name = relative + '.xz'
             identity, size = hashes[packed_name]
             packed = provenance / (relative.split('/')[0] + '-Packages.xz')
-            cached_download(packed, 'https://archive.ubuntu.com/ubuntu/dists/noble/' + packed_name, identity, size)
+            cached_download(packed, oracle.UBUNTU_ARCHIVE + 'dists/noble/' + packed_name, identity, size)
             with lzma.open(packed, 'rb') as stream:
                 data = stream.read(index['size'] + 1)
         if len(data) != index['size'] or digest(data) != index['sha256']:
