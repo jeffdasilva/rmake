@@ -3559,8 +3559,8 @@ impl Engine {
             }
             if !stopped && !pending.is_empty() {
                 if MakefileModes::from_options(&self.options).active() {
-                    // A completed named include leaves the enclosing remake
-                    // pass in normal mode, with the pending source current.
+                    // Pending sources resume with their own build mode. The
+                    // last pending source supplies the open error.
                     self.remake_error_cursor = pending
                         .last()
                         .and_then(|remake| remake.context.open_error.clone());
@@ -4156,7 +4156,7 @@ impl Engine {
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources)
-                        || (named.insert(name) && self.simple_named_include_remake(file, name))))
+                        || (named.insert(name) && self.simple_named_remake(file, name))))
         })
     }
 
@@ -4172,20 +4172,51 @@ impl Engine {
         })
     }
 
-    fn simple_named_include_remake(&self, file: &Makefile, name: &[u8]) -> bool {
-        file.location.is_some()
-            && !self.database.loaded_modules.contains_key(name)
-            && self.assumptions.is_none()
-            && self.options.load_limit.is_none()
-            && self.database.rules.get(name).is_some_and(|rule| {
-                rule.dependencies.is_empty()
-                    && rule.secondary.is_none()
+    fn simple_named_remake(&self, file: &Makefile, name: &[u8]) -> bool {
+        use rmake_core::filenames::archive_parts;
+
+        let primary = file.location.is_none();
+        if (primary && (file.optional || file.missing))
+            || self.database.loaded_modules.contains_key(name)
+            || self.assumptions.is_some()
+            || self.options.load_limit.is_some()
+        {
+            return false;
+        }
+        let no_recipe_fallback = self.no_remake_recipe_fallback();
+        self.database
+            .rules
+            .get(name)
+            .map_or(primary && no_recipe_fallback, |rule| {
+                rule.secondary.is_none()
                     && rule.group.is_none()
                     && rule.double_colon.is_none()
+                    && (rule.dependencies.is_empty()
+                        || (primary
+                            && no_recipe_fallback
+                            && rule.dependencies.iter().all(|dep| {
+                                !dep.hidden
+                                    && !dep.order_only
+                                    && dep.name != b".WAIT"
+                                    && !dep.name.contains(&b'/')
+                                    && !dep.name.starts_with(b"~")
+                                    && !dep.name.starts_with(b"-l")
+                                    && archive_parts(&dep.name).is_none()
+                                    && !self.database.rules.contains_key(&dep.name)
+                                    && !self.special(b".PHONY", &dep.name, false)
+                                    && fs::metadata(os(&dep.name))
+                                        .is_ok_and(|metadata| metadata.is_file())
+                            })))
                     && rule.recipes.as_ref().is_some_and(|recipes| {
                         recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
                     })
             })
+    }
+
+    fn no_remake_recipe_fallback(&self) -> bool {
+        self.options.no_rules
+            && self.database.database_implicit_rules().is_empty()
+            && !self.database.rules.contains_key(b".DEFAULT".as_slice())
     }
 
     fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
@@ -4202,9 +4233,7 @@ impl Engine {
         {
             return false;
         }
-        let no_recipe_fallback = self.options.no_rules
-            && self.database.database_implicit_rules().is_empty()
-            && !self.database.rules.contains_key(b".DEFAULT".as_slice());
+        let no_recipe_fallback = self.no_remake_recipe_fallback();
         if self.options.load_limit.is_some() {
             let ruled_sources = || {
                 read_files.iter().filter_map(|(file, skip)| {

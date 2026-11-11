@@ -49,10 +49,8 @@ debug with load limits. With `-n`, `-q`, or `-t`, grouped optional
 sources use the serial path when they have prerequisites or a load
 limit. Double-colon optional sources also use the serial path. A
 load-limited optional source with prerequisites uses that path
-when another read source has a rule. Broader makefile debug modes
-and explicitly requested primary
-makefiles also use the serial path. An included makefile named as a goal
-uses the requested mode for its visit.
+when another read source has a rule. A makefile named as a goal uses the
+requested mode for its visit.
 
 ## Duplicate reads
 
@@ -68,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 463 profiles. Leading `./` spellings share one target record and still appear
+run all 505 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -110,6 +108,12 @@ The standard developer gates include these profiles. The selector runs
 only the debug profiles and does not build the load shim.
 
 ## Dry-run, question, and touch
+
+The named primary makefile profiles hold both include workers under `-n`,
+`-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
+three job slots, and both jobserver transports. A current source, a source
+made stale by an existing prerequisite, and an unruled source exercise the
+summary, restart, and ordinary-goal effects independently.
 
 Default goals and simple explicit goals can run required makefile remakes
 in parallel under `-n`, `-q`, and `-t`. The explicit controls cover leading
