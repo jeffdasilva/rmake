@@ -3253,7 +3253,6 @@ impl Engine {
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
                 && debug_before_remake.has(Mask::VERBOSE)
-                && self.no_remake_recipe_fallback()
                 && read_files
                     .iter()
                     .all(|(file, skip)| *skip || !file.optional)
@@ -8954,7 +8953,6 @@ impl Engine {
                             && mask.has(crate::debug::Mask::MAKEFILES)
                             && mask.has(crate::debug::Mask::VERBOSE)
                             && MakefileModes::from_options(&self.options).active()
-                            && self.no_remake_recipe_fallback()
                             && self.makefile_names.contains(target)
                             && self.is_makefile_goal(target, None)
                         {
