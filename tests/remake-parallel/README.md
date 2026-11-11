@@ -45,9 +45,10 @@ child when the engine waits serially so those mismatches can be diagnosed
 without timing out.
 
 The serial remake path remains for broader debug combinations and makefile
-debug with load limits. With `-n`, `-q`, or `-t`, optional sources with
-prerequisites, grouped targets or double-colon rules still use the serial
-path, as do command-line goals naming a read makefile and makefile debug.
+debug with load limits. With `-n`, `-q`, or `-t`, grouped or double-colon
+optional sources and optional sources with prerequisites under a load
+limit still use the serial path. Command-line goals naming a read
+makefile and makefile debug also use the serial path.
 A read makefile named as a goal uses the requested mode for its visit.
 
 ## Duplicate reads
@@ -64,7 +65,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 237 profiles. Leading `./` spellings share one target record and still appear
+run all 285 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -135,3 +136,10 @@ makefile is also a command-line goal. Only the unnamed worker runs. The
 cases check the second dry-run print after a restart, the retained query
 result that prevents a restart, optional query diagnostics with and without
 keep-going, and the new input created by touch mode.
+
+The optional prerequisite cases hold a sibling worker across a stopping
+failure. Under ordinary dry-run, question, or touch mode, they compare
+the point where the first goal resumes, the diagnostic while draining,
+and how the remaining command is handled. The keep-going controls finish
+the sibling in the remake phase. The 48 profiles cover both transports and
+include line, target, and recursive output synchronization.

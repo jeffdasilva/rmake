@@ -3845,6 +3845,16 @@ impl Engine {
             first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
             self.report_goal(&goal.name, goal.started_command, outcome);
         }
+        if self.options.question
+            && self.would_build
+            && !self.options.keep_going
+            && self
+                .parallel_jobs
+                .values()
+                .any(|job| job.continuation.remake.is_some() && !job.waiting_load)
+        {
+            self.notice_waiting_for_jobs();
+        }
         self.wait_all_jobs();
         failed |= self.parallel_failed;
         let jobserver_error = self.jobserver.as_ref().and_then(Jobserver::take_error);
@@ -3922,8 +3932,8 @@ impl Engine {
     fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        // Simple optional roots can run their own recipes without abandoning
-        // running prerequisites when a remake fails.
+        // Limit the build-mode handoff to simple file identities and
+        // ungrouped single-colon optional roots.
         if !self.options.no_rules
             || self.options.check_symlink_times
             || self.assumptions.is_some()
@@ -3947,7 +3957,7 @@ impl Engine {
                     && names.insert(name)
                     && (!file.optional
                         || self.database.rules.get(name).is_none_or(|rule| {
-                            rule.dependencies.is_empty()
+                            (rule.dependencies.is_empty() || self.options.load_limit.is_none())
                                 && rule.secondary.is_none()
                                 && rule.group.is_none()
                                 && rule.double_colon.is_none()
@@ -10574,7 +10584,16 @@ impl Engine {
             }
         }
         self.retain_database_context(target, branch, &variables);
-        if parallel {
+        // A stopped optional remake can leave a live worker while ordinary
+        // dry-run or question mode visits its next goal.
+        let live_remake = !self.remaking
+            && !recursive
+            && (self.options.dry_run || self.options.question)
+            && self
+                .parallel_jobs
+                .values()
+                .any(|job| job.continuation.remake.is_some());
+        if parallel || live_remake {
             while self.parallel_jobs.len() >= self.job_slots() {
                 self.reap_job();
             }
@@ -12244,7 +12263,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_mode_optional_sources_require_unique_independent_names() {
+    fn ordinary_mode_optional_sources_require_simple_names() {
         let launch = Engine::invocation(
             ["-r", "-n", "all"].into_iter().map(OsString::from),
             b"rmake",
@@ -12284,6 +12303,8 @@ mod tests {
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")
             .unwrap();
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.load_limit = Some(1.0);
         assert!(!engine.ordinary_mode_remakes_settle(&reads));
     }
 
