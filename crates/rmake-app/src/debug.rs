@@ -528,8 +528,11 @@ pub fn reader(output: &crate::output::Controller, event: rmake_core::diagnostic:
             }
             raw(&[&line, b"...\n"]);
         }
-        rmake_core::diagnostic::ReaderEvent::Bom(name) => {
+        rmake_core::diagnostic::ReaderEvent::Bom(Some(name)) => {
             raw(&[&localized(msg::SKIPPING_BOM, &[bytes(name)])])
+        }
+        rmake_core::diagnostic::ReaderEvent::Bom(None) => {
+            raw(&[&localized(msg::SKIPPING_BOM_BUFFER, &[])])
         }
     }
 }

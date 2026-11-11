@@ -93,6 +93,7 @@ keys! {
     GUILE_EXPANDING: c"guile: Expanding '%s'\n", [B];
     GUILE_EVALUATING: c"guile: Evaluating '%s'\n", [B];
     SKIPPING_BOM: c"Skipping UTF-8 BOM in makefile '%s'\n", [B];
+    SKIPPING_BOM_BUFFER: c"Skipping UTF-8 BOM in makefile buffer\n", [];
     JOB_CONTROLLER: c"Using jobserver controller %s\n", [B];
     OUTPUT_SYNC_MUTEX: c"Using output-sync mutex %s\n", [B];
     JOB_OBTAINED: c"Obtained token for child %p (%s).\n", [A, B];

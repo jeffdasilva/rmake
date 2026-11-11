@@ -85,9 +85,10 @@ impl<'a> ParserReader<'a> {
             Self::Stream(r) => r.posix = enabled,
         }
     }
-    pub(crate) fn skip_eval_bom(&mut self) {
-        if let Self::Memory(r) = self {
-            r.skip_eval_bom();
+    pub(crate) fn skip_eval_bom(&mut self) -> bool {
+        match self {
+            Self::Memory(r) => r.skip_eval_bom(),
+            Self::Stream(_) => false,
         }
     }
     pub(crate) fn next_line(
