@@ -738,7 +738,6 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
         'all: result\n'
         'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
     )
-    primary_rule = 'Makefile: primer ; @printf "# remade\\n" >> "$@"\n'
     first = BEFORE_FIRST + b'tail-expanded\n'
     second = first + b'left\n'
     completed = second + b'right\ntail\n'
@@ -747,29 +746,46 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
     generated = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
     current = b"make: 'Makefile' is up to date.\n"
     unruled = b"make: Nothing to be done for 'Makefile'.\n"
-    dry_remake = b'printf "# remade\\n" >> "Makefile"\n'
+    append = b'printf "# remade\\n" >> "Makefile"\n'
+    append_recipe = b'printf "# remade\\n" >> "$@"\n'
+    child_args = b' --no-print-directory -f child.mk append\n'
     ordinary = b'printf "ordinary\\n" > "result"\n'
     results = []
     for transport in ('pipe', 'fifo'):
         for discovery, slots in (('explicit', 3), ('explicit', 2), ('default', 3)):
-            for age in ('current', 'stale', 'unruled'):
-                if age == 'unruled' and (discovery, slots) != ('explicit', 3):
-                    continue
-                ruled = age != 'unruled'
+            recipes = [('plain', 'primer', b'@' + append_recipe)]
+            if discovery == 'explicit':
+                recipes += [('order-only', '| primer', b'@' + append_recipe),
+                            ('forced', 'primer', b'+@' + append_recipe),
+                            ('recursive', 'primer', b'@$(MAKE)' + child_args)]
+            variants = [(style, prerequisites, recipe, age)
+                        for style, prerequisites, recipe in recipes for age in ('current', 'stale')]
+            if (discovery, slots) == ('explicit', 3):
+                variants.append(('plain', '', b'', 'unruled'))
+            for style, prerequisites, recipe, age in variants:
+                ruled = bool(recipe)
                 stale = age == 'stale'
-                makefile = source + primary_rule if ruled else source
-                files = {'Makefile': makefile.encode(), 'worker.py': worker, 'seen': ANCHOR}
+                active = stale and style != 'order-only'
+                forced = style in ('forced', 'recursive')
+                makefile = source.encode()
+                if ruled:
+                    makefile += f'Makefile: {prerequisites} ; '.encode() + recipe
+                files = {'Makefile': makefile, 'worker.py': worker, 'seen': ANCHOR}
                 if ruled:
                     files['primer'] = b'primer\n'
+                if style == 'recursive':
+                    files['child.mk'] = b'append: ; +@' + append
                 times = dict.fromkeys(files, INPUT_TIME)
                 if ruled:
                     times['primer'] += 2_000_000_000 if stale else -2_000_000_000
                 summary = current if ruled else unruled
-                dry_prefix = dry_remake if stale else b''
-                touch_prefix = b'touch Makefile\n' if stale else b''
+                dry_prefix = (b'make' + child_args if style == 'recursive' else append) if active else b''
+                simulated = active and not forced
+                touch_prefix = b'touch Makefile\n' if simulated else b''
+                changes = {'Makefile': makefile + b'# remade\n'} if active and forced else {}
                 cases = (
-                    ('n', 0, dry_prefix, dry_prefix + summary + ordinary, loaded, {}),
-                    ('q', 1, b'', b'', completed + b'ordinary--\n' if stale else loaded, {}),
+                    ('n', 0, dry_prefix, (dry_prefix if simulated else b'') + summary + ordinary, loaded, {}),
+                    ('q', 1, b'', b'', completed + b'ordinary--\n' if simulated else loaded, {}),
                     ('t', 0, touch_prefix, summary + b'touch result\n', restarted, {'result': b''}),
                 )
                 for mode, status, prefix, suffix, seen, updates in cases:
@@ -777,12 +793,16 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
                             '-' + mode)
                     if discovery == 'explicit':
                         args += ('-f', './Makefile')
+                    if style == 'recursive':
+                        args += ('MAKE=make',)
                     args += ('./Makefile', 'all')
                     expected = {'exit_code': status, 'stdout_template_hex': (prefix + suffix).hex(),
                                 'stderr_template_hex': ''}
                     ident = f'primary-named-mode-{discovery}-{age}-{mode}-{transport}-{slots}-slots'
+                    if style != 'plain':
+                        ident += f'-{style}'
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
-                                        updates={**markers, **generated, **updates}, mtimes_ns=times)
+                                        updates={**markers, **generated, **changes, **updates}, mtimes_ns=times)
                     results.append(HeldModel(model, True, second, first,
                                              before_second_stdout=prefix, before_first_stdout=prefix))
     return results
