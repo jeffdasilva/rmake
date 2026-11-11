@@ -924,28 +924,36 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
                                      before_second_stdout=prefix, before_first_stdout=prefix)
                     results.append(held)
                     if discovery == 'explicit' and slots == 3 and ruled and style == 'plain':
-                        results.append(primary_named_secondary_variant(held, BEFORE_FIRST))
+                        results.append(named_secondary_variant(held, BEFORE_FIRST))
     return results
 
 
-def primary_named_secondary_variant(held: HeldModel, expansion_point: bytes) -> HeldModel:
-    original = b'Makefile: primer ; '
-    secondary = (
-        b'.SECONDEXPANSION:\nINPUT := primer\n'
-        b'Makefile: $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; '
-    )
+def named_secondary_variant(held: HeldModel, expansion_point: bytes,
+                            target: bytes = b'Makefile') -> HeldModel:
+    model = held.model
+    source = model.files['Makefile']
+    original = target + b': primer ; '
+    if original not in source:
+        original = target + b': ; '
+    assert original in source
+    secondary = (b'.SECONDEXPANSION:\nINPUT := primer\n'
+                 + target + b': $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; ')
+    marker = b'secondary-' + target + b'-'
 
     def record_expansion(seen: bytes) -> bytes:
-        seen = seen.replace(expansion_point, expansion_point + b'secondary-Makefile-\n', 1)
-        return seen.replace(b'read-1\n', b'read-1\nsecondary-Makefile-1\n', 1)
+        seen = seen.replace(expansion_point, expansion_point + marker + b'\n', 1)
+        return seen.replace(b'read-1\n', b'read-1\n' + marker + b'1\n', 1)
 
-    model = held.model
-    makefile = model.files['Makefile'].replace(original, secondary, 1)
+    files = {**model.files, 'Makefile': source.replace(original, secondary, 1)}
+    times = model.mtimes_ns
+    if 'primer' not in files:
+        files['primer'] = b'base input\n'
+        times = {**times, 'primer': INPUT_TIME}
     updates = model.updates.copy()
     if 'Makefile' in updates:
         updates['Makefile'] = updates['Makefile'].replace(original, secondary, 1)
-    model = replace(model, id=model.id + '-secondary', files={**model.files, 'Makefile': makefile},
-                    seen=record_expansion(model.seen), updates=updates)
+    model = replace(model, id=model.id + '-secondary', files=files, seen=record_expansion(model.seen),
+                    updates=updates, mtimes_ns=times)
     assert held.before_second is not None
     return replace(held, model=model, before_first=record_expansion(held.before_first),
                    before_second=record_expansion(held.before_second))
@@ -1038,7 +1046,7 @@ def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) ->
                                          before_second_stdout=second_stdout, before_first_stdout=first_stdout)
                         results.append(held)
                         if slots == 3 and not sync and style == 'forced':
-                            results.append(primary_named_secondary_variant(held, first))
+                            results.append(named_secondary_variant(held, first))
     return results
 
 
@@ -1107,18 +1115,29 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                         held = HeldModel(model, True, second, first,
                                          before_second_stdout=second_out, before_first_stdout=first_out)
                         results.append(held)
+                        expansion_point = first if position == 'last' else BEFORE_FIRST
+                        if policy == 'required' and slots == 2:
+                            results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
                         if slots == 3:
                             source_with_primer = source.replace(b'named.gen: ;', b'named.gen: primer ;')
                             with_primer = {**files, 'Makefile': source_with_primer, 'primer': b'base input\n'}
                             prerequisite = replace(model, id=ident + '-prerequisite', files=with_primer,
                                                    mtimes_ns={**times, 'primer': INPUT_TIME})
-                            results.append(replace(held, model=prerequisite))
+                            with_prerequisite = replace(held, model=prerequisite)
+                            results.append(with_prerequisite)
+                            if policy == 'required':
+                                results.append(named_secondary_variant(
+                                    with_prerequisite, expansion_point, b'named.gen'))
                         if position == 'last':
                             duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
                                                               f'{directive} {order} ./named.gen\n'.encode(), 1)
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
-                            results.append(replace(held, model=duplicate))
+                            repeated = replace(held, model=duplicate)
+                            results.append(repeated)
+                            if policy == 'required':
+                                results.append(named_secondary_variant(
+                                    repeated, expansion_point, b'named.gen'))
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1264,8 +1283,12 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                 'stderr_template_hex': stderr.hex()}
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
-                    results.append(HeldModel(model, not split_pass, second, first,
-                                             before_second_stdout=second_out, before_first_stdout=first_out))
+                    held = HeldModel(model, not split_pass, second, first,
+                                     before_second_stdout=second_out, before_first_stdout=first_out)
+                    results.append(held)
+                    if not optional:
+                        expansion_point = first if position == 'last' else BEFORE_FIRST
+                        results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
                     duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
                                                       f'{directive} {order} ./named.gen\n'.encode(), 1)
                     duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
