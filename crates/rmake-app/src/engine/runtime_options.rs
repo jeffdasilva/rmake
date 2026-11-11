@@ -875,12 +875,12 @@ impl Engine {
             }
         }
         // The unchanged flag shortcut still replays line/target buffering
-        // after a reader stdout spool failed to create its temporary file.
+        // after reader output failed to create its temporary spool file.
         let retry_reader = !changed
             && self
                 .reader_output
                 .as_ref()
-                .is_some_and(|buffer| buffer.failed_to_buffer_stdout());
+                .is_some_and(|buffer| buffer.failed_to_buffer_reader_output());
         if !changed && !retry_reader {
             return Ok(());
         }
@@ -927,7 +927,7 @@ impl Engine {
                 buffer.dump();
             }
         } else if self.reader_output.is_none() || retry_reader {
-            self.reader_output = self.output.make_buffer();
+            self.reader_output = self.output.reader_buffer();
             self.output.select(self.reader_output.as_ref());
         }
         Ok(())

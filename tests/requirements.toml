@@ -2963,3 +2963,13 @@ cases = [
   "serial-remake-optional-duplicate-prune-triple-double-noop-normal",
   "serial-remake-optional-duplicate-prune-triple-rule-free-normal",
 ]
+
+[[requirements]]
+id = "runtime.output-sync-reader-restart-temp-replay"
+title = "Replay reader output synchronization after temporary spool failure across a real restart"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/output-sync.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["output-sync-reader-restart-temp-replay"]
