@@ -144,6 +144,30 @@ pub fn missing_file_read(output: &crate::output::Controller, path: &[u8], error:
     }
 }
 
+pub fn directory_cache_invalidated(
+    output: &crate::output::Controller,
+    path: &[u8],
+    observed: Option<u64>,
+    current: u64,
+) {
+    if output.debug_mask().has(Mask::VERBOSE) {
+        // GNU counts from one and uses zero for cleared inode aliases.
+        // This diagnostic is untranslated.
+        let observed = observed.map_or(0, |generation| generation.wrapping_add(1));
+        let observed = observed.to_string();
+        let current = current.wrapping_add(1).to_string();
+        raw(&[
+            b"Directory ",
+            path,
+            b" cache invalidated (count ",
+            observed.as_bytes(),
+            b" != command ",
+            current.as_bytes(),
+            b")\n",
+        ]);
+    }
+}
+
 pub fn output_sync_mutex(mask: Mask, authentication: &[u8]) {
     if mask.has(Mask::VERBOSE) {
         raw(&[&localized(msg::OUTPUT_SYNC_MUTEX, &[bytes(authentication)])]);

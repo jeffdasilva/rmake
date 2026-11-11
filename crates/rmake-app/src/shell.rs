@@ -24,6 +24,7 @@ pub fn run(
     makelevel: u32,
     output: &crate::output::Controller,
     jobserver: Option<&rmake_linux::jobserver::Jobserver>,
+    child_completed: impl FnOnce(),
 ) -> Result<ShellResult, Vec<u8>> {
     let invocation = crate::process::prepare_shell_function(
         request.command,
@@ -117,8 +118,10 @@ pub fn run(
             });
         }
     };
-    let (stdout, status) = rmake_linux::child::capture(child, stdout, MAX_OUTPUT)
-        .map_err(|_| b"rmake: shell output limit exceeded or capture failed".to_vec())?;
+    let captured = rmake_linux::child::capture(child, stdout, MAX_OUTPUT);
+    child_completed();
+    let (stdout, status) =
+        captured.map_err(|_| b"rmake: shell output limit exceeded or capture failed".to_vec())?;
     Ok(ShellResult {
         stdout,
         status: status
