@@ -99,6 +99,13 @@
       "plan_sha256": "b8374dc83b3c8f9e2c45bcd9854de9bf5a9ff6fb3fb74fd5d8565a1eba4a6b1c",
       "schema": "files",
       "count": 5
+    },
+    {
+      "name": "join-operators",
+      "plan": "join-operators.json",
+      "plan_sha256": "d02cfce1d63b29c19709308fa97b18e0e2e907621901c6f339de211f4f5cb98a",
+      "schema": "files",
+      "count": 14
     }
   ]
 }
