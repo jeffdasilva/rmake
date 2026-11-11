@@ -1001,6 +1001,11 @@ impl Database {
                 return;
             }
             let name = pattern.literal_bytes();
+            // A specific match has already excluded nonterminal match-anything
+            // rules. Skip matching and preparing candidates that cannot survive.
+            if specific && name == b"%" && !rule.terminal {
+                return;
+            }
             let stripped = !name.contains(&b'/');
             let word = if stripped {
                 &target[directory.len()..]
@@ -1125,8 +1130,9 @@ impl Database {
         } else {
             self.implicit_rules.iter().enumerate().for_each(visit);
         }
-        result
-            .retain(|candidate| !specific || !candidate.match_anything || candidate.rule.terminal);
+        if specific {
+            result.retain(|candidate| !candidate.match_anything || candidate.rule.terminal);
+        }
         result.sort_by_key(|candidate| candidate.rule.stem.as_ref().map_or(0, Vec::len));
         result
     }
@@ -6818,6 +6824,42 @@ mod tests {
         assert_eq!(
             recipes(&indexed),
             [b" @group".to_vec(), b" @fallback".to_vec()]
+        );
+    }
+
+    #[test]
+    fn specific_implicit_matches_exclude_only_nonterminal_match_anything_rules() {
+        let mut database = Database::default();
+        database
+            .read(
+                b"%: first ; @before\n%.o: source ; @specific\n%: second ; @after\n%:: terminal ; @terminal\n",
+                b"rules",
+            )
+            .unwrap();
+        let specific = database
+            .implicit_rules
+            .iter()
+            .position(|(pattern, _)| pattern.literal_bytes() == b"%.o")
+            .unwrap();
+        let recipes = |active: &[usize]| {
+            database
+                .implicit_candidates_excluding(b"item.o", active)
+                .into_iter()
+                .map(|candidate| candidate.rule.recipes.unwrap()[0].bytes.clone())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            recipes(&[]),
+            [b" @specific".to_vec(), b" @terminal".to_vec()]
+        );
+        assert_eq!(
+            recipes(&[specific]),
+            [
+                b" @before".to_vec(),
+                b" @after".to_vec(),
+                b" @terminal".to_vec()
+            ],
         );
     }
 
