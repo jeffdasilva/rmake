@@ -3755,7 +3755,7 @@ impl Database {
                     continue;
                 };
                 if let Some(branches) = &mut rule.double_colon {
-                    for branch in branches.iter_mut().filter(|branch| branch.group.is_none()) {
+                    for branch in branches {
                         branch.insert_targeted_waits();
                     }
                 } else if rule.group.is_none() {

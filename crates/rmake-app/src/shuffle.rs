@@ -220,6 +220,7 @@ impl Enabled {
             .count();
         let targeted = count > 1
             && rule.group.is_some()
+            && rule.grouped_double_id().is_none()
             && db
                 .rules
                 .get(b".NOTPARALLEL".as_slice())

@@ -28,10 +28,10 @@ or deliberate memory corruption are reproduced.
 
 For an ungrouped target named by `.NOTPARALLEL`, source reading inserts
 barriers before the second and later declared prerequisite occurrences in each
-rule. Each double-colon branch gets its own barriers. Implicit prerequisites
-inserted later join the first group. Replacing a deferred
-occurrence in secondary expansion drops its targeted barrier. Barriers before
-retained prerequisite occurrences survive.
+rule. A grouped double-colon declaration records them separately for each
+branch and each named peer. Implicit prerequisites inserted later join the first
+group. Replacing a deferred occurrence in secondary expansion drops its
+targeted barrier. Barriers before retained prerequisite occurrences survive.
 
 Secondary expansion retains normalized per-file `MAKEFLAGS`/`MFLAGS` in the
 reusable target context without inheriting its temporary automatic variables.

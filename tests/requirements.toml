@@ -2480,9 +2480,21 @@ title = "Targeted NOTPARALLEL barriers attach to declared prerequisites"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/shuffle.md"
-candidate_required = 28
-fixture_count = 28
+candidate_required = 40
+fixture_count = 40
 cases = [
+  "targeted-notparallel-grouped-double-waits-both-deferred-reverse",
+  "targeted-notparallel-grouped-double-waits-both-deferred-seeded",
+  "targeted-notparallel-grouped-double-waits-both-targeted-explicit-wait",
+  "targeted-notparallel-grouped-double-waits-both-targeted-order-only",
+  "targeted-notparallel-grouped-double-waits-both-targeted-static",
+  "targeted-notparallel-grouped-double-waits-head-deferred-reverse",
+  "targeted-notparallel-grouped-double-waits-head-deferred-seeded",
+  "targeted-notparallel-grouped-double-waits-peer-only-targeted",
+  "targeted-notparallel-grouped-double-waits-tail-deferred-reverse",
+  "targeted-notparallel-grouped-double-waits-tail-deferred-seeded",
+  "targeted-notparallel-grouped-double-waits-targeted-peer-as-goal",
+  "targeted-notparallel-grouped-double-waits-trigger-only-targeted",
   "targeted-notparallel-double-waits-both-deferred-reverse",
   "targeted-notparallel-double-waits-both-deferred-seeded",
   "targeted-notparallel-double-waits-extra-prerequisites",

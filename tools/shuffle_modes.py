@@ -108,6 +108,21 @@ def pattern_wait_cases(reference, candidate, root):
                     f'all.out:: {tail} ; @$(file >>seen,goal):\n'
                     'p1: ; @python3 worker.py left observe\nx y z: ; @$(file >>seen,$@):\n')
         scenarios.append(('targeted-double-' + name, 'none', makefile, held_effects, effects))
+    both = 'all.out peer.out'
+    grouped_double = (
+        ('head-both-static', both, 'p1 x y', 'z', b'', b'left\nx\ny\nhead\nz\n'),
+        ('head-trigger-only', 'all.out', 'p1 x y', 'z', b'x\ny\n', b'x\ny\nleft\nhead\nz\n'),
+        ('head-peer-only', 'peer.out', 'p1 x y', 'z', b'x\ny\n', b'x\ny\nleft\nhead\nz\n'),
+        ('head-both-deferred', both, 'p1 $$(DYNAMIC)', 'z', b'x\ny\n', b'x\ny\nleft\nhead\nz\n'),
+        ('tail-both-static', both, 'z', 'p1 x y', b'z\nhead\n', b'z\nhead\nleft\nx\ny\n'),
+        ('tail-both-deferred', both, 'z', 'p1 $$(DYNAMIC)', b'z\nhead\nx\ny\n', b'z\nhead\nx\ny\nleft\n'),
+    )
+    for name, targets, head, tail, held_effects, effects in grouped_double:
+        makefile = (f'.SECONDEXPANSION:\n.NOTPARALLEL: {targets}\nDYNAMIC := x y\n'
+                    f'all.out peer.out &:: {head} ; @$(file >>seen,head):\n'
+                    f'all.out peer.out &:: {tail} ; @$(file >>seen,goal):\n'
+                    'p1: ; @python3 worker.py left observe\nx y z: ; @$(file >>seen,$@):\n')
+        scenarios.append(('targeted-grouped-double-' + name, 'none', makefile, held_effects, effects))
     records = []
     runtime = root / 'observation'
     for (name, seed, makefile, held_effects, effects), transport in itertools.product(
