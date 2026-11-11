@@ -3410,6 +3410,10 @@ impl Engine {
                     .active_makefile_remake
                     .take()
                     .expect("active makefile remake");
+                if self.forced_query_stop {
+                    stopped = true;
+                    break;
+                }
                 if self.parallel_makefile_remakes && self.pending(name) {
                     pending.push(PendingMakefileRemake {
                         modes: visit_modes,
@@ -3550,7 +3554,11 @@ impl Engine {
             self.remake_error_cursor = None;
             if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
-                return 2;
+                return if self.forced_query_stop && self.shutdown.get() == Shutdown::Running {
+                    1
+                } else {
+                    2
+                };
             }
             // A question verdict leaves the loaded makefiles in use and
             // prevents later keep-going failures from deciding the phase.
@@ -4089,9 +4097,7 @@ impl Engine {
                                     && fs::metadata(os(&dep.name))
                                         .is_ok_and(|metadata| metadata.is_file())
                             })))
-                    && rule.recipes.as_ref().is_some_and(|recipes| {
-                        primary || recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
-                    })
+                    && rule.recipes.is_some()
             })
     }
 
@@ -4993,7 +4999,7 @@ impl Engine {
                 self.reap_job();
                 self.poll_jobs();
             }
-            if self.shutdown.get() != Shutdown::Running {
+            if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
             }
             last_reaps = self.recipe_reaps;
@@ -5427,7 +5433,8 @@ impl Engine {
 
     fn forced_query_completed(&mut self) {
         self.would_build = true;
-        if !self.remaking
+        // A required child can stop a parallel remake pass with status one.
+        if (!self.remaking || self.parallel_makefile_remakes)
             && !self.options.keep_going
             && !self.optional_remake()
             && self.graph_abort.is_none()
@@ -10287,9 +10294,11 @@ impl Engine {
                     );
                 }
                 outcome.ran |= execution.ran;
+                // A pending remake takes its completion mode from the reap.
                 outcome.completion =
                     if (self.options.dry_run || self.options.question || self.options.touch)
                         && !execution.all_recursive
+                        && (!self.remaking || !execution.pending)
                     {
                         if rule.grouped_targets().is_none() || execution.ran {
                             if phony {
@@ -10763,7 +10772,6 @@ impl Engine {
         let parallel_named_recipe = self.remaking
             && self.parallel_makefile_remakes
             && recursive
-            && !self.parallel_jobs.is_empty()
             && MakefileModes::from_options(&self.options).active();
         let parallel = self.parallel_graph() || parallel_named_recipe;
         if self.graph_abort == Some(Status::Fatal) {
