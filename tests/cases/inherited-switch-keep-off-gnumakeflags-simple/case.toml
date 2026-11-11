@@ -1,0 +1,14 @@
+id = "inherited-switch-keep-off-gnumakeflags-simple"
+requirement = "cli.switch-origins"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+provenance = "Original inherited switch and recursive behavior fixture, compared with two pinned GNU Make 4.4.1 runs."
+
+[environment]
+"GNUMAKEFLAGS" = "-S"
+
+[expected]
+exit_code = 2
+stdout_hex = "7265616465723d5b725253202d2d6e6f2d7072696e742d6469726563746f72795d0a7265636970653d5b725253202d2d6e6f2d7072696e742d6469726563746f72795d0a"
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a373a2062726f6b656e5d204572726f7220370a"

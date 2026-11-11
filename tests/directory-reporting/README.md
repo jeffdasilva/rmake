@@ -1,11 +1,12 @@
 # Original directory-reporting profiles
 
-Forty independently authored models cover explicit and automatic directory
-reporting, silent and inherited/live flag policy, startup metadata phases,
-failed directory changes, remakes, output-sync groups and two native finalizers.
-The 38 ordinary cases never compile C. Only the two declared finalizer profiles
-compile the original module, once before both GNU executions and the candidate.
-No GNU implementation, header or tests are copied or translated.
+The original forty models cover explicit and automatic directory reporting,
+silent and inherited/live flag policy, startup metadata phases, failed directory
+changes, remakes, output-sync groups and two native finalizers. Twenty-seven
+more profiles compare inherited and file switch precedence through recursive
+recipes and directory boundaries. The 65 ordinary cases never compile C. Each
+of the two declared finalizer profiles compiles its original module once before
+both GNU executions and the candidate.
 
 The runner expands static `@WORK@`, `@HOME@` and `@TMP@` byte tokens solely from
 the predetermined reset workspace before execution. It checks complete streams,

@@ -7,13 +7,13 @@ explicit negative silent setting is serialized as `--no-silent`; an explicit
 negative keep-going setting is serialized as `S`. An unspecified false default
 produces neither spelling.
 
-Silent and keep-going settings now carry their actual switch origin. CLI
-settings apply when decoded; other sources can replace a setting only at an
-equal or higher origin. Imported flags have environment origin, direct file/eval
-assignments use their assignment origin, and the post-read replay has environment
-origin. Reconstructing flags does not turn an existing setting into a new CLI
-setting. This allows `override MAKEFLAGS` to change an earlier CLI setting while
-preventing ordinary lower-priority file or inherited flags from clearing it.
+Silent, keep-going and directory-reporting settings retain their switch origin.
+GNU decodes startup `GNUMAKEFLAGS` and `MAKEFLAGS` with command-line priority.
+Explicit command-line switches can replace those startup settings. Direct file
+and eval assignments use their assignment origin, while post-read replay has
+environment priority. This allows `override MAKEFLAGS` to change an earlier
+command-line setting and preserves the inherited setting against ordinary file
+assignments. Reconstructing the flag text retains the existing origin.
 Other switches retain their existing policies, including the separate CLI job
 count behavior. Broader CLI ordering/presentation remains in the
 [M3/M6 audit](m3-m6-audit.md).
@@ -35,8 +35,12 @@ explicit current-file value and does not merge or rewrite ancestor/global sets.
 
 ## Evidence
 
-Add 468 required original comparisons. Each input has two raw GNU Make 4.4.1
-observations and a final candidate comparison. Cases cover aliases and clusters,
+The original 468 comparisons have two raw GNU Make 4.4.1 observations and a
+final candidate comparison. A further 51 ordinary and 27 directory-reporting
+cases cover opposing startup and file settings, four assignment forms, both
+environment sources, recursive flag publication, and explicit CLI and override
+controls. The include-path cases confirm that unrelated live switches still take
+effect. Cases cover aliases and clusters,
 ignored compatibility options, recursive flags, actual recipe echo/failure
 behavior, import/CLI/file/override precedence, eval, recipe expansion, secondary
 expansion, siblings, target bindings, include metadata and POSIX mode. Include
