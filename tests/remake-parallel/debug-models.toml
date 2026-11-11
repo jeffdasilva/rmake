@@ -531,6 +531,7 @@ right
 [[profiles]]
 case = "required-success-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1042, 1192]
 stdout = '''
 GNU Make 4.4.1
@@ -597,6 +598,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "optional-success-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1068, 1146]
 stdout = '''
 GNU Make 4.4.1
@@ -719,6 +721,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "global-serial-success-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [811, 1014]
 stdout = '''
 GNU Make 4.4.1
@@ -779,6 +782,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "optional-sibling-failure-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1229, 1852]
 stdout = '''
 GNU Make 4.4.1
@@ -834,6 +838,7 @@ right
 [[profiles]]
 case = "optional-keep-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1229, 1641]
 stdout = '''
 GNU Make 4.4.1
@@ -901,6 +906,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "required-sibling-failure-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1216, 1221]
 stdout = '''
 GNU Make 4.4.1
@@ -940,6 +946,7 @@ right
 [[profiles]]
 case = "required-keep-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1216, 1628]
 stdout = '''
 GNU Make 4.4.1
@@ -1001,6 +1008,7 @@ right
 [[profiles]]
 case = "mixed-required-first-failure-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1055, 1060]
 stdout = '''
 GNU Make 4.4.1

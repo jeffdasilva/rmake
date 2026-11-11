@@ -3252,7 +3252,13 @@ impl Engine {
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
                     && self.jobserver.as_ref().is_some_and(|server| {
-                        modes.active() || !server.auth().starts_with(b"fifo:")
+                        if modes.active() || !server.auth().starts_with(b"fifo:") {
+                            return true;
+                        }
+                        let mut seen = HashSet::new();
+                        read_files
+                            .iter()
+                            .all(|(file, skip)| *skip || seen.insert(file.name.as_slice()))
                     }));
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (self.options.load_limit.is_none() && qualified_remake_debug);
