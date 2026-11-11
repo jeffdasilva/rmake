@@ -65,6 +65,7 @@ class HeldModel:
     release_order: tuple[str, str] = WORKERS
     before_primary: bytes | None = None
     before_primary_stdout: bytes = b''
+    fifo_controller: bool = False
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -1782,9 +1783,11 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     seen = set()
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
+        fifo = row.get('fifo', False)
         held = by_id.get(name)
         if (held is None or held.before_second is None or (name, flag) in seen
-                or flag not in ('m', 'm,v')
+                or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
+                or (fifo and flag != 'm,v')
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
@@ -1805,6 +1808,19 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
                                 before_second_stdout=stdout[:second],
                                 before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
+        if fifo:
+            # Keep the same expected trace around the separately verified live path.
+            if '-pipe' not in name or b'Using jobserver controller 3,4\n' not in stdout[:first]:
+                raise h.HarnessError('FIFO debug model requires a pipe controller trace')
+            fifo_stdout = stdout.replace(b'--jobserver-style=pipe', b'--jobserver-style=fifo')
+            fifo_args = tuple('--jobserver-style=fifo' if arg == '--jobserver-style=pipe' else arg
+                              for arg in args)
+            fifo_model = replace(model, id=model.id.replace('-pipe', '-fifo'), args=fifo_args,
+                                 expected={**model.expected, 'stdout_template_hex': fifo_stdout.hex()})
+            selected.append(replace(held, model=fifo_model, fifo_controller=True,
+                                    before_first_stdout=fifo_stdout[:first],
+                                    before_second_stdout=fifo_stdout[:second],
+                                    before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b''))
     return selected
 
 
@@ -1932,6 +1948,27 @@ def execute(case: h.Case, runtime: Path, binary: Path,
     return h.execute(case, runtime, binary, observe=observe), releases
 
 
+def bind_fifo_controller(observation: h.Observation, releases: list[dict], runtime: Path):
+    if not releases:
+        return observation, releases, ['missing live FIFO controller identity']
+    prefix = b'Using jobserver controller '
+    path = runtime / 'tmp' / f"GMfifo{releases[0]['parent']}"
+    controller = prefix + b'fifo:' + os.fsencode(path) + b'\n'
+    errors = []
+
+    def bind(stdout: bytes, phase: str) -> bytes:
+        lines = [line for line in stdout.splitlines(keepends=True) if line.startswith(prefix)]
+        if not lines or any(line != controller for line in lines):
+            errors.append(f'{phase} FIFO controller identity')
+            return stdout
+        return stdout.replace(controller, prefix + b'3,4\n')
+
+    stdout = bind(observation.stdout, 'final')
+    prefixes = [dict(release, stdout_hex=bind(bytes.fromhex(release['stdout_hex']),
+                                             release['name']).hex()) for release in releases]
+    return replace(observation, stdout=stdout), prefixes, errors
+
+
 def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order
@@ -2041,8 +2078,19 @@ def main() -> int:
                             release_order=held.release_order, hold_primary=held.before_primary is not None)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
+                raw_observations, raw_releases = observations, releases
+                fifo_errors = [[] for _ in executables]
+                if held.fifo_controller:
+                    observations, releases, fifo_errors = zip(*(
+                        bind_fifo_controller(observed, release, runtime)
+                        for observed, release in zip(observations, releases, strict=True)
+                    ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
-                errors = [release_errors(held, release) for release in releases]
+                errors = [release_errors(held, release) + identity_errors
+                          for release, identity_errors in zip(releases, fifo_errors, strict=True)]
+                if held.fifo_controller:
+                    record.update(raw_stdout_hex=[observed.stdout.hex() for observed in raw_observations],
+                                  raw_releases=raw_releases)
                 wait_samples = [sorted(waits, key=lambda pair: (pair[0], pair[1] or -1))
                                 for waits in samples]
                 record.update(id=model.id, releases=releases, release_errors=errors,
