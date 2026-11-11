@@ -1206,7 +1206,19 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                                 files={**files, 'Makefile': duplicate_source})
                             repeated = replace(held, model=duplicate)
                             if policy == 'optional' and mode == 'q' and saturated:
-                                repeated = order_named_before_right(repeated)
+                                repeated = order_named_completion(repeated)
+                                right_first = replace(
+                                    duplicate, id=duplicate.id + '-right-first',
+                                    expected={**duplicate.expected, 'stderr_template_hex': ''},
+                                    seen=completed + b'tail\nread-1\nordinary-loaded-loaded-loaded\n',
+                                    updates=written,
+                                )
+                                right_first = order_named_completion(
+                                    replace(held, model=right_first), right_first=True)
+                                results.append(right_first)
+                                for keep_going in (False, True):
+                                    results.append(earlier_named_question(
+                                        right_first, duplicate, keep_going=keep_going))
                             results.append(repeated)
                             if policy == 'required':
                                 results.append(named_secondary_variant(
@@ -1225,22 +1237,51 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
     return results
 
 
-def order_named_before_right(held: HeldModel) -> HeldModel:
+def order_named_completion(held: HeldModel, *, right_first: bool = False) -> HeldModel:
     model = held.model
     named_recipe = b'+@printf "NAMED := loaded\\n" > "$@"'
-    worker_effects = b"with Path('seen').open('ab') as stream:"
-    right_wait = (b"if name == 'right':\n"
-                  b"    from named_reap import wait_for_named_reap\n"
-                  b"    wait_for_named_reap()\n\n")
+    named_command = b'+@python3 named_reap.py'
+    if right_first:
+        named_command += b' after-right'
+        worker_anchor = b'name, mode = sys.argv[1:]'
+        worker_replacement = (worker_anchor + b"\nif name == 'right':\n"
+                              b"    from named_reap import record_process\n"
+                              b"    record_process('right.pid')")
+    else:
+        worker_anchor = b"with Path('seen').open('ab') as stream:"
+        worker_replacement = (b"if name == 'right':\n"
+                              b"    from named_reap import wait_for_reap\n"
+                              b"    wait_for_reap('named.pid')\n\n" + worker_anchor)
     makefile = model.files['Makefile']
     worker = model.files['worker.py']
-    assert makefile.count(named_recipe) == worker.count(worker_effects) == 1
+    assert makefile.count(named_recipe) == worker.count(worker_anchor) == 1
     files = {**model.files,
-             'Makefile': makefile.replace(named_recipe, b'+@python3 named_reap.py'),
-             'worker.py': worker.replace(worker_effects, right_wait + worker_effects),
+             'Makefile': makefile.replace(named_recipe, named_command),
+             'worker.py': worker.replace(worker_anchor, worker_replacement),
              'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
     model = replace(model, files=files, mtimes_ns={**model.mtimes_ns, 'named_reap.py': INPUT_TIME},
                     environment={**model.environment, 'PYTHONDONTWRITEBYTECODE': '1'})
+    return replace(held, model=model)
+
+
+def earlier_named_question(held: HeldModel, original: debug.Model, *, keep_going: bool) -> HeldModel:
+    model = held.model
+    source = model.files['Makefile']
+    read = b'$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    prior = b'-include prior.gen\nprior.gen: ; @printf "prior\\n" > "$@"\n'
+    assert source.count(read) == 1
+    flags = ('-k',) if keep_going else ()
+    args = (*model.args[:-2], *flags, './prior.gen', *model.args[-2:])
+    stderr = bytes.fromhex(original.expected['stderr_template_hex'])
+    stderr += b"make: *** No rule to make target 'prior.gen'."
+    stderr += b'\n' if keep_going else b'  Stop.\n'
+    expected = {**model.expected, 'exit_code': 1 if keep_going else 2,
+                'stderr_template_hex': stderr.hex()}
+    suffix = '-keep-earlier-question' if keep_going else '-earlier-question'
+    seen = original.seen if keep_going else original.seen.removesuffix(b'ordinary---\n')
+    model = replace(model, id=model.id + suffix, args=args, expected=expected, seen=seen,
+                    files={**model.files, 'Makefile': source.replace(read, read + prior)},
+                    updates=original.updates)
     return replace(held, model=model)
 
 

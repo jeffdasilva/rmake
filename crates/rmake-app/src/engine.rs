@@ -3680,7 +3680,13 @@ impl Engine {
                 } else {
                     Some(pass_reaps)
                 };
-                stopped = !self.wait_makefile_remakes(&mut pending, &visited, last_reaps);
+                let question_or_failure = remake_question || failed || optional_remake_failed;
+                stopped = !self.wait_makefile_remakes(
+                    &mut pending,
+                    &visited,
+                    last_reaps,
+                    question_or_failure,
+                );
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -5417,6 +5423,7 @@ impl Engine {
         requests: &mut [PendingMakefileRemake<'_>],
         visited: &MakefileVisits<'_>,
         mut last_reaps: Option<u64>,
+        mut question_or_failure: bool,
     ) -> bool {
         let wait_for_completed_job = last_reaps.is_none();
         'passes: while requests.iter().any(|request| request.active) {
@@ -5508,15 +5515,21 @@ impl Engine {
                         self.debug_cached_prerequisite_visit(name, 1, outcome);
                     }
                 }
+                question_or_failure |=
+                    !request.active && (outcome.failed || outcome.question_outdated);
+                // A named mode can give a successful child an assumed-new
+                // timestamp. It ends the pass while the status is still open.
                 if !request.active
                     && request.file.optional
                     && !outcome.failed
                     && !outcome.question_outdated
-                    && matches!(
-                        outcome.completion,
-                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                    )
-                    && outcome.time != visited[name].0
+                    && match outcome.completion {
+                        CompletionTime::AssumeNew => !question_or_failure,
+                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown => {
+                            outcome.time != visited[name].0
+                        }
+                        _ => false,
+                    }
                 {
                     // An updated optional root ends this pass. Remaining roots
                     // are revisited after the next child event.
