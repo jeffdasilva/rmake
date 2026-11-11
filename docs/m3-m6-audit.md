@@ -94,7 +94,7 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 941 profiles using both Linux jobserver
+The held remake gate covers 1,004 profiles using both Linux jobserver
 transports. It includes direct grouped optional recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
@@ -106,9 +106,11 @@ positions, including an early question exit. Primary prerequisite profiles
 cover stock C rules, user pattern rules, and an existing source with no
 applicable rule or a prerequisite already running as an earlier include.
 Named includes with file prerequisites exercise optional immediate pass boundaries.
-Plain subdirectory goals overlap leaf-named required and optional makefile remakes.
-Directory-qualified sources, expanded identities, and combined load,
-grouped-remake, and debug paths need broader coverage.
+Repeated required named includes share one remake record. Plain subdirectory
+goals overlap leaf-named required and optional makefile remakes. Named primary
+controls cover basic and scoped verbose traces. Directory-qualified sources,
+expanded identities, and combined load, grouped-remake, and debug paths need
+broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
 The ordinary inventory contains 30,191 case manifests and 225 requirements.
