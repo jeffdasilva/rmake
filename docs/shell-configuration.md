@@ -125,3 +125,13 @@ GPL-3.0-or-later. The Rust implementation and fixtures are original; no upstream
 implementation or test text was copied or translated. Reference files remain
 outside this repository. Executable comparisons, including file effects and
 diagnostics, validate the resulting behavior independently of that explanation.
+
+
+## Continuations that produce no command
+
+After expanding the recipe and shell configuration, the direct lexer can consume
+a backslash-newline and its indentation without producing an argument. This
+command slot contributes no query result, echo, or process. Ordinary recipes
+can still run later slots. A quoted empty argument and a shell command such as
+`:` still count as commands, as does continuation-only input routed through a
+nondefault shell or flags. Touch mode retains its target update.
