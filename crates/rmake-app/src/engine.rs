@@ -1024,7 +1024,8 @@ struct GroupSegment {
 }
 
 struct GroupRun {
-    branch: Option<usize>,
+    // The declaration identity and the recipe owner's branch index.
+    double_colon: Option<(usize, usize)>,
     ordinary: bool,
     implicit: bool,
     location: Option<Location>,
@@ -9273,7 +9274,9 @@ impl Engine {
                         .iter()
                         .any(|dependency| dependency.name == b".WAIT"),
                 run: GroupRun {
-                    branch: rule.grouped_double_id(),
+                    double_colon: rule
+                        .grouped_double_id()
+                        .map(|id| (id, branch.expect("grouped double-colon owner branch"))),
                     ordinary: !self.remaking && self.active_makefile_remake.is_none(),
                     implicit: rule.implicit_pattern.is_some(),
                     location: rule.recipe_location.clone(),
@@ -10277,7 +10280,7 @@ impl Engine {
                     && let Some(group) = group
                 {
                     let group = group.run;
-                    if let Some(id) = group.branch {
+                    if let Some((id, _)) = group.double_colon {
                         self.active_group_branches.insert(id);
                     } else {
                         for (peer, _, _) in &group.members {
@@ -10483,7 +10486,7 @@ impl Engine {
         let unstarted_query = group.ordinary
             && outcome.question_outdated
             && outcome.completion == CompletionTime::Preserve;
-        if let Some(id) = group.branch {
+        if let Some((id, owner_branch)) = group.double_colon {
             self.active_group_branches.remove(&id);
             if !unstarted_query {
                 self.completed_group_branches.insert(id, cached);
@@ -10511,9 +10514,7 @@ impl Engine {
             }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
                 for (peer, _, phony) in group.members {
-                    if peer == target && !outcome.failed {
-                        continue;
-                    }
+                    let owner = peer == target;
                     let Some(branches) = self
                         .database
                         .rules
@@ -10522,8 +10523,16 @@ impl Engine {
                     else {
                         continue;
                     };
-                    // A recipe completes these declared peer branches even
-                    // if the graph never visits the peer as its own goal.
+                    // A recipe completes every other occurrence in its group,
+                    // including repeated occurrences of the owner's filename.
+                    let occurrences = branches.iter().enumerate().rev().filter(|(index, rule)| {
+                        rule.grouped_double_id() == Some(id)
+                            && (!owner || *index != owner_branch || outcome.failed)
+                    });
+                    let mut occurrences = occurrences.peekable();
+                    if occurrences.peek().is_none() {
+                        continue;
+                    }
                     let mut completed = outcome;
                     completed.database_result = DatabaseResult::ObservedGroup;
                     completed.time = if phony {
@@ -10532,6 +10541,7 @@ impl Engine {
                         self.observed_modified(&peer, false)
                     };
                     let mut peer_times = (observe_dry_group
+                        && !owner
                         && !phony
                         && branches.iter().any(|rule| rule.group.is_none()))
                     .then(|| {
@@ -10545,10 +10555,7 @@ impl Engine {
                             .entry(peer.clone())
                             .or_insert_with(|| vec![initial; branches.len()])
                     });
-                    for (ordinal, branch) in branches.iter().enumerate().rev() {
-                        if branch.grouped_double_id() != Some(id) {
-                            continue;
-                        }
+                    for (ordinal, _) in occurrences {
                         self.database_branch_outcomes
                             .insert((peer.clone(), ordinal), completed);
                         if let Some(peer_times) = &mut peer_times {
