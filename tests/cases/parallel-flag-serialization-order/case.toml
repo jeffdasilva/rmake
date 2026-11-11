@@ -1,0 +1,10 @@
+id = "parallel-flag-serialization-order"
+requirement = "options.parallel-flag-order"
+candidate = "required"
+provenance = "Original rmake differential fixture for debug, jobserver, and output synchronization flag order."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified fifo none\nverified fifo target\nverified fifo recurse\nverified pipe none\nverified pipe target\nverified pipe recurse\n"
+stderr = ""

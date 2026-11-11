@@ -2380,8 +2380,8 @@ title = "Validated temporary directories for owned FIFO jobservers"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/m3-m6-audit.md"
-candidate_required = 6
-fixture_count = 6
+candidate_required = 9
+fixture_count = 9
 cases = [
   "jobserver-tempdir-invalid-tmpdir",
   "jobserver-tempdir-invalid-both",
@@ -2389,6 +2389,9 @@ cases = [
   "jobserver-tempdir-make-tmpdir-priority",
   "jobserver-tempdir-fallback-after-invalid-make-tmpdir",
   "jobserver-tempdir-invalid-tmpdir-pipe-control",
+  "jobserver-tempdir-auth-spelling",
+  "jobserver-tempdir-auth-byte-spelling",
+  "jobserver-tempdir-fifo-creation-failure",
 ]
 
 [[requirements]]
@@ -2449,3 +2452,13 @@ cases = [
   "missing-separator-hint-included-conditional-text",
   "missing-separator-hint-valid-rule-and-custom-prefix",
 ]
+
+[[requirements]]
+id = "options.parallel-flag-order"
+title = "Recursive option order with debug, jobserver, and output synchronization"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["parallel-flag-serialization-order"]
