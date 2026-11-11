@@ -13,8 +13,9 @@ void *rg_workers_yield(void *session,const void *request);
 const void *rg_workers_invoke(void *session,rg_worker_operation operation,void *reply);
 void rg_workers_abandon(void *session);
 int rg_workers_function_base(void *function,uintptr_t *base);
-int rg_workers_begin_wait(void);
+int rg_workers_begin_wait(int allow_nested);
 int rg_workers_wait_notification(int descriptor);
+int rg_workers_wait_pending(void);
 int rg_workers_end_wait(int descriptor,int idle_only);
 void rg_workers_service_wait(void);
 #endif

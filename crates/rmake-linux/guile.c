@@ -36,6 +36,7 @@ struct rg_dispatcher {
     void *data;
     struct rg_pause *waiting;
     rg_operation operation;
+    int leading_only;
     void *session, *reply;
     const void *event;
     void *event_session;
@@ -95,7 +96,9 @@ static void perform_pending(void) {
     d->operation=NULL;
     void *previous=d->current_session;
     d->current_session=call.session;
-    if(rg_workers_have_origin())
+    /* Queue service belongs to this leading stack even when an admitted
+     * worker has suspended its expansion to capture another shell. */
+    if(!d->leading_only&&rg_workers_have_origin())
         call.event=rg_workers_invoke(call.session,call.operation,d->reply);
     else {
         capture_environment();
@@ -117,10 +120,10 @@ _Noreturn void rg_dispatch_abort(void) {
     (void)written;
     _Exit(101);
 }
-const void *rg_dispatch_call(void *session,rg_operation operation,void *reply) {
+const void *rg_dispatch_call(void *session,rg_operation operation,void *reply,int leading_only) {
     struct rg_dispatcher *d=dispatcher;
     if (!d || !d->on_host || !d->waiting) _Exit(2);
-    d->session=session;d->operation=operation;d->reply=reply;
+    d->session=session;d->operation=operation;d->reply=reply;d->leading_only=leading_only;
     change(&d->host,&d->waiting->context);
     if (d->event_session!=session || !d->event) _Exit(2);
     return d->event;

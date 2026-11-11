@@ -62,7 +62,7 @@ mod shell_effect_tests {
     fn shell_status_is_an_override_binding_visible_before_the_expansion_finishes() {
         let mut variables = VariableStore::new();
         let mut emit = |_: Output<'_>| {};
-        let mut run = |_: ShellRequest<'_>| {
+        let run = |_: ShellRequest<'_>| {
             Ok(ShellResult {
                 stdout: b"first\r\nsecond\n\n".to_vec(),
                 status: 7,
@@ -72,7 +72,7 @@ mod shell_effect_tests {
             variables
                 .expand_mut_with(
                     b"$(shell command):$(.SHELLSTATUS):$(origin .SHELLSTATUS)",
-                    ExpansionContext::new(None, &mut emit).with_shell(&mut run)
+                    ExpansionContext::new(None, &mut emit).with_shell(&run)
                 )
                 .unwrap(),
             b"first second:7:override"
@@ -92,14 +92,14 @@ mod shell_effect_tests {
             .define_literal(b".SHELLSTATUS", b"9", Origin::Override)
             .unwrap();
         let mut emit = |_: Output<'_>| {};
-        let mut run = |_: ShellRequest<'_>| -> Result<ShellResult, Vec<u8>> {
+        let run = |_: ShellRequest<'_>| -> Result<ShellResult, ExpandError> {
             panic!("empty command launched")
         };
         assert_eq!(
             variables
                 .expand_mut_with(
                     b"$(shell ):$(.SHELLSTATUS)",
-                    ExpansionContext::new(None, &mut emit).with_shell(&mut run)
+                    ExpansionContext::new(None, &mut emit).with_shell(&run)
                 )
                 .unwrap(),
             b":9"
@@ -4128,9 +4128,19 @@ impl Expansion<'_, '_> {
         self.context.preparing_shell_environment = prior;
         let environment = environment?;
         let original_shell = self.store.original_shell.clone();
-        let result = self
+        if self.context.is_cancelled() {
+            return Err(ExpandError::UnlocatedError(b"interrupted".to_vec()));
+        }
+        let receiver = self
             .context
-            .run_shell(ShellRequest {
+            .shell_receiver()
+            .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?;
+        let result = {
+            let mut service_workers = self.context.native_runtime().map(|runtime| {
+                let host = &mut *self;
+                move || runtime.service_waiting_workers(host)
+            });
+            receiver(ShellRequest {
                 command,
                 shell: &shell,
                 flags: &flags,
@@ -4138,9 +4148,11 @@ impl Expansion<'_, '_> {
                 environment: &environment,
                 original_shell: original_shell.as_deref(),
                 one_shell,
-            })
-            .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
-            .map_err(ExpandError::UnlocatedError)?;
+                service_workers: service_workers
+                    .as_mut()
+                    .map(|service| service as &mut crate::diagnostic::ShellWorkers<'_>),
+            })?
+        };
         let status = result.status.to_string();
         if let Some(frame) = self.bindings.last_mut() {
             // A completion writes only to the active scope. Its automatic

@@ -472,17 +472,37 @@ pub fn wait_with_notification(
 /// Capture stays responsive both while reading a pipe and after its writer
 /// closes stdout but keeps running. Dropping the uniquely owned child on any
 /// error kills and reaps it; a recycled PID can never be signalled here.
+#[derive(Debug)]
+pub enum CaptureError {
+    Io(io::Error),
+    Worker(rmake_core::variables::ExpandError),
+}
+
+impl From<io::Error> for CaptureError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
 pub fn capture(
     mut child: Child,
     stdout: File,
     maximum: usize,
-) -> io::Result<(Vec<u8>, ExitStatus)> {
+    _service_workers: Option<&mut rmake_core::diagnostic::ShellWorkers<'_>>,
+) -> Result<(Vec<u8>, ExitStatus), CaptureError> {
+    #[cfg(feature = "guile")]
+    let mut service_workers = _service_workers;
+    #[cfg(feature = "guile")]
+    let mut workers = service_workers
+        .as_ref()
+        .map(|_| crate::guile::WorkerWait::begin_capture())
+        .transpose()?;
     let mut bytes = Vec::new();
     let mut stdout = Some(stdout);
     let mut status = None;
     loop {
         if crate::signals::pending().is_some() {
-            return Err(io::ErrorKind::Interrupted.into());
+            return Err(io::Error::from(io::ErrorKind::Interrupted).into());
         }
         if let Some(reader) = &mut stdout {
             let mut block = [0; 8192];
@@ -496,38 +516,61 @@ pub fn capture(
                     }
                     Ok(count) => {
                         if bytes.len().saturating_add(count) > maximum {
-                            return Err(io::ErrorKind::FileTooLarge.into());
+                            return Err(io::Error::from(io::ErrorKind::FileTooLarge).into());
                         }
                         bytes.extend_from_slice(&block[..count]);
                         if crate::signals::pending().is_some() {
-                            return Err(io::ErrorKind::Interrupted.into());
+                            return Err(io::Error::from(io::ErrorKind::Interrupted).into());
                         }
                     }
                     Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {
                         if crate::signals::pending().is_some() {
-                            return Err(error);
+                            return Err(error.into());
                         }
                     }
-                    Err(error) => return Err(error),
+                    Err(error) => return Err(error.into()),
                 }
             }
         }
         if status.is_none() {
             status = child.try_wait()?;
         }
+        #[cfg(feature = "guile")]
+        if let Some(workers) = &mut workers {
+            let finished = stdout.is_none() && status.is_some();
+            let pending = if finished {
+                !workers.finish_if_idle()
+            } else {
+                workers.pending()
+            };
+            if pending {
+                service_workers
+                    .as_mut()
+                    .expect("worker wait has a callback")()
+                .map_err(CaptureError::Worker)?;
+                continue;
+            }
+        }
         if stdout.is_none()
             && let Some(status) = status
         {
             return Ok((bytes, status));
         }
+        #[cfg(feature = "guile")]
+        let (notification, retry) = workers.as_ref().map_or((None, None), |workers| {
+            (workers.descriptor(), workers.poll_interval())
+        });
+        #[cfg(not(feature = "guile"))]
+        let (notification, retry) = (None, None);
         let children = [(0, &child)];
-        wait(
+        wait_with_notification(
             if status.is_none() { &children } else { &[] },
             true,
             true,
             stdout.as_ref().map(AsRawFd::as_raw_fd),
-            None,
+            notification,
+            retry,
         )?;
     }
 }
@@ -583,7 +626,7 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", "exec 1>&-; sleep .01; exit 7"]);
         let (child, stdout) = Child::spawn_capture(&mut command).unwrap();
-        let (bytes, status) = capture(child, stdout, 16).unwrap();
+        let (bytes, status) = capture(child, stdout, 16, None).unwrap();
         assert!(bytes.is_empty());
         assert_eq!(status.code(), Some(7));
     }
@@ -625,10 +668,10 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", "printf abc"]);
         let (child, stdout) = Child::spawn_capture(&mut command).unwrap();
-        assert_eq!(
-            capture(child, stdout, 2).unwrap_err().kind(),
-            io::ErrorKind::FileTooLarge
-        );
+        assert!(matches!(
+            capture(child, stdout, 2, None),
+            Err(CaptureError::Io(error)) if error.kind() == io::ErrorKind::FileTooLarge
+        ));
     }
 
     #[test]
