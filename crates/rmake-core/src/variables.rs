@@ -5171,20 +5171,26 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
     } else {
         let mut first = true;
         for word in words(text) {
-            let value = pattern
-                .matches(word)
-                .map_or_else(|| Ok(word.to_vec()), |stem| replacement.replace(stem))?;
+            let stem = pattern.matches(word);
             // An explicitly empty replacement removes its matched word.
             // A '%' replacement with an empty stem still contributes a word
             // position, which preserves the separator around that empty value.
-            if pattern.matches(word).is_some() && replacement.bytes.is_empty() {
+            if stem.is_some() && replacement.bytes.is_empty() {
                 continue;
             }
             if !first {
                 push(&mut output, b" ")?;
             }
             first = false;
-            push(&mut output, &value)?;
+            match (stem, replacement.wildcard) {
+                (Some(stem), Some(position)) => {
+                    push(&mut output, &replacement.bytes[..position])?;
+                    push(&mut output, stem)?;
+                    push(&mut output, &replacement.bytes[position + 1..])?;
+                }
+                (Some(_), None) => push(&mut output, &replacement.bytes)?,
+                (None, _) => push(&mut output, word)?,
+            }
         }
     }
     Ok(output)
