@@ -394,7 +394,44 @@ impl MakefileRemake {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct MakefileModes {
+    dry_run: bool,
+    question: bool,
+    touch: bool,
+}
+
+impl MakefileModes {
+    fn from_options(options: &Options) -> Self {
+        Self {
+            dry_run: options.dry_run,
+            question: options.question,
+            touch: options.touch,
+        }
+    }
+
+    fn apply(self, options: &mut Options) {
+        options.dry_run = self.dry_run;
+        options.question = self.question;
+        options.touch = self.touch;
+    }
+
+    fn active(self) -> bool {
+        self.dry_run || self.question || self.touch
+    }
+
+    fn check_update(self, outcome: Outcome) -> bool {
+        !self.dry_run
+            && !self.question
+            && (matches!(
+                outcome.completion,
+                CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+            ) || (self.touch && outcome.ran))
+    }
+}
+
 struct PendingMakefileRemake<'a> {
+    modes: MakefileModes,
     file: &'a Makefile,
     context: MakefileRemake,
     duplicate: bool,
@@ -3140,15 +3177,9 @@ impl Engine {
             }
             // A makefile named on the command line uses the requested build mode.
             // All other makefile visits can run recipes even under -n/-q/-t.
-            let modes = (
-                self.options.dry_run,
-                self.options.question,
-                self.options.touch,
-                self.options.always,
-            );
-            self.options.dry_run = false;
-            self.options.question = false;
-            self.options.touch = false;
+            let modes = MakefileModes::from_options(&self.options);
+            let always = self.options.always;
+            MakefileModes::default().apply(&mut self.options);
             if restarts > 0 {
                 self.options.always = false;
             }
@@ -3185,7 +3216,7 @@ impl Engine {
                 || (self.options.load_limit.is_none() && qualified_remake_debug);
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
-            let ordinary_mode = modes.0 || modes.1 || modes.2;
+            let ordinary_mode = modes.active();
             let remakes_can_overlap = !ordinary_mode
                 || (!debug_before_remake.has(Mask::MAKEFILES)
                     && self.ordinary_mode_remakes_settle(&read_files));
@@ -3228,9 +3259,12 @@ impl Engine {
                     && self.options.goals.iter().any(|goal| {
                         goal.as_slice() == rmake_core::filenames::without_dot_prefix(name)
                     });
-                self.options.dry_run = named_source && modes.0;
-                self.options.question = named_source && modes.1;
-                self.options.touch = named_source && modes.2;
+                let visit_modes = if named_source {
+                    modes
+                } else {
+                    MakefileModes::default()
+                };
+                visit_modes.apply(&mut self.options);
                 let visit = match visited.entry(name) {
                     std::collections::hash_map::Entry::Vacant(visit) => visit,
                     std::collections::hash_map::Entry::Occupied(first) => {
@@ -3250,6 +3284,7 @@ impl Engine {
                             self.remake_error_cursor = context.open_error.clone();
                             if self.pending(name) {
                                 pending.push(PendingMakefileRemake {
+                                    modes: visit_modes,
                                     file: makefile,
                                     context: context.clone(),
                                     duplicate: true,
@@ -3364,6 +3399,7 @@ impl Engine {
                     .expect("active makefile remake");
                 if self.parallel_makefile_remakes && self.pending(name) {
                     pending.push(PendingMakefileRemake {
+                        modes: visit_modes,
                         file: makefile,
                         context,
                         duplicate: false,
@@ -3408,13 +3444,7 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    if !self.options.dry_run
-                        && !self.options.question
-                        && (matches!(
-                            result.completion,
-                            CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                        ) || (self.options.touch && result.ran))
-                    {
+                    if visit_modes.check_update(result) {
                         changed |= self.modified(&makefile.name) != before;
                     }
                 }
@@ -3430,6 +3460,14 @@ impl Engine {
                 }
             }
             if !stopped && !pending.is_empty() {
+                if MakefileModes::from_options(&self.options).active() {
+                    // A completed named include leaves the enclosing remake
+                    // pass in normal mode, with the pending source current.
+                    self.remake_error_cursor = pending
+                        .last()
+                        .and_then(|remake| remake.context.open_error.clone());
+                    MakefileModes::default().apply(&mut self.options);
+                }
                 stopped = !self.wait_makefile_remakes(&mut pending, &visited, initial_reaps);
                 if !stopped {
                     for remake in pending {
@@ -3462,10 +3500,7 @@ impl Engine {
                             }
                         } else {
                             self.database_unchecked_times.borrow_mut().remove(name);
-                            if matches!(
-                                result.completion,
-                                CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                            ) {
+                            if remake.modes.check_update(result) {
                                 changed |= self.modified(name) != before;
                             }
                         }
@@ -3477,12 +3512,8 @@ impl Engine {
             if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
                 self.wait_all_jobs();
             }
-            (
-                self.options.dry_run,
-                self.options.question,
-                self.options.touch,
-                self.options.always,
-            ) = modes;
+            modes.apply(&mut self.options);
+            self.options.always = always;
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
             self.parallel_makefile_remakes = false;
@@ -3493,7 +3524,11 @@ impl Engine {
             }
             // A question verdict leaves the loaded makefiles in use and
             // prevents later keep-going failures from deciding the phase.
-            failed = (failed && !remake_question) || !skipped_errors.is_empty();
+            if remake_question {
+                self.parallel_failed = false;
+                failed = false;
+            }
+            failed |= !skipped_errors.is_empty();
             // These are reported after the remake chain, using the locale
             // and gettext domain that its recipes left in effect.
             for error in skipped_errors.iter().rev() {
@@ -3919,14 +3954,32 @@ impl Engine {
         {
             return false;
         }
+        let mut named = HashSet::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
-                    && !goals.iter().any(|goal| goal.as_slice() == name))
+                    && (!goals.iter().any(|goal| goal.as_slice() == name)
+                        || (named.insert(name) && self.simple_named_include_remake(file, name))))
         })
+    }
+
+    fn simple_named_include_remake(&self, file: &Makefile, name: &[u8]) -> bool {
+        file.location.is_some()
+            && !self.database.loaded_modules.contains_key(name)
+            && self.assumptions.is_none()
+            && self.options.load_limit.is_none()
+            && self.database.rules.get(name).is_some_and(|rule| {
+                rule.dependencies.is_empty()
+                    && rule.secondary.is_none()
+                    && rule.group.is_none()
+                    && rule.double_colon.is_none()
+                    && rule.recipes.as_ref().is_some_and(|recipes| {
+                        recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                    })
+            })
     }
 
     fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
@@ -4823,6 +4876,7 @@ impl Engine {
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
                 let name = request.file.name.as_slice();
+                request.modes.apply(&mut self.options);
                 self.remake_error_cursor = request.context.open_error.clone();
                 let needs_visit = if request.duplicate {
                     !request.file.optional
@@ -9991,13 +10045,7 @@ impl Engine {
                         (b"%", target_variable_names(target).1.to_vec()),
                     ]
                 });
-                let recursive = recipes.iter().any(|recipe| {
-                    has_force_prefix(&recipe.bytes)
-                        || recipe
-                            .bytes
-                            .windows(7)
-                            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
-                });
+                let recursive = recipes.iter().any(recipe_is_recursive);
                 if (!self.options.touch || recursive)
                     && let Some(group) = group
                 {
@@ -10460,13 +10508,7 @@ impl Engine {
         if self.interrupt.is_some() {
             return Execution::fatal(false);
         }
-        let recursive_line = |recipe: &Recipe| {
-            has_force_prefix(&recipe.bytes)
-                || recipe
-                    .bytes
-                    .windows(7)
-                    .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
-        };
+        let recursive_line = recipe_is_recursive;
         let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
         let combined;
         let (recipes, has_commands, recursive) = if one_shell {
@@ -10489,11 +10531,7 @@ impl Engine {
                     .iter()
                     .any(|byte| !matches!(byte, b' ' | b'\t' | b'\n' | b'@' | b'-' | b'+'))
             });
-            let recursive = recipes.iter().any(|recipe| {
-                has_force_prefix(&recipe.bytes)
-                    || recipe.bytes.windows(7).any(|s| s == b"$(MAKE)")
-                    || recipe.bytes.windows(7).any(|s| s == b"${MAKE}")
-            });
+            let recursive = recipes.iter().any(recipe_is_recursive);
             (recipes, has_commands, recursive)
         };
         if self.options.touch && !recursive {
@@ -10594,7 +10632,7 @@ impl Engine {
         self.retain_database_context(target, branch, &variables);
         // A stopped optional remake can leave a live worker while ordinary
         // dry-run or question mode visits its next goal.
-        let live_remake = !self.remaking
+        let live_remake = (!self.remaking || self.parallel_makefile_remakes)
             && !recursive
             && (self.options.dry_run || self.options.question)
             && self
@@ -11722,6 +11760,14 @@ fn trim_leading(bytes: &[u8]) -> &[u8] {
 }
 
 /// Prefix markers can appear in any order, interleaved with leading blanks.
+fn recipe_is_recursive(recipe: &Recipe) -> bool {
+    has_force_prefix(&recipe.bytes)
+        || recipe
+            .bytes
+            .windows(7)
+            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
+}
+
 fn has_force_prefix(bytes: &[u8]) -> bool {
     let mut bytes = trim_leading(bytes);
     while let Some(prefix) = bytes.first() {

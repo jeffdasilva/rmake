@@ -133,6 +133,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
     results += named_source_mode_models(worker, markers)
+    results += parallel_named_mode_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -659,6 +660,69 @@ def named_source_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[H
                                     mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                 results.append(HeldModel(model, False, None, before_first_stdout=prefix,
                                          release_order=('right', 'left')))
+    return results
+
+
+def parallel_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    rules = (
+        'named.gen: ; @printf "VALUE := rebuilt\\n" > named.gen\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen:\n'
+        '\t@python3 worker.py right include\n'
+        '\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        'all: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(VALUE))printf "ordinary\\n"\n'
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\ntail\n'
+    generated = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    dry_command = b'printf "VALUE := rebuilt\\n" > named.gen\n'
+    current = b"make: 'named.gen' is up to date.\n"
+    modes = (
+        ('n', 0, dry_command, dry_command + current + b'printf "ordinary\\n"\n',
+         completed + b'read-1\nordinary-loaded-loaded-\n', {}),
+        ('q', 1, b'', b'', completed + b'ordinary---\n', {}),
+        ('t', 0, b'touch named.gen\n', current + b'touch all\n',
+         completed + b'read-1\n', {'named.gen': b'', 'all': b''}),
+    )
+    orders = (
+        ('first', 'named.gen left.gen right.gen'),
+        ('middle', 'left.gen named.gen right.gen'),
+        ('last', 'left.gen right.gen named.gen'),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, sources in orders:
+            files = {'Makefile': (header + f'include {sources}\n' + rules).encode(),
+                     'worker.py': worker, 'seen': ANCHOR}
+            for slots in (2, 3):
+                for mode, status, prefix, suffix, seen, updates in modes:
+                    args = ('-rR', '--no-print-directory', f'-j{slots}', f'--jobserver-style={transport}',
+                            '-' + mode, './named.gen', 'all')
+                    expected = {'exit_code': status, 'stdout_template_hex': (prefix + suffix).hex(),
+                                'stderr_template_hex': ''}
+                    ident = f'parallel-named-mode-{name}-{mode}-{transport}-{slots}-slots'
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates={**markers, **generated, **updates},
+                                        mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                    first_stdout = b'' if name == 'last' and mode == 'n' and slots == 2 else prefix
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=prefix, before_first_stdout=first_stdout))
+
+            failed = dict(files, Makefile=files['Makefile'].replace(b'worker.py left include',
+                                                                   b'worker.py left fail'))
+            args = ('-rR', '--no-print-directory', '-j3', f'--jobserver-style={transport}',
+                    '-q', '-k', './named.gen', 'all')
+            stderr = (b'Makefile:3: right.gen: No such file or directory\n'
+                      b'make: *** [Makefile:5: left.gen] Error 3\n')
+            expected = {'exit_code': 1, 'stdout_template_hex': b'left\n'.hex(),
+                        'stderr_template_hex': stderr.hex()}
+            model = debug.Model(f'parallel-named-mode-{name}-query-keep-failure-{transport}', failed,
+                                args, {'GNUMAKEFLAGS': ''}, expected, completed + b'ordinary---\n',
+                                updates={**markers, 'right.gen': generated['right.gen']},
+                                mtimes_ns=dict.fromkeys(failed, INPUT_TIME))
+            results.append(HeldModel(model, True, second, first, before_second_stdout=b'left\n'))
     return results
 
 
