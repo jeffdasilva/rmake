@@ -2,12 +2,15 @@
 # Copyright 2026 Jeff DaSilva
 """Negative controls for authenticated, private locale provisioning."""
 import gzip
+import io
 import json
 from pathlib import Path
+import socket
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+import urllib.error
+from unittest.mock import call, patch
 
 import locale_data as data
 
@@ -40,6 +43,28 @@ class LocaleDataTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), b'good')
             with self.assertRaises(data.ProfileError):
                 data.HttpsOnly().redirect_request(None, None, None, None, None, 'http://example.invalid')
+
+    def test_archive_fallback_caches_only_the_pinned_locale_data(self):
+        path = 'pool/test.deb'
+        primary = data.ARCHIVE + path
+        alternate = data.oracle.UBUNTU_ARCHIVE_ALTERNATE + path
+        unresolved = urllib.error.URLError(socket.gaierror(socket.EAI_NONAME, 'unknown host'))
+        for failover, payload in ((False, b'bad!'), (True, b'bad!'), (True, b'good')):
+            with (self.subTest(failover=failover, payload=payload),
+                  tempfile.TemporaryDirectory() as temporary,
+                  patch.object(data.urllib.request, 'build_opener') as opener):
+                cache = Path(temporary) / 'package.deb'
+                download = opener.return_value.open
+                download.side_effect = [unresolved, io.BytesIO(payload)] if failover else [io.BytesIO(payload)]
+                if payload == b'good':
+                    self.assertEqual(data.download(cache, primary, data.digest(b'good'), 4), payload)
+                    self.assertEqual(cache.read_bytes(), payload)
+                else:
+                    with self.assertRaisesRegex(data.ProfileError, 'size or digest differs'):
+                        data.download(cache, primary, data.digest(b'good'), 4)
+                    self.assertEqual(list(cache.parent.iterdir()), [])
+                endpoints = [primary, alternate] if failover else [primary]
+                self.assertEqual(download.call_args_list, [call(url, timeout=30) for url in endpoints])
 
     def test_signed_metadata_rejects_duplicate_fields_and_unsafe_paths(self):
         good = ('Header\nSHA256:\n ' + 'a' * 64 + ' 42 main/binary-amd64/Packages\nNext:\n').encode()

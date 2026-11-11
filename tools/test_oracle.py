@@ -8,6 +8,8 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import socket
+import ssl
 import subprocess
 import sys
 import tarfile
@@ -28,6 +30,42 @@ class DownloadTests(unittest.TestCase):
         config = oracle.load_config()
         config["archive"]["sha256"] = hashlib.sha256(data).hexdigest()
         return config
+
+    def test_ubuntu_archive_failover_uses_the_same_path_after_dns_failure(self):
+        path = "dists/noble/InRelease"
+        primary = oracle.UBUNTU_ARCHIVE + path
+        alternate = oracle.UBUNTU_ARCHIVE_ALTERNATE + path
+        unresolved = urllib.error.URLError(socket.gaierror(socket.EAI_NONAME, "unknown host"))
+        attempt = mock.Mock(side_effect=[unresolved, b"metadata"])
+
+        self.assertEqual(oracle.retry_ubuntu_archive_download(primary, attempt), b"metadata")
+        self.assertEqual(attempt.call_args_list, [mock.call(primary), mock.call(alternate)])
+
+    def test_ubuntu_archive_failover_bounds_retries_at_each_host(self):
+        primary = oracle.UBUNTU_ARCHIVE + "dists/noble/InRelease"
+        alternate = oracle.UBUNTU_ARCHIVE_ALTERNATE + "dists/noble/InRelease"
+        unavailable = urllib.error.URLError(socket.gaierror(socket.EAI_AGAIN, "try again"))
+        attempt = mock.Mock(side_effect=unavailable)
+
+        with mock.patch.object(oracle.time, "sleep") as sleep, self.assertRaises(urllib.error.URLError):
+            oracle.retry_ubuntu_archive_download(primary, attempt)
+
+        self.assertEqual(attempt.call_args_list, [mock.call(primary)] * 3 + [mock.call(alternate)] * 3)
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)] * 2)
+
+    def test_ubuntu_archive_failover_requires_pinned_origin_and_transport_error(self):
+        primary = oracle.UBUNTU_ARCHIVE + "dists/noble/InRelease"
+        for url, error in (
+            ("https://archive.ubuntu.com.example.invalid/ubuntu/InRelease",
+             urllib.error.URLError(socket.gaierror(socket.EAI_NONAME, "unknown host"))),
+            (primary, urllib.error.HTTPError(primary, 404, "missing file", {}, None)),
+            (primary, urllib.error.URLError(ssl.SSLCertVerificationError("bad certificate"))),
+        ):
+            with self.subTest(url=url, error=error):
+                attempt = mock.Mock(side_effect=error)
+                with self.assertRaises(type(error)):
+                    oracle.retry_ubuntu_archive_download(url, attempt)
+                attempt.assert_called_once_with(url)
 
     def test_retries_network_unreachable_and_commits_only_verified_bytes(self):
         expected = b"verified reference archive"

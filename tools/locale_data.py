@@ -25,9 +25,11 @@ import sys
 import tempfile
 import urllib.request
 
+import oracle
+
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'oracle/locale-data.json'
-ARCHIVE = 'https://archive.ubuntu.com/ubuntu/'
+ARCHIVE = oracle.UBUNTU_ARCHIVE
 MAX_BYTES = 96 * 1024 * 1024
 
 
@@ -100,8 +102,16 @@ def download(path: Path, url: str, expected: str, size: int | None = None) -> by
             raise ProfileError('cached locale download exceeds size bound')
         data = path.read_bytes()
     else:
-        with urllib.request.build_opener(HttpsOnly()).open(url, timeout=30) as response:
-            data = response.read(limit + 1)
+        opener = urllib.request.build_opener(HttpsOnly())
+
+        def attempt(candidate):
+            with opener.open(candidate, timeout=30) as response:
+                return response.read(limit + 1)
+
+        try:
+            data = oracle.retry_ubuntu_archive_download(url, attempt)
+        except oracle.DOWNLOAD_ERRORS as error:
+            raise ProfileError(f'locale profile download failed for {url}: {error}') from error
     if len(data) > limit or (size is not None and len(data) != size) or digest(data) != expected:
         raise ProfileError('locale download/cache size or digest differs: ' + path.name)
     if not path.exists():
