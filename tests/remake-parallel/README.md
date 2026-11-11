@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,394 profiles. Leading `./` spellings share one target record and
+run all 1,442 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -124,6 +124,8 @@ Forty-eight grouped primary profiles cover dry-run and question with a
 current, stale, or missing peer in both declaration orders and both jobserver
 transports. They compare the second dry-run recipe emission after restart and
 the early question outcome, including a peer also named as an ordinary goal.
+A further forty-eight profiles verify the secondary expansion of both group
+members, with target and restart identities visible to each expansion.
 
 Ninety-six grouped optional profiles add an existing normal or order-only
 prerequisite to success and failure cases under dry-run, question and touch.

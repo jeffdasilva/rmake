@@ -4375,9 +4375,7 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
-                if rule.secondary.is_some()
-                    && (file.optional || !no_default_recipe || rule.group.is_some())
-                {
+                if rule.secondary.is_some() && (file.optional || !no_default_recipe) {
                     return false;
                 }
                 let mut deferred = rule
