@@ -65,7 +65,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 651 profiles. Leading `./` spellings share one target record and still appear
+run all 675 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -129,7 +129,12 @@ only the debug profiles and does not build the load shim.
 Default goals and simple explicit goals can run required makefile remakes
 in parallel under `-n`, `-q`, and `-t`. The explicit controls cover leading
 `./` in goal spelling and a named prerequisite of a required makefile.
-Directory-search and other expanded file identities use the serial path.
+Twenty-four subdirectory-goal profiles check that both include workers
+overlap under dry-run, question, and touch. They cover required and optional
+sources, both jobserver transports, and leading `./` normalization on the
+goal and read makefiles. This admission applies to plain directory components
+with leaf makefile names. Directory search, path-qualified makefiles, and
+relative alias components use the serial path.
 The held profiles require both children to overlap and the ordinary mode
 to take effect after a successful restart. The
 required-failure profiles check that the sibling finishes its second command

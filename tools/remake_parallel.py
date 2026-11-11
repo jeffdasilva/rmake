@@ -130,6 +130,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += shared_failure_models(worker, markers)
     results += duplicate_models(worker, markers)
     results += settled_mode_models(worker, markers)
+    results += subdirectory_goal_models(worker, markers)
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
     results += named_source_mode_models(worker, markers)
@@ -483,6 +484,46 @@ def settled_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldMo
                                     mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                 results.append(HeldModel(model, True, BEFORE_SECOND,
                                          before_second_stdout=b'left\n' if name.startswith('required-') else b''))
+    return results
+
+
+def subdirectory_goal_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    loaded = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    restarted = BEFORE_SECOND + b'right\nread-1\n'
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for directive, role in (('include', 'required'), ('-include', 'optional')):
+            for label, goal, operand, sources in (
+                ('plain', 'build/result', 'build/result', 'left.gen right.gen'),
+                ('normalized', 'obj/deep/result', './obj/deep/result', './left.gen ././right.gen'),
+            ):
+                source = (
+                    '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                    f'{directive} {sources}\n'
+                    'left.gen: ; @python3 worker.py left include\n'
+                    'right.gen: ; @python3 worker.py right include\n'
+                    f'{goal}: ; @$(file >>seen,expanded-$(LEFT)-$(RIGHT))'
+                    'printf "ordinary\\n" > "$@"\n'
+                )
+                parent = goal.rsplit('/', 1)[0]
+                files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                         f'{parent}/anchor': b'keep directory\n'}
+                expanded = restarted + b'expanded-loaded-loaded\n'
+                for mode, status, stdout, seen, updates in (
+                    ('n', 0, f'printf "ordinary\\n" > "{goal}"\n'.encode(), expanded, {}),
+                    ('q', 1, b'', expanded, {}),
+                    ('t', 0, f'touch {goal}\n'.encode(), restarted, {goal: b''}),
+                ):
+                    args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                            f'-{mode}', operand)
+                    expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                'stderr_template_hex': ''}
+                    model = debug.Model(
+                        f'subdirectory-goal-{role}-{label}-{mode}-{transport}', files, args,
+                        {'GNUMAKEFLAGS': ''}, expected, seen, updates={**markers, **loaded, **updates},
+                        mtimes_ns=dict.fromkeys(files, INPUT_TIME),
+                    )
+                    results.append(HeldModel(model, True, BEFORE_SECOND, before_second_stdout=b''))
     return results
 
 

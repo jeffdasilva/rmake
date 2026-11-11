@@ -4031,17 +4031,26 @@ impl Engine {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         let goals = &self.options.goals;
-        // Keep names that can be expanded or merged by directory search on
-        // the guarded path. CLI decoding already strips leading ./.
+        let mut has_subdirectory_goal = false;
+        // CLI decoding strips leading ./ before ordinary mode admission.
+        // Other relative aliases and expanded identities stay guarded.
         if !goals.is_empty()
             && (self.database.has_vpaths()
                 || !self.vpath_dirs.is_empty()
                 || !self.gpath_dirs.is_empty()
                 || goals.iter().any(|goal| {
-                    goal.contains(&b'/')
-                        || goal.starts_with(b"~")
+                    if goal.starts_with(b"~")
                         || goal.starts_with(b"-l")
                         || archive_parts(goal).is_some()
+                    {
+                        return true;
+                    }
+                    if !goal.contains(&b'/') {
+                        return false;
+                    }
+                    has_subdirectory_goal = true;
+                    goal.split(|&byte| byte == b'/')
+                        .any(|component| matches!(component, b"" | b"." | b".."))
                 }))
         {
             return false;
@@ -4054,6 +4063,10 @@ impl Engine {
         let mut named = HashSet::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
+            // A plain subdirectory goal cannot name a leaf makefile.
+            if has_subdirectory_goal && name.contains(&b'/') {
+                return false;
+            }
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
@@ -12517,10 +12530,68 @@ mod tests {
         engine.vpath_dirs.push(b"search".to_vec());
         assert!(!engine.ordinary_mode_remakes_settle(&reads));
         engine.vpath_dirs.clear();
-        for goal in ["dir/all", "~/all", "-lwidget", "archive.a(member)"] {
+        for goal in ["~/all", "-lwidget", "archive.a(member)"] {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
             assert!(!engine.ordinary_mode_remakes_settle(&reads));
         }
+    }
+
+    #[test]
+    fn ordinary_mode_remakes_admit_plain_subdirectory_goals_with_leaf_sources() {
+        let launch = Engine::invocation(
+            ["-n", "./build/result", "obj/deep/output"]
+                .into_iter()
+                .map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let leaf = |name: &[u8]| Makefile {
+            name: name.to_vec(),
+            optional: false,
+            missing: false,
+            location: None,
+            read_error: None,
+        };
+        let mut reads = [(leaf(b"././Makefile"), false), (leaf(b"left.gen"), false)];
+        assert_eq!(engine.options.goals[0], b"build/result");
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+
+        for name in [
+            b"build/result".as_slice(),
+            b"sub/other.gen",
+            b"sub/../left.gen",
+        ] {
+            reads[1] = (leaf(name), false);
+            assert!(!engine.ordinary_mode_remakes_settle(&reads));
+            reads[1].1 = true;
+            assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        }
+        reads[1] = (leaf(b"left.gen"), false);
+        for goal in [
+            b"/build/result".as_slice(),
+            b"build//result",
+            b"build/./result",
+            b"build/../result",
+            b"build/result/",
+            b"archive.a(build/result)",
+        ] {
+            engine.options.goals[0] = goal.to_vec();
+            assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        }
+        engine.options.goals[0] = b"build/result".to_vec();
+        engine.gpath_dirs.insert(b"build".to_vec());
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        engine.gpath_dirs.clear();
+        engine
+            .database
+            .read(b"vpath %.gen build\n", b"Makefile")
+            .unwrap();
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
     }
 
     #[test]
