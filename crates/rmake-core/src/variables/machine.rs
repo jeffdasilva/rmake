@@ -427,7 +427,7 @@ impl Expansion<'_, '_> {
                         let start = end + source.bytes()[end..].len()
                             - trim_function_start(&source.bytes()[end..]).len();
                         let argument = source.slice(start..source.bytes().len());
-                        let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum)?;
+                        let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum);
                         if ranges.len() < minimum && lazy(&name) {
                             return Err(too_few_arguments(&name, ranges.len()));
                         }

@@ -4936,38 +4936,27 @@ fn split_arg_ranges(
     input: &[u8],
     delimiter: u8,
     maximum: Option<usize>,
-) -> Result<Vec<std::ops::Range<usize>>, ExpandError> {
+) -> Vec<std::ops::Range<usize>> {
     let close = if delimiter == b'(' { b')' } else { b'}' };
     let mut result = Vec::new();
     let mut start = 0;
-    let mut position = 0;
     let mut nesting = 0;
-    while position < input.len() {
-        if input[position] == b'$'
-            && input
-                .get(position + 1)
-                .is_some_and(|b| *b == b'(' || *b == b'{')
-        {
-            position = reference_end(input, position + 1)? + 1;
-            continue;
-        }
-        if input[position] == delimiter {
+    // Argument boundaries count the outer call's delimiter kind. Each selected
+    // argument is expanded later, including any references of the other kind.
+    for (position, &byte) in input.iter().enumerate() {
+        if byte == delimiter {
             nesting += 1;
         }
-        if input[position] == close && nesting > 0 {
+        if byte == close && nesting > 0 {
             nesting -= 1;
         }
-        if input[position] == b','
-            && nesting == 0
-            && maximum.is_none_or(|max| result.len() + 1 < max)
-        {
+        if byte == b',' && nesting == 0 && maximum.is_none_or(|max| result.len() + 1 < max) {
             result.push(start..position);
             start = position + 1;
         }
-        position += 1;
     }
     result.push(start..input.len());
-    Ok(result)
+    result
 }
 
 fn word_index_error(
