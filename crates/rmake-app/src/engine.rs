@@ -4334,13 +4334,13 @@ impl Engine {
             let name = without_dot_prefix(&file.name);
             *skip
                 || self.database.rules.get(name).is_none_or(|rule| {
-                    rule.dependencies.is_empty()
-                        && rule.secondary.is_none()
+                    rule.secondary.is_none()
                         && rule.group.is_none()
                         && rule.double_colon.is_none()
+                        && (rule.dependencies.is_empty()
+                            || (self.is_makefile_goal(name, named_sources)
+                                && self.simple_named_remake(file, name, &[])))
                 })
-                || (self.is_makefile_goal(name, named_sources)
-                    && self.simple_named_remake(file, name, &[]))
         })
     }
 
@@ -4364,13 +4364,22 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
-                rule.secondary.is_none()
-                    && rule.group.is_none()
+                if rule.secondary.is_some() && (!primary || !no_default_recipe) {
+                    return false;
+                }
+                let mut deferred = rule
+                    .secondary
+                    .iter()
+                    .flat_map(|clauses| clauses.iter())
+                    .peekable();
+                rule.group.is_none()
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
                         || (no_default_recipe
-                            && rule.dependencies.iter().all(|dep| {
-                                self.simple_named_remake_prerequisite(dep, earlier_sources)
+                            && rule.dependencies.iter().enumerate().all(|(index, dep)| {
+                                // The remake visit owns expansion of this slot.
+                                deferred.next_if(|clause| clause.index == index).is_some()
+                                    || self.simple_named_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
             })

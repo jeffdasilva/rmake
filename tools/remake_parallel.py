@@ -919,9 +919,35 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
                         ident += f'-{style}'
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates={**markers, **generated, **changes, **updates}, mtimes_ns=times)
-                    results.append(HeldModel(model, True, second, first,
-                                             before_second_stdout=prefix, before_first_stdout=prefix))
+                    held = HeldModel(model, True, second, first,
+                                     before_second_stdout=prefix, before_first_stdout=prefix)
+                    results.append(held)
+                    if discovery == 'explicit' and slots == 3 and ruled and style == 'plain':
+                        results.append(primary_named_secondary_variant(held, BEFORE_FIRST))
     return results
+
+
+def primary_named_secondary_variant(held: HeldModel, expansion_point: bytes) -> HeldModel:
+    original = b'Makefile: primer ; '
+    secondary = (
+        b'.SECONDEXPANSION:\nINPUT := primer\n'
+        b'Makefile: $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; '
+    )
+
+    def record_expansion(seen: bytes) -> bytes:
+        seen = seen.replace(expansion_point, expansion_point + b'secondary-Makefile-\n', 1)
+        return seen.replace(b'read-1\n', b'read-1\nsecondary-Makefile-1\n', 1)
+
+    model = held.model
+    makefile = model.files['Makefile'].replace(original, secondary, 1)
+    updates = model.updates.copy()
+    if 'Makefile' in updates:
+        updates['Makefile'] = updates['Makefile'].replace(original, secondary, 1)
+    model = replace(model, id=model.id + '-secondary', files={**model.files, 'Makefile': makefile},
+                    seen=record_expansion(model.seen), updates=updates)
+    assert held.before_second is not None
+    return replace(held, model=model, before_first=record_expansion(held.before_first),
+                   before_second=record_expansion(held.before_second))
 
 
 def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
@@ -1007,9 +1033,11 @@ def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) ->
                                     'stderr_template_hex': stderr.hex()}
                         model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                             updates=updates, mtimes_ns=times)
-                        results.append(HeldModel(model, True, second, first,
-                                                 before_second_stdout=second_stdout,
-                                                 before_first_stdout=first_stdout))
+                        held = HeldModel(model, True, second, first,
+                                         before_second_stdout=second_stdout, before_first_stdout=first_stdout)
+                        results.append(held)
+                        if slots == 3 and not sync and style == 'forced':
+                            results.append(primary_named_secondary_variant(held, first))
     return results
 
 
