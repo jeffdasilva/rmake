@@ -15,9 +15,9 @@ pub fn without_dot_prefix(mut name: &[u8]) -> &[u8] {
 }
 
 pub fn archive_parts(name: &[u8]) -> Option<(&[u8], &[u8])> {
-    let open = name.iter().position(|&b| b == b'(')?;
-    (open > 0 && name.ends_with(b")") && open + 2 < name.len())
-        .then(|| (&name[..open], &name[open + 1..name.len() - 1]))
+    let body = name.strip_suffix(b")")?;
+    let open = body.iter().position(|&byte| byte == b'(')?;
+    (open > 0 && open + 1 < body.len()).then(|| (&body[..open], &body[open + 1..]))
 }
 
 /// Filename blanks end a token; other whitespace is skipped only between
